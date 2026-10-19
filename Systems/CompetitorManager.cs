@@ -1997,7 +1997,7 @@ public partial class CompetitorManager : Node {
 		if (plan.format == ReleaseFormat.Album) {
 			return TryInitiateAlbumProject(label, artist, date, decision, plan, projectGenre);
 		}
-		var record = GenerateRecordFromArtist(label, artist, date.year, plan.format);
+		var record = GenerateRecordFromArtist(label, artist, date.year, plan.format, judgedOrphan: true);
 		if (record == null) return false;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
 			ApplyProjectGenre(record, projectGenre, artistPrimary);
@@ -3373,7 +3373,8 @@ public partial class CompetitorManager : Node {
 		public bool nonRetainedEmergingProject;
 	}
 	
-	private Record GenerateRecordFromArtist(AILabel label, SimulatedArtist artist, int year, ReleaseFormat format = ReleaseFormat.Single) {
+	private Record GenerateRecordFromArtist(AILabel label, SimulatedArtist artist, int year, ReleaseFormat format = ReleaseFormat.Single,
+		bool judgedOrphan = false) {
 		var record = new Record(); // Godot Resource instantiation
 		generatedRecordCounter++;
 		record.recordId = $"gen_{generatedRecordCounter}";
@@ -3428,7 +3429,11 @@ public partial class CompetitorManager : Node {
 		// (chart-facing) but not money (settlement still keys off labelOwnsPublishing until Phase 3).
 		if (SongMaterialSelectionService.Enabled) {
 			int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-			SelectedSongMaterial material = SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek);
+			// Release Judgement 2A (--release-judgement-select): a live orphan single is cut from the act's shortlist; an empty
+			// or refused shortlist, and every other caller, keeps the legacy source choice. Off: never reached.
+			SelectedSongMaterial material = judgedOrphan && format == ReleaseFormat.Single && ReleaseJudgement.Selecting
+				? AiRepertoireService.SelectMaterial(label, artist, record, record.primaryGenre, year) : null;
+			material ??= SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek);
 			if (PolarSongBehavior.UsePolarFitSelection && material == null) return null;
 			// Early-game Phase 5A (§7.2): a song the player placed with this label, cut in place of the outside song the act
 			// was about to record. Injected after the label's own choice, so its draws are unchanged; a world with no player
@@ -3436,7 +3441,7 @@ public partial class CompetitorManager : Node {
 			string placementId = null;
 			if (format == ReleaseFormat.Single && PlayerDesk.Instance != null
 					&& PlayerDesk.Instance.PlacedSongFor(label, artist, record, material, year, out placementId) is { } placed)
-				material = placed;
+				{ material = placed; AiRepertoireService.ReleasePick(record); }
 			SongMaterialApplicationService.Apply(record, material, label, artist);
 			if (placementId != null) PlayerDesk.Instance.StampPlacedCut(record, placementId);
 			if (record.format == ReleaseFormat.Single) SongMaterialSelectionService.ObserveMasterAssignment(artist, record, material, "single");

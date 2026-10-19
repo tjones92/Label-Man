@@ -162,6 +162,23 @@ public static class SongMaterialSelectionService {
 		return PolarSongBehavior.Prepare(material, artist, record, genre, year);
 	}
 
+	/// <summary>Build artist-written material for a SPECIFIC composition the act already has (Release Judgement 2A: a song
+	/// from its shortlist, authored once). Mirrors <see cref="BuildArtistWritten"/>'s expectations for a fixed song, so the
+	/// realization is the single path's and nothing about the song is re-drawn. Pure: no GD draw.</summary>
+	internal static SelectedSongMaterial BuildArtistOriginalForSong(
+		AILabel label, SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year
+	) {
+		if (song == null) return null;
+		float eraWeight = GetArtistWrittenEraWeight(genre, year);
+		var material = new SelectedSongMaterial {
+			Song = song, Source = SongMaterialSource.ArtistWritten, IsCover = false,
+			ExpectedHook = song.commercialHook, ExpectedCompositionQuality = song.compositionQuality, ExpectedLyricQuality = song.lyricQuality,
+			FamiliarityAtRelease = 0f, ArrangementOriginality = song.originality, ProfessionalPolish = 0f,
+			ArtistIdentityFit = Mathf.Clamp(0.45f + ArtistWriterCraft(artist) * 0.40f + eraWeight * 0.15f, 0f, 1f)
+		};
+		return PolarSongBehavior.Prepare(material, artist, record, genre, year, label);
+	}
+
 	// Build only the candidate for one dictated source (AlbumMaterialPlan forced-source path).
 	private static MaterialCandidate BuildForSource(
 		SongMaterialSource src, AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek

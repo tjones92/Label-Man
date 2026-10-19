@@ -11,18 +11,33 @@ using System.Linq;
 /// catalogue songs, mints no titles and makes no global <c>GD.Rand*</c> draw, so every pre-existing CSV is byte-identical
 /// with it on. Later phases (selection, slate, calendar) are separate switches and are rejected until they exist.
 /// </para>
+/// <para>
+/// Phase 2A is causal: <c>--release-judgement-select=perceived|fit</c> (requires the shadow) records a live AI orphan
+/// single from the act's shortlist instead of the legacy source lottery. Act, format and capacity policy are unchanged; an
+/// empty or refused shortlist falls back to the legacy choice. Without it the shadow stays observe-only.
+/// </para>
 /// </summary>
+public enum ReleaseSelectMode { Off, Perceived, Fit }
+
 public static class ReleaseJudgement {
 	public const string ShadowSwitch = "--release-judgement-shadow";
 	public const string EventsSwitch = "--release-judgement-events";
 	public const string TuneSwitch = "--release-judgement-shadow-tune";
-	/// <summary>Bumped whenever an arrival, readiness or perception rule changes what a seeded world would hold.</summary>
-	public const int ConfigVersion = 2;
+	public const string SelectSwitch = "--release-judgement-select";
+	/// <summary>Bumped whenever an arrival, readiness or perception rule changes what a seeded world would hold.
+	/// v3: shadow originals get a provisional polar fit at readiness instead of an assumed full capability.</summary>
+	public const int ConfigVersion = 3;
+	/// <summary>The keyed-draw namespace. Separate from <see cref="ConfigVersion"/> so a rule change that adds no draw
+	/// does not re-key every arrival and read (re-keying alone moved tier gains by up to 0.008 on one seed).</summary>
+	public const int StreamVersion = 2;
 
 	private static bool configured;
 	public static bool Shadow { get; private set; }
 	/// <summary>Per-transition material rows (arrivals, readiness, archive, shadow issue). Requires the shadow.</summary>
 	public static bool Events { get; private set; }
+	/// <summary>Phase 2A: which ranking records a live orphan single from the shortlist. Off = observe-only.</summary>
+	public static ReleaseSelectMode Select { get; private set; }
+	public static bool Selecting => Shadow && Select != ReleaseSelectMode.Off;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
@@ -36,21 +51,32 @@ public static class ReleaseJudgement {
 				Parameters.Tune(argument[(TuneSwitch.Length + 1)..]);
 				continue;
 			}
+			if (argument.StartsWith(SelectSwitch + "=", StringComparison.Ordinal)) {
+				if (!Shadow) throw new ArgumentException($"{SelectSwitch} requires {ShadowSwitch}.");
+				Select = argument[(SelectSwitch.Length + 1)..] switch {
+					"perceived" => ReleaseSelectMode.Perceived,
+					"fit" => ReleaseSelectMode.Fit,
+					var other => throw new ArgumentException($"{SelectSwitch}: '{other}' is not perceived or fit.")
+				};
+				continue;
+			}
 			if (argument.StartsWith("--release-judgement-", StringComparison.Ordinal) && argument != ShadowSwitch && argument != EventsSwitch)
-				throw new ArgumentException($"{argument}: only the Phase 1 shadow exists (directive Phase 2+ is not implemented).");
+				throw new ArgumentException($"{argument}: only the Phase 1 shadow and Phase 2A selection exist (later phases are not implemented).");
 		}
 		configured = true;
 	}
 
 	/// <summary>Probe suites flip the switch and must be able to put it back.</summary>
-	internal static void SetForProbe(bool shadow, bool events = false) { Shadow = shadow; Events = events && shadow; configured = true; }
+	internal static void SetForProbe(bool shadow, bool events = false, ReleaseSelectMode select = ReleaseSelectMode.Off) {
+		Shadow = shadow; Events = events && shadow; Select = shadow ? select : ReleaseSelectMode.Off; configured = true;
+	}
 
 	/// <summary>
 	/// A uniform [0,1) draw keyed on the world seed, this namespace and version, and a caller key built from stable ids and
 	/// weeks. Touches no RNG stream: rereading a candidate, reordering the slate or adding an act rerolls nothing else.
 	/// </summary>
 	public static float Unit(string key) =>
-		RepertoireTaxonomy.Unit(BandLife.WorldSeed.ToString(CultureInfo.InvariantCulture) + "|release-judgement|v" + ConfigVersion + "|" + key);
+		RepertoireTaxonomy.Unit(BandLife.WorldSeed.ToString(CultureInfo.InvariantCulture) + "|release-judgement|v" + StreamVersion + "|" + key);
 
 	/// <summary>Phase 1 parameter hypotheses (directive "Decisions to settle with probes"). Starting probes, not constants.</summary>
 	/// <para>

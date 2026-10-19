@@ -1,7 +1,7 @@
 # Release Judgement Directive
 
-Status: **revised design draft; Phases 0 and 1 built (observe-only, byte-inert), Phase 1 calibrated as
-ConfigVersion 2 (2026-10-19); Phase 2 next.**
+Status: **revised design draft; Phases 0-1 built and calibrated (shadow ConfigVersion 3); Phase 2A built behind
+`--release-judgement-select` (2026-10-19), not adopted. Next: 5-seed 2A head screen, read-level fix, then 2B.**
 See "Implementation log" below for what exists in code.
 Source: the Top 10 review arc in `HistoricalLabelTierBalanceResearch.md`, §17x-§17af, the original directive,
 review of the current code, and the historical sources linked below. The original measurements are retained;
@@ -257,6 +257,105 @@ All arms issue about 1.8 singles per signed act-year.
   needs paired seeds.
 - **A gain only appears with a deeper pool, with more accurate reads, or both.** Both are levers that favour the
   head (item 3).
+
+### 2026-10-19: Phase 2A (selection only), ConfigVersion 3
+
+**Built.**
+
+- `--release-judgement-select=perceived|fit` (requires the shadow). Any other value is rejected.
+- *Where it applies:* only the live AI orphan single. `TryReleaseRecord` passes `judgedOrphan: true` to
+  `GenerateRecordFromArtist`; prewarm, album and promo paths are untouched.
+- *What it picks:*
+  - The act's top recordable shortlist song by the arm's score.
+  - Perceived: the label's read. Fit: the exact polar selection score alone, with no song-quality read.
+- *How it realizes the pick (once, through the fixed-composition routes):*
+  - Covers and traditional songs use `BuildCoverForSong`; professional songs use `BuildProfessionalForSong`.
+  - Originals use the new `SongMaterialSelectionService.BuildArtistOriginalForSong`.
+  - An original is authored with `CreateArtistOriginal` on its first recording. The candidate keeps that
+    `SongId`, so a later take (for example after a failed affordability check) reuses the composition.
+- *Refusal and fallback:*
+  - Refusal is judged on the arrangement proposal it will realize, trying up to 3 candidates.
+  - An empty or refused shortlist falls back to legacy `ChooseMaterial`.
+  - A player placement still overrides the pick, and the pick is then not consumed.
+- *Consumption:*
+  - The release consumes exactly the song it was cut from. A fallback consumes nothing.
+  - A promo single still consumes the best perceived song counterfactually, as Phase 1 calibrated it.
+- *Shadow v3:* an unauthored original is heard as a provisional, unregistered demo, so its capability is read
+  rather than assumed perfect.
+  - Draw keys moved to a separate `StreamVersion` (still 2), so this rule change re-keyed nothing.
+- *Telemetry:* `release-judgements-shadow.csv` gains `selectMode`, `outcome`, `selectedId` and `selectedSource`.
+  `SimTools/release_selection_screen.py` reads a paired screen.
+
+**Correctness.**
+
+- `ReleaseJudgementChecks` passes 32/32. The 9 new checks cover:
+  - the cut comes from the top-ranked song under each arm;
+  - no global RNG draw;
+  - an original is authored once, and a second take reuses it;
+  - the realized record carries the composition;
+  - the release consumes exactly that song, and a consumed song is not cut again;
+  - an empty shortlist falls back and consumes nothing.
+- With selection off and the shadow on, `rj2a-inert-1001-52` matches all 84 legacy CSVs in
+  `ref-094cf89-1001-52`.
+- On the live arms, 93.7% of orphan singles were cut from the pool and 6.3% fell back on an empty shortlist.
+  Nothing was refused at session.
+
+**Paired screen.**
+
+- Seeds 1001 and 2002, 260 weeks, default-control flags with `--calibration`.
+- The control arm runs the shadow without selection, so it is legacy-identical.
+- Arm − control, mean of two seeds. Every perceived row has the same sign in both seeds; fit-only debuts, CR4 and
+  CR8 do not:
+
+| | Control (1001 / 2002) | Perceived | Fit-only |
+|---|---|---|---|
+| Orphan realized quality | 0.600 / 0.598 | **+0.029** | +0.002 |
+| Orphan > 0.639 cliff | 35.7% / 34.2% | +11.9 pts | +1.6 pts |
+| Orphan Hot 100 entry | 12.2% / 12.4% | +3.1 pts | +1.0 pt |
+| Orphan Top 40 | 4.1% / 4.0% | +1.0 pt | +0.5 pt |
+| Hot 100 debuts / yr (guard about 690) | 748 / 732 | +22.7 | +2.5 |
+| Major-family chart share | 0.535 / 0.491 | +0.045 | +0.036 |
+| CR4 / CR8 | 0.213, 0.310 / 0.212, 0.323 | +0.030 / +0.035 | +0.003 / +0.013 |
+| Top 40 entries: Major / Independent | | +9.0 / −12.3 | +3.7 / −7.3 |
+
+- **Perceived selection works, and works much better than the shadow predicted.**
+  - Realized quality +0.029 against the shadow's +0.003-0.009 estimate.
+  - Two reasons:
+    - The shadow's expectation runs 0.012 low on both hook and production for every source. Realization adds
+      the session crew's production lift and uses the arrangement proposal's capability, which is higher than the
+      raw `Fit` the shadow reads.
+    - Over five years the pool deepens (best expected 0.613 → 0.632 in the arm).
+  - The bias is roughly uniform across sources, so ranking is barely affected. A Phase 3 bar must still correct
+    it before reading absolute levels.
+- **Fit-only is a near-null on quality:** +0.002 at the same pool and consumption. Exact fit without a song read
+  selects no better than legacy's best-of-6 sampling.
+- **The head.**
+  - Quality gain by tier in the perceived arm: Major +0.044, Boutique +0.040, MidTier +0.034, Independent +0.025,
+    Small +0.025.
+  - That is the same ~0.02 Major − Small gradient the shadow showed.
+  - Major-family share rises in both arms, most in 1960 (+0.08), with almost no change in Major chart entries.
+    That is the reshuffled hit lottery reweighting a few big records, not selection.
+  - The fit arm shares the pool and consumption but gains no quality, so it serves as the reshuffle-and-pool
+    comparator. Perceived − fit isolates the ranking's head effect: major share +0.009, CR4 +0.027,
+    CR8 +0.022, Major Top 40 +5.3, Independent Top 40 −5.
+  - The +0.036 that both arms share is pool-versus-legacy plus reshuffle noise. Two seeds cannot separate them.
+- **The shipped source mix moves (1960, seed 1001, full telemetry):**
+  - Under perceived, professional rises 20-28% → 30-40% by tier, and artist-written falls about 30% → 20-27%.
+  - Standards fall for Majors (17.5% → 10%), and familiarity at release falls (0.13 → 0.11).
+  - Perceived selection prefers professional hooks, which runs against the decade's rise of self-writing. This is
+    the "arrival versus shipped mix" risk the design names; read it on the decade before adoption.
+- Hot 100 debuts were already above the 690 guard in the control (748). Perceived adds about 23 a year.
+
+**Status and next.**
+
+- 2A is correct, inert when off, and delivers a real material-quality gain (+0.029, +3 pts entry) on paired seeds.
+- It is not adoptable on this evidence:
+  - The head drift (CR4 +0.03, Independent Top 40 −12) needs a five-seed paired screen with the fit arm as the
+    reshuffle comparator, plus the §17o yearly watch.
+  - The source-mix drift needs a decade read.
+- Before Phase 3's bar, fix the read model's level bias (crew lift and proposal capability), because a bar reads
+  absolute levels.
+- Before 2B, revisit arrival rates. Consumption doubles once B-sides draw from stock.
 
 ## What to keep, and what to change
 

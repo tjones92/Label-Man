@@ -32,7 +32,7 @@ public partial class ChartAuditRunner {
 		actReleaseYearWriter.WriteLine("year,weeksObserved,artistId,labelId,tier,signedWeeks,singles,orphanSingles,promoSingles,standaloneLps,lpsScheduled,hot100Records,careerStateAtStart,chartedAtStart,top40AtStart,top10AtStart");
 		if (!ReleaseJudgement.Shadow) return;
 		shadowJudgementWriter = CreateWriter(Path.Combine(directory, $"{runName}-release-judgements-shadow.csv"));
-		shadowJudgementWriter.WriteLine("auditWeek,week,year,labelId,tier,artistId,recordId,strategy,legacyQuality,legacyHook,legacyProduction,active,recordable,offered,bestId,bestSongId,bestSource,bestProvenance,bestAgeWeeks,bestPerceived,readBand,auditBestExpectedQuality,auditBestExpectedHook,auditBestExpectedProduction,auditBestSpread,auditOracleExpectedQuality,auditMeanRecordableExpected");
+		shadowJudgementWriter.WriteLine("auditWeek,week,year,labelId,tier,artistId,recordId,strategy,legacyQuality,legacyHook,legacyProduction,active,recordable,offered,bestId,bestSongId,bestSource,bestProvenance,bestAgeWeeks,bestPerceived,readBand,auditBestExpectedQuality,auditBestExpectedHook,auditBestExpectedProduction,auditBestSpread,auditOracleExpectedQuality,auditMeanRecordableExpected,selectMode,outcome,selectedId,selectedSource");
 		repertoireHealthWriter = CreateWriter(Path.Combine(directory, $"{runName}-repertoire-health.csv"));
 		repertoireHealthWriter.WriteLine("auditWeek,week,year,actsTracked,actsSigned,actsWithRecordable,active,recordable,offered,initialized,untracked,issued,archived,archivedPassedOver,archivedRefused,archivedWindowClosed,arrivalsArtistWritten,arrivalsProfessional,arrivalsStandard,arrivalsRecentHit,arrivalsTraditional");
 		AiRepertoireService.OnJudgement += WriteShadowJudgement;
@@ -143,7 +143,8 @@ public partial class ChartAuditRunner {
 			Csv(j.BestId), Csv(j.BestSongId), Csv(j.BestId == null ? "" : j.BestSource.ToString()), Csv(j.BestProvenance),
 			j.BestAgeWeeks.ToString(CultureInfo.InvariantCulture), Opt(j.BestPerceived), j.BestId == null ? "" : F(j.ReadBand),
 			Opt(j.AuditBestExpectedQuality), Opt(j.AuditBestExpectedHook), Opt(j.AuditBestExpectedProduction), Opt(j.AuditBestSpread),
-			Opt(j.AuditOracleExpectedQuality), Opt(j.AuditMeanRecordableExpected)
+			Opt(j.AuditOracleExpectedQuality), Opt(j.AuditMeanRecordableExpected),
+			Csv(j.Mode.ToString()), Csv(j.Outcome), Csv(j.SelectedId), Csv(j.SelectedId == null ? "" : j.SelectedSource.ToString())
 		}));
 	}
 
