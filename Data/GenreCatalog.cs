@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Godot;
 
 /// <summary>Immutable, data-owned canonical genre metadata for the enabled Directive 5 path.</summary>
@@ -59,6 +60,26 @@ public sealed class GenreProfile {
 public static class GenreCatalog {
 	/// <summary>TEMPORARY A/B control (2026-10-13): restores the pre-trim Soul and R&B keyframes. Remove after the decade A/B.</summary>
 	private static readonly bool RsControl = Array.IndexOf(OS.GetCmdlineUserArgs(), "--rs-keyframes-control") >= 0;
+	// Calibration probes, inert unless named. --genre-keyframe-scale=TraditionalPop@1960=1.07,... multiplies one
+	// baseline keyframe; --radio-acceptance=RockAndRoll=1.0,... replaces a genre's RadioAcceptance multiplier.
+	private static readonly Dictionary<(Genre, int), float> KeyframeScaleProbe = ParseProbe("--genre-keyframe-scale=", true)
+		.ToDictionary(p => (p.genre, p.year), p => p.value);
+	private static readonly Dictionary<Genre, float> RadioAcceptanceProbe = ParseProbe("--radio-acceptance=", false)
+		.ToDictionary(p => p.genre, p => p.value);
+	private static List<(Genre genre, int year, float value)> ParseProbe(string prefix, bool withYear) {
+		var result = new List<(Genre, int, float)>();
+		foreach (string arg in OS.GetCmdlineUserArgs().Where(a => a.StartsWith(prefix, StringComparison.Ordinal)))
+			foreach (string item in arg.Substring(prefix.Length).Split(',', StringSplitOptions.RemoveEmptyEntries)) {
+				string[] kv = item.Split('=');
+				string[] key = kv[0].Split('@');
+				if (kv.Length != 2 || key.Length != (withYear ? 2 : 1) || !Enum.TryParse(key[0], out Genre genre)
+					|| !float.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value)
+					|| (withYear && !int.TryParse(key[1], out _)))
+					throw new ArgumentException($"Bad {prefix} item '{item}'.");
+				result.Add((genre, withYear ? int.Parse(key[1]) : 0, value));
+			}
+		return result;
+	}
 	private static readonly Dictionary<Genre, GenreProfile> Profiles = new();
 	private static readonly Dictionary<string, GenreProfile> ProfilesById = new(StringComparer.Ordinal);
 	private static readonly ReadOnlyCollection<GenreProfile> AllProfiles;
@@ -410,6 +431,7 @@ public static class GenreCatalog {
 	/// <summary>Per-genre radio-acceptance multiplier applied to the national acceptance that feeds
 	/// radio heat only. Expects a canonical genre; default 1.0 leaves a genre's airplay untouched.</summary>
 	public static float GetRadioAcceptance(Genre canonical) =>
+		RadioAcceptanceProbe.TryGetValue(canonical, out float probe) ? probe :
 		RadioAcceptanceOverrides.TryGetValue(canonical, out float r) ? r : 1f;
 
 	// ERA-RAMPED FORMAT ORIENTATION -- the new lever for a genre that must move single->album ACROSS
@@ -531,6 +553,12 @@ public static class GenreCatalog {
 		}
 	}
 	private static void Add(string id, Genre genre, GenreFamily family, float emergence, float? death, float audience, float orientation, params float[] baseline) {
+		if (KeyframeScaleProbe.Count > 0) {
+			baseline = (float[])baseline.Clone();
+			int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+			for (int i = 0; i < baseline.Length && i < years.Length; i++)
+				if (KeyframeScaleProbe.TryGetValue((genre, years[i]), out float scale)) baseline[i] *= scale;
+		}
 		GenreProfile profile = new(id, genre, family, emergence, death, audience, orientation, baseline);
 		if (!Profiles.TryAdd(genre, profile) || !ProfilesById.TryAdd(id, profile)) throw new InvalidOperationException($"Duplicate canonical genre '{id}'.");
 	}

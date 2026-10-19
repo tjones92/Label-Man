@@ -1163,6 +1163,122 @@ Evidence: `SimLogs/rj2asp10-ctl-{1001,...,5005}-260-*`. `g64_shape.py`, `g64_fam
 Evidence: `SimLogs/awhs-on-{1001,...,5005}-260-*` and `awhs-off-1001-260-*`. `awhs_screen.py`,
 `awhs_screen5.txt`, `hashcmp.py` and `launch_awhs.py` are in the session notes folder.
 
+### 2026-10-19: Retune screen on the hook-scale base (R&R RadioAcceptance, TradPop 1960-62 keyframes)
+
+**Probes** (`Data/GenreCatalog.cs`, inert unless named):
+
+- `--radio-acceptance=Genre=value,...` replaces a genre's RadioAcceptance multiplier.
+- `--genre-keyframe-scale=Genre@year=factor,...` scales one baseline keyframe.
+- A rerun of `awhs-on-1001` with these compiled in is **byte-identical (84/84)**.
+
+**Sizing (offline):**
+
+- TradPop's 1960-62 share runs at 0.87 of target on the hook base, so the keyframe scale is √(1/0.87) ≈ ×1.07.
+- R&R needs about ×0.83 of its slots at a correct share. Taking airplay as acceptance⁵ and 45% of points sized
+  RA at 1.10 → 1.00.
+
+**Arms, five seeds each, all with `--artist-written-hook-scale`:**
+
+- **+TP:** TradPop @1960/@1962 ×1.07 (`awtp-on`).
+- **+RA:** R&R RA 1.00 (`awra-on`).
+- **+RA+TP:** both (`awratp-on`).
+
+**Results.** Cells read control | hook | +TP | +RA | +RA+TP [history].
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| R&R share | 10.0 \| 13.4 / 13.0 / 13.3 / 14.0 [13.5] | 7.5 \| 11.6 / 11.0 / 11.2 / 11.6 [12.8] | 6.0 \| 9.8 / 10.1 / 9.5 / 9.3 [11.5] | 5.1 \| 8.6 / 8.9 / 8.4 / 8.7 [10.0] | 3.6 \| 7.0 / 7.2 / 6.4 / 6.7 [6.8] |
+| R&R slots | 12.6 \| 15.0 / 14.8 / 16.0 / 17.2 [14] | 12.0 \| 15.2 / 16.2 / 16.2 / 15.6 [12] | 7.8 \| 12.0 / 14.6 / 13.6 / 13.8 [12] | 9.4 \| 16.0 / 15.2 / 15.0 / 15.4 [11] | 4.2 \| 10.8 / 10.4 / 10.0 / 10.4 [8] |
+| TradPop share | 14.2 \| 13.0 / **14.0** / 12.8 / 14.0 [15.0] | 14.2 \| 13.1 / **14.6** / 13.0 / 14.0 [15.0] | 13.7 \| 12.6 / **13.7** / 12.8 / 13.4 [14.5] | 13.9 \| 12.0 / **12.7** / 12.5 / 12.8 [13.2] | 12.6 \| 10.6 / **11.1** / 10.9 / 11.0 [11.0] |
+| TradPop slots | 23.0 \| 18.8 / 21.0 / 18.6 / 20.2 [22] | 18.6 \| 18.6 / 18.0 / 19.2 / 20.4 [16] | 18.0 \| 15.2 / 14.8 / 15.8 / 16.2 [15] | 25.4 \| 23.0 / 23.2 / 24.6 / 23.2 [20] | 18.8 \| 16.8 / 16.4 / 17.2 / 16.0 [14] |
+| Soul share | 7.1 \| 6.3 / 6.8 / 6.7 / 6.5 [7.9] | 8.8 \| 8.3 / 8.0 / 7.6 / 7.4 [8.9] | 9.4 \| 8.8 / 7.9 / 7.6 / 8.4 [10.2] | 9.8 \| 8.9 / 9.3 / 8.4 / 8.8 [11.5] | 9.9 \| 10.3 / 10.1 / **8.8** / 9.0 [12.2] |
+| Soul slots | 2.8 \| 1.6 / 3.0 / 2.4 / 1.6 [6] | 5.4 \| 5.0 / 5.6 / 4.6 / 3.0 [9] | 4.4 \| 5.4 / 3.4 / 3.6 / 4.4 [7] | 8.4 \| 7.2 / 8.6 / 6.6 / 7.2 [15] | 8.8 \| 10.4 / 9.4 / **5.8** / 7.6 [14] |
+| BritishBeat slots | | | | | 21.8 \| 19.0 / 16.2 / 20.0 / 22.4 [24] |
+| Sum abs share error | 25.3 \| 24.3 / **22.4** / 22.5 / 21.5 | 28.1 \| 22.8 / **21.8** / 23.9 / 21.9 | 28.5 \| 22.1 / 23.2 / 24.6 / 23.7 | 28.3 \| 27.1 / **23.6** / 24.2 / 25.8 | 31.6 \| 28.8 / **27.8** / 29.4 / 28.7 |
+| Sum abs slot error | 28.8 \| 32.8 / 30.8 / 31.2 / 32.0 | 35.0 \| 36.2 / 33.8 / 33.8 / 39.4 | 40.8 \| 38.4 / 38.8 / 38.8 / 37.6 | 45.4 \| 49.4 / 44.6 / 49.4 / 44.6 | 47.4 \| 37.4 / 44.6 / 42.6 / 33.8 |
+| Big-5 Top 10 share | 33.8 \| 28.1 / 29.9 / 31.3 / 29.7 [34.2] | 24.3 \| 25.2 / 28.4 / 24.9 / 27.2 [20.6] | 25.6 \| 23.3 / 23.0 / 26.4 / 24.2 [21.2] | 26.9 \| 24.4 / 21.2 / 24.5 / 24.9 [26.0] | 27.0 \| 18.8 / 21.0 / 22.4 / 21.4 [18.7] |
+| Top 10 CR8 (1960 floor 48) | 48.1 \| 44.3 / **44.0** / **48.8** / 47.5 | 38.5 \| 41.6 / 44.4 / 38.5 / 42.7 | 38.4 \| 39.6 / 36.8 / 41.9 / 40.8 | 40.4 \| 39.1 / 36.9 / 39.1 / 39.4 | 40.8 \| 42.1 / 36.2 / 38.6 / 38.6 |
+
+**R&R RadioAcceptance 1.00 is rejected.**
+
+- It does reach the records: R&R on-chart radio heat falls 0.435 → 0.410 and no other genre's moves.
+- It does not move R&R's chart (slots +1.0 against the hook base, share −0.2). In 1960-64 chart points are
+  mostly sales.
+- It drains Soul through the shared Urban/R&B segment: 1964 Soul share −1.5 (SE 0.5, 0/5 up), slots −4.6
+  (SE 1.1, 0/5). R&B gains +1.7 / +1.0 in 1962-63.
+- Its one gain is the 1960 head (CR8 48.8): cutting airplay to indie R&R hands 1960 Top 10 weeks back.
+- R&R's over-charge at a correct share is sales-side. It comes from higher hooks concentrating units into more
+  hit records, and RA cannot reach it.
+
+**TradPop ×1.07 at 1960/1962 is kept as part of the candidate (+TP).**
+
+- TradPop share sits within 1.0 point of history in every year (14.0 / 14.6 / 13.7 / 12.7 / 11.1).
+- Share error is the lowest of the arms in 1960, 1961, 1963 and 1964.
+- 1960 TradPop slots recover (21.0 against 22).
+- It does **not** restore the 1960 head (CR8 44.0, Big-5 29.9 against 34.2).
+- 1964 slot error is worse than hook alone (44.6 against 37.4): TeenPop is 13.4 and BritishBeat 16.2, both a
+  seed-noise size away.
+
+**Candidate base: hook scale + TP.** Still open:
+
+1. The 1960 CR8 floor (44 against 48).
+2. R&R slots over at a correct share (+1 to +4 in 1960-61 and 1963-64).
+3. BritishBeat 1964 is short.
+4. Soul stays short (its own RA 0.55 question).
+
+The hook scale stays off by default.
+
+### 2026-10-19: Genre hook audit (author: look for ahistorical balancing), data from `awhs-on-*`
+
+Mean shipped hook on AI singles, 1960-64, under the hook scale:
+
+| | Soul | BossaNova | TradPop | EasyListening | BritishPop | Jazz | Folk | Country | Gospel | BritishBeat | TeenPop | SurfRock | R&B | DooWop | R&R |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Mean hook | .761 | .749 | .735 | .718 | .707 | .676 | .673 | .660 | .660 | .655 | .639 | .631 | .624 | .560 | .533 |
+
+Writer craft is genre-neutral, so this ordering is set by authored per-genre constants on the material path.
+Ranked by how ahistorical they look:
+
+1. **No professional office writes rock & roll, doo-wop, surf or beat.**
+   - The five publishers (`GenerateProfessionalPool`) focus on TeenPop/GirlGroup/TradPop, Country/Folk, LA pop,
+     Tin Pan Alley/Jazz, and Detroit Soul/Motown/R&B.
+   - `GetProfessionalForGenre(RockAndRoll)` is therefore empty, and R&R's professional share (already
+     `Rock` family .05, availability .28) is redistributed to self-writing and covers.
+   - History runs the other way for 1956-63 rock & roll and vocal-group records:
+     - Hill & Range and Leiber–Stoller for Elvis, the Coasters and the Drifters;
+     - Pomus–Shuman and Otis Blackwell for rock & roll;
+     - Aldon (Goffin–King, Mann–Weil, Sedaka–Greenfield) for Bobby Vee, Gene Pitney and the Drifters;
+     - the Bryants (Acuff-Rose) for the Everlys.
+   - This is the main reason R&R and DooWop sit at the bottom.
+   - **Proposed:** a rock & roll / R&B hit-writer office (Hill & Range / Aldon / Trio style) with RockAndRoll,
+     DooWop and RnB focus. Then revisit the rock-family 1960 professional anchor (.05) and R&R availability
+     (.28), so R&R's pro share starts substantial and declines as self-writing takes over (anchor 1969 AW .76).
+   - A hypothesis for the 1960 head: majors get the best professional access (`labelAccess` Major .90), so
+     professional R&R material should move R&R hits toward RCA/Decca-style majors in 1960, the way Elvis and
+     Holly charted. That is a historically grounded route back to the 1960 CR8 floor, which RA and keyframes
+     did not give.
+2. **Songbook quality constants are genre-coded.**
+   - Standards: Tin Pan Alley .68, Jazz .66, Country .60, Blues .58, R&B Catalog .58, Gospel .56, Folk
+     Traditional .50.
+   - Pre-game recent hits: R&R .62, R&B / Pop / Teen .60, DooWop / Country .58.
+   - These rank the Black-music and roots songbooks below Tin Pan Alley on *commercial* hook. That is a value
+     judgement the commercial record does not obviously support: blues and gospel standards were heavily covered
+     hit material. These are candidates to equalise, or to justify per family.
+3. **The polar execution penalty lands unevenly by genre (mechanism unverified).**
+   - Within Independent labels, production splits in two:
+     - TeenPop, R&B, R&R and DooWop at 0.645-0.655 (about no execution loss);
+     - Soul, Folk, BritishBeat, Blues, Gospel and Jazz at 0.55-0.59 (about 10-16% loss), with Country .61 and
+       TradPop .59 between.
+   - Execution multiplies hook too, so those genres' hooks are also taxed. Soul would be about 0.90 before it.
+   - The split is step-shaped, not graded, which points to some material escaping the capability penalty rather
+     than to act skill. Trace it before any per-genre hook tuning.
+4. **Neutral, and kept:**
+   - In-game hits become cover material at their realised hook. That self-reinforces, but it is genre-blind.
+   - The era weight now affects only craft score, lyric, identity fit and source preference.
+
+Evidence: `SimLogs/awtp-on-*`, `awra-on-*`, `awratp-on-*`, `awhs2-on-1001-260-*`. `awra_summary.py`,
+`awtp_vs_ctl.txt`, `awra_vs_awhs.txt`, `launch_awra.py` and `launch_awtp.py` are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic
