@@ -918,6 +918,76 @@ is a rule hit.
 Evidence: `SimLogs/rj2asp25-{ctl,per,fit}-{1001,...,5005}-260-*`. `t10_funnel_g.py`, `t10_career.py`,
 `screen_sp25.txt` and `yearly_sp25.txt` are in the session notes folder.
 
+### 2026-10-19: The base's own Big-5 excess: weekly push is exhausted; 1964 is a genre problem (controls only)
+
+The author asked to keep pushing the base's Big-5 Top 10 share toward history before any decade run. Two pieces
+of work went in: an attribution re-run of the spread-0.25 control (`rj2asp25conv-ctl-1001..4004`, byte-identical
+to `rj2asp25-ctl`), and control-only screens at spread 0.1 and 0.0 (`rj2asp10-ctl-*`, `rj2asp00-ctl-*`, both at
+F = 0.75).
+
+**1. Where the remaining excess sits (spread 0.25, 1961-64).**
+
+- **Big-5 convert an entry 1.92× as often as other labels; history's hit acts are 1.00 ± 0.18 (§17aa).**
+  - Established acts: 25.9% against 17.0%. New signings: 14.8% against 9.1%.
+  - Established acts hold three-quarters of Big-5 Top 10 weeks.
+  - At the field's rate by seniority, Big-5 share would be about 16.5%, below history's 21.6. So the target is
+    about half the premium, not all of it.
+- **Logit of P(Top 10 | entry)** on 11,555 entrants (pseudo R² 0.50):
+  - Big-5 entrants are *lower* quality (0.711 against 0.743), so quality widens the gap.
+  - Moving campaign impact to the field mean closes 103% of it. With impact in the model, a Big-5 dummy adds
+    nothing (z 0.3).
+  - Entry-week radio heat (0.455 against 0.363) plus entry units close 100%. Big-5 records enter on fewer units
+    (2.7k against 3.3k) and more airplay, so the premium is in place at entry.
+
+**2. Pushing the weekly read further does nothing for 1961-64 and breaks 1960 at zero.**
+
+| Control at F = 0.75 | 1960 Top 10 CR8 (band 48-58) | Big-5 Top 10 share, 1961 / 62 / 63 / 64 | 1961-64 mean | Conversion ratio |
+|---|---|---|---|---|
+| Base (no saturation, spread 0.5) | 48.0 | 31.8 / 29.2 / 36.1 / 30.9 | 32.0 | 2.24 |
+| Spread 0.5 | 47.9 | 24.5 / 25.5 / 24.3 / 21.3 | 23.9 | |
+| Spread 0.25 | 47.1 | 27.4 / 23.1 / 29.0 / 26.1 | 26.4 | 1.92 |
+| Spread 0.1 | **48.2** | 24.3 / 25.7 / 26.9 / 27.0 | 26.0 | 1.96 |
+| Spread 0.0 (label-blind) | **42.1** (0/5 seeds up) | 28.2 / 26.4 / 28.8 / 19.7 | 25.8 | 1.81 |
+| History | 34.2 Big-5 share | 20.6 / 21.2 / 26.0 / 18.7 | 21.6 | 1.00 |
+
+- **The base's head is set by saturation, not spread.** Once saturation is on, every spread from 0.5 to 0.0 lands
+  within seed noise in 1961-64 (23.9-26.4). Spread changes *where* 2A's increment lands (§ above), not the base's
+  level.
+- Spread 0.0 breaks 1960 the way saturation F = 0.5 did.
+- **Why weekly push stops mattering:** the premium is set at launch. Launch radio is `0.3 × saturated raw
+  impact`, which still differs by about 0.11 at F = 0.75. A heat above its weekly target decays only at
+  `lerpRate 0.10` for 12 weeks, so the launch push carries past entry.
+- **1960 cannot be spared by seniority.** NewSigning launches hold 30% of 1960's Big-5 Top 10 weeks, more than any
+  later year (21-27%), so a newcomer-only lever hits 1960 first.
+
+**3. The year shape at F = 0.75 + spread 0.1.**
+
+- 1960 and 1963 sit on history (33.8 / 34.2 and 26.9 / 26.0). 1961-62 are +3.7 / +4.5, about 1-2 SE.
+- **1964 is +8.3, and it is genre, not push.**
+  - Year-end slots run TraditionalPop 18.8 (bench 14) and TeenPop 13.8 (bench 5), against Soul 8.8 (14) and
+    RockAndRoll 4.2 (8). The Big-5 hold 44% of TraditionalPop's 1964 Top 10 weeks.
+  - British Beat supply is there: 21.8 slots against a bench of 24, 8.6% of it Big-5.
+  - The 1964 excess is the decline of the adult/teen-pop genres running late. Big-5 hold those genres, so it shows
+    up as Big-5 share.
+
+**Status and options.**
+
+- Best base so far: **F = 0.75 + spread 0.1.** 1960 is in band, 1961-64 Big-5 is +4.4 over history (1961-63
+  +3.0), turnover and #1 tenure are unchanged, and genre error is neutral.
+- Further cuts to label push now cost 1960 before they help 1961-64. History has a 13.6-point Big-5 drop from 1960
+  to 1961, which a constant-strength push cannot make. Three directions remain:
+  1. **Genre decline in 1964** (TraditionalPop / TeenPop late, Soul / RockAndRoll short). This goes in the genre
+     calibration arc. It takes the largest single year without touching label push.
+  2. **Launch-heat persistence.** A probe making a launch-seeded heat fall to its weekly target at the normal rate
+     (0.28 rather than 0.10). Label push would then buy launch weeks, not a quarter of airplay. It is likely to touch
+     1960 too.
+  3. **Time-varying push effectiveness from 1961** (the 1959-60 payola hearings and the 1960 Communications Act
+     amendment). This is a historical modelling decision for the author, and its evidence must be written down
+     first.
+
+Evidence: `SimLogs/rj2asp25conv-ctl-*`, `rj2asp10-ctl-*`, `rj2asp00-ctl-*`. `conv_after_entry.py`,
+`big5_excess.py`, `big5_by_year_seniority.py` and `watch1960_multi.py` are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic
