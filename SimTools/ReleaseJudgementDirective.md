@@ -1351,6 +1351,57 @@ A flag-off rerun (`awtp2-on-1001`) is **byte-identical to `awtp-on-1001` (84/84)
 Evidence: `SimLogs/awrw-on-{1001,...,5005}-260-*` and `awtp2-on-1001-260-*`. `rr_big5.py`, `awrw_vs_awtp.txt`,
 `awrw_vs_ctl.txt` and `launch_awrw.py` are in the session notes folder.
 
+### 2026-10-19: Screen result, R&R 1960 keyframe ×0.92 (`awkf-on`) and `--publisher-pitch-order` (`awpp-on`)
+
+**Arms**, both on the hook + TP + RW bundle:
+
+- `awkf-on`: adds `RockAndRoll@1960=0.92`.
+- `awpp-on`: `awkf-on` plus `--publisher-pitch-order` (`Systems/PublisherPitchOrder.cs`). An AI Major samples the
+  top 40% of a genre's staff catalogue by hook, a MidTier the top 70%, and everyone else the bottom 80%.
+
+A pitch-order flag-off rerun (`awrw2-on-1001`) is byte-identical to `awrw-on-1001` (84/84). The pitch-order screen
+was **intended as pitch − keyframe**.
+
+**R&R 1960 keyframe ×0.92: rejected.**
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| R&R share, RW → +KF [history] | 16.0 → 14.9 [13.5] | 13.7 → 14.0 [12.8] | 11.5 → 12.8 [11.5] | 9.9 → 11.0 [10.0] | 7.6 → 8.2 [6.8] |
+| R&R slots | 17.2 → 16.4 [14] | 14.4 → 17.2 [12] | 13.8 → 17.4 [12] | 15.4 → 17.0 [11] | 9.4 → 12.0 [8] |
+
+- 1960 closes only halfway.
+- 1962-64 then surge (+1.1 to +1.3 share, 4-5 of 5 seeds; slots +1.6 to +3.6). This is the relative supply surge the
+  `GenreCatalog` R&R comment documents.
+- 1960 share error rises +2.9.
+- A fix has to be flat across 1960-62, or act on the R&R professional anchor (.35) that produced the overshoot.
+
+**Publisher pitch order at 40 / 70 / 80%: the right channel, far too strong.**
+
+| pitch − keyframe | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| Top 10 CR8 | 43.5 → **59.7** (5/5) | 39.9 → 56.2 (5/5) | 41.3 → 52.3 (5/5) | 41.4 → 54.6 (5/5) | 41.3 → 50.6 (4/5) |
+| Big-5 Top 10 share [history] | 27.9 → 40.4 [34.2] | 25.7 → 39.3 [20.6] | 25.5 → 33.0 [21.2] | 24.1 → 36.4 [26.0] | 18.4 → 28.4 [18.7] |
+| Sum abs slot error | 35.6 → 28.0 | 39.0 → 37.4 | 38.0 → 38.0 | 48.6 → 43.8 | 35.4 → 41.0 |
+
+- Majors' staff material now leads Independents by about +0.11 hook (R&R .684 against .574, Soul .830 against
+  .719, TeenPop .738 against .614).
+- Big-5 share of each genre's Top 10 rises everywhere: TeenPop 1960 20 → 40%, R&B 1961 18 → 37%.
+- Mean genre hooks fall 0.01-0.03, because Independents lose the top fifth.
+- **The 1960 head is restored** (CR8 59.7, at the top of the 48-58 band), proving that publisher pecking order is a
+  real route to it.
+- **But it is a constant-strength lever**, so 1961-64 Big-5 overshoot by +9 to +19 points. Like every label-push
+  lever before it, it cannot make history's 1960 → 1961 drop.
+- **A grounded variant to try:**
+  - much weaker (Majors the top 70% at most; Independents excluded from only the top 5-10%);
+  - fading after 1960, because by 1961-63 Brill writers routinely placed hits with independents (Scepter,
+    Big Top, Dimension).
+  - That time profile is a historical claim and needs the author's sign-off.
+
+Handoff for outside review: `SimTools/GenreHookCalibrationHandoff.md`.
+
+Evidence: `SimLogs/awkf-on-*`, `awpp-on-*`, `awrw2-on-1001-260-*`. `awkf_vs_awrw.txt`, `awpp_vs_awkf.txt` and
+`launch_awpp.py` are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic

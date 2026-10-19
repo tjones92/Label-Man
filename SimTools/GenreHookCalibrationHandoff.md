@@ -35,7 +35,7 @@ should not outrank, for example, Soul's.
 | `--rock-hit-writers` | R&R/DooWop/RnB staff office; R&R source anchor 1960 pro .35 → 1969 .15; R&R pro availability 0.60 → 0.30 | `Systems/RockHitWriters.cs`, `CompositionCatalogService`, `SongMaterialSelectionService` |
 | `--genre-keyframe-scale=G@year=f,...` | Scales one demand baseline keyframe | `Data/GenreCatalog.cs` |
 | `--radio-acceptance=G=v,...` | Replaces a genre's RadioAcceptance multiplier | `Data/GenreCatalog.cs` |
-| `--publisher-pitch-order` | Majors see the top 40% of a genre's staff catalogue by hook, MidTier the top 70%, others the bottom 80% | `Systems/PublisherPitchOrder.cs` (screen pending) |
+| `--publisher-pitch-order` | Majors see the top 40% of a genre's staff catalogue by hook, MidTier the top 70%, others the bottom 80% | `Systems/PublisherPitchOrder.cs` (screened: too strong, see below) |
 
 **Current candidate bundle:** hook scale + rock hit writers + `TraditionalPop@1960=1.07,TraditionalPop@1962=1.07`.
 Against the old control it:
@@ -83,6 +83,16 @@ Against the old control it:
   - It caused a relative supply surge in 1962-64 (+1.1 to +1.3 share, more slots), which the `GenreCatalog`
     comment history had already warned about. Any fix has to be flatter (1960 and 1962 together) or act on the
     professional anchor itself.
+- **`--publisher-pitch-order` at 40 / 70 / 80%** (screened on top of the keyframe arm; the pitch effect is read as
+  pitch arm − keyframe arm).
+  - **It restores the 1960 head and overshoots every year.** Top 10 CR8 runs 59.7 / 56.2 / 52.3 / 54.6 / 50.6
+    against about 41-44. Big-5 Top 10 share runs 40.4 / 39.3 / 33.0 / 36.4 / 28.4 against history's
+    34.2 / 20.6 / 21.2 / 26.0 / 18.7, up in 4-5 of 5 seeds every year.
+  - Majors' staff hooks rise about +0.11 over Independents'.
+  - So the channel is real, but at constant strength it cannot make history's 1960 → 1961 Big-5 drop of 13.6
+    points.
+  - A grounded variant would be much weaker and fade after 1960: by 1961-63 Brill writers placed hits with
+    independents (Scepter, Big Top, Dimension).
 - **Weekly label-push levers (radio push spread 0.5 to 0.0).** They do not move 1961-64 once launch saturation is
   on, and a spread of 0 breaks 1960.
 
