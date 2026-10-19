@@ -27,9 +27,9 @@ public static class ScoutingCommitmentPlanningChecks {
         desk.SetScoutingPriority(act.artistId, ScoutingPriority.Archived);
         Check(desk.ScoutingAppointmentRisks(meeting.Day, meeting.StartMinute + 1).Count == 1, "archiving does not hide an agreed obligation");
         string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
-        GD.Seed(712); uint draw = GD.Randi(); GD.Seed(712);
+        GameRandom.Seed(712); uint draw = GameRandom.Randi(); GameRandom.Seed(712);
         desk.ScoutingAppointmentRisks(meeting.Day, meeting.EndMinute); desk.ScoutingAppointmentRiskText(meeting.Day, meeting.EndMinute); desk.ScoutingItinerary();
-        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GD.Randi() == draw, "risk previews preserve complete world, player and RNG");
+        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GameRandom.Randi() == draw, "risk previews preserve complete world, player and RNG");
         var savedPlayer = JsonSerializer.Deserialize<PlayerSaveData>(player, SaveGameService.TestJsonOptions);
         Check(desk.RestoreState(savedPlayer, out message) && desk.ScoutingAppointmentRiskText(meeting.Day, meeting.StartMinute + 1) == warning, "player restore preserves warning");
         string slot = "Commitment " + Guid.NewGuid().ToString("N");

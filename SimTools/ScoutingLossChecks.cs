@@ -38,7 +38,7 @@ public static class ScoutingLossChecks {
             // Prime the existing bounded calendar before comparing whole-world snapshots.
             desk.ScoutingAlternativeLeads(artistId);
             string player = Json(desk.CaptureState()), world = Json(WorldStateService.Capture());
-            GD.Seed(81); uint draw = GD.Randi(); GD.Seed(81);
+            GameRandom.Seed(81); uint draw = GameRandom.Randi(); GameRandom.Seed(81);
             var leads = desk.ScoutingAlternativeLeads(artistId);
             Check(leads.Count == 3 && leads[0].ArtistId == target.artistId, "three known leads, pursuit priority first");
             Check(leads.All(l => l.ArtistId != artistId) && leads[0].LastHeardDay == bill.Day - 3,
@@ -46,7 +46,7 @@ public static class ScoutingLossChecks {
             Check(leads[0].NextSet?.EventId == ScenePerformanceService.EventId(bill, slot), "next step references actual unheard appearance");
             desk.ScoutingOtherKnownLeads(artistId); desk.ScoutingAlternativeLeads(artistId);
             Check(Json(desk.CaptureState()) == player && Json(WorldStateService.Capture()) == world, "refresh creates no knowledge, costs or world changes");
-            Check(GD.Randi() == draw, "lost-lead previews preserve RNG");
+            Check(GameRandom.Randi() == draw, "lost-lead previews preserve RNG");
             target.prospectMarketStatus = ProspectMarketStatus.Latent;
             Check(desk.ScoutingAlternativeLeads(artistId)[0].ArtistId == target.artistId && target.prospectMarketStatus == ProspectMarketStatus.Latent,
                 "latent act remains a listening lead without activation or consent");

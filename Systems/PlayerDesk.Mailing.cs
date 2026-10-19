@@ -72,7 +72,7 @@ public partial class PlayerDesk : Node {
 
 		List<RadioStation> targets = (ChartManager.Instance?.ReporterStationsInRegion(regionId) ?? Array.Empty<RadioStation>())
 			.Where(s => s != null && !IsServiced(recordId, s.stationId))
-			.OrderBy(_ => GD.Randf())
+			.OrderBy(_ => GameRandom.Randf())
 			.Take(Mathf.Min(count, available))
 			.ToList();
 		if (targets.Count == 0) { message = $"Every reporter station in {region.regionName} already has a copy."; return false; }
@@ -93,7 +93,7 @@ public partial class PlayerDesk : Node {
 		pendingMailings.Add(new PendingMailing {
 			RecordId = recordId, RegionId = regionId,
 			StationIds = targets.Select(s => s.stationId).ToList(),
-			MailedWeek = week, ResolveWeek = week + GD.RandRange(MailingResolveMinWeeks, MailingResolveMaxWeeks),
+			MailedWeek = week, ResolveWeek = week + GameRandom.RandRange(MailingResolveMinWeeks, MailingResolveMaxWeeks),
 		});
 
 		Note($"Mailed {targets.Count:N0} promo cop{(targets.Count == 1 ? "y" : "ies")} of \"{title}\" around {region.regionName} for ${cost:N0}. Now you wait.");
@@ -119,10 +119,10 @@ public partial class PlayerDesk : Node {
 			bool callback = false;
 			foreach (string stationId in mailing.StationIds) {
 				if (!stationsById.TryGetValue(stationId, out RadioStation station)) continue; // station gone (era turnover) -- silently in the bin
-				if (GD.Randf() >= MailingLandingChance(mailing.RecordId, stationId)) continue; // in the bin
+				if (GameRandom.Randf() >= MailingLandingChance(mailing.RecordId, stationId)) continue; // in the bin
 				landed++;
 				ServiceStation(mailing.RecordId, stationId, MailingServicedConviction, ServicingSource.Mailed);
-				if (!rolodex.Any(e => e.stationId == stationId) && GD.Randf() < MailingUnpromptedCallbackChance
+				if (!rolodex.Any(e => e.stationId == stationId) && GameRandom.Randf() < MailingUnpromptedCallbackChance
 						&& EnsureStationEntry(station, discover: true, $"He phoned about \"{title}\" -- didn't expect that.") != null)
 					callback = true;
 			}

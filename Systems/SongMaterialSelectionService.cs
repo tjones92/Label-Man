@@ -11,7 +11,7 @@ using Godot;
 ///
 /// DETERMINISM: this service draws NOTHING from the global GD stream. Every stochastic choice comes
 /// from a pure stable hash over (artistId, recordId, year, salt) -- mirrors ScoutingPerception. If it
-/// used GD.RandRange it would shift the whole downstream RNG schedule and the material effect could
+/// used GameRandom.RandRange it would shift the whole downstream RNG schedule and the material effect could
 /// not be isolated from a full reshuffle. Chart outcomes change (material now shapes hook/originality)
 /// but the change is attributable and replay-stable. See SimTools/PublishingCoverSongDirective.md.
 /// </summary>

@@ -43,9 +43,9 @@ public static class ScoutingContractContinuityChecks {
         Check(desk.TableOffer(talk, ask.Advance * .75f, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, true, false, out message) &&
             talk.stage == ContractTalkStage.Objection, "real hard-line objection: " + message);
         string renewal = Json(desk.CaptureState().RenewalDiscussion), world = Json(WorldStateService.Capture());
-        GD.Seed(177); uint draw = GD.Randi(); GD.Seed(177);
+        GameRandom.Seed(177); uint draw = GameRandom.Randi(); GameRandom.Seed(177);
         Check(desk.ApproachRenewal(act, out message) && ReferenceEquals(talk, desk.PendingRenewal.Talk) &&
-            Json(desk.CaptureState().RenewalDiscussion) == renewal && GD.Randi() == draw && Json(WorldStateService.Capture()) == world,
+            Json(desk.CaptureState().RenewalDiscussion) == renewal && GameRandom.Randi() == draw && Json(WorldStateService.Capture()) == world,
             "reopening retains terms, rounds, objection and RNG");
         var savedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture()); var savedPlayer = LocalSceneRoomService.Copy(desk.CaptureState());
         var date = clock.CurrentDate; int hour = clock.CurrentHour, minute = clock.CurrentMinute;

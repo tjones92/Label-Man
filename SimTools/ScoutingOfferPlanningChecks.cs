@@ -61,9 +61,9 @@ public static class ScoutingOfferPlanningChecks {
             clock.RestoreClock(baselineDate, hour, minute);
         }
         string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
-        GD.Seed(741); uint draw = GD.Randi(); GD.Seed(741);
+        GameRandom.Seed(741); uint draw = GameRandom.Randi(); GameRandom.Seed(741);
         for (int i = 0; i < 8; i++) desk.PreviewOfferResources(advance + i, i % 2 == 0);
-        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GD.Randi() == draw, "editing forecasts preserves all world/player state and RNG");
+        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GameRandom.Randi() == draw, "editing forecasts preserves all world/player state and RNG");
         var rooms = WorldStateService.Capture().SceneRooms;
         rooms.Conversations.Single().Fee += 5;
         Check(desk.PreviewOfferResources(advance).PendingAppointmentFees == booking.Fee, "external captures cannot rewrite forecast fees");

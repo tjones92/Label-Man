@@ -244,8 +244,8 @@ public class SimulatedArtist {
 		// studio -- mostly worse, occasionally better. The SAME two draws are taken (the stream stays aligned);
 		// only the symmetric range widens, so the mean record is unchanged by construction.
 		if (BandLife.WorldChurn) varianceRange *= 1f + RoomTension();
-		float variance = (float)GD.RandRange(-varianceRange, varianceRange);
-		float luck = (float)GD.RandRange(-0.08f, 0.08f);
+		float variance = (float)GameRandom.RandRange(-varianceRange, varianceRange);
+		float luck = (float)GameRandom.RandRange(-0.08f, 0.08f);
 		return Mathf.Clamp(baseQuality + variance + luck, 0f, 1f);
 	}
 

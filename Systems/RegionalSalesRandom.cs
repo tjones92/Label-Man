@@ -29,7 +29,7 @@ public static class RegionalSalesRandom {
     public static float Multiplier(RecordRuntimeData record, MarketRegion region, double minimum, double maximum) {
         int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
         // Keep both the normal legacy path and the frozen startup/prewarm stream exact.
-        if (Version == 0 || week <= 0) return (float)GD.RandRange(minimum, maximum);
+        if (Version == 0 || week <= 0) return (float)GameRandom.RandRange(minimum, maximum);
         if (string.IsNullOrEmpty(record.baseRecord.recordId) || string.IsNullOrEmpty(region.regionId))
             throw new InvalidOperationException("Keyed sales require persistent record and region IDs.");
         uint decision = 0x534C0000U | (record.baseRecord.format == ReleaseFormat.Album ? 1U : 0U);

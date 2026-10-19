@@ -89,9 +89,9 @@ public static class LabelPressingEconomicsChecks {
 		Check(oldLabel.pressingForecastSingleLogUnits == 0f && oldLabel.pressingForecastAlbumLogUnits == 0f,
 			"old saves load with no forecast");
 
-		GD.Seed(9113); float expected = GD.Randf(); GD.Seed(9113);
+		GameRandom.Seed(9113); float expected = GameRandom.Randf(); GameRandom.Seed(9113);
 		LabelPressingEconomics.Press(Fresh(ReleaseFormat.Album), label, 900);
-		Check(GD.Randf() == expected, "pressing consumes no random draws");
+		Check(GameRandom.Randf() == expected, "pressing consumes no random draws");
 
 		// --plant-credit (§11): the plant bills on PlantTermWeeks terms.
 		var cashOnly = new AILabel { labelId = "cash-only", tier = LabelTier.Small };
@@ -156,13 +156,13 @@ public static class LabelPressingEconomicsChecks {
 	private static string SmallLabelHomeTerritoryChecks() {
 		void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("Small home territory: " + why); }
 		SmallLabelHomeTerritory.SetEnabledForChecks(false);
-		GD.Seed(4401);
+		GameRandom.Seed(4401);
 		var before = AILabelFactory.GenerateAllLabels(600);
-		float nextBefore = GD.Randf();
+		float nextBefore = GameRandom.Randf();
 		SmallLabelHomeTerritory.SetEnabledForChecks(true);
-		GD.Seed(4401);
+		GameRandom.Seed(4401);
 		var after = AILabelFactory.GenerateAllLabels(600);
-		float nextAfter = GD.Randf();
+		float nextAfter = GameRandom.Randf();
 		SmallLabelHomeTerritory.SetEnabledForChecks(false);
 		Check(nextBefore == nextAfter && before.Count == after.Count, "the factory makes the same draws with the switch on");
 		int small = 0, widened = 0;

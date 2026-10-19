@@ -114,7 +114,7 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 
-		int minutes = WorkThePhonesMinMinutes + (int)GD.RandRange(0, WorkThePhonesMaxMinutes - WorkThePhonesMinMinutes);
+		int minutes = WorkThePhonesMinMinutes + (int)GameRandom.RandRange(0, WorkThePhonesMaxMinutes - WorkThePhonesMinMinutes);
 		if (TimeManager.Instance?.CanAffordMinutes(minutes) != true) {
 			message = "There isn't enough left of the day to sit on the phone.";
 			return false;
@@ -146,7 +146,7 @@ public partial class PlayerDesk : Node {
 		// Directive §6.2: "a bonus to cold Rolodex connect rolls (the switchboard has seen the name)."
 		float reach = Mathf.Clamp(0.22f + street * 0.09f + hourTerm + networkTerm - fatigue + TradeAdConnectBonus(), 0.05f, 0.88f);
 
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 
 		// Total miss: the day is gone and you have nothing.
 		if (roll > reach) {
@@ -156,7 +156,7 @@ public partial class PlayerDesk : Node {
 				"Busy signal, busy signal, and a man who says the jock you want quit in March.",
 				"Somebody takes a message. You can hear him not writing it down.",
 			};
-			string miss = misses[(int)GD.RandRange(0, misses.Length - 1)];
+			string miss = misses[(int)GameRandom.RandRange(0, misses.Length - 1)];
 			Note($"Worked the phones ({minutes} min) -- nothing. {miss}");
 			message = miss;
 			Changed?.Invoke();
@@ -176,7 +176,7 @@ public partial class PlayerDesk : Node {
 				+ (RolodexShifts.ReachableAt(shift, hour) ? 0.22f : -0.20f)
 				- dj.influence * 0.25f,
 			0.05f, 0.85f);
-		bool gotThrough = GD.Randf() < throughChance;
+		bool gotThrough = GameRandom.Randf() < throughChance;
 
 		var entry = new RolodexEntry {
 			djId = dj.djId, stationId = station.stationId,
@@ -203,14 +203,14 @@ public partial class PlayerDesk : Node {
 	/// <summary>Pick a reporter station to cold-call, weighted by DJ influence when STREET is high.</summary>
 	private static RadioStation PickPhoneTarget(List<RadioStation> candidates, int street) {
 		if (candidates.Count == 1) return candidates[0];
-		if (street <= 2) return candidates[(int)GD.RandRange(0, candidates.Count - 1)];
+		if (street <= 2) return candidates[(int)GameRandom.RandRange(0, candidates.Count - 1)];
 		float weightPow = (street - 2) * 0.5f;
 		float[] weights = candidates.Select(s => {
 			Deejay dj = ChartManager.Instance?.GetDeejay(s.leadDjId);
 			return Mathf.Pow(dj?.influence ?? 0.5f, weightPow);
 		}).ToArray();
 		float total = weights.Sum();
-		float roll = GD.Randf() * total;
+		float roll = GameRandom.Randf() * total;
 		for (int i = 0; i < candidates.Count; i++) { roll -= weights[i]; if (roll <= 0f) return candidates[i]; }
 		return candidates[^1];
 	}
@@ -231,7 +231,7 @@ public partial class PlayerDesk : Node {
 		return dj.archetype switch {
 			DJArchetype.Personality => $"{PickPersonalityNick()} {last}",
 			DJArchetype.Hustler     => $"{PickHustlerNick()} {last}",
-			DJArchetype.Regional    => GD.Randf() < 0.35f ? $"Country {last}" : $"{first} {last}",
+			DJArchetype.Regional    => GameRandom.Randf() < 0.35f ? $"Country {last}" : $"{first} {last}",
 			_                       => $"{first} {last}"
 		};
 	}
@@ -239,12 +239,12 @@ public partial class PlayerDesk : Node {
 	private static string PickPersonalityNick() {
 		string[] nicks = { "Wolfman", "Daddy", "Cool Papa", "Mad", "The Baron",
 			"Mellow", "Sweet Daddy", "Big", "Hot", "King", "Duke", "Fast" };
-		return nicks[(int)GD.RandRange(0, nicks.Length - 1)];
+		return nicks[(int)GameRandom.RandRange(0, nicks.Length - 1)];
 	}
 
 	private static string PickHustlerNick() {
 		string[] nicks = { "Slick", "Fast Eddie", "Smooth", "Crazy", "Wild", "Lucky", "Easy" };
-		return nicks[(int)GD.RandRange(0, nicks.Length - 1)];
+		return nicks[(int)GameRandom.RandRange(0, nicks.Length - 1)];
 	}
 
 	// ========================================================================================
@@ -485,11 +485,11 @@ public partial class PlayerDesk : Node {
 		if (!onShift) {
 			float slip = hour < from ? from - hour : hour - to;
 			float stillReach = Mathf.Clamp(0.30f - slip * 0.10f + c.rapport * 0.35f, 0.02f, 0.35f);
-			if (GD.Randf() > stillReach) return ConnectFailure.OffShift;
+			if (GameRandom.Randf() > stillReach) return ConnectFailure.OffShift;
 		}
 
 		// On shift means he might literally be on the air right now.
-		if (onShift && hour >= from + 1 && GD.Randf() < 0.14f) return ConnectFailure.OnAir;
+		if (onShift && hour >= from + 1 && GameRandom.Randf() < 0.14f) return ConnectFailure.OnAir;
 
 		RollAttemptDay();
 		float fatigue = Mathf.Max(0f, (callAttemptsToday - 1) * 0.07f);
@@ -502,12 +502,12 @@ public partial class PlayerDesk : Node {
 			- c.djInfluence * 0.22f
 			- fatigue,
 			0.08f, 0.94f);
-		if (GD.Randf() < chance) return ConnectFailure.None;
+		if (GameRandom.Randf() < chance) return ConnectFailure.None;
 
 		// Failed: pick the flavour that matches why. A cold relationship with a big jock reads as
 		// screening; otherwise it is just a phone that nobody answers.
 		if (c.rapport < 0.10f && c.djInfluence > 0.5f) return ConnectFailure.Gatekeeper;
-		return GD.Randf() < 0.5f ? ConnectFailure.NoAnswer : ConnectFailure.LineBusy;
+		return GameRandom.Randf() < 0.5f ? ConnectFailure.NoAnswer : ConnectFailure.LineBusy;
 	}
 
 	private static string ConnectFailureLine(ConnectFailure fail, RolodexCallContext c) => fail switch {

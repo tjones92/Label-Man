@@ -155,7 +155,7 @@ public static class PaperTextures {
 	public static ImageTexture Felt { get { return felt ??= BuildFelt(); } }
 
 	private static ImageTexture BuildFelt() {
-		var rng = new RandomNumberGenerator { Seed = 1961 };
+		var rng = new PcgRandom { Seed = 1961 };
 		const int n = 192;
 		var image = Image.CreateEmpty(n, n, false, Image.Format.Rgba8);
 		for (int y = 0; y < n; y++)
@@ -184,7 +184,7 @@ public static class PaperTextures {
 	public static ImageTexture Falloff { get { return falloff ??= BuildFalloff(); } }
 
 	private static ImageTexture BuildGrain() {
-		var rng = new RandomNumberGenerator { Seed = 1960 };
+		var rng = new PcgRandom { Seed = 1960 };
 		const int n = GrainSize;
 		var image = Image.CreateEmpty(n, n, false, Image.Format.Rgba8);
 		// Blotches: an 8x8 lattice of soft values, bilinearly wrapped.

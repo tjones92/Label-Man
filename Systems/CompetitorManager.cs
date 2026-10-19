@@ -688,16 +688,16 @@ public partial class CompetitorManager : Node {
 			if (!releaseQuotas.TryGetValue(label.labelId, out int quota)) continue;
 			for (int i = 0; i < quota; i++) {
 				if (label.roster.Count == 0) continue;
-				var artist = label.roster[(int)GD.RandRange(0, label.roster.Count - 1)];
+				var artist = label.roster[(int)GameRandom.RandRange(0, label.roster.Count - 1)];
 				// PREWARM SEEDING (2026-08, WIP task B): the opening catalog was 100% singles, so the album
 				// channel was empty at week 1 and 1960 read low LP unit share. Seed a genre-realistic share
 				// as the pre-existing 1960 LP catalog (jazz, classical, mood/MOR, Broadway); the album
 				// affinity skew makes adult genres seed albums often and teen/rock rarely, matching the era.
 				Genre seedGenre = GenreCatalog.MapLegacy(artist.primaryGenre, year);
-				var format = GD.Randf() < MarketRegion.GetAlbumSeedAffinity(seedGenre)
+				var format = GameRandom.Randf() < MarketRegion.GetAlbumSeedAffinity(seedGenre)
 					? ReleaseFormat.Album : ReleaseFormat.Single;
 				var record = GenerateRecordFromArtist(label, artist, year, format);
-				int weeksAgo = (int)GD.RandRange(1, 20);
+				int weeksAgo = (int)GameRandom.RandRange(1, 20);
 				if (record == null) continue;
 				record.releaseDate = TimeManager.Instance.CurrentDate.SubtractWeeks(weeksAgo);
 				ChartManager.Instance.ReleaseRecord(record);
@@ -753,12 +753,12 @@ public partial class CompetitorManager : Node {
 		if (record.format == ReleaseFormat.Album)
 			runtimeData.awareness = Mathf.Max(runtimeData.awareness, albumPrewarmAwarenessFloor);
 		
-		if (quality > 0.7f && GD.Randf() < 0.4f) {
-			runtimeData.weeksOnChart = (int)GD.RandRange(2, weeksOld);
-			runtimeData.peakPosition = (int)GD.RandRange(10, 60);
-		} else if (quality > 0.5f && GD.Randf() < 0.3f) {
-			runtimeData.weeksOnChart = (int)GD.RandRange(1, weeksOld / 2);
-			runtimeData.peakPosition = (int)GD.RandRange(40, 90);
+		if (quality > 0.7f && GameRandom.Randf() < 0.4f) {
+			runtimeData.weeksOnChart = (int)GameRandom.RandRange(2, weeksOld);
+			runtimeData.peakPosition = (int)GameRandom.RandRange(10, 60);
+		} else if (quality > 0.5f && GameRandom.Randf() < 0.3f) {
+			runtimeData.weeksOnChart = (int)GameRandom.RandRange(1, weeksOld / 2);
+			runtimeData.peakPosition = (int)GameRandom.RandRange(40, 90);
 		}
 		
 		var regions = ChartManager.Instance.GetAllRegions();
@@ -770,9 +770,9 @@ public partial class CompetitorManager : Node {
 			bool isStrongRegion = label.strongRegions?.Contains(region.regionId) ?? false;
 			float regionMod = isStrongRegion ? 1.4f : 1f;
 			
-			regionalData.awareness = runtimeData.awareness * regionMod * (float)GD.RandRange(0.7, 1.1);
-			regionalData.radioPlay = runtimeData.radioHeat * regionMod * (float)GD.RandRange(0.6, 1.0);
-			regionalData.sentiment = 0.5f + (quality * 0.3f) + (float)GD.RandRange(-0.1, 0.15);
+			regionalData.awareness = runtimeData.awareness * regionMod * (float)GameRandom.RandRange(0.7, 1.1);
+			regionalData.radioPlay = runtimeData.radioHeat * regionMod * (float)GameRandom.RandRange(0.6, 1.0);
+			regionalData.sentiment = 0.5f + (quality * 0.3f) + (float)GameRandom.RandRange(-0.1, 0.15);
 			// Prewarm stock formerly bypassed the physical distribution model outright,
 			// seeding 5,000-20,000 units into every region regardless of the label's
 			// tier, owned reach, or whether it had any distribution there at all. A
@@ -784,9 +784,9 @@ public partial class CompetitorManager : Node {
 			// Established-catalog albums carry deeper shelf stock than a fresh small-label single (multiplier
 			// currently 1.0 = neutral; the ~530-unit small-label shelf otherwise stock-caps a catalog staple).
 			float prewarmStock = record.format == ReleaseFormat.Album ? shelf * albumPrewarmStockMultiplier : shelf;
-			regionalData.unitsInStores = Mathf.RoundToInt(prewarmStock * (float)GD.RandRange(0.7, 1.1));
+			regionalData.unitsInStores = Mathf.RoundToInt(prewarmStock * (float)GameRandom.RandRange(0.7, 1.1));
 			// A record already this old has sold part of its shelf through.
-			regionalData.unitsSoldTotal = Mathf.RoundToInt(shelf * (1f - ageFactor) * (float)GD.RandRange(0.6, 1.2));
+			regionalData.unitsSoldTotal = Mathf.RoundToInt(shelf * (1f - ageFactor) * (float)GameRandom.RandRange(0.6, 1.2));
 		}
 	}
 	
@@ -1367,9 +1367,14 @@ public partial class CompetitorManager : Node {
 		return cogs;
 	}
 
+	// The exported tables are Godot dictionaries: each TryGetValue marshals the key into a native
+	// string. They are fixed after load, so each format is resolved once.
+	private readonly Dictionary<ReleaseFormat, float> pricePerUnitCache = new(), legacyPressingCostCache = new();
+
 	private float GetPricePerUnit(ReleaseFormat format) {
+		if (pricePerUnitCache.TryGetValue(format, out float cached)) return cached;
 		string key = format.ToString();
-		return pricePerUnitByFormat != null && pricePerUnitByFormat.TryGetValue(key, out float price)
+		return pricePerUnitCache[format] = pricePerUnitByFormat != null && pricePerUnitByFormat.TryGetValue(key, out float price)
 			? price
 			: 0.89f;
 	}
@@ -1381,8 +1386,9 @@ public partial class CompetitorManager : Node {
 	}
 
 	private float GetLegacyPressingCostPerUnit(ReleaseFormat format) {
+		if (legacyPressingCostCache.TryGetValue(format, out float cached)) return cached;
 		string key = format.ToString();
-		return pressingCostPerUnitByFormat != null && pressingCostPerUnitByFormat.TryGetValue(key, out float cost)
+		return legacyPressingCostCache[format] = pressingCostPerUnitByFormat != null && pressingCostPerUnitByFormat.TryGetValue(key, out float cost)
 			? cost
 			: 0.30f;
 	}
@@ -1433,7 +1439,7 @@ public partial class CompetitorManager : Node {
 			if (label.roster.Count == 0) continue;
 
 			float releaseChance = CalculateWeeklyReleaseChance(label, date.year, date.month);
-			if (GD.Randf() < releaseChance) {
+			if (GameRandom.Randf() < releaseChance) {
 				WeeklyReleaseRollsFired++;
 				if (TryReleaseRecord(label, date)) {
 					releasesThisWeek++;
@@ -1472,7 +1478,7 @@ public partial class CompetitorManager : Node {
 					existing.album.externalMedia != null && existing.album.GetAllTracks().Length == 0)
 					CompositionCatalogService.OnRecordReleased(existing);
 			}
-		if (GD.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
+		if (GameRandom.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
 		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
 		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
 		AILabel label = ExternalMediaService.SelectLabel(aiLabels, profile);
@@ -1495,11 +1501,11 @@ public partial class CompetitorManager : Node {
 			externalMedia = profile,
 			trackRefs = System.Array.Empty<AlbumTrack>(),
 			nonSingleTracks = System.Array.Empty<AlbumTrack>(),
-			runtimeMinutes = (float)GD.RandRange(28.0, 46.0),
+			runtimeMinutes = (float)GameRandom.RandRange(28.0, 46.0),
 			thematicCohesion = Mathf.Clamp(0.6f + profile.criticalPrestige * 0.3f, 0f, 1f),
 			pooledAppeal = pooledAppeal,
-			packaging = Mathf.Clamp(0.45f + profile.boxOfficeTrajectory * 0.35f + (float)GD.RandRange(-0.08, 0.10), 0.2f, 1f),
-			isStereo = date.year >= 1968 || GD.Randf() < Mathf.Lerp(0.2f, 0.8f, Mathf.Clamp((date.year - 1960f) / 8f, 0f, 1f))
+			packaging = Mathf.Clamp(0.45f + profile.boxOfficeTrajectory * 0.35f + (float)GameRandom.RandRange(-0.08, 0.10), 0.2f, 1f),
+			isStereo = date.year >= 1968 || GameRandom.Randf() < Mathf.Lerp(0.2f, 0.8f, Mathf.Clamp((date.year - 1960f) / 8f, 0f, 1f))
 		};
 
 		var record = new Record {
@@ -1997,7 +2003,7 @@ public partial class CompetitorManager : Node {
 			ApplyProjectGenre(record, projectGenre, artistPrimary);
 		float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
 		float noiseRange = Mathf.Lerp(0.30f, 0.10f, label.scoutingAbility);
-		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
+		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GameRandom.RandRange(-noiseRange, noiseRange), 0f, 1f);
 		float perceivedQualityMult = 0.6f + (perceivedQuality * 0.8f);
 
 		float productionCost = CalculateProductionCost(label, record, date);
@@ -2205,7 +2211,7 @@ public partial class CompetitorManager : Node {
 		if (plan.strategy == ReleaseStrategy.AlbumWithPromo) {
 			promo = CreatePromoSingleFromAlbum(album, artist, label, date.year);
 			if (PolarSongBehavior.UsePolarFitSelection && promo == null) return false;
-			gapWeeks = (int)GD.RandRange(Mathf.Min(albumDropGapWeeksMin, albumDropGapWeeksMax), Mathf.Max(albumDropGapWeeksMin, albumDropGapWeeksMax));
+			gapWeeks = (int)GameRandom.RandRange(Mathf.Min(albumDropGapWeeksMin, albumDropGapWeeksMax), Mathf.Max(albumDropGapWeeksMin, albumDropGapWeeksMax));
 			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
 			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
 			albumPromotion = BuildPromotionSnapshot(album, artist, albumPerceivedMult);
@@ -2289,7 +2295,7 @@ public partial class CompetitorManager : Node {
 	private float DrawPerceivedQualityMultiplier(Record record, AILabel label) {
 		float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
 		float noiseRange = Mathf.Lerp(0.30f, 0.10f, label.scoutingAbility);
-		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
+		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GameRandom.RandRange(-noiseRange, noiseRange), 0f, 1f);
 		return 0.6f + perceivedQuality * 0.8f;
 	}
 
@@ -2483,8 +2489,8 @@ public partial class CompetitorManager : Node {
 			: projectedAlbum;
 
 		float noiseRange = Mathf.Lerp(0.50f, 0.15f, Mathf.Clamp(label.scoutingAbility, 0f, 1f));
-		float singleNoiseMultiplier = 1f + (float)GD.RandRange(-noiseRange, noiseRange);
-		float albumNoiseMultiplier = 1f + (float)GD.RandRange(-noiseRange, noiseRange);
+		float singleNoiseMultiplier = 1f + (float)GameRandom.RandRange(-noiseRange, noiseRange);
+		float albumNoiseMultiplier = 1f + (float)GameRandom.RandRange(-noiseRange, noiseRange);
 		projectedSingle *= singleNoiseMultiplier;
 		projectedAlbum *= albumNoiseMultiplier;
 		projectedStandaloneAlbum *= albumNoiseMultiplier;
@@ -3393,11 +3399,11 @@ public partial class CompetitorManager : Node {
 		float baseQuality = (artistQuality * 0.82f) + (studioMod * 0.18f);
 		baseQuality *= studioMod;
 		
-		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.55f) + (baseQuality * 0.35f) + (float)GD.RandRange(-0.12, 0.18), 0f, 1f);
-		record.productionQuality = Mathf.Clamp((label.productionQuality * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GD.RandRange(-0.05, 0.1), 0f, 1f);
-		record.originality = Mathf.Clamp(artist.members.Max(m => m.creativity) * 0.7f + (float)GD.RandRange(0f, 0.3f), 0f, 1f);
-		record.danceability = (float)GD.RandRange(0.3, 0.95);
-		record.controversy = (float)GD.RandRange(0f, 0.2f);
+		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.55f) + (baseQuality * 0.35f) + (float)GameRandom.RandRange(-0.12, 0.18), 0f, 1f);
+		record.productionQuality = Mathf.Clamp((label.productionQuality * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
+		record.originality = Mathf.Clamp(artist.members.Max(m => m.creativity) * 0.7f + (float)GameRandom.RandRange(0f, 0.3f), 0f, 1f);
+		record.danceability = (float)GameRandom.RandRange(0.3, 0.95);
+		record.controversy = (float)GameRandom.RandRange(0f, 0.2f);
 		
 		if (record.primaryGenre == Genre.Gospel) record.controversy = Mathf.Min(record.controversy, 0.05f);
 		else if (record.primaryGenre == Genre.RockAndRoll || record.primaryGenre == Genre.GarageRock) record.danceability = Mathf.Max(record.danceability, 0.5f);
@@ -3446,16 +3452,16 @@ public partial class CompetitorManager : Node {
 	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year, string albumRecordId = null, Genre secondaryGenre = Genre.TraditionalPop) {
 		bool useStructuredPromoTracks = PolarSongBehavior.UsePolarFitSelection || (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
 		float artistTalent = artist.CalculateBaseQuality();
-		float luckyRoll = GD.Randf();
+		float luckyRoll = GameRandom.Randf();
 		float cohesionCeiling = AlbumModel.GetMaximumAchievableCohesion(year, artistTalent, label.productionQuality, luckyRoll);
-		float thematicCohesion = Mathf.Clamp((float)GD.RandRange(0.10, cohesionCeiling), 0f, cohesionCeiling);
+		float thematicCohesion = Mathf.Clamp((float)GameRandom.RandRange(0.10, cohesionCeiling), 0f, cohesionCeiling);
 
 		AlbumFormat albumFormat;
 		bool statementViable = cohesionCeiling >= 0.72f && thematicCohesion >= 0.62f;
-		if (statementViable && year >= AlbumModel.EarlyStatementYear && GD.Randf() < 0.24f) {
+		if (statementViable && year >= AlbumModel.EarlyStatementYear && GameRandom.Randf() < 0.24f) {
 			albumFormat = AlbumFormat.Concept;
 			thematicCohesion = Mathf.Max(thematicCohesion, 0.68f);
-		} else if (GD.Randf() < AlbumModel.GetCompilationChance(artist.primaryGenre, year)) {
+		} else if (GameRandom.Randf() < AlbumModel.GetCompilationChance(artist.primaryGenre, year)) {
 			albumFormat = AlbumFormat.Compilation;
 		} else {
 			// SOUNDTRACK ORIGINATION (2026-08, D7 soundtrack subsystem): the old cosmetic
@@ -3464,7 +3470,7 @@ public partial class CompetitorManager : Node {
 			// curve and economics -- it must NOT be a dice roll on an ordinary artist album. The
 			// former 12% Soundtrack band folds into Standard; Live keeps its ~12% band. Real
 			// soundtracks are minted by ExternalMediaService (see D7SoundtrackCastAlbumHandoff.md).
-			float typeRoll = GD.Randf();
+			float typeRoll = GameRandom.Randf();
 			albumFormat = typeRoll < 0.12f ? AlbumFormat.Live : AlbumFormat.Standard;
 		}
 
@@ -3476,7 +3482,7 @@ public partial class CompetitorManager : Node {
 			}
 		}
 
-		int targetTracks = (int)GD.RandRange(9, 13);
+		int targetTracks = (int)GameRandom.RandRange(9, 13);
 		var nonSingleTracks = new List<AlbumTrack>();
 		float originalMaterialScale = albumFormat == AlbumFormat.Compilation ? 0.68f : albumFormat == AlbumFormat.Live ? 0.80f : 0.88f;
 		// How unevenly this family's albums are put together in this year. A jazz LP in 1960 is
@@ -3498,7 +3504,7 @@ public partial class CompetitorManager : Node {
 		}
 		for (int attemptedSlot = 0; attemptedSlot < nonSingleTarget; attemptedSlot++) {
 			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f
-				+ (float)GD.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
+				+ (float)GameRandom.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
 			string trackTitle = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Album Track {nonSingleTracks.Count + 1}";
 			(float hook, float production, float dance) = useStructuredPromoTracks
 				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
@@ -3534,7 +3540,7 @@ public partial class CompetitorManager : Node {
 			nonSingleTracks.Add(track);
 		}
 
-		float avgTrackMinutes = (float)GD.RandRange(2.45, year >= 1967 ? 4.10 : 3.35);
+		float avgTrackMinutes = (float)GameRandom.RandRange(2.45, year >= 1967 ? 4.10 : 3.35);
 		float[] referencedFreshness = referencedSingles
 			.Select(track => GetSourceHitFreshness(track.sourceRecordId, track)).ToArray();
 		int[] referencedCompUses = referencedSingles
@@ -3552,8 +3558,8 @@ public partial class CompetitorManager : Node {
 			// ramp's reach nor the pioneer bar's hit rate is recoverable from it after the fact.
 			cohesionCeiling = cohesionCeiling,
 			statementExcellence = AlbumModel.GetStatementExcellence(artistTalent, label.productionQuality),
-			packaging = Mathf.Clamp(label.productionQuality * Mathf.Lerp(0.35f, 0.85f, AlbumModel.GetAlbumEraWeight(year)) + (float)GD.RandRange(-0.10, 0.12), 0.05f, 1f),
-			isStereo = year >= 1968 || GD.Randf() < Mathf.Lerp(0.12f, 0.75f, Mathf.Clamp((year - 1960f) / 8f, 0f, 1f))
+			packaging = Mathf.Clamp(label.productionQuality * Mathf.Lerp(0.35f, 0.85f, AlbumModel.GetAlbumEraWeight(year)) + (float)GameRandom.RandRange(-0.10, 0.12), 0.05f, 1f),
+			isStereo = year >= 1968 || GameRandom.Randf() < Mathf.Lerp(0.12f, 0.75f, Mathf.Clamp((year - 1960f) / 8f, 0f, 1f))
 		};
 		IEnumerable<float> qualities = referencedSingles.Select((track, index) => track.quality * referencedFreshness[index])
 			.Concat(nonSingleTracks.Select(track => track.quality));
@@ -3714,9 +3720,9 @@ public partial class CompetitorManager : Node {
 		foreach (MarketRegion region in ChartManager.Instance.GetAllRegions()) {
 			snapshot.regions.Add(new RegionalPromotionSnapshot {
 				regionId = region.regionId,
-				awarenessRandom = (float)GD.RandRange(0.8, 1.1),
+				awarenessRandom = (float)GameRandom.RandRange(0.8, 1.1),
 				radioRandom = 1f,
-				sentimentRandom = (float)GD.RandRange(-0.1, 0.15)
+				sentimentRandom = (float)GameRandom.RandRange(-0.1, 0.15)
 			});
 		}
 		return snapshot;
@@ -3878,7 +3884,7 @@ public partial class CompetitorManager : Node {
 				stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult, runtimeData.baseRecord?.recordId);
 			initialStock[region.regionId] = baseStock;
 			regionalData.unitsInStores = baseStock;
-			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GD.RandRange(0.8, 1.1), 0f, 1f);
+			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GameRandom.RandRange(0.8, 1.1), 0f, 1f);
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
 			float genreRadio = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
 				? GenreAcceptanceService.GetRegionalRadioOpportunity(record.primaryGenre, record.secondaryGenre, region,
@@ -3887,10 +3893,10 @@ public partial class CompetitorManager : Node {
 			if (MarketSeasonality.Enabled) {
 				float radioOpportunity = MarketSeasonality.GetRadioOpportunity(TimeManager.Instance?.CurrentDate.year ?? 1960,
 					TimeManager.Instance?.CurrentDate.month ?? 1, liveTick: true);
-				regionalData.radioPlay = isAlbum ? 0f : Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GD.RandRange(0.7, 1.0) * radioOpportunity * genreRadio, 0f, 1f);
-			} else regionalData.radioPlay = isAlbum ? 0f : Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GD.RandRange(0.7, 1.0) * genreRadio, 0f, 1f);
+				regionalData.radioPlay = isAlbum ? 0f : Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GameRandom.RandRange(0.7, 1.0) * radioOpportunity * genreRadio, 0f, 1f);
+			} else regionalData.radioPlay = isAlbum ? 0f : Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GameRandom.RandRange(0.7, 1.0) * genreRadio, 0f, 1f);
 			float genreFit = GetGenreFit(record.primaryGenre, region);
-			regionalData.sentiment = Mathf.Clamp((quality * 0.6f) + (genreFit * 0.3f) + (float)GD.RandRange(-0.1, 0.15), -1f, 1f);
+			regionalData.sentiment = Mathf.Clamp((quality * 0.6f) + (genreFit * 0.3f) + (float)GameRandom.RandRange(-0.1, 0.15), -1f, 1f);
 		}
 		IReadOnlyDictionary<string, int> allocatedStock = ChartSimulator.RedistributeInitialRegionalStockAllocation(record.primaryGenre,
 			TimeManager.Instance?.CurrentDate.year ?? 1960, GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true,
@@ -4227,7 +4233,7 @@ public partial class CompetitorManager : Node {
 		float pushChance = monthlyPushOfferProbability +
 			(Mathf.Max(0, year - consolidationCourtingRampStartYear) * annualCourtingRampPerYear);
 		// Seed-stable and off the global stream. This roll runs for every distributed client
-		// every month, so drawing it from GD.Randf would reorder every downstream sampler and
+		// every month, so drawing it from GameRandom.Randf would reorder every downstream sampler and
 		// the resulting chart movement could not be attributed to poaching rather than to RNG
 		// reordering (section 12) -- the first 52-week measurement showed exactly that, with
 		// 34 entries moving on the back of 5 actual poaches.
@@ -4288,8 +4294,8 @@ public partial class CompetitorManager : Node {
 		float pushChance = monthlyPushOfferProbability +
 			(Mathf.Max(0, year - consolidationCourtingRampStartYear) * annualCourtingRampPerYear);
 		bool pushEvidence = client.momentumScore > 0.60f || HasRecentTop40Record(client);
-		bool pushTrigger = pushEvidence && GD.Randf() < pushChance;
-		bool pullOffer = pullTrigger && GD.Randf() < monthlyPullOfferProbability;
+		bool pushTrigger = pushEvidence && GameRandom.Randf() < pushChance;
+		bool pullOffer = pullTrigger && GameRandom.Randf() < monthlyPullOfferProbability;
 		var attempt = new DistributionOfferAttemptTelemetry {
 			week = currentWeek,
 			year = year,
@@ -4448,7 +4454,7 @@ public partial class CompetitorManager : Node {
 		if (weighted.Count == 0) return null;
 
 		float total = weighted.Sum(entry => entry.Weight);
-		float roll = GD.Randf() * total;
+		float roll = GameRandom.Randf() * total;
 		foreach (var entry in weighted) {
 			roll -= entry.Weight;
 			if (roll <= 0f) return entry.Label;
@@ -4512,8 +4518,8 @@ public partial class CompetitorManager : Node {
 		bool push = origin == DealOrigin.DistributorCourted;
 		string[] availableRegions = GetGrantedDistributionRegions(client, distributor.distributionRegions);
 		float advance = push
-			? client.GetMonthlyOverhead() * (float)GD.RandRange(6f, 12f)
-			: (GD.Randf() < 0.35f ? 0f : client.GetMonthlyOverhead() * (float)GD.RandRange(0.5f, 2f));
+			? client.GetMonthlyOverhead() * (float)GameRandom.RandRange(6f, 12f)
+			: (GameRandom.Randf() < 0.35f ? 0f : client.GetMonthlyOverhead() * (float)GameRandom.RandRange(0.5f, 2f));
 		advance = Mathf.Min(advance, Mathf.Max(0f, distributor.cashReserves - (distributor.GetMonthlyOverhead() * 3f)));
 		// Borrowed reach is worth the market the distributor's owned network actually
 		// reaches. It was formerly an independent random draw, so a distributor owning
@@ -4521,7 +4527,7 @@ public partial class CompetitorManager : Node {
 		// Scaling the negotiated range by that coverage leaves a genuinely national
 		// distributor at the authored terms and correctly discounts a partial one.
 		float distributorCoverage = ChartManager.Instance?.GetNationalMarketShareForRegions(distributor.distributionRegions) ?? 1f;
-		float negotiatedReach = push ? (float)GD.RandRange(0.50f, 0.80f) : (float)GD.RandRange(0.30f, 0.50f);
+		float negotiatedReach = push ? (float)GameRandom.RandRange(0.50f, 0.80f) : (float)GameRandom.RandRange(0.30f, 0.50f);
 		// Section 28: majors distributing independents in the 1960s routinely owned the masters
 		// (the "P&D" deal), which is what folds those records into the major's corporate/distributor
 		// chart share (section 27.1). A Major distributor therefore takes masters far more often than
@@ -4536,12 +4542,12 @@ public partial class CompetitorManager : Node {
 			// strong regions, so it granted only the market the client already served and
 			// never supplied the national bridge the contract represented.
 			grantedRegions = availableRegions,
-			marginSkim = push ? (float)GD.RandRange(pushMarginSkimMin, pushMarginSkimMax) : (float)GD.RandRange(pullMarginSkimMin, pullMarginSkimMax),
-			ownsMasters = GD.Randf() < mastersRate,
+			marginSkim = push ? (float)GameRandom.RandRange(pushMarginSkimMin, pushMarginSkimMax) : (float)GameRandom.RandRange(pullMarginSkimMin, pullMarginSkimMax),
+			ownsMasters = GameRandom.Randf() < mastersRate,
 			advance = advance,
 			unrecoupedAdvance = advance,
 			signedWeek = currentWeek,
-			termWeeks = push ? (int)GD.RandRange(78, year >= 1967 ? 104 : 156) : (int)GD.RandRange(52, 104),
+			termWeeks = push ? (int)GameRandom.RandRange(78, year >= 1967 ? 104 : 156) : (int)GameRandom.RandRange(52, 104),
 			origin = origin
 		};
 	}
@@ -4571,7 +4577,7 @@ public partial class CompetitorManager : Node {
 		// dependent labels sign, stay dependent, and are absorbable when the window opens.
 		if (courted) acceptance += 0.35f;
 		if (!courted && client.tier == LabelTier.Independent && client.ownedReach >= 0.45f && !cashPressured) acceptance -= 0.35f;
-		return GD.Randf() < Mathf.Clamp(acceptance, 0.05f, 0.95f);
+		return GameRandom.Randf() < Mathf.Clamp(acceptance, 0.05f, 0.95f);
 	}
 
 	/// <summary>
@@ -4722,7 +4728,7 @@ public partial class CompetitorManager : Node {
 				maxDecadeConsolidationAbsorptions)) {
 			return false;
 		}
-		return GD.Randf() < consolidationAbsorbChance;
+		return GameRandom.Randf() < consolidationAbsorbChance;
 	}
 
 	// Absorption is the subsidiary model (section 24). An absorbed independent is NOT shut
@@ -5139,7 +5145,7 @@ public partial class CompetitorManager : Node {
 
 		// Below the bar, "I don't hear it" is the honest outcome most of the time -- proof is what
 		// turns a warehouse visit into a sure thing.
-		if (!proven && GD.Randf() > UnprovenLineAcceptChance + Mathf.Max(0f, acceptBonus)) return null;
+		if (!proven && GameRandom.Randf() > UnprovenLineAcceptChance + Mathf.Max(0f, acceptBonus)) return null;
 		if (!house.AddClient(label.labelId)) return null;
 
 		label.independentDistributionRegions.Add(regionId);
@@ -5278,7 +5284,7 @@ public partial class CompetitorManager : Node {
 	
 	public void DebugForceRelease() {
 		if (aiLabels == null || aiLabels.Count == 0) return;
-		var label = aiLabels.Where(l => l.status != LabelStatus.Bankrupt && l.roster.Count > 0).OrderBy(l => GD.Randf()).FirstOrDefault();
+		var label = aiLabels.Where(l => l.status != LabelStatus.Bankrupt && l.roster.Count > 0).OrderBy(l => GameRandom.Randf()).FirstOrDefault();
 		if (label != null) {
 			var date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 			TryReleaseRecord(label, date);

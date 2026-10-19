@@ -65,12 +65,12 @@ public static class BandLifeChecks {
 			technicalSkill = 0.55f, creativity = 0.6f, musicalVersatility = 0.5f, stagePresence = 0.5f, isLeadVocalist = true,
 			primaryRole = MusicianRole.LeadVocals
 		};
-		GD.Seed(4242);
-		float before = GD.Randf();
-		GD.Seed(4242);
+		GameRandom.Seed(4242);
+		float before = GameRandom.Randf();
+		GameRandom.Seed(4242);
 		MemberAxesService.Generate(m, Genre.RockAndRoll, 1961);
 		float a = BandLife.Unit("probe|x"), n = BandLife.Normal("probe|y");
-		float after = GD.Randf();
+		float after = GameRandom.Randf();
 		Check(before == after, "axes and keyed draws consume nothing from the global stream");
 		var copy = new Musician("probe_mus_1", "Probe", "Person", true, 1940) {
 			technicalSkill = 0.55f, creativity = 0.6f, musicalVersatility = 0.5f, stagePresence = 0.5f, isLeadVocalist = true,

@@ -45,12 +45,12 @@ public static class SceneRoomPrewarmChecks {
             LocalScenes.Configure(defaults.Append("--enable-scene-room-prewarm"));
             Check(LocalScenes.RoomPrewarm && LocalScenes.RoomPrewarmWeeks == LocalScenes.DefaultRoomPrewarmWeeks, "enabled with the default 52 weeks");
             ulong population = WorldStateService.Capture().PopulationRngState;
-            GD.Seed(4417); float next = GD.Randf(); GD.Seed(4417);
+            GameRandom.Seed(4417); float next = GameRandom.Randf(); GameRandom.Seed(4417);
             var started = DateTime.UtcNow;
             RestoreRooms(new SceneRoomSaveData());
             LocalSceneRoomService.Prewarm(date);
             double seconds = (DateTime.UtcNow - started).TotalSeconds;
-            Check(GD.Randf() == next, "the pre-roll consumes no global RNG");
+            Check(GameRandom.Randf() == next, "the pre-roll consumes no global RNG");
             Check(WorldStateService.Capture().PopulationRngState == population, "the pre-roll consumes no population RNG");
             var warmed = Snapshot();
             Check(warmed.PriorWeeks == 52 && warmed.Standing.Count > 0 && warmed.Standing.All(s => s.Shows == 0 && s.PriorShows > 0 && s.LastDay < 0),

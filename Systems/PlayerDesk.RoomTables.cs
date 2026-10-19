@@ -115,7 +115,7 @@ public partial class PlayerDesk {
 		if (!Require(TableRightsHours, out message)) return false;
 		Spend(TableRightsHours);
 
-		bool yes = GD.Randf() < TableRightsChance(room);
+		bool yes = GameRandom.Randf() < TableRightsChance(room);
 		float cut = RoomTableCut(room.Kind);
 		roomTableRights[roomId] = new RoomTableRights {
 			RoomId = roomId, Granted = yes, AskedDay = today, ExpiresDay = yes ? today + TableRightsTermDays : today,

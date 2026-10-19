@@ -33,7 +33,7 @@ public sealed partial class StationNetwork {
 	private readonly Dictionary<string, Dictionary<StationFormat, float>> tailFormatReachByRegion =
 		new(StringComparer.Ordinal);
 
-	private readonly RandomNumberGenerator rng = new();
+	private readonly PcgRandom rng = new();
 	private int currentYear;
 
 	// Payola candidacy lookup (recordId, stationId) -> active bribe boost. Set by ChartManager to the

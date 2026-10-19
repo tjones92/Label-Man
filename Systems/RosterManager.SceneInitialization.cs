@@ -46,11 +46,11 @@ public partial class RosterManager {
     private static int DrawSceneInitialTarget(AILabel label) {
         // Same tier fill ranges as the frozen allocation; no capacity or population retuning.
         float fill = label.tier switch {
-            LabelTier.Major => (float)GD.RandRange(0.6, 0.85),
-            LabelTier.MidTier => (float)GD.RandRange(0.5, 0.75),
-            LabelTier.Independent => (float)GD.RandRange(0.4, 0.7),
-            LabelTier.Small => (float)GD.RandRange(0.3, 0.6),
-            LabelTier.Boutique => (float)GD.RandRange(0.5, 0.8), _ => 0.5f
+            LabelTier.Major => (float)GameRandom.RandRange(0.6, 0.85),
+            LabelTier.MidTier => (float)GameRandom.RandRange(0.5, 0.75),
+            LabelTier.Independent => (float)GameRandom.RandRange(0.4, 0.7),
+            LabelTier.Small => (float)GameRandom.RandRange(0.3, 0.6),
+            LabelTier.Boutique => (float)GameRandom.RandRange(0.5, 0.8), _ => 0.5f
         };
         return Mathf.RoundToInt(label.maxRosterSize * fill);
     }
@@ -126,7 +126,7 @@ public partial class RosterManager {
                 artist.CalculateBaseQuality(), ScoutingPerception.PerceivedQuality(artist, label, -1)));
             return artist;
         }
-        float roll = (float)GD.RandRange(0f, scored.Sum(x => x.score));
+        float roll = (float)GameRandom.RandRange(0f, scored.Sum(x => x.score));
         foreach (var entry in scored) { roll -= entry.score; if (roll <= 0f) return Pick(entry.artist); }
         return Pick(scored[^1].artist);
     }

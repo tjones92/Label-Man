@@ -439,7 +439,7 @@ public static class RolodexFragments {
 		int best = eligible.Max(Specificity);
 		var top = eligible.Where(f => Specificity(f) == best).ToList();
 		int total = top.Sum(f => f.weight);
-		int roll = (int)GD.RandRange(0, Mathf.Max(0, total - 1));
+		int roll = (int)GameRandom.RandRange(0, Mathf.Max(0, total - 1));
 		foreach (NarrativeFragment f in top) { roll -= f.weight; if (roll < 0) return f.text; }
 		return top[^1].text;
 	}

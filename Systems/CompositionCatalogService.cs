@@ -49,14 +49,14 @@ public static class CompositionCatalogService {
 	// label's publishing catalog can pass to a successor instead of silently leaking (covers of its hits
 	// then pay the successor). Only artist-originals carry a song-level controller label.
 	private static readonly Dictionary<string, List<SongComposition>> songsByControllerLabel = new(StringComparer.Ordinal);
-	private static RandomNumberGenerator rng;
+	private static PcgRandom rng;
 	// Titles are drawn from a stream of their OWN, isolated from every stream the economy reads:
 	// not GD.Rand, not NameGenerator's naming stream, and not the trait `rng` above. Because song
 	// titles never feed a catalog song's traits (only freshly-generated album-track titles are
 	// hashed, in CompetitorManager), pulling real titles here is inert to the simulated economy --
 	// nothing that charts or settles changes -- while the player stops seeing "Recent DooWop Hit
 	// Song 4446" on the stand and on their masters.
-	private static RandomNumberGenerator titleRng;
+	private static PcgRandom titleRng;
 	private static int songCounter;
 	private static bool initialized;
 
@@ -90,10 +90,10 @@ public static class CompositionCatalogService {
 		stintSongwriters.Clear();
 		songsByControllerLabel.Clear();
 		songCounter = 0;
-		rng = new RandomNumberGenerator {
+		rng = new PcgRandom {
 			Seed = seed ^ 0x736f6e6763617461UL // "songcata" -- private stream, isolated from GD
 		};
-		titleRng = new RandomNumberGenerator {
+		titleRng = new PcgRandom {
 			Seed = seed ^ 0x7469746c65727364UL // "titlrsd" -- titles only, isolated from the trait stream
 		};
 		GeneratePreGameStandards(startYear);
@@ -999,8 +999,8 @@ public static class CompositionCatalogService {
 			proTeamsBuilt = true;
 		}
 		if (c.HasRng) {
-			rng = new RandomNumberGenerator { Seed = c.RngSeed }; rng.State = c.RngState;
-			titleRng = new RandomNumberGenerator { Seed = c.TitleRngSeed }; titleRng.State = c.TitleRngState;
+			rng = new PcgRandom { Seed = c.RngSeed }; rng.State = c.RngState;
+			titleRng = new PcgRandom { Seed = c.TitleRngSeed }; titleRng.State = c.TitleRngState;
 		}
 	}
 

@@ -65,15 +65,15 @@ public static class EconomicLabelLifecycleChecks {
 			SaveGameService.TestJsonOptions);
 		EconomicLabelLifecycle.ReviewMonth(savedMissed, -100f, true);
 		Check(savedMissed.status == LabelStatus.Bankrupt, "loading must not renew an exhausted payment grace");
-		GD.Seed(7321); float expected = GD.Randf(); GD.Seed(7321);
+		GameRandom.Seed(7321); float expected = GameRandom.Randf(); GameRandom.Seed(7321);
 		EconomicLabelLifecycle.ReviewMonth(local, 100f, true);
-		Check(GD.Randf() == expected, "financial reviews must consume no random draws");
+		Check(GameRandom.Randf() == expected, "financial reviews must consume no random draws");
 
 		// Opening cash: one shared table, one draw per label, every tier unchanged value-for-value.
 		foreach ((LabelTier tier, float min, float max) in new[] { (LabelTier.Major, 50000f, 200000f), (LabelTier.MidTier, 15000f, 60000f),
 			(LabelTier.Independent, 5000f, 20000f), (LabelTier.Boutique, 3000f, 15000f), (LabelTier.Small, 1000f, 8000f) }) {
-			GD.Seed(9104); float legacy = (float)GD.RandRange(min, max); float legacyNext = GD.Randf();
-			GD.Seed(9104); float shared = LabelStartingFinances.DrawCash(tier); float sharedNext = GD.Randf();
+			GameRandom.Seed(9104); float legacy = (float)GameRandom.RandRange(min, max); float legacyNext = GameRandom.Randf();
+			GameRandom.Seed(9104); float shared = LabelStartingFinances.DrawCash(tier); float sharedNext = GameRandom.Randf();
 			Check(legacy == shared && legacyNext == sharedNext, $"{tier} opening cash reproduces its former draw exactly and consumes one draw");
 		}
 		GD.Print("ECONOMIC_LABEL_CHECK_PASS funded local businesses, budget contraction, recovery, unpaid bills, all tiers, settings, player boundary, save migration, RNG, opening cash");

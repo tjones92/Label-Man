@@ -88,7 +88,7 @@ public static class GospelPreferenceChecks {
    LiveRepertoire.AuditDisableAffinity=variant is "v1Baseline" or "v2Baseline" or "v2SmoothOnly";
    LiveRepertoire.AuditSmoothRanking=variant is "v2SmoothOnly" or "v2SourceSmooth";
    foreach(var artist in actors) {
-    using var rng=new RandomNumberGenerator {Seed=CensusSeed($"{SimulationSeedBootstrap.RequestedSeed}:{date.year}:{date.month}:{artist.artistId}")};
+    using var rng=new PcgRandom {Seed=CensusSeed($"{SimulationSeedBootstrap.RequestedSeed}:{date.year}:{date.month}:{artist.artistId}")};
     var set=new PlayerDesk.Prospect {Artist=artist};int access=0;
     PlayerDesk.Instance.BuildLiveSet(set,artist,date.year,0,rng,(n,p)=>access=p.Count(s=>s.repertoireSeedFamily=="Gospel Standard"));
     rows.Add(new {variant,artistId=artist.artistId,genre=artist.primaryGenre.ToString(),unsigned=unsigned.Contains(artist.artistId),access,

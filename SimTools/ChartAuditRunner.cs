@@ -369,7 +369,7 @@ public partial class ChartAuditRunner : Node {
 				throw new InvalidOperationException("The TimeManager and ChartManager autoloads must be available.");
 			}
 
-			if (requestedSeed.HasValue) GD.Seed(requestedSeed.Value);
+			if (requestedSeed.HasValue) GameRandom.Seed(requestedSeed.Value);
 			LoadPolarCheckpoint();
 			if (disableLabelLifecycle) LabelLifecycleManager.Instance?.SetProcessingEnabled(false);
 			if (disableDistributionDeals) CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);

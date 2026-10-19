@@ -11,7 +11,11 @@ public partial class MarketRegion : Resource {
 	[Export] public string[] majorCities;
 	[Export] public RegionTier tier;
 	[Export] public RegionType regionType;
-	
+
+	// GetInstanceId() is a native call; hot cache keys read it per lookup, so read it once.
+	private ulong cachedInstanceId;
+	public ulong CachedInstanceId => cachedInstanceId != 0 ? cachedInstanceId : cachedInstanceId = GetInstanceId();
+
 	[ExportGroup("Demographics - 1960 Baseline")]
 	[Export] public float population;
 	[Export(PropertyHint.Range, "0,1")] public float urbanization;

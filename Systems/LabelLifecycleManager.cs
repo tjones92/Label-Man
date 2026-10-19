@@ -301,7 +301,7 @@ public partial class LabelLifecycleManager : Node {
 		else if (label.consecutiveLossMonths > 6 && label.cashReserves < 50f) deathChance = 0.2f;
 		
 		if (label.tier == LabelTier.Small) deathChance *= 1.5f;
-		if (GD.Randf() < deathChance) KillLabel(label, "Bankruptcy");
+		if (GameRandom.Randf() < deathChance) KillLabel(label, "Bankruptcy");
 	}
 	
 	private void KillLabel(AILabel label, string reason) {
@@ -383,12 +383,12 @@ public partial class LabelLifecycleManager : Node {
 		if (currentYear >= 1964 && currentYear <= 1966) adjustedChance = Mathf.Min(1f, adjustedChance * 1.3f);
 		int attempts = Mathf.Min(maxMonthlyBirths, Mathf.Max(1, Mathf.CeilToInt((targetCount - currentCount) / 12f)));
 		for (int attempt = 0; attempt < attempts && TotalActiveLabels < targetCount; attempt++) {
-			if (GD.Randf() < adjustedChance) SpawnNewLabel();
+			if (GameRandom.Randf() < adjustedChance) SpawnNewLabel();
 		}
 	}
 	
 	private void SpawnNewLabel() {
-		LabelTier tier = SelectRuntimeFoundingTier(GD.Randf(), runtimeSmallFoundingShare);
+		LabelTier tier = SelectRuntimeFoundingTier(GameRandom.Randf(), runtimeSmallFoundingShare);
 		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier, legacyIdentity: !ArtistPopulationLifecycle.Enabled);
 		if (ArtistPopulationLifecycle.Enabled) {
 			GameDate birthDate = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1);
@@ -768,8 +768,8 @@ public partial class LabelLifecycleManager : Node {
 		// cash-starved small label's production stagnates, as it historically did.
 		if (currentYear > 1963 && label.cashReserves >= label.GetMonthlyOverhead() * StudioUpgradeRunwayMonths)
 			label.productionQuality = Mathf.Min(1f, label.productionQuality + drift * 0.5f);
-		label.scoutingAbility += (float)GD.RandRange(-drift, drift);
-		label.riskTolerance += (float)GD.RandRange(-drift, drift);
+		label.scoutingAbility += (float)GameRandom.RandRange(-drift, drift);
+		label.riskTolerance += (float)GameRandom.RandRange(-drift, drift);
 		label.scoutingAbility = Mathf.Clamp(label.scoutingAbility, 0f, 1f);
 		label.riskTolerance = Mathf.Clamp(label.riskTolerance, 0f, 1f);
 	}
@@ -828,13 +828,13 @@ public partial class LabelLifecycleManager : Node {
 		if (candidates.Count == 0) return null;
 		
 		float totalWeight = candidates.Sum(l => l.scoutingAbility + l.budgetLevel);
-		float roll = GD.Randf() * totalWeight;
+		float roll = GameRandom.Randf() * totalWeight;
 		float cumulative = 0f;
 		foreach (var label in candidates) {
 			cumulative += label.scoutingAbility + label.budgetLevel; // FIX: Applied typo fix from original code
 			if (roll <= cumulative) return label;
 		}
-		return candidates[(int)GD.RandRange(0, candidates.Count - 1)];
+		return candidates[(int)GameRandom.RandRange(0, candidates.Count - 1)];
 	}
 	
 	public AILabel GetLabelById(string id) {

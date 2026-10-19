@@ -8,7 +8,7 @@ using Godot;
 /// (Lerp(0.30, 0.10, scoutingAbility)), so a label misjudges artists and records consistently:
 /// a bad scout is bad at both.
 ///
-/// DETERMINISM: this is a PURE stable-hash function, never a GD.RandRange call. RosterManager's
+/// DETERMINISM: this is a PURE stable-hash function, never a GameRandom.RandRange call. RosterManager's
 /// daily talent market is obsessively deterministic (byte-identical replays, preserved RNG call
 /// order). A random draw here would desync every replay and shift the RNG schedule. The read is
 /// stable per (label, artist, discovery-window): the same scout gets the same read of the same

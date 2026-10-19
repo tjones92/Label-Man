@@ -343,7 +343,7 @@ public static class WorldStateService {
 		ChartManager.Instance?.RebuildRadioForLoad();   // reporter panel is seed-reproducible; rebuild for the restored year
 
 		// Reseed the global RNG deterministically so repeated loads of this save continue identically.
-		GD.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
+		GameRandom.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
 		if (!deferSceneRelink) LocalSceneIdentityService.CompleteRestore();
 		RegionalSalesRandom.Restore(world.RegionalSalesRngVersion, world.RegionalSalesRngSeed, worldSeed);
 	}

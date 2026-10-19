@@ -46,7 +46,7 @@ public partial class PlayerDesk {
 		float acceptChance = Mathf.Clamp(
 			(PitchBaseChance + stop.Relationship * PitchRelationshipWeight + PitchEarPull(stop, recordId)) * RetailAccessFactor(stop, recordId),
 			0.03f, 0.97f);
-		if (GD.Randf() > acceptChance) {
+		if (GameRandom.Randf() > acceptChance) {
 			TouchStop(stop, 0.02f);   // a listen that ended in a no still counts as an introduction
 			stop.PassedRecordIds.Add(recordId);
 			Note($"{stop.DisplayName} in {CityName(stop.CityId)} heard the acetate of \"{master.SongTitle}\" and passed -- \"bring it back when somebody's playing it.\"");
@@ -141,7 +141,7 @@ public partial class PlayerDesk {
 
 		// He can only book an act that is actually working this scene; he'd know.
 		bool present = LocalSceneRoomService.Eligible(act, room, day);
-		bool yes = present && GD.Randf() < Mathf.Max(0.05f, BookerAcceptChance(act, shows) - BackerRoomPenalty(roomId));
+		bool yes = present && GameRandom.Randf() < Mathf.Max(0.05f, BookerAcceptChance(act, shows) - BackerRoomPenalty(roomId));
 		LocalSceneRoomService.RecordPitch(new SceneBookerPitch { RoomId = roomId, ArtistId = artistId, LabelId = Label.labelId, Day = today, Accepted = yes, ShowsAtPitch = shows });
 		string night = LocalSceneRoomService.Date(day).ToHeadlineString();
 		if (!yes) {

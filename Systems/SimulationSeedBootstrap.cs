@@ -49,7 +49,7 @@ public partial class SimulationSeedBootstrap : Node {
 			if (!argument.StartsWith("--seed=", StringComparison.Ordinal)) continue;
 
 			RequestedSeed = ulong.Parse(argument[7..], CultureInfo.InvariantCulture);
-			GD.Seed(RequestedSeed.Value);
+			GameRandom.Seed(RequestedSeed.Value);
 			GD.Print($"SIMULATION_SEED_APPLIED seed={RequestedSeed.Value} phase=pre_autoload_population");
 			break;
 		}

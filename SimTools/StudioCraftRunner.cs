@@ -117,10 +117,10 @@ public partial class StudioCraftRunner : Node {
             Check(session.Work.StockPasses >= PlayerDesk.StudioStockIncluded(2, 8, 12) - 2, "The quote includes tape stock");
 
             // ================= Shape: key, tempo, ends =================
-            int t0 = clock.CurrentHour * 60 + clock.CurrentMinute; int actions0 = session.ActionNumber; ulong rng0 = GD.Randi();
-            GD.Seed(4242); uint expect = GD.Randi(); GD.Seed(4242);
+            int t0 = clock.CurrentHour * 60 + clock.CurrentMinute; int actions0 = session.ActionNumber; ulong rng0 = GameRandom.Randi();
+            GameRandom.Seed(4242); uint expect = GameRandom.Randi(); GameRandom.Seed(4242);
             string proposal = desk.StudioShapeProposal(0, StudioShapeChange.LowerKey);
-            Check(proposal.Contains("minutes") && clock.CurrentHour * 60 + clock.CurrentMinute == t0 && session.ActionNumber == actions0 && GD.Randi() == expect,
+            Check(proposal.Contains("minutes") && clock.CurrentHour * 60 + clock.CurrentMinute == t0 && session.ActionNumber == actions0 && GameRandom.Randi() == expect,
                 "A shape proposal is free: no time, no action, no gameplay randomness");
             Check(desk.CutStudioTake(0, out message), "First pass, original shape: " + message);
             var firstTake = session.Cuts[0].Takes[^1];

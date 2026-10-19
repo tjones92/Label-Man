@@ -1031,7 +1031,7 @@ public static class ChartSimulator {
 			? 0.25f + (reachForRecord * 0.75f)
 			: 0.10f + (reachForRecord * 0.75f);
 		float strongDepth = strong ? 1.45f : 1f;
-		float noise = (float)GD.RandRange(0.85, 1.15);
+		float noise = (float)GameRandom.RandRange(0.85, 1.15);
 		// DISTANCE-4B: neutral in 4a; 4b turns regional reach into real stock friction.
 		float reachFactor = DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(regionId));
 		int raw = Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise * reachFactor);
@@ -1332,8 +1332,8 @@ public static class ChartSimulator {
 		float sigma = GetSurveySigma(unitsThisWeek);
 		if (sigma <= 0f) return 1f;
 		// Box-Muller off the seeded global RNG, so the draw stays reproducible under --seed.
-		float u1 = Mathf.Max(1e-7f, (float)GD.RandRange(0.0, 1.0));
-		float u2 = (float)GD.RandRange(0.0, 1.0);
+		float u1 = Mathf.Max(1e-7f, (float)GameRandom.RandRange(0.0, 1.0));
+		float u2 = (float)GameRandom.RandRange(0.0, 1.0);
 		float standardNormal = Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(Mathf.Tau * u2);
 		// -sigma^2/2 keeps E[exp(X)] at 1, so noise reorders the chart without inflating it.
 		return Mathf.Exp(standardNormal * sigma - sigma * sigma * 0.5f);

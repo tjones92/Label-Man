@@ -866,7 +866,7 @@ public partial class ChartManager : Node {
 			if (releaseArtist != null)
 				realizedQuality = Mathf.Clamp(realizedQuality + ManagerProfile.Of(releaseArtist.manager).ProductionBonus, 0f, 1f);
 			float noiseRange = Mathf.Lerp(0.30f, 0.10f, releasingLabel.scoutingAbility);
-			float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
+			float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GameRandom.RandRange(-noiseRange, noiseRange), 0f, 1f);
 			perceivedQualityMult = 0.6f + (perceivedQuality * 0.8f);
 		}
 
@@ -936,9 +936,9 @@ public partial class ChartManager : Node {
 			if (MarketSeasonality.Enabled && currentChartWeek > 0) {
 				float radioOpportunity = MarketSeasonality.GetRadioOpportunity(TimeManager.Instance?.CurrentDate.year ?? 1960,
 					TimeManager.Instance?.CurrentDate.month ?? 1, liveTick: true);
-				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio * launchRadioBuild;
-			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio * launchRadioBuild;
-			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
+				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GameRandom.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio * launchRadioBuild;
+			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GameRandom.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio * launchRadioBuild;
+			data.awareness = (0.15f + (float)GameRandom.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
 			// Publishing & Cover-Song Phase 2: bounded launch lift for familiar material, added AFTER
 			// the RNG draws above so the stream is unchanged (kill-switch: SongLaunchService.LaunchInputEnabled).
@@ -953,7 +953,7 @@ public partial class ChartManager : Node {
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
 			float genreFit = GetGenreFit(record.baseRecord.primaryGenre, region);
-			data.sentiment = (quality * 0.7f + genreFit * 0.3f) + (float)GD.RandRange(-0.05, 0.1);
+			data.sentiment = (quality * 0.7f + genreFit * 0.3f) + (float)GameRandom.RandRange(-0.05, 0.1);
 		}
 		IReadOnlyDictionary<string, int> allocatedStock = ChartSimulator.RedistributeInitialRegionalStockAllocation(
 			record.baseRecord.primaryGenre, TimeManager.Instance?.CurrentDate.year ?? 1960, genreMarketLive, allRegions, initialStock);
@@ -1804,7 +1804,7 @@ public partial class ChartManager : Node {
 			// here, so the draw is not spent on the thousands of live records carrying none, and the
 			// latch means this region is never asked again.
 			if (stationDropChance > 0f && ChartSimulator.IsStationDropCandidate(data) &&
-				(float)GD.RandRange(0.0, 1.0) < stationDropChance) {
+				(float)GameRandom.RandRange(0.0, 1.0) < stationDropChance) {
 				data.stationsDropped = true;
 				data.stationDropAge = record.weeksSinceRelease;
 			}

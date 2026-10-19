@@ -10,7 +10,7 @@ public static class HeadScaleTemplatesChecks {
 		bool was = HeadScaleTemplates.Enabled;
 		string[] added = { "MGM", "ABC-Paramount", "Warner Bros." };
 		string[] head = { "MGM", "ABC-Paramount", "Warner Bros.", "Cameo-Parkway" };
-		List<AILabel> Generate(bool on) { HeadScaleTemplates.SetEnabledForChecks(on); GD.Seed(17017); return AILabelFactory.GenerateAllLabels(600); }
+		List<AILabel> Generate(bool on) { HeadScaleTemplates.SetEnabledForChecks(on); GameRandom.Seed(17017); return AILabelFactory.GenerateAllLabels(600); }
 		AILabel Named(List<AILabel> labels, string name) {
 			var found = labels.Where(l => l.isHistorical && AILabelFactory.IsHeadScaleProbeTemplate(l.labelName) &&
 				(l.labelName == name || l.labelName.StartsWith(name + " ", StringComparison.Ordinal))).ToList();

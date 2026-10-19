@@ -108,7 +108,7 @@ public static class PlayerStopFactory {
 		var result = new List<PlayerDesk.PlayerStop>();
 		if (cities == null) return result;
 
-		var rng = new RandomNumberGenerator { Seed = seed ^ StreamNamespace };
+		var rng = new PcgRandom { Seed = seed ^ StreamNamespace };
 		// Draw from shuffled pools so two accounts in the same city don't collide on name.
 		string[] shopPool = Shuffled(ShopSurnames, rng);
 		string[] opPool = Shuffled(OpWords, rng);
@@ -188,7 +188,7 @@ public static class PlayerStopFactory {
 	}
 
 	private static string NextUniqueName(string[] wordPool, string[] suffixes, bool possessive,
-		ref int cursor, HashSet<string> used, RandomNumberGenerator rng) {
+		ref int cursor, HashSet<string> used, PcgRandom rng) {
 		for (int attempt = 0; attempt < wordPool.Length; attempt++) {
 			string word = wordPool[cursor % wordPool.Length];
 			cursor++;
@@ -258,7 +258,7 @@ public static class PlayerStopFactory {
 		return curve[^1].Weight;
 	}
 
-	private static string[] Shuffled(string[] source, RandomNumberGenerator rng) {
+	private static string[] Shuffled(string[] source, PcgRandom rng) {
 		string[] pool = (string[])source.Clone();
 		for (int i = pool.Length - 1; i > 0; i--) {
 			int j = rng.RandiRange(0, i);

@@ -33,12 +33,12 @@ public static class PolarSongBehaviorChecks {
 			PlayerDesk.Instance.BuildLiveSet(liveSet, artist, 1960, 0);
 			foreach (bool censusEnabled in new[] { false, true }) {
 				PolarSongBehavior.UsePolarFitSelection = censusEnabled;
-				GD.Seed(991);
-				uint expectedNext = GD.Randi();
-				GD.Seed(991);
-				using var censusRandom = new RandomNumberGenerator { Seed = 123 };
+				GameRandom.Seed(991);
+				uint expectedNext = GameRandom.Randi();
+				GameRandom.Seed(991);
+				using var censusRandom = new PcgRandom { Seed = 123 };
 				PlayerDesk.Instance.BuildLiveSet(new PlayerDesk.Prospect { Artist = artist }, artist, 1960, 0, censusRandom);
-				Check(GD.Randi() == expectedNext, "census leaves global RNG intact enabled=" + censusEnabled);
+				Check(GameRandom.Randi() == expectedNext, "census leaves global RNG intact enabled=" + censusEnabled);
 			}
 			PolarSongBehavior.UsePolarFitSelection = true;
 			Check(liveSet.LiveSet.Count >= 3 && liveSet.LiveSet.Count <= 5 && liveSet.LiveSet.Select(s => s.SongId).Distinct().Count() == liveSet.LiveSet.Count,

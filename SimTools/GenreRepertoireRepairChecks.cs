@@ -138,9 +138,9 @@ public static class GenreRepertoireRepairChecks {
     gospelInherited+=after.Count(s=>s==standard);
    }
    Check(gospelInherited>0,"Gospel keeps its source-specific fit band");
-   GD.Seed(77231);float expectedRandom=GD.Randf();GD.Seed(77231);
+   GameRandom.Seed(77231);float expectedRandom=GameRandom.Randf();GameRandom.Seed(77231);
    SongMaterialSelectionService.SelectLiveCovers(originals.Append(standard),new SimulatedArtist {artistId="repair-rng",primaryGenre=Genre.TeenPop},1960,3);
-   Check(GD.Randf()==expectedRandom,"Live source decisions preserve the global RNG stream");
+   Check(GameRandom.Randf()==expectedRandom,"Live source decisions preserve the global RNG stream");
   } finally {PolarSongBehavior.AuditLiveFit=oldFit;PolarSongBehavior.AuditLiveProposal=oldProposal;SongMaterialSelectionService.ObserveLiveSource=oldObserver;}
   GD.Print("GENRE_REPERTOIRE_REPAIR_CHECK_PASS media=countIndependent instrumentals=compatible comedy=authorOnly books=retained fallback=measured rights=preserved migration=idempotent easyRecentHits=channelled jazzScreen=rated jazzLineups=keyed");
  }

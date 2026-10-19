@@ -163,7 +163,7 @@ public static class AILabelFactory {
 		label.homeRegion = CityToRegion(template.city);
 		label.archetype = template.archetype;
 		label.tier = tier;
-		label.foundedYear = (int)GD.RandRange(1945, 1960);
+		label.foundedYear = (int)GameRandom.RandRange(1945, 1960);
 		label.isHistorical = true;
 		label.status = LabelStatus.Stable;
 		
@@ -195,7 +195,7 @@ public static class AILabelFactory {
 		label.archetype = archetype;
 		label.tier = tier;
 		// Display only, but a 1960 label must not show a 1961-62 founding. Same single draw as before.
-		label.foundedYear = (int)GD.RandRange(1948, 1960);
+		label.foundedYear = (int)GameRandom.RandRange(1948, 1960);
 		label.isHistorical = false;
 		label.status = LabelStatus.Stable;
 		
@@ -230,18 +230,18 @@ public static class AILabelFactory {
 		if (headScale) (budgetMin, budgetMax, marketingMin, marketingMax, distributionMin, distributionMax, reachMin, reachMax) =
 			(0.78f, 1.00f, 0.70f, 0.98f, 0.75f, 1.00f, 0.75f, 1.00f);
 
-		label.budgetLevel = (float)GD.RandRange(budgetMin, budgetMax);
-		label.marketingPower = (float)GD.RandRange(marketingMin, marketingMax);
-		label.distributionStrength = (float)GD.RandRange(distributionMin, distributionMax);
-		label.nationalReach = (float)GD.RandRange(reachMin, reachMax);
-		label.scoutingAbility = (float)GD.RandRange(scoutingMin, scoutingMax);
-		label.productionQuality = (float)GD.RandRange(productionMin, productionMax);
+		label.budgetLevel = (float)GameRandom.RandRange(budgetMin, budgetMax);
+		label.marketingPower = (float)GameRandom.RandRange(marketingMin, marketingMax);
+		label.distributionStrength = (float)GameRandom.RandRange(distributionMin, distributionMax);
+		label.nationalReach = (float)GameRandom.RandRange(reachMin, reachMax);
+		label.scoutingAbility = (float)GameRandom.RandRange(scoutingMin, scoutingMax);
+		label.productionQuality = (float)GameRandom.RandRange(productionMin, productionMax);
 		float tierMod = (budgetMin + budgetMax) * 0.5f;
 		
-		label.releasesPerMonth = headScale ? (float)GD.RandRange(1.6f, 2.4f) : tier switch {
-			LabelTier.Major => (float)GD.RandRange(2f, 4f), LabelTier.MidTier => (float)GD.RandRange(1f, 2.5f),
-			LabelTier.Independent => (float)GD.RandRange(0.5f, 1.5f), LabelTier.Small => (float)GD.RandRange(0.2f, 0.8f),
-			LabelTier.Boutique => (float)GD.RandRange(0.3f, 0.8f), _ => (float)GD.RandRange(0.5f, 1.5f)
+		label.releasesPerMonth = headScale ? (float)GameRandom.RandRange(1.6f, 2.4f) : tier switch {
+			LabelTier.Major => (float)GameRandom.RandRange(2f, 4f), LabelTier.MidTier => (float)GameRandom.RandRange(1f, 2.5f),
+			LabelTier.Independent => (float)GameRandom.RandRange(0.5f, 1.5f), LabelTier.Small => (float)GameRandom.RandRange(0.2f, 0.8f),
+			LabelTier.Boutique => (float)GameRandom.RandRange(0.3f, 0.8f), _ => (float)GameRandom.RandRange(0.5f, 1.5f)
 		};
 		
 		// These two were never initialized, so every launch label operated at
@@ -251,8 +251,8 @@ public static class AILabelFactory {
 		// never ported, so the advertised archetype identity did nothing. Envelopes
 		// and directional modifiers mirror RuntimeLabelProfileFactory so launch and
 		// runtime labels describe the same operating model.
-		label.riskTolerance = (float)GD.RandRange(0.18, 0.72);
-		label.artistLoyalty = (float)GD.RandRange(0.28, 0.78);
+		label.riskTolerance = (float)GameRandom.RandRange(0.18, 0.72);
+		label.artistLoyalty = (float)GameRandom.RandRange(0.28, 0.78);
 
 		switch (archetype) {
 			case LabelArchetype.SoulFactory:
@@ -298,14 +298,14 @@ public static class AILabelFactory {
 		// promoted seeded incumbents past tiers they had not earned in-run.
 		// Major cash: Major-scale volume on MidTier cash would run a year of losses and demote the template.
 		label.cashReserves = LabelStartingFinances.DrawCash(headScale ? LabelTier.Major : tier);
-		label.maxRosterSize = headScale ? (int)GD.RandRange(25, 40) : tier switch {
-			LabelTier.Major => (int)GD.RandRange(30, 60), LabelTier.MidTier => (int)GD.RandRange(15, 35),
-			LabelTier.Independent => (int)GD.RandRange(8, 20), LabelTier.Small => (int)GD.RandRange(3, 10),
-			LabelTier.Boutique => (int)GD.RandRange(5, 12), _ => 10
+		label.maxRosterSize = headScale ? (int)GameRandom.RandRange(25, 40) : tier switch {
+			LabelTier.Major => (int)GameRandom.RandRange(30, 60), LabelTier.MidTier => (int)GameRandom.RandRange(15, 35),
+			LabelTier.Independent => (int)GameRandom.RandRange(8, 20), LabelTier.Small => (int)GameRandom.RandRange(3, 10),
+			LabelTier.Boutique => (int)GameRandom.RandRange(5, 12), _ => 10
 		};
-		label.reputation = tierMod * (float)GD.RandRange(0.6, 1.0);
-		label.payolaWillingness = (float)GD.RandRange(0.1, 0.7);
-		label.artistLoyalty = Mathf.Clamp(label.artistLoyalty + (float)GD.RandRange(-0.1, 0.1), 0f, 1f);
+		label.reputation = tierMod * (float)GameRandom.RandRange(0.6, 1.0);
+		label.payolaWillingness = (float)GameRandom.RandRange(0.1, 0.7);
+		label.artistLoyalty = Mathf.Clamp(label.artistLoyalty + (float)GameRandom.RandRange(-0.1, 0.1), 0f, 1f);
 	}
 	
 	private static string GenerateLabelName(LabelArchetype archetype) {
@@ -314,11 +314,11 @@ public static class AILabelFactory {
 		if (NameGenerator.Instance != null && NameGenerator.Instance.IsReady()) return NameGenerator.Instance.GenerateLabelName(archetype);
 		string[] prefixes = { "Royal", "Golden", "Silver", "Crown", "Diamond", "Star", "Sun", "Moon", "Atlantic", "Pacific", "National", "American", "Imperial", "Liberty", "Freedom", "Victory", "Triumph", "Glory", "Ace", "Duke", "King", "Queen" };
 		string[] suffixes = { "Records", "Recording Co.", "Music", "Sound", "Productions", "Disc" };
-		return $"{prefixes[(int)GD.RandRange(0, prefixes.Length - 1)]} {suffixes[(int)GD.RandRange(0, suffixes.Length - 1)]}";
+		return $"{prefixes[(int)GameRandom.RandRange(0, prefixes.Length - 1)]} {suffixes[(int)GameRandom.RandRange(0, suffixes.Length - 1)]}";
 	}
 	
 	private static string GetLabelSuffix() {
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		if (roll < 0.6f) return " Records";
 		if (roll < 0.8f) return "";
 		if (roll < 0.9f) return " Recording Co.";
@@ -326,7 +326,7 @@ public static class AILabelFactory {
 	}
 	
 	private static LabelArchetype GetRandomArchetype() {
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		if (roll < 0.08f) return LabelArchetype.CorporateGiant;
 		if (roll < 0.18f) return LabelArchetype.SoulFactory;
 		if (roll < 0.28f) return LabelArchetype.BluesRoots;
@@ -347,7 +347,7 @@ public static class AILabelFactory {
 	// is actually known for. Named templates already supply most of the intended
 	// large firms, so the procedural draw only tops them up.
 	private static LabelTier GetRandomTier() {
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		if (roll < 0.002f) return LabelTier.Major;
 		if (roll < 0.035f) return LabelTier.MidTier;
 		if (roll < 0.365f) return LabelTier.Independent;
@@ -357,23 +357,23 @@ public static class AILabelFactory {
 	
 	private static string GetRandomCity(LabelArchetype archetype) => archetype switch {
 		LabelArchetype.CountrySpecialist => "Nashville",
-		LabelArchetype.SoulFactory => GD.Randf() < 0.6f ? "Detroit" : greatLakesCities[(int)GD.RandRange(0, greatLakesCities.Length - 1)],
-		LabelArchetype.RockRebel => GD.Randf() < 0.5f ? southernCities[(int)GD.RandRange(0, southernCities.Length - 1)] : westCoastCities[(int)GD.RandRange(0, westCoastCities.Length - 1)],
-		LabelArchetype.TeenHitMachine => GD.Randf() < 0.6f ? "New York" : "Philadelphia",
-		LabelArchetype.BluesRoots => GD.Randf() < 0.4f ? "Chicago" : southernCities[(int)GD.RandRange(0, southernCities.Length - 1)],
+		LabelArchetype.SoulFactory => GameRandom.Randf() < 0.6f ? "Detroit" : greatLakesCities[(int)GameRandom.RandRange(0, greatLakesCities.Length - 1)],
+		LabelArchetype.RockRebel => GameRandom.Randf() < 0.5f ? southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)] : westCoastCities[(int)GameRandom.RandRange(0, westCoastCities.Length - 1)],
+		LabelArchetype.TeenHitMachine => GameRandom.Randf() < 0.6f ? "New York" : "Philadelphia",
+		LabelArchetype.BluesRoots => GameRandom.Randf() < 0.4f ? "Chicago" : southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)],
 		LabelArchetype.FolkBoutique or LabelArchetype.JazzPrestige => "New York",
-		LabelArchetype.GospelPowerhouse => southernCities[(int)GD.RandRange(0, southernCities.Length - 1)],
+		LabelArchetype.GospelPowerhouse => southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)],
 		_ => GetRandomCityAny()
 	};
 	
 	private static string GetRandomCityAny() {
-		float roll = GD.Randf();
-		if (roll < 0.30f) return northeastCities[(int)GD.RandRange(0, northeastCities.Length - 1)];
-		if (roll < 0.40f) return greatLakesCities[(int)GD.RandRange(0, greatLakesCities.Length - 1)];
-		if (roll < 0.50f) return greatPlainsCities[(int)GD.RandRange(0, greatPlainsCities.Length - 1)];
-		if (roll < 0.70f) return southernCities[(int)GD.RandRange(0, southernCities.Length - 1)];
-		if (roll < 0.80f) return rockiesCities[(int)GD.RandRange(0, rockiesCities.Length - 1)];
-		return westCoastCities[(int)GD.RandRange(0, westCoastCities.Length - 1)];
+		float roll = GameRandom.Randf();
+		if (roll < 0.30f) return northeastCities[(int)GameRandom.RandRange(0, northeastCities.Length - 1)];
+		if (roll < 0.40f) return greatLakesCities[(int)GameRandom.RandRange(0, greatLakesCities.Length - 1)];
+		if (roll < 0.50f) return greatPlainsCities[(int)GameRandom.RandRange(0, greatPlainsCities.Length - 1)];
+		if (roll < 0.70f) return southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)];
+		if (roll < 0.80f) return rockiesCities[(int)GameRandom.RandRange(0, rockiesCities.Length - 1)];
+		return westCoastCities[(int)GameRandom.RandRange(0, westCoastCities.Length - 1)];
 	}
 	
 	private static Genre[] GetGenresForArchetype(LabelArchetype archetype) => archetype switch {
@@ -390,7 +390,7 @@ public static class AILabelFactory {
 		_ => new Genre[] { Genre.RockAndRoll, Genre.TraditionalPop }
 	};
 	
-	private static Genre PickRandom(params Genre[] options) => options[(int)GD.RandRange(0, options.Length - 1)];
+	private static Genre PickRandom(params Genre[] options) => options[(int)GameRandom.RandRange(0, options.Length - 1)];
 	
 	private static Genre[] GetRelatedGenres(Genre primary) => primary switch {
 		Genre.Soul => new Genre[] { Genre.RnB, Genre.Gospel, Genre.Funk },
@@ -410,7 +410,7 @@ public static class AILabelFactory {
 		var regions = new List<string>();
 		string homeRegion = CityToRegion(hqCity);
 		if (!string.IsNullOrEmpty(homeRegion)) regions.Add(homeRegion);
-		if (GD.Randf() < 0.4f) {
+		if (GameRandom.Randf() < 0.4f) {
 			string adjacent = GetAdjacentRegion(homeRegion);
 			if (!string.IsNullOrEmpty(adjacent) && !regions.Contains(adjacent)) regions.Add(adjacent);
 		}
@@ -425,9 +425,9 @@ public static class AILabelFactory {
 		// every tier's coverage by 22-59% -- and regressively, since the largest tiers
 		// gained most. These preserve each non-Major tier's former expected coverage.
 		int additionalRegions = tier switch {
-			LabelTier.Major => (int)GD.RandRange(5, 8), LabelTier.MidTier => (int)GD.RandRange(2, 4),
-			LabelTier.Independent => (int)GD.RandRange(1, 3), LabelTier.Small => (int)GD.RandRange(0, 2),
-			LabelTier.Boutique => (int)GD.RandRange(1, 2), _ => 1
+			LabelTier.Major => (int)GameRandom.RandRange(5, 8), LabelTier.MidTier => (int)GameRandom.RandRange(2, 4),
+			LabelTier.Independent => (int)GameRandom.RandRange(1, 3), LabelTier.Small => (int)GameRandom.RandRange(0, 2),
+			LabelTier.Boutique => (int)GameRandom.RandRange(1, 2), _ => 1
 		};
 		string[] allRegions = { "eastcoast", "greatlakes", "greatplains", "southwest", "deepsouth", "rockies", "westcoast" };
 		// The former sampler drew with replacement and silently discarded duplicate
@@ -440,7 +440,7 @@ public static class AILabelFactory {
 		var available = new List<string>(allRegions);
 		available.RemoveAll(region => regions.Contains(region));
 		for (int i = 0; i < additionalRegions; i++) {
-			int draw = (int)GD.RandRange(0, allRegions.Length - 1);
+			int draw = (int)GameRandom.RandRange(0, allRegions.Length - 1);
 			if (available.Count == 0) continue;
 			string region = available[draw % available.Count];
 			available.Remove(region);
@@ -469,13 +469,13 @@ public static class AILabelFactory {
 	};
 	
 	private static string GetAdjacentRegion(string region) => region switch {
-		"eastcoast" => GD.Randf() < 0.5f ? "greatlakes" : "deepsouth",
-		"greatlakes" => GD.Randf() < 0.5f ? "eastcoast" : "greatplains",
-		"greatplains" => GD.Randf() < 0.5f ? "rockies" : "southwest",
-		"deepsouth" => GD.Randf() < 0.5f ? "eastcoast" : "southwest",
-		"southwest" => GD.Randf() < 0.5f ? "deepsouth" : "rockies",
-		"rockies" => GD.Randf() < 0.5f ? "greatplains" : "westcoast",
-		"westcoast" => GD.Randf() < 0.5f ? "rockies" : "southwest",
+		"eastcoast" => GameRandom.Randf() < 0.5f ? "greatlakes" : "deepsouth",
+		"greatlakes" => GameRandom.Randf() < 0.5f ? "eastcoast" : "greatplains",
+		"greatplains" => GameRandom.Randf() < 0.5f ? "rockies" : "southwest",
+		"deepsouth" => GameRandom.Randf() < 0.5f ? "eastcoast" : "southwest",
+		"southwest" => GameRandom.Randf() < 0.5f ? "deepsouth" : "rockies",
+		"rockies" => GameRandom.Randf() < 0.5f ? "greatplains" : "westcoast",
+		"westcoast" => GameRandom.Randf() < 0.5f ? "rockies" : "southwest",
 		"UK" => string.Empty,
 		_ => "eastcoast"
 	};

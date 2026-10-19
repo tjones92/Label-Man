@@ -39,9 +39,9 @@ public static class ScoutingOpeningChecks {
         Check(desk.RestoreState(opening, out message), "restore home viewpoint");
         desk.Label.cashReserves = 800;
         string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
-        GD.Seed(917); uint draw = GD.Randi(); GD.Seed(917);
+        GameRandom.Seed(917); uint draw = GameRandom.Randi(); GameRandom.Seed(917);
         var plans = desk.ScoutingItinerary(true); desk.ScoutingItinerary(true);
-        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GD.Randi() == draw, "planning preserves world, player and RNG");
+        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GameRandom.Randi() == draw, "planning preserves world, player and RNG");
         Check(plans.Select(o => o.EventId).Distinct().Count() == plans.Count, "no duplicated appearances");
         Check(plans.Any(o => !string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(o.ArtistId)?.labelId)), "signed performers remain useful listening choices");
         var savedPlayer = JsonSerializer.Deserialize<PlayerSaveData>(player, SaveGameService.TestJsonOptions);

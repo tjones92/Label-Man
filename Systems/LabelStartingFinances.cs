@@ -30,10 +30,10 @@ public static class LabelStartingFinances {
 			LabelTier.Small => (1000.0, 8000.0),
 			_ => (5000.0, 5000.0)
 		};
-		// Same arithmetic as GD.RandRange(min, max), so these tiers reproduce their former values exactly.
+		// Same arithmetic as GameRandom.RandRange(min, max), so these tiers reproduce their former values exactly.
 		return (float)((u * (max - min)) + min);
 	}
 
 	/// <summary>Draws opening cash for <paramref name="tier"/> from the shared stream (one draw).</summary>
-	public static float DrawCash(LabelTier tier) => Cash(tier, GD.RandRange(0.0, 1.0));
+	public static float DrawCash(LabelTier tier) => Cash(tier, GameRandom.RandRange(0.0, 1.0));
 }

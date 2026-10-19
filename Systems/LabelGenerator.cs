@@ -43,13 +43,13 @@ public class LabelGenerator {
 	public AILabel GenerateSingleLabel(MarketRegion[] regions, int year, LabelTier tier, bool legacyIdentity) {
 		var label = new AILabel();
 		label.labelName = GenerateUniqueName();
-		label.labelId = "gen_" + label.labelName.Replace(" ", "").ToLower() + "_" + (int)GD.RandRange(1000, 9999);
+		label.labelId = "gen_" + label.labelName.Replace(" ", "").ToLower() + "_" + (int)GameRandom.RandRange(1000, 9999);
 		label.founderName = GenerateFounderName();
-		label.headquartersCity = cities[(int)GD.RandRange(0, cities.Length - 1)];
-		if (legacyIdentity) label.foundedYear = (int)GD.RandRange(year - 5, year + 1);
+		label.headquartersCity = cities[(int)GameRandom.RandRange(0, cities.Length - 1)];
+		if (legacyIdentity) label.foundedYear = (int)GameRandom.RandRange(year - 5, year + 1);
 		label.isHistorical = false;
 		label.tier = tier;
-		label.status = GD.Randf() > 0.3f ? LabelStatus.Stable : LabelStatus.Rising;
+		label.status = GameRandom.Randf() > 0.3f ? LabelStatus.Stable : LabelStatus.Rising;
 		if (legacyIdentity) {
 			label.archetype = GenerateArchetype(year, tier);
 			AssignGenresFromArchetype(label);
@@ -72,11 +72,11 @@ public class LabelGenerator {
 			string name = GenerateName();
 			if (!usedNames.Contains(name)) return name;
 		}
-		return GenerateName() + " " + (int)GD.RandRange(1, 100);
+		return GenerateName() + " " + (int)GameRandom.RandRange(1, 100);
 	}
 	
 	private string GenerateName() {
-		int pattern = (int)GD.RandRange(0, 6);
+		int pattern = (int)GameRandom.RandRange(0, 6);
 		return pattern switch {
 			0 => $"{GetRandom(prefixes)} {GetRandom(nouns)}",
 			1 => $"{GetRandom(prefixes)} {GetRandom(suffixes)}",
@@ -104,7 +104,7 @@ public class LabelGenerator {
 		weights[LabelArchetype.RegionalHustler] = tier == LabelTier.Small ? 25f : 10f;
 		
 		float total = weights.Values.Sum();
-		float roll = GD.Randf() * total;
+		float roll = GameRandom.Randf() * total;
 		float cumulative = 0f;
 		foreach (var kvp in weights) {
 			cumulative += kvp.Value;
@@ -121,7 +121,7 @@ public class LabelGenerator {
 				break;
 			case LabelArchetype.RockRebel:
 				label.preferredGenres = new Genre[] { Genre.RockAndRoll, Genre.GarageRock };
-				label.secondaryGenres = GD.Randf() > 0.5f ? new Genre[] { Genre.SurfRock } : new Genre[0];
+				label.secondaryGenres = GameRandom.Randf() > 0.5f ? new Genre[] { Genre.SurfRock } : new Genre[0];
 				break;
 			case LabelArchetype.CorporateGiant:
 				label.preferredGenres = new Genre[] { Genre.TraditionalPop, Genre.EasyListening };
@@ -151,7 +151,7 @@ public class LabelGenerator {
 				break;
 			case LabelArchetype.RegionalHustler:
 				var allGenres = GenreDomains.Current;
-				label.preferredGenres = new Genre[] { allGenres[(int)GD.RandRange(0, allGenres.Count - 1)], allGenres[(int)GD.RandRange(0, allGenres.Count - 1)] };
+				label.preferredGenres = new Genre[] { allGenres[(int)GameRandom.RandRange(0, allGenres.Count - 1)], allGenres[(int)GameRandom.RandRange(0, allGenres.Count - 1)] };
 				break;
 		}
 	}
@@ -162,21 +162,21 @@ public class LabelGenerator {
 		var homeRegion = regions.FirstOrDefault(r => r.majorCities != null && r.majorCities.Contains(label.headquartersCity));
 		
 		if (homeRegion != null) label.strongRegions = new string[] { homeRegion.regionId };
-		else label.strongRegions = new string[] { regions[(int)GD.RandRange(0, regions.Length - 1)].regionId };  // .Count → .Length
+		else label.strongRegions = new string[] { regions[(int)GameRandom.RandRange(0, regions.Length - 1)].regionId };  // .Count → .Length
 		
 		int extraRegions = tier switch {
-			LabelTier.Major => (int)GD.RandRange(4, regions.Length),
-			LabelTier.MidTier => (int)GD.RandRange(2, 4),
-			LabelTier.Independent => (int)GD.RandRange(1, 3),
+			LabelTier.Major => (int)GameRandom.RandRange(4, regions.Length),
+			LabelTier.MidTier => (int)GameRandom.RandRange(2, 4),
+			LabelTier.Independent => (int)GameRandom.RandRange(1, 3),
 			_ => 0
 		};
 		
-		var availableRegions = regions.Where(r => !label.strongRegions.Contains(r.regionId)).OrderBy(_ => GD.Randf()).Take(extraRegions);
+		var availableRegions = regions.Where(r => !label.strongRegions.Contains(r.regionId)).OrderBy(_ => GameRandom.Randf()).Take(extraRegions);
 		var distList = new List<string>();
 		var strongList = label.strongRegions.ToList();
 		
 		foreach (var region in availableRegions) {
-			if (GD.Randf() > 0.3f) distList.Add(region.regionId);
+			if (GameRandom.Randf() > 0.3f) distList.Add(region.regionId);
 			else strongList.Add(region.regionId);
 		}
 		
@@ -193,9 +193,9 @@ public class LabelGenerator {
 			? (0.05f, 0.25f, 0.001f, 0.005f)
 			: (0.2f, 0.5f, 0.005f, 0.02f);
 		label.cashReserves = LabelStartingFinances.DrawCash(tier);
-		label.reputation = (float)GD.RandRange(minRep, maxRep);
-		label.marketShare = (float)GD.RandRange(minShare, maxShare);
-		label.debtLevel = tier == LabelTier.Small ? (float)GD.RandRange(0f, 50f) : 0f;
+		label.reputation = (float)GameRandom.RandRange(minRep, maxRep);
+		label.marketShare = (float)GameRandom.RandRange(minShare, maxShare);
+		label.debtLevel = tier == LabelTier.Small ? (float)GameRandom.RandRange(0f, 50f) : 0f;
 	}
 	
 	private void InitializeTrackRecord(AILabel label, LabelTier tier, int yearsActive) {
@@ -211,5 +211,5 @@ public class LabelGenerator {
 		label.numberOneHits = Mathf.RoundToInt(label.top40Hits * 0.1f * label.marketingPower);
 	}
 	
-	private string GetRandom(string[] list) => list[(int)GD.RandRange(0, list.Length - 1)];
+	private string GetRandom(string[] list) => list[(int)GameRandom.RandRange(0, list.Length - 1)];
 }

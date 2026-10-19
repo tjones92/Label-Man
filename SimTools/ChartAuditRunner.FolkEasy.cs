@@ -21,7 +21,7 @@ public partial class ChartAuditRunner {
    foreach(var act in panel) {
     var prior=act.repertoireState;
     try {
-     using var random=new RandomNumberGenerator {Seed=CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{act.artistId}")};
+     using var random=new PcgRandom {Seed=CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{act.artistId}")};
      var set=new PlayerDesk.Prospect {Artist=act};var mix=LiveRepertoire.SetMix(act,date.year);
      int wanted=0;int[] access=new int[3];
      PlayerDesk.Instance.BuildLiveSet(set,act,date.year,0,random,(count,pool)=> {wanted=count;foreach(var song in pool)access[(int)mix.Source(song,date.year)]++;});

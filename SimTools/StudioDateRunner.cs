@@ -73,10 +73,10 @@ public partial class StudioDateRunner : Node {
             Check(Walk(panel).OfType<Label>().Any(l => l.Text.StartsWith("\"Flip Side\"")) && !Walk(panel).OfType<Label>().Any(l => l.Text.StartsWith("\"First Side\"")), "Studio focuses work on the chosen song");
             Walk(panel).OfType<Button>().Single(b => b.Text.StartsWith("A · ")).EmitSignal(Button.SignalName.Pressed);
             var beforeTake = desk.CaptureState(); var takeDate = clock.CurrentDate;
-            GD.Seed(700); uint next = GD.Randi(); GD.Seed(700);
+            GameRandom.Seed(700); uint next = GameRandom.Randi(); GameRandom.Seed(700);
             Check(desk.CutStudioTake(0, out message), "Cut: " + message);
             int firstPass = PlayerDesk.StudioPassMinutes(desk.Session.Cuts[0]);
-            Check(GD.Randi() == next && clock.CurrentMinute == setup + firstPass && desk.Session.ElapsedMinutes == setup + firstPass, "Take spends the song's pass minutes and no gameplay RNG");
+            Check(GameRandom.Randi() == next && clock.CurrentMinute == setup + firstPass && desk.Session.ElapsedMinutes == setup + firstPass, "Take spends the song's pass minutes and no gameplay RNG");
             var freshTake = desk.Session.Cuts[0].Takes[0];
             Check(desk.RestoreState(beforeTake, out message), "Restore fatigue comparator: " + message); clock.RestoreClock(takeDate, 9, setup);
             desk.Session.WorkloadMinutes = 240;
@@ -91,9 +91,9 @@ public partial class StudioDateRunner : Node {
 
             // Song structure, located reads and targeted rehearsal.
             var shape = desk.Session.Cuts[0].Structure;
-            GD.Seed(705); next = GD.Randi(); GD.Seed(705);
+            GameRandom.Seed(705); next = GameRandom.Randi(); GameRandom.Seed(705);
             string shapeJson = Json(StudioSongStructures.For(choices[0], artist));
-            Check(shape != null && shape.Valid && shapeJson == Json(shape) && GD.Randi() == next, "Song structure is a stable pure derivation drawing no gameplay randomness");
+            Check(shape != null && shape.Valid && shapeJson == Json(shape) && GameRandom.Randi() == next, "Song structure is a stable pure derivation drawing no gameplay randomness");
             Check(shape.Inferred && shape.Sections[^1].Kind == StudioSectionKind.Ending && shape.Sections.Count(x => x.Final) == 1 &&
                 Json(desk.Session.Cuts[1].Structure) != shapeJson, "Originals take a genre-default shape with one final part, distinct per song");
             Check(freshTake.Minutes == firstPass && firstPass == Math.Clamp((int)Math.Round(2 * shape.DurationSeconds / 60.0 + 6), 9, 25) &&
@@ -124,12 +124,12 @@ public partial class StudioDateRunner : Node {
             Check(desk.RestoreState(beforeTake, out message), "Restore part comparator: " + message); clock.RestoreClock(takeDate, 9, setup);
             var part = shape.Parts.First(k => k != StudioSectionKind.Intro);
             string noPart = Json(PendingSessionSaveData.From(desk.Session));
-            GD.Seed(706); next = GD.Randi(); GD.Seed(706);
+            GameRandom.Seed(706); next = GameRandom.Randi(); GameRandom.Seed(706);
             Check(!desk.RehearseStudioPart(0, (StudioSectionKind)99, out _) && !desk.RehearseStudioPart(5, part, out _) &&
                 noPart == Json(PendingSessionSaveData.From(desk.Session)), "Unknown parts and sides cost nothing");
             int partStart = desk.Session.ElapsedMinutes, partAction = desk.Session.ActionNumber; float partWork = desk.Session.WorkloadMinutes;
             Check(desk.RehearseStudioPart(0, part, out message) && desk.Session.ElapsedMinutes == partStart + PlayerDesk.StudioPartRehearsalMinutes &&
-                desk.Session.Cuts[0].PartRehearsals[(int)part] == 1 && desk.Session.WorkloadMinutes > partWork && GD.Randi() == next,
+                desk.Session.Cuts[0].PartRehearsals[(int)part] == 1 && desk.Session.WorkloadMinutes > partWork && GameRandom.Randi() == next,
                 "Working one part spends ten minutes, tires the band and draws no gameplay RNG: " + message);
             desk.Session.ElapsedMinutes = partStart; desk.Session.ActionNumber = partAction; desk.Session.WorkloadMinutes = partWork; clock.RestoreClock(takeDate, 9, setup);
             Check(desk.CutStudioTake(0, out message), "Part-rehearsed comparator: " + message);
@@ -190,10 +190,10 @@ public partial class StudioDateRunner : Node {
             bool invalidSaveRejected = false;
             try { malformed.ToSession(Array.Empty<PlayerDesk.Song>()); } catch (InvalidOperationException) { invalidSaveRejected = true; }
             Check(invalidSaveRejected, "Unknown saved arrangements are rejected instead of silently changing performances");
-            GD.Seed(701); next = GD.Randi(); GD.Seed(701);
+            GameRandom.Seed(701); next = GameRandom.Randi(); GameRandom.Seed(701);
             string proposal = desk.StudioArrangementProposal(0, StudioArrangement.HalfTime);
             Check(proposal.Contains("Kept take 1 stays safe") && proposal == desk.StudioArrangementProposal(0, StudioArrangement.HalfTime) &&
-                unchanged == Json(PendingSessionSaveData.From(desk.Session)) && GD.Randi() == next, "Repeated proposals are stable and change neither date nor gameplay RNG");
+                unchanged == Json(PendingSessionSaveData.From(desk.Session)) && GameRandom.Randi() == next, "Repeated proposals are stable and change neither date nor gameplay RNG");
             var currentArtist = ArtistManager.Instance.GetArtist(artist.artistId);
             currentArtist.artistCreativeControl = true; float tension = desk.Session.Tension; desk.Session.Tension = .8f;
             string refused = Json(PendingSessionSaveData.From(desk.Session));
@@ -225,7 +225,7 @@ public partial class StudioDateRunner : Node {
             Check(Math.Abs(desk.Session.Cuts[1].Takes[0].Ensemble - (liveEnsemble - .025f)) < .00001f, "The changed arrangement affects the actual captured performance under identical draws");
             string continuation = Json(PendingSessionSaveData.From(desk.Session));
             Check(SaveGameService.Load(slot, out message), "Reload continuation: " + message);
-            GD.Seed(99999); _ = GD.Randi();
+            GameRandom.Seed(99999); _ = GameRandom.Randi();
             Check(desk.CutStudioTake(1, out message) && Json(PendingSessionSaveData.From(desk.Session)) == continuation, "Saved next action yields identical take and evidence despite unrelated RNG");
             Check(desk.Session.WorkloadMinutes > 0 && desk.Session.Cuts[1].Takes[0].TakeId != desk.Session.Cuts[0].Takes[0].TakeId, "Workload crosses songs and take identities stay distinct");
             Check(desk.Session.Cuts[0].Arrangement == StudioArrangement.SimplerRhythm && desk.Session.Cuts[1].Takes[0].Arrangement == StudioArrangement.HalfTime,
@@ -237,19 +237,19 @@ public partial class StudioDateRunner : Node {
             string sourceBeforeFinish = Json(desk.Session.Cuts[0].Takes[0]);
             string finishSourceId = desk.Session.Cuts[0].Takes[0].TakeId;
             unchanged = Json(PendingSessionSaveData.From(desk.Session));
-            GD.Seed(702); next = GD.Randi(); GD.Seed(702);
+            GameRandom.Seed(702); next = GameRandom.Randi(); GameRandom.Seed(702);
             string finishProposal = desk.StudioFinishProposal(0, StudioFinish.SoftenTop);
             Check(finishProposal.Contains("every instrument together") && finishProposal == desk.StudioFinishProposal(0, StudioFinish.SoftenTop) &&
-                unchanged == Json(PendingSessionSaveData.From(desk.Session)) && GD.Randi() == next, "Finish proposals are free, stable and describe mono source limitations");
+                unchanged == Json(PendingSessionSaveData.From(desk.Session)) && GameRandom.Randi() == next, "Finish proposals are free, stable and describe mono source limitations");
             Check(PlayerDesk.StudioFinishes(desk.Session.Room).Contains(StudioFinish.SoftenTop) &&
                 !PlayerDesk.StudioFinishes(desk.Session.Room).Contains(StudioFinish.GentleCompression) &&
                 !desk.FinishStudioSide(0, StudioFinish.GentleCompression, out _) && !desk.FinishStudioSide(0, (StudioFinish)99, out _) &&
                 unchanged == Json(PendingSessionSaveData.From(desk.Session)), "Only the booked room's supported whole-tape operations can be resolved");
             int beforeFinish = desk.Session.ElapsedMinutes; float cashBeforeFinish = desk.Label.cashReserves;
             workload = desk.Session.WorkloadMinutes;
-            GD.Seed(703); next = GD.Randi(); GD.Seed(703);
+            GameRandom.Seed(703); next = GameRandom.Randi(); GameRandom.Seed(703);
             Check(desk.FinishStudioSide(0, StudioFinish.SoftenTop, out message) && desk.Session.ElapsedMinutes == beforeFinish + 8 &&
-                desk.Label.cashReserves == cashBeforeFinish && desk.Session.WorkloadMinutes == workload && GD.Randi() == next,
+                desk.Label.cashReserves == cashBeforeFinish && desk.Session.WorkloadMinutes == workload && GameRandom.Randi() == next,
                 "Whole-tape processing spends eight quoted minutes once, without another wage, band pass or gameplay RNG draw");
             string processed = Json(PlayerDesk.SelectedStudioFinish(desk.Session.Cuts[0]));
             unchanged = Json(PendingSessionSaveData.From(desk.Session));
@@ -294,7 +294,7 @@ public partial class StudioDateRunner : Node {
             int expectedWorked = desk.Session.ElapsedMinutes + 2 * PlayerDesk.StudioFinishMinutesPerSide;
             string roomName = desk.Session.Room.Name;
             Check(SaveGameService.Save(slot, out message), "Save selected performance comparator: " + message);
-            GD.Seed(888);
+            GameRandom.Seed(888);
             Check(desk.PrintSession(out message), "House finish: " + message);
             float halfTimeDance = desk.Masters[1].Record.danceability;
             float processedHook = desk.Masters[0].Record.hookStrength, processedProduction = desk.Masters[0].Record.productionQuality;
@@ -303,14 +303,14 @@ public partial class StudioDateRunner : Node {
             Check(SaveGameService.Load(slot, out message), "Restore print comparator: " + message);
             desk.Session.Cuts[1].Takes[desk.Session.Cuts[1].KeptTake].Arrangement = StudioArrangement.Live;
             desk.Session.Cuts[0].Finish = StudioFinish.House;
-            GD.Seed(888);
+            GameRandom.Seed(888);
             Check(desk.PrintSession(out message) && Math.Abs(halfTimeDance - desk.Masters[1].Record.danceability * .70f) < .00001f,
                 "Half-time changes the finished recording's movement after shared material realization");
             Check(Math.Abs(processedHook - Math.Clamp(desk.Masters[0].Record.hookStrength - .012f, 0, 1)) < .00001f &&
                 Math.Abs(processedProduction - Math.Clamp(desk.Masters[0].Record.productionQuality + .015f, 0, 1)) < .00001f,
                 "Retained processing changes the printed master once after shared realization, with its dynamics tradeoff");
             Check(SaveGameService.Load(slot, out message), "Restore final kept alternatives: " + message);
-            GD.Seed(888);
+            GameRandom.Seed(888);
             Check(desk.PrintSession(out message), "Finish final alternatives: " + message);
             Check(clock.CurrentHour * 60 + clock.CurrentMinute == finishStart + 20 && desk.Label.cashReserves == paidCash, "Finishing spends quoted minutes and no second room charge");
             Check(desk.Masters.Count == 2 && desk.Masters.All(m => m.StudioHistory?.RoomName == roomName && m.StudioHistory.ElapsedMinutes == expectedWorked), "Both masters retain the date's story");
@@ -345,10 +345,10 @@ public partial class StudioDateRunner : Node {
             var planBefore = desk.CaptureState(); planBefore.PolarObservations = null;
             string planState = Json(planBefore);
             var materialBox = Walk(panel).OfType<CheckBox>().First(); materialBox.ButtonPressed = true;
-            GD.Seed(704); next = GD.Randi(); GD.Seed(704);
+            GameRandom.Seed(704); next = GameRandom.Randi(); GameRandom.Seed(704);
             Walk(panel).OfType<Button>().Single(b => b.Text == "COMPARE MATERIAL…").EmitSignal(Button.SignalName.Pressed);
             var planAfter = desk.CaptureState(); planAfter.PolarObservations = null;
-            Check(Walk(panel).OfType<CheckBox>().Any(b => b.ButtonPressed) && Json(planAfter) == planState && GD.Randi() == next, "Optional comparison preserves the plan, cash, clock and gameplay RNG while retaining its listening evidence");
+            Check(Walk(panel).OfType<CheckBox>().Any(b => b.ButtonPressed) && Json(planAfter) == planState && GameRandom.Randi() == next, "Optional comparison preserves the plan, cash, clock and gameplay RNG while retaining its listening evidence");
             string compared = Json(desk.CaptureState());
             Walk(panel).OfType<Button>().Single(b => b.Text == "HIDE MATERIAL COMPARISON").EmitSignal(Button.SignalName.Pressed);
             Walk(panel).OfType<Button>().Single(b => b.Text == "COMPARE MATERIAL…").EmitSignal(Button.SignalName.Pressed);

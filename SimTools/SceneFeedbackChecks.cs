@@ -67,9 +67,9 @@ public static class SceneFeedbackChecks {
         }
         Check(changed > 0, "controlled signing shock changes actual live slates");
         var saved = WorldStateService.Capture(); string before = Json(saved);
-        GD.Seed(90142); uint expected = GD.Randi(); GD.Seed(90142);
+        GameRandom.Seed(90142); uint expected = GameRandom.Randi(); GameRandom.Seed(90142);
         var ids = SceneRecruitmentService.Slate(label, pool, 11, 5, 8, out _).Select(a => a.artistId).ToArray();
-        Check(expected == GD.Randi(), "live selection does not consume global RNG");
+        Check(expected == GameRandom.Randi(), "live selection does not consume global RNG");
         Check(before == Json(WorldStateService.Capture()), "live query preserves complete saved world and population RNG");
         Check(ids.SequenceEqual(SceneRecruitmentService.Slate(label, pool.Reverse(), 11, 5, 8, out _).Select(a => a.artistId)), "live slate stable under pool ordering");
         WorldStateService.Apply(JsonSerializer.Deserialize<WorldSaveData>(before, SaveGameService.TestJsonOptions), TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);

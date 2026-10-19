@@ -125,7 +125,7 @@ public static class GenreAcceptanceService {
 			RegionalDemandCache.Clear();
 			cacheYearBits = yearBits;
 		}
-		var key = new RegionalDemandKey(primary, secondary, region.GetInstanceId(), yearBits, BitConverter.SingleToInt32Bits(legacyMomentum),
+		var key = new RegionalDemandKey(primary, secondary, region.CachedInstanceId, yearBits, BitConverter.SingleToInt32Bits(legacyMomentum),
 			includeCenteredSpecialistTexture);
 		if (RegionalDemandCache.TryGetValue(key, out float cached)) return cached;
 		if (activeEvaluation?.Values.TryGetValue(key, out cached) == true)

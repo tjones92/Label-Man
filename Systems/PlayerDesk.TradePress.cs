@@ -50,7 +50,7 @@ public partial class PlayerDesk : Node {
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		tradeSubmissions.Add(new TradeSubmission {
 			RecordId = recordId, SubmittedWeek = week,
-			ResolveWeek = week + GD.RandRange(TradeReviewResolveMinWeeks, TradeReviewResolveMaxWeeks),
+			ResolveWeek = week + GameRandom.RandRange(TradeReviewResolveMinWeeks, TradeReviewResolveMaxWeeks),
 		});
 
 		string title = TitleForRecord(recordId);
@@ -70,7 +70,7 @@ public partial class PlayerDesk : Node {
 			float quality = rec?.baseRecord != null ? (rec.baseRecord.hookStrength + rec.baseRecord.productionQuality) * 0.5f : 0.3f;
 			float standing = Mathf.Clamp(Label?.reputation ?? 0f, 0f, 1f);
 			float score = quality + standing * 0.15f;
-			float roll = GD.Randf();
+			float roll = GameRandom.Randf();
 
 			TradeOutcome outcome;
 			if (roll < 0.03f + score * 0.05f) outcome = TradeOutcome.Spotlight;

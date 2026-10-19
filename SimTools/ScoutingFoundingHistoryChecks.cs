@@ -51,9 +51,9 @@ public static class ScoutingFoundingHistoryChecks {
         capturedMemory.PersonIds.Clear();
         Check(Json(desk.FoundingAct) == history, "save capture detaches retained people");
         string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
-        GD.Seed(934); uint draw = GD.Randi(); GD.Seed(934);
+        GameRandom.Seed(934); uint draw = GameRandom.Randi(); GameRandom.Seed(934);
         desk.FoundingActSummary(); desk.ScoutingSummary(act.artistId);
-        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GD.Randi() == draw, "history views preserve world, player and RNG");
+        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GameRandom.Randi() == draw, "history views preserve world, player and RNG");
         desk.SetScoutingPriority(act.artistId, ScoutingPriority.Archived);
         Check(Json(desk.FoundingAct) == history, "archiving retains founding history");
         Check(am.DropArtist(act, date.year, desk.Label, ArtistDropReason.Voluntary) && Json(desk.FoundingAct) == history, "canonical departure retains first signature without rewriting its cause");

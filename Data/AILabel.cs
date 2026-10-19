@@ -304,22 +304,22 @@ public partial class AILabel : Resource {
 		
 		if (maxRosterSize == 0) {
 			maxRosterSize = tier switch {
-				LabelTier.Major => (int)GD.RandRange(35, 60),
-				LabelTier.MidTier => (int)GD.RandRange(18, 35),
-				LabelTier.Independent => (int)GD.RandRange(8, 18),
-				LabelTier.Small => (int)GD.RandRange(3, 10),
-				LabelTier.Boutique => (int)GD.RandRange(5, 12),
+				LabelTier.Major => (int)GameRandom.RandRange(35, 60),
+				LabelTier.MidTier => (int)GameRandom.RandRange(18, 35),
+				LabelTier.Independent => (int)GameRandom.RandRange(8, 18),
+				LabelTier.Small => (int)GameRandom.RandRange(3, 10),
+				LabelTier.Boutique => (int)GameRandom.RandRange(5, 12),
 				_ => 10
 			};
 		}
 		
 		if (reputation == 0) {
 			reputation = tier switch {
-				LabelTier.Major => (float)GD.RandRange(0.7, 0.95),
-				LabelTier.MidTier => (float)GD.RandRange(0.4, 0.7),
-				LabelTier.Independent => (float)GD.RandRange(0.2, 0.5),
-				LabelTier.Small => (float)GD.RandRange(0.05, 0.25),
-				LabelTier.Boutique => (float)GD.RandRange(0.3, 0.6),
+				LabelTier.Major => (float)GameRandom.RandRange(0.7, 0.95),
+				LabelTier.MidTier => (float)GameRandom.RandRange(0.4, 0.7),
+				LabelTier.Independent => (float)GameRandom.RandRange(0.2, 0.5),
+				LabelTier.Small => (float)GameRandom.RandRange(0.05, 0.25),
+				LabelTier.Boutique => (float)GameRandom.RandRange(0.3, 0.6),
 				_ => 0.3f
 			};
 		}
@@ -394,11 +394,11 @@ public partial class AILabel : Resource {
 	/// </summary>
 	public int CalculateContractLength(SimulatedArtist artist) {
 		int baseTerm = artist.careerState switch {
-			CareerState.Superstar => (int)GD.RandRange(1, 3),
-			CareerState.Star => (int)GD.RandRange(2, 4),
-			CareerState.Established => (int)GD.RandRange(3, 5),
-			CareerState.Rising => (int)GD.RandRange(2, 3),
-			_ => (int)GD.RandRange(1, 2)
+			CareerState.Superstar => (int)GameRandom.RandRange(1, 3),
+			CareerState.Star => (int)GameRandom.RandRange(2, 4),
+			CareerState.Established => (int)GameRandom.RandRange(3, 5),
+			CareerState.Rising => (int)GameRandom.RandRange(2, 3),
+			_ => (int)GameRandom.RandRange(1, 2)
 		};
 		return Mathf.Clamp(baseTerm + GetContractTermBias(), 1, 7);
 	}
@@ -424,8 +424,8 @@ public partial class AILabel : Resource {
 		if (year > SinglesObligationFinalYear) return 0;
 		return artist.careerState switch {
 			CareerState.Superstar or CareerState.Star or CareerState.Established => 0,
-			CareerState.Rising => (int)GD.RandRange(4, 8),
-			_ => (int)GD.RandRange(3, 6)
+			CareerState.Rising => (int)GameRandom.RandRange(4, 8),
+			_ => (int)GameRandom.RandRange(3, 6)
 		};
 	}
 	public const int SinglesObligationFinalYear = 1966;
@@ -572,7 +572,7 @@ public partial class AILabel : Resource {
 		
 		if (candidates.Count == 0) return null;
 		float totalWeight = candidates.Sum(c => c.priority);
-		float roll = (float)GD.RandRange(0f, totalWeight);
+		float roll = (float)GameRandom.RandRange(0f, totalWeight);
 		float cumulative = 0f;
 		
 		foreach (var (artist, priority) in candidates.OrderByDescending(c => c.priority)) {
@@ -611,7 +611,7 @@ public partial class AILabel : Resource {
 			float genreHeat = ChartManager.Instance.GetEffectiveGenreAcceptance(artist.primaryGenre);
 			priority += (genreHeat - 0.5f) * 0.2f;
 		}
-		priority += (float)GD.RandRange(0f, 0.15f);
+		priority += (float)GameRandom.RandRange(0f, 0.15f);
 		return Mathf.Max(0f, priority);
 	}
 	
@@ -709,7 +709,7 @@ public partial class AILabel : Resource {
 		float probability = Mathf.Max(scoutChance * scoutingMultiplier, minimumProbability);
 		if (!consumeRoll) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, rosterFullness, hasRecentHit,
 			recentHitFactor, decliningArtists, decliningFactor, probability, null, false, null);
-		float roll = rollSource?.Invoke() ?? (float)GD.RandRange(0f, 1f);
+		float roll = rollSource?.Invoke() ?? (float)GameRandom.RandRange(0f, 1f);
 		bool passed = roll < probability;
 		return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, rosterFullness, hasRecentHit,
 			recentHitFactor, decliningArtists, decliningFactor, probability, roll, passed,
@@ -791,9 +791,9 @@ public partial class AILabel : Resource {
 		// review is again authoritative.
 		if (ArtistPopulationLifecycle.Enabled && artist.IsContractPerformanceProbationPending())
 			return artist.ShouldDepartForCurrentContractPerformance();
-		if (artist.consecutiveFlops >= 3 && artist.careerState <= CareerState.Rising) return (float)GD.RandRange(0f, 1f) < 0.6f;
-		if (artist.consecutiveFlops >= 4 && artist.careerState == CareerState.Established) return (float)GD.RandRange(0f, 1f) < 0.4f;
-		if (artist.careerState == CareerState.Declining && artist.consecutiveFlops >= 2) return (float)GD.RandRange(0f, 1f) < 0.5f;
+		if (artist.consecutiveFlops >= 3 && artist.careerState <= CareerState.Rising) return (float)GameRandom.RandRange(0f, 1f) < 0.6f;
+		if (artist.consecutiveFlops >= 4 && artist.careerState == CareerState.Established) return (float)GameRandom.RandRange(0f, 1f) < 0.4f;
+		if (artist.careerState == CareerState.Declining && artist.consecutiveFlops >= 2) return (float)GameRandom.RandRange(0f, 1f) < 0.5f;
 		if (artistLoyalty > 0.7f) return false;
 		return false;
 	}

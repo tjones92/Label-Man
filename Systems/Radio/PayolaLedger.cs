@@ -59,7 +59,7 @@ public sealed class PayolaLedger {
 	private readonly Dictionary<(string rec, string stn), float> boostCache = new();
 	private readonly Dictionary<string, IndiePromoter> promoters = new(StringComparer.Ordinal);
 	private readonly StationNetwork network;
-	private readonly RandomNumberGenerator rng = new();
+	private readonly PcgRandom rng = new();
 
 	public readonly List<ScandalEvent> pendingScandals = new();
 

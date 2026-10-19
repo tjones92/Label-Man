@@ -24,11 +24,11 @@ public static class ScoutingListenerChecks {
         var listener = listeners.FirstOrDefault(p => p.PersonId == person.personId);
         Check(listener != null, "locally present free roster musician is available");
         Check(!listeners.Any(p => slot.PersonIds.Contains(p.PersonId) || (slot.BackingPersonIds?.Contains(p.PersonId) ?? false)), "performers and backers cannot be independent listeners");
-        GD.Seed(79); uint expected = GD.Randi(); GD.Seed(79);
+        GameRandom.Seed(79); uint expected = GameRandom.Randi(); GameRandom.Seed(79);
         string world = Json(WorldStateService.Capture()); string knowledge = Json(desk.CaptureState().ScoutingKnowledge);
         Check(Json(listeners) == Json(desk.ScoutingListeners(bill.Id, eventId)), "availability quote stable on refresh");
         Check(world == Json(WorldStateService.Capture()) && knowledge == Json(desk.CaptureState().ScoutingKnowledge), "preview creates no world or knowledge changes");
-        Check(GD.Randi() == expected, "preview consumes no world RNG");
+        Check(GameRandom.Randi() == expected, "preview consumes no world RNG");
         Check(!desk.ListenSceneAppearanceWithListener(bill.Id, eventId, "missing-person", null, out _) && clock.CurrentHour == slot.StartHour && desk.Label.cashReserves == cash, "invalid listener rejected without cost");
         Check(!desk.ListenSceneAppearanceWithListener(bill.Id, eventId, person.personId, "stale", out _) && clock.CurrentHour == slot.StartHour, "stale quote rejected without time");
         float oldStage = person.stagePresence; person.stagePresence += .01f;

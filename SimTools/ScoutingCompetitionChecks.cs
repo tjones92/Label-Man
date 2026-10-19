@@ -25,13 +25,13 @@ public static class ScoutingCompetitionChecks {
             clock.RestoreClock(LocalSceneRoomService.Date(35), 10, 15);
             float cash = desk.Label.cashReserves; int population = am.GetAllArtists().Count();
             LocalSceneRoomService.Calendar(desk.CurrentCityId, clock.CurrentDate);
-            Godot.GD.Seed(47); uint draw = Godot.GD.Randi(); Godot.GD.Seed(47);
+            GameRandom.Seed(47); uint draw = GameRandom.Randi(); GameRandom.Seed(47);
             string world = Json(WorldStateService.Capture());
             var news = desk.LocalSceneNews(); desk.ScoutingSummary(artistId); desk.LocalSceneNews();
             Check(news.Count(n => n.ArtistId == artistId) == 1, "one public report per authoritative signing");
             Check(Json(desk.CaptureState().ScoutingKnowledge) == knowledge, "previews do not acquire reports");
             Check(Json(WorldStateService.Capture()) == world, "previews preserve world");
-            Check(Godot.GD.Randi() == draw, "previews preserve RNG");
+            Check(GameRandom.Randi() == draw, "previews preserve RNG");
             world = Json(WorldStateService.Capture());
             Check(desk.SetScoutingPriority(artistId, ScoutingPriority.Archived), "archive known act before publication receipt");
             desk.MarkSceneNewsRead();

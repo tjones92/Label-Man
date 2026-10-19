@@ -17,6 +17,31 @@ same distribution by construction.
 | `9bdd754` | Server GC env for audit runners (`AuditGcEnvironment.ps1`); GC columns in the profile CSV | 1969 −15%, LR −9%, byte-identical |
 | `1a1359e` | Indexed lookups, per-town room caches, keyed set lists (details in the commit) | 5-year 581.7 → 414.9 s (−29%) |
 | after `1a1359e` | Weekly room presence + planned-move index, `GetLabel` index, media memos, fit constants, set-list rejection sampling, single-pass market residuals | 5-year → 359.6 s (−38% vs HEAD `9bdd754`) |
+| third session (uncommitted at writing) | Managed Godot RNG (`Systems/PcgRandom.cs`: `PcgRandom` for every `RandomNumberGenerator`, `GameRandom` for every `GD.Seed/Randf/Randi/RandRange`), cached `MarketRegion.CachedInstanceId`, per-format price/pressing cache in `CompetitorManager` | 5-year 359.6 → 353.2 s (−1.8%); all 80 CSVs byte-identical to `prof5-new8` |
+
+## Third session findings (2026-10-18, late)
+
+- **Calibration is what the real runs use.** The hitcad screen (`SimLogs/hitcad-lr-screen-v1/runs.json`) passed
+  `--calibration --small-label-finance` and still wrote ~180 MB of CSVs per 5 years. The "full telemetry explains
+  2.5 h" theory below is wrong; the author was right to doubt it.
+- **Telemetry is not the cost under calibration.** In `trace4-fresh` every `ChartAuditRunner` handler plus
+  `CaptureWeek` is ~2-3% of samples; `captureWeekSeconds` is 4.4 s of 360. The sim-side "Explain" frames are
+  simulation (`SceneRecruitmentService.Explain` is the recruitment score), not telemetry.
+- **The EventPipe trace over-weights native calls.** It put 23% of samples in Godot interop (9% in the playlist's
+  `RandomNumberGenerator.Randf`). Replacing every RNG with a bit-identical managed port left `PlaylistsSeconds`
+  unchanged (38.3 → 37.9). Only the price-table fix (Godot `Dictionary<string,float>` marshalled a key per lookup;
+  `calculateLabelRevenueSeconds` 13.6 → 9.3) and market clearing (21.3 → 16.7) moved. Confirm any trace-led
+  target with a span A/B before investing.
+- **Godot RNG facts (proved by `SimTools/GodotRngParityChecks.tscn`, 4.8M draws):** instance `Randf` is
+  RandomPCG's two-draw ldexp construction; global `GD.Randf` is ONE draw / `(float)UINT32_MAX`; `GD.RandRange(double,
+  double)` is the three-draw `randd`, whose 64-bit significand needs a hand-rounded conversion because .NET's
+  `(double)ulong` double-rounds above 2^63. `GameRandom.Seed` also seeds Godot's global so a stray `GD.*` draw stays
+  deterministic; new code should call `GameRandom`/`PcgRandom`.
+- **Parallel seeds are the decade-wall lever.** 1969 fixture, 4 weeks, calibration: one seed 19.5 s measured;
+  two at once 67.2 s and 51.8 s (free RAM hit 0 GB, `competitorWeek` 3.7 → 30 s). Fresh 1960, 52 weeks: one seed
+  40.3 s, two at once 47.2 s each. So pairs win early and lose ~3x per job once late worlds page on this 7.2 GB box;
+  two seeds back to back beat two in parallel for the late decade. Estimated single-seed calibration decade on the
+  current tree: ~21 min (1960-64 measured 353 s; 1965-69 interpolated 2.0 → 4.9 s/week).
 
 ## Measuring
 
@@ -71,6 +96,11 @@ observe-only today, Phase 4 causal next) and `CompetitorManager.OnMonthChanged` 
    the author's ~2.5 h figure measures; telemetry capture is a separate cost from the simulation.
 
 ## Next session: telemetry and the real decade cost
+
+**Superseded by "Third session findings" above**: the runs are calibration, telemetry is ~2-3%, and parallel
+seeds paging late worlds is the measured multiplier. The next lever for the decade wall is the late-world heap
+(≈2.2 GB, scales with album count): shrinking it lets two seeds share the machine without paging. Kept below for
+the invocation-hunting notes.
 
 The author reports a decade run takes ~2.5 h (2026-10-15). Everything measured above is **calibration mode**
 (`--calibration --small-label-finance`), and it does not add up to 2.5 h:

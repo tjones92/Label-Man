@@ -48,10 +48,10 @@ public partial class StudioAccessRunner : Node {
             var one = new List<PlayerDesk.MaterialChoice> { new() { Kind = PlayerDesk.MaterialKind.Original, Title = "Access Side", Detail = "their own" } };
 
             // ---- Rooms: the town's own, then rooms a drive away. Pure and RNG-free. ----
-            GD.Seed(901); uint next = GD.Randi(); GD.Seed(901);
+            GameRandom.Seed(901); uint next = GameRandom.Randi(); GameRandom.Seed(901);
             var ids = desk.StudioRoomIds();
             var offers = ids.Select(id => desk.StudioOffer(id, artist.artistId)).ToList();
-            Check(GD.Randi() == next && Json(offers) == Json(desk.StudioRoomIds().Select(id => desk.StudioOffer(id, artist.artistId)).ToList()),
+            Check(GameRandom.Randi() == next && Json(offers) == Json(desk.StudioRoomIds().Select(id => desk.StudioOffer(id, artist.artistId)).ToList()),
                 "Listing rooms is stable and draws no gameplay randomness");
             var local = offers.Where(o => o.Local).ToList(); var away = offers.Where(o => !o.Local && !o.Overnight).ToList();
             Check(local.Count == StudioRoomCatalog.Available(desk.Label.homeCityId, desk.Label.homeRegion).Length && local.All(o => o.Room.CityId == "atlanta"),

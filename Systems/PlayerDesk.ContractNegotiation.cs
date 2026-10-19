@@ -10,7 +10,7 @@ using Godot;
 // player-turn-local -- no GD.Rand* call anywhere in this file touches the AI economy's RNG stream
 // or call order. Acceptance is a deterministic threshold check; the one fogged read uses a stable
 // hash (same discipline as ScoutingPerception); the manager-pickup roll and the royalty/deliverables
-// asks use GD.Randf()/GD.RandRange() exactly like the rest of the player-only desk (RolodexVerbs.cs
+// asks use GameRandom.Randf()/GameRandom.RandRange() exactly like the rest of the player-only desk (RolodexVerbs.cs
 // does the same) -- safe because none of it runs inside population generation or the AI's weekly tick.
 // ============================================================================================
 public partial class PlayerDesk : Node {
@@ -815,7 +815,7 @@ public partial class PlayerDesk : Node {
 			if (artist.manager != ManagerArchetype.None) continue;
 			if (!IsActivelyOnCareerTrack(artist.careerState)) continue;
 			float interest = Mathf.Clamp(artist.momentum * 0.5f + artist.reputation * 0.5f, 0f, 1f);
-			if (interest <= 0f || GD.Randf() > interest * ManagerApproachMonthlyChance) continue;
+			if (interest <= 0f || GameRandom.Randf() > interest * ManagerApproachMonthlyChance) continue;
 
 			ManagerArchetype archetype = ArtistManager.Instance?.RollManagerArchetypeFor(artist) ?? ManagerArchetype.None;
 			if (archetype == ManagerArchetype.None) continue;   // rolled "still nobody's biting" this pass
@@ -832,7 +832,7 @@ public partial class PlayerDesk : Node {
 
 	private static string GenerateManagerNameFor() {
 		if (NameGenerator.Instance == null) return null;
-		(string first, string last) = NameGenerator.Instance.GeneratePersonName(GD.Randf() < 0.9f);
+		(string first, string last) = NameGenerator.Instance.GeneratePersonName(GameRandom.Randf() < 0.9f);
 		return $"{first} {last}";
 	}
 }

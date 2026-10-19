@@ -407,8 +407,8 @@ public static class JournalisticDescriptor {
 
 	private static string GetRandomElement(string[] options) {
 		if (picker != null) return options[picker.Next(options.Length)];
-		// Fix: GD.RandRange instead of Random.Range
-		return options[(int)GD.RandRange(0, options.Length)];
+		// Fix: GameRandom.RandRange instead of Random.Range
+		return options[(int)GameRandom.RandRange(0, options.Length)];
 	}
 	
 	private static List<string> PickRandom(List<string> source, int count) {
@@ -421,7 +421,7 @@ public static class JournalisticDescriptor {
 		
 		// Fix: Mathf.Min works fine with using Godot at the top
 		for (int i = 0; i < Mathf.Min(count, source.Count); i++) {
-			int pick = picker != null ? picker.Next(indices.Count) : (int)GD.RandRange(0, indices.Count);
+			int pick = picker != null ? picker.Next(indices.Count) : (int)GameRandom.RandRange(0, indices.Count);
 			result.Add(source[indices[pick]]);
 			indices.RemoveAt(pick);
 		}

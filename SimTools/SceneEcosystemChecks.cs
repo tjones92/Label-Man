@@ -76,9 +76,9 @@ public static class SceneEcosystemChecks {
             Check(SceneEcosystemService.Moves.Single().Status == SceneMoveStatus.Planned, "disabling relocation freezes commitments without erasing them");
             LocalScenes.Configure(flags);
             a = ArtistManager.Instance.GetArtist(move.ArtistId);
-            GD.Seed(199); uint draw = GD.Randi(); GD.Seed(199);
+            GameRandom.Seed(199); uint draw = GameRandom.Randi(); GameRandom.Seed(199);
             SceneEcosystemService.Advance(LocalSceneRoomService.Date(move.ArrivalDay));
-            Check(GD.Randi() == draw, "arrival consumes no global RNG");
+            Check(GameRandom.Randi() == draw, "arrival consumes no global RNG");
             Check(a.geography.basePlaceId == destination && a.geography.originPlaceId == origin &&
                 a.members.First(m => m.personId == move.PersonIds[0]).geography.originPlaceId == personOrigin, "arrival changes bases, preserves act and person origins");
             Check(LocalSceneIdentityService.ArtistsBasedAt(destination).Contains(a.artistId) &&
@@ -141,9 +141,9 @@ public static class SceneEcosystemChecks {
             foreach (var l in ChartManager.Instance.GetAllLabels()) l.cashReserves = Math.Max(l.cashReserves, 1000000);
             int before = SceneEcosystemService.Programs.Count;
             var quarter = LocalSceneRoomService.Date(LocalSceneRoomService.Day(date) + 91);
-            GD.Seed(311); uint expected = GD.Randi(); GD.Seed(311);
+            GameRandom.Seed(311); uint expected = GameRandom.Randi(); GameRandom.Seed(311);
             SceneEcosystemService.Advance(quarter);
-            Check(GD.Randi() == expected, "AI investment consumes no global RNG");
+            Check(GameRandom.Randi() == expected, "AI investment consumes no global RNG");
             var funded = SceneEcosystemService.Programs.Skip(before).ToList();
             Check(funded.Count > 0 && funded.Count == SceneEcosystemService.AiPrograms, "qualifying independents fund programs: " + funded.Count);
             Check(funded.All(f => ChartManager.Instance.GetLabelById(f.SponsorId) is { isPlayerOwned: false } s && s.tier != LabelTier.Major), "only independent AI labels invest");

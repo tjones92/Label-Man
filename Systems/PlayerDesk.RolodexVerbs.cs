@@ -239,7 +239,7 @@ public partial class PlayerDesk : Node {
 		float production = flip ? c.bSideProduction : c.recordProduction;
 
 		if (c.HasRecord && !c.isServiced) return Objection.NotServiced;
-		if (c.professionallyBurned || (c.youOweThem && GD.Randf() < 0.5f)) return Objection.YouBurnedMeBefore;
+		if (c.professionallyBurned || (c.youOweThem && GameRandom.Randf() < 0.5f)) return Objection.YouBurnedMeBefore;
 		if (c.HasRecord && formatAdmittance < 0.08f)                       return Objection.FormatShutOut;
 		if (c.managerPressureHigh)                                         return Objection.ManagerHeat;
 		if (c.djGreed > 0.55f && c.rapport < 0.15f)                        return Objection.WhatsInItForMe;
@@ -247,7 +247,7 @@ public partial class PlayerDesk : Node {
 		if (c.regionalGenreAcceptance < 0.38f)                             return Objection.NoLocalAudience;
 		if (c.artistRecognition < 0.12f && c.unitsTotal < 200)             return Objection.UnknownArtist;
 		if (c.HasRecord && (c.salesSupport < 0.35f || c.unitsTotal < 50))  return Objection.NoSalesSupport;
-		return GD.Randf() < 0.5f ? Objection.PlaylistFull : Objection.UnknownArtist;
+		return GameRandom.Randf() < 0.5f ? Objection.PlaylistFull : Objection.UnknownArtist;
 	}
 
 	/// <summary>The chance before any counter. Every term is a real number from the context.</summary>
@@ -554,7 +554,7 @@ public partial class PlayerDesk : Node {
 					- c.instincts.TheStreet * 0.05f
 					- c.rapport * 0.25f,
 				0.10f, 0.90f);
-			if (GD.Randf() < catchChance) {
+			if (GameRandom.Randf() < catchChance) {
 				call.Say(RolodexSceneBeat.Pushback,
 					"There is a silence with the shape of a man checking something. \"No,\" he says. \"That isn't true, is it.\"",
 					speaker: call.entry.displayName);
@@ -634,8 +634,8 @@ public partial class PlayerDesk : Node {
 
 		int minutes = call.pendingApproach switch {
 			RolodexApproach.PersonalPitch or RolodexApproach.WorkTheFlip =>
-				PersonalPitchMinMinutes + (int)GD.RandRange(0, PersonalPitchMaxMinutes - PersonalPitchMinMinutes),
-			RolodexApproach.AskForFavor   => AskAFavorMinMinutes + (int)GD.RandRange(0, AskAFavorMaxMinutes - AskAFavorMinMinutes),
+				PersonalPitchMinMinutes + (int)GameRandom.RandRange(0, PersonalPitchMaxMinutes - PersonalPitchMinMinutes),
+			RolodexApproach.AskForFavor   => AskAFavorMinMinutes + (int)GameRandom.RandRange(0, AskAFavorMaxMinutes - AskAFavorMinMinutes),
 			RolodexApproach.AskForIntroduction => IntroductionMinutes,
 			RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen => CourtesyCallMinutes,
 			_ => 10,
@@ -647,7 +647,7 @@ public partial class PlayerDesk : Node {
 		// never even happens.
 		bool success = call.objection != Objection.NotServiced
 			&& (call.pendingApproach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction or RolodexApproach.PlayTheAcetate or RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen
-				|| GD.Randf() < call.EffectiveChance);
+				|| GameRandom.Randf() < call.EffectiveChance);
 		call.lastSucceeded = success;
 		call.stage = CallStage.Resolved;
 
@@ -665,7 +665,7 @@ public partial class PlayerDesk : Node {
 
 		call.Say(RolodexSceneBeat.RelationshipAftermath,
 			RolodexFragments.Pick(RolodexSceneBeat.RelationshipAftermath, c));
-		if (success && GD.Randf() < 0.5f)
+		if (success && GameRandom.Randf() < 0.5f)
 			call.Say(RolodexSceneBeat.Exit, RolodexFragments.Pick(RolodexSceneBeat.Exit, c));
 
 		TrimLog(entry);

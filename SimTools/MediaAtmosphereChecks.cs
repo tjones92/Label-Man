@@ -179,8 +179,8 @@ public partial class MediaAtmosphereChecks : Node {
 		var desk = PlayerDesk.Instance;
 		if (desk.Label == null) desk.FoundLabel("Media Checks", "cleveland", FoundingArchetype.ExMusician, out _);
 		int before = MediaAtmosphereService.Appearances.Count;
-		GD.Seed(4242); desk.TelevisionColumn(clock.CurrentDate); RolodexDirectory.Cards(desk, RolodexRole.Press); uint r1 = GD.Randi();
-		GD.Seed(4242); uint r2 = GD.Randi();
+		GameRandom.Seed(4242); desk.TelevisionColumn(clock.CurrentDate); RolodexDirectory.Cards(desk, RolodexRole.Press); uint r1 = GameRandom.Randi();
+		GameRandom.Seed(4242); uint r2 = GameRandom.Randi();
 		Check(r1 == r2 && MediaAtmosphereService.Appearances.Count == before, "Reading the paper and the Rolodex draws no RNG and books nothing");
 		var column = desk.TelevisionColumn(clock.CurrentDate);
 		Check(column.SequenceEqual(desk.TelevisionColumn(clock.CurrentDate)), "The television column reads the same twice");
@@ -348,8 +348,8 @@ public partial class MediaAtmosphereChecks : Node {
 		int mainstream = stories.Count(s => MediaOutletCatalog.GetPress(s.OutletId).Family == PressFamily.Mainstream);
 		Check(mainstream <= 4, $"Mainstream magazines rarely cover popular music ({mainstream} items in four weeks)");
 		var desk = PlayerDesk.Instance;
-		GD.Seed(777); desk.PressColumn(clock.CurrentDate); RolodexDirectory.Cards(desk, RolodexRole.Press); uint a = GD.Randi();
-		GD.Seed(777); uint b = GD.Randi();
+		GameRandom.Seed(777); desk.PressColumn(clock.CurrentDate); RolodexDirectory.Cards(desk, RolodexRole.Press); uint a = GameRandom.Randi();
+		GameRandom.Seed(777); uint b = GameRandom.Randi();
 		Check(a == b && desk.PressColumn(clock.CurrentDate).SequenceEqual(desk.PressColumn(clock.CurrentDate)), "Reading the press column and the press cards draws nothing and reads the same twice");
 		foreach (string line in desk.PressColumn(clock.CurrentDate)) GD.Print("  paper: " + line);
 	}
@@ -538,8 +538,8 @@ public partial class MediaAtmosphereChecks : Node {
 		float after = acts.Sum(x => x.publicRecognition + x.culturalStanding + x.members.Sum(m => m.personalRecognition));
 		GD.Print($"  canonical recognition across 400 acts moved {after - recognition:F4} in five weeks (the economy's own milestones; media writes none)");
 		var desk = PlayerDesk.Instance;
-		GD.Seed(9191); desk.FanLines(); MediaAtmosphereService.LoudestFans(5); RolodexDirectory.Cards(desk, RolodexRole.Press); uint r1 = GD.Randi();
-		GD.Seed(9191); uint r2 = GD.Randi();
+		GameRandom.Seed(9191); desk.FanLines(); MediaAtmosphereService.LoudestFans(5); RolodexDirectory.Cards(desk, RolodexRole.Press); uint r1 = GameRandom.Randi();
+		GameRandom.Seed(9191); uint r2 = GameRandom.Randi();
 		Check(r1 == r2 && desk.FanLines().SequenceEqual(desk.FanLines()), "Reading the fan lines and the teen desks draws nothing and reads the same twice");
 		foreach (string line in desk.FanLines()) GD.Print("  office: " + line);
 	}
@@ -566,13 +566,13 @@ public partial class MediaAtmosphereChecks : Node {
 			$"A local show at home costs the rehearsal, across the country ${far / 100.0:N0}; a network production pays its guests' way");
 
 		double cash = labels.Sum(l => (double)l.cashReserves), expenses = labels.Sum(l => (double)l.monthlyExpenses);
-		GD.Seed(5150);
+		GameRandom.Seed(5150);
 		foreach (var l in labels.Take(50)) {
 			var artist = ArtistManager.Instance.GetAllArtists().FirstOrDefault(x => x.labelId == l.labelId);
 			AiMediaPlanner.EnvelopeEstimate(l, artist);
 			AiMediaPlanner.PhotoAnswer(AiMediaPlanner.LabelPolicy(l), artist, "probe-" + l.labelId);
 		}
-		uint r1 = GD.Randi(); GD.Seed(5150); uint r2 = GD.Randi();
+		uint r1 = GameRandom.Randi(); GameRandom.Seed(5150); uint r2 = GameRandom.Randi();
 		Check(r1 == r2 && cash == labels.Sum(l => (double)l.cashReserves) && expenses == labels.Sum(l => (double)l.monthlyExpenses),
 			"Estimating envelopes and answering for rival labels draws nothing and touches no label's money");
 

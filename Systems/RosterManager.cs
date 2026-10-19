@@ -326,7 +326,7 @@ public partial class RosterManager : Node {
 	/// lifecycle capacity, not this draw, remains authoritative.
 	/// </summary>
 	private static void ConsumeLegacyRuntimeCapacityAlignmentDraw(AILabel label) =>
-		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, (minimum, maximum) => { _ = GD.RandRange(minimum, maximum); });
+		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, (minimum, maximum) => { _ = GameRandom.RandRange(minimum, maximum); });
 
 	internal static void ConsumeLegacyRuntimeCapacityAlignmentDrawForProbe(AILabel label, Action<int, int> draw) =>
 		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, draw);
@@ -344,11 +344,11 @@ public partial class RosterManager : Node {
 	
 	private void PopulateInitialRoster(AILabel label, int year) {
 		float fillRatio = label.tier switch {
-			LabelTier.Major => (float)GD.RandRange(0.6, 0.85),
-			LabelTier.MidTier => (float)GD.RandRange(0.5, 0.75),
-			LabelTier.Independent => (float)GD.RandRange(0.4, 0.7),
-			LabelTier.Small => (float)GD.RandRange(0.3, 0.6),
-			LabelTier.Boutique => (float)GD.RandRange(0.5, 0.8),
+			LabelTier.Major => (float)GameRandom.RandRange(0.6, 0.85),
+			LabelTier.MidTier => (float)GameRandom.RandRange(0.5, 0.75),
+			LabelTier.Independent => (float)GameRandom.RandRange(0.4, 0.7),
+			LabelTier.Small => (float)GameRandom.RandRange(0.3, 0.6),
+			LabelTier.Boutique => (float)GameRandom.RandRange(0.5, 0.8),
 			_ => 0.5f
 		};
 		
@@ -391,7 +391,7 @@ public partial class RosterManager : Node {
 		if (scored.Count == 0) return null;
 		
 		float totalScore = scored.Sum(s => s.score);
-		float roll = (float)GD.RandRange(0f, totalScore);
+		float roll = (float)GameRandom.RandRange(0f, totalScore);
 		float cumulative = 0f;
 		
 		foreach (var (artist, score) in scored) {
@@ -410,7 +410,7 @@ public partial class RosterManager : Node {
 		else if (label.secondaryGenres != null && label.secondaryGenres.Contains(artist.primaryGenre)) score += 0.2f;
 		
 		if (artist.reputation < 0.1f) score *= 0.5f + (label.riskTolerance * 0.5f);
-		if (!LocalScenes.Recruitment) score *= (float)GD.RandRange(0.8f, 1.2f);
+		if (!LocalScenes.Recruitment) score *= (float)GameRandom.RandRange(0.8f, 1.2f);
 		if (LocalScenes.Recruitment) score *= SceneRecruitmentService.Explain(label, artist, 0).Weight;
 		return score;
 	}
@@ -418,42 +418,42 @@ public partial class RosterManager : Node {
 	private void InitialSignArtist(AILabel label, SimulatedArtist artist, int year) {
 		if (!SceneRecruitmentService.CanAccess(label, artist, 0)) return;
 		float advanceRange = label.tier switch {
-			LabelTier.Major => (float)GD.RandRange(2000f, 8000f),
-			LabelTier.MidTier => (float)GD.RandRange(800f, 3000f),
-			LabelTier.Independent => (float)GD.RandRange(300f, 1200f),
-			LabelTier.Small => (float)GD.RandRange(100f, 500f),
-			LabelTier.Boutique => (float)GD.RandRange(200f, 800f),
-			_ => (float)GD.RandRange(200f, 800f)
+			LabelTier.Major => (float)GameRandom.RandRange(2000f, 8000f),
+			LabelTier.MidTier => (float)GameRandom.RandRange(800f, 3000f),
+			LabelTier.Independent => (float)GameRandom.RandRange(300f, 1200f),
+			LabelTier.Small => (float)GameRandom.RandRange(100f, 500f),
+			LabelTier.Boutique => (float)GameRandom.RandRange(200f, 800f),
+			_ => (float)GameRandom.RandRange(200f, 800f)
 		};
 		
 		artist.labelId = label.labelId;
-		artist.signedYear = year - (int)GD.RandRange(0, 5);
+		artist.signedYear = year - (int)GameRandom.RandRange(0, 5);
 		artist.careerState = CareerState.NewSigning;
 		artist.royaltyRate = label.CalculateRoyaltyRate(artist);
 		artist.unrecoupedAdvance = advanceRange;
-		artist.contractLength = (int)GD.RandRange(3, 6);
+		artist.contractLength = (int)GameRandom.RandRange(3, 6);
 		// Dated from when the act was actually signed, not from the launch year, so the
 		// seeded roster does not reach its expiry cliff all at once. signedYear is already
 		// backdated up to five years above.
 		artist.contractExpiresYear = Mathf.Max(year + 1, artist.signedYear + artist.contractLength);
 		artist.contractExpiresWeek = (artist.contractExpiresYear - year) * 52;
-		artist.weeksSinceLastRelease = (int)GD.RandRange(0, 52);
+		artist.weeksSinceLastRelease = (int)GameRandom.RandRange(0, 52);
 		
-		if (GD.Randf() < 0.3f) {
-			artist.totalReleases = (int)GD.RandRange(1, 5);
-			artist.weeksSinceLastRelease = (int)GD.RandRange(4, 30);
+		if (GameRandom.Randf() < 0.3f) {
+			artist.totalReleases = (int)GameRandom.RandRange(1, 5);
+			artist.weeksSinceLastRelease = (int)GameRandom.RandRange(4, 30);
 			
-			if (GD.Randf() < 0.4f) {
-				artist.top40Hits = (int)GD.RandRange(1, 3);
+			if (GameRandom.Randf() < 0.4f) {
+				artist.top40Hits = (int)GameRandom.RandRange(1, 3);
 				artist.careerState = CareerState.Rising;
-				artist.momentum = (float)GD.RandRange(0.1f, 0.4f);
-				artist.reputation = (float)GD.RandRange(0.1f, 0.3f);
+				artist.momentum = (float)GameRandom.RandRange(0.1f, 0.4f);
+				artist.reputation = (float)GameRandom.RandRange(0.1f, 0.3f);
 			}
-			if (GD.Randf() < 0.15f) {
-				artist.top10Hits = (int)GD.RandRange(1, 2);
+			if (GameRandom.Randf() < 0.15f) {
+				artist.top10Hits = (int)GameRandom.RandRange(1, 2);
 				artist.careerState = CareerState.Established;
-				artist.momentum = (float)GD.RandRange(0.2f, 0.5f);
-				artist.reputation = (float)GD.RandRange(0.2f, 0.5f);
+				artist.momentum = (float)GameRandom.RandRange(0.2f, 0.5f);
+				artist.reputation = (float)GameRandom.RandRange(0.2f, 0.5f);
 			}
 		}
 		
@@ -490,7 +490,7 @@ public partial class RosterManager : Node {
 		// disabled weekly telemetry reset.
 		if (!IsLiveGenreMarket()) weeklyScoutingVacancyByLabelId.Clear();
 		WeeklyScoutingRolls++;
-		if (!IsLiveGenreMarket() && GD.Randf() < weeklyScoutChance) {
+		if (!IsLiveGenreMarket() && GameRandom.Randf() < weeklyScoutChance) {
 			// Frozen disabled boundary: retain the global throttle and three-label cap.
 			ProcessScouting(date.year);
 		}
@@ -902,7 +902,7 @@ public partial class RosterManager : Node {
 			return;
 		}
 		
-		var scoutingLabels = labels.Where(l => !l.isPlayerOwned && l.ShouldScoutNewArtist()).OrderBy(_ => GD.Randf()).Take(3);
+		var scoutingLabels = labels.Where(l => !l.isPlayerOwned && l.ShouldScoutNewArtist()).OrderBy(_ => GameRandom.Randf()).Take(3);
 		foreach (var label in scoutingLabels) TrySignNewArtist(label, year);
 	}
 
@@ -920,7 +920,7 @@ public partial class RosterManager : Node {
 			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
 			if (gate.ScoutingGatePassed) scoutingLabels.Add((label, observation));
 		}
-		foreach ((AILabel label, LabelScoutingVacancyObservation observation) in scoutingLabels.OrderBy(_ => GD.Randf()).Take(3))
+		foreach ((AILabel label, LabelScoutingVacancyObservation observation) in scoutingLabels.OrderBy(_ => GameRandom.Randf()).Take(3))
 			TrySignNewArtist(label, year, observation);
 	}
 
@@ -1359,7 +1359,7 @@ public partial class RosterManager : Node {
 			// Renewals and drops on the player's roster are the player's calls.
 			if (label.isPlayerOwned) continue;
 			ProcessContractExpirations(label, date.year);
-			if (GD.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
+			if (GameRandom.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
 		}
 	}
 	
@@ -1423,7 +1423,7 @@ public partial class RosterManager : Node {
 		if (artist.careerState == CareerState.NewSigning && artist.contractReleases >= 2 &&
 			artist.top40Hits == 0 && artist.contractChartedRecords == 0 && artist.contractRegionalBreakouts == 0 &&
 			!artist.HasRecoupedCurrentContract()) return false;
-		return GD.Randf() < label.artistLoyalty;
+		return GameRandom.Randf() < label.artistLoyalty;
 	}
 	
 	private void ProcessRosterReview(AILabel label, int year) {
