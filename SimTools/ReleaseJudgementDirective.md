@@ -671,6 +671,83 @@ Evidence: `SimLogs/rj2a4-{per,fit}-{1001,...,5005}-260-*`, `SimLogs/rj2a-v4inert
 Evidence: `SimLogs/rj2aconv-ctl-{1001,2002,3003,4004}-260-*` (with `single-launch-attribution.csv`). The
 script `conv_decomp.py` and its output are in the session notes folder.
 
+### 2026-10-19: Screen result, 2A under `--launch-push-saturation=0.5` (`rj2als-*`, v4 code)
+
+**Runs.** Control, perceived and fit arms, five seeds × 260 weeks, the same flags as `rj2a-*` plus the saturation
+switch. All 15 completed cleanly.
+
+**1. The material gain is untouched.** Perceived − control:
+
+- Orphan quality +0.031 (5/5, +0.026 to +0.033); share above the cliff +12.5 pts.
+- Hot 100 entry +2.9 pts; Top 40 +1.05 pts.
+
+**2. The Top 40 head shift is gone; a smaller Top 10 shift remains.**
+
+| | Perceived − fit, v4 | Perceived − fit, saturation | Perceived − control, saturation |
+|---|---|---|---|
+| Major-family share | +2.0 (SE 1.2, 4/5) | +1.6 (1.4, 3/5) | **+0.3** (1.3, 2/5) |
+| Top 40 Major | +7.7 (5/5) | **+1.4** (4.1, 3/5) | −2.1 (4.7, 2/5) |
+| Top 40 Independent | −1.6 (3/5) | −2.3 (2.7, 1/5) | +0.5 (2.2, 2/5) |
+| CR4 / CR8 (units) | +1.9 / +2.0 (5/5) | +1.2 / +1.1 (3/5) | +0.2 / +0.0 (3/5) |
+| Top 10 CR4 | +3.4 | +2.3 (2.2, 4/5) | +0.7 (2.4, 3/5) |
+| Big-5 share of the Top 10 | +4.3 (5/5) | +3.1 (2.7, 4/5) | +2.4 (4.2, 3/5) |
+| Hot 100 debuts / yr | +8.4 | +18.2 (5/5) | +23.0 (5/5) |
+
+- Against its own control, perceived selection no longer moves the head on any row.
+- Against fit, two rows carry over from v4:
+  - Big-5 Top 10 +3.1 (4/5) and Top 10 CR4 +2.3. These are post-entry, where §17aa placed the weekly label push in
+    radio. Saturation only trims the *launch* reads.
+  - Independent Top 40 −2.3 (1/5). The fit arm's own drift (Top 40 Major −3.4, major share −1.3 against the
+    control) inflates the contrast.
+- **Against the pass conditions:**
+  1. Independent Top 40 ≥ −2 with mixed signs: borderline. Perceived − fit is −2.3 (SE 2.7); perceived − control
+     is +0.5, mixed.
+  2. Perceived − fit major-family share within 1 SE of zero: borderline at 1.2 SE. Perceived − control is
+     +0.3, inside.
+  3. Top 10 CR4 inside the stop rule in 1961-63: **pass** (perceived 31.2 / 27.6 / 27.2).
+
+**3. Saturation on these defaults fixes 1961-64 and breaks 1960.** Saturation control − base control, paired (SE,
+seeds up):
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| Big-5 Top 10 share: base / saturation / history | 31.7 / 29.6 / 34.2 | 31.8 / **25.0** / 20.6 | 29.2 / **24.5** / 21.2 | 36.1 / **28.3** / 26.0 | 30.9 / **25.4** / 18.7 |
+| Δ Big-5 Top 10 share | −2.1 (1.8) | −6.9 (4.3) | −4.7 (2.6) | −7.8 (3.6) | −5.5 (1.9) |
+| Δ Top 10 CR8 | **−5.2 (2.4), 0/5** | −6.2 (2.7) | −2.2 (3.0) | −5.0 (5.2) | −1.4 (2.5) |
+| Big-5 firms in the top four | +0.6 | −0.6 | −0.6 | −0.4 | −1.0 |
+
+- **1961-64 move toward history in every year.** Big-5 Top 10 excess falls from +10.4 to +4.2 points. The "Big-5
+  in the top four" count also falls, the guard §17o failed on.
+- **1960 fails the stop rule.** Saturation Top 10 CR8 is 42.9 against the 48 floor, with the base control at 48.0.
+  Top 10 CR4 is 28.5 against 30. The same switch passed 1960 on V1 (§17o, CR8 49.9). Here it stacks on
+  `--radio-push-spread=0.5`, and like §17ac's A40 it cuts the year history leads with the majors.
+- **Year-end genre error** (14 genres, per seed):
+  - Saturation alone: +0.2 (SE 2.2).
+  - Perceived under saturation: +2.8 (SE 1.7, 4/5) against its control.
+  - v4 perceived on the base: +1.4 (SE 2.2).
+  - So 2A carries a small genre cost in both conditions, not resolved at five seeds.
+- Small closures and Top 40 by tier do not move outside noise.
+
+**Verdict.**
+
+- **The conversion diagnosis holds.** Trimming the launch reads of label push removes 2A's Top 40 head effect
+  without touching the material gain. The remaining Top 10 edge sits in post-entry push, as §17aa found.
+- **2A stays off.** It can be adopted only together with a conversion lever that passes the guards, and
+  saturation 0.5 on these defaults does not: 1960 Top 10 CR8 fails by 5 points in all five seeds.
+- **Debut guard:** 2A adds +18 to +23 Hot 100 debuts a year under saturation (5/5), against a control already
+  about 42 over the ~690 guard (732 a year).
+
+**Next (probe candidates, not run):**
+
+- *Lighter saturation* (F = 0.75): about half the launch trim. Read whether 1960 CR8 clears 48 and 1961-64 keep
+  most of the move.
+- *Saturation from 1961.* The 1959-60 payola hearings are a historical reason for label push to buy less airplay
+  after 1960. That needs its evidence written down first, so it is not tuning to a year.
+- The post-entry Big-5 Top 10 edge is the §17aa weekly-push question. It stays with the label-tier research arc.
+
+Evidence: `SimLogs/rj2als-{ctl,per,fit}-{1001,...,5005}-260-*`. Scripts `ls_vs_base.py` and `rj2a_yearly_g.py`
+and their outputs are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic
