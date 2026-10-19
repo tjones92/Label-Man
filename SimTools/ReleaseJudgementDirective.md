@@ -988,6 +988,95 @@ F = 0.75).
 Evidence: `SimLogs/rj2asp25conv-ctl-*`, `rj2asp10-ctl-*`, `rj2asp00-ctl-*`. `conv_after_entry.py`,
 `big5_excess.py`, `big5_by_year_seniority.py` and `watch1960_multi.py` are in the session notes folder.
 
+### 2026-10-19: Why 1964 runs TraditionalPop/TeenPop long and Soul/RockAndRoll short (data only, no runs)
+
+All of this comes from the existing F = 0.75 + spread 0.1 controls (`rj2asp10-ctl-*`, five seeds). No new runs.
+
+**1. Each genre misses through a different channel.** These are 1964 means, model against history. Share is
+against `AdjustedHistoricalGenreShareTargets.csv`; slots are against the §3 hand count.
+
+| 1964 | Market share | Year-end slots | Which channel |
+|---|---|---|---|
+| RockAndRoll | 3.6 / 6.8 (×0.53) | 4.2 / 8 (×0.53) | Slots per share point is on history, so the whole miss is per-record demand |
+| TeenPop | 10.6 / 7.9 (×1.34) | 13.8 / 5 (×2.76) | Mostly conversion; the keyframe also *rises* to .46 in 1964 while the target falls |
+| TraditionalPop | 12.6 / 11.0 (×1.15) | 18.8 / 14 (×1.34) | A little of both; Big-5 hold 33% of its chart weeks and enter at 66% against 17% |
+| Soul | 9.9 / 12.2 (×0.81) | 8.8 / 14 (×0.63) | Both; entry-week radio heat is the lowest of any genre (0.32) |
+
+- By family in 1964: **Pop is +4.0 share points but +18.6 slots.** Rock is −6.1 / −11.4 and Rhythm & Soul
+  −4.0 / −3.6.
+- TeenPop and Soul together are on target in 1963 (share 21.7 against 22.3, slots 23.4 against 23). The model
+  splits that pair wrongly.
+  - A hypothesis to check, not a finding: the hand count may file 1963-64 girl-group records as Soul, while the
+    model maps `GirlGroup` → TeenPop.
+
+**2. RockAndRoll: low hooks from the source mix, not demand or the act pool.**
+
+- R&R ships as many singles as TeenPop (499 against 509 in 1964), but only 4.7% enter the Hot 100, against 26.5%.
+- **At matched hook, R&R enters as well as the youth genres:**
+
+  | P(entry), singles 1962-64 | Hook .55-.65 | .65-.75 | .75-.85 |
+  |---|---|---|---|
+  | RockAndRoll | 0.13 | 0.32 | 0.58 |
+  | TeenPop | 0.16 | 0.32 | 0.50 |
+  | BritishBeat | 0.22 | 0.34 | 0.52 |
+  | Soul | 0.02 | 0.08 | 0.20 |
+  | TraditionalPop | 0.04 | 0.11 | 0.23 |
+
+  - Given the other genres' hook distribution at its own per-bin rates, R&R would enter at 0.33 instead of 0.057.
+- **R&R's mean hook is 0.44 in every year from 1960 to 1964.** Soul is 0.74 and TradPop 0.70-0.75.
+  - The gap is the same across every tier, career state and act cohort.
+  - It is not the acts: songwritingAbility is 0.52 for R&R, 0.53 for Soul and 0.53 for TradPop.
+  - Production goes the other way (R&R 0.65, Soul 0.56), so polar execution loss is not the cause.
+- **The cause is the source-mix prior combined with the artist-written hook mapping:**
+  - Rock-family singles draw about 65% artist-written, 28% recent-hit covers and 7% professional material. Polar
+    zeroes rock standards and traditional songs (`rockStandardFactor` .02). Soul draws about 40% professional,
+    and TradPop and TeenPop draw mostly standards and staff material.
+  - The artist-written hook is `0.75 × (0.8 × craft + 0.1 × era + noise) + 0.15 × performance hook (+ 0.2 × team)`
+    (`SongMaterialSelectionService.BuildArtistWritten`). A median writer (craft ≈ 0.6) lands near 0.45, and even a
+    craft-1.0 writer only reaches about 0.80.
+  - Professional songs are minted at N(0.68, 0.15) whoever records them, plus label polish.
+  - So self-written material starts about 0.2 below staff material, and the genres that write their own songs
+    inherit the gap.
+  - In-game hits become cover material at their *realised* hook (`commercialHook = record.hookStrength`), so low
+    rock hooks also fill rock's recent-hit cover pool.
+  - SurfRock (0.53) and BritishBeat (0.57) carry the same handicap.
+- The flat 0.44 sets R&R's *level*. Its 1961-64 slide (share ×0.74 → ×0.53 of target) comes through falling
+  release counts (930 → 645) and is a separate supply question.
+
+**3. Soul and TradPop: high hooks hide weak conversion.**
+
+- At the same hook they enter at about half the youth-genre rate (table above).
+- For Soul this is the flat `RadioAcceptance` 0.55, which was sized against a late-decade Soul over-charge and
+  therefore also strips 1963-64.
+- TradPop's high hooks (standards and staff writers) and its Big-5 concentration carry its slots.
+- The per-genre hook skew and the per-genre chart levers (keyframes, RA) have been calibrated *against each other*.
+
+**4. TeenPop.**
+
+- At matched hook TeenPop converts like rock. Its excess is supply plus a keyframe that rises in 1964 (.42 → .46)
+  while history collapses (share 10.8 → 7.9, slots 8 → 5).
+- History's TeenPop chart efficiency halves from 1962 to 1963 (slots per share point 1.63 → 0.74). The model's
+  holds at 1.3.
+
+**Implication: recalibrate artist-written hooks (author: "Lennon/McCartney were not writing 0.45 melodies").**
+
+- This is one change and it moves 1964 the right way on every row: R&R, SurfRock and Soul up, TeenPop and TradPop
+  relatively diluted.
+- It also removes a structural bias against the self-writing genres, which matters most after 1964.
+- Risks to screen:
+  1. 1960-61 R&R is near target today (12.6 / 14, 12.0 / 12) only because high per-hook conversion offsets low
+     hooks. Rock keyframes and the R&R RA 1.10 were tuned against the low hooks.
+  2. BritishBeat (21.8 / 24) has little headroom.
+  3. Shipped hook drives units, so this is a market-share change as well as a chart change, and it will move
+     genre error.
+- Proposed shape: give artist-written material the same hook *scale* as professional material at equal craft,
+  rather than a lower one. A median craft writer should sit somewhat below the staff median, and a top-decile
+  writer should reach or pass it.
+- Read first: the 1960-64 genre share and slot tables, R&R 1960-61, BritishBeat 1964, and the Big-5 rows above.
+
+Evidence: `SimLogs/rj2asp10-ctl-{1001,...,5005}-260-*`. `g64_shape.py`, `g64_family.py`, `g64_funnel.py`,
+`g64_singles.py`, `g64_material.py`, `g64_creativity.py` and `g64_hookbins.py` are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic
