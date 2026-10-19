@@ -242,7 +242,7 @@ public static class SongMaterialSelectionService {
 	) {
 		float availability = GetProfessionalMaterialAvailability(genre, year);
 		if (availability <= 0.01f) return null;
-		SongComposition song = SampleBest(CompositionCatalogService.GetProfessionalForGenre(genre),
+		SongComposition song = SampleBest(PublisherPitchOrder.Visible(CompositionCatalogService.GetProfessionalForGenre(genre), label),
 			artist, record, year, "pro", null);
 		if (song == null) return null;
 
