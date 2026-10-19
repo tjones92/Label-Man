@@ -580,6 +580,97 @@ Evidence: `SimLogs/rj2a-{ctl,per,fit}-{1001,2002,3003,4004,5005}-260-*`.
 Evidence: `SimLogs/rj2a4-{per,fit}-{1001,...,5005}-260-*`, `SimLogs/rj2a-v4inert-1001-*`, with controls
 `SimLogs/rj2a-ctl-*-260-*`.
 
+### 2026-10-19: Why a Major converts the same song better (analysis only, author: keep 2A off until this is settled)
+
+**Method.**
+
+- Four control seeds (1001-4004) re-run with the read-only `--head-hit-attribution`, which logs launch inputs for
+  every single, misses included.
+- `records`, `concentration`, `single-launch-quality` and `label-finance` are SHA-256 identical to `rj2a-ctl-*`.
+- 59,229 orphan launches 1960-64. Logits of Top 40 and Hot 100 entry on:
+  - quality (with a square term) and campaign impact as read (after `--radio-push-spread`);
+  - payola, log launch stock, launch awareness, recognition, label reputation;
+  - career state, genre, year and seed.
+- Pseudo R² is 0.60 for Top 40 and 0.58 for entry. Each row below moves one input group of the Major launches to
+  the Independent mean. The rows are not additive.
+
+**At the same song (quality 0.639-0.68), launch inputs:**
+
+| | Major | MidTier | Independent | Small |
+|---|---|---|---|---|
+| Campaign impact as read (raw) | 0.62 (0.76) | 0.50 (0.52) | 0.41 (0.35) | 0.35 (0.22) |
+| Launch stock | 71.6k | 56.2k | 37.9k | 16.5k |
+| Launch awareness | 0.44 | 0.29 | 0.20 | 0.16 |
+| Label reputation | 0.72 | 0.49 | 0.35 | 0.20 |
+| Hot 100 entry / Top 40 | 51.7% / 16.4% | 25.3% / 4.8% | 10.3% / 0.5% | 2.5% / 0.1% |
+
+**What carries the Major − Independent gap** (all orphan launches; Top 40 19.9% against 3.6%, entry 42.2% against
+11.7%):
+
+| Moved to the Independent mean | Top 40 gap closed | Entry gap closed |
+|---|---|---|
+| Label push (campaign impact) | **43%** | 35% |
+| Record quality (0.629 against 0.599) | 38% | 31% |
+| Launch stock | 28% | 16% |
+| Launch awareness | 21% | **37%** |
+| Label reputation | 11% | 9% |
+| Recognition and career state | 8% | −1% |
+| Payola | 0% | 0% |
+| Genre | −13% | −9% |
+| All groups | 94% | 96% |
+
+- **Three label-side launch reads carry most of it:** campaign impact in launch radio
+  (`0.3 × impact` beside `0.3 × quality`), stock and launch awareness. Awareness itself is mostly marketing
+  (`GetSeasonalMarketingImpact`) plus `0.1 × reputation`.
+- **The act's own standing carries little.** Payola is flat across tiers. Genre runs against the Majors.
+
+**Why 2A's gain lands on the head.** The Top 40 points bought by +0.029 quality (2A's gain), predicted per tier:
+
+| | Major | MidTier | Independent | Boutique | Small |
+|---|---|---|---|---|---|
+| Top 40 points per +0.029 | **7.4** | 4.9 | 2.4 | 2.2 | 0.7 |
+
+- With Major push, awareness and stock moved to the Independent mean, a Major's +0.029 buys 3.7 points; with push
+  alone, 5.6.
+- The cliff is in realized quality. Label push moves a Major's single to its edge, so every quality gain is worth
+  about 3× as much there.
+
+**Against history.**
+
+- The control's Big-5 share of the Top 10 is 31.9 / 29.2 / 36.1 / 30.9 in 1961-64. History is 20.6 / 21.2 / 26.0 /
+  18.7, so the control is about 10 points high before 2A.
+- §17aa found history's Big-5 hit acts converted a Hot 100 debut into the Top 10 at exactly the field's rate (ratio
+  1.00 ± 0.18). Their edge was cadence, not conversion.
+- History cannot give a per-launch rate for cold acts. But the head the model's conversion premium produces is
+  already ahistorical on defaults, and 2A only scales it.
+
+**Prior levers on the same channel (`HistoricalLabelTierBalanceResearch.md`):**
+
+- `--launch-push-saturation=0.5` (§17o) trims the launch reads of campaign impact (radio and seasonal marketing).
+  It cut the Big-5 Top 10 share −5.5 / −5.7 in 1960-61 and faded by 1962. It was not adopted: it failed the
+  "Big-5 firms in the top four" kill, and senior acts carried the head.
+- `--known-act-airplay` (§17ab-ac) was rejected.
+- `--radio-push-spread=0.5` is already in these controls (raw 0.76 → 0.62 for Majors). It narrows but does not close
+  the gap.
+- None was tested on cold orphan singles' conversion, which is where 2A acts.
+
+**Proposed next screen (not run).**
+
+- 2A under `--launch-push-saturation=0.5`: control, perceived and fit arms, five seeds × 260 weeks (15 runs, about
+  50 minutes).
+- Read perceived − fit against the v4 screen for major-family share, Top 40 Major / Independent and the 1962-63
+  Top 10 CR4.
+- Read the saturation arm's control against `rj2a-ctl-*` for the Big-5 Top 10 share against history.
+- *Pass for 2A:*
+  - perceived − fit major-family share within 1 SE of zero;
+  - Top 10 CR4 inside the stop rule in 1961-63.
+- *If saturation alone leaves the head:* the remaining launch reads are stock and awareness. They need their own
+  probe, because distribution "fulfills demand rather than creating it" by the code's own rule, yet stock carries
+  28% of the Top 40 gap.
+
+Evidence: `SimLogs/rj2aconv-ctl-{1001,2002,3003,4004}-260-*` (with `single-launch-attribution.csv`). The
+script `conv_decomp.py` and its output are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic
