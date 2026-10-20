@@ -404,3 +404,196 @@ off residual is positive. That is for the end-of-audit decade A/B.
 above the project's realized net: estimate = projectedProjectNet + Σ(component actual − component projection). So
 whatever projectedProjectNet carries beyond its two components (the promo synergy credit, A5) is never tested against
 outcomes. Compared with its own Final estimate, the lane is now unbiased. Compared with realized net, it still runs 2.1x.
+
+---
+
+## Follow-up: B1 and B2 behind `--album-scale-career-milestones` (October 20, 2026)
+
+Branch `claude/album-scale-career-milestones`, based on `media-atmosphere` `cdf05fd`. The switch is off by default
+([AlbumScaleCareerMilestones.cs](../Systems/AlbumScaleCareerMilestones.cs)) and configured in `ChartManager._EnterTree`.
+
+**B1 rule.** An album chart position is converted to its singles equivalent by its percentile of that week's album
+chart: `ceil(position x 100 / size)`, clamped to 2..100. #1 stays #1. The run's best equivalent is stored on the
+record (`albumCareerPeak`, saved) and replaces the raw peak in every career read: chart entry, Top 40, Top 10, #1,
+the flop streak, the momentum penalty, contract evidence, recognition milestones and run sustain. The hit-cadence
+and senior-cooling clocks follow too, because they hang off `RegisterTop40Hit`. Album thresholds become top 40%
+for Top 40 (#16/40, #20/50, #60/150, #80/200), top 10% for Top 10 (#4, #5, #15, #20) and bottom 40% for a flop (#25+,
+#31+, #91+, #121+). Albums and singles still share one ladder. Keeping them apart would freeze the late-decade acts
+whose releases are 68-78% LPs (A3).
+
+**Album #1 decision.** An album #1 counts as a full #1 toward Star (one) and Superstar (four). The album chart has
+exactly one #1 a week at any depth, the same scarcity as the Hot 100. The conversion removes the depth bias below #1,
+not the top slot.
+
+**B2 rule.** A never-charted single takes −0.15 momentum, the schedule's worst bucket. A #75 single keeps −0.10. A
+never-charted album takes no momentum penalty: at 40-50 slots most LPs never chart. It still counts as a flop for the
+streak, as before.
+
+**Checks.** `--album-scale-career-milestones-check` (`SimTools/AlbumScaleCareerMilestonesChecks.cs`, through
+`SaveLoadRoundTripRunner`) passes. It covers off identity, the conversion table, the run's best peak across a size
+change, an album #1 plus two upper-half LPs making a Star (off: no Star), 1960 #30-of-40 as a flop, the cadence clock,
+and B2's buckets. `--hit-act-cadence-check` and `--senior-cooling-check` still pass.
+
+**Off is inert.** 156 weeks, seed 1001, `--enable-genre-market-v2 --enable-artist-population-lifecycle`, full
+telemetry: 86 of 86 CSVs are byte-identical to `cdf05fd`. The branch adds two observe-only CSVs,
+`<run>-career-ladder.csv` (weekly career-state census and rung moves) and `<run>-chart-breadth.csv` (distinct acts
+per year).
+
+**Short run, off vs on** (`asc-off-1001-156`, `asc-on-1001-156`). The census is taken at the last week of each year.
+Moves are counted over the year.
+
+| Year | Rising | Established | Star | Superstar | → Star | → Superstar | Star → Established | Superstar → Star |
+|---|---|---|---|---|---|---|---|---|
+| 1960 | 252 / 213 | 107 / 87 | 24 / 23 | 8 / 6 | 5 / 4 | 2 / 0 | 4 / 6 | 0 / 0 |
+| 1961 | 202 / 182 | 111 / 78 | 23 / 17 | 6 / 8 | 9 / 9 | 0 / 3 | 7 / 11 | 1 / 1 |
+| 1962 | 165 / 171 | 107 / 75 | 23 / 14 | 9 / 8 | 9 / 7 | 4 / 1 | 6 / 7 | 1 / 0 |
+
+| Year | Hot 100 acts | Top 40 acts | Top 10 acts | Album chart acts |
+|---|---|---|---|---|
+| 1960 | 588 / 563 | 210 / 213 | 78 / 79 | 130 / 140 |
+| 1961 | 637 / 620 | 224 / 219 | 86 / 88 | 153 / 147 |
+| 1962 | 611 / 617 | 221 / 230 | 85 / 86 | 139 / 155 |
+
+Album runs in the off arm (by first chart year): Top 10 / 11-40 / 41-60 / flop on singles thresholds against the album
+scale:
+
+| Year | Singles thresholds | Album scale |
+|---|---|---|
+| 1960 | 77 / 121 / 0 / 0 | 40 / 65 / 31 / 62 |
+| 1961 | 75 / 93 / 29 / 0 | 46 / 60 / 35 / 56 |
+| 1962 | 64 / 97 / 28 / 0 | 42 / 57 / 35 / 55 |
+
+**Reading.** A 156-week run ends in December 1962, so it never reaches the 150-slot chart of August 1963. It
+exercises only the half of B1 in which every early LP was a hit. Removing that half takes about 30% of 1960-62 LP runs
+from "hit" to "flop". By the end of 1962, Established falls from 107 to 75 and Star from 23 to 14, and Star demotions
+rise from 17 to 24 over three years. Superstar is flat (9 vs 8). Chart breadth barely moves (Top 40 acts within ±9 a
+year, album chart acts +16 in 1962). The half of B1 the switch was written for (half of LPs scored as flops from
+August 1963) is unmeasured here. A 1963-65 window, a resumed world or a five-year run, is needed to see it. B1 and B2
+are not separated in this run: one on/off pair cannot attribute the Established loss between the percentile flops and
+the −0.15 on never-charted singles.
+
+**Open items.** `CompetitorManager.OnRecordChartUpdated` still credits label `top40Hits`/`numberOneHits` from raw
+album peaks (label success rate, not the artist ladder). `ArtistEvolutionService` and `AlbumLegitimacyService` read the
+raw album peak in the cultural reads. Neither was in scope.
+
+### 1963-65 window, two seeds (October 20, 2026)
+
+Each seed ran to a January 1963 world with the switch off (`asc-<seed>-1963`). That world was then resumed twice for 156
+weeks, off and on, so both arms start from the same act population. The on arm applies the rules from 1963 only.
+Seeds 1001 and 2002 use the canonical flags and full telemetry. The census is taken at the last week of each year;
+moves are summed over 1963-65. Cells are off / on.
+
+| Seed | Year | Rising | Established | Star | Superstar | Top 40 acts | Album chart acts |
+|---|---|---|---|---|---|---|---|
+| 1001 | 1963 | 159 / 176 | 99 / 102 | 21 / 22 | 9 / 8 | 226 / 222 | 324 / 345 |
+| 1001 | 1964 | 133 / 177 | 86 / 87 | 18 / 27 | 13 / 11 | 234 / 226 | 447 / 478 |
+| 1001 | 1965 | 132 / 184 | 70 / 84 | 21 / 28 | 14 / 13 | 224 / 238 | 475 / 470 |
+| 2002 | 1963 | 163 / 161 | 108 / 105 | 18 / 22 | 10 / 8 | 223 / 221 | 318 / 324 |
+| 2002 | 1964 | 148 / 178 | 100 / 96 | 18 / 23 | 11 / 8 | 234 / 229 | 512 / 507 |
+| 2002 | 1965 | 158 / 192 | 96 / 92 | 22 / 27 | 12 / 9 | 245 / 236 | 479 / 494 |
+
+| Seed | → Star | → Superstar | Star → Established | Superstar → Star |
+|---|---|---|---|---|
+| 1001 | 24 / 32 | 8 / 6 | 16 / 20 | 2 / 1 |
+| 2002 | 22 / 26 | 5 / 3 | 16 / 17 | 0 / 1 |
+
+Album runs in the off arm, flops (peak over 60) on singles thresholds against the album scale: 1964 is 281 vs 166 of 540
+(seed 1001) and 309 vs 186 of 571 (seed 2002). 1965 is 321 vs 204 and 308 vs 192.
+
+**Reading.** In 1963-65 the switch does what B1 asked, on both seeds. About 40% of charting LPs stop being scored as
+flops. Star rises from 21 to 28 and from 22 to 27 by the end of 1965. Promotions to Star rise (+8, +4) by more than
+Star demotions (+4, +1). The largest move is Rising, +52 and +34 by 1965: fewer flop streaks means fewer Rising acts
+fall to Declining. Superstar is slightly lower on both seeds (−1 and −3 at 1965; −2 and −2 promotions). That is a
+handful of acts, but the sign repeats. A candidate cause is B2's −0.15 on never-charted singles, which cuts the
+momentum of the acts that chain #1s. The pair cannot separate B1 from B2. Chart breadth does not move beyond noise
+(Top 40 acts +14 and −9 in 1965).
+
+Taken with the 1960-62 run: before August 1963 the switch removes free hits and lowers the ladder. After it, the
+switch removes size-driven flops and raises it. The decade A/B at audit end decides the net effect.
+
+### The four raw-peak readers moved onto the album scale (October 20, 2026)
+
+Four more readers now take `AlbumScaleCareerMilestones.CareerPeak` when the switch is on. Before, each treated an
+LP past #100 as uncharted.
+
+- **Label hit credit** (`CompetitorManager.OnRecordChartUpdated`): label Top 40s and #1s, and the charted-label set
+  the consolidation gate reads. Label Top 40s feed the health score, label momentum (distribution-deal triggers and
+  signing buzz) and the player's contract outlook.
+- **Landmark recognition** (`AlbumLegitimacyService`): the commercial term of the landmark album read.
+- **Critical acclaim** (`ArtistCriticalAcclaimService`): the commercial score. Acclaim feeds the landmark read and
+  evolution pressure.
+- **Evolution era tally** (`ArtistEvolutionService`): discography text only.
+
+`CulturalMemoryService` is singles-only and was left alone. The check suite adds a #120-of-150 LP earning commercial
+recognition and acclaim on (0 off).
+
+**Off stays inert.** Resumes of the same 1963 worlds: 88 of 88 CSVs byte-identical to the earlier off arm on both
+seeds.
+
+**1963-65, same worlds, off / on (readers included).** Values are at the end of 1965 unless a range is given.
+
+| | Seed 1001 | Seed 2002 |
+|---|---|---|
+| Star | 21 / 27 | 22 / 23 |
+| Superstar | 14 / 15 | 12 / 8 |
+| Established | 70 / 93 | 96 / 105 |
+| Label tiers: MidTier / Major | 44 / 36, 8 / 9 | 43 / 32, 7 / 9 |
+| Promotions to Major, 1963-65 | 0 / 1 | 0 / 2 |
+| CR4 chart share, 1965 | .175 / .206 | .221 / .256 |
+| Major-family chart share, 1965 | .586 / .572 | .558 / .538 |
+| Ratified genre conversions | 88 / 74 | 63 / 57 |
+
+The career rows differ from the earlier on arm because the label and acclaim readers change label decisions, and the
+run diverges from there. On both seeds the readers add one or two MidTier → Major promotions, lower MidTier by 8 and
+11, and raise CR4 by about 3 points. Fewer genre conversions ratify (−14, −6). Star still rises on both seeds (+6, +1)
+but by less than without the readers on seed 2002. Superstar is mixed (+1, −4). The tier gates do not read the
+changed counts. The label credit reaches them through label momentum (distribution-deal triggers, signing buzz), so
+the tier shift is a downstream result, not a direct one.
+
+**Landmarks are unmeasured.** One seed-1001 pair with `--enable-album-legitimacy --enable-cultural-memory` published
+no landmark album in 1963-65 in either arm (legitimacy 0.0). Breakthrough-hit events were 253 off and 259 on. The
+recognition read is not the binding gate in this window. Earlier decade runs placed landmarks mostly in 1965-69 under
+the canonisation cap. Measuring this reader needs a decade run with those flags.
+
+### What lowers the MidTier count (October 20, 2026)
+
+Same 1963 worlds, 156 weeks, two seeds. A diagnostic sub-switch, `--album-scale-career-milestones-part=b1|b2|placebo`
+(main switch required), runs one half of the change. The placebo runs the B2 code path at −0.001 instead of −0.15:
+the run diverges the same way, but the change is too small to matter.
+
+| End of 1965 (seed 1001 / 2002) | off | placebo | B1 only | B2 only | both |
+|---|---|---|---|---|---|
+| MidTier labels | 44 / 43 | 41 / 39 | 31 / 31 | 35 / 37 | 36 / 32 |
+| Promoted into MidTier | 33 / 32 | 29 / 29 | 18 / 26 | 30 / 28 | 29 / 31 |
+| Demoted, started 1963 as MidTier | 11 / 9 | 12 / 9 | 10 / 11 | 8 / 8 | 9 / 10 |
+| Demoted, joined during the window | 5 / 4 | 3 / 5 | 4 / 7 | 13 / 7 | 10 / 11 |
+| Star | 21 / 22 | 17 / 22 | 20 / 21 | 14 / 24 | 27 / 23 |
+| Established | 70 / 96 | 65 / 81 | 98 / 102 | 69 / 71 | 93 / 105 |
+
+**Findings.**
+
+1. **Not the readers.** The ladder-only arm (before the label/landmark/acclaim/era readers) already ended at 36 and 35
+   MidTier labels. The earlier attribution of the tier shift to the label-credit reader is withdrawn.
+2. **About a third is divergence noise.** The placebo alone drops MidTier by 3-4. Both halves still sit 4-10 below the
+   placebo on both seeds. B1 alone is −10 and −8, B2 alone −6 and −2.
+3. **Every MidTier demotion, in every arm, is the charting exit** (under 4 charting records in 52 weeks, two quarters
+   running). None is capability or losses. The demotion count includes LPs.
+4. **The labels lost are recent joiners, not the established MidTier.** Demotions among labels that were MidTier in
+   January 1963 do not move (8-12 in every arm). That fixed cohort charts about the same singles and more LPs with
+   the switch on (+33 and +19 LPs). The extra demotions are Independents promoted during the window and demoted again
+   39-78 weeks later. They enter at 4-6 charting records against a promotion bar of 5 (4 + 1 on the dependent route)
+   and an exit below 4. In the ladder-only arm, the joiners demoted only with the switch on charted as many singles
+   as they did in off (86 vs 87, 81 vs 84) but fewer LPs (50 vs 62, 45 vs 66). That is the record that drops them.
+5. **B2's route is joiner demotion** (13 vs 3 placebo on seed 1001; 7 vs 5 on seed 2002). **B1's route is not
+   consistent**: fewer promotions in on seed 1001 (18 vs 29), more demotions on seed 2002 (18 vs 14). For B1 on seed
+   1001, the promotion gate's charting, cash, profit, runway, status and capability conditions all pass as often as
+   off (88 vs 90 qualifying label-quarters), and Independent rosters are the same size. The binding condition behind
+   the 18 promotions is not found in the logged fields. Owned reach, dependency and the four-quarter capability streak
+   are not logged per label.
+
+**Reading.** MidTier is a thin band between a promote-at-5 and an exit-under-4 charting bar, and its new members
+regress to their base rate within a year. Small redistributions of chart entries between labels change its
+headcount, including the redistribution that a random-stream divergence alone causes. The switch's own effect is
+probably real (all six treated arms sit under the placebo) but carries one placebo draw per seed. The ladder counts
+carry the same caution: the placebo moves Star by −4 and Established by −5 and −15, about as much as the earlier
+reported Star gains. Those gains are not distinguishable from divergence at two seeds.

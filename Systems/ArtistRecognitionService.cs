@@ -104,7 +104,8 @@ public static class ArtistRecognitionService {
 	/// </summary>
 	public static void OnChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
 		if (!ArtistRecognition.Observing || artist == null || record == null) return;
-		CreditChartRun(artist, record.peakPosition, record.weeksOnChart, record.weeksInTopTen, record.regionalBreakoutCount);
+		// The raw peak unless --album-scale-career-milestones scores an album on its own chart's scale.
+		CreditChartRun(artist, AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.weeksInTopTen, record.regionalBreakoutCount);
 	}
 
 	/// <summary>The run-complete credit from its facts alone, so a pre-1960 history (OpeningCareerService) is replayed

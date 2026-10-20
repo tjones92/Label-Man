@@ -1134,6 +1134,7 @@ public sealed class RuntimeRecordSaveData {
 	public int lastChartedAge { get; set; }
 	public int lastSalesAboveRetirementFloorAge { get; set; }
 	public int weeksInTopTen { get; set; }
+	public int albumCareerPeak { get; set; }
 	public bool artistChartEntryCredited { get; set; }
 	public bool artistTop40Credited { get; set; }
 	public bool artistTop10Credited { get; set; }
@@ -1185,7 +1186,7 @@ public sealed class RuntimeRecordSaveData {
 			.Select(RegionalRecordSaveData.From).ToList(),
 		currentPosition = r.currentPosition, lastWeekPosition = r.lastWeekPosition, peakPosition = r.peakPosition,
 		weeksOnChart = r.weeksOnChart, weeksSinceRelease = r.weeksSinceRelease, lastChartedAge = r.lastChartedAge,
-		lastSalesAboveRetirementFloorAge = r.lastSalesAboveRetirementFloorAge, weeksInTopTen = r.weeksInTopTen,
+		lastSalesAboveRetirementFloorAge = r.lastSalesAboveRetirementFloorAge, weeksInTopTen = r.weeksInTopTen, albumCareerPeak = r.albumCareerPeak,
 		artistChartEntryCredited = r.artistChartEntryCredited, artistTop40Credited = r.artistTop40Credited,
 		artistTop10Credited = r.artistTop10Credited, artistNumberOneCredited = r.artistNumberOneCredited,
 		artistChartRunCompleted = r.artistChartRunCompleted, culturalRunCompleted = r.culturalRunCompleted,
@@ -1208,7 +1209,7 @@ public sealed class RuntimeRecordSaveData {
 		var runtime = new RecordRuntimeData(Record.ToRecord()) {
 			currentPosition = currentPosition, lastWeekPosition = lastWeekPosition, peakPosition = peakPosition,
 			weeksOnChart = weeksOnChart, weeksSinceRelease = weeksSinceRelease, lastChartedAge = lastChartedAge,
-			lastSalesAboveRetirementFloorAge = lastSalesAboveRetirementFloorAge, weeksInTopTen = weeksInTopTen,
+			lastSalesAboveRetirementFloorAge = lastSalesAboveRetirementFloorAge, weeksInTopTen = weeksInTopTen, albumCareerPeak = albumCareerPeak,
 			artistChartEntryCredited = artistChartEntryCredited, artistTop40Credited = artistTop40Credited,
 			artistTop10Credited = artistTop10Credited, artistNumberOneCredited = artistNumberOneCredited,
 			artistChartRunCompleted = artistChartRunCompleted, culturalRunCompleted = culturalRunCompleted,

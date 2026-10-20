@@ -276,12 +276,13 @@ public class SimulatedArtist {
 	}
 
 	public void UpdateAfterChartRun(int peakPosition, int weeksOnChart, int unitsSold, bool creditCurrentContract = true,
-		int regionalBreakoutMarkets = 0) {
+		int regionalBreakoutMarkets = 0, bool penalizeNeverCharted = false) {
 		if (peakPosition > 0 && peakPosition <= 100) RegisterChartEntry();
 		if (peakPosition > 0 && peakPosition <= 40) RegisterTop40Hit(creditCurrentContract);
 		if (peakPosition > 0 && peakPosition <= 10) RegisterTop10Hit();
 		if (peakPosition == 1) RegisterNumberOne();
-		CompleteChartRun(peakPosition, weeksOnChart, unitsSold, creditCurrentContract, regionalBreakoutMarkets);
+		CompleteChartRun(peakPosition, weeksOnChart, unitsSold, creditCurrentContract, regionalBreakoutMarkets,
+			penalizeNeverCharted);
 	}
 
 	public void RegisterChartEntry() {
@@ -317,8 +318,10 @@ public class SimulatedArtist {
 		UpdateCareerState();
 	}
 
+	/// <param name="penalizeNeverCharted">--album-scale-career-milestones (audit B2): a never-charted single takes the
+	/// schedule's worst bucket. False when off, so peak 0 costs nothing as before.</param>
 	public void CompleteChartRun(int peakPosition, int weeksOnChart, int unitsSold, bool creditCurrentContract = true,
-		int regionalBreakoutMarkets = 0) {
+		int regionalBreakoutMarkets = 0, bool penalizeNeverCharted = false) {
 		totalUnitsSold += unitsSold;
 		bool charted = peakPosition > 0 && peakPosition <= 100;
 		bool brokeOutRegionally = regionalBreakoutMarkets > 0;
@@ -341,6 +344,8 @@ public class SimulatedArtist {
 		if (peakPosition > 40) {
 			float penalty = peakPosition <= 60 ? -0.05f : peakPosition <= 100 ? -0.10f : -0.15f;
 			momentum = Mathf.Clamp(momentum + penalty, 0f, 1f);
+		} else if (peakPosition == 0 && penalizeNeverCharted) {
+			momentum = Mathf.Clamp(momentum + AlbumScaleCareerMilestones.NeverChartedPenaltySize, 0f, 1f);
 		}
 		reputation = Mathf.Clamp(reputation - 0.005f, 0f, 1f);
 		UpdateCareerState();

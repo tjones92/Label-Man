@@ -4017,10 +4017,12 @@ public partial class CompetitorManager : Node {
 		if (record?.baseRecord == null || string.IsNullOrEmpty(record.baseRecord.recordId)) return;
 		AILabel label = GetLabel(record.baseRecord.labelId);
 		if (label == null) return;
-		if (record.peakPosition >= 1 && record.peakPosition <= 100) chartedLabelIds.Add(record.baseRecord.labelId);
-		if (record.peakPosition > 0 && record.peakPosition <= 40 &&
+		// --album-scale-career-milestones: an album's peak on the album chart's own scale; the raw peak otherwise.
+		int peak = AlbumScaleCareerMilestones.ObserveCareerPeak(record);
+		if (peak >= 1 && peak <= 100) chartedLabelIds.Add(record.baseRecord.labelId);
+		if (peak > 0 && peak <= 40 &&
 			creditedLabelTop40RecordIds.Add(record.baseRecord.recordId)) label.top40Hits++;
-		if (record.peakPosition == 1 &&
+		if (peak == 1 &&
 			creditedLabelNumberOneRecordIds.Add(record.baseRecord.recordId)) label.numberOneHits++;
 	}
 	

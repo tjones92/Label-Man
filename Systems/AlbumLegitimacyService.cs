@@ -280,8 +280,9 @@ public static class AlbumLegitimacyService {
 		if (record.baseRecord.originality < LandmarkOriginalityBar) return;
 		if (!HasCanonisationRoom(year)) return;
 
+		// The raw peak unless --album-scale-career-milestones scores the album on its own chart's scale.
 		(float recognition, _) = CulturalRecognitionService.Consume(record.baseRecord.recordId,
-			record.peakPosition, Mathf.Max(artist.reputation, artist.criticalAcclaim));
+			AlbumScaleCareerMilestones.CareerPeak(record), Mathf.Max(artist.reputation, artist.criticalAcclaim));
 		if (recognition < LandmarkRecognitionBar) return;
 
 		record.landmarkPublished = true;

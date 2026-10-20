@@ -1459,8 +1459,9 @@ public partial class RosterManager : Node {
 				TransitionDroppedArtist(creditedLabel, artist, year, ArtistDropReason.Performance);
 			return;
 		}
-		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
-			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
+		artist.UpdateAfterChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
+			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
 		RunCulturalReads(artist, record, label, year);
@@ -1482,7 +1483,7 @@ public partial class RosterManager : Node {
 		if (record.culturalRunCompleted) return;
 		record.culturalRunCompleted = true;
 		ArtistCriticalAcclaimService.OnChartRunComplete(artist, record, label);
-		ArtistEvolutionService.OnChartRunComplete(artist, record.peakPosition,
+		ArtistEvolutionService.OnChartRunComplete(artist, AlbumScaleCareerMilestones.CareerPeak(record),
 			record.baseRecord?.album?.albumFormat == AlbumFormat.Concept);
 		// Albums route through the landmark rule; singles route through the breakthrough-hit
 		// rule. Both end up in the same ledger, because an act can be moved by either.
