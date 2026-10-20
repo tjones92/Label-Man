@@ -49,6 +49,7 @@ def summarize(prefix):
     first, all_failed, near_first = Counter(), Counter(), Counter()
     eligible, decisions, mismatches = set(), set(), []
     candidate_labels = set()
+    funnel = Counter()
     for row in rows(Path(f"{prefix}-mid-tier-promotion-gates.csv")):
         key = (int(row["week"]), row["labelId"])
         if key in decisions:
@@ -67,6 +68,12 @@ def summarize(prefix):
         if int(row["recentChartingRecords"]) >= 5:
             candidate_labels.add(row["labelId"])
             near_first[failed[0] if failed else "Eligible"] += 1
+            funnel["ChartingAtLeast5"] += 1
+            for stage in ("OperatingMonths", "CapabilityStreak", "RosterMinimum", "FootprintRoute",
+                          "Status", "ConsecutiveLosses", "Profit", "Runway"):
+                if stage in failed:
+                    break
+                funnel[stage] += 1
     transitions = {
         (int(row["week"]), row["labelId"])
         for row in rows(Path(f"{prefix}-label-tier-transitions.csv"))
@@ -77,20 +84,64 @@ def summarize(prefix):
     return {
         "run": str(prefix), "decisions": len(decisions), "promotions": len(transitions),
         "firstBlocker": dict(sorted(first.items())), "allFailures": dict(sorted(all_failed.items())),
-        "chartingAtLeast5": {"labels": len(candidate_labels), "firstBlocker": dict(sorted(near_first.items()))},
+        "chartingAtLeast5": {"labels": len(candidate_labels), "reviews": sum(near_first.values()),
+                            "firstBlocker": dict(sorted(near_first.items())), "successiveGateFunnel": dict(funnel)},
         "decisionMismatches": mismatches, "eligibleWithoutPromotion": missing,
         "promotionsWithoutEligibleDecision": unexplained,
         "pass": bool(decisions) and not (mismatches or missing or unexplained),
     }
 
 
+def compare(baseline, treatment):
+    """Pair gate rows at the same quarter; report every blocker, not just the first.
+
+    Promotion events can recur after a demotion. Compare label sets separately from
+    event counts and retain absent-quarter rows instead of inferring their cause.
+    Same IDs on later-founded labels need identity review; names are included.
+    """
+    def read(prefix):
+        gates = list(rows(Path(f"{prefix}-mid-tier-promotion-gates.csv")))
+        promoted = [r for r in gates if r["eligible"] == "true"]
+        return gates, promoted
+
+    left, left_promoted = read(baseline)
+    right, right_promoted = read(treatment)
+    left_ids, right_ids = ({r["labelId"] for r in group} for group in (left_promoted, right_promoted))
+    right_quarters = {(r["week"], r["labelId"]): r for r in right}
+    absent = {(r["week"], r["labelId"]) for r in left_promoted if r["labelId"] not in right_ids
+              and (r["week"], r["labelId"]) not in right_quarters}
+    finance = Path(f"{treatment}-label-finance.csv")
+    context = {(r["week"], r["labelId"]): {key: r[key] for key in ("labelName", "labelTier", "status")}
+               for r in rows(finance) if (r["week"], r["labelId"]) in absent} if finance.exists() else {}
+    left_only = []
+    for promotion in left_promoted:
+        if promotion["labelId"] in right_ids:
+            continue
+        corresponding = right_quarters.get((promotion["week"], promotion["labelId"]))
+        history = [r for r in right if r["labelId"] == promotion["labelId"]]
+        left_only.append({"baselinePromotion": promotion,
+                          "sameQuarterTreatment": corresponding,
+                          "absentReviewWeeklyContext": context.get((promotion["week"], promotion["labelId"])),
+                          "sameQuarterFailures": failures(corresponding) if corresponding else None,
+                          "treatmentBestQuarters": sorted(history, key=lambda r: (len(failures(r)), -int(r["recentChartingRecords"])))[:3]})
+    return {"baseline": str(baseline), "treatment": str(treatment),
+            "promotionEvents": [len(left_promoted), len(right_promoted)],
+            "distinctPromotedLabels": [len(left_ids), len(right_ids)],
+            "baselineOnlyPromotedLabels": sorted(left_ids - right_ids),
+            "treatmentOnlyPromotedLabels": sorted(right_ids - left_ids),
+            "baselineOnlyEvidence": left_only}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("prefixes", nargs="+", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--compare", action="store_true", help="Add paired evidence for exactly two prefixes.")
     args = parser.parse_args()
     report = [summarize(prefix) for prefix in args.prefixes]
-    encoded = json.dumps(report, indent=2)
+    if args.compare and len(args.prefixes) != 2:
+        parser.error("--compare requires exactly two prefixes")
+    encoded = json.dumps({"runs": report, "comparison": compare(*args.prefixes)} if args.compare else report, indent=2)
     if args.output:
         args.output.write_text(encoded + "\n", encoding="utf-8")
     print(encoded)

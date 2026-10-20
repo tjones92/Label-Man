@@ -14,10 +14,10 @@ media, the genre chart guard, the album tier multiplier, the two cash identities
 into `media-atmosphere` as `e8abf7e` and `41f6f02`. Both switches remain off by default. Their measurements and
 limitations are retained in the follow-ups below. A2 has an opt-in recalibrated prior (`87a9ed9`). A3 now has an
 opt-in career-banded memory experiment; its album-prior calibration and debut-LP economics remain open.
-B1's missing-promotion investigation is deferred as recorded below; its exact quarterly gate tracing is ready.
+B1's seed-1001 missing-promotion investigation is now explained by exact quarterly gate tracing; see the completed replay below.
 
-**Deferred follow-up — missing MidTier promotions (user decision, October 20).** Return to B1's unexplained
-promotion loss later; it does not block continuing A2 and the remaining audit items. Resume the same archived
+**Resumed follow-up — missing MidTier promotions (user decision, October 20).** The user first deferred this
+investigation, then made it the next task before A3/A4. Resume the same archived
 1963 worlds in matched off/B1 arms with `--mid-tier-promotion-audit`, then run
 `analyze_mid_tier_promotions.py`. Inspect owned reach, dependency and the four-quarter capability streak at the
 actual decision. Preserve the placebo/noise caveat and the correction that the added readers did not cause the
@@ -601,9 +601,9 @@ the run diverges the same way, but the change is too small to matter.
 5. **B2's route is joiner demotion** (13 vs 3 placebo on seed 1001; 7 vs 5 on seed 2002). **B1's route is not
    consistent**: fewer promotions in on seed 1001 (18 vs 29), more demotions on seed 2002 (18 vs 14). For B1 on seed
    1001, the promotion gate's charting, cash, profit, runway, status and capability conditions all pass as often as
-   off (88 vs 90 qualifying label-quarters), and Independent rosters are the same size. The binding condition behind
-   the 18 promotions is not found in the logged fields. Owned reach, dependency and the four-quarter capability streak
-   are not logged per label.
+   off (88 vs 90 qualifying label-quarters), and Independent rosters are the same size. **Historical proxy result,
+   superseded by the exact quarterly replay below:** those weekly snapshots did not establish the gate's actual
+   simultaneous inputs. The original logs lacked owned reach, dependency and the capability streak at the decision.
 
 **Reading.** MidTier is a thin band between a promote-at-5 and an exit-under-4 charting bar, and its new members
 regress to their base rate within a year. Small redistributions of chart entries between labels change its
@@ -648,6 +648,56 @@ from outcome comparisons. Two planned 52-week smoke runs were not started after 
 reported 859 MB free. Logs and invocation manifests are under `SimLogs/audit-integration-20261020/`.
 The fixed checks validate the new trace, not the missing-promotion explanation. That still needs completed,
 matched off/B1 windows with the trace enabled; no new causal attribution or default adoption is made here.
+
+### Completed seed-1001 replay: missing promotions explained
+
+At the user's request the deferred investigation resumed before the remaining A3/A4 work. Both
+`b1cause3-off-1001` and `b1cause3-b1-1001` completed 156 weeks from the same `asc-1001-1963` archive,
+with the original canonical flags and B1 alone in treatment. A1/A2/A3 experiments were off. The assembly
+was identical in both arms (`56AC1527857A6B63BD8D878F537F7C1C165B07636AF6CBCB52FC99CE692545D3`).
+Their tier-transition CSVs are byte-identical to the archived `ascR-off-1001` and `ascA-b1-1001`,
+respectively: the trace observes the original result, including **33 versus 18 promotions**.
+All 4,205/4,238 Independent reviews reconstruct exactly, with zero missing or unexplained promotions.
+
+The effective entry bar is five charting records: both footprint routes require five, despite the
+earlier four-record floor. Among quarters meeting that bar, the successive gate funnel is:
+
+| Simultaneously passing through this condition | Off | B1 |
+|---|---:|---:|
+| At least five recent charting records | 128 | 118 |
+| More than 18 operating months | 128 | 117 |
+| Four sustained capability quarters | 120 | 96 |
+| At least six roster acts | 61 | 39 |
+| Owned-network or dependent-roster footprint | 33 | 18 |
+| Status, losses, positive profit and cash runway | 33 | 18 |
+
+These are **reviews, not distinct labels**; 58/43 labels reached five charts at least once.
+They show why matching marginal cash, capability or roster distributions was insufficient. Success must
+coincide with an established capability streak, roster scale and footprint at the quarterly test.
+The footprint gate rejects fewer five-chart reviews in B1 (21 versus 28); cash/profit/status reject none
+after footprint. There is no hidden eligible promotion that the game fails to execute.
+
+Pairing label identities makes the main loss more concrete. Ten labels promote in both arms, 23 only
+in off and eight only in B1. At their control promotion dates, **22 of those 23 have only 0–3 recent
+charting records in B1**; five also lack six roster acts. The remaining label, American Records IV,
+starts and remains MidTier in B1, so it never needs the control's re-promotion. For example, Righteous
+Records has six/five charting records in March/June 1963 under B1 but only two/three capability quarters;
+when it later has the streak, the charting count has fallen. Its control promotion is December 1963.
+This is evidence overlap and timing, rather than an unexplained reach condition.
+
+The earlier **88-versus-90 proxy claim is withdrawn as an explanation of promotion eligibility**.
+Weekly finance snapshots occur after the review and cannot replace the event. The old reader-blame
+correction and placebo caveat remain: this replay identifies the actual binding conditions, not the
+fraction of their changed inputs attributable to deterministic ladder effects versus diverging random
+paths. Only seed 1001 needed this missing-promotion diagnosis; no new multi-seed effect estimate is claimed.
+No promotion threshold or game rule was changed to restore MidTier counts.
+
+Reproduce with `analyze_mid_tier_promotions.py SimLogs/b1cause3-off-1001
+SimLogs/b1cause3-b1-1001 --compare --output SimLogs/promotion-cause-20261020/comparison-1001.json`.
+The comparison retains individual gate rows and flags absent reviews instead of inventing inputs.
+Runs were serial, with an 896 MB managed-heap cap; peak working sets were 1,072/1,067 MB and minimum
+available RAM 599/429 MB. A preceding memory-guard stop and a 512 MB heap exhaustion in May 1964 are
+incomplete attempts, excluded from every comparison. Logs/manifests are in `SimLogs/promotion-cause-20261020/`.
 
 ## Follow-up: A2 current-economy single prior (October 20, 2026)
 
