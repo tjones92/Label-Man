@@ -20,6 +20,18 @@ public partial class AlbumReleasePracticeChecks : Node {
 				AlbumReleasePractice.AdvanceCommissionProbability(Genre.TeenPop, 1960), "the existing singles orientation distinguishes commercial institutions");
 			foreach (Genre genre in GenreSupplyService.GetAvailableGenres(1964))
 				Check(AlbumReleasePractice.AdvanceCommissionProbability(genre, 1964, 3) is >= 0f and <= .45f, $"bounded prior for {genre}");
+			foreach (Genre genre in GenreSupplyService.GetAvailableGenres(1964))
+				Check(AlbumReleasePractice.AdvanceCommissionProbability(genre, 1964, 1f, 3f) == AlbumReleasePractice.AdvanceCommissionProbability(genre, 1964, 1f, 0f),
+					$"the late-decade advance prior leaves 1964 {genre} unchanged");
+			Check(AlbumReleasePractice.AdvanceCommissionProbability(Genre.TraditionalPop, 1966, 1f, 2f) >
+				AlbumReleasePractice.AdvanceCommissionProbability(Genre.TraditionalPop, 1965, 1f, 2f) &&
+				Mathf.IsEqualApprox(AlbumReleasePractice.AdvanceCommissionProbability(Genre.TraditionalPop, 1968, 1f, 2f), .30f) &&
+				Mathf.IsEqualApprox(AlbumReleasePractice.AdvanceCommissionProbability(Genre.TeenPop, 1968, 1f, 2f), .30f),
+				"from 1967 the late prior is orientation-free for commercial pop institutions");
+			Check(AlbumReleasePractice.AdvanceCommissionProbability(Genre.Classical, 1968, 1f, 3f) == 0f &&
+				AlbumReleasePractice.AdvanceCommissionProbability(Genre.Jazz, 1968, 1f, 2f) <
+				AlbumReleasePractice.AdvanceCommissionProbability(Genre.TraditionalPop, 1968, 1f, 2f),
+				"the late prior keeps the institution factor");
 			Check(!AlbumReleasePractice.CanExtract(Genre.Jazz, 1964, 7, 1, false) &&
 				!AlbumReleasePractice.CanExtract(Genre.Jazz, 1964, 9, 0, false) &&
 				!AlbumReleasePractice.CanExtract(Genre.Jazz, 1964, 9, 41, false) &&

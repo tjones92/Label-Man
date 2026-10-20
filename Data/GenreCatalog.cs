@@ -70,7 +70,7 @@ public static class GenreCatalog {
 	// year curve, held flat outside its first and last keyframe. Inert unless named; wins over --radio-acceptance=.
 	private static readonly Dictionary<Genre, (float year, float value)[]> RadioAcceptanceRamp = ParseProbe("--radio-acceptance-ramp=", true)
 		.GroupBy(p => p.genre).ToDictionary(g => g.Key, g => g.Select(p => ((float)p.year, p.value)).OrderBy(k => k.Item1).ToArray());
-	private static List<(Genre genre, int year, float value)> ParseProbe(string prefix, bool withYear) {
+	internal static List<(Genre genre, int year, float value)> ParseProbe(string prefix, bool withYear) {
 		var result = new List<(Genre, int, float)>();
 		foreach (string arg in OS.GetCmdlineUserArgs().Where(a => a.StartsWith(prefix, StringComparison.Ordinal)))
 			foreach (string item in arg.Substring(prefix.Length).Split(',', StringSplitOptions.RemoveEmptyEntries)) {

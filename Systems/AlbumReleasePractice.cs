@@ -12,7 +12,9 @@ using Godot;
 public static class AlbumReleasePractice {
 	public const string Switch = "--album-release-practice";
 	public static readonly bool Enabled = OS.GetCmdlineUserArgs().Contains(Switch);
-	public static readonly float CampaignScale = ReadScale();
+	public static readonly float CampaignScale = ReadScale("--album-promo-campaign-scale=", 1f);
+	// Late-decade LP-led singles, opt-in: --album-practice-late-advance=K. Inert unless named; 1960-64 never change.
+	public static readonly float LateAdvanceScale = ReadScale("--album-practice-late-advance=", 0f);
 	public static bool IsLive => Enabled && GenreMarketV2.Enabled && CompetitorManager.Instance?.AlbumPracticeLiveTick == true;
 	public static readonly bool SeparateSinglesCalendar = !OS.GetCmdlineUserArgs().Contains("--album-practice-coupled-calendar");
 	public static readonly bool HitLedAlbums = !OS.GetCmdlineUserArgs().Contains("--album-practice-album-first");
@@ -22,18 +24,26 @@ public static class AlbumReleasePractice {
 		return orientation >= .6f && priorSingles == 0 && roll < orientation;
 	}
 
-	private static float ReadScale() {
-		string arg = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--album-promo-campaign-scale=", StringComparison.Ordinal));
-		if (arg == null) return 1f;
+	private static float ReadScale(string prefix, float absent) {
+		string arg = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
+		if (arg == null) return absent;
 		if (!float.TryParse(arg.Split('=')[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float scale) ||
 			!float.IsFinite(scale) || scale < 0f || scale > 3f)
-			throw new ArgumentException("Album promo campaign scale must be finite and between 0 and 3.");
+			throw new ArgumentException($"{prefix.TrimEnd('=')} must be finite and between 0 and 3.");
 		return scale;
 	}
 
-	// Deliberately no annual or label-tier multipliers: available sources establish
-	// different routes, not precise genre-year percentages or a Major entitlement.
-	internal static float AdvanceCommissionProbability(Genre genre, int year, float scale = 1f) {
+	// 0 through 1964, 1 from 1967. SimTools/LateDecadeSingleSourcing.md: in a dated census of the Billboard
+	// year-end top 20, singles issued with or ahead of an LP that has its own title are 10% of 1963 hits,
+	// 17.5% of 1965-66 and 22% of 1967-69, so about half the change has happened by 1965-66.
+	internal static float LateDecadeWeight(int year) => Mathf.Clamp((year - 1964) / 3f, 0f, 1f);
+
+	// Deliberately no label-tier multiplier: the late census puts Big-5 and independent hits at 57% and
+	// 46% LP-sourced, about one SE apart, so no Major entitlement. The era term is opt-in. From 1965 it
+	// ramps the prior to lateScale times its institutional value and drops the dependence on singles
+	// orientation, because the late adult-pop hits (Mauriat, Montenegro, Mancini, Alpert, O. C. Smith) are
+	// LP-sourced. Jazz/Gospel/Blues/Folk keep their institution factor, and Classical/NonMusic stay at zero.
+	internal static float AdvanceCommissionProbability(Genre genre, int year, float scale = 1f, float? lateScale = null) {
 		GenreProfile profile = GenreCatalog.Get(GenreCatalog.MapLegacy(genre, year));
 		float institution = profile.Family switch {
 			GenreFamily.Classical or GenreFamily.NonMusic => 0f,
@@ -41,7 +51,10 @@ public static class AlbumReleasePractice {
 			GenreFamily.Blues or GenreFamily.Folk => .5f,
 			_ => 1f
 		};
-		return Mathf.Clamp(.15f * profile.SingleOrientation * institution * scale, 0f, .45f);
+		float late = lateScale ?? LateAdvanceScale;
+		float weight = late > 0f ? LateDecadeWeight(year) : 0f;
+		float orientation = Mathf.Lerp(profile.SingleOrientation, 1f, weight);
+		return Mathf.Clamp(.15f * orientation * institution * scale * Mathf.Lerp(1f, late, weight), 0f, .45f);
 	}
 
 	internal static bool CanAdvance(Genre genre, AlbumFormat format, int year) =>

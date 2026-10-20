@@ -33,7 +33,7 @@ def main():
     parser.add_argument("--parallel", type=int, choices=range(1, 5), default=4)
     args = parser.parse_args()
     plan = json.loads(args.plan.read_text(encoding="utf-8-sig"))
-    if len(set(plan["seeds"])) != len(plan["seeds"]) or not 1 <= plan["weeks"] <= 520:
+    if len(set(plan["seeds"])) != len(plan["seeds"]) or not 1 <= plan["weeks"] <= 522:
         parser.error("Invalid seeds or duration")
     queue = []
     for tag, spec in plan["arms"].items():
@@ -42,7 +42,7 @@ def main():
         flags = spec["flags"] if isinstance(spec, dict) else spec
         seeds = spec.get("seeds", plan["seeds"]) if isinstance(spec, dict) else plan["seeds"]
         weeks = spec.get("weeks", plan["weeks"]) if isinstance(spec, dict) else plan["weeks"]
-        if not 1 <= weeks <= 520 or len(set(seeds)) != len(seeds):
+        if not 1 <= weeks <= 522 or len(set(seeds)) != len(seeds):
             parser.error(f"Invalid seeds or duration for {tag}")
         for seed in seeds:
             name = f"{tag}-{seed}-{weeks}"

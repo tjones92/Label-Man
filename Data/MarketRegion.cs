@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 [GlobalClass]
@@ -313,7 +314,15 @@ public partial class MarketRegion : Resource {
 	// probability a seeded catalog title is an album.
 	public static float GetAlbumSeedAffinity(Genre canonical) => GetAlbumAffinityBaseline(canonical);
 
-	private static float GetAlbumAffinityBaseline(Genre canonical) => canonical switch {
+	// Calibration probe, inert unless named: --album-affinity=Folk=0.40,... replaces a genre's flat album affinity
+	// baseline everywhere it is read (realized demand, the album prior and the opening-catalog seed).
+	private static readonly Dictionary<Genre, float> AlbumAffinityProbe = GenreCatalog.ParseProbe("--album-affinity=", false)
+		.ToDictionary(p => p.genre, p => p.value);
+
+	private static float GetAlbumAffinityBaseline(Genre canonical) =>
+		AlbumAffinityProbe.TryGetValue(canonical, out float probe) ? probe : GetAuthoredAlbumAffinityBaseline(canonical);
+
+	private static float GetAuthoredAlbumAffinityBaseline(Genre canonical) => canonical switch {
 		// DEMAND PULLBACK (2026-08, WIP §4): 0.88 -> 0.65. At 0.88 EL over-routed to albums and fell to
 		// 28 singles slots vs a hand count of 52 -- unlike Jazz (~0), EL kept a real singles presence.
 		// EL 0.65 -> 0.34 (2026-08 V3): affinity only differentiates EARLY album share (ShapeAlbumAffinity

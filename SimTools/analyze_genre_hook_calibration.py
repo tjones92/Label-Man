@@ -65,9 +65,13 @@ def measure(prefix, seed, tag, targets, slots):
     def put(year, metric, value):
         output.append(dict(tag=tag, seed=seed, year=int(year), metric=metric, value=float(value)))
 
+    last_year = r.year.max()
     for year, annual in r.groupby("year"):
         weeks = annual.week.nunique()
-        if weeks != 52 or len(annual) != 5200:
+        # The sim calendar has 53-week years (1965 in a decade run); a decade's final row is a partial year.
+        if year == last_year and weeks < 52:
+            continue
+        if weeks not in (52, 53) or len(annual) != weeks * 100:
             raise ValueError(f"Incomplete chart year {prefix} {year}: {weeks} weeks, {len(annual)} rows")
         head = annual[annual.currentPosition <= 10]
         labels = head.groupby("labelId").size()
