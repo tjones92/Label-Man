@@ -12,8 +12,9 @@ media, the genre chart guard, the album tier multiplier, the two cash identities
 **Integration status.** A1 (`claude/zealous-moore-7e4d72`, through `a147251`) and B1/B2
 (`claude/album-scale-career-milestones`, through `ee324f0`, in the `eager-wiles-1cfa05` worktree) are now merged
 into `media-atmosphere` as `e8abf7e` and `41f6f02`. Both switches remain off by default. Their measurements and
-limitations are retained in the follow-ups below. A2 now has an opt-in recalibrated prior; A3 is next. B1's missing-promotion mechanism is also open;
-the latest continuation adds exact quarterly gate evidence rather than changing a promotion or demotion threshold.
+limitations are retained in the follow-ups below. A2 has an opt-in recalibrated prior (`87a9ed9`). A3 now has an
+opt-in career-banded memory experiment; its album-prior calibration and debut-LP economics remain open.
+B1's missing-promotion investigation is deferred as recorded below; its exact quarterly gate tracing is ready.
 
 **Deferred follow-up — missing MidTier promotions (user decision, October 20).** Return to B1's unexplained
 promotion loss later; it does not block continuing A2 and the remaining audit items. Resume the same archived
@@ -731,3 +732,68 @@ Reproduce the fitting/evaluation evidence without a new simulation:
 ```
 
 Evidence, input hashes and run manifests live under `SimLogs/single-prior-a2-20261020/` (untracked run artifacts).
+
+## Follow-up: A3 memory conditioned on career (October 20, 2026)
+
+**Switch:** `--career-banded-format-memory`, off by default
+([CareerBandedFormatMemory.cs](../Systems/CareerBandedFormatMemory.cs)). It requires the live genre market.
+It fixes the pooled-career memory portion of A3. The album prior's stature calibration and the market advantage
+of unknown acts' LPs are not changed by this experiment.
+
+Each observation can now carry its original decision's career cohort. A decision reads residuals and confidence
+from that cohort within the existing label/estimator lane. Cohorts 0-3 are New/Unsigned, Rising, Established and
+Star/Superstar. Cohort 4 keeps legacy fallback states such as Declining from teaching the debutant cohort;
+their prior's existing fallback is unchanged. There is no pooled-residual fallback when a cohort has no evidence:
+confidence is zero and its prior remains in charge. Recency, maturity, residual limits and the 0.65 ceiling stay
+as before. Cohort caches are separate, including in the global project lane, so alternating career groups do
+not repeatedly scan the whole project history.
+
+**Ex-ante context.** Standalone singles and later LP extractions use their own launch career. A delayed album
+and its promo use `careerStateAtSchedule`, the context that priced the project, even if the act rises before
+the LP drops. A later revision does not classify an old release from the artist's current state. Old untagged
+observations are excluded from cohort reads; a fresh revision can tag active records from their stored launch
+or project context. Fully retired old observations without that context are not assigned a guessed cohort.
+
+**Persistence.** `FormatMemoryObservation.careerBand` is nullable and omitted when unknown, preserving the
+untagged off-path schema. Worlds carrying tagged history require save v24, including after the switch is turned
+off, so an older executable cannot silently discard that context. The normal untagged route retains its existing
+writing version. Switching off restores pooled arithmetic while retaining the optional tags.
+
+**Evidence.** Enabled runs add `*-format-memory-career-revisions.csv`, including in calibration mode.
+[analyze_career_format_memory.py](analyze_career_format_memory.py) checks valid, stable career tags and release
+weeks and summarizes the observed release/lane groups. Its residual medians describe observations, not
+expected profits or the label-specific live correction.
+
+**Validation.** Build: zero warnings/errors. Eleven in-engine checks pass: isolated cohort residuals and
+confidence, cache separation, unsupported-cohort behavior, scheduled-project versus extraction context,
+legacy fallback isolation, nullable-tag serialization, required save version and retained-history detection.
+With the switch off, **all 84 pre-existing CSVs match the preceding A2 control byte-for-byte on both seeds**.
+
+**Short live check.** Matched 26-week windows on seeds 1001 and 2002, A1 and A2 enabled in both arms, B1/B2 off.
+All four runs completed on one assembly. These are smoke tests, not completed-year or decade acceptance tests.
+Cells are off / on.
+
+| Metric | Seed 1001 | Seed 2002 |
+|---|---:|---:|
+| Orphan single launches | 1,532 / 1,528 | 1,441 / 1,424 |
+| Promo single launches / LP projects scheduled | 1,138 / 1,109 | 999 / 998 |
+| LP share of format decisions | 42.6% / 42.1% | 40.9% / 41.2% |
+| Total single launches | 2,670 / 2,637 | 2,440 / 2,422 |
+| Distinct Hot 100 acts | 365 / 366 | 348 / 336 |
+| Distinct Top 40 acts | 134 / 132 | 125 / 124 |
+| Distinct album-chart acts | 102 / 103 | 95 / 98 |
+
+The on streams contain 3,280 and 3,049 valid, stable revisions. AlbumComponent evidence is very sparse for proven
+acts: Established has 6 and 9 observed LPs, Star/Superstar 7 and 4, against 407 and 355 New/Unsigned LPs.
+Every one of those LP observations is still provisional. The model now separates that evidence correctly;
+this short window cannot establish a correction to the historical new-versus-proven LP ordering or justify a
+new album stature multiplier. Sparse-cohort confidence also makes the remaining prior calibration important.
+
+The runs were serial with a 192 MB managed-heap cap. Peak process working sets were 370-376 MB; the lowest
+observed free RAM was 960 MB. Run manifests, identity hashes, smoke summaries and observed-cohort reports are
+under `SimLogs/career-memory-a3-20261020/`.
+
+**Next audit work.** Finish A3's album-prior calibration using mature LP cohorts and assess the existing
+hit-led album programme against unknown acts' LP advantage, before moving to A4's marketing and pass/wait
+economics. Use the mature archived outcomes before adding larger simulation windows. B1's missing-promotion
+cause stays on the deferred list; this memory experiment does not reopen or resolve it.

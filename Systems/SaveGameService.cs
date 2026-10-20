@@ -31,11 +31,12 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 23; // v23: release-judgement shadow shortlists; v22: optional keyed regional-sales RNG; v21: member second roles and per-date studio rules.
+	public const int CurrentVersion = 24; // v24: optional career-banded format memory; v23: release-judgement shadow shortlists; v22: optional keyed regional-sales RNG.
 	// Legacy-mode worlds still use exactly the v21 schema. Only experimental RNG
 	// worlds need v22, so older executables cannot silently change their dice on load.
 	// Only a world carrying the observe-only release-judgement shadow needs v23.
-	public static int WritingVersion => AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
+	// Keep v24 while tagged history survives, including after the experimental switch is turned off.
+	public static int WritingVersion => CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {

@@ -1083,6 +1083,7 @@ public partial class ChartAuditRunner : Node {
 		OpenReleaseJudgementOutputs(outputDirectory);
 		OpenCareerLadderOutputs(outputDirectory);
 		OpenLabelPromotionOutputs(outputDirectory);
+		OpenCareerMemoryOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
@@ -1804,6 +1805,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void OnFormatMemoryRevision(FormatMemoryRevisionTelemetry revision) {
+		WriteCareerMemoryRevision(revision);
 		if (formatMemoryRevisionWriter == null || revision == null) return;
 		bool nonFinite = float.IsNaN(revision.normalizedResidual) || float.IsInfinity(revision.normalizedResidual) ||
 			float.IsNaN(revision.opportunityScale) || float.IsInfinity(revision.opportunityScale);
@@ -3893,6 +3895,7 @@ public partial class ChartAuditRunner : Node {
 		CloseReleaseJudgementOutputs();
 		CloseCareerLadderOutputs();
 		CloseLabelPromotionOutputs();
+		CloseCareerMemoryOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
 		ClosePolarFinalAudit();

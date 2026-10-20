@@ -1742,12 +1742,14 @@ public partial class CompetitorManager : Node {
 		}
 		if (!TryAdvanceResponsiveMemoryRevision(observation, age, finalized,
 			out bool replacedPriorRevision, out int revisionOrdinal)) return;
+		if (CareerBandedFormatMemory.Enabled) observation.careerBand = GetReleaseMemoryCareerBand(runtimeData);
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = maturity;
 		InvalidateResponsiveMemory(memory);
 		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
 			releaseId = releaseId, labelId = runtimeData.baseRecord.labelId, format = runtimeData.baseRecord.format,
 			projectId = runtimeData.albumProjectId, releaseLane = runtimeData.projectRole, estimatorLane = lane,
+			careerBand = observation.careerBand, releaseWeek = observation.releaseWeek,
 			genre = runtimeData.baseRecord.primaryGenre, releaseAge = age, revisionKind = finalized ? "Final" : $"Age{age}",
 			revisionOrdinal = revisionOrdinal,
 			releaseTimeExpectedNet = expectedNet, ageMatchedExpectedNet = ageMatchedExpectedNet,
@@ -1798,13 +1800,15 @@ public partial class CompetitorManager : Node {
 		return true;
 	}
 
-	private (float Residual, float EffectiveWeight, float Confidence) GetResponsiveMemory(FormatRevenueMemory memory, int currentWeek) {
+	private (float Residual, float EffectiveWeight, float Confidence) GetResponsiveMemory(FormatRevenueMemory memory, int currentWeek, int careerBand = -1) {
 		using var profile = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.RevenueMemory);
 		if (memory?.observations == null) return (0f, 0f, 0f);
-		ResponsiveMemorySummary summary = responsiveMemorySummaries.GetValue(memory.observations, _ => new());
-		if (summary.Week == currentWeek && summary.Count == memory.observations.Count) return summary.Value;
+		ResponsiveMemorySummary rootSummary = responsiveMemorySummaries.GetValue(memory.observations, _ => new());
+		ResponsiveMemorySummary summary = rootSummary.ForCareerBand(careerBand);
+		if (summary.Week == currentWeek && summary.Count == memory.observations.Count && summary.CareerBand == careerBand) return summary.Value;
 		float weightedResidual = 0f, weight = 0f;
 		foreach (FormatMemoryObservation observation in memory.observations) {
+			if (careerBand >= 0 && observation.careerBand != careerBand) continue;
 			int age = Mathf.Max(0, currentWeek - observation.releaseWeek);
 			if (age > ResponsiveMemoryMaximumHistoryWeeks) continue;
 			float recency = Mathf.Pow(.5f, age / ResponsiveMemoryHalfLifeWeeks);
@@ -1815,6 +1819,7 @@ public partial class CompetitorManager : Node {
 		float confidence = CalculateResponsiveMemoryConfidence(weight);
 		summary.Week = currentWeek;
 		summary.Count = memory.observations.Count;
+		summary.CareerBand = careerBand;
 		return summary.Value = (weight > 0f ? weightedResidual / weight : 0f, weight, confidence);
 	}
 
@@ -1823,7 +1828,16 @@ public partial class CompetitorManager : Node {
 	// Weak keys also discard summaries when a save loads replacement observation lists.
 	private sealed class ResponsiveMemorySummary {
 		public int Week = int.MinValue, Count = -1;
+		public int CareerBand = -1;
 		public (float Residual, float EffectiveWeight, float Confidence) Value;
+		// The pooled project lane is shared across labels. Keep each band's cached sum so interleaved
+		// debut/Star decisions do not re-walk its full history on every decision. Off allocates no array.
+		private ResponsiveMemorySummary[] careerSummaries;
+		public ResponsiveMemorySummary ForCareerBand(int band) {
+			if (band < 0) return this;
+			careerSummaries ??= new ResponsiveMemorySummary[5];
+			return careerSummaries[band] ??= new ResponsiveMemorySummary();
+		}
 	}
 	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<FormatMemoryObservation>, ResponsiveMemorySummary> responsiveMemorySummaries = new();
 	private static void InvalidateResponsiveMemory(FormatRevenueMemory memory) => responsiveMemorySummaries.Remove(memory.observations);
@@ -1834,6 +1848,25 @@ public partial class CompetitorManager : Node {
 
 	internal static float GetResponsiveMemoryConfidenceForProbe(float effectiveWeight) =>
 		CalculateResponsiveMemoryConfidence(effectiveWeight);
+
+	private int GetReleaseMemoryCareerBand(RecordRuntimeData runtime) {
+		CareerState? scheduled = !string.IsNullOrEmpty(runtime.albumProjectId) &&
+			projectById.TryGetValue(runtime.albumProjectId, out AlbumProject project) ? project.careerStateAtSchedule : null;
+		return GetMemoryCareerBand(runtime.launchCareerState, scheduled, runtime.projectRole);
+	}
+
+	internal static int GetMemoryCareerBand(CareerState launch, CareerState? scheduled,
+		ProjectRecordRole role = ProjectRecordRole.LinkedAlbum) {
+		CareerState state = role is ProjectRecordRole.LinkedAlbum or ProjectRecordRole.StandaloneAlbum or ProjectRecordRole.PromoSingle
+			? scheduled ?? launch : launch;
+		int band = GetCareerBandIndex(state, out bool fallback);
+		// Preserve the prior's legacy fallback, but do not teach debutants from Declining/Dropped acts.
+		return fallback ? 4 : band;
+	}
+
+	internal (float Residual, float EffectiveWeight, float Confidence) ResponsiveMemoryForProbe(
+		FormatRevenueMemory memory, int currentWeek, int careerBand) =>
+		GetResponsiveMemory(memory, currentWeek, CareerBandedFormatMemory.Enabled ? careerBand : -1);
 
 	private void TryFoldProjectMemory(AlbumProject project) {
 		if (project == null || project.albumMemoryFolded || project.heldAlbumOutcome == null) return;
@@ -1874,6 +1907,7 @@ public partial class CompetitorManager : Node {
 		int projectAge = Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? project.scheduledWeek) - project.scheduledWeek);
 		if (!TryAdvanceResponsiveMemoryRevision(observation, projectAge, finalized,
 			out bool replacedPriorRevision, out int revisionOrdinal)) return;
+		if (CareerBandedFormatMemory.Enabled) observation.careerBand = GetMemoryCareerBand(project.careerStateAtSchedule, null);
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = finalized ? 1f : Mathf.Clamp((promoMaturity + albumMaturity) * .5f, .05f, 1f);
 		InvalidateResponsiveMemory(memory);
@@ -1882,6 +1916,7 @@ public partial class CompetitorManager : Node {
 			releaseId = project.projectId, projectId = project.projectId, labelId = project.currentLabelId,
 			format = ReleaseFormat.Album, releaseLane = ProjectRecordRole.LinkedAlbum,
 			estimatorLane = RevenueEstimatorLane.AlbumWithPromo, genre = project.genre,
+			careerBand = observation.careerBand, releaseWeek = observation.releaseWeek,
 			releaseAge = projectAge, revisionKind = finalized ? "Final" : $"Age{projectAge}", revisionOrdinal = revisionOrdinal,
 			releaseTimeExpectedNet = project.projectedProjectNet, ageMatchedExpectedNet = project.projectedProjectNet,
 			realizedNetToDate = (project.heldPromoOutcome ?? 0f) + (project.heldAlbumOutcome ?? 0f),
@@ -1925,6 +1960,7 @@ public partial class CompetitorManager : Node {
 			pooledAlbumWithPromoMemory.observations.Add(observation);
 		}
 		if (!TryAdvanceResponsiveMemoryRevision(observation, projectAge, finalized, out _, out _)) return;
+		if (CareerBandedFormatMemory.Enabled) observation.careerBand = GetMemoryCareerBand(project.careerStateAtSchedule, null);
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = maturityWeight;
 		InvalidateResponsiveMemory(pooledAlbumWithPromoMemory);
@@ -2478,13 +2514,14 @@ public partial class CompetitorManager : Node {
 			? label.GetOrCreateRevenueMemory(RevenueEstimatorLane.PromoSingle) : singleMemory;
 		FormatRevenueMemory projectMemory = useResponsiveMemory
 			? label.GetOrCreateRevenueMemory(RevenueEstimatorLane.AlbumWithPromo) : albumMemory;
-		var singleResponsive = GetResponsiveMemory(singleMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
-		var albumResponsive = GetResponsiveMemory(albumMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
-		var standaloneResponsive = GetResponsiveMemory(standaloneMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
-		var promoResponsive = GetResponsiveMemory(promoMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		int memoryCareerBand = CareerBandedFormatMemory.Enabled ? GetMemoryCareerBand(artist.careerState, null) : -1;
+		var singleResponsive = GetResponsiveMemory(singleMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, memoryCareerBand);
+		var albumResponsive = GetResponsiveMemory(albumMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, memoryCareerBand);
+		var standaloneResponsive = GetResponsiveMemory(standaloneMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, memoryCareerBand);
+		var promoResponsive = GetResponsiveMemory(promoMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, memoryCareerBand);
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		var labelProjectResponsive = GetResponsiveMemory(projectMemory, currentWeek);
-		var pooledProjectResponsive = GetResponsiveMemory(pooledAlbumWithPromoMemory, currentWeek);
+		var labelProjectResponsive = GetResponsiveMemory(projectMemory, currentWeek, memoryCareerBand);
+		var pooledProjectResponsive = GetResponsiveMemory(pooledAlbumWithPromoMemory, currentWeek, memoryCareerBand);
 		float projectLocalBlend = labelProjectResponsive.Confidence /
 			Mathf.Max(.000001f, labelProjectResponsive.Confidence + pooledProjectResponsive.Confidence);
 		var projectResponsive = (
@@ -5489,6 +5526,8 @@ public sealed class ReleaseOutcomeTelemetry {
 }
 
 public sealed class FormatMemoryRevisionTelemetry {
+	public int? careerBand;
+	public int releaseWeek;
 	public string releaseId, labelId, revisionKind;
 	public string projectId;
 	public ReleaseFormat format;

@@ -398,6 +398,7 @@ public partial class ChartManager : Node {
 		MusicianRecognitionService.Configure(OS.GetCmdlineUserArgs());
 		FormatMemoryMaturityCurve.Configure(OS.GetCmdlineUserArgs());
 		SinglePriorRecalibration.Configure(OS.GetCmdlineUserArgs());
+		CareerBandedFormatMemory.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();

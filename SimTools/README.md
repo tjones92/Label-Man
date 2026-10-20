@@ -103,6 +103,20 @@ cutoff of week 418 for the 522-week source runs. It uses the Python standard
 library and refuses incomplete fitting/evaluation cohorts. See the A2 follow-up
 in `EconomyReleaseJudgementAudit-2026-10-20.md` for source runs and limitations.
 
+`--career-banded-format-memory` is the opt-in memory portion of A3. Live format
+decisions read observations from their own career cohort, using immutable launch
+or project-scheduling context. Cohorts 0-3 are New/Unsigned, Rising, Established
+and Star/Superstar; cohort 4 separates legacy fallback states such as Declining.
+An unsupported cohort keeps the prior with zero correction confidence. Old
+untagged history is not assigned a band from an artist's later career state.
+Tagged worlds require save v24, including when the switch is later turned off.
+The off path for worlds that never used this switch retains its existing schema.
+`--career-banded-format-memory-check` checks grouping, caching and serialization.
+The optional `*-format-memory-career-revisions.csv` also works in calibration
+mode. `analyze_career_format_memory.py PREFIX ... --output SimLogs/REPORT.json`
+checks stable tags and summarizes observed groups without loading whole worlds.
+Album-prior stature calibration and debut-LP market economics remain A3 work.
+
 Scene Phase 4 recruitment is opt-in with `--enable-scene-recruitment`. It requires
 persistent scenes, artist population lifecycle and genre market; observe-only or
 explicit contradictory disable modes fail before scene configuration changes.
