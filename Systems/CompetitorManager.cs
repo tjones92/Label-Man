@@ -2964,7 +2964,17 @@ public partial class CompetitorManager : Node {
 	/// rescaled by the per-unit margin the label now actually books, as the album prior already re-prices itself,
 	/// so neither format gains a spurious edge from the price change. Off, this is CalculateSinglePriorNet.
 	/// </summary>
-	private float SinglePriorNetAtBookedPrice(DecisionContext decision) {
+	private float SinglePriorNetAtBookedPrice(DecisionContext decision) =>
+		SinglePriorNetAtBookedPrice(decision, GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
+
+	private float SinglePriorNetAtBookedPrice(DecisionContext decision, bool live) {
+		if (SinglePriorRecalibration.Enabled && live) {
+			float currentList = GetPricePerUnit(ReleaseFormat.Single);
+			float currentMargin = LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, currentList)
+				- GetPressingCostPerUnit(ReleaseFormat.Single) - LabelPressingEconomics.SingleCompositionCost - currentList * .05f;
+			return SinglePriorRecalibration.EstimateNet(decision.qualityEstimate, decision.careerBand,
+				decision.reachFactor, decision.genreSinglesMarketFactor, decision.singleProductionCost, currentMargin);
+		}
 		float net = CalculateSinglePriorNet(decision);
 		if (!LabelPressingEconomics.Enabled) return net;
 		float list = GetPricePerUnit(ReleaseFormat.Single), pressing = GetPressingCostPerUnit(ReleaseFormat.Single);
@@ -2974,6 +2984,12 @@ public partial class CompetitorManager : Node {
 			Mathf.Max(0.01f, list - GetLegacyPressingCostPerUnit(ReleaseFormat.Single) - royalty);
 		return (net + decision.singleProductionCost) * scale - decision.singleProductionCost;
 	}
+
+	internal float SinglePriorNetForProbe(float quality, int careerBand, float reach, float genreFactor,
+		float productionCost, bool live) => SinglePriorNetAtBookedPrice(new DecisionContext {
+			qualityEstimate = quality, qualityQuartile = GetQualityQuartile(quality), careerBand = careerBand,
+			reachFactor = reach, genreSinglesMarketFactor = genreFactor, singleProductionCost = productionCost
+		}, live);
 
 	private static float CalculateSinglePriorNet(DecisionContext decision) {
 		float expectedContribution = SinglePriorNormalizedContribution[decision.qualityQuartile, decision.careerBand]

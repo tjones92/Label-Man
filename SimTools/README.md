@@ -92,6 +92,17 @@ these rows, counts overlapping blockers, and checks that eligible decisions matc
 the Independent-to-MidTier transitions. `--mid-tier-promotion-audit-check` through
 `SaveLoadRoundTripRunner.tscn` verifies observation before the streak reset.
 
+`--single-prior-recalibration` is the opt-in A2 prior for live genre-market
+decisions with dealer pricing and period single costs. It replaces the stale
+quartiles with a continuous quality curve that is monotone in quality and career.
+`--single-prior-recalibration-check` through `SaveLoadRoundTripRunner.tscn`
+checks the decision seam, continuity, career ordering and price/cost accounting.
+`calibrate_single_prior.py TRAINING --holdout HOLDOUT --output SimLogs/FIT.json`
+reproduces the curve using completed standalone releases, with a default launch
+cutoff of week 418 for the 522-week source runs. It uses the Python standard
+library and refuses incomplete fitting/evaluation cohorts. See the A2 follow-up
+in `EconomyReleaseJudgementAudit-2026-10-20.md` for source runs and limitations.
+
 Scene Phase 4 recruitment is opt-in with `--enable-scene-recruitment`. It requires
 persistent scenes, artist population lifecycle and genre market; observe-only or
 explicit contradictory disable modes fail before scene configuration changes.

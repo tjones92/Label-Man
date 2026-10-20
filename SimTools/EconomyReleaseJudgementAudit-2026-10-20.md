@@ -12,8 +12,16 @@ media, the genre chart guard, the album tier multiplier, the two cash identities
 **Integration status.** A1 (`claude/zealous-moore-7e4d72`, through `a147251`) and B1/B2
 (`claude/album-scale-career-milestones`, through `ee324f0`, in the `eager-wiles-1cfa05` worktree) are now merged
 into `media-atmosphere` as `e8abf7e` and `41f6f02`. Both switches remain off by default. Their measurements and
-limitations are retained in the follow-ups below. A2 is still open. B1's missing-promotion mechanism is also open;
+limitations are retained in the follow-ups below. A2 now has an opt-in recalibrated prior; A3 is next. B1's missing-promotion mechanism is also open;
 the latest continuation adds exact quarterly gate evidence rather than changing a promotion or demotion threshold.
+
+**Deferred follow-up — missing MidTier promotions (user decision, October 20).** Return to B1's unexplained
+promotion loss later; it does not block continuing A2 and the remaining audit items. Resume the same archived
+1963 worlds in matched off/B1 arms with `--mid-tier-promotion-audit`, then run
+`analyze_mid_tier_promotions.py`. Inspect owned reach, dependency and the four-quarter capability streak at the
+actual decision. Preserve the placebo/noise caveat and the correction that the added readers did not cause the
+MidTier drop. Keep memory available for normal computer use; use at most two concurrent early-decade seeds and
+reduce concurrency when free memory is low. Do not substitute incomplete runs for completed matched evidence.
 
 ## Evidence
 
@@ -639,3 +647,87 @@ from outcome comparisons. Two planned 52-week smoke runs were not started after 
 reported 859 MB free. Logs and invocation manifests are under `SimLogs/audit-integration-20261020/`.
 The fixed checks validate the new trace, not the missing-promotion explanation. That still needs completed,
 matched off/B1 windows with the trace enabled; no new causal attribution or default adoption is made here.
+
+## Follow-up: A2 current-economy single prior (October 20, 2026)
+
+**Switch:** `--single-prior-recalibration`, off by default
+([SinglePriorRecalibration.cs](../Systems/SinglePriorRecalibration.cs)). It applies only to live genre-market
+decisions, requires dealer pricing and period single costs, and leaves the prewarm/disabled calculation intact.
+The same prior feeds the orphan and promo paths, with their existing separate memory lanes. The memory ceiling
+remains 0.65. Marketing and the pass/wait decision remain A4 work.
+
+**Fit.** [calibrate_single_prior.py](calibrate_single_prior.py) joins `calibration-decisions`,
+`a3-economic-decisions` and `release-outcomes`. Training uses the reference `dec-awrw-on-1001-522`, standalone
+single launches through week 418: **19,897 launches, all finalized**. The 104-week lag avoids a cohort that has
+observed quick failures but not its long-lived hits. The 317 Declining launches are excluded from fitting;
+the game's existing New/Unsigned fallback is retained for that state. Promo outcomes are not mixed into the
+standalone fit. The script refuses an incomplete training or holdout cohort.
+
+The target is `(realizedNet + release-time production cost) / (reach × genre market factor)`, at the booked-price
+margin. Twelve quality bins concentrate resolution around 0.60-0.70. Weighted isotonic regression constrains
+contribution to be nondecreasing in quality and career; empty cells receive the pooled quality-bin mean at
+weight one. Linear interpolation between the bins' mean qualities removes the old Q3/Q4 cliff. Low-quality
+Star cells still have sparse or no direct evidence; monotonic constraints prevent them penalizing Stars relative
+to Established acts, but do not manufacture observations.
+
+The table is already priced at the current margin ($0.4055 under the prior's existing 5% royalty approximation).
+It is repriced relative to that reference, without applying the old counter-to-dealer discount a second time.
+Production cost is subtracted once, after repricing.
+
+**A correction in interpretation.** An expected-money prior must be fitted to arithmetic means, not medians.
+Hits have a long earnings tail. The original A2 median comparisons demonstrate stale scale and the career
+inversion, but their 2-13x ratios overstate the error in the expected value. On the mature reference training
+cohort the old band-level mean projections are about 2.0-3.9x realized, rather than 2-13x.
+
+**Separate-seed holdout:** `dec-awrw-on-2002-522`, same mature cohort rule, 18,413 completed launches.
+Errors compare total projected net with total realized net within each band; these are descriptive point
+estimates, not confidence intervals.
+
+| Career band | n | Mean realized | Old mean prior | New mean prior | Old error | New error |
+|---|---:|---:|---:|---:|---:|---:|
+| New/Unsigned | 16,446 | 7,498 | 18,824 | 6,910 | +151% | −8% |
+| Rising | 1,234 | 14,820 | 58,402 | 15,152 | +294% | +2% |
+| Established | 564 | 20,567 | 92,396 | 24,034 | +349% | +17% |
+| Star/Superstar | 169 | 59,202 | 103,363 | 48,929 | +75% | −17% |
+
+**Policy transfer remains imperfect.** `dec-lpa4-youth-{1001,2002}-522` are additional evaluations, not training.
+The new prior underpredicts proven acts there: Rising by 36-39%, Established by 29-37%, and Star by 31-47%.
+On experimental seed 2002, the old Star mean happened to be close (+2%), while the new one is low (−47%).
+Mean absolute error improves in every career band in all three holdouts, but that does not establish unbiased
+expectations across policies. A2 therefore remains an opt-in candidate. The inputs and outcomes still need the
+conditioning work in A3, and the shared prior is not an independently validated promo-single forecast.
+
+**Short live check.** Matched 26-week off/on runs on seeds 1001 and 2002; A1's maturity curve is enabled in
+both arms, B1/B2 is off, and all runs use the same compiled assembly and canonical population/genre flags.
+These are smoke tests, not completed-year or decade acceptance tests. Cells are off / on.
+
+| Metric | Seed 1001 | Seed 2002 |
+|---|---:|---:|
+| Orphan single launches | 1,944 / 1,532 | 1,774 / 1,441 |
+| Promo single launches / LP projects scheduled | 813 / 1,138 | 741 / 999 |
+| LP share of format decisions | 29.5% / 42.6% | 29.5% / 40.9% |
+| Total single launches | 2,757 / 2,670 | 2,515 / 2,440 |
+| Distinct Hot 100 acts | 368 / 365 | 357 / 348 |
+| Distinct Top 40 acts | 131 / 134 | 128 / 125 |
+| Distinct album-chart acts | 102 / 102 | 93 / 95 |
+
+Lower single expectations move the fork toward LPs; single volume falls about 3%, because most extra LP projects
+still launch a promo. The short window does not establish a long-run improvement. In particular, the underlying
+advantage of unknown acts' LPs and pooled career memory remain A3 problems.
+
+**Validation and memory.** Build: zero warnings/errors. Three Python calibration tests pass (weighted pooling,
+supported-surface recovery, mature-cohort accounting and duplicate rejection). Nine in-engine checks pass,
+including continuity, career ordering, prewarm/off identity and single subtraction of production cost. The
+authored C# table matches the generated fit. All four live smoke runs completed. They ran serially with a
+192 MB managed-heap cap; peak process working set was 347-372 MB and the lowest observed free RAM was 638 MB.
+
+Reproduce the fitting/evaluation evidence without a new simulation:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe" -I SimTools\calibrate_single_prior.py `
+  SimLogs\dec-awrw-on-1001-522 --holdout SimLogs\dec-awrw-on-2002-522 `
+  --holdout SimLogs\dec-lpa4-youth-1001-522 --holdout SimLogs\dec-lpa4-youth-2002-522 `
+  --output SimLogs\single-prior-a2-20261020\fit.json --csharp SimLogs\single-prior-a2-20261020\table.txt
+```
+
+Evidence, input hashes and run manifests live under `SimLogs/single-prior-a2-20261020/` (untracked run artifacts).
