@@ -15,6 +15,7 @@ public partial class Album : IFieldsOnlySave {
 	[Export] public int[] trackRefCompUsesAtGeneration = System.Array.Empty<int>();
 	[Export] public AlbumTrack[] nonSingleTracks = System.Array.Empty<AlbumTrack>();
 	[Export] public string[] leadSingleIds = System.Array.Empty<string>();
+	[Export] public string[] postAlbumSingleIds = System.Array.Empty<string>();
 	[Export] public float runtimeMinutes;
 
 	[ExportGroup("Appeal")]

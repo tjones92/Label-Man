@@ -1081,6 +1081,8 @@ public partial class ChartAuditRunner : Node {
 		Directory.CreateDirectory(outputDirectory);
 		ArtistHeatAttribution.Open(Path.Combine(outputDirectory, runName));
 		OpenReleaseJudgementOutputs(outputDirectory);
+		OpenGenreHookOutputs(outputDirectory);
+		OpenAlbumPracticeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
 		songMaterialWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-song-material.csv"));
 		if (OS.GetCmdlineUserArgs().Contains("--polar-song-shadow")) polarSongShadow = new PolarSongShadowTelemetry(outputDirectory, runName);
@@ -2166,6 +2168,7 @@ public partial class ChartAuditRunner : Node {
 		List<RecordRuntimeData> albumChart = ChartManager.Instance.GetCurrentAlbumChart();
 		AccumulateConcentration(date.year, chart);
 		AccumulateGenreShape(date.year, records, chart);
+		AccumulateGenreFormatUnits(date.year, records);
 		AccumulateYearEndHot100(date.year, chart);
 		// Skim routing to the distributor is only defined while the deal is active. Once the
 		// deal resolves -- an exit that nulls it, or a subsidiary absorption that converts it
@@ -3885,6 +3888,8 @@ public partial class ChartAuditRunner : Node {
 	private void FlushAndClose() {
 		ArtistHeatAttribution.Close();
 		CloseReleaseJudgementOutputs();
+		CloseGenreHookOutputs();
+		CloseAlbumPracticeOutputs();
 		ClosePolarFinalAudit();
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordRetired -= OnRecordRetired;

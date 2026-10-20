@@ -26,3 +26,7 @@ __pycache__/
 # signing credentials. Keep it that way; set codesign options in a local, uncommitted copy.
 # The exported exe, pck and .NET data folder land in build/.
 /build/
+
+# Build output of the standalone counter-RNG test console.
+/SimTools/CounterRngTests/bin/
+/SimTools/CounterRngTests/obj/

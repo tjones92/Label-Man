@@ -843,7 +843,7 @@ public partial class AILabel : Resource {
 	}
 }
 
-public enum RevenueEstimatorLane { OrphanSingle, PromoSingle, StandaloneAlbum, AlbumWithPromo, AlbumComponent }
+public enum RevenueEstimatorLane { OrphanSingle, PromoSingle, StandaloneAlbum, AlbumWithPromo, AlbumComponent, AlbumExtraction }
 
 public sealed class FormatRevenueMemory {
 	// Legacy fields remain diagnostic-only for old saved state; live decisions use

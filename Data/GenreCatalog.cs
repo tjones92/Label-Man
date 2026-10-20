@@ -66,6 +66,10 @@ public static class GenreCatalog {
 		.ToDictionary(p => (p.genre, p.year), p => p.value);
 	private static readonly Dictionary<Genre, float> RadioAcceptanceProbe = ParseProbe("--radio-acceptance=", false)
 		.ToDictionary(p => p.genre, p => p.value);
+	// --radio-acceptance-ramp=Soul@1963=1.0,Soul@1966=0.55 replaces a genre's flat multiplier with a piecewise-linear
+	// year curve, held flat outside its first and last keyframe. Inert unless named; wins over --radio-acceptance=.
+	private static readonly Dictionary<Genre, (float year, float value)[]> RadioAcceptanceRamp = ParseProbe("--radio-acceptance-ramp=", true)
+		.GroupBy(p => p.genre).ToDictionary(g => g.Key, g => g.Select(p => ((float)p.year, p.value)).OrderBy(k => k.Item1).ToArray());
 	private static List<(Genre genre, int year, float value)> ParseProbe(string prefix, bool withYear) {
 		var result = new List<(Genre, int, float)>();
 		foreach (string arg in OS.GetCmdlineUserArgs().Where(a => a.StartsWith(prefix, StringComparison.Ordinal)))
@@ -430,9 +434,17 @@ public static class GenreCatalog {
 
 	/// <summary>Per-genre radio-acceptance multiplier applied to the national acceptance that feeds
 	/// radio heat only. Expects a canonical genre; default 1.0 leaves a genre's airplay untouched.</summary>
-	public static float GetRadioAcceptance(Genre canonical) =>
-		RadioAcceptanceProbe.TryGetValue(canonical, out float probe) ? probe :
-		RadioAcceptanceOverrides.TryGetValue(canonical, out float r) ? r : 1f;
+	public static float GetRadioAcceptance(Genre canonical, float year) {
+		if (RadioAcceptanceRamp.TryGetValue(canonical, out var ramp)) {
+			if (year <= ramp[0].year) return ramp[0].value;
+			for (int i = 1; i < ramp.Length; i++)
+				if (year <= ramp[i].year)
+					return Mathf.Lerp(ramp[i - 1].value, ramp[i].value, (year - ramp[i - 1].year) / Mathf.Max(ramp[i].year - ramp[i - 1].year, 1e-3f));
+			return ramp[^1].value;
+		}
+		return RadioAcceptanceProbe.TryGetValue(canonical, out float probe) ? probe :
+			RadioAcceptanceOverrides.TryGetValue(canonical, out float r) ? r : 1f;
+	}
 
 	// ERA-RAMPED FORMAT ORIENTATION -- the new lever for a genre that must move single->album ACROSS
 	// the decade, which a flat SingleOrientation cannot express. The flat value drives the whole

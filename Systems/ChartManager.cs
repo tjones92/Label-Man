@@ -1020,7 +1020,7 @@ public partial class ChartManager : Node {
 					float radioAcceptance = GenreAcceptanceService.GetNationalDemandAcceptance(record.baseRecord.primaryGenre,
 						record.baseRecord.secondaryGenre, allRegions, acceptanceYear, GetGenreMomentum(record.baseRecord.primaryGenre));
 					Genre canonicalPrimary = GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, (int)Mathf.Floor(acceptanceYear));
-					genreAcceptance = Mathf.Clamp(radioAcceptance * GenreCatalog.GetRadioAcceptance(canonicalPrimary), 0f, 1f);
+					genreAcceptance = Mathf.Clamp(radioAcceptance * GenreCatalog.GetRadioAcceptance(canonicalPrimary, acceptanceYear), 0f, 1f);
 				} else genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 			}
 			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId, record.baseRecord.format);

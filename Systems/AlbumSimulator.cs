@@ -37,6 +37,16 @@ public static class AlbumSimulator {
 			: ChartManager.Instance?.GetRecordRuntimeData(record.linkedPromoSingleId);
 		float singleHeat = linkedPromo != null ? Mathf.Clamp(linkedPromo.radioHeat, 0f, 1f) : 0f;
 		record.linkedPromoRuntimeActive = linkedPromo != null;
+		// A later commercial cut can also substitute for this LP. It earns no
+		// advance launch bonus; use the strongest active linked exposure, bounded
+		// by the same demand fraction as the original advance mechanism.
+		if (AlbumReleasePractice.IsLive && record.baseRecord.album?.postAlbumSingleIds != null)
+			foreach (string id in record.baseRecord.album.postAlbumSingleIds) {
+				RecordRuntimeData cut = ChartManager.Instance?.GetRecordRuntimeData(id);
+				if (cut == null) continue;
+				record.linkedPromoRuntimeActive = true;
+				singleHeat = Mathf.Max(singleHeat, Mathf.Clamp(cut.radioHeat, 0f, 1f));
+			}
 		record.linkedPromoSingleHeat = singleHeat;
 		record.albumSubstitutionPropensity = substitutionPropensity;
 		record.cannibalizationSuppression = Mathf.Clamp(CompetitorManager.Instance?.CannibalizationStrength ?? 0f, 0f, 1f)

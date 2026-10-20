@@ -1445,6 +1445,7 @@ public partial class CompetitorManager : Node {
 					releasesThisWeek++;
 					WeeklySuccessfulReleases++;
 					RecordReleaseAttempt(label.tier, success: true, artistSelectionFailure: false);
+					TryIndependentSinglesProgramme(label, date);
 				} else {
 					WeeklyFailedReleaseRolls++;
 					RecordReleaseAttempt(label.tier, success: false, artistSelectionFailure: lastReleaseAttemptFailedArtistSelection);
@@ -1700,6 +1701,7 @@ public partial class CompetitorManager : Node {
 
 	internal static RevenueEstimatorLane[] GetApplicableEstimatorLanes(ProjectRecordRole role) => role switch {
 		ProjectRecordRole.OrphanSingle => new[] { RevenueEstimatorLane.OrphanSingle },
+		ProjectRecordRole.AlbumExtraction => new[] { RevenueEstimatorLane.AlbumExtraction },
 		ProjectRecordRole.PromoSingle => new[] { RevenueEstimatorLane.PromoSingle },
 		// One physical outcome is applicable to both general Album eligibility
 		// and the standalone-strategy estimator. Finance is still posted once.
@@ -1946,10 +1948,11 @@ public partial class CompetitorManager : Node {
 		project.promoOutcomeState = ProjectOutcomeState.RedirectedToSingle;
 	}
 	
-	private bool TryReleaseRecord(AILabel label, GameDate date) {
+	private bool TryReleaseRecord(AILabel label, GameDate date, bool singlesOnly = false, SimulatedArtist scheduledSingleArtist = null) {
 		lastReleaseAttemptFailedArtistSelection = false;
+		lastPracticeStandalone = false;
 		PrepareAnnualFormatCapacity(date.year);
-		var artist = RosterManager.Instance?.GetArtistForRelease(label) ?? label.GetArtistForRelease(date.year);
+		var artist = scheduledSingleArtist ?? RosterManager.Instance?.GetArtistForRelease(label) ?? label.GetArtistForRelease(date.year);
 		if (artist == null) {
 			lastReleaseAttemptFailedArtistSelection = true;
 			return false;
@@ -1984,7 +1987,14 @@ public partial class CompetitorManager : Node {
 		DecisionContext decision = BuildDecisionContext(label, decisionArtist, date.year, date.month);
 		decision.nonRetainedEmergingProject = IsNonRetainedEmergingProjectForFormatMemory(projectGenre,
 			projectSelection.RetainedIdentity, date.year, GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
-		ReleasePlan plan = DecideRelease(label, decisionArtist, date.year, decision);
+		ReleasePlan plan = DecideRelease(label, decisionArtist, date.year, decision, singleProgrammeOnly: singlesOnly);
+		if (singlesOnly) {
+			if (plan.projectedOrphanSingleNet <= label.GetMarketingBudget(artist)) {
+				if (!explicitProjectIdentity) { artist.primaryGenre = artistPrimary; artist.secondaryGenre = artistSecondary; }
+				return false;
+			}
+			plan.format = ReleaseFormat.Single; plan.strategy = ReleaseStrategy.OrphanSingle;
+		}
 		// --hit-act-cadence (§17x): a lane release is the act's follow-up single; its album waits for a later roll.
 		if (HitActCadence.LaneEnabled && HitActCadence.ShouldForceSingle(plan.format == ReleaseFormat.Album)) {
 			plan.format = ReleaseFormat.Single;
@@ -1997,9 +2007,10 @@ public partial class CompetitorManager : Node {
 		if (plan.format == ReleaseFormat.Album) {
 			return TryInitiateAlbumProject(label, artist, date, decision, plan, projectGenre);
 		}
-		var record = GenerateRecordFromArtist(label, artist, date.year, plan.format, judgedOrphan: true);
+		var record = TryExtractSuccessfulAlbumSingle(label, artist, date, decision, ref plan)
+			?? GenerateRecordFromArtist(label, artist, date.year, plan.format, judgedOrphan: true);
 		if (record == null) return false;
-		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
+		if (plan.strategy != ReleaseStrategy.AlbumExtraction && GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
 			ApplyProjectGenre(record, projectGenre, artistPrimary);
 		float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
 		float noiseRange = Mathf.Lerp(0.30f, 0.10f, label.scoutingAbility);
@@ -2032,7 +2043,7 @@ public partial class CompetitorManager : Node {
 		}
 		
 		record.releaseDate = date;
-		record.projectRole = ProjectRecordRole.OrphanSingle;
+		record.projectRole = plan.strategy == ReleaseStrategy.AlbumExtraction ? ProjectRecordRole.AlbumExtraction : ProjectRecordRole.OrphanSingle;
 		record.albumProjectId = string.Empty;
 		ChartManager.Instance.ReleaseRecord(record);
 		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
@@ -2048,7 +2059,7 @@ public partial class CompetitorManager : Node {
 		TrackRelease(label.labelId, record.recordId);
 		WeeklySingleReleases++;
 		RecordArtistRelease(artist, record.recordId, record.format);
-		AiRepertoireService.ObserveSingleRelease(label, artist, record, ReleaseStrategy.OrphanSingle, date);
+		AiRepertoireService.ObserveSingleRelease(label, artist, record, plan.strategy, date);
 		annualFormatDecisions++;
 		OnCalibrationDecision?.Invoke(new CalibrationDecisionTelemetry {
 			recordId = record.recordId,
@@ -2097,7 +2108,7 @@ public partial class CompetitorManager : Node {
 				affinityUnits = plan.affinityUnits,
 				totalExpectedAlbumUnits = plan.totalExpectedAlbumUnits,
 				actualAlbumFormat = record.album?.albumFormat,
-				strategy = ReleaseStrategy.OrphanSingle,
+				strategy = plan.strategy,
 				projectedOrphanSingleNet = plan.projectedSingleNet,
 				projectedAlbumStandaloneNet = plan.projectedAlbumStandaloneNet,
 				projectedAlbumWithPromoNet = plan.projectedAlbumWithPromoNet,
@@ -2199,6 +2210,7 @@ public partial class CompetitorManager : Node {
 		if (album == null) return false;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
 			ApplyProjectGenre(album, projectGenre, artist.primaryGenre);
+		plan = ResolveRecordedAlbumCampaign(label, artist, date, decision, plan, album);
 		float albumProductionCost = CalculateProductionCost(label, album, date);
 		float albumPerceivedMult;
 		float albumMarketingPlanned;
@@ -2212,6 +2224,7 @@ public partial class CompetitorManager : Node {
 		if (plan.strategy == ReleaseStrategy.AlbumWithPromo) {
 			promo = CreatePromoSingleFromAlbum(album, artist, label, date.year);
 			if (PolarSongBehavior.UsePolarFitSelection && promo == null) return false;
+			if (AlbumReleasePractice.IsLive && promo != null) promo.sourceAlbumRecordId = album.recordId;
 			gapWeeks = (int)GameRandom.RandRange(Mathf.Min(albumDropGapWeeksMin, albumDropGapWeeksMax), Mathf.Max(albumDropGapWeeksMin, albumDropGapWeeksMax));
 			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
 			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
@@ -2282,6 +2295,10 @@ public partial class CompetitorManager : Node {
 		// One push per project. An album with a promo single is two records and one
 		// creative decision; the linked album's later drop must not vote a second time.
 		ArtistEvolutionService.OnProjectReleased(artist, projectGenre, date.year, label);
+		if (AlbumReleasePractice.IsLive && plan.strategy == ReleaseStrategy.AlbumStandalone) {
+			lastPracticeStandalone = true; lastPracticeAlbumGenre = projectGenre; lastPracticeAlbumId = album.recordId;
+			lastPracticeAlbumArtist = artist;
+		}
 		return true;
 	}
 
@@ -2430,7 +2447,7 @@ public partial class CompetitorManager : Node {
 		albumCapacityReroute = plan.albumCapacityReroute
 	};
 
-	private ReleasePlan DecideRelease(AILabel label, SimulatedArtist artist, int year, DecisionContext decision) {
+	private ReleasePlan DecideRelease(AILabel label, SimulatedArtist artist, int year, DecisionContext decision, bool singleProgrammeOnly = false) {
 		using var profile = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.ReleaseDecisions);
 		if (!enableAlbums) return new() { format = ReleaseFormat.Single, strategy = ReleaseStrategy.OrphanSingle };
 
@@ -2576,6 +2593,13 @@ public partial class CompetitorManager : Node {
 		if (useResponsiveMemory) projectedAlbumWithPromo += projectResponsive.Confidence * projectResponsive.Residual *
 			Mathf.Max(1f, Mathf.Abs(projectedAlbumWithPromo));
 		float promoProjectDelayPremium = meanAlbumDropGapWeeks / 52f;
+		// Commit the physical LP on its own proposition. A future campaign cannot
+		// manufacture eligibility before any album material has been recorded.
+		if (AlbumReleasePractice.IsLive) {
+			componentProjectedAlbumWithPromo = projectedStandaloneAlbum;
+			projectedAlbumWithPromo = projectedStandaloneAlbum;
+			promoProjectDelayPremium = 0f;
+		}
 
 		(bool economicAlbumWins, bool promoPreferred, float albumGateProjection) = useResponsiveMemory
 			? ResolveAlbumDecision(projectedSingle, projectedAlbum, projectedStandaloneAlbum,
@@ -2594,6 +2618,7 @@ public partial class CompetitorManager : Node {
 		bool albumWins = useResponsiveMemory
 			? ResolvePositiveFormatChoice(decisionSingleHurdle, albumGateProjection, formatChoiceRoll)
 			: economicAlbumWins;
+		if (singleProgrammeOnly) { albumWins = false; promoPreferred = false; }
 		bool albumProjectPressure = useResponsiveMemory &&
 			IsAlbumProjectSharePressureHigh(annualFormatDecisions, annualAlbumProjectsScheduled);
 		bool albumCapacityReroute = false;
@@ -2602,6 +2627,18 @@ public partial class CompetitorManager : Node {
 			albumWins = false;
 			promoPreferred = false;
 			albumCapacityReroute = true;
+		}
+		// In single-led markets usually try the single programme before the LP.
+		// A regional/specialist single need not enter the national pop chart to
+		// establish that programme. Actual hits still inform the economic prior.
+		if (albumWins && AlbumReleasePractice.IsLive && AlbumReleasePractice.HitLedAlbums &&
+			AlbumReleasePractice.NeedsSingleAudience(artist.primaryGenre, year, hitInventory.resolvedSingles,
+				AlbumReleasePractice.Roll("lp-programme", label.labelId, artist.artistId, "", pipelineWeek))) {
+			albumWins = false; promoPreferred = false;
+			OnAlbumPracticeDecision?.Invoke(new AlbumPracticeTelemetry {
+				Year = year, Week = pipelineWeek, LabelId = label.labelId, ArtistId = artist.artistId,
+				Genre = artist.primaryGenre.ToString(), Route = "SingleBeforeAlbum", Reason = "establish-single-programme-first"
+			});
 		}
 		// Physical Album-component memory owns format eligibility. Standalone and
 		// promo component memories rank the strategies. Total-project memory observes
@@ -3034,6 +3071,7 @@ public partial class CompetitorManager : Node {
 		float baseCost = MarketSeasonality.Enabled
 			? label.GetProductionCost() * MarketSeasonality.GetRecordingCostMultiplier(date.year, date.month, liveTick: true)
 			: label.GetProductionCost();
+		if (AlbumReleasePractice.IsLive && !string.IsNullOrEmpty(record?.sourceAlbumRecordId)) return baseCost * .15f;
 		if (record?.format != ReleaseFormat.Album) return baseCost;
 		float multiplier = record.album?.albumFormat == AlbumFormat.Compilation
 			? compilationProductionMultiplier
@@ -3516,6 +3554,13 @@ public partial class CompetitorManager : Node {
 			(float hook, float production, float dance) = useStructuredPromoTracks
 				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
 				: (0f, 0f, 0f);
+			if (useStructuredPromoTracks && AlbumSessionProduction.Enabled) {
+				float sessionProduction = AlbumSessionProduction.ForTrack(production, label, artist, albumRecordId, attemptedSlot);
+				// Keep LP track appeal consistent with the recording-component delta, as material realization does below.
+				trackQuality = Mathf.Clamp(trackQuality + PolarSongTable.Current.N("recordingQualityProductionWeight")
+					* (sessionProduction - production), 0, 1);
+				production = sessionProduction;
+			}
 			var track = new AlbumTrack {
 				title = trackTitle,
 				genre = artist.primaryGenre,
@@ -3617,23 +3662,7 @@ public partial class CompetitorManager : Node {
 		if (PolarSongBehavior.UsePolarFitSelection && (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0)) return null;
 		if (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0) throw new System.InvalidOperationException("Promo project album has no eligible original track.");
 		bool useStructuredPromoTracks = PolarSongBehavior.UsePolarFitSelection || (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
-		int bestIndex = 0;
-		for (int i = 1; i < album.nonSingleTracks.Length; i++) {
-			if (PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyPromotion) {
-				float candidate = SongMaterialSelectionService.PromoSuitability(album.nonSingleTracks[i], artist, albumRecord.primaryGenre, year);
-				float current = SongMaterialSelectionService.PromoSuitability(album.nonSingleTracks[bestIndex], artist, albumRecord.primaryGenre, year);
-				if (candidate > current) bestIndex = i;
-			} else if (useStructuredPromoTracks) {
-				int selectionYear = albumRecord.releaseDate.year > 0 ? albumRecord.releaseDate.year : (TimeManager.Instance?.CurrentDate.year ?? 1960);
-				float candidate = GetLeadSingleSuitability(album.nonSingleTracks[i], albumRecord.primaryGenre, selectionYear);
-				float current = GetLeadSingleSuitability(album.nonSingleTracks[bestIndex], albumRecord.primaryGenre, selectionYear);
-				if (candidate > current || (Mathf.IsEqualApprox(candidate, current) && string.CompareOrdinal(album.nonSingleTracks[i].title, album.nonSingleTracks[bestIndex].title) < 0)) bestIndex = i;
-			} else if (album.nonSingleTracks[i].quality > album.nonSingleTracks[bestIndex].quality) {
-				// Preserve the frozen disabled branch exactly: max scalar quality wins,
-				// with the first occurrence retaining ties.
-				bestIndex = i;
-			}
-		}
+		int bestIndex = FindAlbumSingleTrackIndex(albumRecord, artist, year);
 		AlbumTrack source = album.nonSingleTracks[bestIndex];
 		(float hook, float production, float dance) = useStructuredPromoTracks
 			? GetTrackTraitsForPromo(source)

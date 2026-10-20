@@ -13,7 +13,7 @@ using System.Linq;
 //     --release-judgement-events, <run>-material-events.csv.
 public partial class ChartAuditRunner {
 	private sealed class ActYear {
-		public int Year, SignedWeeks, OrphanSingles, PromoSingles, StandaloneLps;
+		public int Year, SignedWeeks, OrphanSingles, PromoSingles, StandaloneLps, ExtractedSingles;
 		public string LabelId = "", Tier = "", CareerAtStart = "";
 		public int ChartedAtStart = -1, Top40AtStart = -1, Top10AtStart = -1;
 		public readonly HashSet<string> Hot100Records = new(StringComparer.Ordinal);
@@ -50,10 +50,13 @@ public partial class ChartAuditRunner {
 		ActYear act = ActYearFor(strategy.artistId, year);
 		if (strategy.strategy == ReleaseStrategy.AlbumStandalone) { act.StandaloneLps++; return; }
 		string id = strategy.strategy == ReleaseStrategy.AlbumWithPromo ? strategy.promoSingleId : strategy.recordId;
-		if (strategy.strategy == ReleaseStrategy.AlbumWithPromo) act.PromoSingles++; else act.OrphanSingles++;
+		if (strategy.strategy == ReleaseStrategy.AlbumWithPromo) act.PromoSingles++;
+		else if (strategy.strategy == ReleaseStrategy.AlbumExtraction) act.ExtractedSingles++;
+		else act.OrphanSingles++;
 		RecordRuntimeData runtime = string.IsNullOrEmpty(id) ? null : ChartManager.Instance?.GetRecordRuntimeData(id);
 		if (runtime?.baseRecord == null) return;
 		Record record = runtime.baseRecord;
+		CaptureGenreHookLaunch(strategy, record, year);
 		int gap = lastSingleAuditWeek.TryGetValue(strategy.artistId, out int last) ? currentAuditWeek - last : -1;
 		lastSingleAuditWeek[strategy.artistId] = currentAuditWeek;
 		launchQualityWriter.WriteLine(string.Join(",", new[] {
@@ -120,7 +123,7 @@ public partial class ChartAuditRunner {
 				actReleaseYearWriter.WriteLine(string.Join(",", new[] {
 					a.Year.ToString(CultureInfo.InvariantCulture), actYearWeeksObserved.ToString(CultureInfo.InvariantCulture), Csv(pair.Key),
 					Csv(a.LabelId), Csv(a.Tier), a.SignedWeeks.ToString(CultureInfo.InvariantCulture),
-					(a.OrphanSingles + a.PromoSingles).ToString(CultureInfo.InvariantCulture), a.OrphanSingles.ToString(CultureInfo.InvariantCulture),
+					(a.OrphanSingles + a.PromoSingles + a.ExtractedSingles).ToString(CultureInfo.InvariantCulture), a.OrphanSingles.ToString(CultureInfo.InvariantCulture),
 					a.PromoSingles.ToString(CultureInfo.InvariantCulture), a.StandaloneLps.ToString(CultureInfo.InvariantCulture),
 					(a.PromoSingles + a.StandaloneLps).ToString(CultureInfo.InvariantCulture), a.Hot100Records.Count.ToString(CultureInfo.InvariantCulture),
 					Csv(a.CareerAtStart), a.ChartedAtStart.ToString(CultureInfo.InvariantCulture), a.Top40AtStart.ToString(CultureInfo.InvariantCulture),
