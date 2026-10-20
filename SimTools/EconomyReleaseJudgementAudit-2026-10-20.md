@@ -408,3 +408,38 @@ the −0.15 on never-charted singles.
 **Open items.** `CompetitorManager.OnRecordChartUpdated` still credits label `top40Hits`/`numberOneHits` from raw
 album peaks (label success rate, not the artist ladder). `ArtistEvolutionService` and `AlbumLegitimacyService` read the
 raw album peak in the cultural reads. Neither was in scope.
+
+### 1963-65 window, two seeds (October 20, 2026)
+
+Each seed ran to a January 1963 world with the switch off (`asc-<seed>-1963`). That world was then resumed twice for 156
+weeks, off and on, so both arms start from the same act population. The on arm applies the rules from 1963 only.
+Seeds 1001 and 2002 use the canonical flags and full telemetry. The census is taken at the last week of each year;
+moves are summed over 1963-65. Cells are off / on.
+
+| Seed | Year | Rising | Established | Star | Superstar | Top 40 acts | Album chart acts |
+|---|---|---|---|---|---|---|---|
+| 1001 | 1963 | 159 / 176 | 99 / 102 | 21 / 22 | 9 / 8 | 226 / 222 | 324 / 345 |
+| 1001 | 1964 | 133 / 177 | 86 / 87 | 18 / 27 | 13 / 11 | 234 / 226 | 447 / 478 |
+| 1001 | 1965 | 132 / 184 | 70 / 84 | 21 / 28 | 14 / 13 | 224 / 238 | 475 / 470 |
+| 2002 | 1963 | 163 / 161 | 108 / 105 | 18 / 22 | 10 / 8 | 223 / 221 | 318 / 324 |
+| 2002 | 1964 | 148 / 178 | 100 / 96 | 18 / 23 | 11 / 8 | 234 / 229 | 512 / 507 |
+| 2002 | 1965 | 158 / 192 | 96 / 92 | 22 / 27 | 12 / 9 | 245 / 236 | 479 / 494 |
+
+| Seed | → Star | → Superstar | Star → Established | Superstar → Star |
+|---|---|---|---|---|
+| 1001 | 24 / 32 | 8 / 6 | 16 / 20 | 2 / 1 |
+| 2002 | 22 / 26 | 5 / 3 | 16 / 17 | 0 / 1 |
+
+Album runs in the off arm, flops (peak over 60) on singles thresholds against the album scale: 1964 is 281 vs 166 of 540
+(seed 1001) and 309 vs 186 of 571 (seed 2002). 1965 is 321 vs 204 and 308 vs 192.
+
+**Reading.** In 1963-65 the switch does what B1 asked, on both seeds. About 40% of charting LPs stop being scored as
+flops. Star rises from 21 to 28 and from 22 to 27 by the end of 1965. Promotions to Star rise (+8, +4) by more than
+Star demotions (+4, +1). The largest move is Rising, +52 and +34 by 1965: fewer flop streaks means fewer Rising acts
+fall to Declining. Superstar is slightly lower on both seeds (−1 and −3 at 1965; −2 and −2 promotions). That is a
+handful of acts, but the sign repeats. A candidate cause is B2's −0.15 on never-charted singles, which cuts the
+momentum of the acts that chain #1s. The pair cannot separate B1 from B2. Chart breadth does not move beyond noise
+(Top 40 acts +14 and −9 in 1965).
+
+Taken with the 1960-62 run: before August 1963 the switch removes free hits and lowers the ladder. After it, the
+switch removes size-driven flops and raises it. The decade A/B at audit end decides the net effect.
