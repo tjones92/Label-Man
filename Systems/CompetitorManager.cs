@@ -1721,8 +1721,7 @@ public partial class CompetitorManager : Node {
 		int age = Mathf.Max(0, runtimeData.weeksSinceRelease);
 		float expectedNet = runtimeData.releaseTimeExpectedNet;
 		float scale = Mathf.Max(1f, Mathf.Max(runtimeData.releaseTimeOpportunityScale, Mathf.Abs(expectedNet)));
-		float terminalAge = runtimeData.baseRecord.format == ReleaseFormat.Album ? 52f : 20f;
-		float maturity = finalized ? 1f : Mathf.Clamp((age + 1f) / terminalAge, .05f, 1f);
+		float maturity = finalized ? 1f : GetResponsiveMemoryMaturity(runtimeData.baseRecord.format == ReleaseFormat.Album, age);
 		float realizedToDate = runtimeData.lifetimeLabelNet - runtimeData.sunkProductionCost;
 		// Production is a one-time sunk cost. Annualize only the accumulating
 		// revenue, then subtract that cost once; dividing realized net by maturity
@@ -1757,6 +1756,12 @@ public partial class CompetitorManager : Node {
 			recencyWeight = 1f, replacedPriorRevision = replacedPriorRevision, finalized = observation.finalized
 		});
 	}
+
+	// Share of lifetime label net earned by this age: linear on the frozen route, the empirical
+	// front-loaded curve behind --format-memory-maturity-curve (audit A1; see FormatMemoryMaturityCurve).
+	internal static float GetResponsiveMemoryMaturity(bool album, int age) =>
+		FormatMemoryMaturityCurve.Enabled ? FormatMemoryMaturityCurve.Fraction(album, age)
+			: Mathf.Clamp((age + 1f) / (album ? 52f : 20f), .05f, 1f);
 
 	private static float EstimateResponsiveMemoryOutcome(float lifetimeLabelNet, float sunkProductionCost,
 		float maturity, bool finalized) {
@@ -1936,7 +1941,9 @@ public partial class CompetitorManager : Node {
 			maturity = finalized ? 1f : 0f;
 			return 0f;
 		}
-		maturity = Mathf.Clamp((runtime.weeksSinceRelease + 1f) / terminalAge, .05f, 1f);
+		maturity = FormatMemoryMaturityCurve.Enabled
+			? FormatMemoryMaturityCurve.Fraction(terminalAge >= 52f, runtime.weeksSinceRelease)
+			: Mathf.Clamp((runtime.weeksSinceRelease + 1f) / terminalAge, .05f, 1f);
 		float estimated = EstimateResponsiveMemoryOutcome(runtime.lifetimeLabelNet, runtime.sunkProductionCost, maturity, finalized: false);
 		return estimated - expectedNet;
 	}
