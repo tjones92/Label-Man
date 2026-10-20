@@ -183,23 +183,25 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	if (record?.baseRecord == null) return;
 	var artist = GetArtist(record.baseRecord.artistId);
 	if (artist == null) return;
+	// --album-scale-career-milestones: an album's peak on the album chart's own scale; the raw peak otherwise.
+	int peak = AlbumScaleCareerMilestones.ObserveCareerPeak(record);
 
-	if (record.peakPosition > 0 && !record.artistChartEntryCredited) {
+	if (peak > 0 && !record.artistChartEntryCredited) {
 		artist.RegisterChartEntry();
 		ArtistRecognitionService.OnChartEntry(artist);
 		record.artistChartEntryCredited = true;
 	}
-	if (record.peakPosition > 0 && record.peakPosition <= 40 && !record.artistTop40Credited) {
+	if (peak > 0 && peak <= 40 && !record.artistTop40Credited) {
 		artist.RegisterTop40Hit(CreditsCurrentContract(record, artist));
 		ArtistRecognitionService.OnTop40(artist);
 		record.artistTop40Credited = true;
 	}
-	if (record.peakPosition > 0 && record.peakPosition <= 10 && !record.artistTop10Credited) {
+	if (peak > 0 && peak <= 10 && !record.artistTop10Credited) {
 		artist.RegisterTop10Hit();
 		ArtistRecognitionService.OnTop10(artist);
 		record.artistTop10Credited = true;
 	}
-	if (record.peakPosition == 1 && !record.artistNumberOneCredited) {
+	if (peak == 1 && !record.artistNumberOneCredited) {
 		artist.RegisterNumberOne();
 		ArtistRecognitionService.OnNumberOne(artist);
 		record.artistNumberOneCredited = true;
@@ -246,8 +248,9 @@ public sealed class LaborMarketWeeklySnapshot {
 		if (artist == null) return;
 
 		if (record.artistChartRunCompleted) return;
-		artist.CompleteChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
-			CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
+		artist.CompleteChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+			CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
+			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
 		ArtistRecognitionService.OnChartRunComplete(artist, record);
 		record.artistChartRunCompleted = true;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)

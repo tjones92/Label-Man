@@ -1459,8 +1459,9 @@ public partial class RosterManager : Node {
 				TransitionDroppedArtist(creditedLabel, artist, year, ArtistDropReason.Performance);
 			return;
 		}
-		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
-			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
+		artist.UpdateAfterChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
+			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
 		RunCulturalReads(artist, record, label, year);

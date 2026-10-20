@@ -1081,6 +1081,7 @@ public partial class ChartAuditRunner : Node {
 		Directory.CreateDirectory(outputDirectory);
 		ArtistHeatAttribution.Open(Path.Combine(outputDirectory, runName));
 		OpenReleaseJudgementOutputs(outputDirectory);
+		OpenCareerLadderOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
@@ -2217,6 +2218,7 @@ public partial class ChartAuditRunner : Node {
 		// both feed the decade rollup, so they run in every mode -- calibration included.
 		WriteFormatMixRows(week, date.year, records);
 		CaptureRetirementCohortSnapshot(records);
+		CaptureCareerLadderWeek(week, date.year, chart, albumChart);
 
 		// Everything below is per-week diagnostic telemetry that walks all records/labels/rosters and
 		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
@@ -3888,6 +3890,7 @@ public partial class ChartAuditRunner : Node {
 	private void FlushAndClose() {
 		ArtistHeatAttribution.Close();
 		CloseReleaseJudgementOutputs();
+		CloseCareerLadderOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
 		ClosePolarFinalAudit();

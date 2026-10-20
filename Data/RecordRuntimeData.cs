@@ -21,6 +21,8 @@ public class RecordRuntimeData {
 	public int lastChartedAge = -1;
 	public int lastSalesAboveRetirementFloorAge = -1;
 	public int weeksInTopTen;
+	// --album-scale-career-milestones: the album run's best singles-equivalent position (0 = unset). Written only on.
+	public int albumCareerPeak;
 	public bool artistChartEntryCredited;
 	public bool artistTop40Credited;
 	public bool artistTop10Credited;
