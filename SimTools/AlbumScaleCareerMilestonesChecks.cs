@@ -106,6 +106,18 @@ public static class AlbumScaleCareerMilestonesChecks {
 			Check(lpMiss.momentum == 0.5f, "a never-charted album must cost no momentum");
 			Check(lpMiss.consecutiveFlops == 1, "a never-charted album is still a flop");
 
+			// The other readers (landmark recognition, critical acclaim, era tally, label credit) all take CareerPeak.
+			// A 1964 #120 of 150 LP read nothing commercial before (past #100); on its own scale it is #80.
+			var deepLp = Album(120);
+			Check(CulturalRecognitionService.GetCommercialRecognition(AlbumScaleCareerMilestones.CareerPeak(deepLp, 150)) > 0f,
+				"on, a #120 of 150 LP must earn commercial recognition");
+			Check(ArtistCriticalAcclaimService.GetCommercialScore(AlbumScaleCareerMilestones.CareerPeak(deepLp, 150)) > 0f,
+				"on, a #120 of 150 LP must earn a commercial acclaim score");
+			AlbumScaleCareerMilestones.SetForChecks(false);
+			Check(CulturalRecognitionService.GetCommercialRecognition(AlbumScaleCareerMilestones.CareerPeak(deepLp, 150)) == 0f,
+				"off, a #120 LP reads as uncharted, as before");
+			AlbumScaleCareerMilestones.SetForChecks(true);
+
 			GD.Print("ALBUM_SCALE_CAREER_MILESTONES_CHECK passed");
 		} finally {
 			AlbumScaleCareerMilestones.SetForChecks(was);

@@ -1483,7 +1483,7 @@ public partial class RosterManager : Node {
 		if (record.culturalRunCompleted) return;
 		record.culturalRunCompleted = true;
 		ArtistCriticalAcclaimService.OnChartRunComplete(artist, record, label);
-		ArtistEvolutionService.OnChartRunComplete(artist, record.peakPosition,
+		ArtistEvolutionService.OnChartRunComplete(artist, AlbumScaleCareerMilestones.CareerPeak(record),
 			record.baseRecord?.album?.albumFormat == AlbumFormat.Concept);
 		// Albums route through the landmark rule; singles route through the breakthrough-hit
 		// rule. Both end up in the same ledger, because an act can be moved by either.

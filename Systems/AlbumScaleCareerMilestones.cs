@@ -22,6 +22,13 @@ using Godot;
 /// still share one ladder: late-decade proven acts make 68-78% of their releases LPs, and a ladder that ignored
 /// albums would freeze them.</para>
 ///
+/// <para><b>Other readers.</b> The same career peak replaces the raw album peak in the label's hit credit
+/// (<see cref="CompetitorManager"/>: label Top 40s and #1s, which feed label health, lifecycle momentum, signing buzz
+/// and the player's contract outlook, and the charted-label set the consolidation gate reads); the landmark album
+/// recognition read (<see cref="AlbumLegitimacyService"/>); the critical acclaim commercial score
+/// (<see cref="ArtistCriticalAcclaimService"/>, which feeds that landmark read); and the evolution era tally
+/// (<see cref="ArtistEvolutionService"/>, discography text). Before, an LP past #100 counted as uncharted in all four.</para>
+///
 /// <para><b>Album #1.</b> An album #1 counts as a full #1 toward Star (one #1) and Superstar (four #1s). The album chart
 /// has exactly one #1 a week however deep it is, the same scarcity as the Hot 100's, and a #1 LP was a star-making
 /// event in the period (Belafonte, the Kingston Trio, the Beatles). What the conversion removes is the depth bias

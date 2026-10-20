@@ -443,3 +443,47 @@ momentum of the acts that chain #1s. The pair cannot separate B1 from B2. Chart 
 
 Taken with the 1960-62 run: before August 1963 the switch removes free hits and lowers the ladder. After it, the
 switch removes size-driven flops and raises it. The decade A/B at audit end decides the net effect.
+
+### The four raw-peak readers moved onto the album scale (October 20, 2026)
+
+Four more readers now take `AlbumScaleCareerMilestones.CareerPeak` when the switch is on. Before, each treated an
+LP past #100 as uncharted.
+
+- **Label hit credit** (`CompetitorManager.OnRecordChartUpdated`): label Top 40s and #1s, and the charted-label set
+  the consolidation gate reads. Label Top 40s feed the health score, label momentum (distribution-deal triggers and
+  signing buzz) and the player's contract outlook.
+- **Landmark recognition** (`AlbumLegitimacyService`): the commercial term of the landmark album read.
+- **Critical acclaim** (`ArtistCriticalAcclaimService`): the commercial score. Acclaim feeds the landmark read and
+  evolution pressure.
+- **Evolution era tally** (`ArtistEvolutionService`): discography text only.
+
+`CulturalMemoryService` is singles-only and was left alone. The check suite adds a #120-of-150 LP earning commercial
+recognition and acclaim on (0 off).
+
+**Off stays inert.** Resumes of the same 1963 worlds: 88 of 88 CSVs byte-identical to the earlier off arm on both
+seeds.
+
+**1963-65, same worlds, off / on (readers included).** Values are at the end of 1965 unless a range is given.
+
+| | Seed 1001 | Seed 2002 |
+|---|---|---|
+| Star | 21 / 27 | 22 / 23 |
+| Superstar | 14 / 15 | 12 / 8 |
+| Established | 70 / 93 | 96 / 105 |
+| Label tiers: MidTier / Major | 44 / 36, 8 / 9 | 43 / 32, 7 / 9 |
+| Promotions to Major, 1963-65 | 0 / 1 | 0 / 2 |
+| CR4 chart share, 1965 | .175 / .206 | .221 / .256 |
+| Major-family chart share, 1965 | .586 / .572 | .558 / .538 |
+| Ratified genre conversions | 88 / 74 | 63 / 57 |
+
+The career rows differ from the earlier on arm because the label and acclaim readers change label decisions, and the
+run diverges from there. On both seeds the readers add one or two MidTier → Major promotions, lower MidTier by 8 and
+11, and raise CR4 by about 3 points. Fewer genre conversions ratify (−14, −6). Star still rises on both seeds (+6, +1)
+but by less than without the readers on seed 2002. Superstar is mixed (+1, −4). The tier gates do not read the
+changed counts. The label credit reaches them through label momentum (distribution-deal triggers, signing buzz), so
+the tier shift is a downstream result, not a direct one.
+
+**Landmarks are unmeasured.** One seed-1001 pair with `--enable-album-legitimacy --enable-cultural-memory` published
+no landmark album in 1963-65 in either arm (legitimacy 0.0). Breakthrough-hit events were 253 off and 259 on. The
+recognition read is not the binding gate in this window. Earlier decade runs placed landmarks mostly in 1965-69 under
+the canonisation cap. Measuring this reader needs a decade run with those flags.
