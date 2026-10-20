@@ -82,6 +82,16 @@ distribution skim/income, artist royalty, net revenue, cash, and status. Use
 `--force-distribution-deal` for the dormant deal-routing assertion or
 `--disable-label-lifecycle` to isolate finance changes from lifecycle processing.
 
+With artist population lifecycle enabled, `--mid-tier-promotion-audit` adds
+`*-mid-tier-promotion-gates.csv`: every Independent's exact quarterly review,
+including unsuccessful reviews, before promotion resets its capability streak.
+It records charting, roster, operating months, reach, dependency, the streak,
+status, losses, profit and runway, together with the actual eligibility result.
+`analyze_mid_tier_promotions.py PREFIX ... --output SimLogs/REPORT.json` streams
+these rows, counts overlapping blockers, and checks that eligible decisions match
+the Independent-to-MidTier transitions. `--mid-tier-promotion-audit-check` through
+`SaveLoadRoundTripRunner.tscn` verifies observation before the streak reset.
+
 Scene Phase 4 recruitment is opt-in with `--enable-scene-recruitment`. It requires
 persistent scenes, artist population lifecycle and genre market; observe-only or
 explicit contradictory disable modes fail before scene configuration changes.

@@ -1,6 +1,6 @@
 # Economy and release-judgement audit
 
-**October 20, 2026 — report only.** Branch `media-atmosphere`, HEAD `a58b509`. No game code was changed and no new
+**October 20, 2026 — original report.** Branch `media-atmosphere`, HEAD `a58b509`. For that report, no game code was changed and no new
 simulation was run. The uncommitted edits to `Data/GenreCatalog.cs`, `Data/MarketRegion.cs` and the album-practice files
 belong to the parallel "1965-69 singles research and Jazz allocation" thread and were not reviewed.
 
@@ -8,6 +8,12 @@ The question: which ahistorical balancing and which defects in the economic code
 judgement and (2) an ecosystem in which celebrity can form? This complements
 [CelebrityEconomyAudit-2026-10-15.md](CelebrityEconomyAudit-2026-10-15.md). Its findings (opening careers, regional sync,
 media, the genre chart guard, the album tier multiplier, the two cash identities) are not repeated here.
+
+**Integration status.** A1 (`claude/zealous-moore-7e4d72`, through `a147251`) and B1/B2
+(`claude/album-scale-career-milestones`, through `ee324f0`, in the `eager-wiles-1cfa05` worktree) are now merged
+into `media-atmosphere` as `e8abf7e` and `41f6f02`. Both switches remain off by default. Their measurements and
+limitations are retained in the follow-ups below. A2 is still open. B1's missing-promotion mechanism is also open;
+the latest continuation adds exact quarterly gate evidence rather than changing a promotion or demotion threshold.
 
 ## Evidence
 
@@ -544,11 +550,10 @@ seeds.
 | Ratified genre conversions | 88 / 74 | 63 / 57 |
 
 The career rows differ from the earlier on arm because the label and acclaim readers change label decisions, and the
-run diverges from there. On both seeds the readers add one or two MidTier → Major promotions, lower MidTier by 8 and
-11, and raise CR4 by about 3 points. Fewer genre conversions ratify (−14, −6). Star still rises on both seeds (+6, +1)
-but by less than without the readers on seed 2002. Superstar is mixed (+1, −4). The tier gates do not read the
-changed counts. The label credit reaches them through label momentum (distribution-deal triggers, signing buzz), so
-the tier shift is a downstream result, not a direct one.
+run diverges from there. These are full-switch on/off differences, not isolated reader effects. In particular, the
+ladder-only arm already lowered MidTier to 36 and 35: attributing that drop to the added readers was incorrect.
+The later ablation below withdraws that attribution. Its near-zero perturbation also moves Star and Established
+by amounts comparable to the apparent gains here, so these two seeds do not establish a career-population benefit.
 
 **Landmarks are unmeasured.** One seed-1001 pair with `--enable-album-legitimacy --enable-cultural-memory` published
 no landmark album in 1963-65 in either arm (legitimacy 0.0). Breakthrough-hit events were 253 off and 259 on. The
@@ -597,3 +602,40 @@ headcount, including the redistribution that a random-stream divergence alone ca
 probably real (all six treated arms sit under the placebo) but carries one placebo draw per seed. The ladder counts
 carry the same caution: the placebo moves Star by −4 and Established by −5 and −15, about as much as the earlier
 reported Star gains. Those gains are not distinguishable from divergence at two seeds.
+
+### Continuation: exact quarterly promotion evidence (October 20, 2026)
+
+`--mid-tier-promotion-audit`, with artist population lifecycle enabled, now writes
+`<run>-mid-tier-promotion-gates.csv`. Every Independent review is recorded at the actual quarterly decision,
+including failed reviews. The row contains operating months, recent charting records, roster size, owned reach,
+distribution dependency, capability, the sustained-capability streak, status, consecutive loss months, last
+monthly profit, cash and overhead, together with the unchanged gate's actual eligibility result.
+
+The observation occurs after the quarterly capability-streak update and before promotion resets the streak or
+changes the tier, and before attribute drift and later daily activity. This matters because a week-end finance
+snapshot cannot establish the inputs the quarterly test saw. No gate, threshold or random draw changed.
+
+[analyze_mid_tier_promotions.py](analyze_mid_tier_promotions.py) streams those rows using the Python standard
+library. It reports first blockers and all overlapping failures, also isolating reviews with at least five
+charting records. It verifies reconstructed eligibility against the recorded decision and checks a one-to-one
+match with actual Independent-to-MidTier transitions. Floating-point fields are read back as C# float32.
+For example:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe" -I SimTools\analyze_mid_tier_promotions.py `
+  SimLogs\promotion-off-1001 SimLogs\promotion-b1-1001 --output SimLogs\promotion-gate-review.json
+```
+
+**Validation.** The merged solution builds with zero warnings and errors. A1's eight maturity checks and the
+album-scale, hit-cadence and senior-cooling suites pass. The new `--mid-tier-promotion-audit-check` through
+`SaveLoadRoundTripRunner.tscn` verifies both a blocked review and a successful promotion: the decision observer
+sees the four-quarter streak while the label is still Independent, and the transition observer sees it reset.
+Analyzer fixtures accept matched decisions and reject missing or unexplained promotions.
+
+**Run limits.** To leave memory for ordinary computer use, subsequent checks used a 256 MB managed heap. A 104-week early
+seed-1001 trace attempt was stopped by its free-memory guard during 1961. A separate attempt to load the archived
+1963 B1 world was stopped by the same guard before any resumed chart week. Both are incomplete attempts, excluded
+from outcome comparisons. Two planned 52-week smoke runs were not started after the available-RAM preflight
+reported 859 MB free. Logs and invocation manifests are under `SimLogs/audit-integration-20261020/`.
+The fixed checks validate the new trace, not the missing-promotion explanation. That still needs completed,
+matched off/B1 windows with the trace enabled; no new causal attribution or default adoption is made here.

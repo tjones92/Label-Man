@@ -1082,6 +1082,7 @@ public partial class ChartAuditRunner : Node {
 		ArtistHeatAttribution.Open(Path.Combine(outputDirectory, runName));
 		OpenReleaseJudgementOutputs(outputDirectory);
 		OpenCareerLadderOutputs(outputDirectory);
+		OpenLabelPromotionOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
@@ -3891,6 +3892,7 @@ public partial class ChartAuditRunner : Node {
 		ArtistHeatAttribution.Close();
 		CloseReleaseJudgementOutputs();
 		CloseCareerLadderOutputs();
+		CloseLabelPromotionOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
 		ClosePolarFinalAudit();

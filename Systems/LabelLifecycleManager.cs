@@ -184,6 +184,8 @@ public partial class LabelLifecycleManager : Node {
 	public event Action<AILabel> OnLabelFounded;
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelPromoted;
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelDemoted;
+	// Observers see the exact quarterly gate inputs before promotion resets the capability streak.
+	public event Action<AILabel, int, bool> OnMidTierPromotionEvaluated;
 	public event Action<OperatingRosterTargetEvent> OnOperatingRosterTargetChanged;
 	public event Action<RuntimeLabelProfileFactory.Result> OnRuntimeLabelProfileInitialized;
 	
@@ -644,9 +646,8 @@ public partial class LabelLifecycleManager : Node {
 				chartingLastYear >= BoutiquePivotMinimumRecentChartingRecords:
 				PromoteLabel(label, LabelTier.Independent);
 				return true;
-			case LabelTier.Independent when IsIndependentReadyForMidTier(label, chartingLastYear):
-				PromoteLabel(label, LabelTier.MidTier);
-				return true;
+			case LabelTier.Independent:
+				return TryPromoteIndependentLabel(label, chartingLastYear);
 			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold &&
 				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label) &&
 				!HeadScaleTemplates.HoldsMajorPromotion(label):
@@ -655,6 +656,14 @@ public partial class LabelLifecycleManager : Node {
 			default:
 				return false;
 		}
+	}
+
+	internal bool TryPromoteIndependentLabel(AILabel label, int chartingLastYear) {
+		bool readyForMidTier = IsIndependentReadyForMidTier(label, chartingLastYear);
+		OnMidTierPromotionEvaluated?.Invoke(label, chartingLastYear, readyForMidTier);
+		if (!readyForMidTier) return false;
+		PromoteLabel(label, LabelTier.MidTier);
+		return true;
 	}
 
 	// MidTier represents a large, proven independent rather than a capability-only
