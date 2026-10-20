@@ -13,16 +13,16 @@ media, the genre chart guard, the album tier multiplier, the two cash identities
 (`claude/album-scale-career-milestones`, through `ee324f0`, in the `eager-wiles-1cfa05` worktree) are now merged
 into `media-atmosphere` as `e8abf7e` and `41f6f02`. Both switches remain off by default. Their measurements and
 limitations are retained in the follow-ups below. A2 has an opt-in recalibrated prior (`87a9ed9`). A3 now has an
-opt-in career-banded memory experiment; its album-prior calibration and debut-LP economics remain open.
+opt-in career-banded memory experiment, a calibrated album prior and an inventory-based LP production-cost repair.
+A4 now has an opt-in all-in cost basis and pre-recording profit gate. These remain experiments, with
+short-run checks rather than a claim of decade balance acceptance.
 B1's seed-1001 missing-promotion investigation is now explained by exact quarterly gate tracing; see the completed replay below.
 
 **Resumed follow-up — missing MidTier promotions (user decision, October 20).** The user first deferred this
-investigation, then made it the next task before A3/A4. Resume the same archived
-1963 worlds in matched off/B1 arms with `--mid-tier-promotion-audit`, then run
-`analyze_mid_tier_promotions.py`. Inspect owned reach, dependency and the four-quarter capability streak at the
-actual decision. Preserve the placebo/noise caveat and the correction that the added readers did not cause the
-MidTier drop. Keep memory available for normal computer use; use at most two concurrent early-decade seeds and
-reduce concurrency when free memory is low. Do not substitute incomplete runs for completed matched evidence.
+investigation, then made it the next task before A3/A4 and made the machine available. The completed matched
+1963 replay below uses `--mid-tier-promotion-audit` and `analyze_mid_tier_promotions.py` to inspect the actual
+decision, including reach, dependency and the capability streak. The reader-blame correction and placebo
+caveat remain. Runs stayed serial on this machine; incomplete attempts are excluded from comparisons.
 
 ## Evidence
 
@@ -843,7 +843,200 @@ The runs were serial with a 192 MB managed-heap cap. Peak process working sets w
 observed free RAM was 960 MB. Run manifests, identity hashes, smoke summaries and observed-cohort reports are
 under `SimLogs/career-memory-a3-20261020/`.
 
-**Next audit work.** Finish A3's album-prior calibration using mature LP cohorts and assess the existing
+**Next work at that earlier checkpoint (superseded below).** Finish A3's album-prior calibration using mature LP cohorts and assess the existing
 hit-led album programme against unknown acts' LP advantage, before moving to A4's marketing and pass/wait
 economics. Use the mature archived outcomes before adding larger simulation windows. B1's missing-promotion
 cause stays on the deferred list; this memory experiment does not reopen or resolve it.
+
+## Follow-up: A3 album prior and debut-LP economics
+
+The user resumed B1 first, then requested this continuation and A4. The new switches are off by default:
+`--album-prior-recalibration` and `--album-master-costs`. Neither changes market demand, track quality,
+career thresholds or the existing album-practice policy. The calibration estimates the simulation's
+current returns; it does not establish historical demand for debut albums.
+
+### Career affinity, fitted separately from hit inventory and production
+
+[calibrate_album_prior.py](calibrate_album_prior.py) joins the archived decision, calibration and final
+outcome CSVs using the standard library. It fits four ordered, nonnegative career-affinity coefficients
+and one nonnegative existing-hit coefficient by least squares in dollars. The basis retains current
+quality, reach, genre/period exposure and dealer margin. Production remains an additive cost, so a
+career correction cannot multiply sunk cost or apply the dealer discount twice. The Superstar premium
+of 25% over Star is retained. Declining/fallback states are excluded from fitting and retain their
+existing fallback in the game.
+
+Training uses **all 22,702 LP launches through week 364** of `dec-awrw-on-1001-522`; every one has a final
+outcome. The earlier single-prior cutoff of 418 is unsuitable for LPs: 709 training LPs are still
+unfinalized there. All three holdout cohorts are complete at 364 too. Missing finals and duplicate
+final outcomes are rejected, rather than quietly excluded or replaced by zero. Input SHA-256 hashes,
+coverage, coefficients and evaluations are saved in `SimLogs/album-prior-a3-20261020/fit.json`.
+
+| Career | Old affinity | Fitted affinity |
+|---|---:|---:|
+| New/Unsigned | 1.000 | 1.107 |
+| Rising | 1.200 | 2.282 |
+| Established | 1.500 | 3.870 |
+| Star | 2.000 | 4.882 |
+| Superstar | 2.500 | 6.102 |
+
+The existing-hit coefficient is 1.062 times the old hit-unit term. These five coefficients do not
+alter the genre/period curve or impose a target LP share. On the independent reference seed 2002,
+mean lifetime net against old/new predicted net, before marketing and before the separate cost repair:
+
+| Career | n | Realized mean | Old prior mean | New prior mean |
+|---|---:|---:|---:|---:|
+| New/Unsigned | 18,966 | $25,560 | $18,694 | $20,927 |
+| Rising | 1,012 | $58,695 | $31,814 | $56,079 |
+| Established | 476 | $118,294 | $48,191 | $114,379 |
+| Star/Superstar | 217 | $183,882 | $82,337 | $178,387 |
+
+Mean bias improves in every band on this seed. Mean absolute error improves for Established and Star,
+but slightly worsens for New and Rising. The alternate album-practice seeds also retain cohort bias;
+the 1966 cohort is overpredicted in several arms. This is a limited correction to the career prior,
+not an unbiased universal LP forecast. Quality curvature, period exposure and policy selection remain
+possible sources of error. Sparse upper-career cells and incomplete late cohorts rule out a claim of
+late-decade validation.
+
+Reproduce with:
+
+```powershell
+python SimTools/calibrate_album_prior.py SimLogs/dec-awrw-on-1001-522 `
+  --holdout SimLogs/dec-awrw-on-2002-522 `
+  --holdout SimLogs/dec-lpa4-youth-1001-522 --holdout SimLogs/dec-lpa4-youth-2002-522 `
+  --output SimLogs/album-prior-a3-20261020/fit.json
+```
+
+### A concrete cost defect behind the debut advantage
+
+`GenerateAlbum` can draw Compilation without any reusable singles, fill all 9–13 slots with new
+recordings, and still charge the compilation production multiplier of **0.6 single sessions** instead
+of the ordinary LP's **2.4**. The prior grants the same discount on the genre's compilation probability,
+regardless of available masters. A new act can therefore receive an inventory discount without inventory.
+
+`--album-master-costs` ties that discount to the actual reused single slots, up to the existing four-slot
+limit. Zero reuse pays 2.4, two slots pay 1.5, and four retain 0.6. The prior uses the same inventory basis,
+weighted by its compilation probability; booking uses the generated LP's references. Packaging remains
+separate. The four-master endpoint and linear interpolation are retained modelling assumptions, not a
+new historical tariff. Format/material/quality draws are unchanged directly; funding and subsequent
+simulation paths can of course change.
+
+The mature data distinguish LP markets. **No resolved single is an inventory proxy, not proof of a
+literal first LP or an unknown public discography.** Across all New/Unsigned LPs with no resolved
+single, reference mean net is $27,148/$28,409. Adult/specialist LP programmes dominate those totals.
+For the youth-oriented subset, the picture is closer to a marginal debut proposition:
+
+| Seed/policy | n | Mean net before repair | Fixed-sales extra cost | Loss share before / after cost |
+|---|---:|---:|---:|---:|
+| Reference 1001 | 565 | $7,319 | $1,506 | 13.6% / 20.9% |
+| Reference 2002 | 510 | $6,534 | $1,362 | 10.2% / 14.7% |
+| Album-practice 1001 | 93 | $6,197 | $1,320 | 9.7% / 15.1% |
+| Album-practice 2002 | 82 | $7,520 | $1,173 | 13.4% / 18.3% |
+
+This is a **fixed-sales cost sensitivity**, excluding marketing, not an A/B outcome or a historical
+loss-rate target. The production repair alone does not make all debut LPs marginal. It does establish
+that pooling Classical/adult/specialist and youth LPs concealed meaningful commercial risk. Do not
+deduce a blanket debut demand penalty from the pooled mean.
+
+The existing `--album-release-practice` candidate already separates single-led LP origination from
+specialist album programmes and permits response-led extraction. Its first-single test uses reusable
+masters; seeded public discographies without masters remain a limitation. This continuation retains
+that candidate boundary rather than adding another overlapping genre gate or treating its declared
+commissioning probabilities as measured historical rates.
+
+## Follow-up: A4 all-in release economics and waiting
+
+`--release-all-in-economics`, off by default, implements a common cost basis for the live genre-market
+release fork and its subsequent memory. It requires dealer pricing.
+
+- Forecasts subtract the planned campaign budget on the same perceived-quality scale used at launch.
+  LP-with-promo projects include both campaigns. Production is still subtracted once. Actual budgets
+  can differ through scouting noise, realized material and cash clamping.
+- Actual campaign spending is attributed separately as nullable `sunkMarketingCost`. The existing cash
+  charge is untouched: this is not another payment, and it does not add marketing to the artist's
+  recoupable production advance. Final and provisional outcomes subtract production, pressing and
+  attributed marketing once, annualizing receipts rather than sunk costs.
+- New recording commitments require positive finite forecast profit before recording/material creation.
+  LPs must also pass their physical standalone proposition. Portfolio credits are removed from the
+  profit test. Passing restores the provisional genre-supply slot and consumes no cash, master, release
+  cooldown, contract release or project. Catalogue extraction retains its existing incremental-profit
+  test and is considered before rejecting a more expensive new single.
+- Promo units use the booked-price/pressing/composition margin instead of the hardcoded $0.40. Where
+  album-practice already subtracts a campaign, it is not subtracted again. The independent promo forecast
+  and synthetic synergy issue remain A5, not evidence validated by this accounting change.
+- Responsive memory separates all-in observations from old observations with unknown campaign cost;
+  it does not infer zero spend for old releases. Career and cost-basis cache entries remain separate.
+  Known costs and delayed-project accounting context survive a later switch-off.
+
+Optional telemetry, also in calibration runs, records every new-production profit decision, attributed
+campaign cost and final all-in outcome in `-release-profit-gates.csv`, `-release-campaign-costs.csv` and
+`-release-all-in-outcomes.csv`. [analyze_release_economics.py](analyze_release_economics.py) independently
+checks recorded gate decisions, launch/final campaign matching and the net-cost identity. Existing
+output schemas remain unchanged; `realizedNet` has the all-in meaning only for attributed releases.
+The profit-gate CSV's `commit` field means approval at that gate; material and funding checks can still
+prevent an approved proposal from launching. Release-strategy rows measure actual funded commitments.
+Its coverage check also requires campaign attribution for every funded direct single. That caught a
+week-one gap in the initial implementation: the first competitor release tick precedes the first chart
+tick. All three new audit switches now recognize the active competitor tick as well as an established
+chart clock, while prewarm remains frozen. This clock check is independent of enabling album-practice.
+
+Save reader v25 retains the optional runtime cost, project marker and memory cost basis, including the
+player-record DTO. Worlds without this state preserve the previous writing version and omit nullable
+fields. Retained state still requires v25 after disabling the switch, preventing an older reader from
+silently discarding costs.
+
+**Validation and remaining acceptance.** The solution builds with zero warnings/errors. Native LP
+checks cover the off/non-live career seam, ordered affinity, Superstar premium and empty/partial/full
+inventory costs. The two regression-fit tests recover separately identified affinity/hit coefficients
+and reject unsupported fits. A4's 13 native checks include JSON/DTO preservation, version retention,
+cost-basis cache isolation and an actual loss-making release attempt that leaves cash/material/releases
+untouched. A3's 11 existing memory checks also pass. Run evidence follows below.
+
+### Completed short comparisons
+
+`verified-{off,a3,a4}-{1001,2002}-26` all completed 26 weeks on the same final assembly
+`DB4C0F527B47C52026141D4FD59BD353936A400B8CE9BD92A1E8361D19EC4B14`.
+Every arm has A1, A2 and career-banded memory on; B1/B2 remain off to isolate this continuation.
+`off` disables the three new switches; `a3` adds album-prior recalibration and master costs; `a4`
+also adds all-in economics. All **85 non-timing CSVs** from each off arm are byte-identical to its
+previous `a3-on-<seed>-26` baseline. The week-one fix is included in these final runs.
+
+| Measure (off / A3 / A3+A4) | Seed 1001 | Seed 2002 |
+|---|---:|---:|
+| Funded orphan singles | 1,528 / 1,590 / 1,554 | 1,424 / 1,414 / 1,413 |
+| LP projects scheduled / advance singles | 1,109 / 1,045 / 1,111 | 998 / 985 / 1,004 |
+| LP share of funded format decisions | 42.1% / 39.7% / 41.7% | 41.2% / 41.1% / 41.5% |
+| Distinct Hot 100 acts | 366 / 366 / 375 | 336 / 348 / 342 |
+| Distinct Top 40 acts | 132 / 129 / 133 | 124 / 119 / 117 |
+| Distinct album-chart acts | 103 / 103 / 100 | 98 / 101 / 98 |
+
+The A4 gate reviews 2,743/2,471 opportunities and waits on five/six negative orphan-single forecasts.
+All 1,554/1,413 funded direct singles have an attributed campaign, including week one. All observed
+approval decisions and final cost identities match independently. Among the small, early-retiring
+single cohorts, marketing changes losses from 29 to 39 of 222 finals and 20 to 23 of 221 finals.
+There are no mature LP finals here; these counts cannot validate lifetime LP loss rates, historical
+career ordering, or long-run celebrity formation. No target band or promotion threshold was relaxed.
+
+The six final runs were serial with a 256 MB managed heap; peak working sets were 408–425 MB and
+minimum available RAM 799 MB. Manifests, completion markers, summaries, byte hashes and accounting
+reports are under `SimLogs/a3a4-20261020/`, with the accepted final run prefix `verified-`.
+Earlier developmental runs are retained but are not the final comparison.
+
+The additional `verified-practice-a4-1001-26` compatibility run completes on the same build with
+`--album-release-practice`: 986 standalone LPs, 16 advance campaigns, 2,157 orphan singles and 13
+later LP extractions. It waits on 21 negative new-single forecasts; all 2,170 funded direct singles
+(including the extractions) have matching campaign attribution. Gate and outcome checks pass. This
+exercises the separate programme and shared-master paths; one short seed is not adoption evidence
+for that historical-practice candidate.
+
+**Save-test limit.** On the preceding build (same optional state schema, before the week-one clock fix),
+a two-week world with every audit switch enabled captured, serialized, rehydrated and serialized back
+to an identical **191,087,893-character JSON snapshot**. The separate gzip/file-IO step did not complete: the
+test, while retaining both large snapshots, exhausted its 1,536 MB heap and exited 2. A 512 MB attempt
+had already failed earlier in snapshot serialization. Neither is reported as a complete save-IO pass.
+The larger probe briefly reduced available RAM to 15 MB, so it was not repeated. Focused optional-field,
+DTO and v25 retention checks pass on the final build. Full compressed-save verification remains
+memory-limited; the production compression path was not changed by this work.
+
+This completes the concrete A3/A4 repairs for review, not decade balance acceptance. LP lifetime loss
+rates need mature all-in outcomes; generic demand realism, sparse/policy-dependent prior error and A5's
+unvalidated project synergy remain open. A5 is the next audit item.

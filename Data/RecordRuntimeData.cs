@@ -73,6 +73,12 @@ public class RecordRuntimeData {
 	public float radioPanelShare = 1f;
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
+	// Only attributed for new A4 releases. Cash is charged by the existing launch path;
+	// this field makes the SAME charge visible to outcome memory without charging again.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? sunkMarketingCost;
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float SunkReleaseCost => sunkProductionCost + (sunkMarketingCost ?? 0f);
 	// LabelPressingEconomics pressing book: copies pressed and copies booked sold. Pressed minus sold at
 	// retirement is the unsold stock the label paid for. Untouched while the switch is off.
 	public bool pressingBookOpened;

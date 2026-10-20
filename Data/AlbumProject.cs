@@ -33,6 +33,8 @@ public sealed class AlbumProject {
 	public float promoProductionCost;
 	public PromotionSnapshot albumPromotionSnapshot;
 	public float albumMarketingBudgetPlanned;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public bool? allInEconomics;
 	public float? heldPromoOutcome;
 	public float? heldAlbumOutcome;
 	public ProjectOutcomeState promoOutcomeState;

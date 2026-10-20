@@ -854,6 +854,8 @@ public sealed class FormatRevenueMemory {
 }
 
 public sealed class FormatMemoryObservation {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public bool? allInEconomics;
 	// Optional ex-ante band for --career-banded-format-memory. Null preserves the frozen save schema and
 	// means unknown in older saves; never infer a retired release's band from its artist's current career.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

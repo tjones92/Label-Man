@@ -33,20 +33,21 @@ public partial class CompetitorManager {
 		float headroom = 1f - ProjectLaunchAwareness(label, artist, campaign);
 		// Forecast the actual capped launch-awareness mechanism on the LP's scale.
 		// No free $10k or additional unobserved recruitment credit.
-		float lpContribution = Mathf.Max(0f, plan.priorAlbumNet + plan.albumProductionCost);
+		float lpContribution = Mathf.Max(0f, plan.priorAlbumNet + plan.albumProductionCost + plan.expectedMarketingBudget);
 		float lift = promoAwarenessBonusMax * peakScore * headroom * lpContribution;
 		// The realized AlbumSimulator diverts a bounded FRACTION OF LP DEMAND.
 		// It does not divert single-units * LP-margin. Forecast the same exposure.
 		float cannibalization = lpContribution * cannibalizationStrength * plan.substitutionPropensity * plan.expectedOverlapFraction * peakScore;
 		float delay = .10f * (albumDropGapWeeksMin + albumDropGapWeeksMax) * .5f / 52f * Mathf.Max(0f, plan.projectedAlbumStandaloneNet);
 		float opportunity = AlbumReleasePractice.SeparateSinglesCalendar
-			? AlbumReleasePractice.SinglesProgrammeProbability(album.primaryGenre, date.year) * Mathf.Max(0f, plan.projectedOrphanSingleNet - campaign) : 0f;
+			? AlbumReleasePractice.SinglesProgrammeProbability(album.primaryGenre, date.year) * Mathf.Max(0f,
+				plan.projectedOrphanSingleNet - (ReleaseAllInEconomics.IsLive ? 0f : campaign)) : 0f;
 		float net = AlbumReleasePractice.IncrementalContribution(contribution, preparation, campaign, lift, cannibalization, delay, opportunity);
 		string reason = !AlbumReleasePractice.CanAdvance(album.primaryGenre, album.album.albumFormat, date.year) ? "format-or-market" :
 			track == null ? "no-unissued-master" : roll >= probability ? "no-advance-commission" : net <= 0f ? "incremental-economics" : "advance-approved";
 		bool approved = reason == "advance-approved";
 		plan.strategy = approved ? ReleaseStrategy.AlbumWithPromo : ReleaseStrategy.AlbumStandalone;
-		plan.expectedPromoSingleNet = contribution - preparation;
+		plan.expectedPromoSingleNet = contribution - preparation - (ReleaseAllInEconomics.IsLive ? campaign : 0f);
 		plan.expectedPromoLift = lift;
 		plan.cannibalizationLoss = plan.cannibalizationCharged = cannibalization;
 		plan.promoAdvantage = net;
@@ -113,7 +114,7 @@ public partial class CompetitorManager {
 			single.sourceAlbumRecordId = album.recordId;
 			album.album.postAlbumSingleIds = (album.album.postAlbumSingleIds ?? Array.Empty<string>()).Append(single.recordId).ToArray();
 			plan.strategy = ReleaseStrategy.AlbumExtraction;
-			plan.priorSingleNet = contribution - preparation;
+			plan.priorSingleNet = contribution - preparation - (ReleaseAllInEconomics.IsLive ? campaign : 0f);
 			plan.projectedSingleNet = plan.projectedOrphanSingleNet = plan.priorSingleNet;
 			plan.singleProductionCost = preparation;
 			OnAlbumPracticeDecision?.Invoke(new AlbumPracticeTelemetry {

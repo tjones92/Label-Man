@@ -399,6 +399,9 @@ public partial class ChartManager : Node {
 		FormatMemoryMaturityCurve.Configure(OS.GetCmdlineUserArgs());
 		SinglePriorRecalibration.Configure(OS.GetCmdlineUserArgs());
 		CareerBandedFormatMemory.Configure(OS.GetCmdlineUserArgs());
+		AlbumPriorRecalibration.Configure(OS.GetCmdlineUserArgs());
+		AlbumMasterCosts.Configure(OS.GetCmdlineUserArgs());
+		ReleaseAllInEconomics.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();

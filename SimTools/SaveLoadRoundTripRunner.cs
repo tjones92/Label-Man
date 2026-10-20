@@ -56,6 +56,8 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--mid-tier-promotion-audit-check")) { MidTierPromotionAuditChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--single-prior-recalibration-check")) { SinglePriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--career-banded-format-memory-check")) { CareerBandedFormatMemoryChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--album-prior-recalibration-check")) { AlbumPriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--release-economics-check")) { ReleaseEconomicsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--known-act-airplay-check")) { KnownActAirplayChecks.Run(); GetTree().Quit(0); return; }
 
 			if (OS.GetCmdlineUserArgs().Contains("--scouting-business-check")) { ScoutingBusinessChecks.Run(); GetTree().Quit(0); return; }

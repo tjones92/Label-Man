@@ -1084,6 +1084,7 @@ public partial class ChartAuditRunner : Node {
 		OpenCareerLadderOutputs(outputDirectory);
 		OpenLabelPromotionOutputs(outputDirectory);
 		OpenCareerMemoryOutputs(outputDirectory);
+		OpenReleaseEconomicsOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
@@ -1847,7 +1848,8 @@ public partial class ChartAuditRunner : Node {
 		}));
 		EnsureDecadeAnnualYear(year);
 		bool careerTransitionThisYear = ObserveCareerTransition(strategy.artistId, strategy.careerState, year);
-		float statureMultiplier = GetStatureMultiplier(strategy.careerState);
+		float statureMultiplier = CompetitorManager.GetAlbumPriorCareerMultiplier(strategy.careerState,
+			ChartManager.Instance.IsGenreMarketV2Live || AlbumPriorRecalibration.IsLive);
 		float albumDemandFactor = CompetitorManager.CalculateAlbumDemandFactor(strategy.genre, year);
 		string hitInventoryCohort = HasSingleReleasedBeforeYear(strategy.artistId, year) ? "carryover" : "newEntrant";
 		releaseStrategyWriter.WriteLine(string.Join(",", new[] {
@@ -1948,14 +1950,6 @@ public partial class ChartAuditRunner : Node {
 		return observedCareerTransitionYear.TryGetValue(artistId, out int transitionYear) && transitionYear == year;
 	}
 
-	private static float GetStatureMultiplier(CareerState careerState) => careerState switch {
-		CareerState.Superstar => 2.5f,
-		CareerState.Star => 2.0f,
-		CareerState.Established => 1.5f,
-		CareerState.Rising => 1.2f,
-		_ => 1.0f
-	};
-
 	private static bool HasSingleReleasedBeforeYear(string artistId, int year) {
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(artistId);
 		if (artist?.releasedSingleIds == null || ChartManager.Instance == null) return false;
@@ -2017,7 +2011,7 @@ public partial class ChartAuditRunner : Node {
 				currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 				Csv(record.baseRecord.recordId), Csv(record.baseRecord.labelId), Csv(record.baseRecord.artistId),
 				Csv(record.baseRecord.format.ToString()), record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
-				F(record.lifetimeLabelNet), F(record.sunkProductionCost), F(record.lifetimeLabelNet - record.sunkProductionCost),
+				F(record.lifetimeLabelNet), F(record.sunkProductionCost), F(record.lifetimeLabelNet - record.SunkReleaseCost),
 				record.currentPosition.ToString(CultureInfo.InvariantCulture), record.totalUnitsSold.ToString(CultureInfo.InvariantCulture)
 			}));
 		}
@@ -3896,6 +3890,7 @@ public partial class ChartAuditRunner : Node {
 		CloseCareerLadderOutputs();
 		CloseLabelPromotionOutputs();
 		CloseCareerMemoryOutputs();
+		CloseReleaseEconomicsOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
 		ClosePolarFinalAudit();

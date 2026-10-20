@@ -141,7 +141,7 @@ public partial class ReleaseJudgementChecks : Node {
 		var world = new WorldSaveData();
 		AiRepertoireService.CaptureWorld(world);
 		string saved = JsonSerializer.Serialize(world, Json);
-		Check(SaveGameService.WritingVersion == (CareerBandedFormatMemory.HasState ? 24 : 23),
+		Check(SaveGameService.WritingVersion == (ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : 23),
 			"a world carrying the shadow writes its required save version, including banded memory when active");
 		Run(31, 15);
 		string uninterrupted = StateJson();
