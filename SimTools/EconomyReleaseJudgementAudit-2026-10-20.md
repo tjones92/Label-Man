@@ -487,3 +487,46 @@ the tier shift is a downstream result, not a direct one.
 no landmark album in 1963-65 in either arm (legitimacy 0.0). Breakthrough-hit events were 253 off and 259 on. The
 recognition read is not the binding gate in this window. Earlier decade runs placed landmarks mostly in 1965-69 under
 the canonisation cap. Measuring this reader needs a decade run with those flags.
+
+### What lowers the MidTier count (October 20, 2026)
+
+Same 1963 worlds, 156 weeks, two seeds. A diagnostic sub-switch, `--album-scale-career-milestones-part=b1|b2|placebo`
+(main switch required), runs one half of the change. The placebo runs the B2 code path at −0.001 instead of −0.15:
+the run diverges the same way, but the change is too small to matter.
+
+| End of 1965 (seed 1001 / 2002) | off | placebo | B1 only | B2 only | both |
+|---|---|---|---|---|---|
+| MidTier labels | 44 / 43 | 41 / 39 | 31 / 31 | 35 / 37 | 36 / 32 |
+| Promoted into MidTier | 33 / 32 | 29 / 29 | 18 / 26 | 30 / 28 | 29 / 31 |
+| Demoted, started 1963 as MidTier | 11 / 9 | 12 / 9 | 10 / 11 | 8 / 8 | 9 / 10 |
+| Demoted, joined during the window | 5 / 4 | 3 / 5 | 4 / 7 | 13 / 7 | 10 / 11 |
+| Star | 21 / 22 | 17 / 22 | 20 / 21 | 14 / 24 | 27 / 23 |
+| Established | 70 / 96 | 65 / 81 | 98 / 102 | 69 / 71 | 93 / 105 |
+
+**Findings.**
+
+1. **Not the readers.** The ladder-only arm (before the label/landmark/acclaim/era readers) already ended at 36 and 35
+   MidTier labels. The earlier attribution of the tier shift to the label-credit reader is withdrawn.
+2. **About a third is divergence noise.** The placebo alone drops MidTier by 3-4. Both halves still sit 4-10 below the
+   placebo on both seeds. B1 alone is −10 and −8, B2 alone −6 and −2.
+3. **Every MidTier demotion, in every arm, is the charting exit** (under 4 charting records in 52 weeks, two quarters
+   running). None is capability or losses. The demotion count includes LPs.
+4. **The labels lost are recent joiners, not the established MidTier.** Demotions among labels that were MidTier in
+   January 1963 do not move (8-12 in every arm). That fixed cohort charts about the same singles and more LPs with
+   the switch on (+33 and +19 LPs). The extra demotions are Independents promoted during the window and demoted again
+   39-78 weeks later. They enter at 4-6 charting records against a promotion bar of 5 (4 + 1 on the dependent route)
+   and an exit below 4. In the ladder-only arm, the joiners demoted only with the switch on charted as many singles
+   as they did in off (86 vs 87, 81 vs 84) but fewer LPs (50 vs 62, 45 vs 66). That is the record that drops them.
+5. **B2's route is joiner demotion** (13 vs 3 placebo on seed 1001; 7 vs 5 on seed 2002). **B1's route is not
+   consistent**: fewer promotions in on seed 1001 (18 vs 29), more demotions on seed 2002 (18 vs 14). For B1 on seed
+   1001, the promotion gate's charting, cash, profit, runway, status and capability conditions all pass as often as
+   off (88 vs 90 qualifying label-quarters), and Independent rosters are the same size. The binding condition behind
+   the 18 promotions is not found in the logged fields. Owned reach, dependency and the four-quarter capability streak
+   are not logged per label.
+
+**Reading.** MidTier is a thin band between a promote-at-5 and an exit-under-4 charting bar, and its new members
+regress to their base rate within a year. Small redistributions of chart entries between labels change its
+headcount, including the redistribution that a random-stream divergence alone causes. The switch's own effect is
+probably real (all six treated arms sit under the placebo) but carries one placebo draw per seed. The ladder counts
+carry the same caution: the placebo moves Star by −4 and Established by −5 and −15, about as much as the earlier
+reported Star gains. Those gains are not distinguishable from divergence at two seeds.

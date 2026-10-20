@@ -45,19 +45,38 @@ using Godot;
 /// </summary>
 public static class AlbumScaleCareerMilestones {
 	public const string Switch = "--album-scale-career-milestones";
+	/// <summary>Diagnostic ablation: <c>=b1</c> runs only the album scale, <c>=b2</c> only the never-charted penalty,
+	/// <c>=placebo</c> only a never-charted penalty of <see cref="PlaceboPenalty"/> (the same code path at a size that
+	/// cannot matter: it measures how far the run moves on divergence alone). Requires the main switch; without it
+	/// both halves run.</summary>
+	public const string PartPrefix = "--album-scale-career-milestones-part=";
 	public const float NeverChartedSinglePenalty = -0.15f;
+	public const float PlaceboPenalty = -0.001f;
+	private static float neverChartedPenaltySize = NeverChartedSinglePenalty;
+	public static float NeverChartedPenaltySize => neverChartedPenaltySize;
 
 	private static bool configured;
 	private static bool enabled;
+	private static bool albumScale;
+	private static bool neverChartedPenalty;
 	public static bool Enabled => enabled;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		string[] args = (arguments ?? Array.Empty<string>()).ToArray();
+		bool on = args.Contains(Switch);
+		string part = args.FirstOrDefault(a => a.StartsWith(PartPrefix, StringComparison.Ordinal))?.Substring(PartPrefix.Length);
+		if (part != null && !on) throw new ArgumentException(PartPrefix + " requires " + Switch + ".");
+		if (part != null && part != "b1" && part != "b2" && part != "placebo")
+			throw new ArgumentException(PartPrefix + " takes b1, b2 or placebo.");
+		Set(on, on && part is null or "b1", on && part != "b1");
+		neverChartedPenaltySize = part == "placebo" ? PlaceboPenalty : NeverChartedSinglePenalty;
 		configured = true;
 	}
 
-	internal static void SetForChecks(bool on) { configured = true; enabled = on; }
+	private static void Set(bool on, bool scale, bool penalty) { enabled = on; albumScale = scale; neverChartedPenalty = penalty; }
+
+	internal static void SetForChecks(bool on) { configured = true; Set(on, on, on); neverChartedPenaltySize = NeverChartedSinglePenalty; }
 
 	/// <summary>
 	/// The singles-chart equivalent of an album chart position: its percentile of the chart's size, on a 100-slot
@@ -86,7 +105,7 @@ public static class AlbumScaleCareerMilestones {
 	public static int ObserveCareerPeak(RecordRuntimeData record) => ObserveCareerPeak(record, CurrentAlbumChartSize());
 
 	internal static int ObserveCareerPeak(RecordRuntimeData record, int albumChartSize) {
-		if (!enabled || !IsAlbum(record)) return record?.peakPosition ?? 0;
+		if (!albumScale || !IsAlbum(record)) return record?.peakPosition ?? 0;
 		// The prewarm replay fires once per record after it may have left the chart; its peak is the best it saw.
 		int position = record.currentPosition > 0 ? record.currentPosition : record.peakPosition;
 		int scaled = SinglesEquivalent(position, albumChartSize);
@@ -99,7 +118,7 @@ public static class AlbumScaleCareerMilestones {
 
 	internal static int CareerPeak(RecordRuntimeData record, int albumChartSize) {
 		if (record == null) return 0;
-		if (!enabled || !IsAlbum(record)) return record.peakPosition;
+		if (!albumScale || !IsAlbum(record)) return record.peakPosition;
 		if (record.albumCareerPeak > 0) return record.albumCareerPeak;
 		// Charted but never observed (a save from before the switch): score the raw peak on today's chart.
 		return SinglesEquivalent(record.peakPosition, albumChartSize);
@@ -107,5 +126,5 @@ public static class AlbumScaleCareerMilestones {
 
 	/// <summary>True when a never-charted run should take the worst momentum bucket: on, and a single.</summary>
 	public static bool PenalizesNeverCharted(RecordRuntimeData record) =>
-		enabled && record?.baseRecord != null && record.baseRecord.format == ReleaseFormat.Single;
+		neverChartedPenalty && record?.baseRecord != null && record.baseRecord.format == ReleaseFormat.Single;
 }

@@ -345,7 +345,7 @@ public class SimulatedArtist {
 			float penalty = peakPosition <= 60 ? -0.05f : peakPosition <= 100 ? -0.10f : -0.15f;
 			momentum = Mathf.Clamp(momentum + penalty, 0f, 1f);
 		} else if (peakPosition == 0 && penalizeNeverCharted) {
-			momentum = Mathf.Clamp(momentum + AlbumScaleCareerMilestones.NeverChartedSinglePenalty, 0f, 1f);
+			momentum = Mathf.Clamp(momentum + AlbumScaleCareerMilestones.NeverChartedPenaltySize, 0f, 1f);
 		}
 		reputation = Mathf.Clamp(reputation - 0.005f, 0f, 1f);
 		UpdateCareerState();
