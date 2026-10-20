@@ -17,7 +17,10 @@ public class RegionalRecordData {
 	// Awareness & Sentiment
 	public float awareness;      // 0-1: How many people in this region know about the song
 	public float sentiment;      // -1 to 1: How much they like it
-	
+	// A5: a linked LP's regional awareness without the promo's launch bonus (null otherwise).
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? promoShadowAwareness;
+
 	// Media Presence
 	public float radioPlay;      // 0-1: Current radio airplay level (the final combined value the
 	                             // pipeline consumes; produced by StationNetwork aggregation)

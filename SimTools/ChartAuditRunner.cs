@@ -1085,6 +1085,7 @@ public partial class ChartAuditRunner : Node {
 		OpenLabelPromotionOutputs(outputDirectory);
 		OpenCareerMemoryOutputs(outputDirectory);
 		OpenReleaseEconomicsOutputs(outputDirectory);
+		OpenPromoSynergyOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
@@ -3891,6 +3892,7 @@ public partial class ChartAuditRunner : Node {
 		CloseLabelPromotionOutputs();
 		CloseCareerMemoryOutputs();
 		CloseReleaseEconomicsOutputs();
+		ClosePromoSynergyOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
 		ClosePolarFinalAudit();

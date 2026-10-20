@@ -110,7 +110,13 @@ public class RecordRuntimeData {
 	public double albumDemandWeightedSingleHeat;
 	public double albumDemandWeightedSubstitutionPropensity;
 	public double albumDemandWeightedSuppression;
-	
+	// A5 counterfactual for a linked LP: awareness without the promo's launch bonus, and
+	// the raw demand that path would have drawn with no cannibalization. Null otherwise.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? promoShadowAwareness;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public double? promoShadowDemand;
+
 	// === SIMULATION FORCES ===
 	public float awareness;           // 0-1: Do people know this song exists?
 	public float momentum;            // -1 to +1: Is it trending up or down?

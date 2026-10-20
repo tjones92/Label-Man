@@ -1671,6 +1671,7 @@ public partial class CompetitorManager : Node {
 				project.demandWeightedSingleHeat = runtimeData.albumDemandWeightedSingleHeat;
 				project.demandWeightedSubstitutionPropensity = runtimeData.albumDemandWeightedSubstitutionPropensity;
 				project.demandWeightedSuppression = runtimeData.albumDemandWeightedSuppression;
+				FinalizePromoSynergyEvidence(project, runtimeData);
 				project.albumRetired = true;
 				project.heldAlbumOutcome = realizedNet;
 				project.albumOutcomeState = ProjectOutcomeState.Retired;
@@ -2333,6 +2334,7 @@ public partial class CompetitorManager : Node {
 		projectById[projectId] = project;
 		projectByRecordId[album.recordId] = project;
 		if (promo != null) projectByRecordId[promo.recordId] = project;
+		AttachPromoSynergyEvidence(project, label, artist, plan);
 
 		if (plan.strategy == ReleaseStrategy.AlbumStandalone) {
 			project.terminalState = AlbumProjectTerminalState.Released;
@@ -2655,8 +2657,17 @@ public partial class CompetitorManager : Node {
 		// Majors abandoned the promo Single for 274 of 495 decisions in 1969 against 0 of
 		// 360 in 1960, and a standalone Album emits no Single, which is the whole of the
 		// late-decade Major Singles collapse.
-		float chargedCannibalizationLoss = CalculateChargedPromoCannibalization(cannibalizationLoss, confidenceAlbum);
-		float promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - chargedCannibalizationLoss;
+		//
+		// A5: neither album-side term had any feedback. When live, realized recruitment and
+		// suppression of finalized linked LPs scale the modelled terms; no evidence leaves 1.
+		bool promoFeedbackLive = useResponsiveMemory && PromoSynergyFeedback.IsLive;
+		int promoFeedbackBand = promoFeedbackLive ? GetMemoryCareerBand(artist.careerState, null) : 0;
+		var promoScales = promoFeedbackLive ? GetPromoSynergyScales(promoFeedbackBand, currentWeek) : (Recruitment: 1f, Cannibalization: 1f, Weight: 0f);
+		float chargedCannibalizationLoss = CalculateChargedPromoCannibalization(
+			promoFeedbackLive ? cannibalizationLoss * promoScales.Cannibalization : cannibalizationLoss, confidenceAlbum);
+		float promoAdvantage = promoFeedbackLive
+			? (expectedPromoLift + promoSynergyGain) * promoScales.Recruitment + expectedPromoSingleNet - chargedCannibalizationLoss
+			: expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - chargedCannibalizationLoss;
 		float componentProjectedAlbumWithPromo = projectedAlbum + promoAdvantage;
 		float projectedAlbumWithPromo = componentProjectedAlbumWithPromo;
 		if (useResponsiveMemory) projectedAlbumWithPromo += projectResponsive.Confidence * projectResponsive.Residual *
@@ -2774,6 +2785,12 @@ public partial class CompetitorManager : Node {
 			cannibalizationCharged = chargedCannibalizationLoss,
 			expectedPromoLift = expectedPromoLift,
 			promoAdvantage = promoAdvantage,
+			promoFeedbackEvaluated = promoFeedbackLive && !AlbumReleasePractice.IsLive,
+			promoFeedbackCareerBand = promoFeedbackBand,
+			promoSynergyGain = promoSynergyGain,
+			promoRecruitmentScale = promoScales.Recruitment,
+			promoCannibalizationScale = promoScales.Cannibalization,
+			promoFeedbackEvidenceWeight = promoScales.Weight,
 			albumChoiceProbability = albumChoiceProbability,
 			formatChoiceRoll = formatChoiceRoll,
 			albumCapacityReroute = albumCapacityReroute
@@ -3432,6 +3449,13 @@ public partial class CompetitorManager : Node {
 		public float cannibalizationCharged;
 		public float expectedPromoLift;
 		public float promoAdvantage;
+		// A5: unscaled synergy term and the realized-evidence scales applied to it.
+		public bool promoFeedbackEvaluated;
+		public int promoFeedbackCareerBand;
+		public float promoSynergyGain;
+		public float promoRecruitmentScale;
+		public float promoCannibalizationScale;
+		public float promoFeedbackEvidenceWeight;
 		public float albumChoiceProbability;
 		public float formatChoiceRoll;
 		public bool albumCapacityReroute;
@@ -3859,13 +3883,15 @@ public partial class CompetitorManager : Node {
 	}
 
 	private void ApplyPromotionSnapshot(Record record, AILabel label, float marketingBudget, PromotionSnapshot snapshot,
-		float awarenessBonus, float stockMultiplier) {
+		float awarenessBonus, float stockMultiplier, bool trackPromoShadow = false) {
 		RecordRuntimeData runtime = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
 		if (runtime == null || snapshot == null) return;
 		float quality = runtime.GetQuality();
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + label.reputation * 0.1f;
 		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
+		// A5: the same launch without the promo's awareness bonus.
+		if (trackPromoShadow) { runtime.promoShadowAwareness = Mathf.Clamp(baseAwareness, 0f, 1f); runtime.promoShadowDemand = 0d; }
 		runtime.radioHeat = 0f;
 		// Phase C: same stock-cliff replacement as the single path. The snapshot carries only
 		// careerState, so recognition reads from the live artist; the promo-synergy stockMultiplier
@@ -3891,6 +3917,8 @@ public partial class CompetitorManager : Node {
 			initialStock[region.regionId] = baseStock;
 			data.unitsInStores = baseStock;
 			data.awareness = Mathf.Clamp(runtime.awareness * regionStrength * regional.awarenessRandom, 0f, 1f);
+			if (runtime.promoShadowAwareness is float shadowAwareness)
+				data.promoShadowAwareness = Mathf.Clamp(shadowAwareness * regionStrength * regional.awarenessRandom, 0f, 1f);
 			data.radioPlay = 0f;
 			float genreFit = GetGenreFit(record.primaryGenre, region);
 			data.sentiment = Mathf.Clamp(quality * 0.6f + genreFit * 0.3f + regional.sentimentRandom, -1f, 1f);
@@ -3942,7 +3970,7 @@ public partial class CompetitorManager : Node {
 			project.synergyAwarenessApplied = promoAwarenessBonusMax * project.promoPeakScore;
 			project.synergyStockMultiplier = project.promoPeakScore == 0f ? promoStockFlopFloor : 1f + promoStockBonusMax * project.promoPeakScore;
 			ApplyPromotionSnapshot(project.albumRecord, owner, marketingBudget, project.albumPromotionSnapshot,
-				project.synergyAwarenessApplied, project.synergyStockMultiplier);
+				project.synergyAwarenessApplied, project.synergyStockMultiplier, trackPromoShadow: project.promoFeedback != null);
 			RecordRuntimeData albumRuntime = ChartManager.Instance.GetRecordRuntimeData(project.albumRecord.recordId);
 			AttributeReleaseCampaign(albumRuntime, marketingBudget);
 			project.initialLaunchAwareness = albumRuntime?.initialLaunchAwareness ?? 0f;

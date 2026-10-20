@@ -35,6 +35,9 @@ public sealed class AlbumProject {
 	public float albumMarketingBudgetPlanned;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public bool? allInEconomics;
+	// A5: the promo credit this project was scheduled on and its finalized album-side outcome.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public PromoSynergyEvidence promoFeedback;
 	public float? heldPromoOutcome;
 	public float? heldAlbumOutcome;
 	public ProjectOutcomeState promoOutcomeState;

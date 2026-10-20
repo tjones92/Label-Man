@@ -117,6 +117,18 @@ mode. `analyze_career_format_memory.py PREFIX ... --output SimLogs/REPORT.json`
 checks stable tags and summarizes observed groups without loading whole worlds.
 Album-prior stature calibration and debut-LP market economics remain A3 work.
 
+`--promo-synergy-feedback` is the opt-in A5 test of the promo-single album credit.
+Each linked LP carries a counterfactual without the promo's launch awareness bonus
+or cannibalization. At retirement, recruited (actual minus counterfactual raw
+demand) and suppressed units are compared with the credit the project was
+scheduled on. Recency-weighted market ratios by career cohort, shrunk toward the
+pooled ratio and then toward 1, scale the awareness-lift/synergy credit and the
+modelled diversion. Evidence-carrying worlds require save v26.
+`--promo-synergy-feedback-check` covers the estimator, counterfactual identity,
+finalization and serialization. The runs add `*-promo-synergy-decisions.csv` and
+`*-promo-synergy-outcomes.csv`; `analyze_promo_synergy.py RUN --control OFF`
+checks their identities and compares strategy mix and chart breadth.
+
 Scene Phase 4 recruitment is opt-in with `--enable-scene-recruitment`. It requires
 persistent scenes, artist population lifecycle and genre market; observe-only or
 explicit contradictory disable modes fail before scene configuration changes.

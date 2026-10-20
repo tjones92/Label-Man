@@ -58,8 +58,12 @@ public static class AlbumSimulator {
 		record.currentLabelPush = campaign * campaignAge;
 		record.totalLabelInvestment += record.currentLabelPush;
 		float chartDiscovery = record.currentPosition > 0 ? Mathf.Clamp((201f - record.currentPosition) / 200f, 0f, 1f) * 0.025f : 0f;
-		float organic = (0.004f + appeal * 0.012f + artistHeat * 0.008f + record.currentLabelPush * 0.03f + chartDiscovery) * (1f - record.awareness);
+		float organicRate = 0.004f + appeal * 0.012f + artistHeat * 0.008f + record.currentLabelPush * 0.03f + chartDiscovery;
+		float organic = organicRate * (1f - record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness + organic, 0f, 1f);
+		// A5 counterfactual: the same headroom-proportional growth from the bonus-free start.
+		if (record.promoShadowAwareness is float shadow)
+			record.promoShadowAwareness = Mathf.Clamp(shadow + organicRate * (1f - shadow), 0f, 1f);
 		float targetWom = Mathf.Pow(appeal, 2f) * 0.62f + record.momentum * 0.25f;
 		record.wordOfMouth = Mathf.Lerp(record.wordOfMouth, Mathf.Max(0f, targetWom), 0.12f);
 		// Album demand is not radio-led; retain only a small promotional proxy.
@@ -120,6 +124,9 @@ public static class AlbumSimulator {
 		record.albumDemandWeightedSingleHeat += rawDemandBeforeCannibalization * record.linkedPromoSingleHeat;
 		record.albumDemandWeightedSubstitutionPropensity += rawDemandBeforeCannibalization * record.albumSubstitutionPropensity;
 		record.albumDemandWeightedSuppression += rawDemandBeforeCannibalization * record.cannibalizationSuppression;
+		if (record.promoShadowDemand.HasValue)
+			record.promoShadowDemand += CalculateRawDemandBeforeCannibalization(buyerPool,
+				CalculatePromoShadowAwareness(record, data), conversion);
 		data.rawDemandThisWeek = rawSales;
 		data.unitsBackordered = Mathf.RoundToInt(data.unitsBackordered * 0.55f);
 		if (data.unitsInStores < rawSales) {
@@ -204,6 +211,15 @@ public static class AlbumSimulator {
 		return mult;
 	}
 
+	// The demand-side awareness of the A5 counterfactual: the same blend and chart floors,
+	// read from the bonus-free paths. A region opened after launch has no bonus to remove.
+	internal static float CalculatePromoShadowAwareness(RecordRuntimeData record, RegionalRecordData data) {
+		float awareness = (record.promoShadowAwareness ?? record.awareness) * 0.45f + (data.promoShadowAwareness ?? data.awareness) * 0.55f;
+		if (record.currentPosition > 0 && record.currentPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
+		else if (record.currentPosition > 0 && record.currentPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
+		return awareness;
+	}
+
 	internal static float CalculateRawDemandBeforeCannibalization(float buyerPool, float awareness, float conversion) =>
 		buyerPool * awareness * conversion;
 
@@ -220,8 +236,11 @@ public static class AlbumSimulator {
 	};
 
 	public static void UpdateRegionalState(RecordRuntimeData record, RegionalRecordData data) {
-		float localGrowth = (record.currentLabelPush * 0.018f + record.wordOfMouth * 0.010f) * (1f - data.awareness);
+		float localRate = record.currentLabelPush * 0.018f + record.wordOfMouth * 0.010f;
+		float localGrowth = localRate * (1f - data.awareness);
 		data.awareness = Mathf.Clamp(data.awareness + localGrowth, 0f, 1f);
+		if (data.promoShadowAwareness is float shadow)
+			data.promoShadowAwareness = Mathf.Clamp(shadow + localRate * (1f - shadow), 0f, 1f);
 		data.sentiment = Mathf.Lerp(data.sentiment, record.GetQuality(), 0.06f);
 	}
 

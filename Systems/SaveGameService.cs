@@ -31,12 +31,12 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 25; // v25: attributed release marketing costs; v24: optional career-banded format memory.
+	public const int CurrentVersion = 26; // v26: promo-synergy evidence and counterfactuals; v25: attributed release marketing costs; v24: optional career-banded format memory.
 	// Legacy-mode worlds still use exactly the v21 schema. Only experimental RNG
 	// worlds need v22, so older executables cannot silently change their dice on load.
 	// Only a world carrying the observe-only release-judgement shadow needs v23.
 	// Keep v24 while tagged history survives, including after the experimental switch is turned off.
-	public static int WritingVersion => ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
+	public static int WritingVersion => PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {

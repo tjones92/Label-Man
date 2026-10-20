@@ -402,6 +402,7 @@ public partial class ChartManager : Node {
 		AlbumPriorRecalibration.Configure(OS.GetCmdlineUserArgs());
 		AlbumMasterCosts.Configure(OS.GetCmdlineUserArgs());
 		ReleaseAllInEconomics.Configure(OS.GetCmdlineUserArgs());
+		PromoSynergyFeedback.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();

@@ -14,7 +14,8 @@ media, the genre chart guard, the album tier multiplier, the two cash identities
 into `media-atmosphere` as `e8abf7e` and `41f6f02`. Both switches remain off by default. Their measurements and
 limitations are retained in the follow-ups below. A2 has an opt-in recalibrated prior (`87a9ed9`). A3 now has an
 opt-in career-banded memory experiment, a calibrated album prior and an inventory-based LP production-cost repair.
-A4 now has an opt-in all-in cost basis and pre-recording profit gate. These remain experiments, with
+A4 now has an opt-in all-in cost basis and pre-recording profit gate. A5 has an opt-in test of the
+promo credit against counterfactual linked-LP outcomes. These remain experiments, with
 short-run checks rather than a claim of decade balance acceptance.
 B1's seed-1001 missing-promotion investigation is now explained by exact quarterly gate tracing; see the completed replay below.
 
@@ -1040,3 +1041,100 @@ memory-limited; the production compression path was not changed by this work.
 This completes the concrete A3/A4 repairs for review, not decade balance acceptance. LP lifetime loss
 rates need mature all-in outcomes; generic demand realism, sparse/policy-dependent prior error and A5's
 unvalidated project synergy remain open. A5 is the next audit item.
+
+## Follow-up: A5 promo credit tested against realized linked LPs
+
+**Switch:** `--promo-synergy-feedback`, off by default ([PromoSynergyFeedback.cs](../Systems/PromoSynergyFeedback.cs)).
+It requires the live genre market. It does not delete the authored credit. It tests the credit and scales it.
+
+**Sizing from the reference decade (no new run).** For the AlbumWithPromo projects of
+`dec-awrw-on-1001-522`, the fork credited album-side gains (awareness lift + synergy − charged diversion)
+of $27.6k / $43.4k / $42.6k per project in 1960-62 / 1963-65 / 1966-69. The album-side mechanisms that
+actually exist are the launch awareness bonus, the launch stock multiplier and the cannibalization
+suppression. An upper bound on what they returned (launch bonus share × all raw demand, minus
+suppression) is $0.6k / $1.1k / $0.5k. The cause: **97% of promo singles never peak inside #80**, so
+they apply no awareness bonus and cut the LP's launch stock to the 0.85 flop floor. The credit
+assumes recruitment in proportion to the promo's expected units; the simulation recruits only through
+the promo's chart peak. Promo singles also realized about half their expected own net ($6.6k vs $11.6k,
+$4.2k vs $11.2k). That is the PromoSingle lane's job, unchanged here.
+
+**Mechanism.**
+
+- At drop, a linked LP of an evidence-carrying project gets a counterfactual: record and regional
+  awareness without the promo's bonus. Album awareness grows only in proportion to headroom
+  (`AlbumSimulator.UpdateAlbum` and `UpdateRegionalState`), so the counterfactual follows the same weekly
+  rates from the bonus-free start. It reads the same conversion and chart-position floors, but no
+  cannibalization. No random draws are added.
+- At retirement, recruited units = actual raw demand − counterfactual demand, and suppressed units =
+  the existing suppression accumulator. Both are priced at the album margin the decision used.
+- The decision scales the unscaled lift + synergy credit by realized/credited recruitment, and the
+  modelled diversion by realized/modelled suppression. Ratios are recency weighted (52-week half-life),
+  clamped to [0, 2] and pooled across labels by original career cohort. Each cohort is shrunk toward
+  the all-cohort ratio, and that toward 1, with confidence W/(W+10). The existing (1 − album confidence)
+  charge on diversion is kept. Evidence is read in project creation order, so resumed and
+  uninterrupted worlds compute identical sums. Catalogue-practice projects (`--album-release-practice`)
+  record no evidence, since their LP is committed on its standalone proposition.
+- Persistence: nullable `AlbumProject.promoFeedback`, `RecordRuntimeData.promoShadowAwareness/Demand` and
+  `RegionalRecordData.promoShadowAwareness`. They are omitted when null. Evidence-carrying worlds
+  require save v26, including after the switch is turned off.
+
+**Not measured.** The 0.85 stock floor, which lowers a flopped promo's LP launch stock, and the
+second-order chart, word-of-mouth and penetration feedback of the recruited units. The first is a
+realized penalty the evidence omits, so the measured recruitment is if anything generous.
+
+**Validation.** Build: zero warnings and errors. `--promo-synergy-feedback-check` (26 checks): the
+estimator and its shrinkage/recency/clamp; equal-awareness identity; constant headroom ratio of a
+bonus; regional mirroring and late regions; chart floors; counterfactual demand; one-time
+finalization; legacy-schema omission and round-trip; world evidence read through the decision cache;
+v26 retention. The A4, A3-memory and A3-prior suites still pass on the final assembly
+(`2DBF0D7C…63CD`). **Off is inert:** with every earlier audit switch on, 26-week runs on seeds 1001
+and 2002 match `verified-a4-<seed>-26` on all 88 of 88 CSVs.
+
+**Short live check.** 104 weeks, seeds 1001 and 2002, with A1, A2, A3 (memory, prior, master costs)
+and A4 on in both arms. Runs `a5{off,on}-<seed>-104`. Both on runs have zero identity errors
+(`analyze_promo_synergy.py`).
+
+Realized ÷ credited album-side dollars over finalized linked LPs (cells: seed 1001 / 2002):
+
+| Cohort | n | Promo inside #80 | Recruitment ratio | Diversion ratio |
+|---|---|---|---:|---:|
+| New/Unsigned | 866 / 792 | 1.2% / 1.4% | .008 / .007 | .079 / .078 |
+| Rising | 86 / 59 | 3.5% / 10.2% | .009 / .057 | .056 / .061 |
+| Established | 26 / 20 | 3.8% / 10.0% | .045 / .052 | .035 / .053 |
+| Star/Superstar | 2 / 2 | — | — | — |
+
+The mean credit applied per promo project was ≈$17-20k in 1960 on both seeds, before any LP had
+finalized. It was $18.9k / $14.4k in 1961Q1 and $2.6k / $2.4k in 1961Q2, then $230-410 from
+1961Q3 on. The mean diversion charge falls from ≈$7k to ≈$400-500.
+
+| 1961, off / on | Seed 1001 | Seed 2002 |
+|---|---:|---:|
+| Orphan singles | 2,703 / 2,755 | 2,491 / 2,474 |
+| AlbumWithPromo | 2,555 / 2,542 | 2,324 / 2,278 |
+| AlbumStandalone | 0 / 18 | 0 / 16 |
+| Hot 100 / Top 40 / album-chart acts | 655 / 639, 236 / 234, 149 / 144 | 607 / 606, 216 / 211, 143 / 142 |
+
+1960 is identical in both arms: no evidence exists until the first linked LPs retire, around week 55.
+
+**Reading.** The credit is about 1-5% realized in every populated cohort, and the diversion charge
+about 4-8%. Removing ≈$23k of fictitious value per project barely moves early format choices. The
+promo route stays preferred because the promo single's own forecast is positive, and the LP gate is
+dominated by the album component projection. In 1960-61 the credit inflated projected project value
+(including the A4 profit gate's project profit) without deciding the fork. That does not establish
+late-decade neutrality: `PromoAlbumConversionK` was tuned to hold late-decade Major entry share, where
+album demand, the credit and the Major share are all larger. Scaling it is a decade A/B question.
+The design question this opens is not about the constant. In the simulation a promo helps an LP only
+by charting, so an honest forecast would condition on the promo's chart probability (the unused
+`expectedPeakScoreByBucket`) rather than on its expected units.
+
+Runs were serial: 512 MB managed heap for the 104-week runs (peak working set 646-649 MB, minimum
+available RAM 804-854 MB), 256 MB for the 26-week runs. Manifests, logs and `summary-<seed>.json` are
+under `SimLogs/promo-synergy-a5-20261020/`.
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe" -I SimTools\analyze_promo_synergy.py `
+  SimLogs\a5on-1001-104 --control SimLogs\a5off-1001-104 --output SimLogs\promo-synergy-a5-20261020\summary-1001.json
+```
+
+With A5, every A-section item has an opt-in experiment. The B items not yet addressed (B3-B7) and
+section C remain, followed by the end-of-audit decade A/B.
