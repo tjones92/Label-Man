@@ -354,6 +354,7 @@ public partial class ChartManager : Node {
 				Identity = memberIdentityEnabled, LifeExits = lifeExitsEnabled });
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 		MusicianRecognitionService.Configure(OS.GetCmdlineUserArgs());
+		FormatMemoryMaturityCurve.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
