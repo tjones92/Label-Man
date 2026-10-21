@@ -99,6 +99,24 @@ public static class LabelCompanyAccounts {
         inventory.copies -= fulfilled;
         inventory.value = inventory.copies == 0 ? 0 : Math.Max(0, inventory.value - average * fulfilled);
         company.inventoryValue += inventory.value - before;
+        ReconcilePhysicalInventory(label, record);
+    }
+
+    // Production was already expensed in release contribution. In the company accrual
+    // accounts, removing promo/damaged copies releases their capitalized value once.
+    public static void ReconcilePhysicalInventory(AILabel label, RecordRuntimeData record) {
+        if (!LabelCorporateModel.Applies(label) || record?.physicalInventory == null) return;
+        var company = label.company;
+        if (company == null || !company.inventory.TryGetValue(record.baseRecord.recordId, out var inventory)) return;
+        var state = record.physicalInventory;
+        int remaining = record.unitsPressed - record.pressingBookSold - state.Promos - state.Damaged - state.WrittenOff;
+        int removed = inventory.copies - remaining;
+        if (removed <= 0) return;
+        double expense = inventory.copies > 0 ? inventory.value * removed / inventory.copies : 0;
+        inventory.copies -= removed;
+        inventory.value = Math.Max(0, inventory.value - expense);
+        company.inventoryValue = Math.Max(0, company.inventoryValue - expense);
+        company.inventoryWriteOffs += expense;
     }
 
     public static void RetireInventory(AILabel label, string recordId) {

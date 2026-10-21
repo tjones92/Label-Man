@@ -183,6 +183,7 @@ public partial class ChartManager : Node {
 		public string RegionId;
 		public int ActiveIntentCount, BasePurchaseCapacity, AlbumChannelCapacity, PurchaseCapacity, ClearedSingleUnits, ClearedAlbumUnits, PhysicalBackorders, MarketDisplacedDemand;
 		public int SingleFormatBudget, AlbumFormatBudget;
+		public int LocalClearedSingleUnits, LocalClearedAlbumUnits;
 		public int LocalClearedUnits, UnusedAfterLocal, ExportBudget, ExportedCapacity, ImportLimit, ImportedCapacity, SpilloverClearedUnits;
 		public float RawSingleDemand, RawAlbumDemand, ServiceableSingleIntent, ServiceableAlbumIntent, EffectiveAlbumIntent, AlbumOverlapPressure;
 		public int InventoryViolationCount, AllocationViolationCount, ReconciliationDelta;
@@ -339,6 +340,8 @@ public partial class ChartManager : Node {
 	public event Action<RecordRuntimeData> OnRecordChartUpdated;
 	public event Action<RecordRuntimeData> OnRecordLeftChart;
 	public event Action<RecordRuntimeData> OnRecordRetired;
+	// Observation seam for actual market entry, including delayed LP drops.
+	public event Action<RecordRuntimeData, AILabel> OnRecordReleased;
 	/// <summary>Raised once after sales are frozen and before any record can retire.</summary>
 	public event Action<CompletedWeekSettlement> OnWeekSettlement;
 	public int RetiredTrackResolutionAttempts { get; private set; }
@@ -362,6 +365,7 @@ public partial class ChartManager : Node {
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
 		EconomicLabelLifecycle.Configure(OS.GetCmdlineUserArgs());
 		LabelPressingEconomics.Configure(OS.GetCmdlineUserArgs());
+		PhysicalPressingInventory.Configure(OS.GetCmdlineUserArgs());
 		AlbumSalesVolume.Configure(OS.GetCmdlineUserArgs());
 		LabelOperatorPay.Configure(OS.GetCmdlineUserArgs());
 		RegionalHitDealGate.Configure(OS.GetCmdlineUserArgs());
@@ -927,6 +931,7 @@ public partial class ChartManager : Node {
 		if (releasingLabel != null && !record.isPlayerOwned) {
 			PromoteRecordAI(runtimeData, releasingLabel, perceivedQualityMult);
 		}
+		OnRecordReleased?.Invoke(runtimeData, releasingLabel);
 
 		if (debugMode) GD.Print($"Released: {record.title} by {record.artistName} (awareness: {runtimeData.awareness:F2}, radio: {runtimeData.radioHeat:F2})");
 	}
@@ -1021,6 +1026,11 @@ public partial class ChartManager : Node {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
 		bool genreMarketLive = GenreMarketV2.Enabled && currentChartWeek > 0;
+		if (genreMarketLive) foreach (var record in allRecords) {
+			if (!PhysicalPressingInventory.Enabled && record.physicalInventory != null)
+				throw new InvalidOperationException("This world contains physical inventory; resume with " + PhysicalPressingInventory.Switch + ".");
+			PhysicalPressingInventory.BeginWeek(record, GetLabelById(record.baseRecord.labelId), currentChartWeek);
+		}
 		float acceptanceYear = GetContinuousSimulationYear();
 		float singleOpportunityNormalization = GenreAcceptanceService.GetLiveSingleOpportunityNormalization(
 			allRegions, acceptanceYear, genreMarketLive);
@@ -1349,7 +1359,11 @@ public partial class ChartManager : Node {
 				intent.Record.baseRecord.format == ReleaseFormat.Single).ToList(), budget.Single);
 			AllocateProportionalLocal(intents.Where(intent =>
 				intent.Record.baseRecord.format == ReleaseFormat.Album).ToList(), budget.Album);
-			foreach (MarketIntent intent in intents) intent.Data.localClearedThisWeek = intent.Cleared;
+			foreach (MarketIntent intent in intents) {
+				intent.Data.localClearedThisWeek = intent.Cleared;
+				if (intent.Record.baseRecord.format == ReleaseFormat.Album) summary.LocalClearedAlbumUnits += intent.Cleared;
+				else summary.LocalClearedSingleUnits += intent.Cleared;
+			}
 			summary.LocalClearedUnits = intents.Sum(intent => intent.Cleared);
 			summary.UnusedAfterLocal = Mathf.Max(0, capacity - summary.LocalClearedUnits);
 			summary.ExportBudget = CalculateSpilloverExportBudget(summary.UnusedAfterLocal);
@@ -1719,6 +1733,10 @@ public partial class ChartManager : Node {
 					}
 
 					if (restockAmount > 0) {
+						if (PhysicalPressingInventory.Applies(record) && IsGenreMarketV2Live) {
+							restockAmount = PhysicalPressingInventory.Ship(record, restockAmount, currentChartWeek);
+							if (captureBreakoutDiagnostic) data.breakoutAppliedRestock = restockAmount;
+						}
 						data.unitsInStores += restockAmount;
 						data.unitsBackordered = Mathf.Max(0, data.unitsBackordered - restockAmount);
 					}
@@ -2517,6 +2535,7 @@ public partial class ChartManager : Node {
 	}
 
 	private bool IsRecordRetirable(RecordRuntimeData record, bool includeChartedRecords) {
+		if (record.physicalInventory?.OrderUnits > 0) return false;
 			if (record.baseRecord.format == ReleaseFormat.Album) {
 				if (record.currentPosition != 0 || record.unitsThisWeek >= albumCatalogSalesFloor) return false;
 				if (record.weeksOnChart == 0) return record.weeksSinceRelease >= albumNeverChartedToleranceWeeks;
@@ -2545,6 +2564,7 @@ public partial class ChartManager : Node {
 
 	private void RetireRecord(RecordRuntimeData record) {
 		if (record?.baseRecord == null) return;
+		PhysicalPressingInventory.Retire(record);
 		if (lastCompletedWeekSettlement?.Entries != null) {
 			CompletedWeekSettlementEntry entry = lastCompletedWeekSettlement.FindEntry(record.baseRecord.recordId);
 			if (entry != null) entry.RetiredAfterSettlement = true;
@@ -2985,6 +3005,10 @@ public partial class ChartManager : Node {
 	public void ShipRecords(string recordId, string regionId, int units) {
 		var record = allRecords.FirstOrDefault(r => r.baseRecord.recordId == recordId);
 		if (record != null && record.regionalData.ContainsKey(regionId)) {
+			if (PhysicalPressingInventory.Applies(record)) {
+				PhysicalPressingInventory.BeginWeek(record, GetLabelById(record.baseRecord.labelId), currentChartWeek);
+				units = PhysicalPressingInventory.Ship(record, units, currentChartWeek);
+			}
 			record.regionalData[regionId].unitsInStores += units;
 		}
 	}

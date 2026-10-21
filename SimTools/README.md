@@ -10,6 +10,17 @@ directives and hand-written handoffs. Everything a run or an analysis script
 reports, logs, before-edit snapshots) is written under `SimLogs/` and is not
 committed. New JSON under `SimTools/` is gitignored to enforce this.
 
+The first demand/attention measurement slice appends explicit before/after-marketing
+contribution fields to release outcomes and local single/LP clearing totals to
+market telemetry. `analyze_demand_attention.py PREFIX ... --output SimLogs/REPORT.json`
+validates their accounting identities and reports format rationing and finalized
+release losses. Actual-release census streams now separate opening catalog from
+new single and LP launches, including delayed LP drops. Use `--launch-through-week N`
+to follow a comparable early launch cohort through the full run; active records
+remain counted and lifetime loss rates remain unknown until the cohort completes.
+See [DemandAttentionImplementation.md](DemandAttentionImplementation.md)
+for definitions, limitations and remaining Stage A work.
+
 The AI company model is enabled by default. It replaces aggregate overhead with
 department staffing and premises, pays commercial channel costs and record
 excise, accrues income tax, routes ownership payouts, and charges for production

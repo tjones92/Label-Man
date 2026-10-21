@@ -17,9 +17,12 @@ using System.Globalization;
 /// unsold stock behind. The label now keeps a pressing book apart from the stores' shelf stock (that stock is a
 /// demand-side availability device sized around 2.5x lifetime sales, so it cannot double as a pressing run).
 /// It presses an initial run against its own forecast when the record first sells, re-presses in lots when
-/// sales catch up, and is billed for every copy pressed. Copies pressed and never sold are the returns
-/// loss. The initial run is a release-time commitment and joins sunk production cost; re-presses follow sales
+/// sales catch up, and is billed for every copy pressed. Copies pressed and never sold are unsold booked
+/// stock, not measured customer returns. The initial run is a release-time commitment and joins sunk
+/// production cost; re-presses follow sales
 /// and come out of the record's net, so the format memory sees both without extrapolating a week-one bill.
+/// --physical-pressing-inventory replaces this replenishment rule with received warehouse stock,
+/// bounded shipments and delayed orders. Press then books sell-through and drains receipt invoices only.
 /// </summary>
 public static class LabelPressingEconomics {
 	public const string Switch = "--dealer-price-pressing";
@@ -177,8 +180,10 @@ public static class LabelPressingEconomics {
 		public PressingWeek(int initialRun, int repressed) { InitialRun = initialRun; Repressed = repressed; }
 	}
 
-	/// <summary>Books this week's sold copies and presses whatever the book needs to cover them.</summary>
+	/// <summary>Books this week's sold copies. The default book replenishes after sales; the opt-in
+	/// physical book only invoices receipts already manufactured before shipment.</summary>
 	public static PressingWeek Press(RecordRuntimeData record, AILabel label, int unitsSold) {
+		if (PhysicalPressingInventory.Applies(record)) return PhysicalPressingInventory.BookSales(record, unitsSold);
 		int initial = 0;
 		int sold = Math.Max(0, unitsSold);
 		if (!record.pressingBookOpened) {
@@ -203,9 +208,9 @@ public static class LabelPressingEconomics {
 		return new PressingWeek(initial, record.unitsPressed - before);
 	}
 
-	private static int InitialCopies(AILabel label, ReleaseFormat format) =>
+	internal static int InitialCopies(AILabel label, ReleaseFormat format) =>
 		Math.Max(MinimumRun, (int)MathF.Round((format == ReleaseFormat.Album ? AlbumInitialCommitment : InitialCommitment) * ForecastUnits(label, format)));
-	private static int RepressLot(int weeklySold, ReleaseFormat format) => Math.Max(MinimumRun,
+	internal static int RepressLot(int weeklySold, ReleaseFormat format) => Math.Max(MinimumRun,
 		(int)MathF.Ceiling(weeklySold * (format == ReleaseFormat.Album ? AlbumRepressWeeks : RepressWeeks)));
 
 	/// <summary>Released on or before the run's first day: seeded opening catalog, not a live release that

@@ -418,6 +418,7 @@ public partial class ChartAuditRunner : Node {
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			ChartManager.Instance.OnWeekSettlement += OnWeekSettlement;
 			InitializeObservedState();
+			BeginDemandObservation();
 			CaptureDirective2Week();
 			CapturePolarCensus();
 			WriteSceneIdentityCensus("start");
@@ -439,6 +440,7 @@ public partial class ChartAuditRunner : Node {
 			RosterManager.Instance?.ReconcileEnabledLifecycleForCurrentWeek();
 			var captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
+				CapturePhysicalInventoryWeek();
 				CaptureReleaseJudgementWeek(week);
 				CapturePolarFinalWeek(week);
 				CaptureSessionSupplyWeek(week);
@@ -485,6 +487,7 @@ public partial class ChartAuditRunner : Node {
 			FlushPolarResearch();
 			SavePolarCheckpoint("complete");
 			if (!string.IsNullOrWhiteSpace(saveWorldAtEndName)) SaveAuditWorld(saveWorldAtEndName);
+			demandObservationCompleted = true;
 			FlushAndClose();
 			if (scoutingReport) WriteScoutingReport();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
@@ -1094,6 +1097,7 @@ public partial class ChartAuditRunner : Node {
 		OpenLabelPromotionOutputs(outputDirectory);
 		OpenCareerMemoryOutputs(outputDirectory);
 		OpenReleaseEconomicsOutputs(outputDirectory);
+		OpenDemandObservationOutputs(outputDirectory);
 		OpenPromoSynergyOutputs(outputDirectory);
 		OpenEconomyAuditBOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
@@ -1224,7 +1228,7 @@ public partial class ChartAuditRunner : Node {
 		firstChartEventWriter?.WriteLine("week,year,date,observationKind,leftCensoredAtRunStart,recordId,title,releaseLabelId,currentOwnerLabelId,labelName,labelOrigin,runtimeBirthWeek,birthTier,firstChartTier,labelStatus,isHistorical,recordAge,currentPosition,unitsThisWeek,chartPoints,publishedCutoffPoints,quality,peakRegionalBreakoutStrength,bestStrongRegionPeak,regionalBreakoutCount,coveredRegionCount,signedDealCount,completedDealCount,activeDeal,dealOrigin,dealSignedWeek,permanentNationalReach,borrowedReach,effectiveNationalReach,ownedReach,distributionStrength,permanentRegionCount,grantedRegionCount,initialLaunchAwareness,initialLaunchStock");
 		distributionOfferAttemptWriter?.WriteLine("week,year,clientId,clientName,clientTier,clientOrigin,monthsActive,ownedReach,nationalReach,bestAnyRegionPeak,bestStrongRegionPeak,bestPersistentEvidenceQuality,persistentRegionalEvidence,legacyQualityAndCurrentSalesEvidence,legacyNationalReachGate,pushEvidence,pushChancePassed,pullChancePassed,outcome,distributorId");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
-		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,effectiveAlbumIntent,albumOverlapPressure,singleFormatBudget,albumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,albumChannelCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
+		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,effectiveAlbumIntent,albumOverlapPressure,singleFormatBudget,albumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,albumChannelCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta,localClearedSingleUnits,localClearedAlbumUnits");
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
 		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,releaseLane,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount,publishingIncome,artistOwnsPublishing,publishingControl,publishingCounterparty,publishingControllerLabelId,externalPublishingLeakage,publishingTransferOut,mechanicalRoyalty,pressingCost");
 		completedWeekSettlementRegionalWriter?.WriteLine("week,year,settlementId,recordId,regionId,rawIntent,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,inventoryMovement");
@@ -1238,7 +1242,7 @@ public partial class ChartAuditRunner : Node {
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
 		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,cannibalizationCharged,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumChoiceProbability,formatChoiceRoll,albumCapacityReroute");
-		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,genre,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet,unitsPressed,pressingBookSold");
+		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,genre,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet,unitsPressed,pressingBookSold,sunkMarketingCost,bookedContributionBeforeMarketing,bookedContributionAfterMarketing");
 		singleReleaseLaneWriter?.WriteLine("week,year,recordId,projectId,releaseLane,labelId,tier,artistId,genre,careerState,hookStrength,productionQuality,danceability,quality,enabledOpportunityMass,acceptedOpportunityMass,cohortNormalizer,normalizerSource,coldStartFallback");
 		singleDemandStagesWriter?.WriteLine("week,year,recordId,releaseLane,region,age,potentialAudience,baselineAwareness,earnedDiscoveryExposure,awareBuyers,intrinsicQualityFactor,acceptanceFactor,formatFactor,intrinsicConversionRate,rawDemand,serviceableDemand,clearedUnits,chartSignal,momentumSignal,radioSignal,inventoryFulfillmentRate,marketFulfillmentRate");
 		revenueMemoryWriter.WriteLine("week,year,labelId,format,emaNetPerRelease,releasesObserved");
@@ -2067,7 +2071,10 @@ public partial class ChartAuditRunner : Node {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 			Csv(outcome.labelId), Csv(outcome.recordId), Csv(outcome.format.ToString()), Csv(outcome.genre.ToString()), outcome.memoryEligible ? "true" : "false",
 			F(outcome.lifetimeLabelNet), F(outcome.sunkProductionCost), F(outcome.realizedNet),
-			outcome.unitsPressed.ToString(CultureInfo.InvariantCulture), outcome.pressingBookSold.ToString(CultureInfo.InvariantCulture)
+			outcome.unitsPressed.ToString(CultureInfo.InvariantCulture), outcome.pressingBookSold.ToString(CultureInfo.InvariantCulture),
+			outcome.sunkMarketingCost.HasValue ? Exact(outcome.sunkMarketingCost.Value) : "",
+			Exact(outcome.lifetimeLabelNet - outcome.sunkProductionCost),
+			outcome.sunkMarketingCost.HasValue ? Exact(outcome.realizedNet) : ""
 		}));
 		if (!string.IsNullOrEmpty(outcome.recordId) && decisionExpectations.TryGetValue(outcome.recordId, out DecisionExpectation expectation)) {
 			decadeAnnual.CompletedMatched++;
@@ -2227,6 +2234,9 @@ public partial class ChartAuditRunner : Node {
 		WriteFormatMixRows(week, date.year, records);
 		CaptureRetirementCohortSnapshot(records);
 		CaptureCareerLadderWeek(week, date.year, chart, albumChart);
+		// Seven regional summaries are cheap and needed to distinguish unmet physical
+		// demand from purchase-budget rationing in compact economic audits too.
+		WriteMarketClearingRows(week, date.year);
 
 		// Everything below is per-week diagnostic telemetry that walks all records/labels/rosters and
 		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
@@ -2250,7 +2260,6 @@ public partial class ChartAuditRunner : Node {
 			WriteTierVolumeRows(week, records);
 			WriteLabelFinanceRows(week, date.year);
 			WriteMarketRevenueRows(week, date.year, records);
-			WriteMarketClearingRows(week, date.year);
 			WriteReleaseCapacityRow(week, date.year);
 			WriteRosterLifecycleRows(week, date.year);
 			WriteLabelScoutingVacancyRows(week, date.year);
@@ -2477,7 +2486,8 @@ public partial class ChartAuditRunner : Node {
 				row.ClearedSingleUnits.ToString(CultureInfo.InvariantCulture), row.ClearedAlbumUnits.ToString(CultureInfo.InvariantCulture), cleared.ToString(CultureInfo.InvariantCulture), unused.ToString(CultureInfo.InvariantCulture),
 				F(factor), row.PhysicalBackorders.ToString(CultureInfo.InvariantCulture), row.MarketDisplacedDemand.ToString(CultureInfo.InvariantCulture),
 				row.MarketDisplacedDemand.ToString(CultureInfo.InvariantCulture), row.InventoryViolationCount.ToString(CultureInfo.InvariantCulture), row.AllocationViolationCount.ToString(CultureInfo.InvariantCulture),
-				row.ReconciliationDelta.ToString(CultureInfo.InvariantCulture), row.ReconciliationDelta.ToString(CultureInfo.InvariantCulture)
+				row.ReconciliationDelta.ToString(CultureInfo.InvariantCulture), row.ReconciliationDelta.ToString(CultureInfo.InvariantCulture),
+				row.LocalClearedSingleUnits.ToString(CultureInfo.InvariantCulture), row.LocalClearedAlbumUnits.ToString(CultureInfo.InvariantCulture)
 			}));
 		}
 		foreach (ChartManager.MarketSpilloverTransfer transfer in ChartManager.Instance.GetLastMarketSpilloverTransfers()
@@ -3896,6 +3906,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void FlushAndClose() {
+		CloseDemandObservationOutputs();
 		ArtistHeatAttribution.Close();
 		CloseReleaseJudgementOutputs();
 		CloseCareerLadderOutputs();

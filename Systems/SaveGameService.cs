@@ -1102,7 +1102,10 @@ public sealed class RegionalRecordSaveData {
 		breakoutStage = (int)d.breakoutStage, salesVelocity = d.salesVelocity,
 		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks,
 		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge,
-		dealEvidenceAge = d.dealEvidenceAge
+		dealEvidenceAge = d.dealEvidenceAge,
+		arrival = d.awaitingArrival || d.pendingLaunchStock != 0 || d.arrivalAge >= 0
+			? new RegionalArrivalSaveData { awaitingArrival = d.awaitingArrival, arrivalAge = d.arrivalAge,
+				stock = d.pendingLaunchStock, awareness = d.pendingLaunchAwareness, radio = d.pendingLaunchRadio } : null
 	};
 
 	public RegionalRecordData ToRegional() {
@@ -1118,8 +1121,22 @@ public sealed class RegionalRecordSaveData {
 			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
 			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge
 		};
+		if (arrival != null) {
+			d.awaitingArrival = arrival.awaitingArrival; d.arrivalAge = arrival.arrivalAge;
+			d.pendingLaunchStock = arrival.stock; d.pendingLaunchAwareness = arrival.awareness; d.pendingLaunchRadio = arrival.radio;
+		}
 		return d;
 	}
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public RegionalArrivalSaveData arrival { get; set; }
+}
+
+public sealed class RegionalArrivalSaveData {
+	public bool awaitingArrival { get; set; }
+	public int arrivalAge { get; set; } = -1;
+	public int stock { get; set; }
+	public float awareness { get; set; }
+	public float radio { get; set; }
 }
 
 /// <summary>A released player record: its base master data plus the durable runtime chart/sales/regional
@@ -1161,6 +1178,8 @@ public sealed class RuntimeRecordSaveData {
 	public bool pressingBookOpened { get; set; }
 	public int unitsPressed { get; set; }
 	public int pressingBookSold { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public PhysicalInventoryState physicalInventory { get; set; }
 	public bool revenueMemoryEligible { get; set; }
 	public float releaseTimeExpectedNet { get; set; }
 	public float releaseTimeOpportunityScale { get; set; }
@@ -1199,6 +1218,7 @@ public sealed class RuntimeRecordSaveData {
 		peakWeeklyUnits = r.peakWeeklyUnits, weeksSincePeakUnits = r.weeksSincePeakUnits, radioPanelShare = r.radioPanelShare,
 		lifetimeLabelNet = r.lifetimeLabelNet, sunkProductionCost = r.sunkProductionCost, sunkMarketingCost = r.sunkMarketingCost, revenueMemoryEligible = r.revenueMemoryEligible,
 		pressingBookOpened = r.pressingBookOpened, unitsPressed = r.unitsPressed, pressingBookSold = r.pressingBookSold,
+		physicalInventory = r.physicalInventory?.Copy(),
 		releaseTimeExpectedNet = r.releaseTimeExpectedNet, releaseTimeOpportunityScale = r.releaseTimeOpportunityScale,
 		releaseMemoryWeek = r.releaseMemoryWeek, awareness = r.awareness, momentum = r.momentum, saturation = r.saturation,
 		radioHeat = r.radioHeat, wordOfMouth = r.wordOfMouth, artistHeat = r.artistHeat, artistPreviousHits = r.artistPreviousHits,
@@ -1222,6 +1242,7 @@ public sealed class RuntimeRecordSaveData {
 			peakWeeklyUnits = peakWeeklyUnits, weeksSincePeakUnits = weeksSincePeakUnits, radioPanelShare = radioPanelShare,
 			lifetimeLabelNet = lifetimeLabelNet, sunkProductionCost = sunkProductionCost, sunkMarketingCost = sunkMarketingCost, revenueMemoryEligible = revenueMemoryEligible,
 			pressingBookOpened = pressingBookOpened, unitsPressed = unitsPressed, pressingBookSold = pressingBookSold,
+			physicalInventory = physicalInventory?.Copy(),
 			releaseTimeExpectedNet = releaseTimeExpectedNet, releaseTimeOpportunityScale = releaseTimeOpportunityScale,
 			releaseMemoryWeek = releaseMemoryWeek, awareness = awareness, momentum = momentum, saturation = saturation,
 			radioHeat = radioHeat, wordOfMouth = wordOfMouth, artistHeat = artistHeat, artistPreviousHits = artistPreviousHits,

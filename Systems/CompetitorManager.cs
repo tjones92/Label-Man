@@ -5444,6 +5444,8 @@ public partial class CompetitorManager : Node {
 	/// </summary>
 	public void TransferRecordToLabel(RecordRuntimeData runtimeData, AILabel to, string dealId) {
 		if (runtimeData?.baseRecord == null || to == null) return;
+		if (runtimeData.physicalInventory != null && to.isPlayerOwned)
+			throw new System.InvalidOperationException("Physical inventory transfer into PlayerDesk is not supported by the AI inventory experiment.");
 		string recordId = runtimeData.baseRecord.recordId;
 		string from = runtimeData.baseRecord.labelId;
 		if (!string.IsNullOrEmpty(from) && labelActiveRecords.TryGetValue(from, out var fromIds)) fromIds.Remove(recordId);
@@ -5452,11 +5454,11 @@ public partial class CompetitorManager : Node {
 		runtimeData.baseRecord.isPlayerOwned = to.isPlayerOwned;
 		runtimeData.baseRecord.playerMasterDealId = dealId;
 		float quality = runtimeData.perceivedQualityMultiplier > 0f ? runtimeData.perceivedQualityMultiplier : 1f;
-		foreach (var pair in runtimeData.regionalData) {
+		PhysicalPressingInventory.Replan(runtimeData, () => { foreach (var pair in runtimeData.regionalData) {
 			if (pair.Value == null) continue;
 			pair.Value.unitsInStores = to.isPlayerOwned && !to.HasDistributionInRegion(pair.Key) ? 0
 				: ChartSimulator.CalculateInitialRegionalStock(to, pair.Key, 1f, quality, recordId);
-		}
+		} });
 		TrackRelease(to.labelId, recordId);
 	}
 

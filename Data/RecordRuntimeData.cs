@@ -80,10 +80,13 @@ public class RecordRuntimeData {
 	[System.Text.Json.Serialization.JsonIgnore]
 	public float SunkReleaseCost => sunkProductionCost + (sunkMarketingCost ?? 0f);
 	// LabelPressingEconomics pressing book: copies pressed and copies booked sold. Pressed minus sold at
-	// retirement is the unsold stock the label paid for. Untouched while the switch is off.
+	// retirement is the non-sold quantity the label paid for. In the physical arm this includes
+	// promo withdrawals and destroyed copies; use physicalInventory for remaining saleable stock.
 	public bool pressingBookOpened;
 	public int unitsPressed;
 	public int pressingBookSold;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public PhysicalInventoryState physicalInventory;
 	public bool revenueMemoryEligible;
 	// Immutable-at-launch context for normalized, opportunity-relative memory.
 	public float releaseTimeExpectedNet;
