@@ -5,6 +5,7 @@ using System.IO;
 public partial class ChartAuditRunner {
 	private StreamWriter distributionAdvanceWriter, recordCampaignWriter, operatorPayWriter;
 	private void OpenEconomyAuditBOutputs(string directory) {
+		OpenCompanyOutputs(directory);
 		if (LabelOperatorPay.MonthlyLimit > 0f) {
 			operatorPayWriter = CreateWriter(Path.Combine(directory, $"{runName}-operator-pay.csv"));
 			operatorPayWriter.WriteLine("week,year,month,labelId,tier,operatingCashSurplus,pay,cashAfter,monthlyOverhead,outstandingPlantPayables,monthlyCap");
@@ -34,6 +35,7 @@ public partial class ChartAuditRunner {
 		Exact(d.Spend), Exact(d.FactorBefore), Exact(d.FactorAfter), Exact(d.CashAfter)
 	}));
 	private void CloseEconomyAuditBOutputs() {
+		CloseCompanyOutputs();
 		LabelOperatorPay.Paid -= WriteOperatorPay;
 		if (CompetitorManager.Instance != null) {
 			CompetitorManager.Instance.OnDistributionAdvanceRecoupment -= WriteDistributionAdvance;

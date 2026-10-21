@@ -41,7 +41,7 @@ public static class CareerBandedFormatMemoryChecks {
 			legacy.careerBand = 3;
 			var restored = JsonSerializer.Deserialize<FormatMemoryObservation>(
 				JsonSerializer.Serialize(legacy, SaveGameService.TestJsonOptions), SaveGameService.TestJsonOptions);
-			Check(restored.careerBand == 3 && SaveGameService.WritingVersion == 24,
+			Check(restored.careerBand == 3 && SaveGameService.WritingVersion >= 24,
 				"tagged evidence round-trips and active banded worlds require the new reader version");
 			CareerBandedFormatMemory.SetForChecks(false);
 			Check(manager.ResponsiveMemoryForProbe(memory, 10, 3) == pooled && SaveGameService.WritingVersion == legacyVersion,

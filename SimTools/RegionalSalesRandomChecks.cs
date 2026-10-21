@@ -14,6 +14,9 @@ public static class RegionalSalesRandomChecks {
         var region = ChartManager.Instance.GetAllRegions().First();
         int oldWeek = ChartManager.Instance.GetCurrentChartWeek();
         ChartManager.Instance.RestoreChartWeek(123);
+        // The schema versions below are this switch's own; later default-on memory state writes newer ones.
+        bool banded = CareerBandedFormatMemory.Enabled, promo = PromoSynergyFeedback.Enabled;
+        CareerBandedFormatMemory.SetForChecks(false); PromoSynergyFeedback.SetForChecks(false);
         RegionalSalesRandom.Configure(Array.Empty<string>());
         GameRandom.Seed(9988); float expected = (float)GameRandom.RandRange(.96, 1.04); float next = GameRandom.Randf();
         GameRandom.Seed(9988);
@@ -45,6 +48,7 @@ public static class RegionalSalesRandomChecks {
         catch (ArgumentException) { rejected = true; }
         Check(rejected, "conflicting flags rejected");
         RegionalSalesRandom.Configure(Array.Empty<string>());
+        CareerBandedFormatMemory.SetForChecks(banded); PromoSynergyFeedback.SetForChecks(promo);
         ChartManager.Instance.RestoreChartWeek(oldWeek);
         GD.Print($"REGIONAL_SALES_RNG_CHECK_PASS checks={checks}");
     }

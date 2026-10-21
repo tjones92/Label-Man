@@ -64,7 +64,7 @@ public static class AlbumScaleCareerMilestones {
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		string[] args = (arguments ?? Array.Empty<string>()).ToArray();
-		bool on = args.Contains(Switch);
+		bool on = args.Contains(Switch) || LabelCorporateModel.FullBundleRequested(args);
 		string part = args.FirstOrDefault(a => a.StartsWith(PartPrefix, StringComparison.Ordinal))?.Substring(PartPrefix.Length);
 		if (part != null && !on) throw new ArgumentException(PartPrefix + " requires " + Switch + ".");
 		if (part != null && part != "b1" && part != "b2" && part != "placebo")

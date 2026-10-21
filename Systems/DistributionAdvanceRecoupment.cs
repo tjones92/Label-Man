@@ -5,7 +5,7 @@ using System.Linq;
 /// <summary>
 /// Audit B3: a distribution advance is a loan against the client's receipts, not a gift.
 ///
-/// Off (the default), the advance moves from distributor to client cash and is "recouped"
+/// On the legacy path, the advance moves from distributor to client cash and is "recouped"
 /// only out of the distributor's own skim, which the distributor takes whether or not the
 /// advance is repaid, so nothing ever comes back. When live:
 ///
@@ -32,7 +32,9 @@ public static class DistributionAdvanceRecoupment {
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		// Company accounts require repayments to be financing rather than service fees.
+		enabled = args.Contains(Switch) || args.Contains("--label-corporate-model") || LabelCorporateModel.DefaultBundleRequested(args);
 		configured = true;
 	}
 

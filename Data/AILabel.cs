@@ -79,6 +79,8 @@ public partial class AILabel : Resource {
 	[Export] public float monthlyRevenue;
 	[Export] public float monthlyExpenses;
 	public float lastMonthlyProfit;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public LabelCompanyState company;
 	// Last three completed months of actual net cash flow. Persisted with the label, including
 	// the missed-payment grace, so loading cannot erase financial distress. Old saves start empty.
 	public List<float> recentMonthlyCashFlows = new();
@@ -820,6 +822,10 @@ public partial class AILabel : Resource {
 		// cost of an act is already charged where it lands -- studio time, pressing, gas on the road.
 		// Player-only, so the AI economy's overhead schedule is untouched.
 		if (isPlayerOwned) return CityProfiles.MonthlyOverhead(homeCityId) + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
+		return LabelCorporateModel.MonthlyOverhead(this, GetLegacyMonthlyOverhead());
+	}
+
+	public float GetLegacyMonthlyOverhead() {
 		float baseOverhead = tier switch {
 			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
 			LabelTier.Small => 150f, LabelTier.Boutique => 250f, _ => 300f

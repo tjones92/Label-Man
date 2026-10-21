@@ -59,11 +59,11 @@ public static class ReleaseEconomicsChecks {
 					CompositionCatalogService.SongCount == songs && manager.GetAlbumProjects().Count == projects,
 					"passing consumes no cash, master, cooldown, contract release or album project");
 			} finally { label.ownedReach = reach; label.activeDeal = deal; artist.releasedSingleIds = discography; manager.OnReleaseProfitGate -= Observe; }
-			Check(SaveGameService.WritingVersion == 25, "active all-in worlds require the reader that retains campaign costs");
+			Check(SaveGameService.WritingVersion >= 25, "active all-in worlds require the reader that retains campaign costs");
 			var existing = ChartManager.Instance.GetAllRecords()[0]; var oldCost = existing.sunkMarketingCost;
 			try {
 				existing.sunkMarketingCost = 0f; ReleaseAllInEconomics.SetForChecks(false, false);
-				Check(SaveGameService.WritingVersion == 25, "retained cost facts require v25 even after the switch is disabled");
+				Check(SaveGameService.WritingVersion >= 25, "retained cost facts require v25 even after the switch is disabled");
 			} finally { existing.sunkMarketingCost = oldCost; }
 			GD.Print($"RELEASE_ECONOMICS_CHECK passed checks={checks}");
 		} finally { ReleaseAllInEconomics.SetForChecks(saved); }

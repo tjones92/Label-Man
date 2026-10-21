@@ -40,6 +40,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 			if (OS.GetCmdlineUserArgs().Contains("--regional-economy-check")) { RegionalEconomyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--economic-label-check")) { EconomicLabelLifecycleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-company-check")) { LabelCompanyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--pressing-commitment-check")) { PressingCommitmentChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--album-volume-check")) { AlbumVolumeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-operator-pay-check")) { LabelOperatorPayChecks.Run(); GetTree().Quit(0); return; }

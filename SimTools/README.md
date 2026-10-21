@@ -10,6 +10,29 @@ directives and hand-written handoffs. Everything a run or an analysis script
 reports, logs, before-edit snapshots) is written under `SimLogs/` and is not
 committed. New JSON under `SimTools/` is gitignored to enforce this.
 
+The AI company model is enabled by default. It replaces aggregate overhead with
+department staffing and premises, pays commercial channel costs and record
+excise, accrues income tax, routes ownership payouts, and charges for production
+upgrades. The full bundle also selects the corrected advance recovery, royalty
+tiers, mechanical publishing and period prices. Use `--no-label-corporate-model`
+for the legacy economy; `--label-corporate-model` explicitly selects the full
+bundle. Individual research arms remain available.
+`RunCorporateEconomyAudit.ps1` runs matched arms;
+`analyze_corporate_economy.py` validates monthly cash and company earnings.
+Run 53 weeks for a complete accounting year, including the December close.
+See [LabelCorporateModelImplementation.md](LabelCorporateModelImplementation.md)
+for cost boundaries, historical sources, assumptions, individual switches and
+calibration results. Native financial checks use `--label-company-check` with
+`SaveLoadRoundTripRunner.tscn`.
+
+Validate the actual game defaults with
+`./SimTools/RunCorporateEconomyAudit.ps1 -RunTag NAME -Profile game
+-Modes @('default') -Seeds @(1001,2002,3003,4004,5005) -Weeks 265`.
+The runner's `audit` profile (its default) retains the broader research stack
+and 1.5-forecast/twelve-week pressing scenario; use `game` for adoption checks.
+Starting-Small closures use the equal-weight multi-seed mean against the 20–35%
+design band, with individual outliers disclosed in the calibration record.
+
 The adopted 1960 concentration review uses **weekly Top 10 slots**, with bands
 of **23-33% for the leading four firms** and **47-57% for the leading eight**.
 `analyze_label_tier_historical_benchmarks.py PREFIX ... --review-manifest MANIFEST

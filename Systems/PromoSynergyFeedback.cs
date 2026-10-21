@@ -35,7 +35,8 @@ public static class PromoSynergyFeedback {
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch) || (LabelCorporateModel.FullBundleRequested(args) && GenreMarketV2.Enabled);
 		if (enabled && !GenreMarketV2.Enabled) throw new ArgumentException(Switch + " requires the live genre market.");
 		configured = true;
 	}

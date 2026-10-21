@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 // Economy audit section C (SimTools/EconomyReleaseJudgementAudit-2026-10-20.md). Each item is its own
-// opt-in switch, off by default and byte-identical when off.
+// research switch; the corporate bundle also enables the corrected period list-price ladder.
 
 /// <summary>
 /// C1: an album project's drop-week campaign keeps the same cash reserve as every other launch (the
@@ -16,7 +16,8 @@ public static class AlbumLaunchReserve {
 	public static bool Enabled => enabled;
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch) || LabelCorporateModel.FullBundleRequested(args);
 		configured = true;
 	}
 	internal static void SetForChecks(bool value) { configured = true; enabled = value; }
@@ -37,7 +38,8 @@ public static class PeriodListPrices {
 	public static bool Enabled => enabled;
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch) || LabelCorporateModel.FullBundleRequested(args);
 		configured = true;
 	}
 	internal static void SetForChecks(bool value) { configured = true; enabled = value; }
@@ -61,7 +63,8 @@ public static class SingleStudioModifier {
 	public static bool Enabled => enabled;
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch) || LabelCorporateModel.FullBundleRequested(args);
 		configured = true;
 	}
 	internal static void SetForChecks(bool value) { configured = true; enabled = value; }
@@ -84,7 +87,8 @@ public static class SelfExcludedArtistHeat {
 	public static bool Enabled => enabled;
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch) || LabelCorporateModel.FullBundleRequested(args);
 		configured = true;
 	}
 	internal static void SetForChecks(bool value) { configured = true; enabled = value; }

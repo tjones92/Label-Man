@@ -433,6 +433,7 @@ public partial class CompetitorManager : Node {
 		// stream (never GD), so this is inert to the simulated economy.
 		CompositionCatalogService.Initialize(1960, aiLabels, SimulationSeedBootstrap.RequestedSeed ?? 0UL);
 		PopulateInitialRecords();
+		if (LabelCorporateModel.Ledger) foreach (var label in aiLabels) LabelCompanyAccounts.Open(label);
 		GD.Print($"CompetitorManager: Initialized with {aiLabels.Count} labels");
 	}
 
@@ -833,8 +834,10 @@ public partial class CompetitorManager : Node {
 				if (RecordCampaignSpend.IsBreaking(record) && tranches < RecordCampaignSpend.MaxTranches) {
 					SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
 					float spend = (artist != null ? label.GetMarketingBudget(artist) : label.GetStandardMarketingBudget()) * RecordCampaignSpend.TrancheShare;
-					if (spend <= 0f || label.cashReserves - spend < label.GetMonthlyOverhead() * RecordCampaignSpend.ReserveMonths) continue;
-					label.cashReserves -= spend;
+					float reserve = label.GetMonthlyOverhead() * RecordCampaignSpend.ReserveMonths
+						+ (float)LabelCorporateModel.TaxAndServiceReserve(label);
+					if (spend <= 0f || label.cashReserves - spend < reserve) continue;
+					LabelCompanyAccounts.ChangeCash(label, -spend, LabelCashKind.Campaign);
 					label.monthlyExpenses += spend;
 					if (labelFinancials.TryGetValue(label.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += spend;
 					if (record.sunkMarketingCost.HasValue) record.sunkMarketingCost += spend;
@@ -932,8 +935,8 @@ public partial class CompetitorManager : Node {
 			label.weeklyWholesaleDeferred = deferred;
 			label.weeklyWholesaleCollected = collected + reservesReleased;
 			// Financing, not P&L: the withheld receipts still count as the client's revenue below.
-			if (DistributionAdvanceRecoupment.Enabled) label.cashReserves -= WithholdDistributionAdvance(label, settlementDistributorCarriedNet, weeklyRevenue);
-			label.cashReserves += weeklyRevenue;
+			if (DistributionAdvanceRecoupment.Enabled) LabelCompanyAccounts.ChangeCash(label, -WithholdDistributionAdvance(label, settlementDistributorCarriedNet, weeklyRevenue), LabelCashKind.Financing);
+			LabelCompanyAccounts.ChangeCash(label, weeklyRevenue, LabelCashKind.RecordReceipts);
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
 				financials.lastMonthRevenue += weeklyRevenue;
@@ -945,7 +948,7 @@ public partial class CompetitorManager : Node {
 				: label.weeklyPressingSpend;
 			label.weeklyPlantPaid = plantPaid;
 			if (plantPaid > 0f) {
-				label.cashReserves -= plantPaid;
+				LabelCompanyAccounts.ChangeCash(label, -plantPaid, LabelCashKind.PlantPayments);
 				label.monthlyExpenses += plantPaid;
 				if (financials != null) financials.lastMonthExpenses += plantPaid;
 			}
@@ -958,7 +961,7 @@ public partial class CompetitorManager : Node {
 			foreach (var label in aiLabels) {
 				float receipts = label.weeklyPublishingReceipts;
 				if (receipts == 0f) continue;
-				label.cashReserves += receipts;
+				LabelCompanyAccounts.ChangeCash(label, receipts, LabelCashKind.PublishingReceipts);
 				label.monthlyRevenue += receipts;
 				label.weeklyNetRevenue += receipts;
 				label.lifetimePublishingReceived += receipts;
@@ -1137,6 +1140,13 @@ public partial class CompetitorManager : Node {
 			float skimFraction = GetSettlementDistributionSkimFraction(label, runtimeData, weeklyUnits,
 				liveSettlement: GenreMarketV2.Enabled && settlement.SettlementId > 0);
 			float retailGross = weeklyUnits * pricePerUnit;
+			LabelCompanyAccounts.RecordSale(label, retailGross, weeklyUnits);
+			float selfShare = label.activeDeal == null ? Mathf.Clamp(label.ownedReach, 0f, 1f)
+				: 1f - DistributionAdvanceRecoupment.CarriedShare(label.activeDeal, skimFraction);
+			float companySaleCost = LabelCorporateModel.PaySaleOperatingCosts(label, retailGross, selfShare,
+				TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
+			label.monthlyExpenses += companySaleCost;
+			if (labelFinancials.TryGetValue(label.labelId, out var companyFinancials)) companyFinancials.lastMonthExpenses += companySaleCost;
 			// LabelPressingEconomics: the act and the composition are still paid on list, not on the dealer price
 			// the label now books. Off, this is retailGross exactly.
 			float royaltyBasisGross = pressingBook ? weeklyUnits * listPrice : retailGross;
@@ -1156,6 +1166,7 @@ public partial class CompetitorManager : Node {
 				LabelPressingEconomics.PressingWeek press = LabelPressingEconomics.Press(runtimeData, label, Mathf.RoundToInt(weeklyUnits));
 				initialRunSpend = LabelPressingEconomics.PlantBill(format, press.InitialRun, false, pressingCost);
 				pressingSpend = initialRunSpend + LabelPressingEconomics.PlantBill(format, press.Repressed, true, pressingCost);
+				LabelCompanyAccounts.Inventory(label, runtimeData, press.InitialRun, press.Repressed, Mathf.RoundToInt(weeklyUnits), pressingCost);
 			}
 			// Keep the existing artist contract convention (royalty on retail). The
 			// distribution skim is based on revenue after manufacturing cost.
@@ -1328,7 +1339,7 @@ public partial class CompetitorManager : Node {
 			entry.BookedCount = 1;
 			// The plant bill is paid in cash by the caller, outside the receipts a wholesale house may defer. The
 			// initial run is a release-time commitment, so it joins sunk production cost; re-presses follow sales.
-			runtimeData.lifetimeLabelNet += recordRevenue - (pressingSpend - initialRunSpend);
+			runtimeData.lifetimeLabelNet += recordRevenue - (pressingSpend - initialRunSpend) - companySaleCost;
 			runtimeData.sunkProductionCost += initialRunSpend;
 			totalRevenue += recordRevenue;
 			label.weeklyGrossRevenue += retailGross;
@@ -1474,7 +1485,7 @@ public partial class CompetitorManager : Node {
 		float withheld = DistributionAdvanceRecoupment.Withhold(deal.unrecoupedAdvance, carriedNet, bankedRevenue);
 		if (withheld <= 0f) return 0f;
 		deal.unrecoupedAdvance = Mathf.Max(0f, deal.unrecoupedAdvance - withheld);
-		distributor.cashReserves += withheld;
+		LabelCompanyAccounts.ChangeCash(distributor, withheld, LabelCashKind.Financing);
 		EmitAdvanceRecoupment("Withheld", client, deal, null, withheld, carriedNet);
 		return withheld;
 	}
@@ -1488,16 +1499,18 @@ public partial class CompetitorManager : Node {
 			float paid = distributor == null || distributor == client ? 0f
 				: DistributionAdvanceRecoupment.ExitSettlement(balance, client.cashReserves, client.GetMonthlyOverhead());
 			if (paid > 0f) {
-				client.cashReserves -= paid;
-				distributor.cashReserves += paid;
+				LabelCompanyAccounts.ChangeCash(client, -paid, LabelCashKind.Financing);
+				LabelCompanyAccounts.ChangeCash(distributor, paid, LabelCashKind.Financing);
 				deal.unrecoupedAdvance = balance - paid;
 				EmitAdvanceRecoupment("Settled", client, deal, resolution, paid, 0f);
 			}
 			deal.unrecoupedAdvance = 0f;
+			LabelCompanyAccounts.ForgiveFinancing(client, distributor, balance - paid);
 			if (balance - paid > 0f) EmitAdvanceRecoupment("WrittenOff", client, deal, resolution, balance - paid, 0f);
 			return;
 		}
 		deal.unrecoupedAdvance = 0f;
+		LabelCompanyAccounts.ForgiveFinancing(client, GetLabel(deal.distributorId), balance);
 		EmitAdvanceRecoupment("Forgiven", client, deal, resolution, balance, 0f);
 	}
 
@@ -1506,8 +1519,8 @@ public partial class CompetitorManager : Node {
 		if (!DistributionAdvanceRecoupment.Enabled || current == null || current.unrecoupedAdvance <= 0f) return;
 		float balance = current.unrecoupedAdvance;
 		current.unrecoupedAdvance = 0f;
-		major.cashReserves -= balance;
-		incumbent.cashReserves += balance;
+		LabelCompanyAccounts.ChangeCash(major, -balance, LabelCashKind.Financing);
+		LabelCompanyAccounts.ChangeCash(incumbent, balance, LabelCashKind.Financing);
 		offer.unrecoupedAdvance += balance;
 		EmitAdvanceRecoupment("BoughtOut", client, current, DealResolution.Poached, balance, 0f);
 	}
@@ -1537,7 +1550,13 @@ public partial class CompetitorManager : Node {
 			float recouped = Mathf.Min(Mathf.Max(0f, deal.unrecoupedAdvance), skimAmount);
 			deal.unrecoupedAdvance = Mathf.Max(0f, deal.unrecoupedAdvance - recouped);
 		}
-		distributor.cashReserves += skimAmount;
+		LabelCompanyAccounts.ChangeCash(distributor, skimAmount, LabelCashKind.DistributionFees);
+		if (LabelCorporateModel.Commercial && LabelCorporateModel.Applies(distributor)) {
+			float serviceCost = skimAmount * .85f;
+			LabelCompanyAccounts.ChangeCash(distributor, -serviceCost, LabelCashKind.DistributionOperations);
+			distributor.monthlyExpenses += serviceCost;
+			if (labelFinancials.TryGetValue(distributor.labelId, out var serviceFinancials)) serviceFinancials.lastMonthExpenses += serviceCost;
+		}
 		distributor.monthlyRevenue += skimAmount;
 		distributor.weeklyDistributionIncome += skimAmount;
 		GetOrCreateRevenueTelemetry(distributor.labelId, format).distributionIncome += skimAmount;
@@ -1649,7 +1668,7 @@ public partial class CompetitorManager : Node {
 		album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 
 		// Licensing economics: a high upfront advance, booked like any production spend.
-		label.cashReserves -= licenseFee;
+		LabelCompanyAccounts.ChangeCash(label, -licenseFee, LabelCashKind.Licensing);
 		label.monthlyExpenses += licenseFee;
 		WeeklyProductionSpend += licenseFee;
 		WeeklyProductionEvents++;
@@ -1711,7 +1730,7 @@ public partial class CompetitorManager : Node {
 		float seasonalityMultiplier = MarketSeasonality.Enabled
 			? MarketSeasonality.GetArtistAvailabilityMultiplier(year, month, liveTick: true)
 			: 1f;
-		return CalculateLabelReleaseCapacityChance(label.releasesPerMonth, label.status, availableArtists, seasonalityMultiplier);
+		return CalculateLabelReleaseCapacityChance(label.releasesPerMonth * LabelCorporateModel.CapacityFactor(label), label.status, availableArtists, seasonalityMultiplier);
 	}
 
 	/// <summary>
@@ -1736,6 +1755,7 @@ public partial class CompetitorManager : Node {
 		if (runtimeData?.baseRecord == null) return;
 		string labelId = runtimeData.baseRecord.labelId;
 		string recordId = runtimeData.baseRecord.recordId;
+		LabelCompanyAccounts.RetireInventory(GetLabel(labelId), recordId);
 		if (!string.IsNullOrEmpty(labelId) && !string.IsNullOrEmpty(recordId) &&
 			labelActiveRecords.TryGetValue(labelId, out var recordIds)) recordIds.Remove(recordId);
 		if (!string.IsNullOrEmpty(labelId)) {
@@ -2203,7 +2223,7 @@ public partial class CompetitorManager : Node {
 			totalCost = productionCost + marketingBudget;
 		}
 		
-		label.cashReserves -= totalCost;
+		LabelCompanyAccounts.PayProject(label, totalCost, productionCost);
 		label.monthlyExpenses += totalCost;
 		artist.unrecoupedAdvance += productionCost;
 		WeeklyProductionSpend += productionCost;
@@ -2512,7 +2532,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private void ChargeProjectCost(AILabel label, SimulatedArtist artist, float totalCost, float productionCost) {
-		label.cashReserves -= totalCost;
+		LabelCompanyAccounts.PayProject(label, totalCost, productionCost);
 		label.monthlyExpenses += totalCost;
 		artist.unrecoupedAdvance += productionCost;
 		if (labelFinancials.TryGetValue(label.labelId, out var financials)) financials.lastMonthExpenses += totalCost;
@@ -2730,6 +2750,7 @@ public partial class CompetitorManager : Node {
 			? LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, GetPricePerUnit(ReleaseFormat.Single))
 				- GetPressingCostPerUnit(ReleaseFormat.Single) - (LabelPressingEconomics.PeriodSingleCosts ? LabelPressingEconomics.SingleCompositionCost : 0f) - GetPricePerUnit(ReleaseFormat.Single) * .05f
 			: singleNetMarginPerUnit;
+		promoUnitMargin -= decision.companySingleUnitCost;
 		float expectedSingleUnits = Mathf.Max(0f,
 			(expectedPromoSingleNet + decision.singleProductionCost + expectedMarketing) / Mathf.Max(promoUnitMargin, 0.000001f));
 		float albumDemandFactor = CalculateAlbumDemandFactor(artist.primaryGenre, year);
@@ -3147,6 +3168,8 @@ public partial class CompetitorManager : Node {
 		float singleProductionCost = MarketSeasonality.Enabled
 			? label.GetProductionCost() * recordingCostMultiplier : label.GetProductionCost();
 		return new DecisionContext {
+			companySingleUnitCost = LabelCorporateModel.SaleOperatingCost(label, PlayerDesk.DealerPrice,
+				label.ownedReach, new GameDate(year, month, 1)),
 			qualityEstimate = qualityEstimate,
 			reachFactor = Mathf.Max(0f, label.distributionStrength),
 			genreSinglesMarketFactor = CalculateSingleGenreMarketFactor(artist.primaryGenre, year),
@@ -3167,7 +3190,7 @@ public partial class CompetitorManager : Node {
 		if (SinglePriorRecalibration.Enabled && live) {
 			float currentList = GetPricePerUnit(ReleaseFormat.Single);
 			float currentMargin = LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, currentList)
-				- GetPressingCostPerUnit(ReleaseFormat.Single) - LabelPressingEconomics.SingleCompositionCost - currentList * .05f;
+				- GetPressingCostPerUnit(ReleaseFormat.Single) - LabelPressingEconomics.SingleCompositionCost - currentList * .05f - decision.companySingleUnitCost;
 			return SinglePriorRecalibration.EstimateNet(decision.qualityEstimate, decision.careerBand,
 				decision.reachFactor, decision.genreSinglesMarketFactor, decision.singleProductionCost, currentMargin);
 		}
@@ -3176,7 +3199,7 @@ public partial class CompetitorManager : Node {
 		float list = GetPricePerUnit(ReleaseFormat.Single), pressing = GetPressingCostPerUnit(ReleaseFormat.Single);
 		float composition = LabelPressingEconomics.PeriodSingleCosts ? LabelPressingEconomics.SingleCompositionCost : 0f;
 		float royalty = list * 0.05f;
-		float scale = Mathf.Max(0f, LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, list) - pressing - composition - royalty) /
+		float scale = Mathf.Max(0f, LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, list) - pressing - composition - royalty - decision.companySingleUnitCost) /
 			Mathf.Max(0.01f, list - GetLegacyPressingCostPerUnit(ReleaseFormat.Single) - royalty);
 		return (net + decision.singleProductionCost) * scale - decision.singleProductionCost;
 	}
@@ -3230,6 +3253,8 @@ public partial class CompetitorManager : Node {
 			: 0.25f * (1f - label.ownedReach);
 		float royaltyRate = artist?.royaltyRate ?? baseRoyaltyRate;
 		float marginPerUnit = grossAfterManufacturing * (1f - skimFraction) - GetPricePerUnit(ReleaseFormat.Album) * royaltyRate;
+		marginPerUnit -= LabelCorporateModel.SaleOperatingCost(label, albumBookedPrice, label.ownedReach,
+			TimeManager.Instance?.CurrentDate ?? new GameDate(year, 1, 1));
 		float multiplier = compCostWeight * compilationProductionMultiplier + (1f - compCostWeight) * 2.4f;
 		if (AlbumMasterCosts.IsLive) multiplier = AlbumMasterCosts.ExpectedMultiplier(compCostWeight, hitInventory.resolvedSingles, compilationProductionMultiplier);
 		float productionCost = MarketSeasonality.Enabled
@@ -3641,6 +3666,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private struct DecisionContext {
+		public float companySingleUnitCost;
 		public float qualityEstimate;
 		public int qualityQuartile;
 		public int careerBand;
@@ -4081,10 +4107,11 @@ public partial class CompetitorManager : Node {
 					+ InitialRunReserve(owner, project.albumRecord);
 				marketingBudget = AlbumLaunchReserve.ClampCampaign(marketingBudget, owner.cashReserves, reserve);
 			} else {
-				float available = Mathf.Max(0f, owner.cashReserves - owner.GetMonthlyOverhead());
+				float available = Mathf.Max(0f, owner.cashReserves - owner.GetMonthlyOverhead()
+					- (float)LabelCorporateModel.TaxAndServiceReserve(owner));
 				marketingBudget = Mathf.Min(marketingBudget, available * 0.8f);
 			}
-			owner.cashReserves -= marketingBudget;
+			LabelCompanyAccounts.ChangeCash(owner, -marketingBudget, LabelCashKind.Campaign);
 			owner.monthlyExpenses += marketingBudget;
 			if (labelFinancials.TryGetValue(owner.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += marketingBudget;
 			WeeklyMarketingSpend += marketingBudget;
@@ -4282,13 +4309,22 @@ public partial class CompetitorManager : Node {
 	private void OnMonthChanged(GameDate date) {
 		using var timingScope = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.CompetitorMonth);
 		foreach (var label in aiLabels) ProcessLabelMonth(label, date);
+		// All companies close first. Owner transfers occur on the first day of the next period,
+		// so receiving parents do not get different accounting periods depending on list order.
+		if (LabelCorporateModel.Distributions)
+			LabelCorporateModel.PayAllDistributions(aiLabels, LabelCorporateModel.Period(date) - 1, GetLabel);
 		if (date.month == 1) ProcessIndependentTradeDecline(date.year);
 		ProcessDistributionDeals(date);
 		if (debugMode) PrintMonthlyReport(date);
 	}
 	
 	private void ProcessLabelMonth(AILabel label, GameDate date) {
-		if (!label.IsActive) { ReleaseIndependentDistribution(label); return; }
+		if (LabelCorporateModel.Applies(label) && label.company?.lastClosedPeriod >= LabelCorporateModel.Period(date) - 1) return;
+		if (!label.IsActive) {
+			ReleaseIndependentDistribution(label);
+			if (label.company?.accountsOpened == true) LabelCompanyAccounts.CloseMonth(label, LabelCorporateModel.Period(date) - 1);
+			return;
+		}
 
 		var financials = labelFinancials.TryGetValue(label.labelId, out var f) ? f : null;
 		if (financials == null) {
@@ -4296,7 +4332,7 @@ public partial class CompetitorManager : Node {
 			labelFinancials[label.labelId] = financials;
 		}
 		float overhead = label.GetMonthlyOverhead();
-		label.cashReserves -= overhead;
+		LabelCompanyAccounts.OverheadPaid(label, overhead);
 		label.monthlyExpenses += overhead;
 		financials.lastMonthExpenses += overhead;
 		// Owner-manager work is paid from positive cash surplus after ordinary bills.
@@ -4309,7 +4345,15 @@ public partial class CompetitorManager : Node {
 		ReinvestDistributionProfit(label, netIncome);
 		GrowSelfBuiltDistributionReach(label, netIncome);
 		PursueIndependentDistribution(label);
-		UpdateLabelStatus(label, financials, netIncome, netIncome + label.cashReserves - cashBeforeExpansion);
+		float netCashFlow = netIncome + label.cashReserves - cashBeforeExpansion;
+		if (LabelCorporateModel.Applies(label)) {
+			int period = LabelCorporateModel.Period(date) - 1;
+			int clients = aiLabels.Count(client => client.IsActive && client.activeDeal?.distributorId == label.labelId);
+			LabelCorporateModel.ReviewOrganization(label, period, clients, GetRecentReleasedRecordCount(label.labelId, 13) / 3.0);
+			var statement = LabelCompanyAccounts.CloseMonth(label, period);
+			if (statement != null && LabelCorporateModel.ChangesEconomy) netCashFlow = (float)(statement.closingCash - statement.openingCash - statement.financingNet - statement.ownerTransfersNet);
+		}
+		UpdateLabelStatus(label, financials, netIncome, netCashFlow);
 		
 		label.monthlyRevenue = 0f;
 		label.monthlyExpenses = 0f;
@@ -4318,6 +4362,7 @@ public partial class CompetitorManager : Node {
 		
 		if (date.month == 1) financials.totalReleasesThisYear = 0;
 	}
+	internal void ProcessLabelMonthForCompanyChecks(AILabel label, GameDate date) => ProcessLabelMonth(label, date);
 
 	public void SetDistributionOfferProcessingEnabled(bool enabled) => distributionOfferProcessingEnabled = enabled;
 
@@ -4330,7 +4375,12 @@ public partial class CompetitorManager : Node {
 	private void ReinvestDistributionProfit(AILabel label, float netIncome) {
 		if (label.activeDeal == null || netIncome <= 0f) return;
 		float reinvestment = netIncome * dealReinvestRate;
-		label.cashReserves -= reinvestment;
+		if (LabelCorporateModel.Capital && LabelCorporateModel.Applies(label)) {
+			reinvestment = Mathf.Min(reinvestment, (1f - label.ownedReach) * Mathf.Max(1f, dealReinvestCost));
+			reinvestment = Mathf.Min(reinvestment, (float)System.Math.Max(0, label.cashReserves - LabelCorporateModel.ProtectedCash(label)));
+		}
+		LabelCompanyAccounts.ChangeCash(label, -reinvestment, LabelCashKind.DistributionInvestment);
+		LabelCorporateModel.AddAsset(label, "distribution network", reinvestment, 120);
 		label.ownedReach = Mathf.Min(1f, label.ownedReach + (reinvestment / Mathf.Max(1f, dealReinvestCost)));
 	}
 
@@ -4360,7 +4410,10 @@ public partial class CompetitorManager : Node {
 		float surplusMultiple = netIncome / overhead;
 		if (surplusMultiple < selfBuiltReachSurplusMultiple) return;
 		float investment = netIncome * selfBuiltReachReinvestRate;
-		label.cashReserves -= investment;
+		if (LabelCorporateModel.Capital && LabelCorporateModel.Applies(label) &&
+			label.cashReserves - LabelCorporateModel.ProtectedCash(label) < investment) return;
+		LabelCompanyAccounts.ChangeCash(label, -investment, LabelCashKind.DistributionInvestment);
+		LabelCorporateModel.AddAsset(label, "distribution network", investment, 120);
 		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling, label.ownedReach + selfBuiltReachMonthlyGain);
 		label.nationalReach = CalculateNationalReachAfterSelfBuiltGain(
 			label.nationalReach, selfBuiltNationalReachMonthlyGain, SelfBuiltNationalReachCeiling);
@@ -4572,8 +4625,8 @@ public partial class CompetitorManager : Node {
 		BuyOutDistributionAdvance(client, current, incumbent, offer, major);
 		EmitDealEvent(client, incumbent, current, DealResolution.Poached, client.DistributionDependency);
 		client.activeDeal = offer;
-		client.cashReserves += offer.advance;
-		major.cashReserves -= offer.advance;
+		LabelCompanyAccounts.ChangeCash(client, offer.advance, LabelCashKind.Financing);
+		LabelCompanyAccounts.ChangeCash(major, -offer.advance, LabelCashKind.Financing);
 		EmitDealEvent(client, major, offer, DealResolution.Signed, client.DistributionDependency);
 	}
 
@@ -4649,8 +4702,8 @@ public partial class CompetitorManager : Node {
 		// network; the back catalog stays on the label's own distribution.
 		offer.Cover(regionalEvidence.EarningRecordId);
 		client.activeDeal = offer;
-		client.cashReserves += offer.advance;
-		distributor.cashReserves -= offer.advance;
+		LabelCompanyAccounts.ChangeCash(client, offer.advance, LabelCashKind.Financing);
+		LabelCompanyAccounts.ChangeCash(distributor, -offer.advance, LabelCashKind.Financing);
 		attempt.outcome = "Signed";
 		OnDistributionOfferAttempt?.Invoke(attempt);
 		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
@@ -4940,8 +4993,8 @@ public partial class CompetitorManager : Node {
 		if (client == null || offer == null || client.activeDeal != null) return;
 		AILabel distributor = GetLabel(offer.distributorId);
 		client.activeDeal = offer;
-		client.cashReserves += offer.advance;
-		if (distributor != null) distributor.cashReserves -= offer.advance;
+		LabelCompanyAccounts.ChangeCash(client, offer.advance, LabelCashKind.Financing);
+		if (distributor != null) LabelCompanyAccounts.ChangeCash(distributor, -offer.advance, LabelCashKind.Financing);
 		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
 	}
 
@@ -5071,6 +5124,7 @@ public partial class CompetitorManager : Node {
 			.Union(distributor.distributionRegions ?? System.Array.Empty<string>(), System.StringComparer.Ordinal)
 			.ToArray();
 		client.ownerLabelId = distributor.labelId;
+		if (LabelCorporateModel.Applies(client)) LabelCorporateModel.Ensure(client).ownership = LabelOwnershipForm.CorporateDivision;
 		client.activeDeal = null;
 	}
 
@@ -5294,6 +5348,7 @@ public partial class CompetitorManager : Node {
 		if (!retiredLabelRecordHistory.ContainsKey(label.labelId))
 			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 		if (!labelFinancials.ContainsKey(label.labelId)) labelFinancials[label.labelId] = new LabelFinancialHistory();
+		LabelCompanyAccounts.Open(label);
 	}
 
 	// ========================================================================
@@ -5359,7 +5414,7 @@ public partial class CompetitorManager : Node {
 		float marketingBudget = artist != null ? buyer.GetMarketingBudget(artist) : 0f;
 		float minReserve = buyer.GetMonthlyOverhead();
 		if (buyer.cashReserves - marketingBudget < minReserve) marketingBudget = Mathf.Max(0f, (buyer.cashReserves - minReserve) * 0.8f);
-		RecordExpense(buyer, marketingBudget);
+		RecordExpense(buyer, marketingBudget, LabelCashKind.Campaign);
 		WeeklyMarketingSpend += marketingBudget;
 		WeeklyMarketingEvents++;
 
@@ -5499,9 +5554,9 @@ public partial class CompetitorManager : Node {
 	public float GetPlayerProductionCost(AILabel label, Record record, GameDate date) =>
 		CalculateProductionCost(label, record, date);
 
-	public void RecordExpense(AILabel label, float amount) {
+	public void RecordExpense(AILabel label, float amount, LabelCashKind kind = LabelCashKind.OtherOperating) {
 		if (label == null || amount <= 0f) return;
-		label.cashReserves -= amount;
+		LabelCompanyAccounts.ChangeCash(label, -amount, kind);
 		label.monthlyExpenses += amount;
 		if (labelFinancials.TryGetValue(label.labelId, out LabelFinancialHistory financials)) {
 			financials.lastMonthExpenses += amount;

@@ -604,7 +604,7 @@ public partial class RosterManager : Node {
 				continue;
 			}
 			float advance = winner.Label.SignArtist(winner.Artist, date.year);
-			CompetitorManager.Instance?.RecordExpense(winner.Label, advance);
+			CompetitorManager.Instance?.RecordExpense(winner.Label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(winner.Artist, winner.Label.labelId, date.year);
 			SceneRecruitmentService.RecordSigning(winner.Label, winner.Artist, chartWeek, date.year, "DailyMarket");
 			WeeklySignings++; RecordSigning(winner.Label.tier, winner.Artist, transition.IsReSigning);
@@ -714,7 +714,7 @@ public partial class RosterManager : Node {
 		AILabel rival = FindRivalToPlayer(artist, date, preferredLabelId);
 		if (rival == null) return null;
 		float advance = rival.SignArtist(artist, date.year);
-		CompetitorManager.Instance?.RecordExpense(rival, advance);
+		CompetitorManager.Instance?.RecordExpense(rival, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
 		SceneRecruitmentService.RecordSigning(rival, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "PlayerRival");
 		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
@@ -731,7 +731,7 @@ public partial class RosterManager : Node {
 		AILabel rival = FindRivalToPlayer(artist, date, labelId);
 		if (rival == null || rival.labelId != labelId || !rival.CanAffordToSign(terms.Advance)) return null;
 		float advance = rival.SignArtist(artist, date.year, terms);
-		CompetitorManager.Instance?.RecordExpense(rival, advance);
+		CompetitorManager.Instance?.RecordExpense(rival, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
 		SceneRecruitmentService.RecordSigning(rival, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "PlayerRival");
 		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
@@ -751,7 +751,7 @@ public partial class RosterManager : Node {
 		if (!SceneRecruitmentService.CanAccess(buyer, artist, week)) return false;   // the same reach every rival signing needs
 		ArtistManager.Instance?.DropArtist(artist, date.year, playerLabel, ArtistDropReason.Voluntary);
 		float advance = buyer.SignArtist(artist, date.year, terms);
-		CompetitorManager.Instance?.RecordExpense(buyer, advance);
+		CompetitorManager.Instance?.RecordExpense(buyer, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, buyer.labelId, date.year);
 		SceneRecruitmentService.RecordSigning(buyer, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "MasterBuyer");
 		WeeklySignings++; RecordSigning(buyer.tier, artist, transition.IsReSigning);
@@ -1088,7 +1088,7 @@ public partial class RosterManager : Node {
 		if (SceneRecruitmentService.CanAccess(label, bestCandidate, ChartManager.Instance?.GetCurrentChartWeek() ?? 0) &&
 			label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(bestCandidate))) {
 			float advance = label.SignArtist(bestCandidate, year);
-			CompetitorManager.Instance?.RecordExpense(label, advance);
+			CompetitorManager.Instance?.RecordExpense(label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
 			SceneRecruitmentService.RecordSigning(label, bestCandidate, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, year, "WeeklyMarket");
 			string signingKind = transition.IsReSigning ? "ReSigning" : "FirstSigning";
@@ -1393,7 +1393,7 @@ public partial class RosterManager : Node {
 				artist.contractSinglesObligation = label.CalculateContractSinglesObligation(artist, year);
 				artist.contractReleases = 0;
 				artist.royaltyRate = label.CalculateRoyaltyRate(artist);
-				CompetitorManager.Instance?.RecordExpense(label, newAdvance);
+				CompetitorManager.Instance?.RecordExpense(label, newAdvance, LabelCashKind.ArtistAdvances);
 				artist.careerEvents.Add($"{year}: Re-signed with {label.labelName}");
 				if (debugMode) GD.Print($"RE-SIGN: {label.labelName} re-signs {artist.stageName}");
 			} else {

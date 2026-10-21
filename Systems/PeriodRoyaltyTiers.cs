@@ -5,7 +5,7 @@ using System.Linq;
 /// <summary>
 /// Audit B4: royalty rates ordered by the label's ability to pay, not against it.
 ///
-/// Off (the default), base rates run Major 3%, MidTier 5%, Independent 8%, Small 10%, so the
+/// On the legacy path, base rates run Major 3%, MidTier 5%, Independent 8%, Small 10%, so the
 /// weakest labels win contested acts on royalty (artist choice weights it at 0.15) and acts
 /// earn most at the labels that could least afford it. In period practice the majors paid the
 /// standard 3-5% and paid established acts the most; independents paid 2-3%, often less.
@@ -21,7 +21,8 @@ public static class PeriodRoyaltyTiers {
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch) || LabelCorporateModel.FullBundleRequested(args);
 		configured = true;
 	}
 

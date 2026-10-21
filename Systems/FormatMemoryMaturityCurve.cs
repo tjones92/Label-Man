@@ -45,6 +45,7 @@ public static class FormatMemoryMaturityCurve {
 		if (configured) return;
 		foreach (string argument in arguments ?? Array.Empty<string>())
 			if (argument == Argument) enabled = true;
+		if (LabelCorporateModel.FullBundleRequested(arguments)) enabled = true;
 		configured = true;
 	}
 

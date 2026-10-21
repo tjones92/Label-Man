@@ -1527,7 +1527,7 @@ public static class BandLifeService {
 		if (!from.contractLeavingMemberOption || person == null || person.personalRecognition < SoloLaunchBar) return false;
 		if (!label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(solo))) return false;
 		float advance = label.SignArtist(solo, year);
-		CompetitorManager.Instance?.RecordExpense(label, advance);
+		CompetitorManager.Instance?.RecordExpense(label, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.Instance.SignArtist(solo, label.labelId, year);
 		solo.careerEvents.Add($"{year}: {label.labelName} exercised its leaving-member option");
 		return true;

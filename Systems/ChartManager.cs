@@ -414,6 +414,7 @@ public partial class ChartManager : Node {
 		PeriodListPrices.Configure(OS.GetCmdlineUserArgs());
 		SingleStudioModifier.Configure(OS.GetCmdlineUserArgs());
 		SelfExcludedArtistHeat.Configure(OS.GetCmdlineUserArgs());
+		LabelCorporateModel.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();

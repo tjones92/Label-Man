@@ -5,7 +5,7 @@ using System.Linq;
 /// <summary>
 /// Audit B6: AI-to-AI publishing pays the period mechanical, once.
 ///
-/// Off (the default), with routing live, an AI record expenses a 2c-a-side mechanical in COGS that
+/// On the legacy path, with routing live, an AI record expenses a 2c-a-side mechanical in COGS that
 /// reaches nobody, and then also routes 11% of list (PublishingShareOfGross, about 9.8c a copy) to
 /// whoever controls the composition. A cover pays its composition twice, at about five times the
 /// 1909 Act's 2c, and AI catalogs are worth several times the period figure.
@@ -23,7 +23,8 @@ public static class PeriodAiPublishing {
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch) || LabelCorporateModel.FullBundleRequested(args);
 		configured = true;
 	}
 

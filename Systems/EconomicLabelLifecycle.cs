@@ -46,6 +46,7 @@ public static class EconomicLabelLifecycle {
 	internal static float CommitmentReserve(AILabel label, bool signing) {
 		float reserve = Math.Max(label.GetMonthlyOverhead() * (signing ? 2f : 1f),
 			Math.Max(0f, -label.RecentMonthlyCashFlow) * (signing ? 3f : 2f));
-		return LabelPressingEconomics.PlantCredit ? reserve + label.outstandingPlantPayables : reserve;
+		if (LabelPressingEconomics.PlantCredit) reserve += label.outstandingPlantPayables;
+		return reserve + (float)LabelCorporateModel.TaxAndServiceReserve(label);
 	}
 }

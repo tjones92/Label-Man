@@ -775,7 +775,9 @@ public partial class LabelLifecycleManager : Node {
 		// let Majors pull acoustically ahead and is a driver of the ahistorical late-decade indie
 		// chart surge. Only a label with capital to fund studio upgrades keeps pace now; a
 		// cash-starved small label's production stagnates, as it historically did.
-		if (currentYear > 1963 && label.cashReserves >= label.GetMonthlyOverhead() * StudioUpgradeRunwayMonths)
+		if (LabelCorporateModel.Capital && LabelCorporateModel.Applies(label))
+			LabelCorporateModel.TryProductionUpgrade(label, currentYear, currentMonth);
+		else if (currentYear > 1963 && label.cashReserves >= label.GetMonthlyOverhead() * StudioUpgradeRunwayMonths)
 			label.productionQuality = Mathf.Min(1f, label.productionQuality + drift * 0.5f);
 		label.scoutingAbility += (float)GameRandom.RandRange(-drift, drift);
 		label.riskTolerance += (float)GameRandom.RandRange(-drift, drift);
