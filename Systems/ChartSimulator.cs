@@ -493,10 +493,11 @@ public static class ChartSimulator {
 		
 		// === 5. CHART VISIBILITY BONUS ===
 		float chartVisibility = GetChartVisibilityMultiplier(internalChartPosition);
+		float regionalDiscovery = 0f;
 		if (internalChartPosition <= 0) {
 			// Proven local discovery softens, but never erases, the uncharted moat.
 			// Even the strongest regional signal remains below #100's 1.0 exposure.
-			float regionalDiscovery = Mathf.Clamp((regionalData.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
+			regionalDiscovery = Mathf.Clamp((regionalData.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
 			regionalDiscovery = Mathf.Max(regionalDiscovery, regionalData.neighboringMarketTestStrength * 0.60f);
 			chartVisibility = 0.40f + regionalDiscovery * 0.55f;
 		}
@@ -509,6 +510,9 @@ public static class ChartSimulator {
 		// purchase exposure -- rack space, jukebox slots, the listening booth -- rather than
 		// discovery, so it belongs on conversion and not inside the awareness odds.
 		conversionRate *= GetChartExposureWeight(internalChartPosition);
+		if (stagedLiveDemand && !record.baseRecord.isPlayerOwned)
+			conversionRate *= UnchartedSingleExposure.Multiplier(internalChartPosition, regionalDiscovery, record.weeksSinceRelease,
+				record.weeksSincePeakUnits);
 		
 		// === 6. RELEASE RAMP ===
 		conversionRate *= GetReleaseRampWeight(record.weeksSinceRelease, record.currentLabelPush) *

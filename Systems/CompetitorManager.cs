@@ -831,7 +831,7 @@ public partial class CompetitorManager : Node {
 			foreach (string recordId in recordIds) {
 				RecordRuntimeData record = ChartManager.Instance?.GetRecordRuntimeData(recordId);
 				if (record?.campaignPushFactor is not float factor || record.campaignTranches is not int tranches || tranches < 0) continue;
-				if (RecordCampaignSpend.IsBreaking(record) && tranches < RecordCampaignSpend.MaxTranches) {
+				if (RecordCampaignSpend.FollowUps && RecordCampaignSpend.IsBreaking(record) && tranches < RecordCampaignSpend.MaxTranches) {
 					SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
 					float spend = (artist != null ? label.GetMarketingBudget(artist) : label.GetStandardMarketingBudget()) * RecordCampaignSpend.TrancheShare;
 					float reserve = label.GetMonthlyOverhead() * RecordCampaignSpend.ReserveMonths
@@ -844,7 +844,7 @@ public partial class CompetitorManager : Node {
 					record.campaignPushFactor = Mathf.Min(RecordCampaignSpend.MaxFactor, factor * RecordCampaignSpend.TrancheLift);
 					record.campaignTranches = tranches + 1;
 					EmitRecordCampaign("FollowUp", week, label, record, spend, factor);
-				} else if (RecordCampaignSpend.IsDead(record)) {
+				} else if (RecordCampaignSpend.Cuts && RecordCampaignSpend.IsDead(record)) {
 					record.campaignPushFactor = factor * RecordCampaignSpend.CutFactor;
 					record.campaignTranches = -1;
 					EmitRecordCampaign("Cut", week, label, record, 0f, factor);

@@ -29,20 +29,31 @@ public static class RecordCampaignSpend {
 	internal const float MinFactor = .6f, MaxLaunchFactor = 1.6f, MaxFactor = 2f;
 	internal const float TrancheShare = .5f, TrancheLift = 1.3f, CutFactor = .6f, ReserveMonths = 3f;
 	internal const int MaxTranches = 2, FirstFollowUpWeek = 2, LastFollowUpWeek = 12, CutWeek = 6;
+	// Diagnostic ablation: --record-campaign-spend-part=launch|followups|cuts runs one mechanism alone.
+	public const string PartPrefix = "--record-campaign-spend-part=";
 	private static bool configured, enabled;
+	private static bool launchOn = true, followUpsOn = true, cutsOn = true;
 	public static bool Enabled => enabled;
+	public static bool FollowUps => followUpsOn;
+	public static bool Cuts => cutsOn;
 	public static bool HasState => enabled || ChartManager.Instance?.GetAllRecords().Any(r => r.campaignPushFactor.HasValue) == true;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch);
+		string part = args.FirstOrDefault(a => a.StartsWith(PartPrefix, StringComparison.Ordinal))?.Substring(PartPrefix.Length);
+		if (part != null && !enabled) throw new ArgumentException(PartPrefix + " requires " + Switch + ".");
+		if (part != null && part != "launch" && part != "followups" && part != "cuts")
+			throw new ArgumentException(PartPrefix + " takes launch, followups or cuts.");
+		launchOn = part is null or "launch"; followUpsOn = part is null or "followups"; cutsOn = part is null or "cuts";
 		configured = true;
 	}
 
-	internal static void SetForChecks(bool value) { configured = true; enabled = value; }
+	internal static void SetForChecks(bool value) { configured = true; enabled = value; launchOn = followUpsOn = cutsOn = true; }
 
 	internal static float LaunchFactor(float budget, float standardBudget) =>
-		standardBudget <= 0f ? 1f : Math.Clamp(MathF.Sqrt(Math.Max(0f, budget) / standardBudget), MinFactor, MaxLaunchFactor);
+		!launchOn || standardBudget <= 0f ? 1f : Math.Clamp(MathF.Sqrt(Math.Max(0f, budget) / standardBudget), MinFactor, MaxLaunchFactor);
 
 	/// <summary>Weekly push multiplier: 1 for any record without a campaign factor (off, albums, player records).</summary>
 	internal static float PushFactor(RecordRuntimeData record) => record?.campaignPushFactor ?? 1f;
