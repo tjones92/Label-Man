@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import math
+import os
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -51,6 +52,12 @@ def summarize(prefix):
     missing = [rid for rid in singles if rid not in costs]
     if missing:
         raise ValueError(f"Funded singles lack attributed campaign costs: {prefix}: {missing[:10]} ({len(missing)} total)")
+    # --record-campaign-spend (audit B5): follow-up tranches are attributed after launch.
+    follow_ups = Counter()
+    if os.path.exists(f"{prefix}-record-campaigns.csv"):
+        for row in rows(prefix, "record-campaigns"):
+            follow_ups[row["recordId"]] += float(row["spend"])
+    campaigns["followUpMarketing"] = sum(follow_ups.values())
     outcomes = defaultdict(Counter)
     for row in rows(prefix, "release-all-in-outcomes"):
         before = float(row["lifetimeLabelNet"]) - float(row["sunkProductionCost"])
@@ -58,7 +65,9 @@ def summarize(prefix):
         tolerance = max(.01, abs(net) * .000001)
         if abs(net - (before - marketing)) > tolerance:
             raise ValueError(f"Outcome cost identity failed: {prefix} {row}")
-        if row["recordId"] not in costs or marketing != costs[row["recordId"]]:
+        expected = costs.get(row["recordId"], math.nan) + follow_ups[row["recordId"]]
+        exact = follow_ups[row["recordId"]] == 0
+        if row["recordId"] not in costs or (marketing != expected if exact else abs(marketing - expected) > max(.01, expected * 1e-6)):
             raise ValueError(f"Outcome lacks matching launch campaign cost: {prefix} {row}")
         group = outcomes[row["format"]]
         group["finals"] += 1

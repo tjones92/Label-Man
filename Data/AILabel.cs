@@ -368,6 +368,13 @@ public partial class AILabel : Resource {
 	}
 	
 	public float CalculateRoyaltyRate(SimulatedArtist artist) {
+		if (PeriodRoyaltyTiers.Enabled) {
+			float leverage = artist.careerState switch {
+				CareerState.Superstar => 0.08f, CareerState.Star => 0.05f, CareerState.Established => 0.03f,
+				CareerState.Rising => 0.01f, _ => 0f
+			};
+			return Mathf.Clamp(PeriodRoyaltyTiers.BaseRate(tier) + leverage * PeriodRoyaltyTiers.LeverageShare(tier), 0.02f, 0.15f);
+		}
 		float baseRate = tier switch {
 			LabelTier.Major => 0.03f, LabelTier.MidTier => 0.05f, LabelTier.Independent => 0.08f,
 			LabelTier.Small => 0.10f, LabelTier.Boutique => 0.07f, _ => 0.05f
@@ -830,11 +837,16 @@ public partial class AILabel : Resource {
 		};
 	}
 	
+	/// <summary>This label's campaign for an act at artist multiplier 1 (between a new signing and a rising act).</summary>
+	public float GetStandardMarketingBudget() => MarketingBaseBudget * marketingPower;
+
+	private float MarketingBaseBudget => tier switch {
+		LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
+		LabelTier.Small => 150f, LabelTier.Boutique => 300f, _ => 300f
+	};
+
 	public float GetMarketingBudget(SimulatedArtist artist) {
-		float baseBudget = tier switch {
-			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
-			LabelTier.Small => 150f, LabelTier.Boutique => 300f, _ => 300f
-		};
+		float baseBudget = MarketingBaseBudget;
 		float artistMult = artist.careerState switch {
 			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 			CareerState.Rising => 1.2f, CareerState.NewSigning => 0.8f, _ => 0.5f

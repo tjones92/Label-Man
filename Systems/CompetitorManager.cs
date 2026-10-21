@@ -370,6 +370,8 @@ public partial class CompetitorManager : Node {
 		Mathf.Clamp(substitutionK * CalculateAlbumDemandFactor(genre, year), 0f, substitutionCap);
 	private bool lastReleaseAttemptFailedArtistSelection;
 	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
+	public event System.Action<DistributionAdvanceRecoupmentTelemetry> OnDistributionAdvanceRecoupment;
+	public event System.Action<RecordCampaignTelemetry> OnRecordCampaign;
 	public event System.Action<DistributionOfferAttemptTelemetry> OnDistributionOfferAttempt;
 	public event System.Action<IndependentDistributionTelemetry> OnIndependentDistributionSigned;
 	public event System.Action<IndependentTradeFailureTelemetry> OnIndependentTradeFailure;
@@ -814,7 +816,46 @@ public partial class CompetitorManager : Node {
 		ProcessDueAlbumProjects(date);
 		ProcessWeeklyReleases(date);
 		ProcessWeeklySoundtrackOrigination(date);
+		if (RecordCampaignSpend.Enabled) ProcessRecordCampaigns();
 	}
+
+	/// <summary>
+	/// Audit B5: AI labels work their breaking singles and drop the dead ones. Draws no random numbers.
+	/// Labels and records are visited in list order, so a resumed world makes the same calls.
+	/// </summary>
+	private void ProcessRecordCampaigns() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		foreach (AILabel label in aiLabels) {
+			if (!label.IsActive || label.isPlayerOwned || !labelActiveRecords.TryGetValue(label.labelId, out List<string> recordIds)) continue;
+			foreach (string recordId in recordIds) {
+				RecordRuntimeData record = ChartManager.Instance?.GetRecordRuntimeData(recordId);
+				if (record?.campaignPushFactor is not float factor || record.campaignTranches is not int tranches || tranches < 0) continue;
+				if (RecordCampaignSpend.IsBreaking(record) && tranches < RecordCampaignSpend.MaxTranches) {
+					SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
+					float spend = (artist != null ? label.GetMarketingBudget(artist) : label.GetStandardMarketingBudget()) * RecordCampaignSpend.TrancheShare;
+					if (spend <= 0f || label.cashReserves - spend < label.GetMonthlyOverhead() * RecordCampaignSpend.ReserveMonths) continue;
+					label.cashReserves -= spend;
+					label.monthlyExpenses += spend;
+					if (labelFinancials.TryGetValue(label.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += spend;
+					if (record.sunkMarketingCost.HasValue) record.sunkMarketingCost += spend;
+					record.campaignPushFactor = Mathf.Min(RecordCampaignSpend.MaxFactor, factor * RecordCampaignSpend.TrancheLift);
+					record.campaignTranches = tranches + 1;
+					EmitRecordCampaign("FollowUp", week, label, record, spend, factor);
+				} else if (RecordCampaignSpend.IsDead(record)) {
+					record.campaignPushFactor = factor * RecordCampaignSpend.CutFactor;
+					record.campaignTranches = -1;
+					EmitRecordCampaign("Cut", week, label, record, 0f, factor);
+				}
+			}
+		}
+	}
+
+	private void EmitRecordCampaign(string kind, int week, AILabel label, RecordRuntimeData record, float spend, float factorBefore) =>
+		OnRecordCampaign?.Invoke(new RecordCampaignTelemetry {
+			Week = week, Kind = kind, RecordId = record.baseRecord.recordId, LabelId = label.labelId, ArtistId = record.baseRecord.artistId,
+			WeeksSinceRelease = record.weeksSinceRelease, Position = record.currentPosition, Spend = spend,
+			FactorBefore = factorBefore, FactorAfter = record.campaignPushFactor ?? 1f, CashAfter = label.cashReserves
+		});
 
 	/// <summary>Explicit, ordered booking transition for a frozen live settlement.</summary>
 	public void BookCompletedWeekSettlement(ChartManager.CompletedWeekSettlement settlement) {
@@ -890,6 +931,8 @@ public partial class CompetitorManager : Node {
 			weeklyRevenue += reservesReleased;
 			label.weeklyWholesaleDeferred = deferred;
 			label.weeklyWholesaleCollected = collected + reservesReleased;
+			// Financing, not P&L: the withheld receipts still count as the client's revenue below.
+			if (DistributionAdvanceRecoupment.Enabled) label.cashReserves -= WithholdDistributionAdvance(label, settlementDistributorCarriedNet, weeklyRevenue);
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
@@ -1046,7 +1089,11 @@ public partial class CompetitorManager : Node {
 		return collected;
 	}
 	
+	// --distribution-advance-recoupment: the label net on records the active deal carried, set by CalculateLabelRevenue.
+	private float settlementDistributorCarriedNet;
+
 	private float CalculateLabelRevenue(AILabel label, ChartManager.CompletedWeekSettlement settlement) {
+		settlementDistributorCarriedNet = 0f;
 		if (settlement?.Entries == null) return 0f;
 		var profileStart = SimulationPerformanceProfiler.Begin();
 		float totalRevenue = 0f;
@@ -1073,7 +1120,8 @@ public partial class CompetitorManager : Node {
 			// of that dealer price, exactly as it already was -- no new number, no double count. AI records
 			// (and player albums, out of the directive's scope) keep GetPricePerUnit(format) untouched.
 			bool pressingBook = LabelPressingEconomics.Enabled && !runtimeData.baseRecord.isPlayerOwned;
-			float listPrice = GetPricePerUnit(format);
+			float listPrice = runtimeData.baseRecord.isPlayerOwned ? GetPricePerUnit(format)
+				: PeriodListPrices.RecordList(runtimeData.baseRecord, GetPricePerUnit(format));
 			float pricePerUnit = runtimeData.baseRecord.isPlayerOwned && format == ReleaseFormat.Single
 				? PlayerDesk.DealerPrice
 				: pressingBook ? LabelPressingEconomics.LabelPrice(format, listPrice) : listPrice;
@@ -1176,6 +1224,9 @@ public partial class CompetitorManager : Node {
 			// and accrues to the artist (publishing is the artist's own composition income, not
 			// advance-recoupable). PublishingShareOfGross is a calibration guess - start conservative.
 			float publishingPool = royaltyBasisGross * PublishingShareOfGross;
+			// --period-ai-publishing: an AI record's pool is the period mechanical its COGS already paid (audit B6).
+			bool periodAiPublishing = PeriodAiPublishing.Enabled && PublishingRoutingService.RoutingEnabled && !runtimeData.baseRecord.isPlayerOwned;
+			if (periodAiPublishing) publishingPool = PeriodAiPublishing.Pool(format, weeklyUnits, compositionCost);
 			// Phase 3: resolve the counterparty from the composition's control type. Computed ALWAYS so
 			// the telemetry reflects the would-be routing; the money only follows it when routing is live.
 			PublishingRoutingService.Decision routing =
@@ -1193,7 +1244,8 @@ public partial class CompetitorManager : Node {
 				float writerSlice = publishingPool * routing.WriterArtistFraction;
 				float transferSlice = publishingPool * routing.TransferLabelFraction;
 				float leakSlice = publishingPool * routing.ExternalLeakFraction;
-				recordRevenue -= writerSlice + transferSlice + leakSlice;
+				if (periodAiPublishing) recordRevenue += PeriodAiPublishing.NetAdjustment(compositionCost, writerSlice, transferSlice, leakSlice);
+				else recordRevenue -= writerSlice + transferSlice + leakSlice;
 
 				// Writer royalty -> the controlling artist (on a cover, the ORIGINAL writer; falls back to
 				// the performer when no controller id, i.e. the legacy artist-owns case).
@@ -1291,6 +1343,8 @@ public partial class CompetitorManager : Node {
 			formatRevenue.distributionSkim += skimAmount;
 			formatRevenue.artistRoyalty += royaltyExpense;
 			formatRevenue.labelNet += recordRevenue - pressingSpend;
+			if (DistributionAdvanceRecoupment.Enabled && label.activeDeal is { unrecoupedAdvance: > 0f } carryingDeal)
+				settlementDistributorCarriedNet += Mathf.Max(0f, recordRevenue) * DistributionAdvanceRecoupment.CarriedShare(carryingDeal, skimFraction);
 			RouteDistributionSkim(label, skimAmount, format, entry);
 			
 			// Artist-side bookkeeping is unchanged for everyone -- this is exactly what the pre-existing
@@ -1372,11 +1426,12 @@ public partial class CompetitorManager : Node {
 	private readonly Dictionary<ReleaseFormat, float> pricePerUnitCache = new(), legacyPressingCostCache = new();
 
 	private float GetPricePerUnit(ReleaseFormat format) {
-		if (pricePerUnitCache.TryGetValue(format, out float cached)) return cached;
+		if (pricePerUnitCache.TryGetValue(format, out float cached)) return PeriodListPrices.FormatList(format, cached);
 		string key = format.ToString();
-		return pricePerUnitCache[format] = pricePerUnitByFormat != null && pricePerUnitByFormat.TryGetValue(key, out float price)
+		float authored = pricePerUnitCache[format] = pricePerUnitByFormat != null && pricePerUnitByFormat.TryGetValue(key, out float price)
 			? price
 			: 0.89f;
+		return PeriodListPrices.FormatList(format, authored);
 	}
 
 	public float GetPricePerUnitForAudit(ReleaseFormat format) => GetPricePerUnit(format);
@@ -1407,6 +1462,63 @@ public partial class CompetitorManager : Node {
 
 	public void SetAlbumsEnabled(bool enabled) => enableAlbums = enabled;
 
+	/// <summary>
+	/// Audit B3: the distributor keeps the client's receipts on the records it carried until the advance
+	/// is repaid. Returns the cash withheld from the client, which goes to the distributor's cash only.
+	/// </summary>
+	internal float WithholdDistributionAdvance(AILabel client, float carriedNet, float bankedRevenue) {
+		DistributionDeal deal = client.activeDeal;
+		if (deal == null || deal.unrecoupedAdvance <= 0f) return 0f;
+		AILabel distributor = GetLabel(deal.distributorId);
+		if (distributor == null || distributor == client) return 0f;
+		float withheld = DistributionAdvanceRecoupment.Withhold(deal.unrecoupedAdvance, carriedNet, bankedRevenue);
+		if (withheld <= 0f) return 0f;
+		deal.unrecoupedAdvance = Mathf.Max(0f, deal.unrecoupedAdvance - withheld);
+		distributor.cashReserves += withheld;
+		EmitAdvanceRecoupment("Withheld", client, deal, null, withheld, carriedNet);
+		return withheld;
+	}
+
+	/// <summary>Audit B3: what happens to an unrepaid balance when a deal ends. Off, the balance is simply abandoned.</summary>
+	internal void SettleEndedDistributionAdvance(AILabel client, DistributionDeal deal, DealResolution resolution) {
+		if (!DistributionAdvanceRecoupment.Enabled || deal == null || deal.unrecoupedAdvance <= 0f) return;
+		float balance = deal.unrecoupedAdvance;
+		if (resolution == DealResolution.Exit || resolution == DealResolution.Graduated) {
+			AILabel distributor = GetLabel(deal.distributorId);
+			float paid = distributor == null || distributor == client ? 0f
+				: DistributionAdvanceRecoupment.ExitSettlement(balance, client.cashReserves, client.GetMonthlyOverhead());
+			if (paid > 0f) {
+				client.cashReserves -= paid;
+				distributor.cashReserves += paid;
+				deal.unrecoupedAdvance = balance - paid;
+				EmitAdvanceRecoupment("Settled", client, deal, resolution, paid, 0f);
+			}
+			deal.unrecoupedAdvance = 0f;
+			if (balance - paid > 0f) EmitAdvanceRecoupment("WrittenOff", client, deal, resolution, balance - paid, 0f);
+			return;
+		}
+		deal.unrecoupedAdvance = 0f;
+		EmitAdvanceRecoupment("Forgiven", client, deal, resolution, balance, 0f);
+	}
+
+	/// <summary>Audit B3: a poaching Major buys the incumbent's balance out and carries it on the new deal.</summary>
+	internal void BuyOutDistributionAdvance(AILabel client, DistributionDeal current, AILabel incumbent, DistributionDeal offer, AILabel major) {
+		if (!DistributionAdvanceRecoupment.Enabled || current == null || current.unrecoupedAdvance <= 0f) return;
+		float balance = current.unrecoupedAdvance;
+		current.unrecoupedAdvance = 0f;
+		major.cashReserves -= balance;
+		incumbent.cashReserves += balance;
+		offer.unrecoupedAdvance += balance;
+		EmitAdvanceRecoupment("BoughtOut", client, current, DealResolution.Poached, balance, 0f);
+	}
+
+	private void EmitAdvanceRecoupment(string kind, AILabel client, DistributionDeal deal, DealResolution? resolution, float amount, float carriedNet) =>
+		OnDistributionAdvanceRecoupment?.Invoke(new DistributionAdvanceRecoupmentTelemetry {
+			Week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0, Kind = kind, ClientId = client?.labelId,
+			DistributorId = deal.distributorId, Resolution = resolution?.ToString() ?? string.Empty,
+			Amount = amount, CarriedNet = carriedNet, BalanceAfter = deal.unrecoupedAdvance, Advance = deal.advance
+		});
+
 	private void RouteDistributionSkim(AILabel client, float skimAmount, ReleaseFormat format,
 		ChartManager.CompletedWeekSettlementEntry sourceEntry = null) {
 		DistributionDeal deal = client.activeDeal;
@@ -1419,8 +1531,12 @@ public partial class CompetitorManager : Node {
 			sourceEntry.MarketNet = sourceEntry.LabelNet + skimAmount;
 		}
 
-		float recouped = Mathf.Min(Mathf.Max(0f, deal.unrecoupedAdvance), skimAmount);
-		deal.unrecoupedAdvance = Mathf.Max(0f, deal.unrecoupedAdvance - recouped);
+		// Off: the fee the distributor takes anyway also counts as repayment, so the advance never comes back.
+		// --distribution-advance-recoupment withholds the client's receipts instead (WithholdDistributionAdvance).
+		if (!DistributionAdvanceRecoupment.Enabled) {
+			float recouped = Mathf.Min(Mathf.Max(0f, deal.unrecoupedAdvance), skimAmount);
+			deal.unrecoupedAdvance = Mathf.Max(0f, deal.unrecoupedAdvance - recouped);
+		}
 		distributor.cashReserves += skimAmount;
 		distributor.monthlyRevenue += skimAmount;
 		distributor.weeklyDistributionIncome += skimAmount;
@@ -3555,8 +3671,8 @@ public partial class CompetitorManager : Node {
 			if (region != null) studioMod = ChartSimulator.GetStudioQualityModifier(region);
 		}
 		
-		float baseQuality = (artistQuality * 0.82f) + (studioMod * 0.18f);
-		baseQuality *= studioMod;
+		// --single-studio-modifier applies the HQ studio once; off, it is blended and then multiplied again (audit C3).
+		float baseQuality = SingleStudioModifier.BaseQuality(artistQuality, studioMod);
 		
 		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.55f) + (baseQuality * 0.35f) + (float)GameRandom.RandRange(-0.12, 0.18), 0f, 1f);
 		record.productionQuality = Mathf.Clamp((label.productionQuality * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
@@ -3952,8 +4068,15 @@ public partial class CompetitorManager : Node {
 				continue;
 			}
 			float marketingBudget = project.albumMarketingBudgetPlanned;
-			float available = Mathf.Max(0f, owner.cashReserves - owner.GetMonthlyOverhead());
-			marketingBudget = Mathf.Min(marketingBudget, available * 0.8f);
+			if (AlbumLaunchReserve.Enabled) {
+				float reserve = (EconomicLabelLifecycle.Enabled && !owner.isPlayerOwned
+					? EconomicLabelLifecycle.CommitmentReserve(owner, signing: false) : owner.GetMonthlyOverhead())
+					+ InitialRunReserve(owner, project.albumRecord);
+				marketingBudget = AlbumLaunchReserve.ClampCampaign(marketingBudget, owner.cashReserves, reserve);
+			} else {
+				float available = Mathf.Max(0f, owner.cashReserves - owner.GetMonthlyOverhead());
+				marketingBudget = Mathf.Min(marketingBudget, available * 0.8f);
+			}
 			owner.cashReserves -= marketingBudget;
 			owner.monthlyExpenses += marketingBudget;
 			if (labelFinancials.TryGetValue(owner.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += marketingBudget;
@@ -4021,6 +4144,12 @@ public partial class CompetitorManager : Node {
 		float recognitionRadio = ArtistRecognition.Enabled
 			? ArtistRecognitionService.LaunchRecognition(artist) * ArtistRecognitionService.MaxRadioLift : 0f;
 		if (share < 1f) { pushRadio *= share; recognitionRadio *= share; }
+		if (RecordCampaignSpend.Enabled && !isAlbum && !record.isPlayerOwned && !label.isPlayerOwned) {
+			float campaignFactor = RecordCampaignSpend.LaunchFactor(marketingBudget, label.GetStandardMarketingBudget());
+			runtimeData.campaignPushFactor = campaignFactor;
+			runtimeData.campaignTranches = 0;
+			pushRadio *= campaignFactor;
+		}
 		runtimeData.radioHeat = isAlbum ? 0f : Mathf.Clamp(baseRadio + pushRadio + payolaRadio + recognitionRadio, 0f, 1f);
 		
 		var regions = ChartManager.Instance.GetAllRegions();
@@ -4330,12 +4459,14 @@ public partial class CompetitorManager : Node {
 			DistributionDeal deal = client.activeDeal;
 			AILabel distributor = GetLabel(deal.distributorId);
 			if (!client.IsActive) {
+				SettleEndedDistributionAdvance(client, deal, DealResolution.ClientClosed);
 				deal.unrecoupedAdvance = 0f;
 				EmitDealEvent(client, distributor, deal, DealResolution.ClientClosed, client.DistributionDependency);
 				client.activeDeal = null;
 				continue;
 			}
 			if (distributor == null || !distributor.IsActive) {
+				SettleEndedDistributionAdvance(client, deal, DealResolution.DistributorCollapsed);
 				EmitDealEvent(client, distributor, deal, DealResolution.DistributorCollapsed, client.DistributionDependency);
 				client.activeDeal = null;
 				DistributorCollapseCount++;
@@ -4424,9 +4555,11 @@ public partial class CompetitorManager : Node {
 			// ordinary exit does, and is free to place its line with wholesale houses instead.
 			DistributionDeal endedDeal = dropped.activeDeal;
 			dropped.ownedReach = Mathf.Min(1f, dropped.ownedReach + (endedDeal.reachGranted * 0.50f));
+			SettleEndedDistributionAdvance(dropped, endedDeal, DealResolution.Dropped);
 			EmitDealEvent(dropped, major, endedDeal, DealResolution.Dropped, dropped.DistributionDependency);
 			dropped.activeDeal = null;
 		}
+		BuyOutDistributionAdvance(client, current, incumbent, offer, major);
 		EmitDealEvent(client, incumbent, current, DealResolution.Poached, client.DistributionDependency);
 		client.activeDeal = offer;
 		client.cashReserves += offer.advance;
@@ -4820,6 +4953,7 @@ public partial class CompetitorManager : Node {
 		// keeping half the reach it borrowed, exactly as a low-dependency exit does.
 		if (!CanSignDistributionDeal(client.tier)) {
 			client.ownedReach = Mathf.Min(1f, client.ownedReach + (deal.reachGranted * 0.50f));
+			SettleEndedDistributionAdvance(client, deal, DealResolution.Graduated);
 			EmitDealEvent(client, distributor, deal, DealResolution.Graduated, dependency);
 			client.activeDeal = null;
 			return;
@@ -4828,6 +4962,7 @@ public partial class CompetitorManager : Node {
 			// Low dependency: the client has built enough of its own reach to leverage the
 			// deal and stay independent (early Motown). It exits and keeps part of the reach.
 			client.ownedReach = Mathf.Min(1f, client.ownedReach + (deal.reachGranted * 0.50f));
+			SettleEndedDistributionAdvance(client, deal, DealResolution.Exit);
 			EmitDealEvent(client, distributor, deal, DealResolution.Exit, dependency);
 			client.activeDeal = null;
 		} else if (dependency < dealDependencyHigh) {
@@ -4906,6 +5041,7 @@ public partial class CompetitorManager : Node {
 		if (deal == null || deal.distributorId != distributor.labelId || WouldCreateCircularDeal(client, distributor)) return false;
 
 		consolidationAbsorptionsThisDecade++;
+		SettleEndedDistributionAdvance(client, deal, DealResolution.Absorb);
 		EmitDealEvent(client, distributor, deal, DealResolution.Absorb, dependency);
 		ApplySubsidiaryAbsorption(client, distributor);
 		if (LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.MarkLabelSubsidiary(client, distributor);
@@ -5367,6 +5503,9 @@ public partial class CompetitorManager : Node {
 	public List<AILabel> GetOperatingLabels() => aiLabels?.Where(l => l.IsActive).ToList() ?? new List<AILabel>();
 	
 	public int GetLabelActiveRecordCount(string labelId) => labelActiveRecords.TryGetValue(labelId, out var records) ? records.Count : 0;
+	internal IReadOnlyList<string> GetLabelActiveRecordIdsForChecks(string labelId) =>
+		labelActiveRecords.TryGetValue(labelId, out var records) ? records : System.Array.Empty<string>();
+	internal void ProcessRecordCampaignsForChecks() => ProcessRecordCampaigns();
 
 	public int GetRecentChartingRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;

@@ -1112,6 +1112,8 @@ public static class ChartSimulator {
 		
 		// RadioPushSpread is a probe on this weekly radio push only; identity unless --radio-push-spread is named.
 		float basePush = RadioPushSpread.Apply(GetCampaignImpact(label));
+		// --record-campaign-spend: the record's own campaign; exactly 1 for any record launched without it.
+		basePush *= RecordCampaignSpend.PushFactor(record);
 
 		float weekFactor = GetReleaseAgePushFactor(record.weeksSinceRelease);
 

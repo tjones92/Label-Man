@@ -1138,3 +1138,79 @@ under `SimLogs/promo-synergy-a5-20261020/`.
 
 With A5, every A-section item has an opt-in experiment. The B items not yet addressed (B3-B7) and
 section C remain, followed by the end-of-audit decade A/B.
+
+## Follow-up: B3-B7 and section C (October 20, 2026)
+
+Each item is its own opt-in switch, off by default. The new suite `--economy-audit-b-check` passes 49 checks.
+The A1-A5 and B1/B2 suites still pass. **Off is inert:** with every new switch off, the 104-week runs on seeds
+1001 and 2002 match `a5on-<seed>-104` on all 90 of 90 CSVs.
+
+| Item | Switch | What it does |
+|---|---|---|
+| B3 | `--distribution-advance-recoupment` | The skim no longer repays the advance. The distributor withholds the client's receipts on the records it carries until the balance is clear. This is financing, not P&L: the client's revenue is unchanged and only its cash is held back. A renewal carries the balance forward. On Exit or Graduated, the client pays what it can above three months' overhead and the rest is written off. A poaching Major buys the balance out and adds it to its own advance. Dropped, Absorb, DistributorCollapsed and ClientClosed forgive it. No new saved state. |
+| B4 | `--period-royalty-tiers` | Base royalty runs Major 4%, MidTier 3.5%, Independent and Boutique 3%, Small 2.5%. Career leverage (up to 8 points) is scaled by what the tier can pay: 1.0 for a Major down to 0.4 for a Small label. |
+| B5 | `--record-campaign-spend` | AI singles carry a per-record push factor, sqrt(budget / the label's standard budget), clamped to 0.6-1.6. From week 2 to 12, a climbing Top 40 single earns up to two follow-up tranches of half the act's budget. Each tranche is paid from cash above three months' overhead, is attributed to the record's marketing cost, and multiplies push by 1.3, capped at 2. A single that has not charted by week 6 is cut to 0.6x. The cross-tier launch normalization is deliberately unchanged. Save v27 holds the per-record factors. `analyze_release_economics.py` now counts follow-up spend in its identity check. |
+| B6 | `--period-ai-publishing` | An AI record's routed publishing pool becomes the period mechanical its COGS already pays: 2c for a single's A-side and 2c per LP track. The label pays out only the writer, transfer and external slices, and gets back whatever it expensed beyond them. |
+| B7 | `--cross-collateralized-renewal` | An AI renewal adds the new advance to the act's unrecouped balance. |
+| C1 | `--album-launch-reserve` | A drop-week LP campaign keeps the commitment reserve plus the initial-run reserve, as every other launch does. |
+| C2 | `--period-list-prices` | AI singles list at $0.98. Stereo LPs list $1 above mono, and every LP is stereo from 1968. |
+| C3 | `--single-studio-modifier` | The HQ studio modifier is applied once, as a blend. The repertoire forecast mirrors this. |
+| C4 | `--self-excluded-artist-heat` | A record no longer reads its own chart run in its act's heat. Live market only. |
+
+C5 and C6 were already covered or deferred. C7: the stale memory note and the "OFF by default" routing comment are fixed.
+
+**Short runs** (104 weeks, two seeds, each arm on top of the A1-A5 stack; `SimLogs/economy-b-20261020/summary-*.json`).
+Single-arm chart deltas sit inside the reshuffle noise. The systematic effects:
+- B3 withholds $220-225k, about 95% of the advances signed in the window. Balances clear before term, so no settlement
+  or write-off fired in two years.
+- B4 cuts Independent royalties from $12.7M to $1.8-2.0M and Small from $2.3M to $0.1-0.2M. Major royalties rise $1.3-1.7M. Major-family chart share in 1961 rises 5-9 points on both seeds.
+- B5 makes about 800 follow-ups ($0.66-0.69M, 90% outside the Top 10) and about 8,500 cuts.
+- B6 cuts publishing leakage from $40M to $13-14M. Label single net rises 33% and album net 23%.
+- C2 raises album net about 7% and lowers single net about 4%.
+
+**Decade A/B** (`decab{off,on}-{1001,2002}-522`): unbroken, serial, `--calibration`. "On" means every audit switch:
+A1-A5, B1-B7 and C1-C4.
+
+| Measure, off -> on | Seed 1001 | Seed 2002 |
+|---|---:|---:|
+| Genre-share sumAbsErr | 305.7 -> 301.3 | 349.8 -> 348.8 |
+| Year-end slot error | 537 -> 513 | 537 -> 509 |
+| Album unit share 1960 / 1969 | 19.4 -> 25.1 / 55.4 -> 55.4 | 18.3 -> 24.4 / 55.0 -> 55.3 |
+| Owner-Major entry share 1966 / 1969 | 34.5 -> 32.0 / 44.8 -> 43.9 | 33.1 -> 31.6 / 37.9 -> 40.9 |
+| End Rising / Established | 178 -> 249 / 89 -> 129 | 200 -> 263 / 100 -> 153 |
+| End Star / Superstar | 34 -> 26 / 16 -> 31 | 37 -> 43 / 16 -> 23 |
+| Promotions to Star / Star demotions | 91 -> 78 / 60 -> 40 | 82 -> 74 / 43 -> 22 |
+| Hot 100 / Top 40 acts, 1969 | 640 -> 621 / 233 -> 209 | 662 -> 647 / 247 -> 227 |
+| Label single net 1969 ($M) | 46.1 -> 63.3 | 46.4 -> 63.0 |
+| Label album net 1969 ($M) | 250.8 -> 433.7 | 248.4 -> 429.0 |
+| Starting-Small survivors 1964 (of 231 / 230) | 169 -> 179 | 180 -> 195 |
+| Starting-Small median cash 1969 ($k) | 299 -> 508 | 274 -> 606 |
+| Defunct labels at end | 129 -> 109 | 107 -> 74 |
+| Distribution advances withheld (B3) | $1.28M of $1.37M signed | $1.50M of $1.54M signed |
+| B5 follow-ups / spend / cuts | 4,354 / $4.2M / 55.7k | 4,354 / $3.5M / 49.8k |
+
+**Reading.** Chart calibration does not regress. Genre-share error moves -4.4 and -0.9, which is noise. Slot error
+improves by 24 and 28. The 1960 LP unit share moves about 6 points toward the ~30% target. Celebrity improves on
+both seeds. More acts hold the upper rungs: Superstar plus Star rises from 50 to 57 and from 53 to 66, Star
+demotions fall by a third to a half, and distinct Top 40 acts fall about 9%. Those are the B1/B2 ladder effects
+plus stars keeping push. Owner-Major share moves within about ±3 points with no consistent sign.
+
+**The economy gets much richer.** Label single net rises about 37% and album net about 73%. Median cash roughly doubles in every tier, and closures fall. Five-year starting-Small closure falls from 26.8% to 22.5% on seed 1001 and from 21.7% to 15.2% on seed 2002, which is below the 20-35% band ([[small-labels-never-lose-money]]). Three items, all historically correct, drive this:
+- B6 removes about $130M of fictitious publishing leakage per decade per seed.
+- B4 removes about $110M of royalties at the independents.
+- C2 adds the stereo premium to most late LPs.
+
+B3, B5, B7, C1, C3 and C4 are economically small.
+
+**Recommendation.** B1/B2, B3, B5, B7, C1, C3 and C4 can be adopted together on the evidence here. B4, B6 and C2
+are corrections to the period facts, but together they lift label margins by a third or more. Adopting them needs a
+paired re-tune toward the closure band (pressing, returns, per-release volume or overhead). Neither the price nor
+the mortality rate should be held fictitious to compensate. This is two seeds, so differences inside 2-3 share
+points are not resolved.
+
+Telemetry: `-distribution-advance-recoupment.csv` and `-record-campaigns.csv`, written only while their switch is on.
+Analysis: `SimTools/analyze_economy_audit_bc.py`, plus `band_life_ab.py` and
+`analyze_historical_calibration_snapshot.py` for the decade. Restartable runs (yearly checkpoints, graceful
+low-memory stop, `SimTools/RunResumableAudit.ps1`, `stitch_resumed_run.py`) were added and tested along the way.
+A continued run restores the random stream exactly, but it is not byte-identical, because some runtime state
+falls outside the world save. The decade A/B above was therefore run unbroken.

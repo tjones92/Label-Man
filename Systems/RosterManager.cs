@@ -1385,7 +1385,8 @@ public partial class RosterManager : Node {
 			bool wantToResign = ShouldResignArtist(label, artist);
 			if (wantToResign && label.CanAffordToSign(label.CalculateAdvanceOffer(artist))) {
 				float newAdvance = label.CalculateAdvanceOffer(artist);
-				artist.unrecoupedAdvance = newAdvance;
+				// --cross-collateralized-renewal carries the old balance into the new deal (audit B7).
+				artist.unrecoupedAdvance = CrossCollateralizedRenewal.RenewedBalance(artist.unrecoupedAdvance, newAdvance);
 				artist.contractLength = label.CalculateContractLength(artist);
 				artist.contractExpiresYear = year + artist.contractLength;
 				artist.contractExpiresWeek = currentWeek + artist.contractLength * 52;

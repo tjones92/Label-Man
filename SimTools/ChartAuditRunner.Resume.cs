@@ -36,6 +36,9 @@ public partial class ChartAuditRunner {
 		public string[] Flags { get; set; } = Array.Empty<string>();
 		/// <summary>The member fame slice the world was run at. Absent from worlds saved before Phase 4d2.</summary>
 		public float? MemberFameShare { get; set; }
+		/// <summary>Checkpoints only (--checkpoint-world): the completed audit week and the global stream position.</summary>
+		public int? AuditWeek { get; set; }
+		public ulong? GlobalRandomState { get; set; }
 		public WorldSaveData World { get; set; }
 	}
 
@@ -64,6 +67,7 @@ public partial class ChartAuditRunner {
 	private static string[] SimulationFlags() => OS.GetCmdlineUserArgs()
 		.Where(a => !a.StartsWith("--run=", StringComparison.Ordinal) && !a.StartsWith("--weeks=", StringComparison.Ordinal) &&
 			!a.StartsWith("--save-world", StringComparison.Ordinal) && !a.StartsWith("--resume-world=", StringComparison.Ordinal) &&
+			!a.StartsWith("--checkpoint-world=", StringComparison.Ordinal) && a != "--continue-checkpoint" &&
 			a != "--calibration" && a != "--lean-probe" && a != "--aggregate-only" && a != "--profile-performance")
 		.OrderBy(a => a, StringComparer.Ordinal).ToArray();
 
@@ -79,7 +83,7 @@ public partial class ChartAuditRunner {
 		SaveAuditWorld(name);
 	}
 
-	private void SaveAuditWorld(string name) {
+	private void SaveAuditWorld(string name, int? auditWeek = null, bool atomic = false) {
 		GameDate now = TimeManager.Instance.CurrentDate;
 		var file = new AuditWorldFile {
 			Version = SaveGameService.WritingVersion,
@@ -87,13 +91,22 @@ public partial class ChartAuditRunner {
 			Year = now.year, Month = now.month, Day = now.day,
 			Flags = SimulationFlags(),
 			MemberFameShare = MusicianRecognitionService.MemberFameShare,
+			AuditWeek = auditWeek,
+			GlobalRandomState = auditWeek.HasValue ? GameRandom.State : null,
 			World = WorldStateService.Capture()
 		};
 		string path = WorldPath(name);
 		Directory.CreateDirectory(Path.GetDirectoryName(path));
-		using (FileStream stream = File.Create(path))
+		// A checkpoint replaces the previous one only once it is complete, so a run killed mid-write keeps the last.
+		string target = atomic ? path + ".tmp" : path;
+		using (FileStream stream = File.Create(target))
 		using (var gzip = new GZipStream(stream, CompressionLevel.Optimal))
 			JsonSerializer.Serialize(gzip, file, SaveGameService.TestJsonOptions);
+		if (atomic) {
+			// The previous checkpoint is kept as <name>-prev: a run killed outright resumes from it (see Checkpoint.cs).
+			if (File.Exists(path)) File.Move(path, WorldPath(name + "-prev"), overwrite: true);
+			File.Move(target, path);
+		}
 		GD.Print($"CHART_AUDIT_WORLD_SAVED name={name} date={now.ToShortString()} chartWeek={file.World.ChartWeek} path={path}");
 	}
 
@@ -121,6 +134,7 @@ public partial class ChartAuditRunner {
 		var date = new GameDate(file.Year, file.Month, file.Day);
 		WorldStateService.Apply(file.World, date, file.WorldSeed);
 		RescaleMemberFameForResume(file);
+		ContinueCheckpointIfRequested(file.AuditWeek, file.GlobalRandomState);
 		GD.Print($"CHART_AUDIT_WORLD_RESUMED name={resumeWorldName} date={date.ToShortString()} chartWeek={file.World.ChartWeek}");
 	}
 

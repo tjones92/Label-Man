@@ -403,6 +403,15 @@ public partial class ChartManager : Node {
 		AlbumMasterCosts.Configure(OS.GetCmdlineUserArgs());
 		ReleaseAllInEconomics.Configure(OS.GetCmdlineUserArgs());
 		PromoSynergyFeedback.Configure(OS.GetCmdlineUserArgs());
+		DistributionAdvanceRecoupment.Configure(OS.GetCmdlineUserArgs());
+		PeriodRoyaltyTiers.Configure(OS.GetCmdlineUserArgs());
+		RecordCampaignSpend.Configure(OS.GetCmdlineUserArgs());
+		PeriodAiPublishing.Configure(OS.GetCmdlineUserArgs());
+		CrossCollateralizedRenewal.Configure(OS.GetCmdlineUserArgs());
+		AlbumLaunchReserve.Configure(OS.GetCmdlineUserArgs());
+		PeriodListPrices.Configure(OS.GetCmdlineUserArgs());
+		SingleStudioModifier.Configure(OS.GetCmdlineUserArgs());
+		SelfExcludedArtistHeat.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
@@ -605,10 +614,14 @@ public partial class ChartManager : Node {
 	// ARTIST HEAT
 	// ========================================================================
 
-	private float CalculateArtistHeat(string artistId, ReleaseFormat format) {
+	// --self-excluded-artist-heat: each act's heat before the hit bonus, and its hit count (audit C4).
+	private readonly Dictionary<string, (float Sum, int Hits)> artistHeatParts = new(System.StringComparer.Ordinal);
+
+	private float CalculateArtistHeat(string artistId, ReleaseFormat format, RecordRuntimeData self = null) {
 		if (artistHeatCacheWeek != currentChartWeek) {
 			artistHeatCache.Clear();
 			artistHeatAttributionCache.Clear();
+			artistHeatParts.Clear();
 			artistHeatCacheWeek = currentChartWeek;
 
 			var artistRecords = allRecords
@@ -637,6 +650,7 @@ public partial class ChartManager : Node {
 					}
 				}
 
+				if (SelfExcludedArtistHeat.Enabled) artistHeatParts[group.Key] = (heat, hitCount);
 				heat += Mathf.Min(hitCount * 0.05f, 0.3f);
 				artistHeatCache[group.Key] = Mathf.Clamp(heat, 0f, 1f);
 				if ((ArtistHeatAttribution.AdjustsSingles && IsGenreMarketV2Live) || ArtistHeatAttribution.TraceWeek(currentChartWeek)) {
@@ -648,6 +662,8 @@ public partial class ChartManager : Node {
 		}
 
 		float baseHeat = artistHeatCache.TryGetValue(artistId, out float cachedHeat) ? cachedHeat : 0f;
+		if (self != null && SelfExcludedArtistHeat.Enabled && IsGenreMarketV2Live && artistHeatParts.TryGetValue(artistId, out var heatParts))
+			baseHeat = SelfExcludedArtistHeat.Excluding(heatParts.Sum, heatParts.Hits, self.currentPosition, self.peakPosition);
 		artistHeatAttributionCache.TryGetValue(artistId, out var attribution);
 		baseHeat = ArtistHeatAttribution.SelectHeat(format, baseHeat,
 			attribution.SinglesOnly, attribution.CurrentAlbums, IsGenreMarketV2Live);
@@ -1031,7 +1047,7 @@ public partial class ChartManager : Node {
 					genreAcceptance = Mathf.Clamp(radioAcceptance * GenreCatalog.GetRadioAcceptance(canonicalPrimary, acceptanceYear), 0f, 1f);
 				} else genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 			}
-			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId, record.baseRecord.format);
+			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId, record.baseRecord.format, record);
 
 			if (isAlbum) {
 				var albumProfileStart = SimulationPerformanceProfiler.Begin();

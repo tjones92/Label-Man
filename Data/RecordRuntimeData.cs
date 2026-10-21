@@ -110,6 +110,12 @@ public class RecordRuntimeData {
 	public double albumDemandWeightedSingleHeat;
 	public double albumDemandWeightedSubstitutionPropensity;
 	public double albumDemandWeightedSuppression;
+	// B5 (--record-campaign-spend): this single's own campaign multiplier on label push, and its
+	// follow-up tranches (-1 once cut). Null on every record launched without the switch.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? campaignPushFactor;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? campaignTranches;
 	// A5 counterfactual for a linked LP: awareness without the promo's launch bonus, and
 	// the raw demand that path would have drawn with no cannibalization. Null otherwise.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

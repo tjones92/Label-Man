@@ -112,6 +112,8 @@ public static class GameRandom {
 	private static readonly PcgRandom Global = PcgRandom.CreateGodotDefault();
 	/// <summary>Probe-only: lets an observe-only check prove it drew nothing from the global stream.</summary>
 	internal static ulong StateForChecks => Global.State;
+	/// <summary>Audit checkpoints: the global stream's position, so a continued run draws what the unbroken one would.</summary>
+	internal static ulong State { get => Global.State; set => Global.State = value; }
 
 	public static void Seed(ulong seed) {
 		Global.Seed = seed;

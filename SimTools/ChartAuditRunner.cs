@@ -342,7 +342,7 @@ public partial class ChartAuditRunner : Node {
 	private AILabel forcedDealClient;
 	private AILabel forcedDealDistributor;
 	private float forcedDealInitialAdvance;
-	private float forcedDealRoutedTotal;
+	private float forcedDealRoutedTotal, forcedDealWithheldTotal;
 	private string forcedDealResolution;
 	private int forcedDealSignedWeek;
 	private int forcedClientInitialRoster;
@@ -357,6 +357,7 @@ public partial class ChartAuditRunner : Node {
 		try {
 			ParseArguments();
 			ParseResumeArguments();
+			ParseCheckpointArguments();
 			ConfigurePolarResearch();
 			if (catastrophicFailFast || catastrophicControlPreflight) LoadCatastrophicFailFastControl();
 			if (catastrophicControlPreflight) {
@@ -427,8 +428,10 @@ public partial class ChartAuditRunner : Node {
 			var annualWallTime = Stopwatch.StartNew();
 			MarkGcBaseline();
 			GD.Print($"CHART_AUDIT_STARTED run={runName} weeks={requestedWeeks} date={TimeManager.Instance.CurrentDate.ToShortString()}");
-		for (int week = 1; week <= requestedWeeks; week++) {
+		for (int week = firstAuditWeek; week <= requestedWeeks; week++) {
 			CheckPolarResearchStop();
+			CheckCheckpointStop();
+			if (week == firstAuditWeek && continueCheckpoint) GD.Print($"CHART_AUDIT_LOOP_START week={week} rng={GameRandom.State}");
 			currentAuditWeek = week;
 			AdvanceOneChartWeek();
 			// The live tick has completed; run the idempotent roster ownership sweep
@@ -444,6 +447,7 @@ public partial class ChartAuditRunner : Node {
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
 				ValidateEmergentSigningFloor();
 				MaybeSaveWorld();
+				MaybeWriteCheckpoint(week);
 				if (week % 52 == 0) {
 					WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds);
 					FlushAnnualStreams();
@@ -485,6 +489,9 @@ public partial class ChartAuditRunner : Node {
 			if (scoutingReport) WriteScoutingReport();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
 			GetTree().Quit(0);
+		} catch (AuditMemoryStop) {
+			StopForCheckpoint();
+			GetTree().Quit(3);
 		} catch (PolarResearchStop exception) {
 			FlushPolarResearch();
 			WritePolarResearchManifest();
@@ -1047,7 +1054,9 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void ValidateForcedDistributionDeal() {
-		float expectedRemaining = Mathf.Max(0f, forcedDealInitialAdvance - forcedDealRoutedTotal);
+		// --distribution-advance-recoupment repays from the client's withheld receipts, not from the skim.
+		float expectedRemaining = Mathf.Max(0f, forcedDealInitialAdvance -
+			(DistributionAdvanceRecoupment.Enabled ? forcedDealWithheldTotal : forcedDealRoutedTotal));
 		if (forcedDealResolution == null) {
 			if (!Mathf.IsEqualApprox(forcedDealClient.activeDeal.unrecoupedAdvance, expectedRemaining)) {
 				throw new InvalidOperationException($"Deal recoup mismatch: expected {expectedRemaining}, got {forcedDealClient.activeDeal.unrecoupedAdvance}.");
@@ -1086,6 +1095,7 @@ public partial class ChartAuditRunner : Node {
 		OpenCareerMemoryOutputs(outputDirectory);
 		OpenReleaseEconomicsOutputs(outputDirectory);
 		OpenPromoSynergyOutputs(outputDirectory);
+		OpenEconomyAuditBOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
@@ -3893,6 +3903,7 @@ public partial class ChartAuditRunner : Node {
 		CloseCareerMemoryOutputs();
 		CloseReleaseEconomicsOutputs();
 		ClosePromoSynergyOutputs();
+		CloseEconomyAuditBOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
 		ClosePolarFinalAudit();

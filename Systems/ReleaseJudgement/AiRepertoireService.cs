@@ -368,7 +368,7 @@ public static class AiRepertoireService {
 	/// <summary>The mean of GenerateRecordFromArtist's performance hook, without its draws.</summary>
 	private static float MeanPerformanceHook(SimulatedArtist artist, AILabel label) {
 		float studioMod = StudioMod(label);
-		float baseQuality = (artist.CalculateBaseQuality() * 0.82f + studioMod * 0.18f) * studioMod;
+		float baseQuality = SingleStudioModifier.BaseQuality(artist.CalculateBaseQuality(), studioMod);
 		return Mathf.Clamp(artist.songwritingAbility * 0.55f + baseQuality * 0.35f + 0.03f, 0f, 1f);
 	}
 
