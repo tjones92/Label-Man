@@ -362,6 +362,8 @@ public partial class ChartManager : Node {
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
 		EconomicLabelLifecycle.Configure(OS.GetCmdlineUserArgs());
 		LabelPressingEconomics.Configure(OS.GetCmdlineUserArgs());
+		AlbumSalesVolume.Configure(OS.GetCmdlineUserArgs());
+		LabelOperatorPay.Configure(OS.GetCmdlineUserArgs());
 		RegionalHitDealGate.Configure(OS.GetCmdlineUserArgs());
 		WholesaleSpreadGate.Configure(OS.GetCmdlineUserArgs());
 		RadioPushSpread.Configure(OS.GetCmdlineUserArgs());
@@ -1331,6 +1333,12 @@ public partial class ChartManager : Node {
 				Mathf.RoundToInt(summary.ServiceableAlbumIntent), baseCapacity,
 				CalculateAlbumIntentOverlapPressure(albumChannelMaturity), albumChannelMaturity,
 				albumChannelCapacity);
+			// Retrenchment of the LP purchase budget is lost purchasing, not spare
+			// capacity that Singles or cross-region spillover can claim back.
+			int albumBudget = AlbumSalesVolume.Budget(budget.Album);
+			capacity -= budget.Album - albumBudget;
+			summary.PurchaseCapacity = capacity;
+			budget = new FormatClearingBudget(budget.Single, albumBudget, budget.EffectiveAlbum);
 			summary.SingleFormatBudget = budget.Single;
 			summary.AlbumFormatBudget = budget.Album;
 			summary.EffectiveAlbumIntent = budget.EffectiveAlbum;

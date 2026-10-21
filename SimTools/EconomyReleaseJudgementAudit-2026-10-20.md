@@ -1214,3 +1214,7 @@ Analysis: `SimTools/analyze_economy_audit_bc.py`, plus `band_life_ab.py` and
 low-memory stop, `SimTools/RunResumableAudit.ps1`, `stitch_resumed_run.py`) were added and tested along the way.
 A continued run restores the random stream exactly, but it is not byte-identical, because some runtime state
 falls outside the world save. The decade A/B above was therefore run unbroken.
+
+**Paired retune follow-up.** [EconomyRetunePressingAudit-2026-10-20.md](EconomyRetunePressingAudit-2026-10-20.md)
+records the subsequent pressing-commitment experiments with all historical corrections enabled. The user confirmed
+the five-year 20-35% starting-Small closure band as the hard target, with cash and margins tracked as diagnostics.

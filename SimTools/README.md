@@ -77,6 +77,29 @@ diagnostic streams are suppressed. Both all-firm starting-cohort closures and
 financial exits before first promotion are reported by
 `analyze_small_cost_pilots.py`; these are different outcomes.
 
+Economy-audit retuning keeps the full A1-A5/B1-B7/C1-C4 correction stack enabled.
+`RunEconomyRetune.ps1 -RunTag NAME -Seeds 1001,2002,3003 -Modes larger -Weeks 260`
+runs serial, unbroken five-year worlds and records arguments, assembly hash and
+native completion in `SimLogs/NAME/runs.json`. `control` retains the original
+pressing assumptions; `commitment` tests one lifetime forecast at launch and
+eight weeks per repress; `larger` tests 1.5 forecasts and twelve weeks.
+These are inventory-risk model assumptions, not sourced plant tariffs.
+The individual controls are `--pressing-initial-forecast-share=` (0.5-2,
+default 0.5) and `--pressing-repress-weeks=` (3-26, default 3).
+They affect new orders and their cash reserves, leaving opening stock fixed.
+Resumed experiments must pass the same parameters; the actual pressing book
+continues through normal world serialization.
+
+`analyze_economy_retune.py PREFIX ... --weeks 260 --review-manifest
+SimLogs/NAME/runs.json --output SimLogs/NAME/review.json` refuses incomplete
+cohorts, repeated seeds and mixed configurations. Its acceptance target is
+20-35% financial closure of starting-Small firms at five years, for each of at
+least three seeds. It also reports exits before first promotion, inventory,
+all-in release outcomes, cash and chart diagnostics. Cash and margins are
+diagnostic by the user's October 20 decision. `--pressing-commitment-check`
+through `SaveLoadRoundTripRunner.tscn` probes reserves, invoices, saved stock,
+opening inventory and RNG; `test_economy_retune_analysis.py` guards the review.
+
 The runner also writes `*-label-finance.csv` with weekly gross, COGS,
 distribution skim/income, artist royalty, net revenue, cash, and status. Use
 `--force-distribution-deal` for the dormant deal-routing assertion or

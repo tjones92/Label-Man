@@ -40,6 +40,9 @@ public partial class SaveLoadRoundTripRunner : Node {
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 			if (OS.GetCmdlineUserArgs().Contains("--regional-economy-check")) { RegionalEconomyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--economic-label-check")) { EconomicLabelLifecycleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--pressing-commitment-check")) { PressingCommitmentChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--album-volume-check")) { AlbumVolumeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-operator-pay-check")) { LabelOperatorPayChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-pressing-check")) { LabelPressingEconomicsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--regional-hit-deal-check")) { RegionalHitDealGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--radio-push-spread-check")) { RadioPushSpreadChecks.Run(); GetTree().Quit(0); return; }

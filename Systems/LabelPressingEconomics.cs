@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Globalization;
 
 /// <summary>
 /// AI unit economics on the period price ladder (SimTools/SmallLabelAttritionAndChartMethod.md).
@@ -32,6 +33,10 @@ public static class LabelPressingEconomics {
 	public static bool PlantCredit => enabled && plantCredit;
 	public static bool PeriodSingleCosts => enabled && periodSingleCosts;
 	public static bool PeriodAlbumCosts => enabled && periodAlbumCosts;
+	public static float InitialCommitment { get; private set; } = InitialRunShareOfForecast;
+	public static float RepressWeeks { get; private set; } = RepressCoverWeeks;
+	public static float AlbumInitialCommitment { get; private set; } = InitialRunShareOfForecast;
+	public static float AlbumRepressWeeks { get; private set; } = RepressCoverWeeks;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
@@ -50,7 +55,33 @@ public static class LabelPressingEconomics {
 			throw new ArgumentException(PlantCreditSwitch + " requires " + Switch + ".");
 		if ((singleOnly || paired) && !enabled)
 			throw new ArgumentException("Period pressing costs require " + Switch + ".");
+		InitialCommitment = ReadParameter(args, "--pressing-initial-forecast-share=", InitialRunShareOfForecast, .5f, 2f);
+		RepressWeeks = ReadParameter(args, "--pressing-repress-weeks=", RepressCoverWeeks, 3f, 26f);
+		AlbumInitialCommitment = ReadParameter(args, "--pressing-album-initial-forecast-share=", InitialCommitment, .5f, 2f);
+		AlbumRepressWeeks = ReadParameter(args, "--pressing-album-repress-weeks=", RepressWeeks, 3f, 26f);
+		if (!enabled && (InitialCommitment != InitialRunShareOfForecast || RepressWeeks != RepressCoverWeeks
+			|| AlbumInitialCommitment != InitialRunShareOfForecast || AlbumRepressWeeks != RepressCoverWeeks))
+			throw new ArgumentException("Pressing commitments require " + Switch + ".");
 		configured = true;
+	}
+
+	internal static float ReadParameter(string[] args, string prefix, float fallback, float minimum, float maximum) {
+		string[] values = args.Where(a => a.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
+		if (values.Length == 0) return fallback;
+		if (values.Length != 1 || !float.TryParse(values[0][prefix.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float value)
+			|| !float.IsFinite(value) || value < minimum || value > maximum)
+			throw new ArgumentException($"{prefix} requires one finite value in [{minimum}, {maximum}].");
+		return value;
+	}
+
+	internal static void SetCommitmentsForChecks(float initialShare, float repressWeeks) {
+		InitialCommitment = initialShare;
+		RepressWeeks = repressWeeks;
+		AlbumInitialCommitment = initialShare;
+		AlbumRepressWeeks = repressWeeks;
+	}
+	internal static void SetAlbumCommitmentsForChecks(float initialShare, float repressWeeks) {
+		AlbumInitialCommitment = initialShare; AlbumRepressWeeks = repressWeeks;
 	}
 
 	internal static void SetEnabledForChecks(bool value) { configured = true; enabled = value; }
@@ -138,7 +169,7 @@ public static class LabelPressingEconomics {
 	/// go/no-go decision, not a charge: the plant bills when the record first ships. Zero while switched off.</summary>
 	public static float InitialRunReserve(AILabel label, ReleaseFormat format, float unitPressingCost) =>
 		enabled && label != null && !label.isPlayerOwned
-			? PlantBill(format, Math.Max(MinimumRun, (int)MathF.Round(InitialRunShareOfForecast * ForecastUnits(label, format))), false, unitPressingCost)
+			? PlantBill(format, InitialCopies(label, format), false, unitPressingCost)
 			: 0f;
 
 	public readonly struct PressingWeek {
@@ -153,25 +184,29 @@ public static class LabelPressingEconomics {
 		if (!record.pressingBookOpened) {
 			record.pressingBookOpened = true;
 			if (record.weeksSinceRelease <= NewReleaseMaxAgeWeeks) {
-				initial = Math.Max(MinimumRun, (int)MathF.Round(InitialRunShareOfForecast *
-					ForecastUnits(label, record.baseRecord?.format ?? ReleaseFormat.Single)));
+				initial = InitialCopies(label, record.baseRecord?.format ?? ReleaseFormat.Single);
 				record.unitsPressed = initial;
 			} else if (OnSaleAtRunStart(record)) {
 				// Opening catalog was pressed and paid for before 1960: this week's copies already exist, and part
 				// of the last pre-1960 lot is still in the warehouse. Without this every catalog record re-pressed
 				// three weeks of sales in week one (1.33x that week's gross). The lot phase is per record so the
 				// catalog's first re-presses spread over the cycle instead of landing together.
-				record.unitsPressed = sold + (int)(LotPhase(record.baseRecord?.recordId) * RepressLot(sold));
+				// A calibration of NEW orders must not grant extra free opening inventory.
+				record.unitsPressed = sold + (int)(LotPhase(record.baseRecord?.recordId) *
+					Math.Max(MinimumRun, (int)MathF.Ceiling(sold * RepressCoverWeeks)));
 			}
 		}
 		record.pressingBookSold += sold;
 		int before = record.unitsPressed;
-		int lot = RepressLot(sold);
+		int lot = RepressLot(sold, record.baseRecord?.format ?? ReleaseFormat.Single);
 		while (record.unitsPressed < record.pressingBookSold) record.unitsPressed += lot;
 		return new PressingWeek(initial, record.unitsPressed - before);
 	}
 
-	private static int RepressLot(int weeklySold) => Math.Max(MinimumRun, (int)MathF.Ceiling(weeklySold * RepressCoverWeeks));
+	private static int InitialCopies(AILabel label, ReleaseFormat format) =>
+		Math.Max(MinimumRun, (int)MathF.Round((format == ReleaseFormat.Album ? AlbumInitialCommitment : InitialCommitment) * ForecastUnits(label, format)));
+	private static int RepressLot(int weeklySold, ReleaseFormat format) => Math.Max(MinimumRun,
+		(int)MathF.Ceiling(weeklySold * (format == ReleaseFormat.Album ? AlbumRepressWeeks : RepressWeeks)));
 
 	/// <summary>Released on or before the run's first day: seeded opening catalog, not a live release that
 	/// happened to sell late.</summary>

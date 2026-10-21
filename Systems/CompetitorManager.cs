@@ -3212,6 +3212,13 @@ public partial class CompetitorManager : Node {
 		float affinityUnits = preTiltAffinityUnits * opportunity.FormatTilt;
 		float expectedUnits = CalculateFormatTiltedAlbumExpectedUnits(
 			preTiltAffinityUnits, weightedHitUnits, opportunity.FormatTilt);
+		if (live) {
+			expectedUnits *= AlbumSalesVolume.Multiplier;
+			affinityUnits *= AlbumSalesVolume.Multiplier;
+			preTiltExpectedUnits *= AlbumSalesVolume.Multiplier;
+			weightedHitUnits *= AlbumSalesVolume.Multiplier;
+			unweightedHitUnits *= AlbumSalesVolume.Multiplier;
+		}
 		float manufacturingPerUnit = GetPressingCostPerUnit(ReleaseFormat.Album) + albumPackagingCostPerUnit * priorAssumedAlbumPackaging;
 		if (LabelPressingEconomics.PeriodAlbumCosts) manufacturingPerUnit += LabelPressingEconomics.ExpectedAlbumCompositionCost;
 		float albumBookedPrice = LabelPressingEconomics.Enabled
@@ -4292,6 +4299,9 @@ public partial class CompetitorManager : Node {
 		label.cashReserves -= overhead;
 		label.monthlyExpenses += overhead;
 		financials.lastMonthExpenses += overhead;
+		// Owner-manager work is paid from positive cash surplus after ordinary bills.
+		// This is an operating expense, separate from a record's unit contribution.
+		financials.lastMonthExpenses += LabelOperatorPay.Pay(label, financials.lastMonthRevenue - financials.lastMonthExpenses);
 		
 		float netIncome = financials.lastMonthRevenue - financials.lastMonthExpenses;
 		label.lastMonthlyProfit = netIncome;
