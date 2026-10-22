@@ -321,3 +321,65 @@ Reading:
 3. Keep `--midtier-national-ar-runtime` as a probe only. Runtime MidTier recruitment is cash-bound, not access-bound.
 4. Seed 1001's launch pool binds: leftover US supply (~30 acts) is below the national MidTiers' deficit. That is a
    supply-sizing question (launch candidates against summed targets), separate from this switch.
+
+## 7. Five-year screen: `--midtier-national-ar` + `--midtier-going-concern-cash`
+
+3 seeds (1001/2002/3003), 265 weeks (1960–64), game profile, slate-screen-v9 bundle + `--workload-scaled-staffing
+--defer-british-labels`. Arms: `mtn5-control` and `mtn5-pair`. Summary: `SimTools/summarize_midtier_five_year.py`.
+Both switches are byte-identical when off, so `mtn5-control` can be reused as the five-year control for this bundle.
+
+### Top 10 concentration and Major family share (means over 3 seeds)
+
+| year | control CR4 (per seed) | pair CR4 (per seed) | Major T10 c / p | MidTier T10 c / p | majorFamilyChartShare c / p | owner-Major-family entries c / p |
+|---|---|---|---|---|---|---|
+| 1960 | .333 (.317 .302 .381) | .359 (.325 .352 .400) | .396 / .366 | .162 / .231 | .473 / .528 | .393 / .409 |
+| **1961** | **.265** (.283 .242 .269) | **.309** (.360 .260 .308) | .290 / .295 | .128 / .192 | .401 / .397 | .340 / .333 |
+| 1962 | .294 (.308 .277 .296) | .345 (.354 .263 .417) | .308 / .325 | .087 / .201 | .350 / .426 | .311 / .342 |
+| 1963 | .289 (.350 .200 .317) | .331 (.277 .410 .306) | .269 / .290 | .181 / .213 | .402 / .427 | .372 / .357 |
+| 1964 | .261 (.313 .123 .346) | .278 (.331 .260 .242) | .255 / .274 | .110 / .157 | .368 / .448 | .359 / .406 |
+
+- **1961 CR4 moves into the band.** The control falls to .265 in 1961, below the 30–40 band, and stays at or under
+  .294 through 1964. The pair holds .309 in 1961 and .28–.35 afterwards. Two of 15 per-seed pair values exceed .40
+  (seed 3003 in 1962 at .417, seed 2002 in 1963 at .410). Two control values fall below .21 (seed 2002 in 1963 and
+  1964). The pair's head comes from MidTiers that survive (MidTier Top 10 share .16–.23 against .09–.18). The Majors'
+  own Top 10 share is level or slightly higher.
+- **Major consolidation cannot be read in a five-year screen.** The goal is a Major share that rises in 1968–69
+  (`major-share-late-decade-consolidation-goal`). Through 1964 the pair does not weaken the Majors' position:
+  majorFamilyChartShare goes .397 (1961) → .448 (1964) against the control's .401 → .368. Owner-Major-family entries end
+  at .406 against .359. The rise is distribution, not ownership. Majors' own entries are level (.207 vs .196 in 1964),
+  and Major-distributed entries are .199 against .163. Neither arm has a single Major-owned subsidiary in 1960–64, so
+  absorption never fires. Consolidation still needs its own post-1966 mechanism and a decade run. The pair leaves more
+  surviving MidTiers that such a mechanism could absorb.
+
+### Closures of starting firms (cumulative, 3 seeds)
+
+| by end of | arm | MidTier | Independent | Boutique | Small |
+|---|---|---|---|---|---|
+| 1960 | control | 20/59 | 27/621 | 13/399 | 3/693 |
+| 1960 | pair | 8/59 | 26/621 | 12/399 | 1/693 |
+| 1962 | control | 28/59 | 86/621 | 41/399 | 58/693 |
+| 1962 | pair | 23/59 | 88/621 | 40/399 | 70/693 |
+| 1964 | control | 30/59 | 111/621 | 58/399 | 131/693 |
+| 1964 | pair | 24/59 | 109/621 | 65/399 | 137/693 |
+
+(This 1960 pair count, 8, differs from the 10 in section 6 only by calendar. The first 53 weeks are identical to
+`mtn-ab-gated-cash`, but two seed-3003 closures fall at week 53, the first week of 1961.)
+
+- **The MidTier saving shrinks from 12 firms in 1960 to 6 by 1964.** The pair closes 15 MidTiers in 1961–62 against the
+  control's 8. Those closures are earned. The pair's 1961–62 closers launched weaker records than MidTiers alive past
+  1962 (`runtimeQualityAtLaunch` .600 vs .613 over their first three years). The control's 1961–62 closers launched
+  better ones (.619 vs .603). The cash floor buys a year of runway, not survival.
+- **Other tiers move within noise.** Independent closures are 109 vs 111. Boutique (+7 of 399) and Small (+6 of 693)
+  are inside the per-seed reshuffle. Tier transitions are similar: Independent→MidTier promotions 105 vs 111,
+  MidTier→Independent demotions 55 vs 66, and one MidTier→Major promotion in the pair.
+
+### Recommendation
+
+1. Promote `--midtier-national-ar` + `--midtier-going-concern-cash` into the working bundle, alongside
+   `--workload-scaled-staffing --defer-british-labels`. Over five years the pair keeps 1961 CR4 in band where the
+   control falls below it, closes fewer MidTiers, makes the MidTier closures follow the records, and leaves the other
+   tiers and Major family share intact or higher.
+2. The late-decade consolidation check needs a decade run plus the absorption mechanism. No absorptions fire in either
+   arm through 1964. Re-check Major family share in 1968–69 when that lands.
+3. Watch per-seed CR4 excursions above .40 (2 of 15 seed-years) in the next screens. They come from surviving MidTiers
+   charting, not from the Majors.
