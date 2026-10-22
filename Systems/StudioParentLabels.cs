@@ -18,14 +18,21 @@ using Godot;
 /// </summary>
 public static class StudioParentLabels {
 	public const string Switch = "--studio-parent-labels";
+	// Diagnostic: seed the five studio firms as ordinary MidTier labels with no parent, so a screen can split the effect of
+	// five more labels (and the generation stream they shift) from the parent mechanics. Nothing reads a parent.
+	public const string RosterOnlySwitch = "--studio-parent-labels-roster-only";
 	private static bool configured;
 	public static bool Enabled { get; private set; }
+	public static bool RosterOnly { get; private set; }
+	public static bool SeedsTemplates => Enabled || RosterOnly;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		var args = (arguments ?? Array.Empty<string>()).ToArray();
 		Enabled = args.Contains(Switch);
-		if (Enabled && args.Contains(HeadScaleTemplates.Switch))
+		RosterOnly = args.Contains(RosterOnlySwitch);
+		if (Enabled && RosterOnly) throw new ArgumentException(Switch + " and " + RosterOnlySwitch + " cannot be used together.");
+		if (SeedsTemplates && args.Contains(HeadScaleTemplates.Switch))
 			throw new ArgumentException(Switch + " and " + HeadScaleTemplates.Switch + " seed the same firms; use one.");
 		if (Enabled && (!EconomicLabelLifecycle.Enabled || !LabelCorporateModel.ChangesEconomy))
 			throw new ArgumentException(Switch + " requires economic exits and the corporate label model.");

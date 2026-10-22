@@ -159,7 +159,7 @@ by producing label (the master's originator).
 |---|---|---|
 | Studio labels' Top 10 share, 1960–62 | 10–20%, falling in 1963–64 | above 25% in any year, or any studio label in the top 3 firms of a seed-year |
 | Big-5 Top 10 share | down, toward 22–26% in 1961–62 | up |
-| Field share by **producing** label | within seed noise of the control | falls by more than the Big-5 share does |
+| Field share by **producing** label (revised 2026-10-22, below) | each year no further from the historical field share than the control is | below history by more than the tolerance, or further from history than the control by more than it |
 | Labels with a Top 10 hit / first-time Top 10 labels | within seed noise | below 45 a year |
 | Soundtrack licensees | Big-5 majority of blockbusters; studio labels 15–40% of charted soundtracks | Big-5 100% (no change) or below 50% |
 | Studio-label closures | earned through the parent review only; logged | — |
@@ -315,6 +315,117 @@ the breadth guards;
 
 Reproduce: `SimTools/RunStudioParentAudit.ps1` (tag `spl-v1`), then
 `py SimTools/analyze_studio_parent.py --control ttx-v1-tax --studio spl-v1-studio --out SimLogs/spl-v1/analysis`.
+
+## Follow-up (`spl-v2`, 2026-10-22): 1960 star acts, historical field guard, Independent closures
+
+### (a) Studio labels' 1960 stars through opening careers
+
+With the switch on, `OpeningCareerService.Seed` runs a studio pass before its archetype passes. Each row
+picks the label's highest-quality act in the listed genres and stamps it with the ordinary archetype
+history. The acts are subtracted from the same budget (archetype counts and Superstars), so the world
+still has 75 opening careers and 6 Superstars. Only their owners change. Log line: `STUDIO_OPENING_CAREER`.
+
+| Label | Historical act | Archetype, rung |
+|---|---|---|
+| MGM | Connie Francis | CurrentHitmaker, **Superstar** |
+| MGM | Conway Twitty | CurrentHitmaker, Star |
+| ABC-Paramount | Paul Anka | CurrentHitmaker, Star |
+| ABC-Paramount | Lloyd Price / Ray Charles | EstablishedHitmaker, Star |
+| Warner Bros. | the Everly Brothers | CurrentHitmaker, **Superstar** |
+| Dot | Pat Boone | CurrentHitmaker, Star |
+| Dot | Billy Vaughn | AdultStandardBearer, Star |
+| United Artists | Marv Johnson | EstablishedHitmaker, Established |
+
+All eight rows found an act in every seed. The switch-off seed-1001 replay is byte-identical to
+`ttx-v1-tax` in all 95 CSV streams, all nine checks pass, and the error logs are empty.
+
+**Top 10 slots by group, three-seed means (%):**
+
+| Year | Studio: history / `spl-v1` / **`spl-v2`** | Big-5: history / control / `spl-v2` | Field by producer: history / control / `spl-v2` |
+|---|---|---|---|
+| 1960 | 21.2 / 4.7 / **7.1** | 35.6 / 38.8 / 29.5 | 43.3 / 61.5 / 65.1 |
+| 1961 | 16.9 / 7.0 / **12.1** | 22.1 / 26.2 / 28.1 | 61.0 / 73.8 / 61.8 |
+| 1962 | 16.7 / 6.7 / **10.8** | 26.0 / 28.5 / 27.3 | 57.3 / 71.7 / 65.6 |
+| 1963 | 17.3 / 11.7 / **9.6** | 38.8 / 28.3 / 22.1 | 43.8 / 72.2 / 69.8 |
+| 1964 | 11.9 / 6.9 / **9.4** | 34.4 / 28.8 / 26.4 | 53.7 / 71.2 / 64.5 |
+
+**Paired, `spl-v2` − control** (mean ± SE): Big-5 1960 **−9.4 ± 2.0**; studio single-unit share
+**+7.5 ± 1.1**; Independent unit share **−7.0 ± 1.0**, MidTier **+8.3 ± 0.8**; Major share including
+off-chart −2.4 ± 1.6; average #1 units **−8.7k ± 0.5k**; live singles −2.7M ± 3.5M; Independent
+closures +0.8 ± 2.7. Studio buyers: 25 accepted bids and 72 master deals per world, and no
+parent closures.
+
+**Reading.** The shape is now right: the share peaks early (1961) and fades, where `spl-v1` peaked in 1963.
+The level is still about half of history's in 1960–63. In 1960 the Big-5 overshoot below history (29.5
+against 35.6) because two of the six Superstars moved from them to studio labels. The field in 1960
+is not where the share comes from. The #1 that sells 8.7k fewer units is consistent across seeds: a
+studio act at #1 sells at MidTier scale. Studio labels reach a top-3 rank in four seed-years (UA
+first in 1963 in seed 2002, with 39 slots). History had MGM third in 1960 and ABC-Paramount second in
+1962, so this kill guard still needs the revision noted under `spl-v1`.
+
+### (b) Field guard replaced by the historical field share by year
+
+`analyze_studio_parent.py` now reads `SimLogs/historical-top10-<year>/records_<year>_grouped.csv`
+(owner-grouped; Dot under Paramount, Colpix under Columbia Pictures-Screen Gems). That reproduces the
+21.2 / 16.9 / 16.7 / 17.3 / 11.9 studio shares above exactly. The analyzer also writes
+`studio-parent-field-guard.csv`. Per year, the field by **producing** label:
+
+- **passes** if the studio arm is no further from history than the control is;
+- **kills** if it falls below history by more than the tolerance, or moves further from history than the
+  control by more than it. The tolerance is twice the studio arm's seed SE, never under 3 points
+  (about 16 slot-weeks).
+
+The breadth guards stay: labels with a Top 10 record may not fall under 45 in any seed-year, and the
+change in first-time Top 10 labels is flagged "watch" beyond two paired SE (floored at one label).
+
+| Year | Field by producer: history / control / `spl-v2` | Guard | Min labels with a Top 10 record | First-time labels Δ |
+|---|---|---|---|---|
+| 1960 | 43.3 / 61.5 / 65.1 | pass (within tolerance 7.2) | 53 | +7.7 ± 5.2 |
+| 1961 | 61.0 / 73.8 / 61.8 | pass | 49 | **−9.7 ± 4.6 (watch)** |
+| 1962 | 57.3 / 71.7 / 65.6 | pass | 57 | −2.0 ± 2.6 |
+| 1963 | 43.8 / 72.2 / 69.8 | pass | 55 | −2.3 ± 1.8 |
+| 1964 | 53.7 / 71.2 / 64.5 | pass | 52 | +0.3 ± 5.9 |
+
+`spl-v1` also passes every year under the new guard (1961 first-time labels −6.3 ± 2.8, watch).
+
+### (c) Why Independent closures fell in `spl-v1`: they did not, mechanically
+
+`spl-v1`'s −4.5 ± 2.1 points sat entirely in **year one**. Independents closed by week 66 numbered
+20 / 24 / 21 in the control and 12 / 10 / 11 in `spl-v1`. Almost all early closers are near-dead
+labels with under $50k gross in year one (about 60% of that group closes in the control). P&D
+deals, master leases and bids hardly touch that group. None of the studio labels' 7–13 year-one P&D
+clients per world was low-gross, and at most one low-gross Independent per world signed any P&D deal. A diagnostic arm separated the five added firms from the
+mechanics. `--studio-parent-labels-roster-only` creates the same five labels as ordinary MidTier firms
+with no parent, stars, routing or bids (`spl-v2-roster`, same seeds).
+
+| Arm | Independents closed, % (1001 / 2002 / 3003) | Closed by week 66 | Independent unit share, % |
+|---|---|---|---|
+| control `ttx-v1-tax` | 18.4 / 19.3 / 23.5 | 20 / 24 / 21 | 40.7 / 43.0 / 41.4 |
+| roster-only | 18.0 / 17.5 / 21.8 | 15 / 11 / 22 | 36.0 / 37.9 / 40.3 |
+| `spl-v1` | 16.4 / 16.5 / 14.8 | 12 / 10 / 11 | 36.8 / 36.4 / 36.3 |
+| `spl-v2` | 16.4 / 25.5 / 21.8 | 10 / 19 / 24 | 31.9 / 36.4 / 35.9 |
+
+`spl-v2` has the same world generation and the same mechanics as `spl-v1`; only eight acts' opening
+histories differ. Even so, its seed-2002 and seed-3003 closures return to the control's level. On a
+single seed the four arms span 9 points (seed 2002: 16.5–25.5). The `spl-v1` drop is reshuffle
+variance in the most fragile group, and three seeds made it look consistent (see
+`three-seed-paired-se-understates-reshuffle`). No mechanism produces it.
+
+What is mechanical is the **unit share**. Five plain MidTier firms take 3.6 points of Independent units
+(roster-only − control: −4.7 / −5.1 / −1.1). The studio mechanics and stars take another 3.3 (`spl-v2` −
+roster-only: −4.1 / −1.5 / −4.4). That share loss does not show up as Independent closures, because
+early closures are driven by labels that sell almost nothing either way.
+
+**Status.** Still opt-in, not adopted. Remaining gaps: the 1960 level (7 against 21%), the Big-5's 1960
+overshoot, and the top-3 guard. The next lever is history's 1960 depth: MGM's 40 slots came from more
+than one act, so the studio labels may need more than one or two Star rows each, taken from the Big-5's
+share of the budget rather than added to it. The top-3 kill guard should be relaxed to history's
+precedent (a studio label may rank 2nd–3rd), keeping "above 25% in any year".
+
+Reproduce: `SimTools/RunStudioParentAudit.ps1 -RunTag spl-v2`; the roster-only arm is
+`RunCorporateEconomyAudit.ps1 -RunTag spl-v2-roster` with the same bundle plus
+`--studio-parent-labels-roster-only`; then
+`py SimTools/analyze_studio_parent.py --control ttx-v1-tax --studio spl-v2-studio --out SimLogs/spl-v2/analysis`.
 
 ## Open questions for the user (answered above)
 

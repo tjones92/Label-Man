@@ -66,12 +66,48 @@ public static class OpeningCareerService {
 	private const int MaxSuperstarsPerLabel = 2, MaxStarsPerLabel = 4, MaxOpeningActsPerLabel = 6;
 	public const int FirstLpYear = 1949;
 
+	// --studio-parent-labels: the studio labels' 1960 stars (FilmBroadcastLabelResearch.md). MGM had Connie Francis and
+	// Conway Twitty, ABC-Paramount Paul Anka and Lloyd Price/Ray Charles, Warner the Everly Brothers, Dot Pat Boone and
+	// Billy Vaughn, UA Marv Johnson. Each row picks the label's best act in those genres. The acts come out of the same
+	// budget as everyone else's (archetype counts and Superstars), so the world has no more stars, only a different owner.
+	private static readonly (string Parent, OpeningCareerArchetype Archetype, CareerState Rung, Genre[] Genres)[] StudioStars = {
+		(StudioParentLabels.Mgm, OpeningCareerArchetype.CurrentHitmaker, CareerState.Superstar, new[] { Genre.TeenPop, Genre.TraditionalPop }),
+		(StudioParentLabels.Mgm, OpeningCareerArchetype.CurrentHitmaker, CareerState.Star, new[] { Genre.RockAndRoll, Genre.Country }),
+		(StudioParentLabels.Abpt, OpeningCareerArchetype.CurrentHitmaker, CareerState.Star, new[] { Genre.TeenPop, Genre.RockAndRoll }),
+		(StudioParentLabels.Abpt, OpeningCareerArchetype.EstablishedHitmaker, CareerState.Star, new[] { Genre.RnB, Genre.Blues }),
+		(StudioParentLabels.Warner, OpeningCareerArchetype.CurrentHitmaker, CareerState.Superstar, new[] { Genre.RockAndRoll, Genre.TeenPop }),
+		(StudioParentLabels.Paramount, OpeningCareerArchetype.CurrentHitmaker, CareerState.Star, new[] { Genre.TeenPop, Genre.TraditionalPop, Genre.RockAndRoll }),
+		(StudioParentLabels.Paramount, OpeningCareerArchetype.AdultStandardBearer, CareerState.Star, new[] { Genre.EasyListening, Genre.TraditionalPop }),
+		(StudioParentLabels.UnitedArtists, OpeningCareerArchetype.EstablishedHitmaker, CareerState.Established, new[] { Genre.RnB, Genre.DooWop, Genre.TeenPop }),
+	};
+
 	public static void Seed(List<AILabel> labels, int year) {
 		if (labels == null) return;
 		var chosen = new HashSet<string>(StringComparer.Ordinal);
 		var perLabel = new Dictionary<string, (int Superstars, int Stars, int Total)>(StringComparer.Ordinal);
 		var tally = new Dictionary<OpeningCareerArchetype, int>();
+		var studioCount = new Dictionary<OpeningCareerArchetype, (int Acts, int Superstars)>();
+		if (StudioParentLabels.Enabled)
+			foreach (var row in StudioStars) {
+				AILabel label = labels.FirstOrDefault(l => StudioParentLabels.IsStudioLabel(l) && l.studioParent == row.Parent);
+				SimulatedArtist artist = label?.roster?
+					.Where(a => a != null && !chosen.Contains(a.artistId) && a.members?.Count > 0 &&
+						row.Genres.Contains(GenreCatalog.MapLegacy(a.primaryGenre, year)))
+					.OrderByDescending(a => a.CalculateBaseQuality()).ThenBy(a => a.artistId, StringComparer.Ordinal).FirstOrDefault();
+				GD.Print($"STUDIO_OPENING_CAREER label={label?.labelId} parent=\"{row.Parent}\" archetype={row.Archetype} rung={row.Rung} " +
+					$"artist={artist?.artistId} genre={artist?.primaryGenre} quality={artist?.CalculateBaseQuality() ?? 0f:F3}");
+				if (artist == null) continue;
+				Stamp(artist, label, Specs.First(s => s.Archetype == row.Archetype), row.Rung, year);
+				chosen.Add(artist.artistId);
+				perLabel.TryGetValue(label.labelId, out var used);
+				perLabel[label.labelId] = (used.Superstars + (row.Rung == CareerState.Superstar ? 1 : 0),
+					used.Stars + (row.Rung is CareerState.Star or CareerState.Superstar ? 1 : 0), used.Total + 1);
+				studioCount.TryGetValue(row.Archetype, out var n);
+				studioCount[row.Archetype] = (n.Acts + 1, n.Superstars + (row.Rung == CareerState.Superstar ? 1 : 0));
+			}
 		foreach (Spec spec in Specs) {
+			studioCount.TryGetValue(spec.Archetype, out var studio);
+			int count = spec.Count - studio.Acts, superstarsLeft = Math.Max(0, spec.Superstars - studio.Superstars);
 			var candidates = new List<(SimulatedArtist Artist, AILabel Label)>();
 			foreach (AILabel label in labels) {
 				if (label?.roster == null || !spec.Tiers.Contains(label.tier)) continue;
@@ -86,10 +122,10 @@ public static class OpeningCareerService {
 			});
 			int made = 0;
 			foreach ((SimulatedArtist artist, AILabel label) in candidates) {
-				if (made >= spec.Count) break;
+				if (made >= count) break;
 				perLabel.TryGetValue(label.labelId, out var used);
 				if (used.Total >= MaxOpeningActsPerLabel) continue;
-				CareerState rung = made < spec.Superstars ? CareerState.Superstar : spec.Rung;
+				CareerState rung = made < superstarsLeft ? CareerState.Superstar : spec.Rung;
 				if (rung == CareerState.Superstar && used.Superstars >= MaxSuperstarsPerLabel) rung = spec.Rung;
 				if (rung == CareerState.Star && used.Stars >= MaxStarsPerLabel) continue;
 				Stamp(artist, label, spec, rung, year);
@@ -98,7 +134,7 @@ public static class OpeningCareerService {
 					used.Stars + (rung is CareerState.Star or CareerState.Superstar ? 1 : 0), used.Total + 1);
 				made++;
 			}
-			tally[spec.Archetype] = made;
+			tally[spec.Archetype] = made + studio.Acts;
 		}
 		int superstars = labels.Sum(l => l?.roster?.Count(a => a?.openingArchetype != OpeningCareerArchetype.None && a.careerState == CareerState.Superstar) ?? 0);
 		GD.Print($"OpeningCareerService: seeded {chosen.Count} opening careers ({superstars} Superstars) - " +

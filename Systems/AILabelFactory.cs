@@ -154,7 +154,7 @@ public static class AILabelFactory {
 					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
 		}
 
-		if (StudioParentLabels.Enabled) {
+		if (StudioParentLabels.SeedsTemplates) {
 			foreach (var template in studioParentTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
 			foreach (var label in labels.Where(l => l.isHistorical && l.studioParent != null))
 				GD.Print($"STUDIO_PARENT_LABEL id={label.labelId} name={label.labelName} parent=\"{label.studioParent}\" tier={label.tier} " +

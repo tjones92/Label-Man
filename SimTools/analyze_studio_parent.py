@@ -33,6 +33,62 @@ STUDIO_NAMES = ("MGM", "ABC-Paramount", "Warner Bros.", "United Artists", "Dot",
 BIG5 = {f"label_{i:04d}" for i in range(1, 6)}
 YEARS = range(1960, 1965)
 
+# Owner names in SimLogs/historical-top10-<year>/records_<year>_grouped.csv ("owned" column). Decca is MCA from 1962;
+# Dot is filed under its owner Paramount and Colpix under Columbia Pictures-Screen Gems. Fox, Buena Vista and Reprise
+# stay in the field: none has a template here.
+HISTORY_BIG5 = {"Columbia", "RCA Victor", "EMI (Capitol)", "Decca", "MCA", "Mercury"}
+HISTORY_STUDIO = {"MGM", "ABC-Paramount", "Warner Bros.", "United Artists", "Paramount", "Columbia Pictures-Screen Gems"}
+# Field guard tolerance: twice the studio arm's seed SE in that year, never under 3 points (about 16 slot-weeks).
+FIELD_TOLERANCE_FLOOR = 0.03
+MIN_LABELS_WITH_TOP10 = 45
+
+
+def history():
+    """Top 10 slot shares by owner group and labels with a Top 10 record, 1960-64, from the reconstructions."""
+    out, seen = {}, set()
+    for year in YEARS:
+        g = pd.read_csv(os.path.join(ROOT, f"historical-top10-{year}", f"records_{year}_grouped.csv"))
+        total = g.slots.sum()
+        big5, studio = g.slots[g.owned.isin(HISTORY_BIG5)].sum() / total, g.slots[g.owned.isin(HISTORY_STUDIO)].sum() / total
+        labels = set(g.label)
+        out[year] = {"big5": big5, "studio": studio, "field": 1 - big5 - studio,
+                     "labels": len(labels), "firstTime": len(labels - seen)}
+        seen |= labels
+    return out
+
+
+def field_guard(frame, seeds):
+    """Field by PRODUCING label against history, year by year (replaces the §17l control-relative guard).
+
+    Pass: the studio arm is no further from history than the control, and not below history by more than the
+    tolerance. Kill: below history by more than the tolerance (the field squeezed past history), or further from
+    history than the control by more than the tolerance. Breadth guards stay: labels with a Top 10 record must
+    not fall under 45 in any seed-year, and first-time Top 10 labels must stay within two paired SE of the control.
+    """
+    hist, rows = history(), []
+    for year in YEARS:
+        col = f"top10_fieldByProducer_{year}"
+        if col not in frame.columns:
+            continue
+        control = [float(frame.loc[("control", s), col]) for s in seeds]
+        studio = [float(frame.loc[("studio", s), col]) for s in seeds]
+        h, c, s = hist[year]["field"], statistics.mean(control), statistics.mean(studio)
+        tol = max(FIELD_TOLERANCE_FLOOR, 2 * statistics.stdev(studio) / len(studio) ** .5)
+        verdict = ("kill: below history" if s < h - tol else "kill: away from history" if abs(s - h) > abs(c - h) + tol
+                   else "pass" if abs(s - h) <= abs(c - h) else "pass (within tolerance)")
+        labels = [int(frame.loc[("studio", sd), f"labelsWithTop10_{year}"]) for sd in seeds]
+        first = [float(frame.loc[("studio", sd), f"firstTimeTop10Labels_{year}"]) -
+                 float(frame.loc[("control", sd), f"firstTimeTop10Labels_{year}"]) for sd in seeds]
+        first_se = statistics.stdev(first) / len(first) ** .5
+        breadth = "kill" if min(labels) < MIN_LABELS_WITH_TOP10 else "pass"
+        first_verdict = "pass" if year == YEARS[0] or abs(statistics.mean(first)) <= 2 * max(first_se, 1.0) else "watch"
+        rows.append({"year": year, "historyField": h, "controlField": c, "studioField": s, "tolerance": tol,
+                     "fieldGuard": verdict, "historyLabels": hist[year]["labels"], "minStudioLabels": min(labels),
+                     "labelsGuard": breadth, "firstTimeDiff": statistics.mean(first), "firstTimeSE": first_se,
+                     "firstTimeGuard": first_verdict,
+                     "historyBig5": hist[year]["big5"], "historyStudio": hist[year]["studio"]})
+    return pd.DataFrame(rows).set_index("year")
+
 
 def console(tag, seed, weeks):
     name = f"{tag}-default-{seed}-{weeks}-console.log"
@@ -150,6 +206,9 @@ def main():
             continue
         se = statistics.stdev(diffs) / len(diffs) ** .5
         print(f"{col:32s} {statistics.mean(diffs):+10.4f} ± {se:8.4f}   " + " ".join(f"{d:+.4f}" for d in diffs))
+    guard = field_guard(frame, args.seeds)
+    print("\n== field guard: by producing label vs history (shares) ==")
+    print(guard.to_string(float_format=lambda v: f"{v:.3f}"))
     print("\n== studio ledgers ==")
     for seed in args.seeds:
         led = ledgers[("studio", seed)]
@@ -158,6 +217,7 @@ def main():
     if args.out:
         os.makedirs(args.out, exist_ok=True)
         frame.to_csv(os.path.join(args.out, "studio-parent-screen.csv"))
+        guard.to_csv(os.path.join(args.out, "studio-parent-field-guard.csv"))
         with open(os.path.join(args.out, "studio-parent-ledgers.json"), "w", encoding="utf-8") as f:
             json.dump({f"{a}-{s}": v for (a, s), v in ledgers.items()}, f, indent=1, default=str)
 
