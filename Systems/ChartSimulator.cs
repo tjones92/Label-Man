@@ -513,7 +513,7 @@ public static class ChartSimulator {
 		if (stagedLiveDemand && !record.baseRecord.isPlayerOwned)
 			conversionRate *= UnchartedSingleExposure.Multiplier(internalChartPosition, regionalDiscovery, record.weeksSinceRelease,
 				record.weeksSincePeakUnits);
-		
+		if (stagedLiveDemand) conversionRate *= SingleCommercialFit.Multiplier(record, region.regionId, label);
 		// === 6. RELEASE RAMP ===
 		conversionRate *= GetReleaseRampWeight(record.weeksSinceRelease, record.currentLabelPush) *
 			RELEASE_RAMP_UNIT_RENORMALIZATION;

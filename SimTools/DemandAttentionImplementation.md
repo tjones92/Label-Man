@@ -451,3 +451,453 @@ toward low thousands, leaving the hit tail and aggregate units intact. Then a
 forecast-sized first run (500 to a few thousand) plus reorders becomes the
 stocking rule. This is the same demand floor identified by the loss-rate
 audit, now seen from the inventory side.
+
+## Commercial fit and first-run stocking (opt-in, 2026-10-21)
+
+Two opt-in probes address the verdict above together. Both are off by default.
+Off, the multiplier is exactly 1 and no stock or restock path changes. They add no
+global random draws or saved state. `SaveLoadRoundTripRunner.tscn --
+--demand-stocking-check` passes 19 native checks.
+
+**`SingleCommercialFit`** (`Systems/SingleCommercialFit.cs`) multiplies a live-launched
+AI single's purchase conversion by a persistent record response. It does not apply
+to opening catalog or player records. A counter RNG keyed by record (national) and
+record x region (regional) draws the response. Labels' priors, pressing forecasts and
+release judgement never read it. The national factor is *kinked*: only
+`hit-share` of reference launches connect. Below the kink the response falls with
+`sigma`; above it, it rises only with `upside` (default .15), and `floor` bounds it
+from below. Launch awareness (artist recognition, campaign, label standing) and the
+label's campaign push both move the kink, weighted by `launch-weight` and
+`push-weight`. A stronger launch connects more often and expects more. One
+normalizer gives the reference launch (awareness .2, push .35) mean one, and `scale`
+renormalizes aggregate units for chart feedback.
+
+**`LaunchStocking`** (`Systems/LaunchStocking.cs`) scales an AI single's launch shelf
+allocation by `--launch-stock-share`. It keeps the regional shape, with at least 25 copies in any
+reached region. `--sell-through-reorders` lets dealers reorder any AI single that
+ran out while buyers were still asking (backorder and raw demand both positive),
+charted or not, through the ordinary restock service and capacity limits.
+
+### Shape screen (26 weeks, seeds 1001 / 2002, `SimLogs/dfit-*`)
+
+| Shape | Early-single median | Under 2k | Major-family share | Single units vs control |
+|---|---:|---:|---:|---:|
+| control | 14.2k / 15.3k | 1.6 / 1.4% | .60 / .62 | 1.00 |
+| lognormal sigma 1.5 | 3.3k / 4.3k | 39 / 35% | .41 / .33 | 1.08 / 1.06 |
+| kinked sigma 2.5, hit share .15 | 3.8k / 3.7k | 42 / 43% | .51 / .38 | 1.06 / 1.08 |
+| same, per-record mean one, launch weight 4 | 6.5k / 6.0k | 31 / 29% | .47 / .40 | 1.00 / 1.04 |
+| same, one normalizer, weights 2 / 2 | 5.3k / 6.7k | 34 / 31% | .67 / .71 | 1.06 / 1.07 |
+| same, weights 1.5 / 1.5, scale .93 | 5.4k / 6.3k | 34 / 33% | .68 / .64 | 1.05 / 1.07 |
+
+Two shapes were rejected. A symmetric lognormal's long tail makes rare records from
+the many small releases outsell Major campaigns: Major chart-unit share fell from
+.39-.44 to .18-.30. Normalizing each record to its own mean does the same for weak
+launches, which then sell 1/p times more when they connect. Without launch
+weighting, the kinked shape also loses Major-family share: in the control nearly
+every Major single charts, and a luck-only "connects or not" draw sinks 85% of them.
+With one normalizer and weights near 1.25, Major-family share sits within a few
+points of control.
+
+Stocking (26 weeks): cutting launch shelves to 10% *without* the fit leaves sales
+unchanged when sell-through reorders are on (early median 14.6k / 15.2k). The launch
+order is then no longer a demand device. Without reorders, an uncharted single
+that sells out its free launch stock can never be restocked, falls below the
+retirement floor and leaves: about 180 launched singles per seed in the control.
+
+### Candidate, 105 weeks (`SimLogs/dlong-{ctl,cand,phys,soft}`)
+
+Candidate flags: `--single-commercial-fit=2.5 --single-commercial-fit-hit-share=0.15
+--single-commercial-fit-regional=0.5 --single-commercial-fit-scale=0.88
+--single-commercial-fit-launch-weight=1.25 --single-commercial-fit-push-weight=1.25
+--single-commercial-fit-floor=0.12 --launch-stock-share=0.1 --sell-through-reorders`.
+`phys` adds `--physical-pressing-inventory --physical-inventory-shelf-launch
+--physical-inventory-early-receipt`. `soft` uses sigma 2.0, hit share .25, floor .15,
+scale .9.
+
+| Seed 1001 / 2002 | Control | Candidate | Candidate, physical | Soft |
+|---|---:|---:|---:|---:|
+| Early-launched single, median units | 14.5k / 15.6k | 8.3k / 8.3k | 8.1k / 9.0k | 11.1k / 11.6k |
+| p10 units | 4.9k / 5.5k | 650 / 550 | 610 / 625 | 1.1k / 1.0k |
+| Under 2k | 1.6 / 1.4% | 26 / 27% | 24 / 24% | 18 / 17% |
+| Early cohort (launched by week 13) loss share, before marketing | 2.7 / 2.5% | 40.7 / 41.2% | 41.2 / 36.6% | 27.8 / 26.5% |
+| Early cohort under 500 copies | 8 / 3 | 156 / 171 | 148 / 128 | 85 / 90 |
+| Median copies pressed, retired launched single | 17.1k / 17.6k | 3.8k / 3.7k | 5.8k / 6.1k | 8.0k / 8.3k |
+| Median launch stock, charted singles | 50k / 49k | 4.7k / 4.4k | 4.7k / 4.4k | 4.9k / 4.8k |
+| Single units vs control | 1.00 | 1.00 / 1.03 | 1.02 / 1.03 | 1.00 / 1.02 |
+| LP units vs control | 1.00 | 1.05 / 0.88 | 0.88 / 0.83 | 0.99 / 0.95 |
+| Chart-week share of single units | 54 / 56% | 72 / 77% | 75 / 77% | 67 / 70% |
+| Mean #1 weekly units | 84k / 77k | 107k / 149k | 126k / 157k | 109k / 124k |
+| Major-family chart share | .51 / .52 | .53 / .58 | .55 / .52 | .52 / .61 |
+| Distinct Hot 100 acts | 915 / 906 | 867 / 826 | 808 / 790 | 867 / 844 |
+| Starting-Small closed by week 105 | 13.0 / 9.1% | 26.0 / 19.1% | 28.6 / 21.7% | 21.2 / 16.5% |
+| Starting Boutique / Independent closed | 20 / 4%, 19 / 10% | 33 / 12%, 30 / 18% | 31 / 19%, 31 / 25% | 23 / 17%, 26 / 15% |
+
+What it fixes: the missing bottom (a quarter of singles under 2k, p10 in the
+hundreds), first runs of a few thousand copies instead of 50k shelves, pressing per
+release down ~4.5x, a loss share in the historical direction, and the hit tail.
+The #1's weekly units and the chart's share of single units both rise, and aggregate
+single units hold. (The ~150k #1 and ~88% chart-week share once used as targets here are
+not historical evidence; DemandAttentionResearch.md withdraws both.) The physical arm reconciles
+every unit identity (`SimLogs/dlong-phys/review.json`). Its backorders are about
+1.5x the candidate's, and it is not needed to reach the result.
+
+What it breaks: **starting-Small closures double at two years.** Five-year control is
+29-32% against a 20-35% band, so this would overshoot. Boutique and Independent
+closures also rise. Softening the shape (`soft`) recovers only a few points: the
+closures come from flop income disappearing at all, not from how deep the flops go.
+This is the same finding as the loss-calibration audit. Distinct Hot 100 acts fall
+5-9%. LP units fall in three of four non-control runs (promo synergy reads promo
+singles' chart peaks; unconfirmed).
+
+**Not adopted.** Before any default change this needs a small-label survival path
+that is not flop income (cost per release scaled to expected sales, a regional-hit
+route, or release judgement that learns the new distribution), an LP-unit check,
+and a 265-week closure run. No historical acceptance claim follows from these short
+screens.
+
+### Small-label survival paths (opt-in, 2026-10-21)
+
+**Why the candidate closes labels.** Every closure is a bankruptcy (cash below zero at
+two month-ends). A closed starting-Small label made a median 1-2 releases in its life,
+whose best record sold 134-925 copies. Survivors made about 10. Its first single flops,
+cash falls below the release reserve, and the ~$200 a month of fixed overhead
+(premises ~$110, retainers ~$55, plus payroll) runs it out. A Small single costs ~$486
+including its 500-copy first run, which is period-plausible. The issue is ruin, not
+price: about 1 in 10 Small launches connects, and ~$2k of opening cash buys 4-5 tries.
+
+Three opt-in routes were built. All are off by default, and 27 native checks pass
+(`--demand-stocking-check`).
+
+- **`--home-operated-micro-labels`** (`LabelCorporateModel`). A founder-run Small,
+  Boutique or Independent firm with no paid staff works from home, shop or car: no
+  leased suite and no standing retainers. Hiring anyone leases an office as before, and
+  a suite already leased is paid until its annual review.
+- **`--ai-master-deals`** (`Systems/AiMasterDeals.cs`). The player's master routes
+  (EarlyGameLabelManDirectiveV2 §2, §5), with the same buyer ear, bars, prices and
+  terms, open to AI Small/Boutique/Independent sellers and bigger AI buyers.
+  *Shop the master* (Gordy's Miracles masters leased to End): a label that can pay a
+  session but not pressing and promotion cuts the single and offers it to up to four
+  fitting offices. The first that hears it offers a $150-600 lease against 7-8% of list
+  for 52 weeks, or a sale at 2.5x when it likes it a lot; a cash-short seller takes the
+  sale. *Regional pickup* (Tamla's "Come to Me" to United Artists, $3,000 against
+  royalties): a new breakout market may bring a call, using the player's chance and one
+  keyed draw per evidence state. The lease is priced from the evidence (up to $1,500),
+  and the live record changes hands with its chart history. Small and Boutique sellers,
+  and Independents without three months' overhead, let it go. Lease statements are
+  quarterly, and the master comes home at the end of the term. Artists stay on the
+  seller's roster and publishing is never included. Telemetry is `AI_MASTER_DEAL`
+  console lines.
+- **`--ai-backers`** (`Systems/AiBackers.cs`). The player's one backer agreement (§4.3;
+  Gordy's $800 Ber-Berry loan at 6%) for Small and Boutique founders. Each label's source
+  is a keyed draw over the player's four, with capacities of $400-800. When a recorded
+  single can't be pressed and promoted, the founder asks once. Terms are the player's:
+  6% simple interest, twelve installments from the third 1st after signing, paid from
+  cash on hand only, with arrears. It is tried before shopping the master, since
+  borrowing keeps the master. Telemetry is `AI_BACKER` console lines.
+
+105 weeks, seeds 1001 / 2002, candidate flags as above. Closures are of starting labels.
+`own .5` adds `--single-commercial-fit-own-normalization=0.5`, which normalizes half of
+each launch's own mean in log space.
+
+| Arm | Small closed | Boutique | Independent | Small survivor median cash |
+|---|---:|---:|---:|---:|
+| control | 13.0 / 9.1% | 20.3 / 18.5% | 3.9 / 9.6% | $6.9k / $7.4k |
+| control + home | 0.0 / 0.0% | 11.7 / 12.3% | 8.7 / 11.2% | $7.1k / $3.4k |
+| control + master deals | 9.5 / 7.8% | 17.2 / 15.1% | 11.1 / 10.2% | $6.7k / $7.6k |
+| candidate | 26.0 / 19.1% | 32.8 / 30.1% | 11.6 / 17.8% | $7.0k / $7.2k |
+| + home | 0.4 / 0.0% | 20.3 / 13.7% | 14.5 / 16.8% | **$458 / $1.9k** |
+| + master deals | 22.5 / 12.2% | 32.0 / 28.8% | 13.0 / 17.8% | $6.6k / $7.7k |
+| + master deals + backers | 24.7 / 14.3% | 29.7 / 28.8% | 19.3 / 19.8% | $6.4k / $6.3k |
+| + master deals + backers, own .5 | 18.2 / 12.2% | 28.1 / 24.0% | 16.9 / 19.3% | $7.2k / $6.8k |
+
+Deal volume per two years: 345-452 regional pickups (almost all leases), 8-33
+pre-release masters shopped, 16-41 leases reverting. Backers: 34-46 signed, 8-9 repaid.
+
+Readings:
+
+- **Home operation:** fixed overhead accounts for *all* of the control's Small
+  closures. Removing it under the candidate leaves zombies: median survivor cash of a
+  few hundred dollars, and 23-30% of survivors with no release in a year.
+- **Master deals:** they help, but mostly labels that already hold a breaking record.
+  Zombies have nothing to sell and can't fund a session to shop.
+- **Backers:** a loan mostly pays for one more flop.
+- **The larger driver is the fit's push weighting.** With one reference normalizer it
+  moves a fifth to a third of Small, Boutique and Independent units to Majors (Major
+  units +59 / +62%). `own .5` removes that transfer (Major +8 / +3%), but Major-family
+  chart share falls to .41 / .43 against .51 / .52. Small-launched units double, partly
+  because pickups carry records to bigger labels, whose push then lifts the same fit
+  draw.
+
+Every setting so far trades Major-family chart share against small-label survival. A
+choice between them, or a third lever, is a calibration decision; none of these arms
+is adopted.
+
+### What the shares should be, and which part of the closure rise is error (2026-10-21)
+
+**History, 1960-64.** Top 10 weekly slots from the project's reconstructions
+(`SimLogs/historical-top10-<year>/records_<year>_grouped.csv`), grouped by owner. Big-5 =
+Columbia (with Epic), RCA, Capitol/EMI, Decca/MCA, Mercury (with Philips and Smash); film and
+broadcast majors = MGM, ABC-Paramount, Paramount/Dot, Warner, United Artists and Colpix.
+
+| Year | Big-5 | Film/broadcast majors | Independents | of which 20+ slot national indies | of which firms under 10 slots |
+|---|---:|---:|---:|---:|---:|
+| 1960 | 35.6% | 21.2% | 43.3% | 5.4% | 23.7% |
+| 1961 | 22.1% | 16.9% | 61.0% | 17.9% | 20.2% |
+| 1962 | 26.0% | 16.7% | 57.3% | 15.8% | 25.8% |
+| 1963 | 38.8% | 17.3% | 43.8% | 9.4% | 17.9% |
+| 1964 | 34.4% | 11.9% | 53.7% | 23.7% | 17.5% |
+
+Sales: the FTC's 1960 figures give the same five companies 54.4% of all record dollars and 61.9% of
+LP dollars, which implies about **32% of singles dollars** (24-37% for a 70-80% LP mix). There is no
+sourced split of singles sales below that level, and no sourced closure rate for small labels. The
+20-35% five-year band is a design judgment.
+
+**Model, first two years (seed 1001 / 2002; Major tier = the Big-5 plus EMI and Decca UK).**
+
+| | Control | Candidate + routes | Candidate + routes, own .5 |
+|---|---:|---:|---:|
+| Major share of Top 10 slots, 1960 | 40.6 / 47.1% | 43.8 / 44.8% | 40.2 / 39.0% |
+| Major share of Top 10 slots, 1961 | 34.6 / 29.0% | **52.7 / 41.9%** | 36.2 / 26.2% |
+| Major share of single units | 21.8 / 20.4% | **33.8 / 31.0%** | 23.4 / 20.6% |
+| Small share of single units | 7.1 / 7.0% | 7.4 / 8.5% | 13.6 / 13.9% |
+| Top 10 slots held by firms under 10 slots, 1961 | 45.4 / 51.7% | 27.1 / 36.9% | 40.8 / 49.4% |
+
+Readings:
+
+1. **The control already gives Majors too much chart and too little sales.** Its Top 10 share is
+   5-13 points over the Big-5 history, while its singles unit share (~21%) sits below the FTC
+   residual (~32%). Majors earn singles sales only through chart hits. History's majors also sold
+   steady catalog, country, standards and specialty singles off the chart. The model lacks that
+   base, so matching their sales share would require overstating their hits.
+2. **The candidate reaches the FTC sales share by doing exactly that.** Its Major units match ~32%,
+   but its 1961 Top 10 share is 42-53% against 22% historically. The 20-35% loss of Boutique and
+   Independent units that goes with it is **error**: it comes from the push-weighted fit, not from
+   any historical shift. The film/broadcast majors (12-21% of history's Top 10) have no counterpart
+   in the model.
+3. **The Small-label rise is mostly the natural part.** Small labels' total unit share is unchanged
+   under the candidate (7-8.5%); the tier's income is simply concentrated in fewer labels, as a
+   hit-driven market should do. But all of the control's Small closures, and the zombie state when
+   it is removed, come from ~$200 a month of fixed overhead that period micro-labels did not carry.
+   Closure counts also cannot separate a bankruptcy from a founder who stopped releasing.
+4. **Missing mechanisms**, in order of evidence: (a) a non-chart Major singles base (catalog and
+   specialty volume) so sales share does not require chart dominance; (b) a film/broadcast major
+   tier or equivalent second rank; (c) a dormancy exit distinct from bankruptcy, with
+   founder-scale fixed costs; (d) a measured Hot 100 entry split. The recovered Hot 100
+   (`SimLogs/historical-hot100-1960-64`) has no labels yet.
+
+### Majors' off-chart singles base (opt-in, 2026-10-21)
+
+**Evidence.** No source splits the Majors' singles sales between charted and uncharted titles, so the size
+of this base is a calibration choice, not a measurement. The channels are well documented: catalog reissue
+lines (RCA's Gold Standard series from the mid-1950s, Columbia's Hall of Fame), country sold through country
+outlets and operators' country boxes (Billboard's C&W charts were built from those operators, not from the
+pop survey), standards and MOR for adult buyers, and children's, polka, Latin and sacred lines. Jukebox
+operators bought about 47M records in 1959 (Billboard, 1960-05-09) and programmed them by location rather than
+from the Hot 100. Rachlin's industry series gives 600M singles for 1960. That differs from the unverified
+~190M used above, and neither was produced by the same survey. The target is the FTC residual (~32% of
+singles dollars for the Big-5), with Top 10 share held near the 1960-64 history (22-39%).
+
+**`--major-offchart-singles=<share>`** (`Systems/MajorOffChartSingles.cs`, booked in
+`CompetitorManager.SettleOffChartSingles`). Each week, every active AI Major without a distribution deal
+sells a share of that week's settled live single units, split by national reach with largest-remainder
+rounding. The copies are booked at the ordinary AI single terms: price, plant cost, mechanicals, the default
+5% royalty on list, own-reach skim and corporate selling costs. They are pressed as they sell, never
+deferred to a wholesale house, and belong to no record. So they never enter chart points, release outcomes,
+pressing forecasts or release priors. Volume is added on top of the cleared market and does not compete for
+the regional single budget. The off-chart base adds no random draws and no saved state. The audit writes
+cumulative per-label totals to `offchart-singles.csv`; a resumed world restarts them from zero. Off, nothing
+is allocated, and `doc-inert` (the push-weighted candidate rerun with the new build) is byte-identical to
+`dlong-candmdb` in `records.csv` on both seeds. The native checks now number 32, and all pass
+(`--demand-stocking-check`).
+
+**Screen** (105 weeks, seeds 1001 / 2002). Arms: `doc-nopush` is the candidate with master deals and
+backers but with `--single-commercial-fit-push-weight` dropped. `doc-np-oc15` adds
+`--major-offchart-singles=0.15`. `doc-ctl-oc12` is the control plus `0.12`. Shares use labels' initial
+tier, as in the table above.
+
+| Seed 1001 / 2002 | Control | Control + base .12 | Candidate, push 1.25 | Push dropped | Push dropped + base .15 |
+|---|---:|---:|---:|---:|---:|
+| Major share of single units, incl. off-chart | 21.8 / 20.4% | 32.9 / 29.6% | 33.8 / 31.0% | 21.5 / 25.4% | **34.5 / 29.6%** |
+| of which live records | 21.8 / 20.4% | 24.9 / 21.2% | 33.8 / 31.0% | 21.5 / 25.4% | 24.7 / 19.0% |
+| Major Top 10 share, 1960 | 40.6 / 47.1% | 47.7 / 43.3% | 43.8 / 44.8% | 37.7 / 37.5% | 40.8 / 31.9% |
+| Major Top 10 share, 1961 (history 22.1%) | 34.6 / 29.0% | 46.2 / 32.5% | 52.7 / 41.9% | 31.0 / 41.5% | **38.8 / 27.1%** |
+| Chart-week units / all single units | 54 / 56% | 49 / 50% | 75 / 76% | 73 / 76% | 64 / 65% |
+| Mean #1 weekly units | 84k / 77k | 69k / 84k | 127k / 133k | 103k / 129k | 104k / 120k |
+| Starting Small closed | 13.0 / 9.1% | 14.7 / 9.6% | 24.7 / 14.3% | 22.1 / 13.9% | 20.8 / 10.4% |
+| Starting Boutique closed | 20.3 / 18.5% | 20.3 / 16.4% | 29.7 / 28.8% | 21.1 / 31.5% | 27.3 / 24.7% |
+| Starting Independent closed | 3.9 / 9.6% | 7.7 / 7.6% | 19.3 / 19.8% | 19.3 / 18.3% | 15.9 / 15.7% |
+| Major single launches | 554 / 427 | 598 / 440 | — | 562 / 449 | 599 / 445 |
+
+Readings:
+
+1. **The decoupling works.** Without the push weight and with a .15 base, Majors reach the FTC residual
+   (34.5 / 29.6%) while their 1961 Top 10 share falls 14 points below the push-weighted candidate. Seed 2002
+   reaches the historical level; seed 1001 is still 17 points over it. About 50M off-chart copies over two
+   years, roughly 6M per Major, carry the difference.
+2. **Dropping the push weight alone neither raises Major sales nor protects small labels.** Majors stay at
+   21-25% of units, and Small/Independent closures barely move from the push-weighted candidate. Both readings
+   are within seed noise. The closure rise belongs to the fit's flop distribution (see "Small-label survival
+   paths"), not to the transfer to Majors.
+3. **Side effects.** The base gives Majors more cash, and they release 3-8% more singles. In 1001 that lifts
+   Major Top 10 share in both base arms (control 34.6 → 46.2% in 1961), so part of the chart transfer returns
+   through cash. Seed 2002 does not show it. Off-chart volume is additive: total single units rise 15%, and the
+   chart's share of units falls to 64-65%. There is no sourced target for that share
+   (DemandAttentionResearch.md withdrew the ~88% figure), but an unheld rise in total units is still a
+   distortion. Renormalizing (the fit's `scale`,
+   or taking the base out of the regional single budget) is the next calibration step. Boutique labels' unit
+   share collapses from 13-16% to 3-4% in every fit arm, with or without the base, and needs separate
+   investigation.
+4. **Single-seed differences between arms are noise-sized.** Turning the base on reshuffles the RNG stream
+   (one conversion reshuffles the RNG stream), and the two seeds disagree in sign on several rows. Adoption
+   needs three or more seeds and a 265-week closure run.
+
+Not adopted. Next: hold total single units (renormalize, or carry the base inside the regional budget),
+re-screen on three seeds, and decide whether to scale the base by catalog depth (opening catalog and
+lifetime hit units) instead of equal reach. Equal reach treats every Major's catalog as the same size.
+
+#### Holding total single units (three seeds)
+
+`--major-offchart-singles-hold-units` (requires the base) takes the off-chart copies out of the same
+buyers. A first version scaled every live AI single's purchase conversion by 1 / (1 + share) (`doc-np-oc15h`).
+It changed nothing: live single units are **budget-bound**. In `doc-nopush` seed 1001, the regional single
+budget binds in 93% of region-weeks (control 90%), and serviceable single intent is 668M against a 297M budget.
+A demand cut is absorbed by rationing. The hold now shrinks each region's single budget by 1 / (1 + share), and
+its purchase capacity by the same copies. Spillover therefore cannot reclaim them; this mirrors how LP budget
+retrenchment is already handled (`ChartManager` market clearing). 35 native checks pass.
+
+105 weeks, seeds 1001 / 2002 / 3003 (`doc-ctl3` and `doc-np3` add seed 3003 to the earlier arms). Push weight
+dropped in every arm except the control. The cells show seed values, then the mean.
+
+| | Control | Push dropped | + base .15, conversion hold | + base .15, budget hold |
+|---|---:|---:|---:|---:|
+| Live + off-chart single units (M) | 330 | 334 | 381 | **339** |
+| Major share of single units, incl. off-chart | 21.8 / 20.4 / 22.4 → 21.5% | 21.5 / 25.4 / 22.2 → 23.0% | → 36.1% | 37.9 / 30.8 / 34.0 → **34.3%** |
+| of which live records | 21.5% | 23.0% | 26.5% | 24.4% |
+| Major Top 10 share, 1960 (history 35.6%) | 43.7% | 37.4% | 40.1% | 45.8 / 33.5 / 32.1 → 37.1% |
+| Major Top 10 share, 1961 (history 22.1%) | 32.5% | 31.0 / 41.5 / 25.4 → 32.6% | 40.6% | 49.4 / 30.6 / 38.8 → **39.6%** |
+| Chart-week units / all single units | 56% | 75% | 65% | 65% |
+| Starting Small / Boutique / Independent closed | 12 / 19 / 7% | 19 / 26 / 18% | 16 / 23 / 20% | 19 / 26 / 14% |
+
+The chart-week share is a model diagnostic only: DemandAttentionResearch.md withdrew the ~88% target.
+
+Readings:
+
+1. **The budget hold holds units.** Total single units are within 2% of the push-dropped run. With the hold,
+   live single units fall 12% and the off-chart base supplies about 44M copies. Majors reach 34% of single units
+   (2 points over the FTC residual; a share near .12 should land on it).
+2. **The chart transfer partly comes back through cash.** Majors' 1961 Top 10 share rises 7 points on the mean
+   (1001 +18, 2002 −11, 3003 +13). The base's cash is spent: Major releases rise 4-8% (singles
+   562/449/487 → 599/438/508; LPs up 2-16%), and campaign spending rises 3-13%. The largest rise in both
+   spending and chart share is in seed 1001. The mean still sits 13 points below the push-weighted
+   candidate's 1961 share (47.3%, two seeds), but 18 points above history.
+3. **Small labels.** Independent closures fall 4 points against push-dropped; Small and Boutique closures do
+   not move. As before, the fit's flop distribution, not the transfer to Majors, sets them.
+4. **Boutique unit share** stays at 3-4% in every fit arm against 13-16% in the control; that is unrelated to
+   this base.
+
+Not adopted. Open choice: let catalog income fund Major A&R and promotion (it historically did, and the chart
+feedback then needs its own brake), or book the base outside the cash that release and campaign budgets read.
+Either way, re-screen at a share near .12.
+
+#### Where the Majors' catalog cash goes (trace, 2026-10-21)
+
+**Decisions that read a Major's cash or revenue** (AI release, campaign and growth paths):
+
+| Decision | What it reads | Binds for a Major? |
+|---|---|---|
+| Weekly release chance (`CalculateLabelReleaseCapacityChance`) | status multiplier: Rising 1.2, Stable 1.0. Under `EconomicLabelLifecycle`, Rising means trailing monthly cash flow > 2x overhead | **Yes**: the only direct cash-to-volume link |
+| Organic roster-target growth (`LabelLifecycleManager`) | Stable/Rising, last month profitable, 6 months' runway, plus charting | Weakly: Majors pass almost always |
+| Single and LP funding (`TryRelease…`, `TryClampFirstEventCost`, promo extraction) | cash above commitment reserve + first run | No: reserve floors bind only cash-poor labels |
+| Launch campaign size (`GetMarketingBudget`) | tier x career state x marketingPower; cash only through the reserve clamp | No |
+| Follow-up tranches (`ProcessRecordCampaigns`) | cash above reserve months | No |
+| Staff hiring (`ReviewOrganization`) | cash above protected + 3 months' payroll | No: coverage is ~.93-.95 in both arms |
+| Production upgrades, distribution reinvestment | recent cash flow, profit | Inactive: Majors' capital spending is zero in both arms |
+| Owner distributions | 65% of undistributed earnings each quarter for a corporate division, to an owner outside the model | Yes: a sink |
+
+**Measured** (initial-tier Majors, 105 weeks, means of seeds 1001/2002/3003; `doc-np3` and `doc-nopush`
+against `doc-np-oc15b`):
+
+| | Push dropped | + base .15, budget hold | Change |
+|---|---:|---:|---:|
+| Off-chart net after selling costs | — | $8.64M | +8.64M |
+| Tax paid | $19.6M | $24.4M | +4.78M (55%) |
+| Owner transfers out | $9.9M | $11.9M | +2.03M (23%) |
+| End cash | $8.4M | $10.0M | +1.63M (19%) |
+| Recording + campaigns + advances | $6.08M | $6.46M | +0.40M (5%) |
+| Payroll | $6.56M | $6.85M | +0.29M (3%) |
+| Rising share of Major label-weeks | 50.9% | 61.5% | +10.6 pts |
+| Single / LP launches | 499 / 247 | 515 / 271 | +3.1% / +9.9% |
+| Campaign spend per launch | $2,654 | $2,688 | +1.3% |
+| Organic roster-target increases | 45.7 | 48.3 | +2.7 |
+
+The percentages are shares of the off-chart net. The columns do not close exactly, because live
+revenue also changed between arms.
+
+Readings:
+
+1. **About 5% of the catalog money reaches A&R and promotion.** The rest is taxed, paid to the outside
+   owner or held as cash, which is roughly what a period corporate division did with it.
+2. **The volume link is the Rising flag.** Catalog cash flow lifts Majors over the 2x-overhead bar more often
+   (+10.6 points). That predicts about +2% release opportunities; organic roster growth adds about another
+   2%. Observed singles rose 3%. LPs rose 10%, more than this explains, and are not yet traced. Campaign
+   spend per launch is flat: campaign spend rises only with volume.
+3. **The +7-point Top 10 rise is within noise.** Across the three push-dropped seeds, Major 1961 Top 10 share
+   ranges 25-42% (SD about 8 points). The standard error of a three-seed mean difference is about 6.5 points,
+   and one seed moved the other way (−11). The rise in Majors' live unit share (23.0 → 24.4%) is likewise about
+   one standard error. The trace found no mechanism large enough to produce 7 points: about 3% more singles
+   at unchanged campaign size.
+
+Implication: no sink is needed to stop catalog cash from buying chart share. If anything is changed, the
+Rising flag is the place: it reads total cash flow, so a profitable back catalog counts as A&R momentum.
+Settling the chart effect needs more seeds, not a sink.
+
+#### Rising decoupled, base .12, six seeds (2026-10-21)
+
+The status review's Rising bar (trailing three-month cash flow above twice overhead, x1.2 release chance)
+now excludes the base. `MajorOffChartSingles` keeps each label's base net, after selling costs and before
+tax, in the same three-month window, and `EconomicLabelLifecycle.ReviewMonth` subtracts its mean before the
+Rising test. Solvency tests (Dying, Struggling) still count it. Subtracting pre-tax net removes slightly more
+than the base adds to cash flow. The window is not saved: on a resumed world, the base counts toward Rising
+until the window refills. Under the legacy lifecycle the probe is not applied. 39 native checks pass. The
+release-capacity reasoning is recorded for the release-judgement slate in ReleaseJudgementDirective.md §6.
+
+`doc-np-oc12r` (push dropped, `--major-offchart-singles=0.12 --major-offchart-singles-hold-units`), seeds
+1001-6006, against the push-dropped arm (`doc-nopush`, `doc-np3`, `doc-np6`) and control (`dlong-ctl`,
+`doc-ctl3`, `doc-ctl6`). Means of six seeds; paired difference against push-dropped, with its standard error.
+
+| | Control | Push dropped | + base .12 (decoupled) | Paired difference |
+|---|---:|---:|---:|---:|
+| Total single units (M) | 331 | 335 | 340 (303 live + 36 base) | +1.3% |
+| Major share of single units (FTC residual ~32%) | 23.6% | 23.2% | **31.9%** | +8.7 pts |
+| of which live records | 23.6% | 23.2% | 23.7% | +0.6 ± 1.7 |
+| Major Top 10 share, 1960 (history 35.6%) | 47.5% | 39.0% | 38.6% | −0.4 ± 1.4 |
+| Major Top 10 share, 1961 (history 22.1%) | 39.3% | 36.0% | 39.2% | +3.2 ± 4.0 |
+| Rising share of Major label-weeks | — | 51.4% | 45.7% | |
+| Major single / LP launches | — | 486 / 253 | 495 / 264 | +1.9% / +4.3% |
+| Major campaign spend per launch | — | $2,727 | $2,693 | |
+| Starting Small / Boutique / Independent closed | 11.3 / 17.0 / 9.5% | 18.0 / 24.2 / 19.8% | 17.7 / 25.6 / 20.0% | |
+| Mean #1 weekly units | 87k | 127k | 106k | |
+
+Per-seed 1961 differences: −1.2, −15.2, +8.4, +9.1, +10.2, +7.9 points.
+
+Readings:
+
+1. **The base does what it was built for.** Majors reach the FTC residual (31.9%) while their live records
+   keep the same unit share as without the base. Total single units hold within 1.3%. Majors' 1960 Top 10
+   share is unchanged. The 1961 share is +3.2 points, under one standard error. Four of six seeds rise,
+   so a small residual chart effect cannot be ruled out.
+2. **Decoupling Rising worked.** Majors' Rising share now sits below the push-dropped arm, because the hold
+   takes about 10% of live single revenue. Release volume rises only 2% (singles) and 4% (LPs), against
+   3% and 10% at .15 without decoupling. Campaign spend per launch is flat.
+3. **Small-label closures are unchanged by the base.** All of the rise over control (+7 / +8 / +10 points)
+   comes with the commercial-fit candidate, as found before.
+4. **Majors' chart excess is a baseline problem, not this base.** Push dropped, Majors hold 36-39% of 1961
+   Top 10 slots against a 22% history, and the control is the same. Seeds 4004/5005 run 40-52% in every
+   arm (known concentrated worlds). The film/broadcast-major second rank, which is missing, and the
+   Big-5's own push premium are the remaining routes.
+5. **The hold lowers chart-record units.** Hit records sell about 10% fewer copies: the #1 falls from 127k
+   to 106k. The chart's share of all units is 67% (a diagnostic; there is no sourced target).
+
+Candidate for the commercial-fit bundle: push weight dropped, `--major-offchart-singles=0.12
+--major-offchart-singles-hold-units`. Not adopted. The bundle's small-label closures, Boutique unit share
+(3-4% in every fit arm against 13% in control) and a 265-week run remain open.

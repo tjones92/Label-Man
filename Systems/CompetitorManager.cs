@@ -818,6 +818,8 @@ public partial class CompetitorManager : Node {
 		ProcessWeeklyReleases(date);
 		ProcessWeeklySoundtrackOrigination(date);
 		if (RecordCampaignSpend.Enabled) ProcessRecordCampaigns();
+		AiMasterDeals.ProcessWeek(this, date);
+		AiBackers.ProcessWeek(this, date);
 	}
 
 	/// <summary>
@@ -917,6 +919,10 @@ public partial class CompetitorManager : Node {
 			label.weeklyPressingSpend = 0f;
 			label.weeklyPlantPaid = 0f;
 		}
+		Dictionary<string, int> offChartUnits = MajorOffChartSingles.Enabled && settlement.SettlementId > 0
+			? MajorOffChartSingles.Allocate(aiLabels, settlement.Entries.Where(entry => entry.Format == ReleaseFormat.Single)
+				.Sum(entry => (long)System.Math.Max(0, entry.Units)))
+			: null;
 		foreach (var label in aiLabels) {
 			// A frozen enabled settlement may still contain a record from a label whose
 			// lifecycle status changed earlier in the week. It remains an economic fact
@@ -932,6 +938,9 @@ public partial class CompetitorManager : Node {
 			weeklyRevenue += collected;
 			float reservesReleased = ReleaseOrForfeitWholesaleReturnsReserves(label);
 			weeklyRevenue += reservesReleased;
+			// Off-chart catalog and specialty singles ship through the Major's own branches: never deferred.
+			if (offChartUnits != null && offChartUnits.TryGetValue(label.labelId, out int catalogUnits))
+				weeklyRevenue += SettleOffChartSingles(label, catalogUnits);
 			label.weeklyWholesaleDeferred = deferred;
 			label.weeklyWholesaleCollected = collected + reservesReleased;
 			// Financing, not P&L: the withheld receipts still count as the client's revenue below.
@@ -1369,6 +1378,46 @@ public partial class CompetitorManager : Node {
 		
 		SimulationPerformanceProfiler.EndCalculateLabelRevenue(profileStart);
 		return totalRevenue;
+	}
+
+	/// <summary>
+	/// MajorOffChartSingles: books this week's catalog and specialty 45s on the same per-copy terms as a live AI
+	/// single (list or dealer price, plant cost, two sides' mechanical, the default 5% royalty on list, the
+	/// label's own-reach skim and corporate selling costs). The copies are pressed as they sell, so there is no
+	/// first run or unsold stock. Returns the receipts; the plant bill joins this week's pressing spend.
+	/// </summary>
+	private float SettleOffChartSingles(AILabel label, int units) {
+		if (units <= 0) return 0f;
+		const ReleaseFormat format = ReleaseFormat.Single;
+		bool pressingBook = LabelPressingEconomics.Enabled;
+		float listPrice = GetPricePerUnit(format);
+		float gross = units * (pressingBook ? LabelPressingEconomics.LabelPrice(format, listPrice) : listPrice);
+		float pressing = units * GetPressingCostPerUnit(format);
+		float composition = LabelPressingEconomics.UsesPeriodSingleCosts(format) ? units * LabelPressingEconomics.SingleCompositionCost : 0f;
+		float cogs = pressing + composition;
+		float skim = Mathf.Max(0f, gross - cogs) * GetLegacyDistributionSkimFraction(label);
+		float royalty = units * listPrice * .05f;
+		LabelCompanyAccounts.RecordSale(label, gross, units);
+		float companySaleCost = LabelCorporateModel.PaySaleOperatingCosts(label, gross, Mathf.Clamp(label.ownedReach, 0f, 1f),
+			TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
+		label.monthlyExpenses += companySaleCost;
+		if (labelFinancials.TryGetValue(label.labelId, out var companyFinancials)) companyFinancials.lastMonthExpenses += companySaleCost;
+		float plantBill = pressingBook ? pressing : 0f;
+		float receipts = gross - (cogs - plantBill) - skim - royalty;
+		label.weeklyGrossRevenue += gross;
+		label.weeklyCogs += cogs;
+		label.weeklyDistributionSkim += skim;
+		label.weeklyArtistRoyalty += royalty;
+		label.weeklyNetRevenue += receipts - plantBill;
+		label.weeklyPressingSpend += plantBill;
+		RevenueTelemetry formatRevenue = GetOrCreateRevenueTelemetry(label.labelId, format);
+		formatRevenue.gross += gross;
+		formatRevenue.cogs += cogs;
+		formatRevenue.distributionSkim += skim;
+		formatRevenue.artistRoyalty += royalty;
+		formatRevenue.labelNet += receipts - plantBill;
+		MajorOffChartSingles.Record(label, units, gross, receipts - plantBill - companySaleCost);
+		return receipts;
 	}
 
 	/// <summary>
@@ -2218,7 +2267,9 @@ public partial class CompetitorManager : Node {
 
 		if (label.cashReserves - totalCost < minReserve) {
 			float available = label.cashReserves - minReserve - productionCost;
-			if (available < 0) return false;
+			// Opt-in early-game routes, in the founder's order: borrow from the one backer (keeps the master), else shop it.
+			if (available < 0 && AiBackers.TryBorrow(label, -available, date)) available = label.cashReserves - minReserve - productionCost;
+			if (available < 0) return AiMasterDeals.TryShopUnreleased(this, label, artist, record, productionCost, perceivedQuality, date);
 			marketingBudget = available * 0.8f;
 			totalCost = productionCost + marketingBudget;
 		}
@@ -4242,8 +4293,11 @@ public partial class CompetitorManager : Node {
 					data.unitsInStores = 0;
 		}
 
+		if (LaunchStocking.AppliesToLaunch(record))
+			foreach (RegionalRecordData data in runtimeData.regionalData.Values) data.unitsInStores = LaunchStocking.ScaleLaunch(data.unitsInStores);
+
 		runtimeData.initialLaunchAwareness = runtimeData.awareness;
-		runtimeData.initialLaunchStock = runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
+		runtimeData.initialLaunchStock =runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
 		runtimeData.launchCareerState = artist.careerState;
 		runtimeData.perceivedQualityMultiplier = perceivedQualityMult;
 		if (ChartManager.Instance?.IsGenreMarketV2Live == true && TimeManager.Instance != null)
@@ -5434,6 +5488,57 @@ public partial class CompetitorManager : Node {
 		WeeklySingleReleases++;
 		if (artist != null) RecordArtistRelease(artist, record.recordId, record.format);
 		return true;
+	}
+
+	/// <summary>
+	/// --ai-master-deals: a bigger AI label releases a single it leased or bought from a smaller one before release. The
+	/// seller paid the session; the buyer funds pressing (per-unit COGS in its settlement) and its own launch campaign,
+	/// as for a master leased from the player. The buyer's acquisition is its advance, booked as the record's sunk cost.
+	/// </summary>
+	public bool ReleaseShoppedAiMaster(AILabel buyer, SimulatedArtist artist, Record record, float advance, float perceivedQuality, GameDate date) {
+		if (buyer == null || record == null || ChartManager.Instance == null || !buyer.IsActive || buyer.isPlayerOwned) return false;
+		record.labelId = buyer.labelId;
+		record.isPlayerOwned = false;
+		record.releaseDate = date;
+		record.projectRole = ProjectRecordRole.OrphanSingle;
+		record.albumProjectId = string.Empty;
+		float marketingBudget = artist != null ? buyer.GetMarketingBudget(artist) : 0f;
+		float minReserve = EconomicLabelLifecycle.Enabled ? EconomicLabelLifecycle.CommitmentReserve(buyer, signing: false) : buyer.GetMonthlyOverhead();
+		if (buyer.cashReserves - marketingBudget < minReserve) marketingBudget = Mathf.Max(0f, (buyer.cashReserves - minReserve) * 0.8f);
+		RecordExpense(buyer, marketingBudget, LabelCashKind.Campaign);
+		WeeklyMarketingSpend += marketingBudget;
+		WeeklyMarketingEvents++;
+		float perceivedQualityMult = 0.6f + Mathf.Clamp(perceivedQuality, 0f, 1f) * 0.8f;
+		ChartManager.Instance.ReleaseRecord(record);
+		RecordRuntimeData runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData == null) return false;
+		runtimeData.sunkProductionCost = advance;
+		if (ReleaseAllInEconomics.IsLive) runtimeData.sunkMarketingCost = 0f;
+		runtimeData.revenueMemoryEligible = false;   // the buyer's format memory learns from its own records
+		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
+		runtimeData.projectRole = record.projectRole;
+		ApplyReleasePromotion(record, artist, buyer, marketingBudget, perceivedQualityMult);
+		TrackRelease(buyer.labelId, record.recordId);
+		WeeklySingleReleases++;
+		RecordArtistRelease(artist, record.recordId, record.format);
+		return true;
+	}
+
+	/// <summary>--ai-master-deals: an advance, statement or sale price from one AI label to another, booked as licensing.</summary>
+	public void PayMasterAdvance(AILabel payer, AILabel payee, float amount) {
+		if (payer == null || payee == null || amount <= 0f) return;
+		RecordExpense(payer, amount, LabelCashKind.Licensing);
+		LabelCompanyAccounts.ChangeCash(payee, amount, LabelCashKind.Licensing);
+		payee.monthlyRevenue += amount;
+		if (labelFinancials.TryGetValue(payee.labelId, out LabelFinancialHistory financials)) financials.lastMonthRevenue += amount;
+	}
+
+	/// <summary>--ai-master-deals: a session the seller paid for, counted like any production spend.</summary>
+	public void NoteProductionSpend(AILabel label, float productionCost) {
+		label.monthlyExpenses += productionCost;
+		WeeklyProductionSpend += productionCost;
+		WeeklyProductionEvents++;
+		if (labelFinancials.TryGetValue(label.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += productionCost;
 	}
 
 	/// <summary>

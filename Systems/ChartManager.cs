@@ -419,6 +419,11 @@ public partial class ChartManager : Node {
 		SingleStudioModifier.Configure(OS.GetCmdlineUserArgs());
 		SelfExcludedArtistHeat.Configure(OS.GetCmdlineUserArgs());
 		UnchartedSingleExposure.Configure(OS.GetCmdlineUserArgs());
+		SingleCommercialFit.Configure(OS.GetCmdlineUserArgs());
+		LaunchStocking.Configure(OS.GetCmdlineUserArgs());
+		MajorOffChartSingles.Configure(OS.GetCmdlineUserArgs());
+		AiMasterDeals.Configure(OS.GetCmdlineUserArgs());
+		AiBackers.Configure(OS.GetCmdlineUserArgs());
 		LabelCorporateModel.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
@@ -1349,8 +1354,11 @@ public partial class ChartManager : Node {
 			// capacity that Singles or cross-region spillover can claim back.
 			int albumBudget = AlbumSalesVolume.Budget(budget.Album);
 			capacity -= budget.Album - albumBudget;
+			// The Majors' off-chart base buys from the same singles purse; spillover cannot reclaim it either.
+			int singleBudget = MajorOffChartSingles.HeldSingleBudget(budget.Single);
+			capacity -= budget.Single - singleBudget;
 			summary.PurchaseCapacity = capacity;
-			budget = new FormatClearingBudget(budget.Single, albumBudget, budget.EffectiveAlbum);
+			budget = new FormatClearingBudget(singleBudget, albumBudget, budget.EffectiveAlbum);
 			summary.SingleFormatBudget = budget.Single;
 			summary.AlbumFormatBudget = budget.Album;
 			summary.EffectiveAlbumIntent = budget.EffectiveAlbum;
@@ -1680,7 +1688,8 @@ public partial class ChartManager : Node {
 				bool chartedNeedsRestock = record.currentPosition > 0 &&
 					(data.unitsBackordered > 500 ||
 					(data.unitsInStores < data.unitsSoldThisWeek * 2 && record.currentPosition <= 40));
-				bool needsRestock = chartedNeedsRestock || preChartDemandNeedsRestock;
+				bool needsRestock = chartedNeedsRestock || preChartDemandNeedsRestock ||
+					(IsGenreMarketV2Live && LaunchStocking.NeedsReorder(record, data.unitsBackordered, data.rawDemandThisWeek));
 				bool captureBreakoutDiagnostic = !record.baseRecord.isPlayerOwned &&
 					record.weeksSinceRelease >= 1 &&
 					record.weeksSinceRelease <= 14;

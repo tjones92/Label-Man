@@ -15,6 +15,11 @@ public static class LabelCorporateModel {
     public static bool RecordExcise { get; private set; }
     public static bool ChangesEconomy => Staff || Premises || Tax || Distributions || Capital || Commercial || RecordExcise;
     public static double PayrollScale { get; private set; } = 1;
+    /// <summary>Opt-in: a founder-run Small, Boutique or Independent firm with no paid staff works from the
+    /// founder's home, shop or car, as period micro-labels did. It leases no suite and keeps no standing
+    /// legal or accounting retainer (counsel was paid per deal). Hiring anyone leases an office as before.</summary>
+    public const string HomeOperatedSwitch = "--home-operated-micro-labels";
+    public static bool HomeOperated { get; private set; }
     private static bool configured;
     // Individual research arms select only their requested mechanisms. Explicit legacy
     // pricing/credit/market replays also retain their old economy unless full is requested.
@@ -45,6 +50,9 @@ public static class LabelCorporateModel {
         RecordExcise = (all && !args.Contains("--no-label-record-excise")) || args.Contains("--label-record-excise");
         Ledger = ChangesEconomy || args.Contains("--label-company-ledger");
         PayrollScale = LabelPressingEconomics.ReadParameter(args, "--label-payroll-scale=", 1f, .1f, 3f);
+        HomeOperated = args.Contains(HomeOperatedSwitch);
+        if (HomeOperated && (!Staff || !Premises))
+            throw new ArgumentException(HomeOperatedSwitch + " requires the corporate staff and premises costs.");
         if (Ledger && (!LabelPressingEconomics.Enabled || !LabelPressingEconomics.PlantCredit))
             throw new ArgumentException("Company accounts require dealer-price pressing and plant credit.");
         if (Ledger && LabelOperatorPay.MonthlyLimit > 0)
@@ -186,11 +194,15 @@ public static class LabelCorporateModel {
             ? company.departments.Sum(d => d.founderEquivalent * Wage(d.department)) * 1.12 * index * PayrollScale : 0;
         company.payrollQuote = company.departments.Sum(d => d.employees * Wage(d.department)) * 1.12 * index * PayrollScale
             + company.founderPayrollQuote;
-        company.retainerQuote = (company.departments.First(d => d.department == LabelDepartment.BusinessAffairs).employees < 1 ? 35 : 0)
+        bool home = HomeOperated && employees <= 0
+            && company.ownership is (LabelOwnershipForm.OwnerOperated or LabelOwnershipForm.PrivateCorporation)
+            && label.tier is (LabelTier.Small or LabelTier.Boutique or LabelTier.Independent);
+        company.retainerQuote = home ? 0 : (company.departments.First(d => d.department == LabelDepartment.BusinessAffairs).employees < 1 ? 35 : 0)
             + (company.departments.First(d => d.department == LabelDepartment.FinanceRoyalties).employees < 1 ? 20 : 0);
         company.retainerQuote *= index;
-        // Office commitments are leased in suites; founder room uses the existing city cost ladder.
-        double suites = Math.Max(1, Math.Ceiling((employees + founder) / 5));
+        // Office commitments are leased in suites; founder room uses the existing city cost ladder. A home-run
+        // firm leases none, but a suite already leased is paid until its annual review.
+        double suites = home ? 0 : Math.Max(1, Math.Ceiling((employees + founder) / 5));
         double room = CityProfiles.MonthlyOverhead(label.homeCityId);
         double branchOffices = label.tier == LabelTier.Major ? Math.Ceiling(Math.Clamp(label.ownedReach, 0, 1) * 4)
             : label.tier == LabelTier.MidTier && label.ownedReach > .6 ? 1 : 0;
@@ -203,7 +215,7 @@ public static class LabelCorporateModel {
             company.leasedOfficeSuites = Math.Max(company.leasedOfficeSuites, (int)suites);
             company.leasedBranchOffices = Math.Max(company.leasedBranchOffices, (int)branchOffices);
         }
-        double paidEquivalents = employees + (company.ownership == LabelOwnershipForm.PrivateCorporation ? founder : 0);
+        double paidEquivalents = home ? 0 : employees + (company.ownership == LabelOwnershipForm.PrivateCorporation ? founder : 0);
         company.premisesQuote = (room * company.leasedOfficeSuites + company.leasedBranchOffices * room * 1.5 + 12 * paidEquivalents) * index
             + company.assets.Sum(a => a.bookValue > 0 ? a.cost * .0025 : 0);
         double required = company.departments.Sum(d => d.requiredEmployees) + founder;

@@ -84,6 +84,10 @@ public partial class AILabel : Resource {
 	// Last three completed months of actual net cash flow. Persisted with the label, including
 	// the missed-payment grace, so loading cannot erase financial distress. Old saves start empty.
 	public List<float> recentMonthlyCashFlows = new();
+	/// <summary>--ai-master-deals: this label's masters out on lease to bigger labels. Null when it has none.</summary>
+	public List<AiMasterLease> aiMasterLeases;
+	/// <summary>--ai-backers: the label's one backer agreement, ever. Null until it borrows.</summary>
+	public AiBackerLoan aiBackerLoan;
 	public int insolventMonthEnds;
 	public float RecentMonthlyCashFlow => recentMonthlyCashFlows?.Count > 0 ? recentMonthlyCashFlows.Average() : 0f;
 	[Export] public float debtLevel;

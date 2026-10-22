@@ -23,7 +23,8 @@ public static class EconomicLabelLifecycle {
 		if (label.isPlayerOwned) return;
 		label.recentMonthlyCashFlows ??= new List<float>();
 		label.recentMonthlyCashFlows.Add(netCashFlow);
-		if (label.recentMonthlyCashFlows.Count > 3) label.recentMonthlyCashFlows.RemoveAt(0);
+		if (label.recentMonthlyCashFlows.Count > MajorOffChartSingles.MomentumWindowMonths) label.recentMonthlyCashFlows.RemoveAt(0);
+		float catalogFlow = MajorOffChartSingles.CloseMonthForMomentum(label);
 		label.insolventMonthEnds = label.cashReserves < 0f ? label.insolventMonthEnds + 1 : 0;
 		float overhead = Math.Max(1f, label.GetMonthlyOverhead());
 		float burn = Math.Max(0f, -label.RecentMonthlyCashFlow);
@@ -38,7 +39,7 @@ public static class EconomicLabelLifecycle {
 		float runway = burn > 0f ? label.cashReserves / burn : float.PositiveInfinity;
 		if (label.cashReserves < overhead || runway < 1f) label.status = LabelStatus.Dying;
 		else if (label.cashReserves < 3f * overhead || runway < 3f) label.status = LabelStatus.Struggling;
-		else label.status = label.RecentMonthlyCashFlow > 2f * overhead ? LabelStatus.Rising : LabelStatus.Stable;
+		else label.status = label.RecentMonthlyCashFlow - catalogFlow > 2f * overhead ? LabelStatus.Rising : LabelStatus.Stable;
 	}
 
 	/// <summary>Cash kept out of new bets. A losing firm reduces new commitments before it misses bills.

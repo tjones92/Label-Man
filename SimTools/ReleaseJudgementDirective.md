@@ -1872,6 +1872,25 @@ atomically, resolve simultaneous single/LP demands in stable order, and enforce 
 Reuse the existing linked-project economics and record-level accounting. Where additional capacity is warranted,
 make it an explicit, costed calibration change.
 
+**Capacity follows organization, not cash (added 2026-10-21, from the off-chart Major base work in
+DemandAttentionImplementation.md).** The current weekly roll multiplies release chance by a status factor.
+Under `EconomicLabelLifecycle`, "Rising" (x1.2) means the label's trailing monthly cash flow exceeds twice
+its overhead. That reading suits a founder, whose cash flow is the records it just issued, but not a
+corporate division. Columbia under Mitch Miller and RCA Victor under Steve Sholes issued singles on a
+schedule their A&R departments could record and promote. A strong quarter of catalog, country or MOR
+sales went to CBS or RCA as division profit; it did not double singles sessions. When majors expanded,
+they did it deliberately through the organization: a new subsidiary label (Epic), a Nashville office, a
+new A&R head, a contract for a proven act. The slate should therefore read **organizational capacity**
+(A&R and producer staff, contract roster, session and promotion attention, the release calendar) for
+release volume. Cash should be a feasibility floor, and the trigger for an explicit, costed expansion
+decision that then raises capacity. It should never be a direct volume multiplier. Founders can keep a
+tighter link, since their cash is their recent records. LPs need their own check: the LP was the
+majors' main business, and catalog profit plausibly did fund LP expansion. Measured on 2026-10-21, a
+.15 off-chart base lifted Majors' Rising share from 51% to 62% of weeks and their single launches by
+about 3%. Only ~5% of that cash reached recording, campaigns and advances. The interim probe excludes
+the base from the Rising test (`MajorOffChartSingles`); the slate should replace the status multiplier
+rather than patch it.
+
 Start a hot act's search and next session while its current record is being worked. At planning time, a single
 still gaining airplay/orders may justify a short postponement; a stalled or falling record can justify an earlier
 follow-up. Singles can overlap, so do not wait for retirement or final chart outcomes. Charge any timing tradeoff

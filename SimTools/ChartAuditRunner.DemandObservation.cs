@@ -16,7 +16,10 @@ public partial class ChartAuditRunner {
 	private bool demandObservationStarted, demandObservationCompleted;
 	private int demandObservationStartWeek;
 
+	private string offChartSinglesPath;
+
 	private void OpenDemandObservationOutputs(string directory) {
+		if (MajorOffChartSingles.Enabled) offChartSinglesPath = Path.Combine(directory, $"{runName}-offchart-singles.csv");
 		if (PhysicalPressingInventory.Enabled) {
 			physicalInventoryWriter = CreateWriter(Path.Combine(directory, $"{runName}-physical-inventory.csv"));
 			physicalInventoryWriter.WriteLine("week,recordId,labelId,format,status,openingUnits,productionReceived,unitsPressed,bookSold,warehouse,shelves,heldForArrival,shipments,saleableReturns,heldReturns,promotionalWithdrawals,damagedCopies,terminalWriteOffs,distributedWriteOffs,productionOrdered,productionDueWeek,unbilledInitial,unbilledRepress,unfilledShipmentRequests,reconciliationDelta");
@@ -63,6 +66,15 @@ public partial class ChartAuditRunner {
 	private void CloseDemandObservationOutputs() {
 		physicalInventoryWriter?.Dispose();
 		physicalInventoryWriter = null;
+		if (offChartSinglesPath != null) {
+			// Cumulative over the process, not the observation window: a resumed world starts from zero.
+			using StreamWriter writer = CreateWriter(offChartSinglesPath);
+			writer.WriteLine("labelId,tier,units,gross,netAfterSellingCosts");
+			foreach (var row in MajorOffChartSingles.Cumulative)
+				writer.WriteLine(string.Join(",", Csv(row.LabelId), Csv(row.Tier), row.Units.ToString(CultureInfo.InvariantCulture),
+					Exact((float)row.Gross), Exact((float)row.Net)));
+			offChartSinglesPath = null;
+		}
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordReleased -= ObserveDemandLaunch;
 			ChartManager.Instance.OnRecordRetired -= ObserveDemandRetirement;

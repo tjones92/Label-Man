@@ -46,6 +46,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--label-operator-pay-check")) { LabelOperatorPayChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-pressing-check")) { LabelPressingEconomicsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--physical-inventory-check")) { PhysicalInventoryChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--demand-stocking-check")) { DemandStockingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--regional-hit-deal-check")) { RegionalHitDealGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--radio-push-spread-check")) { RadioPushSpreadChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--airplay-rotation-ceiling-check")) { AirplayRotationCeilingChecks.Run(); GetTree().Quit(0); return; }
