@@ -280,6 +280,11 @@ public partial class LabelLifecycleManager : Node {
 				KillLabel(label, "Dormancy");
 				continue;
 			}
+			// --studio-parent-labels: the parent's annual review decided to close it (StudioParentLabels.ReviewYear).
+			if (StudioParentLabels.IsStudioLabel(label) && label.parentClosureDue) {
+				KillLabel(label, "ParentClosure");
+				continue;
+			}
 			CheckForDeath(label);
 		}
 		
@@ -323,7 +328,9 @@ public partial class LabelLifecycleManager : Node {
 		}
 		label.roster.Clear();
 		label.status = LabelStatus.Defunct;
-		label.exitReason = reason == "Dormancy" ? LabelExitReason.Dormancy : LabelExitReason.Bankruptcy;
+		label.exitReason = reason switch {
+			"Dormancy" => LabelExitReason.Dormancy, "ParentClosure" => LabelExitReason.ParentClosure, _ => LabelExitReason.Bankruptcy
+		};
 		defunctLabels.Add(label);
 		DefunctThisYear++;
 		if (EconomicLabelLifecycle.Enabled && reason == "Bankruptcy")
@@ -331,6 +338,8 @@ public partial class LabelLifecycleManager : Node {
 		GD.Print($"[LabelManager] {label.labelName} has closed. Reason: {reason}. Operated for {label.monthsActive} months.");
 		// Phase 3b catalog succession: a bankrupt label's publishing catalog is bought by a surviving
 		// major rather than leaking. Covers of its old hits then pay the successor.
+		if (reason == "ParentClosure")
+			GD.Print($"STUDIO_PARENT_CLOSURE id={label.labelId} parent=\"{label.studioParent}\" cash={label.cashReserves:F2} lossYears={label.parentLossYears} lifetimeSupport={label.parentSupportLifetime:F0}");
 		if (reason == "Dormancy")
 			GD.Print($"LABEL_DORMANCY id={label.labelId} cash={label.cashReserves:F2} quietMonths={label.founderQuietMonths} monthlyCashFlow={label.RecentMonthlyCashFlow:F2}");
 		AILabel successor = reason == "Bankruptcy" ? FindCatalogSuccessor(label) : null;
@@ -659,7 +668,7 @@ public partial class LabelLifecycleManager : Node {
 				return TryPromoteIndependentLabel(label, chartingLastYear);
 			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold &&
 				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label) &&
-				!HeadScaleTemplates.HoldsMajorPromotion(label):
+				!HeadScaleTemplates.HoldsMajorPromotion(label) && !StudioParentLabels.HoldsMajorPromotion(label):
 				PromoteLabel(label, LabelTier.Major);
 				return true;
 			default:

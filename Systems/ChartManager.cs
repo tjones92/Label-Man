@@ -428,6 +428,7 @@ public partial class ChartManager : Node {
 		FounderCompensation.Configure(OS.GetCmdlineUserArgs());
 		LabelCompanyTax.Configure(OS.GetCmdlineUserArgs());
 		FounderLabelLifecycle.Configure(OS.GetCmdlineUserArgs());
+		StudioParentLabels.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();

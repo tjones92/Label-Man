@@ -1358,7 +1358,7 @@ public partial class RosterManager : Node {
 		foreach (var label in labels) {
 			// Renewals and drops on the player's roster are the player's calls.
 			if (label.isPlayerOwned) continue;
-			ProcessContractExpirations(label, date.year);
+			ProcessContractExpirations(label, date);
 			if (GameRandom.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
 		}
 	}
@@ -1378,10 +1378,12 @@ public partial class RosterManager : Node {
 		return termMatured || deliveryMatured;
 	}
 
-	private void ProcessContractExpirations(AILabel label, int year) {
+	private void ProcessContractExpirations(AILabel label, GameDate date) {
+		int year = date.year;
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		var expiring = label.roster.Where(a => IsContractMatured(a, year, currentWeek)).ToList();
 		foreach (var artist in expiring) {
+			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) continue;
 			bool wantToResign = ShouldResignArtist(label, artist);
 			if (wantToResign && label.CanAffordToSign(label.CalculateAdvanceOffer(artist))) {
 				float newAdvance = label.CalculateAdvanceOffer(artist);
@@ -1403,6 +1405,33 @@ public partial class RosterManager : Node {
 		}
 	}
 	
+	/// <summary>
+	/// --studio-parent-labels: a parent-backed studio label outbids the incumbent for a proven act at contract expiry
+	/// (Warner and the Everly Brothers, 1960). The act leaves on an ordinary ContractExpired departure and signs the
+	/// bidder's own term sheet with the parent's guarantee as its advance. False, with nothing changed, when no one bids.
+	/// </summary>
+	private bool TrySignToStudioParentBidder(AILabel label, SimulatedArtist artist, GameDate date, int currentWeek) {
+		if (!StudioParentLabels.Enabled || ArtistManager.Instance == null) return false;
+		// The same geographic access every signing needs (SceneRecruitmentService.RecordSigning asserts it).
+		var (bidder, guarantee) = StudioParentLabels.SelectBidder(label, artist, date.year, GetAllLabels(),
+			candidate => SceneRecruitmentService.CanAccess(candidate, artist, currentWeek));
+		if (bidder == null) return false;
+		TransitionDroppedArtist(label, artist, date.year, ArtistDropReason.ContractExpired);
+		ContractTermSheet sheet = bidder.GenerateTermSheet(artist, date.year);
+		var terms = new ContractTermSheet(Mathf.Max(sheet.Advance, guarantee), sheet.RoyaltyRate, sheet.TermYears,
+			sheet.SinglesObligation, sheet.LabelOwnsPublishing, sheet.ArtistCreativeControl, sheet.NegotiationDifficulty,
+			sheet.Manager, sheet.ManagerName, sheet.DemandSummary);
+		StudioParentLabels.FundAcquisition(bidder, terms.Advance, "free-agent", date);
+		float advance = bidder.SignArtist(artist, date.year, terms);
+		CompetitorManager.Instance?.RecordExpense(bidder, advance, LabelCashKind.ArtistAdvances);
+		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, bidder.labelId, date.year);
+		SceneRecruitmentService.RecordSigning(bidder, artist, currentWeek, date.year, "StudioParentBid");
+		WeeklySignings++; RecordSigning(bidder.tier, artist, transition.IsReSigning);
+		bidder.parentBidYear = date.year;
+		artist.careerEvents.Add($"{date.year}: Left {label.labelName} for {bidder.labelName}");
+		return true;
+	}
+
 	private bool ShouldResignArtist(AILabel label, SimulatedArtist artist) {
 		if (artist.careerState >= CareerState.Star) return true;
 		// --hit-act-retention (§17x): any Top 40 under this contract earns the renewal. Off: never read.

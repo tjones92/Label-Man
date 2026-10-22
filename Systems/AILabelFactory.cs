@@ -110,6 +110,20 @@ public static class AILabelFactory {
 		["Vee-Jay"] = new LabelTemplate("Vee-Jay", "Chicago", LabelArchetype.RegionalHustler, new[] { Genre.RnB, Genre.Soul, Genre.DooWop }, LabelTier.MidTier),
 	};
 
+	// --studio-parent-labels (StudioParentLabels, FilmBroadcastLabelResearch.md): the film and broadcast parents' labels,
+	// seeded at the STANDARD MidTier envelope -- history's studio labels sold through independent distributors and had no
+	// Big-5 launch machinery (the head envelope's failure, §17m). Their parents supply money, not access.
+	// MGM: Connie Francis, Conway Twitty, the Hank Williams catalogue. ABC-Paramount: Paul Anka, Lloyd Price, Ray Charles.
+	// Warner: the Everly Brothers, contract players and Newhart. UA: soundtracks, easy listening, early Motown placements.
+	// Dot (Paramount Pictures from 1957): Pat Boone, Billy Vaughn, Lawrence Welk. Appended after every other template.
+	private static readonly LabelTemplate[] studioParentTemplates = {
+		new LabelTemplate("MGM", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TraditionalPop, Genre.TeenPop, Genre.Country }, LabelTier.MidTier),
+		new LabelTemplate("ABC-Paramount", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TeenPop, Genre.RnB, Genre.TraditionalPop }, LabelTier.MidTier),
+		new LabelTemplate("Warner Bros.", "Los Angeles", LabelArchetype.CorporateGiant, new[] { Genre.TeenPop, Genre.RockAndRoll, Genre.Comedy, Genre.TraditionalPop }, LabelTier.MidTier),
+		new LabelTemplate("United Artists", "New York", LabelArchetype.CorporateGiant, new[] { Genre.EasyListening, Genre.RnB, Genre.TeenPop }, LabelTier.MidTier),
+		new LabelTemplate("Dot", "Los Angeles", LabelArchetype.CorporateGiant, new[] { Genre.TraditionalPop, Genre.EasyListening, Genre.TeenPop }, LabelTier.MidTier),
+	};
+
 	private static readonly string[] northeastCities = { "New York", "Philadelphia", "Newark", "Boston", "Pittsburgh", "Baltimore", "Washington D.C." };
 	private static readonly string[] greatLakesCities = { "Chicago", "Detroit", "Cleveland", "Cincinnati", "Indianapolis", "Milwaukee" };
 	private static readonly string[] greatPlainsCities = { "Minneapolis", "St. Louis", "Kansas City", "Omaha" };
@@ -140,6 +154,14 @@ public static class AILabelFactory {
 					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
 		}
 
+		if (StudioParentLabels.Enabled) {
+			foreach (var template in studioParentTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
+			foreach (var label in labels.Where(l => l.isHistorical && l.studioParent != null))
+				GD.Print($"STUDIO_PARENT_LABEL id={label.labelId} name={label.labelName} parent=\"{label.studioParent}\" tier={label.tier} " +
+					$"impact={ChartSimulator.GetCampaignImpact(label):F3} reach={label.nationalReach:F3} distribution={label.distributionStrength:F3} " +
+					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
+		}
+
 		int remaining = targetCount - labels.Count;
 		for (int i = 0; i < remaining; i++) labels.Add(GenerateProceduralLabel(ref idCounter));
 		
@@ -166,6 +188,7 @@ public static class AILabelFactory {
 		label.foundedYear = (int)GameRandom.RandRange(1945, 1960);
 		label.isHistorical = true;
 		label.status = LabelStatus.Stable;
+		if (StudioParentLabels.Enabled) label.studioParent = StudioParentLabels.ParentFor(template.baseName);
 		
 		label.preferredGenres = template.genres;
 		label.secondaryGenres = GetRelatedGenres(template.genres[0]);

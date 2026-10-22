@@ -5,7 +5,7 @@ public enum LabelDepartment { Executive, Clerical, FinanceRoyalties, BusinessAff
 public enum LabelCashKind { RecordReceipts, DistributionFees, PublishingReceipts, PlantPayments, Recording, Campaign,
     ArtistAdvances, Licensing, OtherOperating, LegacyOverhead, Payroll, Premises, Restructuring, OwnerSalary,
     DistributionInvestment, StudioInvestment, TaxPayment, OwnerDistribution, Financing, Retainers,
-    DistributionOperations, TradeSupport, RecordExcise }
+    DistributionOperations, TradeSupport, RecordExcise, ParentCapital }
 
 /// <summary>Persisted aggregate staff. Equivalents include part-time employment; retainers are separate.</summary>
 public sealed class LabelDepartmentState {

@@ -92,6 +92,13 @@ public partial class AILabel : Resource {
 	// Opt-in founder dormancy: persisted, neutral for old saves. Transfers are not new releases.
 	public int founderLastReleasePeriod = -1, founderLastReviewPeriod = -1, founderQuietMonths;
 	public LabelExitReason exitReason;
+	// --studio-parent-labels: the film or broadcast parent, null for every other label. The parent's support
+	// window holds the last twelve monthly accruals and draws; the year fields drive the annual parent review.
+	public string studioParent;
+	public List<float> parentSupportAccrued, parentSupportDrawn;
+	public float parentSupportYearDrawn, parentSupportYearAccrued, parentSupportLifetime;
+	public int parentSupportYear, parentLossYears, parentBidYear;
+	public bool parentClosureDue;
 	public float RecentMonthlyCashFlow => recentMonthlyCashFlows?.Count > 0 ? recentMonthlyCashFlows.Average() : 0f;
 	[Export] public float debtLevel;
 	[Export] public float marketShare;

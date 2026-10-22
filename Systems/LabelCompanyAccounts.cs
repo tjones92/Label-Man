@@ -154,8 +154,9 @@ public static class LabelCompanyAccounts {
         double inventoryChange = company.inventoryValue - company.openingInventory;
         double apChange = label.outstandingPlantPayables - company.openingPlantPayables;
         double capitalSpending = Out(LabelCashKind.DistributionInvestment) + Out(LabelCashKind.StudioInvestment);
+        // --studio-parent-labels: a parent's capital contribution is an owner transfer, not earnings.
         double pretax = company.cashMovements.Values.Sum() - Cash(LabelCashKind.Financing) - Cash(LabelCashKind.OwnerDistribution)
-            + capitalSpending + Out(LabelCashKind.TaxPayment) + arChange + inventoryChange - apChange - depreciation + company.financingEarningsAdjustment;
+            - Cash(LabelCashKind.ParentCapital) + capitalSpending + Out(LabelCashKind.TaxPayment) + arChange + inventoryChange - apChange - depreciation + company.financingEarningsAdjustment;
         double provision = LabelCompanyTax.Accrue(label, period, pretax);
         LabelCompanyTax.PayQuarter(label, period);
         company.undistributedEarnings += pretax - provision;
@@ -177,7 +178,7 @@ public static class LabelCompanyAccounts {
             receivablesChange = arChange, inventoryChange = inventoryChange, plantPayablesChange = apChange,
             inventoryWriteOffs = company.inventoryWriteOffs, depreciation = depreciation,
             pretaxEarnings = pretax, taxProvision = provision, taxPaid = Out(LabelCashKind.TaxPayment), afterTaxEarnings = pretax - provision,
-            financingNet = Cash(LabelCashKind.Financing), ownerTransfersNet = Cash(LabelCashKind.OwnerDistribution),
+            financingNet = Cash(LabelCashKind.Financing), ownerTransfersNet = Cash(LabelCashKind.OwnerDistribution) + Cash(LabelCashKind.ParentCapital),
             capitalSpending = capitalSpending, capitalBookValue = company.assets.Sum(a => a.bookValue),
             taxPayable = company.taxPayable, inventoryValue = company.inventoryValue, undistributedEarnings = company.undistributedEarnings,
             employees = company.departments.Sum(d => d.employees), requiredEmployees = company.departments.Sum(d => d.requiredEmployees),

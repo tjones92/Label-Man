@@ -44,6 +44,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--founder-compensation-check")) { FounderCompensationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--distress-master-sale-check")) { DistressMasterSaleChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--tax-timing-check")) { TaxTimingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--studio-parent-labels-check")) { StudioParentLabelsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-company-check")) { LabelCompanyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--pressing-commitment-check")) { PressingCommitmentChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--album-volume-check")) { AlbumVolumeChecks.Run(); GetTree().Quit(0); return; }

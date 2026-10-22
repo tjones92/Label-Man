@@ -1114,3 +1114,31 @@ are now 13.5% pooled, below the 15–30% prior but within reshuffle noise;
 confirm in the decade A/B. Read end cash net of deferred tax. **Adopted into
 the working bundle** (2026-10-22, user decision); `ttx-v1-tax` is the control
 for later screens.
+
+#### Film and broadcast labels: research (2026-10-22)
+
+Research only, in [FilmBroadcastLabelResearch.md](FilmBroadcastLabelResearch.md).
+Soundtracks are not the missing share. Eight of the ten 1960–64 soundtrack and
+cast #1 LPs were Big-5, through star and composer contracts and cast-album houses.
+The model gives the Big-5 100% of charted soundtracks. The film labels' 12–21% of
+the Top 10 came from pop singles, financed by parent capital and loss tolerance
+(Warner lost ~$3M a year, 1958–62) and sold through independent distributors.
+Much of that repertoire was bought or leased from independent producers. The
+§17m head-template failure fits this: it gave them Big-5 launch access, which they
+never had. The proposed opt-in `--studio-parent-labels` uses a standard MidTier
+envelope, a parent subsidy with a closure review, preferred buyer status in the
+existing master-pickup route, and soundtrack routing by contract and studio of origin.
+It reports chart share by selling and by producing label.
+
+**Built and screened (`spl-v1`, 3 seeds vs `ttx-v1-tax`).** The switch-off replay is
+byte-identical in all 95 streams, and all checks pass. Studio labels take 4.7 / 7.0 /
+6.7 / 11.7 / 6.9% of the 1960–64 Top 10, against history's 21 / 17 / 17 / 17 / 12%. That
+is too little and too late: they open without their 1960 stars. About two-thirds of
+their slots are their own signings; the rest are bid-acquired acts and leased masters.
+The field (by producing label) loses 1–8 points, but it moves toward history in every
+year, because the control's field is 13–28 points too high. The Big-5 are −3.1 ± 0.8 in
+1962 and noisy otherwise. Independent unit share −5.2 points, Independent closures
+−4.5. 29% of film soundtracks go to the studio's own label. Parent support never binds.
+Not adopted. Next: seed their 1960 rosters through opening careers, and replace the
+§17l field guard with the historical field share. Details:
+[FilmBroadcastLabelResearch.md](FilmBroadcastLabelResearch.md).

@@ -86,16 +86,18 @@ public static class AiMasterDeals {
 	internal static void SetDistressForChecks(bool enabled) => DistressSales = enabled;
 
 	public static bool IsSeller(AILabel label) => Enabled && label != null && !label.isPlayerOwned && label.IsActive
-		&& !label.IsSubsidiary && label.tier is (LabelTier.Small or LabelTier.Boutique or LabelTier.Independent);
+		&& !label.IsSubsidiary && label.tier is (LabelTier.Small or LabelTier.Boutique or LabelTier.Independent)
+		&& !StudioParentLabels.IsStudioLabel(label);
 
 	private static IEnumerable<(AILabel Buyer, bool OwnSound)> Buyers(AILabel seller, Genre genre, int year, float advance) =>
 		(CompetitorManager.Instance?.GetOperatingLabels() ?? new List<AILabel>())
 			.Where(b => b != null && !b.isPlayerOwned && b.labelId != seller.labelId && (int)b.tier < (int)seller.tier
-				&& b.CanAffordToSign(advance))
+				&& StudioParentLabels.CanFund(b, advance))
 			.Select(b => (Buyer: b, Fit: PlayerDesk.SoundFit(b, genre, year)))
 			.Where(x => x.Fit.HasValue)
 			.Select(x => (x.Buyer, OwnSound: x.Fit.Value))
-			.OrderBy(x => x.OwnSound ? 0 : 1).ThenBy(x => (int)x.Buyer.tier).ThenBy(x => x.Buyer.labelId, StringComparer.Ordinal);
+			// --studio-parent-labels: a parent-backed buyer calls first after own-sound fit (constant key when off).
+			.OrderBy(x => x.OwnSound ? 0 : 1).ThenBy(x => StudioParentLabels.IsStudioLabel(x.Buyer) ? 0 : 1).ThenBy(x => (int)x.Buyer.tier).ThenBy(x => x.Buyer.labelId, StringComparer.Ordinal);
 
 	/// <summary>The buyer's ear: the player's MasterRead, with the noise drawn from the counter RNG.</summary>
 	private static float Read(AILabel buyer, Record record, RecordRuntimeData released, bool posted) {
@@ -107,10 +109,12 @@ public static class AiMasterDeals {
 		return Mathf.Clamp(appeal + noise + evidence, 0f, 1f);
 	}
 
-	private static (float Strength, float Lease, float Rate) Price(AILabel buyer, bool ownSound, float read, RecordRuntimeData released) {
+	private static (float Strength, float Lease, float Rate) Price(AILabel buyer, bool ownSound, float read, RecordRuntimeData released,
+		float premium = 0f) {
 		float bar = PlayerDesk.MasterBar(buyer, ownSound);
 		if (read < bar) return (-1f, 0f, 0f);
-		float s = Mathf.InverseLerp(bar, bar + 0.25f, read);
+		// A studio parent's premium (StudioParentLabels.PickupPremium) raises the offer, and so the price; zero otherwise.
+		float s = Mathf.InverseLerp(bar, bar + 0.25f, read) + premium;
 		float lease = Mathf.Clamp(PlayerDesk.Round25(Mathf.Lerp(PlayerDesk.MasterLeaseAdvanceMin, PlayerDesk.MasterLeaseAdvanceMax, s)
 			* PlayerDesk.MasterTierScale(buyer)), PlayerDesk.MasterLeaseAdvanceMin, PlayerDesk.MasterLeaseAdvanceMax);
 		int markets = PlayerDesk.BreakoutMarkets(released);
@@ -130,15 +134,17 @@ public static class AiMasterDeals {
 			: seller.GetMonthlyOverhead();
 		if (seller.cashReserves - productionCost < reserve) return false;
 		foreach (var (buyer, ownSound) in Buyers(seller, record.primaryGenre, date.year, PlayerDesk.MasterLeaseAdvanceMin).Take(MaxApproaches)) {
-			var (s, lease, rate) = Price(buyer, ownSound, Read(buyer, record, null, posted: true), null);
+			var (s, lease, rate) = Price(buyer, ownSound, Read(buyer, record, null, posted: true), null,
+				StudioParentLabels.PickupPremium(buyer, PlayerDesk.MasterLeaseAdvanceMin));
 			if (s < 0f) continue;
 			float sale = PlayerDesk.Round25(lease * PlayerDesk.MasterSaleMultiple);
-			bool sell = s >= 0.5f && buyer.CanAffordToSign(sale);
+			bool sell = s >= 0.5f && StudioParentLabels.CanFund(buyer, sale);
 			float advance = sell ? sale : lease;
-			if (!buyer.CanAffordToSign(advance)) continue;
+			if (!StudioParentLabels.CanFund(buyer, advance)) continue;
 			LabelCompanyAccounts.PayProject(seller, productionCost, productionCost);
 			manager.NoteProductionSpend(seller, productionCost);
 			artist.unrecoupedAdvance += productionCost;
+			StudioParentLabels.FundAcquisition(buyer, advance, "master-shop", date);
 			manager.PayMasterAdvance(buyer, seller, advance);
 			if (!manager.ReleaseShoppedAiMaster(buyer, artist, record, advance, perceivedQuality, date))
 				throw new InvalidOperationException($"Shopped master '{record.recordId}' failed to release at {buyer.labelId}.");
@@ -199,7 +205,8 @@ public static class AiMasterDeals {
 			if (RegionalHitGate && manager.GetAllLabels().Any(l => l.aiMasterLeases?.Any(lease => lease.RecordId == record.recordId) == true)) continue;
 			var best = Buyers(seller, record.primaryGenre, date.year, PlayerDesk.MasterLeaseAdvanceMin)
 				.Where(b => !RegionalHitGate || IsNationalBuyer(seller, b.Buyer))
-				.Select(b => (b.Buyer, Offer: Price(b.Buyer, b.OwnSound, Read(b.Buyer, record, runtime, posted: false), runtime)))
+				.Select(b => (b.Buyer, Offer: Price(b.Buyer, b.OwnSound, Read(b.Buyer, record, runtime, posted: false), runtime,
+					StudioParentLabels.PickupPremium(b.Buyer, PlayerDesk.MasterLeaseAdvanceMin))))
 				.Where(x => x.Offer.Strength >= 0f)
 				.OrderByDescending(x => x.Offer.Strength).ThenBy(x => x.Buyer.labelId, StringComparer.Ordinal)
 				.FirstOrDefault();
@@ -211,9 +218,10 @@ public static class AiMasterDeals {
 				? EconomicLabelLifecycle.CommitmentReserve(seller, signing: false) : seller.GetMonthlyOverhead());
 			if (CapacityDecisions ? fundingNeed <= Math.Max(0f, freeCash) : !WouldLetGo(seller)) continue;
 			float sale = PlayerDesk.Round25(best.Offer.Lease * PlayerDesk.MasterSaleMultiple);
-			bool sell = seller.cashReserves < 2f * Math.Max(1f, seller.GetMonthlyOverhead()) && best.Buyer.CanAffordToSign(sale);
+			bool sell = seller.cashReserves < 2f * Math.Max(1f, seller.GetMonthlyOverhead()) && StudioParentLabels.CanFund(best.Buyer, sale);
 			float advance = sell ? sale : best.Offer.Lease;
-			if (!best.Buyer.CanAffordToSign(advance)) continue;
+			if (!StudioParentLabels.CanFund(best.Buyer, advance)) continue;
+			StudioParentLabels.FundAcquisition(best.Buyer, advance, "master-pickup", date);
 			manager.PayMasterAdvance(best.Buyer, seller, advance);
 			manager.TransferRecordToLabel(runtime, best.Buyer, null);
 			if (!sell) {
@@ -295,6 +303,7 @@ public static class AiMasterDeals {
 			foreach (var (buyer, ownSound) in Buyers(seller, record.primaryGenre, date.year, value).Take(MaxApproaches)) {
 				if (Price(buyer, ownSound, Read(buyer, record, runtime, posted: false), runtime).Strength < 0f) continue;
 				float cashBefore = seller.cashReserves;
+				StudioParentLabels.FundAcquisition(buyer, value, "master-distress", date);
 				manager.PayMasterAdvance(buyer, seller, value);
 				manager.TransferRecordToLabel(runtime, buyer, null);
 				Log("distress", "sale", seller, buyer, record.recordId, value, 0f, week);

@@ -36,7 +36,7 @@ public enum LabelStatus {
 /// <summary>Immutable population path for a label's operating roster plan.</summary>
 public enum LabelPopulationOrigin { Unspecified, LaunchPopulation, RuntimeFounded }
 
-public enum LabelExitReason { None, Bankruptcy, Dormancy, Acquired }
+public enum LabelExitReason { None, Bankruptcy, Dormancy, Acquired, ParentClosure }
 
 /// <summary>Why the label's operating roster target was most recently reconciled.</summary>
 public enum LabelOperatingTargetReason { Unset, LaunchPopulation, RuntimeBootstrap, OrganicGrowth, PromotionReconciliation, DemotionReconciliation, AcquisitionReconciliation }

@@ -1666,7 +1666,8 @@ public partial class CompetitorManager : Node {
 		if (GameRandom.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
 		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
 		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
-		AILabel label = ExternalMediaService.SelectLabel(aiLabels, profile);
+		// --studio-parent-labels: a film score may go to its own studio's label before the open bid.
+		AILabel label = StudioParentLabels.RouteSoundtrack(aiLabels, profile, date.year) ?? ExternalMediaService.SelectLabel(aiLabels, profile);
 		if (label == null) return; // nobody could front the license advance this week
 		MintSoundtrackRecord(label, profile, date);
 	}
@@ -1717,6 +1718,8 @@ public partial class CompetitorManager : Node {
 		album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 
 		// Licensing economics: a high upfront advance, booked like any production spend.
+		if (StudioParentLabels.IsStudioLabel(label) && label.cashReserves - licenseFee <= label.GetMonthlyOverhead())
+			StudioParentLabels.Contribute(label, Mathf.Min(StudioParentLabels.Capacity(label), licenseFee), "soundtrack", date);
 		LabelCompanyAccounts.ChangeCash(label, -licenseFee, LabelCashKind.Licensing);
 		label.monthlyExpenses += licenseFee;
 		WeeklyProductionSpend += licenseFee;
@@ -4407,6 +4410,10 @@ public partial class CompetitorManager : Node {
 		// After pay and reinvestment decisions, so a distress sale funds neither; its proceeds are
 		// kept out of the operating cash flow the solvency review and commitment reserve read.
 		float distressProceeds = AiMasterDeals.TryDistressSale(this, label, date);
+		// --studio-parent-labels: the parent tops cash up to the commitment reserve before the books close. It is an
+		// owner transfer, so the operating cash flow the solvency review reads still shows the label's own losses.
+		StudioParentLabels.SupportMonth(label, aiLabels, date);
+		StudioParentLabels.ReviewYear(label, date);
 		if (LabelCorporateModel.Applies(label)) {
 			int period = LabelCorporateModel.Period(date) - 1;
 			int clients = aiLabels.Count(client => client.IsActive && client.activeDeal?.distributorId == label.labelId);
@@ -4638,7 +4645,8 @@ public partial class CompetitorManager : Node {
 		// opposite of "player buttons, not an AI deal brain rewrite." The player's own front door is
 		// PursueDistributionDeal below.
 		if (client.isPlayerOwned) return;
-		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier)) return;
+		// --studio-parent-labels: a studio's label is its parent's division, not a P&D client.
+		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier) || StudioParentLabels.IsStudioLabel(client)) return;
 		DistributionDeal current = client.activeDeal;
 		AILabel incumbent = GetLabel(current?.distributorId);
 		// A Major does not poach another Major's client; this is the indie-to-major flow.
@@ -4700,7 +4708,7 @@ public partial class CompetitorManager : Node {
 		// advance banked, masters possibly gone -- with no dialogue at all. "MajorPD ... player front
 		// door only" means the player walks in (PursueDistributionDeal); nobody walks in on them.
 		if (client.isPlayerOwned) return;
-		if (!CanSignDistributionDeal(client.tier)) return;
+		if (!CanSignDistributionDeal(client.tier) || StudioParentLabels.IsStudioLabel(client)) return;
 
 		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
 			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
