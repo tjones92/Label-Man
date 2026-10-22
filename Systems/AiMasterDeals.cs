@@ -42,6 +42,20 @@ public sealed class AiMasterLease {
 /// </summary>
 public static class AiMasterDeals {
 	public const string Switch = "--ai-master-deals";
+	// Screen against the original route before adopting: real hit evidence, a national
+	// buyer that improves reach, and no re-leasing another firm's outstanding lease.
+	public const string RegionalHitSwitch = "--ai-master-national-pickups";
+	public static bool RegionalHitGate { get; private set; }
+	public const string CapacitySwitch = "--ai-master-capacity-decisions";
+	public static bool CapacityDecisions { get; private set; }
+	// Sun's Presley contract to RCA: a cash-short indie sells a live hit to a bigger firm before its
+	// overdraft closes it. Screen before adopting (SimTools/WorkingCapitalResearch.md).
+	public const string DistressSwitch = "--distress-master-sales";
+	public static bool DistressSales { get; private set; }
+	// Scenario coefficients, not measured history: a forced seller's buyer pays half its evidence-based
+	// estimate, and never extrapolates a climb beyond a 0.9 weekly carry (about nine weeks of current sales).
+	public const float DistressDiscount = 0.5f;
+	public const float DistressMaxCarry = 0.9f;
 	public const int MaxApproaches = 4;
 	public const int PickupMinWeek = 2;
 	public const int PickupMaxWeek = 16;
@@ -57,10 +71,19 @@ public static class AiMasterDeals {
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		Enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		RegionalHitGate = (arguments ?? Array.Empty<string>()).Contains(RegionalHitSwitch);
+		CapacityDecisions = (arguments ?? Array.Empty<string>()).Contains(CapacitySwitch);
+		DistressSales = (arguments ?? Array.Empty<string>()).Contains(DistressSwitch);
+		if (DistressSales && !Enabled) throw new ArgumentException(DistressSwitch + " requires " + Switch);
+		if (CapacityDecisions && !RegionalHitGate) throw new ArgumentException(CapacitySwitch + " requires " + RegionalHitSwitch);
+		if (RegionalHitGate && !Enabled) throw new ArgumentException(RegionalHitSwitch + " requires " + Switch);
+		if (RegionalHitGate && (arguments ?? Array.Empty<string>()).Contains("--no-regional-hit-deal-gate"))
+			throw new ArgumentException(RegionalHitSwitch + " requires regional-hit evidence stamping.");
 		configured = true;
 	}
 
 	internal static void SetEnabledForChecks(bool enabled) { configured = true; Enabled = enabled; }
+	internal static void SetDistressForChecks(bool enabled) => DistressSales = enabled;
 
 	public static bool IsSeller(AILabel label) => Enabled && label != null && !label.isPlayerOwned && label.IsActive
 		&& !label.IsSubsidiary && label.tier is (LabelTier.Small or LabelTier.Boutique or LabelTier.Independent);
@@ -120,6 +143,7 @@ public static class AiMasterDeals {
 			if (!manager.ReleaseShoppedAiMaster(buyer, artist, record, advance, perceivedQuality, date))
 				throw new InvalidOperationException($"Shopped master '{record.recordId}' failed to release at {buyer.labelId}.");
 			int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			FounderLabelLifecycle.NoteRelease(seller, date);
 			if (!sell) {
 				(seller.aiMasterLeases ??= new List<AiMasterLease>()).Add(new AiMasterLease {
 					RecordId = record.recordId, BuyerLabelId = buyer.labelId, Advance = advance, Rate = rate, StartWeek = week,
@@ -166,13 +190,15 @@ public static class AiMasterDeals {
 			if (record == null || record.isPlayerOwned || record.format != ReleaseFormat.Single) continue;
 			if (runtime.weeksSinceRelease < PickupMinWeek || runtime.weeksSinceRelease > PickupMaxWeek) continue;
 			if (runtime.currentPosition > 0 && runtime.currentPosition <= 40) continue;
-			int markets = PlayerDesk.BreakoutMarkets(runtime);
+			int markets = PickupMarkets(runtime, RegionalHitGate);
 			if (markets == 0) continue;
 			if (pickupEvidence.TryGetValue(record.recordId, out int seen) && seen >= markets) continue;
 			pickupEvidence[record.recordId] = markets;
 			AILabel seller = manager.GetLabel(record.labelId);
 			if (!IsSeller(seller) || seller.aiMasterLeases?.Any(l => l.RecordId == record.recordId) == true) continue;
+			if (RegionalHitGate && manager.GetAllLabels().Any(l => l.aiMasterLeases?.Any(lease => lease.RecordId == record.recordId) == true)) continue;
 			var best = Buyers(seller, record.primaryGenre, date.year, PlayerDesk.MasterLeaseAdvanceMin)
+				.Where(b => !RegionalHitGate || IsNationalBuyer(seller, b.Buyer))
 				.Select(b => (b.Buyer, Offer: Price(b.Buyer, b.OwnSound, Read(b.Buyer, record, runtime, posted: false), runtime)))
 				.Where(x => x.Offer.Strength >= 0f)
 				.OrderByDescending(x => x.Offer.Strength).ThenBy(x => x.Buyer.labelId, StringComparer.Ordinal)
@@ -180,7 +206,10 @@ public static class AiMasterDeals {
 			if (best.Buyer == null) continue;
 			float chance = Mathf.Clamp(0.35f + 0.15f * (markets - 1) + 0.30f * best.Offer.Strength, 0f, 0.85f);
 			if (PhiloxCounterRandom.Unit(BandLife.WorldSeed, record.recordId, "pickup", markets, PickupDecision) >= chance) continue;
-			if (!WouldLetGo(seller)) continue;
+			float fundingNeed = PickupWorkingCapitalNeed(runtime);
+			float freeCash = seller.cashReserves - (EconomicLabelLifecycle.Enabled
+				? EconomicLabelLifecycle.CommitmentReserve(seller, signing: false) : seller.GetMonthlyOverhead());
+			if (CapacityDecisions ? fundingNeed <= Math.Max(0f, freeCash) : !WouldLetGo(seller)) continue;
 			float sale = PlayerDesk.Round25(best.Offer.Lease * PlayerDesk.MasterSaleMultiple);
 			bool sell = seller.cashReserves < 2f * Math.Max(1f, seller.GetMonthlyOverhead()) && best.Buyer.CanAffordToSign(sale);
 			float advance = sell ? sale : best.Offer.Lease;
@@ -193,7 +222,90 @@ public static class AiMasterDeals {
 					StartWeek = week, EndWeek = week + PlayerDesk.MasterLeaseWeeks, UnitsAtStart = runtime.totalUnitsSold, LastStatementWeek = week });
 			}
 			Log("pickup", sell ? "sale" : "lease", seller, best.Buyer, record.recordId, advance, sell ? 0f : best.Offer.Rate, week);
+			GD.Print($"AI_MASTER_PICKUP_EVIDENCE week={week} record={record.recordId} age={runtime.weeksSinceRelease} " +
+				$"units={runtime.unitsThisWeek} totalUnits={runtime.totalUnitsSold} stageMarkets={PlayerDesk.BreakoutMarkets(runtime)} " +
+				$"hitMarkets={PickupMarkets(runtime, true)} sellerCash={seller.cashReserves:F0} sellerReach={seller.effectiveNationalReach:F3} " +
+				$"fundingNeed={fundingNeed:F0} freeCash={freeCash:F0}");
 		}
+	}
+
+	internal static int PickupMarkets(RecordRuntimeData runtime, bool requireHit) => requireHit
+		? runtime?.regionalData?.Values.Count(data => RegionalHitDealGate.IsRecent(data, runtime.weeksSinceRelease)) ?? 0
+		: PlayerDesk.BreakoutMarkets(runtime);
+
+	internal static bool IsNationalBuyer(AILabel seller, AILabel buyer) =>
+		buyer.tier is LabelTier.Major or LabelTier.MidTier or LabelTier.Independent
+		&& buyer.effectiveNationalReach > seller.effectiveNationalReach;
+
+	/// <summary>Cash for one plant-credit interval at observed weekly sales, or current open dealer orders,
+	/// whichever is larger, after usable stock. This is a disclosed scenario rule, not a historical rate
+	/// or a forecast of the hidden commercial-fit draw. The ordinary reserve protects existing liabilities.</summary>
+	internal static float PickupWorkingCapitalNeed(RecordRuntimeData runtime) {
+		long shelves = runtime.regionalData.Values.Where(d => d != null).Sum(d => (long)d.unitsInStores);
+		long orders = runtime.regionalData.Values.Where(d => d != null).Sum(d => (long)d.unitsBackordered);
+		long stock = shelves + (runtime.physicalInventory?.Warehouse ?? 0);
+		long demand = Math.Max((long)Math.Max(0, runtime.unitsThisWeek) * LabelPressingEconomics.PlantTermWeeks, orders);
+		int copies = (int)Math.Clamp(demand - stock, 0L, int.MaxValue);
+		return LabelPressingEconomics.PlantBill(ReleaseFormat.Single, copies, repress: true,
+			LabelPressingEconomics.UnitPressingCost(ReleaseFormat.Single, .30f));
+	}
+
+	/// <summary>Cash a label needs from a distress sale: its overdraft plus one month of mandatory overhead, and only
+	/// when last month already closed negative, so the coming month-end would be its second and close it.</summary>
+	internal static float DistressNeed(AILabel seller) => DistressNeed(seller, EconomicLabelLifecycle.Enabled);
+
+	internal static float DistressNeed(AILabel seller, bool economicLifecycle) =>
+		DistressSales && IsSeller(seller) && economicLifecycle && seller.insolventMonthEnds >= 1 && seller.cashReserves < 0f
+			? -seller.cashReserves + Math.Max(1f, seller.GetMonthlyOverhead()) : 0f;
+
+	/// <summary>What a buyer pays for a live master from its own sales evidence: current weekly units carried at the
+	/// observed week-on-week rate (capped; a climb is valued as if at its peak), times the record's realized label net
+	/// per unit, discounted as a forced sale. Reads no hidden score and draws nothing.</summary>
+	internal static float DistressValue(RecordRuntimeData runtime) {
+		if (runtime == null || runtime.unitsThisWeek <= 0 || runtime.totalUnitsSold <= 0) return 0f;
+		float netPerUnit = Math.Max(0f, runtime.lifetimeLabelNet / runtime.totalUnitsSold);
+		float carry = runtime.weeksSincePeakUnits == 0 || runtime.unitsPreviousWeek <= 0 ? DistressMaxCarry
+			: Mathf.Clamp(runtime.unitsThisWeek / (float)runtime.unitsPreviousWeek, 0f, DistressMaxCarry);
+		float remainingUnits = runtime.unitsThisWeek * carry / (1f - carry);
+		return PlayerDesk.Round25(remainingUnits * netPerUnit * DistressDiscount);
+	}
+
+	/// <summary>
+	/// At a month close, before the solvency review: an independent that would close at this month-end offers its live
+	/// singles to bigger firms, most valuable first. A buyer whose ear accepts the record pays the evidence price from cash
+	/// above its own reserve. The seller sells only a record whose price clears its need; otherwise nothing happens and
+	/// the ordinary review bankrupts it. Receivables already billed stay with the seller; the act stays on its roster.
+	/// Returns the proceeds, which the caller keeps out of operating cash flow.
+	/// </summary>
+	public static float TryDistressSale(CompetitorManager manager, AILabel seller, GameDate date) {
+		float need = DistressNeed(seller);
+		if (need <= 0f || manager == null || ChartManager.Instance == null) return 0f;
+		var leased = new HashSet<string>(manager.GetAllLabels().Where(l => l.aiMasterLeases != null)
+			.SelectMany(l => l.aiMasterLeases.Select(lease => lease.RecordId)), StringComparer.Ordinal);
+		var masters = ChartManager.Instance.GetAllRecords()
+			.Where(r => r?.baseRecord != null && r.baseRecord.labelId == seller.labelId && !r.baseRecord.isPlayerOwned
+				&& r.baseRecord.format == ReleaseFormat.Single && !leased.Contains(r.baseRecord.recordId))
+			.Select(r => (Runtime: r, Value: DistressValue(r)))
+			.Where(x => x.Value >= need)
+			.OrderByDescending(x => x.Value).ThenBy(x => x.Runtime.baseRecord.recordId, StringComparer.Ordinal)
+			.ToList();
+		int week = ChartManager.Instance.GetCurrentChartWeek();
+		foreach (var (runtime, value) in masters) {
+			Record record = runtime.baseRecord;
+			foreach (var (buyer, ownSound) in Buyers(seller, record.primaryGenre, date.year, value).Take(MaxApproaches)) {
+				if (Price(buyer, ownSound, Read(buyer, record, runtime, posted: false), runtime).Strength < 0f) continue;
+				float cashBefore = seller.cashReserves;
+				manager.PayMasterAdvance(buyer, seller, value);
+				manager.TransferRecordToLabel(runtime, buyer, null);
+				Log("distress", "sale", seller, buyer, record.recordId, value, 0f, week);
+				GD.Print($"AI_MASTER_DISTRESS_EVIDENCE week={week} record={record.recordId} age={runtime.weeksSinceRelease} " +
+					$"position={runtime.currentPosition} units={runtime.unitsThisWeek} totalUnits={runtime.totalUnitsSold} " +
+					$"sellerCash={cashBefore:F0} need={need:F0} price={value:F0} receivables={seller.outstandingWholesaleReceivables:F0} " +
+					$"insolventMonthEnds={seller.insolventMonthEnds}");
+				return value;
+			}
+		}
+		return 0f;
 	}
 
 	/// <summary>A seller lets a breaking record go when it cannot work it nationally: a Small or Boutique label, or an

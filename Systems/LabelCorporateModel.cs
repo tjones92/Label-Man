@@ -20,6 +20,7 @@ public static class LabelCorporateModel {
     /// legal or accounting retainer (counsel was paid per deal). Hiring anyone leases an office as before.</summary>
     public const string HomeOperatedSwitch = "--home-operated-micro-labels";
     public static bool HomeOperated { get; private set; }
+    public static float HomeRunningCost { get; private set; }
     private static bool configured;
     // Individual research arms select only their requested mechanisms. Explicit legacy
     // pricing/credit/market replays also retain their old economy unless full is requested.
@@ -51,6 +52,9 @@ public static class LabelCorporateModel {
         Ledger = ChangesEconomy || args.Contains("--label-company-ledger");
         PayrollScale = LabelPressingEconomics.ReadParameter(args, "--label-payroll-scale=", 1f, .1f, 3f);
         HomeOperated = args.Contains(HomeOperatedSwitch);
+        HomeRunningCost = LabelPressingEconomics.ReadParameter(args, "--home-label-running-cost=", 0f, 0f, 100f);
+        if (HomeRunningCost > 0f && !HomeOperated)
+            throw new ArgumentException("--home-label-running-cost requires " + HomeOperatedSwitch);
         if (HomeOperated && (!Staff || !Premises))
             throw new ArgumentException(HomeOperatedSwitch + " requires the corporate staff and premises costs.");
         if (Ledger && (!LabelPressingEconomics.Enabled || !LabelPressingEconomics.PlantCredit))
@@ -194,9 +198,7 @@ public static class LabelCorporateModel {
             ? company.departments.Sum(d => d.founderEquivalent * Wage(d.department)) * 1.12 * index * PayrollScale : 0;
         company.payrollQuote = company.departments.Sum(d => d.employees * Wage(d.department)) * 1.12 * index * PayrollScale
             + company.founderPayrollQuote;
-        bool home = HomeOperated && employees <= 0
-            && company.ownership is (LabelOwnershipForm.OwnerOperated or LabelOwnershipForm.PrivateCorporation)
-            && label.tier is (LabelTier.Small or LabelTier.Boutique or LabelTier.Independent);
+        bool home = HomeOperated && IsFounderRun(label, company);
         company.retainerQuote = home ? 0 : (company.departments.First(d => d.department == LabelDepartment.BusinessAffairs).employees < 1 ? 35 : 0)
             + (company.departments.First(d => d.department == LabelDepartment.FinanceRoyalties).employees < 1 ? 20 : 0);
         company.retainerQuote *= index;
@@ -217,16 +219,26 @@ public static class LabelCorporateModel {
         }
         double paidEquivalents = home ? 0 : employees + (company.ownership == LabelOwnershipForm.PrivateCorporation ? founder : 0);
         company.premisesQuote = (room * company.leasedOfficeSuites + company.leasedBranchOffices * room * 1.5 + 12 * paidEquivalents) * index
-            + company.assets.Sum(a => a.bookValue > 0 ? a.cost * .0025 : 0);
+            + company.assets.Sum(a => a.bookValue > 0 ? a.cost * .0025 : 0) + (home ? HomeRunningCost * index : 0);
         double required = company.departments.Sum(d => d.requiredEmployees) + founder;
         company.organizationCoverage = required <= 0 ? 1 : Math.Clamp((employees + founder) / required, .25, 1);
     }
+
+    internal static bool IsFounderRun(AILabel label, LabelCompanyState company) => label != null && company != null
+        && !label.isPlayerOwned && !label.IsSubsidiary
+        && company.departments.Sum(d => d.employees) <= 0
+        && company.ownership is (LabelOwnershipForm.OwnerOperated or LabelOwnershipForm.PrivateCorporation)
+        && label.tier is (LabelTier.Small or LabelTier.Boutique or LabelTier.Independent);
+
+    internal static void SetHomeForChecks(bool home, float cost) { HomeOperated = home; HomeRunningCost = cost; }
 
     public static float MonthlyOverhead(AILabel label, float legacy) {
         var company = Ensure(label);
         if (company == null || (!Staff && !Premises)) return legacy;
         // Partial research arms replace the corresponding legacy allocation; combined arm replaces all.
-        return (float)((Staff ? company.payrollQuote + company.retainerQuote : legacy * .7)
+        double payroll = FounderCompensation.Applies(label, company)
+            ? company.payrollQuote - company.founderPayrollQuote : company.payrollQuote;
+        return (float)((Staff ? payroll + company.retainerQuote : legacy * .7)
             + (Premises ? company.premisesQuote : legacy * .3));
     }
 

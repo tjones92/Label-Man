@@ -89,6 +89,9 @@ public partial class AILabel : Resource {
 	/// <summary>--ai-backers: the label's one backer agreement, ever. Null until it borrows.</summary>
 	public AiBackerLoan aiBackerLoan;
 	public int insolventMonthEnds;
+	// Opt-in founder dormancy: persisted, neutral for old saves. Transfers are not new releases.
+	public int founderLastReleasePeriod = -1, founderLastReviewPeriod = -1, founderQuietMonths;
+	public LabelExitReason exitReason;
 	public float RecentMonthlyCashFlow => recentMonthlyCashFlows?.Count > 0 ? recentMonthlyCashFlows.Average() : 0f;
 	[Export] public float debtLevel;
 	[Export] public float marketShare;

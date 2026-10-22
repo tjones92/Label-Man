@@ -9,12 +9,13 @@ when comparing them, and report seed-paired differences (see --paired).
         "nopush=doc-nopush:1001,doc-nopush:2002,doc-np3:3003" \
         "oc12=doc-np-oc12r:1001,doc-np-oc12r:2002,doc-np-oc12r:3003" --trace --paired nopush:oc12
 
-Measures (tiers are each label's *initial* tier from label-directory.csv; Major = the Big-5 plus EMI and Decca UK):
+Measures (starting firms' initial tier, runtime firms' birth tier; Major = the Big-5 plus EMI and Decca UK):
 
-- Single units: finalized singles' pressingBookSold (release-outcomes.csv) plus live singles' totalUnitsSold
-  (live-records-snapshot.csv), attributed to the record's *final* owner. A master sold or leased under
-  --ai-master-deals moves all its units, including those sold before the deal, to the buyer, so Boutique and
-  Small shares under that flag are understated. Opening catalog includes sales before the window.
+- Single units: label-sales-weekly.csv, frozen under the seller at each completed settlement.
+  Includes uncharted and retiring singles; excludes pre-window catalog sales. Older full audits
+  can use completed-week-settlement.csv. --legacy-final-owner explicitly selects the biased old
+  ownership method: lifetime units (potentially before the window) go to the final owner. Both
+  methods now classify runtime firms from runtime-label-profiles.csv instead of leaving them unknown.
 - Off-chart: offchart-singles.csv (--major-offchart-singles), cumulative per label. majorShareInclOff adds it
   to Major units and to the total.
 - Top 10 shares: records.csv slots at positions 1-10 by year; smallFirmTop10 counts slots held by firms with
@@ -46,48 +47,105 @@ def unquote(series):
     return series.astype(str).str.strip('"')
 
 
-def screen(tag, seed, weeks):
-    p = lambda stream: path(tag, seed, stream, weeks)
+def label_tiers(p):
     directory = pd.read_csv(p("label-directory"))
-    tier = dict(zip(unquote(directory.labelId), unquote(directory.initialTier)))
+    tiers = dict(zip(unquote(directory.labelId), unquote(directory.initialTier)))
+    # The directory contains starting firms only. Runtime births have their own
+    # immutable birth-tier stream, and must not disappear into an unknown bucket.
+    if os.path.exists(p("runtime-label-profiles")):
+        births = pd.read_csv(p("runtime-label-profiles"), usecols=["labelId", "birthTier"])
+        for label, tier in zip(unquote(births.labelId), unquote(births.birthTier)):
+            tiers.setdefault(label, tier)
+    return tiers
+
+
+def sales_units(p, legacy_final_owner=False):
+    if not legacy_final_owner:
+        if os.path.exists(p("label-sales-weekly")):
+            sales = pd.read_csv(p("label-sales-weekly"))
+            if sales.duplicated(["week", "labelId", "format"]).any():
+                raise ValueError("Repeated weekly label/format sales rows")
+            if ((sales.units < 0) | (sales.chartedUnits < 0) | (sales.chartedUnits > sales.units)
+                    | (sales.top10Units < 0) | (sales.top10Units > sales.chartedUnits)).any():
+                raise ValueError("Invalid weekly sales counts")
+            return sales[unquote(sales.format) == "Single"].copy()
+        if os.path.exists(p("completed-week-settlement")):
+            sales = pd.read_csv(p("completed-week-settlement"), usecols=["labelId", "format", "totalUnits"])
+            sales = sales.rename(columns={"totalUnits": "units"})
+            return sales[unquote(sales.format) == "Single"].copy()
+        raise ValueError("Weekly owner attribution unavailable: rerun this audit, or explicitly use "
+                         "--legacy-final-owner to reproduce the biased historical table.")
     outcomes = pd.read_csv(p("release-outcomes"), usecols=["labelId", "format", "pressingBookSold"])
     live = pd.read_csv(p("live-records-snapshot"), usecols=["labelId", "format", "totalUnitsSold"])
     units = pd.concat([
         outcomes[unquote(outcomes.format) == "Single"].rename(columns={"pressingBookSold": "units"})[["labelId", "units"]],
         live[unquote(live.format) == "Single"].rename(columns={"totalUnitsSold": "units"})[["labelId", "units"]],
     ])
-    units["tier"] = unquote(units.labelId).map(tier).fillna("?")
+    return units
+
+
+def screen(tag, seed, weeks, legacy_final_owner=False):
+    p = lambda stream: path(tag, seed, stream, weeks)
+    tier = label_tiers(p)
+    units = sales_units(p, legacy_final_owner)
+    if not legacy_final_owner and "week" in units:
+        window = pd.read_csv(p("demand-observation-window"))
+        if len(window) != 1 or str(window.iloc[0].completed).lower() != "true":
+            raise ValueError("Demand observation did not complete")
+        market = pd.read_csv(p("market-clearing-weekly"), usecols=["week", "clearedSingleUnits"])
+        sold = units.groupby("week").units.sum()
+        cleared = market.groupby("week").clearedSingleUnits.sum()
+        if not sold.index.equals(cleared.index) or not (sold == cleared).all():
+            raise ValueError("Weekly seller units do not reconcile to cleared single units")
+    units["tier"] = unquote(units.labelId).map(tier)
+    if units.tier.isna().any():
+        raise ValueError("Sales reference labels absent from opening/birth tier metadata")
     by_tier = units.groupby("tier").units.sum()
     off_path = p("offchart-singles")
-    off = pd.read_csv(off_path).units.sum() if os.path.exists(off_path) else 0
+    off_by_tier = pd.Series(dtype="float64")
+    if os.path.exists(off_path):
+        off_rows = pd.read_csv(off_path)
+        off_rows["tier"] = unquote(off_rows.labelId).map(tier)
+        if off_rows.tier.isna().any():
+            raise ValueError("Off-chart sales reference labels absent from label-directory.csv")
+        off_by_tier = off_rows.groupby("tier").units.sum()
+    off = off_by_tier.sum()
     live_total, major = by_tier.sum(), by_tier.get("Major", 0)
     r = {
         "liveSingles(M)": live_total / 1e6, "offChart(M)": off / 1e6,
-        "majorLiveShare": major / live_total, "majorShareInclOff": (major + off) / (live_total + off),
+        "majorLiveShare": major / live_total,
+        "majorShareInclOff": (major + off_by_tier.get("Major", 0)) / (live_total + off),
     }
     for t in ("Small", "Boutique", "Independent", "MidTier"):
-        r[f"{t.lower()}Share"] = by_tier.get(t, 0) / (live_total + off)
+        r[f"{t.lower()}Share"] = (by_tier.get(t, 0) + off_by_tier.get(t, 0)) / (live_total + off)
 
     records = pd.read_csv(p("records"), usecols=["year", "labelId", "currentPosition", "unitsThisWeek"])
     records["tier"] = unquote(records.labelId).map(tier)
     top10 = records[(records.currentPosition > 0) & (records.currentPosition <= 10)]
-    for year in sorted(top10.year.unique())[:2]:
+    for year in sorted(top10.year.unique()):
         slots = top10[top10.year == year]
         r[f"majTop10_{year}"] = (slots.tier == "Major").mean()
         r[f"smallFirmTop10_{year}"] = slots.labelId.map(slots.labelId.value_counts()).lt(10).mean()
     charted = records[records.currentPosition > 0]
-    r["chartUnits/live"] = charted.unitsThisWeek.sum() / live_total
-    r["chartUnits/all"] = charted.unitsThisWeek.sum() / (live_total + off)
+    chart_units = units.chartedUnits.sum() if "chartedUnits" in units else charted.unitsThisWeek.sum()
+    r["chartUnits/live"] = chart_units / live_total
+    r["chartUnits/all"] = chart_units / (live_total + off)
     r["no1Units(k)"] = records[records.currentPosition == 1].unitsThisWeek.mean() / 1e3
-    r["majChartUnitShare"] = charted.unitsThisWeek[charted.tier == "Major"].sum() / charted.unitsThisWeek.sum()
+    r["majChartUnitShare"] = (units.loc[units.tier == "Major", "chartedUnits"].sum() / chart_units
+                             if "chartedUnits" in units else
+                             charted.unitsThisWeek[charted.tier == "Major"].sum() / charted.unitsThisWeek.sum())
 
-    finance = pd.read_csv(p("label-finance"), usecols=["week", "labelId", "status", "cashReserves"])
+    finance = pd.read_csv(p("label-finance"), usecols=lambda c: c in ("week", "labelId", "status", "cashReserves", "exitReason"))
     finance["labelId"], finance["status"] = unquote(finance.labelId), unquote(finance.status)
     start = finance[finance.week == finance.week.min()].labelId.unique()
     last = finance.sort_values("week").groupby("labelId").tail(1).set_index("labelId")
     for t in ("Small", "Boutique", "Independent"):
         ids = [i for i in start if tier.get(i) == t]
         r[f"closed_{t}"] = sum(last.loc[i, "status"] in ("Bankrupt", "Defunct") for i in ids) / max(1, len(ids))
+        if "exitReason" in last:
+            for reason in ("Bankruptcy", "Dormancy"):
+                r[f"{reason.lower()}_{t}"] = sum(last.loc[i, "status"] in ("Bankrupt", "Defunct")
+                                                    and last.loc[i, "exitReason"] == reason for i in ids) / max(1, len(ids))
     majors = [i for i in start if tier.get(i) == "Major"]
     r["majorEndCash(M)"] = last.loc[majors, "cashReserves"].sum() / 1e6
     return r
@@ -95,8 +153,7 @@ def screen(tag, seed, weeks):
 
 def trace(tag, seed, weeks):
     p = lambda stream: path(tag, seed, stream, weeks)
-    directory = pd.read_csv(p("label-directory"))
-    tier = dict(zip(unquote(directory.labelId), unquote(directory.initialTier)))
+    tier = label_tiers(p)
     majors = lambda df: df[unquote(df.labelId).map(tier) == "Major"]
     finance = majors(pd.read_csv(p("label-finance"), usecols=["labelId", "status"]))
     census = majors(pd.read_csv(p("demand-release-census")))
@@ -156,9 +213,13 @@ def main():
     parser.add_argument("arms", nargs="+", help="NAME=TAG:SEED[,TAG:SEED...]")
     parser.add_argument("--weeks", type=int, default=105)
     parser.add_argument("--trace", action="store_true", help="also report the Majors' release and cash trace")
+    parser.add_argument("--legacy-final-owner", action="store_true", help="reproduce old, biased lifetime-owner shares")
     parser.add_argument("--paired", action="append", default=[], metavar="BASE:OTHER")
     args = parser.parse_args()
-    frames = [("screen", collect(args.arms, args.weeks, screen))]
+    attribution = "LEGACY final owner (biased)" if args.legacy_final_owner else "weekly settlement owner"
+    print(f"Attribution: {attribution}")
+    frames = [("screen", collect(args.arms, args.weeks,
+                               lambda tag, seed, weeks: screen(tag, seed, weeks, args.legacy_final_owner)))]
     if args.trace: frames.append(("Major trace", collect(args.arms, args.weeks, trace)))
     for title, frame in frames:
         show(frame, title)

@@ -40,6 +40,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 			if (OS.GetCmdlineUserArgs().Contains("--regional-economy-check")) { RegionalEconomyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--economic-label-check")) { EconomicLabelLifecycleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--founder-label-check")) { FounderLabelChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--founder-compensation-check")) { FounderCompensationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distress-master-sale-check")) { DistressMasterSaleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--tax-timing-check")) { TaxTimingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-company-check")) { LabelCompanyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--pressing-commitment-check")) { PressingCommitmentChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--album-volume-check")) { AlbumVolumeChecks.Run(); GetTree().Quit(0); return; }

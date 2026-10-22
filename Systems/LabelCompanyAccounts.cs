@@ -48,12 +48,15 @@ public static class LabelCompanyAccounts {
         ChangeCash(label, -amount, LabelCashKind.LegacyOverhead);
         var company = label.company;
         if (!LabelCorporateModel.Applies(label) || (!LabelCorporateModel.Staff && !LabelCorporateModel.Premises)) return;
-        double payroll = LabelCorporateModel.Staff ? company.payrollQuote : label.GetLegacyMonthlyOverhead() * .7;
-        double founderPay = LabelCorporateModel.Staff ? company.founderPayrollQuote : 0;
+        double committedFounderPay = FounderCompensation.FixedFounderPayroll(label, company);
+        double payroll = LabelCorporateModel.Staff ? (FounderCompensation.Applies(label, company)
+            ? company.payrollQuote - company.founderPayrollQuote : company.payrollQuote) : label.GetLegacyMonthlyOverhead() * .7;
+        double founderPay = LabelCorporateModel.Staff ? committedFounderPay : 0;
         double retainers = LabelCorporateModel.Staff ? company.retainerQuote : 0;
         double premises = LabelCorporateModel.Premises ? company.premisesQuote : label.GetLegacyMonthlyOverhead() * .3;
         double total = payroll + retainers + premises;
         company.cashMovements[LabelCashKind.LegacyOverhead] += amount;
+        if (total <= 0) return;
         void Allocate(LabelCashKind kind, double fraction) => company.cashMovements[kind] = company.cashMovements.GetValueOrDefault(kind) - amount * fraction;
         Allocate(LabelCashKind.Payroll, (payroll - founderPay) / total);
         Allocate(LabelCashKind.OwnerSalary, founderPay / total);

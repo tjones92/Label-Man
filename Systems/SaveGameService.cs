@@ -617,6 +617,10 @@ public sealed class LabelSaveData {
 	public int top40Hits { get; set; }
 	public int numberOneHits { get; set; }
 	public int monthsActive { get; set; }
+	public int founderLastReleasePeriod { get; set; } = -1;
+	public int founderLastReviewPeriod { get; set; } = -1;
+	public int founderQuietMonths { get; set; }
+	public LabelExitReason exitReason { get; set; }
 	public float outstandingWholesaleReceivables { get; set; }
 	public float lifetimeWholesaleWriteOffs { get; set; }
 	public string[] strongRegions { get; set; } = Array.Empty<string>();
@@ -652,6 +656,8 @@ public sealed class LabelSaveData {
 		payolaWillingness = l.payolaWillingness, releasesPerMonth = l.releasesPerMonth,
 		totalReleases = l.totalReleases, top40Hits = l.top40Hits, numberOneHits = l.numberOneHits,
 		monthsActive = l.monthsActive,
+		founderLastReleasePeriod = l.founderLastReleasePeriod, founderLastReviewPeriod = l.founderLastReviewPeriod,
+		founderQuietMonths = l.founderQuietMonths, exitReason = l.exitReason,
 		outstandingWholesaleReceivables = l.outstandingWholesaleReceivables,
 		lifetimeWholesaleWriteOffs = l.lifetimeWholesaleWriteOffs,
 		strongRegions = l.strongRegions ?? Array.Empty<string>(),
@@ -679,6 +685,8 @@ public sealed class LabelSaveData {
 		l.payolaWillingness = payolaWillingness; l.releasesPerMonth = releasesPerMonth;
 		l.totalReleases = totalReleases; l.top40Hits = top40Hits; l.numberOneHits = numberOneHits;
 		l.monthsActive = monthsActive;
+		l.founderLastReleasePeriod = founderLastReleasePeriod; l.founderLastReviewPeriod = founderLastReviewPeriod;
+		l.founderQuietMonths = founderQuietMonths; l.exitReason = exitReason;
 		l.outstandingWholesaleReceivables = outstandingWholesaleReceivables;
 		l.lifetimeWholesaleWriteOffs = lifetimeWholesaleWriteOffs;
 		l.strongRegions = strongRegions ?? Array.Empty<string>();

@@ -425,6 +425,9 @@ public partial class ChartManager : Node {
 		AiMasterDeals.Configure(OS.GetCmdlineUserArgs());
 		AiBackers.Configure(OS.GetCmdlineUserArgs());
 		LabelCorporateModel.Configure(OS.GetCmdlineUserArgs());
+		FounderCompensation.Configure(OS.GetCmdlineUserArgs());
+		LabelCompanyTax.Configure(OS.GetCmdlineUserArgs());
+		FounderLabelLifecycle.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
@@ -936,6 +939,7 @@ public partial class ChartManager : Node {
 		if (releasingLabel != null && !record.isPlayerOwned) {
 			PromoteRecordAI(runtimeData, releasingLabel, perceivedQualityMult);
 		}
+		FounderLabelLifecycle.NoteRelease(releasingLabel ?? GetLabelById(record.labelId), record.releaseDate);
 		OnRecordReleased?.Invoke(runtimeData, releasingLabel);
 
 		if (debugMode) GD.Print($"Released: {record.title} by {record.artistName} (awareness: {runtimeData.awareness:F2}, radio: {runtimeData.radioHeat:F2})");

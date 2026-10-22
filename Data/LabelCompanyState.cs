@@ -52,6 +52,9 @@ public sealed class LabelCompanyState {
     public double recentProjectSpend, recentPlantSpend, recentRevenue, recentCommercialSpend;
     public int taxYear;
     public double yearPretaxEarnings, yearTaxProvision, yearTaxPaid, taxPayable;
+    // --prior-year-corporate-tax: last year's liability still to pay next March/June, its first
+    // installment, and this year's current installments on liability over the threshold.
+    public double priorYearTaxDue, priorYearTaxInstallment, currentYearTaxInstallments;
     public double lifetimeTaxPaid, lifetimeDistributions, lifetimeCapitalSpend;
     public LabelCompanyStatement lastStatement;
 }

@@ -275,6 +275,11 @@ public partial class LabelLifecycleManager : Node {
 		
 		foreach (var label in activeLabels.Where(l => l.IsActive).ToList()) {
 			UpdateLabelHealth(label);
+			if (FounderLabelLifecycle.ReviewMonth(label, year * 12 + month - 2,
+				CompetitorManager.Instance?.HasOpenFounderCommitments(label.labelId) == true)) {
+				KillLabel(label, "Dormancy");
+				continue;
+			}
 			CheckForDeath(label);
 		}
 		
@@ -318,6 +323,7 @@ public partial class LabelLifecycleManager : Node {
 		}
 		label.roster.Clear();
 		label.status = LabelStatus.Defunct;
+		label.exitReason = reason == "Dormancy" ? LabelExitReason.Dormancy : LabelExitReason.Bankruptcy;
 		defunctLabels.Add(label);
 		DefunctThisYear++;
 		if (EconomicLabelLifecycle.Enabled && reason == "Bankruptcy")
@@ -325,7 +331,9 @@ public partial class LabelLifecycleManager : Node {
 		GD.Print($"[LabelManager] {label.labelName} has closed. Reason: {reason}. Operated for {label.monthsActive} months.");
 		// Phase 3b catalog succession: a bankrupt label's publishing catalog is bought by a surviving
 		// major rather than leaking. Covers of its old hits then pay the successor.
-		AILabel successor = FindCatalogSuccessor(label);
+		if (reason == "Dormancy")
+			GD.Print($"LABEL_DORMANCY id={label.labelId} cash={label.cashReserves:F2} quietMonths={label.founderQuietMonths} monthlyCashFlow={label.RecentMonthlyCashFlow:F2}");
+		AILabel successor = reason == "Bankruptcy" ? FindCatalogSuccessor(label) : null;
 		if (successor != null) CompositionCatalogService.TransferCatalogControl(label.labelId, successor.labelId);
 		OnLabelDefunct?.Invoke(label, reason);
 	}
@@ -343,6 +351,7 @@ public partial class LabelLifecycleManager : Node {
 	public void MarkLabelAcquired(AILabel label, AILabel distributor) {
 		if (label == null || distributor == null || label == distributor || !label.IsActive) return;
 		label.status = LabelStatus.Acquired;
+		label.exitReason = LabelExitReason.Acquired;
 		defunctLabels.Add(label);
 		DefunctThisYear++;
 		string reason = $"Absorbed by {distributor.labelName}";

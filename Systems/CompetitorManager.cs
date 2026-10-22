@@ -4192,6 +4192,9 @@ public partial class CompetitorManager : Node {
 	}
 
 	public IReadOnlyList<AlbumProject> GetAlbumProjects() => albumProjects;
+	internal bool HasOpenFounderCommitments(string labelId) => albumProjects.Concat(pendingAlbumProjects)
+		.Any(p => p.currentLabelId == labelId && p.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd)
+		|| aiLabels.Any(l => l.aiMasterLeases?.Any(lease => lease.BuyerLabelId == labelId) == true);
 	public AlbumProject GetAlbumProject(string projectId) => !string.IsNullOrEmpty(projectId) &&
 		projectById.TryGetValue(projectId, out AlbumProject project) ? project : null;
 	public bool HasPendingProjectForArtist(string artistId) => pendingAlbumProjects.Any(project => project.artistId == artistId);
@@ -4389,6 +4392,7 @@ public partial class CompetitorManager : Node {
 		LabelCompanyAccounts.OverheadPaid(label, overhead);
 		label.monthlyExpenses += overhead;
 		financials.lastMonthExpenses += overhead;
+		financials.lastMonthExpenses += FounderCompensation.Pay(label);
 		// Owner-manager work is paid from positive cash surplus after ordinary bills.
 		// This is an operating expense, separate from a record's unit contribution.
 		financials.lastMonthExpenses += LabelOperatorPay.Pay(label, financials.lastMonthRevenue - financials.lastMonthExpenses);
@@ -4400,12 +4404,15 @@ public partial class CompetitorManager : Node {
 		GrowSelfBuiltDistributionReach(label, netIncome);
 		PursueIndependentDistribution(label);
 		float netCashFlow = netIncome + label.cashReserves - cashBeforeExpansion;
+		// After pay and reinvestment decisions, so a distress sale funds neither; its proceeds are
+		// kept out of the operating cash flow the solvency review and commitment reserve read.
+		float distressProceeds = AiMasterDeals.TryDistressSale(this, label, date);
 		if (LabelCorporateModel.Applies(label)) {
 			int period = LabelCorporateModel.Period(date) - 1;
 			int clients = aiLabels.Count(client => client.IsActive && client.activeDeal?.distributorId == label.labelId);
 			LabelCorporateModel.ReviewOrganization(label, period, clients, GetRecentReleasedRecordCount(label.labelId, 13) / 3.0);
 			var statement = LabelCompanyAccounts.CloseMonth(label, period);
-			if (statement != null && LabelCorporateModel.ChangesEconomy) netCashFlow = (float)(statement.closingCash - statement.openingCash - statement.financingNet - statement.ownerTransfersNet);
+			if (statement != null && LabelCorporateModel.ChangesEconomy) netCashFlow = (float)(statement.closingCash - statement.openingCash - statement.financingNet - statement.ownerTransfersNet) - distressProceeds;
 		}
 		UpdateLabelStatus(label, financials, netIncome, netCashFlow);
 		

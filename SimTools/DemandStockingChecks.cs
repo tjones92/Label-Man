@@ -65,6 +65,30 @@ public static class DemandStockingChecks {
 		AiBackers.SetEnabledForChecks(false);
 		Check(!AiMasterDeals.IsSeller(Firm("s0", LabelTier.Small)) && !AiBackers.Eligible(Firm("s0", LabelTier.Small)), "routes are off by default");
 		AiMasterDeals.SetEnabledForChecks(true);
+		var pickupRecord = Launch("pickup-evidence");
+		pickupRecord.weeksSinceRelease = 8;
+		pickupRecord.regionalData["south"] = new RegionalRecordData { breakoutStage = RegionalBreakoutStage.RegionalBreakout };
+		Check(AiMasterDeals.PickupMarkets(pickupRecord, false) == 1 && AiMasterDeals.PickupMarkets(pickupRecord, true) == 0,
+			"launch-ramp breakout stage alone is not a proven regional hit");
+		pickupRecord.regionalData["south"].dealEvidenceAge = 5;
+		Check(AiMasterDeals.PickupMarkets(pickupRecord, true) == 1, "a recent volume-qualified hit can bring a pickup");
+		pickupRecord.weeksSinceRelease = 9;
+		Check(AiMasterDeals.PickupMarkets(pickupRecord, true) == 0, "regional-hit evidence expires after four weeks");
+		var niche = Firm("niche", LabelTier.Boutique); niche.nationalReach = .3f;
+		var localBuyer = Firm("local", LabelTier.Small); localBuyer.nationalReach = .5f;
+		var nationalBuyer = Firm("national", LabelTier.Independent); nationalBuyer.nationalReach = .6f;
+		Check(!AiMasterDeals.IsNationalBuyer(niche, localBuyer) && AiMasterDeals.IsNationalBuyer(niche, nationalBuyer),
+			"a Boutique niche is not a smaller business than every Small label");
+		nationalBuyer.nationalReach = .2f;
+		Check(!AiMasterDeals.IsNationalBuyer(niche, nationalBuyer), "a pickup buyer must improve the seller's reach");
+		pickupRecord.unitsThisWeek = 1000;
+		float nextRun = AiMasterDeals.PickupWorkingCapitalNeed(pickupRecord);
+		Check(nextRun > 0f, "working a hit needs a funded replenishment run");
+		pickupRecord.regionalData["south"].unitsInStores = 4000;
+		Check(AiMasterDeals.PickupWorkingCapitalNeed(pickupRecord) == 0f, "usable stock covers the next plant interval");
+		pickupRecord.regionalData["south"].unitsBackordered = 6000;
+		Check(AiMasterDeals.PickupWorkingCapitalNeed(pickupRecord) > 0f
+			&& AiMasterDeals.PickupWorkingCapitalNeed(pickupRecord) < nextRun, "unfilled dealer orders beyond stock need cash");
 		Check(AiMasterDeals.IsSeller(Firm("s1", LabelTier.Small)) && AiMasterDeals.IsSeller(Firm("i1", LabelTier.Independent)),
 			"Small to Independent labels can shop masters");
 		Check(!AiMasterDeals.IsSeller(Firm("m1", LabelTier.Major)) && !AiMasterDeals.IsSeller(Firm("s2", LabelTier.Small, "parent")),

@@ -17,8 +17,13 @@ public partial class ChartAuditRunner {
 	private int demandObservationStartWeek;
 
 	private string offChartSinglesPath;
+	private StreamWriter labelSalesWriter;
 
 	private void OpenDemandObservationOutputs(string directory) {
+		if (GenreMarketV2.Enabled) {
+			labelSalesWriter = CreateWriter(Path.Combine(directory, $"{runName}-label-sales-weekly.csv"));
+			labelSalesWriter.WriteLine("week,year,labelId,format,units,chartedUnits,top10Units");
+		}
 		if (MajorOffChartSingles.Enabled) offChartSinglesPath = Path.Combine(directory, $"{runName}-offchart-singles.csv");
 		if (PhysicalPressingInventory.Enabled) {
 			physicalInventoryWriter = CreateWriter(Path.Combine(directory, $"{runName}-physical-inventory.csv"));
@@ -64,6 +69,8 @@ public partial class ChartAuditRunner {
 	}
 
 	private void CloseDemandObservationOutputs() {
+		labelSalesWriter?.Dispose();
+		labelSalesWriter = null;
 		physicalInventoryWriter?.Dispose();
 		physicalInventoryWriter = null;
 		if (offChartSinglesPath != null) {
@@ -106,6 +113,20 @@ public partial class ChartAuditRunner {
 		demandCensusWriter.Dispose(); demandWindowWriter.Dispose();
 		demandCensusWriter = demandWindowWriter = null;
 		demandObservations.Clear();
+	}
+
+	// Frozen settlement ids, not the mutable runtime owner. Includes uncharted and retiring
+	// records, excludes sales before the observation window, and survives lean/calibration mode.
+	private void WriteLabelSales(ChartManager.CompletedWeekSettlement settlement) {
+		if (labelSalesWriter == null) return;
+		foreach (var group in settlement.Entries.GroupBy(e => (e.LabelId, e.Format)))
+			labelSalesWriter.WriteLine(string.Join(",", new[] {
+				settlement.SettlementId.ToString(CultureInfo.InvariantCulture), settlement.Date.year.ToString(CultureInfo.InvariantCulture),
+				Csv(group.Key.LabelId), group.Key.Format.ToString(),
+				group.Sum(e => (long)e.Units).ToString(CultureInfo.InvariantCulture),
+				group.Where(e => e.Record.currentPosition > 0).Sum(e => (long)e.Units).ToString(CultureInfo.InvariantCulture),
+				group.Where(e => e.Record.currentPosition is > 0 and <= 10).Sum(e => (long)e.Units).ToString(CultureInfo.InvariantCulture)
+			}));
 	}
 
 	private void CapturePhysicalInventoryWeek() {

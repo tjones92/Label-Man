@@ -34,6 +34,7 @@ public static class EconomicLabelLifecycle {
 		if (label.cashReserves < 0f) {
 			label.status = allowBankruptcy && !label.isPlayerOwned && label.insolventMonthEnds >= 2
 				? LabelStatus.Bankrupt : LabelStatus.Dying;
+			if (label.status == LabelStatus.Bankrupt) label.exitReason = LabelExitReason.Bankruptcy;
 			return;
 		}
 		float runway = burn > 0f ? label.cashReserves / burn : float.PositiveInfinity;

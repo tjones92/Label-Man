@@ -1216,7 +1216,7 @@ public partial class ChartAuditRunner : Node {
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
 		retirementWriter.WriteLine("week,status,recordId,labelTier,weeksSinceRelease,weeksOnChart,weeksSinceLastTop100,weeksSinceSalesAboveFloor,floorBreachAge,unitsThisWeek,totalRadioPlay");
 		tierVolumeWriter.WriteLine("week,labelTier,launchRecords,launchUnits,middleRecords,middleUnits,catalogTailRecords,catalogTailUnits,totalRecords,totalUnits");
-		labelFinanceWriter.WriteLine("week,year,labelId,labelName,archetype,isHistorical,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,ownedReach,borrowedReach,nationalReach,capability,dealDistributorId,dealUnrecoupedAdvance,outstandingWholesaleReceivables,lifetimeWholesaleWriteOffs,independentRegions,lastMonthlyProfit,recentMonthlyCashFlow,monthlyOverhead,insolventMonthEnds,economicLabelLifecycle,weeklyPressing,weeklyPlantPaid,outstandingPlantPayables");
+		labelFinanceWriter.WriteLine("week,year,labelId,labelName,archetype,isHistorical,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,ownedReach,borrowedReach,nationalReach,capability,dealDistributorId,dealUnrecoupedAdvance,outstandingWholesaleReceivables,lifetimeWholesaleWriteOffs,independentRegions,lastMonthlyProfit,recentMonthlyCashFlow,monthlyOverhead,insolventMonthEnds,economicLabelLifecycle,weeklyPressing,weeklyPlantPaid,outstandingPlantPayables,exitReason,founderQuietMonths,founderLastReleasePeriod");
 		dealLedgerWriter.WriteLine("eventWeek,year,resolution,origin,distributorId,distributorName,clientId,clientName,reachGranted,marginSkim,ownsMasters,advance,signedWeek,termWeeks,dependency");
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
 		independentDistributorWriter.WriteLine("distributorId,distributorName,regionId,regionPopulation,recordStoreCount," +
@@ -1766,6 +1766,7 @@ public partial class ChartAuditRunner : Node {
 	private void OnWeekSettlement(ChartManager.CompletedWeekSettlement settlement) {
 		if (settlement?.Entries == null) return;
 		ChartManager.Instance?.AcknowledgeSettlementAudit(settlement); // sim invariant -- must run even when telemetry is suppressed
+		WriteLabelSales(settlement);
 		if (completedWeekSettlementWriter == null) return; // heavy settlement telemetry suppressed under --lean-probe
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
 			completedWeekSettlementWriter.WriteLine(string.Join(",", new[] {
@@ -3179,7 +3180,8 @@ public partial class ChartAuditRunner : Node {
 				label.independentDistributionRegions.Count.ToString(CultureInfo.InvariantCulture),
 				F(label.lastMonthlyProfit), F(label.RecentMonthlyCashFlow), F(label.GetMonthlyOverhead()),
 				label.insolventMonthEnds.ToString(CultureInfo.InvariantCulture), EconomicLabelLifecycle.Enabled ? "true" : "false", F(label.weeklyPressingSpend),
-					F(label.weeklyPlantPaid), F(label.outstandingPlantPayables)
+					F(label.weeklyPlantPaid), F(label.outstandingPlantPayables), Csv(label.exitReason.ToString()),
+				label.founderQuietMonths.ToString(CultureInfo.InvariantCulture), label.founderLastReleasePeriod.ToString(CultureInfo.InvariantCulture)
 			}));
 		}
 	}

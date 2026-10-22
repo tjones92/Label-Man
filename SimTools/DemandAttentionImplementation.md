@@ -904,13 +904,17 @@ Candidate for the commercial-fit bundle: push weight dropped, `--major-offchart-
 
 #### Reproducing these screens
 
-`SimTools/analyze_offchart_screen.py` produces every table from "What the shares should be" onward, from
+`SimTools/analyze_offchart_screen.py` analyzes the screens from "What the shares should be" onward, from
 ChartAuditRunner output (pandas required). Each arm is `NAME=TAG:SEED,...`. `--trace` adds the Majors'
 release and cash ledger, and `--paired BASE:OTHER` gives seed-paired differences with standard errors.
-The six-seed table above:
+The historical tables above use the final-owner method. Select `--legacy-final-owner` explicitly for
+old lean runs; corrected weekly-owner shares require the new sales stream or a full settlement file.
+The analyzer now also assigns runtime-founded firms their birth tiers rather than an unknown bucket,
+so reproducing the ownership method alone can change individual tier shares from the earlier tables.
+The six-seed screen above:
 
 ```powershell
-python SimTools/analyze_offchart_screen.py "nopush=doc-nopush:1001,doc-nopush:2002,doc-np3:3003,doc-np6:4004,doc-np6:5005,doc-np6:6006" "oc12=doc-np-oc12r:1001,doc-np-oc12r:2002,doc-np-oc12r:3003,doc-np-oc12r:4004,doc-np-oc12r:5005,doc-np-oc12r:6006" --trace --paired nopush:oc12
+python SimTools/analyze_offchart_screen.py "nopush=doc-nopush:1001,doc-nopush:2002,doc-np3:3003,doc-np6:4004,doc-np6:5005,doc-np6:6006" "oc12=doc-np-oc12r:1001,doc-np-oc12r:2002,doc-np-oc12r:3003,doc-np-oc12r:4004,doc-np-oc12r:5005,doc-np-oc12r:6006" --legacy-final-owner --trace --paired nopush:oc12
 ```
 
 Shares use labels' initial tier and each record's final owner. Under `--ai-master-deals`, a picked-up
@@ -918,3 +922,195 @@ master moves all of its units, including those sold before the deal, to the buye
 shares in those arms are therefore understated. Boutique share is 10-11% with the fit alone (`dlong-cand`),
 7-8% with master deals alone (`dlong-ctlmd`), and 3-4% with both. Measuring by the label that sold each
 week's copies is the open fix.
+
+#### Master-deal attribution and capacity screen (2026-10-21)
+
+The ownership fix is implemented. `label-sales-weekly.csv` freezes the selling label at
+each completed settlement, including uncharted and retiring records. The screen analyzer
+uses it by default, reconciles it to regional cleared units, and requires an explicit
+`--legacy-final-owner` to use the old method. Runtime-founded firms also retain their birth
+tiers. The earlier statement that Small shares must be understated is withdrawn: lease
+reversion can overstate them. In seeds 1001/2002, correct Boutique shares are 3.6/3.8%,
+against final-owner shares of 3.0/3.5%; Small shares fall from 8.2/9.6% to 4.1/4.7%.
+
+**The main error is automatic surrender of funded hits.** Enum ordering allowed Boutique
+masters to go to Small labels, and lessees could re-lease titles despite an outstanding
+exclusive lease. In three original-candidate runs (105 weeks, 1001/2002/3003), 444/411/452
+pickup transactions involved only 345/316/335 titles. Seed 3003's funding trace shows
+443/452 acceptances with the next replenishment covered under the capacity test.
+
+Two new opt-in switches require `--ai-master-deals`:
+
+- `--ai-master-national-pickups`: recent volume-qualified hit evidence, an
+  Independent-or-larger buyer with greater effective reach, and no outstanding lease
+  anywhere on the title. Alone this still makes 319/354 pickups and worsens Boutique share;
+  it is rejected as a bundle candidate.
+- `--ai-master-capacity-decisions` (requires the preceding switch): accept only when
+  protected free cash cannot finance the next replenishment at observed sales/backorders,
+  after usable stock. Uses the existing four-week plant interval and ordinary repress costs.
+  This is a disclosed scenario rule, not a measured historical transaction frequency.
+
+Full repair versus the original candidate, with push dropped and base .12/hold unchanged;
+both measured by weekly selling label, seeds 1001/2002/3003:
+
+| | Original candidate | + both pickup switches |
+|---|---:|---:|
+| Pickups over 105 weeks | 444 / 411 / 452 | **35 / 50 / 47** |
+| Onward transfers of leased titles | 99 / 95 / 117 | **0 / 0 / 0** |
+| Boutique unit share | 3.6 / 3.8 / 4.0% | **9.3 / 12.2 / 13.5%** |
+| Mean live + off-chart single units | 338.9M | 338.5M |
+| Mean Major single-unit share | 29.6% | 34.2% |
+| Mean Major Top 10 share, 1961 | 30.0% | 34.9% |
+| Mean starting Small / Boutique / Independent closed | 18.0 / 25.1 / 18.9% | **20.9 / 26.5 / 16.3%** |
+
+Boutique gain +7.9 points (SE 1.1); Small closures +2.9 points (SE .9); Major unit share
++4.6 points (SE 1.5); 1961 Major Top 10 share +4.9 points (SE 5.1). Total units hold within
+0.1% on the mean. The Boutique collapse is largely removed, but closures remain open and
+the former six-seed 31.9% Major sales result needs rechecking after this change.
+
+The historical check supports financing-driven agreements and distinguishes master leases
+from label distribution deals; **no nationwide pickup count was verified**. The new count is
+not a historical calibration target. Carry both switches into the next experimental closure
+screen; no defaults or adoption change. Founder-scale overhead/dormancy, the 265-week test,
+film/broadcast second rank and Hot 100 label attribution remain in the user's requested order.
+
+Full sources, assumptions, per-seed results and reproduction commands:
+[DemandAttentionMasterDeals.md](DemandAttentionMasterDeals.md). Build clean; 47 native and
+4 Python checks pass; eight 105-week audits pass. All three original-candidate replays have
+byte-identical `records.csv` to the previous runs. Chart-week share and #1 units remain
+diagnostics, with the ~88% and ~150k targets withdrawn.
+
+#### Founder costs, dormancy and 265-week screen (2026-10-21)
+
+Implemented two further opt-in probes, carrying both master-pickup repairs:
+
+- `--home-operated-micro-labels --home-label-running-cost=25`: a no-employee
+  founder pays a disclosed $25/month running allowance, indexed by the existing
+  yearly cost index, with no standing retainers or office suite. Existing office
+  leases remain payable until review; paid staff and private-company founder payroll
+  retain their ordinary rules. The allowance is a scenario assumption.
+- `--founder-label-dormancy`: after twelve months without a genuine release, a
+  solvent founder whose protected cash cannot fund the reference session may stop
+  operating. Positive catalog cash flow, pending projects, master leases and unpaid
+  backer loans protect continuing operations. Transfers do not reset the clock;
+  newly shopped masters count for the originating founder. This is a permanent
+  operating exit with `exitReason=Dormancy`, separate from bankruptcy. Publishing
+  remains with the dormant owner. Clock, grace and causes survive save/load.
+
+Seven 265-week audits (`dfs-v1`): three matched current-cost/full-founder seed pairs
+(1001/2002/3003), plus a home-cost-only diagnostic on 1001. The commercial-fit,
+stocking, backer, repaired-master and .12/hold flags are fixed in all runs.
+
+| Three-seed means | Current costs | Founder costs + dormancy |
+|---|---:|---:|
+| Starting Small closed | 41.8% | **22.1%** |
+| of which bankruptcy / dormancy | 41.8 / 0% | **18.0 / 4.0%** |
+| Starting Boutique closed | 43.4% | 35.7% |
+| Starting Independent closed | 27.9% | 29.2% |
+| Major singles share, live + off-chart base | **33.2%** | **30.6%** |
+| Major live-record singles share | 25.2% | 22.3% |
+| Boutique singles share | 10.7% | 11.6% |
+| Live + off-chart single units | 866.3M | 865.8M |
+| Major Top 10 share, 1961 | 34.9% | 36.3% |
+
+Small closures are **24.2 / 22.2 / 19.8%**; the mean fits the 20–35% five-year
+design band, with the third seed just below its lower edge. The paired reduction
+is 19.7 points (SE 3.7). Survivor median cash is $5.9k / $7.3k / $6.1k, with median
+monthly overhead near $52–54. Dormancy is a separately recorded solvent exit,
+not a relabeling of negative-cash failures. Boutique mortality remains relatively
+high, and Independent closures are unchanged within seed variation.
+
+**Major sales need watching.** Shares are **33.5 / 28.1 / 30.3%**, versus
+33.8 / 31.5 / 34.4% in the matched current-cost worlds: -2.6 points on the mean
+(SE 1.2), down in all three pairs. The mean remains near the ~32% residual and
+total units differ by only 0.05%. Keep .12/hold for the next screen; the film/broadcast
+second-rank repair may change the sales split again. The 1961 Top 10 excess remains
+36.3% versus 22.1% historically and is the next structural item.
+
+Carry the founder probes into the **experimental** candidate; no shipping defaults
+or whole-bundle adoption change. This screen compares costs/dormancy within the fit
+bundle, not against a newly re-costed no-fit control. Full implementation, cause
+counts, assumptions, reproduction commands and limitations:
+[DemandAttentionFounderSurvival.md](DemandAttentionFounderSurvival.md).
+
+Build clean; 20 founder checks, 54 corporate-accounting checks, 47 demand-stocking
+checks, economic-lifecycle regressions, four Python attribution checks and a
+13-week full-world save/load round trip pass. All seven
+265-week audits pass, with weekly sales and exit causes reconciled. The ~88% and
+~150k targets remain withdrawn.
+
+#### Boutique closure investigation (2026-10-21)
+
+Investigated Boutique closures before continuing to film/broadcast competitors,
+at the user's request. The 35.7% five-year mean is 34.2% bankruptcy and 1.5%
+dormancy; the 20–35% design band applies to starting Small labels, not Boutiques.
+Across the three founder worlds, 142 of 399 starting Boutiques close (35.6% pooled).
+
+Two distinct exposures need assessment. Founder salary supplies 80.0% of summed
+fixed costs among the 136 bankrupt Boutiques; 95 have no paid employees at the
+median of their final six months. Home operation deliberately retains incorporated
+founder payroll. Separately, 46/136 bankrupt firms have wholesale receivables above
+their exit cash deficit plus plant and recorded tax payables. Seed 2002's Riverside
+closes after a $168k tax payment despite $223k of receivables at exit. These are
+observational diagnostics, not independent causal counts or proof of creditworthiness.
+
+Added `analyze_boutique_closures.py` and regression checks. Six existing 265-week
+audits reconcile through monthly cash accounts, with starting tiers and first-exit
+boundaries preserved. No economy or defaults change. Full results, quality strata,
+accounting boundaries and next experimental questions are in
+[DemandAttentionBoutiqueClosures.md](DemandAttentionBoutiqueClosures.md).
+
+Before implementing film/broadcast competitors, research their actual operations
+and mapping to Label Man, including its existing soundtrack/Broadway cast albums.
+Do not assume the previously screened head-template probe establishes that design.
+
+#### Boutique research and contingent founder compensation (2026-10-22)
+
+Historical business-model research supports a curated specialist business that
+can remain small and earn from catalog, with an optional commercial expansion.
+It does not establish a nationwide 1960s closure denominator. The provisional
+design prior is **15–30% five-year operating closures** for established specialist
+Boutiques, centered around 20–25%, with low confidence. Continuing acquisitions
+are separate from bankruptcies and operating dormancy. This is not a sourced
+historical percentage or a closure quota. The old tier-wide 35.7% mixes specialist
+and expansion-oriented archetypes; report both populations separately.
+
+The 80% salary finding was a share of fixed costs among bankrupt simulated
+Boutiques, not all expenses or historical spending. A high labor share alone is
+not an error. The implemented probe addresses mandatory incorporated-founder
+pay regardless of collected income: `--founder-surplus-compensation`, requiring
+home operation, removes eligible no-employee founders' nominal wage from fixed
+overhead. It pays up to half collected operating cash surplus, capped at the
+existing work quote and cash above the ordinary protected reserve. Actual pay
+remains an owner-salary expense. No outside cash, wage arrears or household
+livelihood is invented; employees and other obligations retain their rules.
+
+`RunBoutiqueCompensationAudit.ps1` records regression checks, save/load and the
+matched five-year screen. The switch-off 265-week seed-1001 replay is byte-identical
+to `dfs-v1-founder` in **all 95 CSV streams**. Research, assumptions, strategy/growth
+limitations, source links and the resulting screen are maintained in
+[BoutiqueLabelResearch.md](BoutiqueLabelResearch.md).
+
+**Screen result (3 seeds).** Starting Boutique closures 35.6% → 20.6% pooled
+(−15.2 ± 1.6 points); specialist proxy 30.5% → 16.8%. Small closures unchanged,
+Independent −3.2 points. Survivors' median founder salary −13%, weakest decile
+−45%; tier total salary only −3.7%. Live singles −0.7%; Major share +2.4 ± 1.6
+points (not significant, one seed +5.3). Remaining bankruptcies are mostly
+receivables-rich and cash-short (median $54k owed to them against a $3.5k
+overdraft), so working capital is the next mechanism. Not adopted.
+
+**Working capital (`dms-v1`).** `--distress-master-sales` (opt-in) made 13 sales
+in three worlds (1 Boutique) and is nearly inert: by the decisive review the
+hit's value is in receivables. Boutique/Major moves were reshuffle noise. The
+screen exposed current-year quarterly tax on accrued, uncollected sales, which
+precedes 37% of squeeze bankruptcies and is unhistorical before 1964. See
+[WorkingCapitalResearch.md](WorkingCapitalResearch.md). Distress sales were
+then adopted into the working bundle on accuracy grounds.
+
+**Tax timing (`ttx-v1`).** `--prior-year-corporate-tax` (pre-1964 timing; same
+liability) cut tax-driven squeeze bankruptcies from 63 to 4 (all squeezes 193 →
+138; other failures flat). Independent closures fell 5.5 ± 1.1 points. Boutiques
+are now 13.5% pooled, below the 15–30% prior but within reshuffle noise;
+confirm in the decade A/B. Read end cash net of deferred tax. **Adopted into
+the working bundle** (2026-10-22, user decision); `ttx-v1-tax` is the control
+for later screens.
