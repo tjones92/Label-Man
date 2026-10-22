@@ -157,7 +157,7 @@ by producing label (the master's originator).
 
 | Guard | Pass | Kill |
 |---|---|---|
-| Studio labels' Top 10 share, 1960–62 | 10–20%, falling in 1963–64 | above 25% in any year, or any studio label in the top 3 firms of a seed-year |
+| Studio labels' Top 10 share, 1960–62 | 10–20%, falling in 1963–64 | above 25% in any year; a studio label 1st in any seed-year; or a studio label in the top 3 in more than two of the five years of a seed (relaxed 2026-10-22 from "any top-3 place") |
 | Big-5 Top 10 share | down, toward 22–26% in 1961–62 | up |
 | Field share by **producing** label (revised 2026-10-22, below) | each year no further from the historical field share than the control is | below history by more than the tolerance, or further from history than the control by more than it |
 | Labels with a Top 10 hit / first-time Top 10 labels | within seed noise | below 45 a year |
@@ -294,8 +294,9 @@ reconstructions, owner-grouped):
    and noisy elsewhere. The 1963 gap to history (25 vs 39) predates this switch.
 5. **The guard set should be revisited.** The "no studio label in a top 3" kill
    triggered in two seed-years of 1963 (UA rank 1 with 41 slots in seed 1001, Warner
-   rank 3 in seed 3003). History had MGM 3rd in 1960 (40 slots) and ABC-Paramount 2nd in
-   1962 (32). The guard was stricter than history, and UA's 41 is mostly one act's run
+   rank 3 in seed 3003). Owner-grouped, history had MGM 2nd in 1960 (56 slots) and ABC-Paramount 3rd
+   in 1962 (32); corrected 2026-10-22 from "MGM 3rd, ABC-Paramount 2nd". The guard was stricter than
+   history, and UA's 41 is mostly one act's run
    (26 slots).
 6. **Independents lose units but close less.** Independent unit share −5.2 points;
    Independent closures −4.5 points. Lease advances and royalties, and bid-funded
@@ -360,8 +361,8 @@ The level is still about half of history's in 1960–63. In 1960 the Big-5 overs
 against 35.6) because two of the six Superstars moved from them to studio labels. The field in 1960
 is not where the share comes from. The #1 that sells 8.7k fewer units is consistent across seeds: a
 studio act at #1 sells at MidTier scale. Studio labels reach a top-3 rank in four seed-years (UA
-first in 1963 in seed 2002, with 39 slots). History had MGM third in 1960 and ABC-Paramount second in
-1962, so this kill guard still needs the revision noted under `spl-v1`.
+first in 1963 in seed 2002, with 39 slots). History had MGM second in 1960 and ABC-Paramount third in
+1962, so this kill guard needed the revision made in (e) below.
 
 ### (b) Field guard replaced by the historical field share by year
 
@@ -416,11 +417,75 @@ What is mechanical is the **unit share**. Five plain MidTier firms take 3.6 poin
 roster-only: −4.1 / −1.5 / −4.4). That share loss does not show up as Independent closures, because
 early closures are driven by labels that sell almost nothing either way.
 
-**Status.** Still opt-in, not adopted. Remaining gaps: the 1960 level (7 against 21%), the Big-5's 1960
-overshoot, and the top-3 guard. The next lever is history's 1960 depth: MGM's 40 slots came from more
-than one act, so the studio labels may need more than one or two Star rows each, taken from the Big-5's
-share of the budget rather than added to it. The top-3 kill guard should be relaxed to history's
-precedent (a studio label may rank 2nd–3rd), keeping "above 25% in any year".
+**Status.** Still opt-in, not adopted. Remaining gaps: the 1960 level (7 against 21%) and the Big-5's
+1960 overshoot. Deeper studio rosters were the proposed next lever; (d) below measures the star
+allocation first and finds that more stars are not the gap.
+
+### (d) Who holds the opening stars, against history
+
+`OpeningCareerService.Stamp` now logs `OPENING_CAREER` for every seeded act: label, tier, studio flag,
+archetype, rung, genre and #1 count. One-week runs (`oca-v1-control`, `oca-v1-studio`) reproduce the
+265-week worlds; for example, the same MGM Superstar act is seeded in seed 1001. History has no rung
+labels, so the comparison uses 1960 Top 10 acts: acts with **three or more** Top 10 records stand in for
+Superstars (6 acts), and acts with **two or more** for the star band (19 acts). Groups are owner-grouped
+as in (b). Means of three seeds:
+
+| Group | History, 3+ / 2+ Top 10 records in 1960 | Seeded Superstars, control / studio arm | Seeded Superstars + Stars (30), control / studio arm |
+|---|---|---|---|
+| Big-5 | 2 / 7 (33% / 37%) | 3.0 / 1.3 | 13.0 (43%) / 6.7 (22%) |
+| Studio labels | 2 / 6 (33% / 32%) | 0 / 2.7 | 0 / 9.0 (30%) |
+| Field | 2 / 6 (33% / 32%) | 3.0 / 2.0 | 17.0 (57%) / 13.3 (44%) |
+
+History's 6 are Brenda Lee and Elvis (Big-5), Connie Francis and Paul Anka (studio), and the Everlys
+(still on Cadence for most of 1960) and Bobby Rydell (field). All of the field's seeded stars sit on
+MidTier or Major labels, because the current-hitmaker and star archetypes admit only those tiers.
+History's field stars were on Independents (Cadence, Cameo-Parkway).
+
+**Allocation.** The studio arm already gives the studio labels about history's share of stars (30%
+against 32%). Generic picks add two acts to the eight studio rows, because the studio labels' rosters
+rank high on quality. The extra acts come out of the **Big-5**: their stars halve (13 → 6.7, against
+history's 37% ≈ 11), while the field keeps more than history (44% against 32%). Deepening studio rosters
+from the Big-5's budget would widen the overshoot measured in `spl-v2`. If anything, the studio rows
+should come out of the field's MidTier picks.
+
+**Conversion.** Stars barely become repeat hitmakers in either arm. From the 265-week runs, 1960 acts
+with Top 10 records:
+
+| | Acts with 2+ Top 10 records | 3+ | 2+ that are seeded opening acts |
+|---|---|---|---|
+| History | 19 (Big-5 7, studio 6, field 6) | 6 | — |
+| Control `ttx-v1-tax` | 9.6 (Big-5 5.3, field 4.3) | 2.0 | 3.6 |
+| `spl-v2` | 8.3 (Big-5 2.7, studio **0.3**, field 5.3) | 1.0 | 4.3 |
+
+The studio labels hold nine seeded stars and produce 0.3 repeat Top 10 acts in 1960; their 7.7 Top 10
+acts a year are mostly single hits. The 1960 studio gap (7% against 21%) comes from star-to-hit
+conversion at MidTier scale, not from the number of stars. This is the established
+`hit-acts-release-too-little` gap (0.44 against history's 1.17;
+HistoricalLabelTierBalanceResearch notes Connie Francis's 4–5 Top 10 records a year). It is wider here
+because a MidTier launch does less for a star than a Big-5 launch does. **Not deepening.** Two levers
+follow, in order:
+(1) take the studio rows from the field's MidTier picks instead of the Big-5's;
+(2) the release cadence of hit acts, which belongs to the general hit-act work rather than to this
+switch.
+
+### (e) Rank guard relaxed to history's precedent
+
+Owner-grouped, the best studio label ranked 2 / 7 / 3 / 5 / 7 in 1960–64 (MGM 56 slots in 1960,
+ABC-Paramount 32 in 1962). None was ever 1st, and one held a top-3 place in two of the five years. The
+analyzer's `rank_guard` (`studio-parent-rank-guard.csv`) kills a seed on any of:
+- a studio label ranked 1st in any year;
+- a studio label in the top 3 in more than two years;
+- studio labels above 25% in any year.
+
+| Seed | `spl-v1` best studio rank 1960–64 | Verdict | `spl-v2` best studio rank 1960–64 | Verdict |
+|---|---|---|---|---|
+| 1001 | 30, 27, 6, **1**, 12 | kill (1st 1963) | 10, 5, 17, 7, 15 | pass |
+| 2002 | 14, 6, 9, 5, 10 | pass | 19, 2, 5, **1**, 2 | kill (1st 1963) |
+| 3003 | 8, 6, 5, 3, 7 | pass | 7, 3, 3, 4, 3 | kill (top 3 in 3 years) |
+
+Even relaxed, the guard kills `spl-v2` on two seeds. The pattern is the issue, not the count: history's
+studio peak came in 1960, while the model's studio labels rise in 1961–64, as their acts build careers
+and bids and leases add up.
 
 Reproduce: `SimTools/RunStudioParentAudit.ps1 -RunTag spl-v2`; the roster-only arm is
 `RunCorporateEconomyAudit.ps1 -RunTag spl-v2-roster` with the same bundle plus

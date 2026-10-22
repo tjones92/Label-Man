@@ -41,6 +41,10 @@ HISTORY_STUDIO = {"MGM", "ABC-Paramount", "Warner Bros.", "United Artists", "Par
 # Field guard tolerance: twice the studio arm's seed SE in that year, never under 3 points (about 16 slot-weeks).
 FIELD_TOLERANCE_FLOOR = 0.03
 MIN_LABELS_WITH_TOP10 = 45
+# Rank guard, relaxed to history's precedent: owner-grouped, MGM was 2nd in 1960 (56 slots) and ABC-Paramount 3rd in
+# 1962 (32); no studio label was ever 1st, and one held a top-3 place in two of the five years.
+MAX_STUDIO_TOP3_YEARS = 2
+MAX_STUDIO_SHARE = 0.25
 
 
 def history():
@@ -88,6 +92,25 @@ def field_guard(frame, seeds):
                      "firstTimeGuard": first_verdict,
                      "historyBig5": hist[year]["big5"], "historyStudio": hist[year]["studio"]})
     return pd.DataFrame(rows).set_index("year")
+
+
+def rank_guard(frame, seeds):
+    """Per seed: a studio label may rank 2nd or 3rd by Top 10 slots, as MGM and ABC-Paramount did. Kill on a 1st place,
+    on a studio label in the top 3 in more than two of the five years, or on studio labels above 25% in any year."""
+    rows = []
+    for seed in seeds:
+        row = frame.loc[("studio", seed)]
+        ranks = {y: row.get(f"bestStudioRank_{y}") for y in YEARS}
+        firsts = [y for y, r in ranks.items() if pd.notna(r) and r == 1]
+        top3 = [y for y, r in ranks.items() if pd.notna(r) and r <= 3]
+        over = [y for y in YEARS if row.get(f"top10_studio_{y}", 0) > MAX_STUDIO_SHARE]
+        verdict = ("kill: rank 1 in " + ",".join(map(str, firsts)) if firsts else
+                   f"kill: top 3 in {len(top3)} years" if len(top3) > MAX_STUDIO_TOP3_YEARS else
+                   "kill: above 25% in " + ",".join(map(str, over)) if over else "pass")
+        rows.append({"seed": seed, "ranks": " ".join(f"{y}:{'-' if pd.isna(r) else int(r)}" for y, r in ranks.items()),
+                     "top3Years": len(top3), "maxStudioShare": max(row.get(f"top10_studio_{y}", 0) for y in YEARS),
+                     "rankGuard": verdict})
+    return pd.DataFrame(rows).set_index("seed")
 
 
 def console(tag, seed, weeks):
@@ -209,6 +232,9 @@ def main():
     guard = field_guard(frame, args.seeds)
     print("\n== field guard: by producing label vs history (shares) ==")
     print(guard.to_string(float_format=lambda v: f"{v:.3f}"))
+    ranks = rank_guard(frame, args.seeds)
+    print("\n== rank guard: best studio label's rank by Top 10 slots ==")
+    print(ranks.to_string(float_format=lambda v: f"{v:.3f}"))
     print("\n== studio ledgers ==")
     for seed in args.seeds:
         led = ledgers[("studio", seed)]
@@ -218,6 +244,7 @@ def main():
         os.makedirs(args.out, exist_ok=True)
         frame.to_csv(os.path.join(args.out, "studio-parent-screen.csv"))
         guard.to_csv(os.path.join(args.out, "studio-parent-field-guard.csv"))
+        ranks.to_csv(os.path.join(args.out, "studio-parent-rank-guard.csv"))
         with open(os.path.join(args.out, "studio-parent-ledgers.json"), "w", encoding="utf-8") as f:
             json.dump({f"{a}-{s}": v for (a, s), v in ledgers.items()}, f, indent=1, default=str)
 

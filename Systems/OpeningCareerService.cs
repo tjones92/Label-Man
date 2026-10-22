@@ -160,6 +160,10 @@ public static class OpeningCareerService {
 		int firstNumberOne = history.Where(e => e.peakPosition == 1).Select(e => e.year).DefaultIfEmpty(0).Min();
 		artist.careerEvents.Add($"{start}: Made their first records{(firstNumberOne > 0 ? $"; first #1 in {firstNumberOne}" : "")}.");
 		artist.careerEvents.Add($"{year}: {Describe(spec.Archetype, rung)} on {label.labelName} ({artist.publicHistory.Count} releases since {start}).");
+		// Who holds the opening stars: the screens compare this allocation (by owner tier and studio parent) with history.
+		GD.Print($"OPENING_CAREER artist={artist.artistId} label={label.labelId} tier={label.tier} historical={label.isHistorical} " +
+			$"studio={StudioParentLabels.IsStudioLabel(label)} archetype={spec.Archetype} rung={rung} genre={artist.primaryGenre} " +
+			$"numberOnes={artist.numberOnes} top10={artist.top10Hits}");
 	}
 
 	/// <summary>Moves the whole lineup in time so the lead is <paramref name="leadAge"/>, keeping the band's age
