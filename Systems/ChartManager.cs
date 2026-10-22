@@ -377,6 +377,7 @@ public partial class ChartManager : Node {
 		HeadScaleTemplates.Configure(OS.GetCmdlineUserArgs());
 		WorkloadStaffing.Configure(OS.GetCmdlineUserArgs());
 		BritishLabelDeferral.Configure(OS.GetCmdlineUserArgs());
+		MidTierNationalAr.Configure(OS.GetCmdlineUserArgs());
 		LaunchPushSaturation.Configure(OS.GetCmdlineUserArgs());
 		ArtistWrittenHookScale.Configure(OS.GetCmdlineUserArgs());
 		ArtistMomentumHalfLife.Configure(OS.GetCmdlineUserArgs());

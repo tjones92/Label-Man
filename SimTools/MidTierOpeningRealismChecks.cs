@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-/// <summary>--midtier-opening-realism-check: --workload-scaled-staffing and --defer-british-labels change only what they name.</summary>
+/// <summary>--midtier-opening-realism-check: --workload-scaled-staffing, --defer-british-labels and --midtier-national-ar change only what they name.</summary>
 public static class MidTierOpeningRealismChecks {
 	public static void Run() {
 		int checks = 0;
 		void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("MidTier opening realism: " + why); checks++; }
 		bool staffingWas = WorkloadStaffing.Enabled, britishWas = BritishLabelDeferral.Enabled;
+		bool nationalWas = MidTierNationalAr.Enabled, nationalRuntimeWas = MidTierNationalAr.Runtime;
 		string[] london = { "Parlophone", "Pye", "EMI", "Decca UK" };
 		try {
 			// Staffing: the MidTier tier term follows the roster; other tiers and full rosters are untouched.
@@ -45,9 +46,34 @@ public static class MidTierOpeningRealismChecks {
 			var twins = off.Where(l => !IsLondon(l)).ToList();
 			for (int i = 0; i < twins.Count; i++) Check(Traits(on[i]) == Traits(twins[i]), $"every other label must keep its id and traits ({Traits(twins[i])} vs {Traits(on[i])})");
 			Check(on.Count(l => l.isHistorical) == off.Count(l => l.isHistorical) - 4, "no historical template may be added");
+
+			// National A&R: a capable MidTier reaches beyond 650 road miles only where the switch says, and nobody else gains.
+			AILabel Scout(LabelTier tier, float scouting = .75f, float reach = .8f) => new() { labelId = "realism-scout", tier = tier,
+				scoutingAbility = scouting, nationalReach = reach, geography = new GeographicIdentity { basePlaceId = "new_york" } };
+			var seattle = new SimulatedArtist { artistId = "realism-seattle", geography = new GeographicIdentity { basePlaceId = "seattle", originPlaceId = "seattle" } };
+			var boston = new SimulatedArtist { artistId = "realism-boston", geography = new GeographicIdentity { basePlaceId = "boston", originPlaceId = "boston" } };
+			string Route(AILabel label, SimulatedArtist act, bool launch) {
+				string route = null;
+				if (launch) MidTierNationalAr.RunLaunchAllocation(() => route = SceneRecruitmentService.Explain(label, act, 0).Route);
+				else route = SceneRecruitmentService.Explain(label, act, 0).Route;
+				return route;
+			}
+			MidTierNationalAr.SetEnabledForChecks(false);
+			Check(Route(Scout(LabelTier.MidTier), seattle, true) == "OutsideReach", "off, a MidTier keeps its 650-mile radius at launch");
+			MidTierNationalAr.SetEnabledForChecks(true);
+			Check(Route(Scout(LabelTier.MidTier), seattle, true) == "NationalAr", "on, a capable MidTier reaches nationally at launch");
+			Check(Route(Scout(LabelTier.MidTier), seattle, false) == "OutsideReach", "launch-only leaves weekly recruitment unchanged");
+			Check(Route(Scout(LabelTier.MidTier), boston, true) == "RoadCircuit", "road-circuit acts keep their nearer route");
+			Check(Route(Scout(LabelTier.MidTier, scouting: .4f), seattle, true) == "OutsideReach", "weak scouting confers no national A&R");
+			Check(Route(Scout(LabelTier.MidTier, reach: .4f), seattle, true) == "OutsideReach", "weak national reach confers no national A&R");
+			Check(Route(Scout(LabelTier.Independent), seattle, true) == "OutsideReach", "Independents are untouched");
+			Check(Route(Scout(LabelTier.Major), seattle, false) == "NationalAr", "Majors keep national A&R");
+			MidTierNationalAr.SetEnabledForChecks(false, runtime: true);
+			Check(Route(Scout(LabelTier.MidTier), seattle, false) == "NationalAr", "the runtime switch keeps the route open after launch");
 		} finally {
 			WorkloadStaffing.SetEnabledForChecks(staffingWas);
 			BritishLabelDeferral.SetEnabledForChecks(britishWas);
+			MidTierNationalAr.SetEnabledForChecks(nationalWas, nationalRuntimeWas);
 		}
 		GD.Print($"MIDTIER_OPENING_REALISM_CHECKS passed={checks}");
 	}

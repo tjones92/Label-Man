@@ -53,3 +53,38 @@ public static class BritishLabelDeferral {
 
 	internal static void SetEnabledForChecks(bool value) { configured = true; Enabled = value; }
 }
+
+/// <summary>
+/// Opt-in (SimTools/MidTierClosureResearch.md): a MidTier with national A&R capacity (scouting and national reach both
+/// at least .5) gets the <c>NationalAr</c> recruitment route Majors already have in <see cref="SceneRecruitmentService"/>.
+/// Without it a MidTier recruits within 650 road miles, so city pools run dry at launch: New York's five MidTiers fill
+/// 41 of 91 opening slots, Chess 13/23 and King 12/21. Chess, Atlantic and King signed acts well beyond their home city.
+/// <see cref="Switch"/> applies to launch allocation only; <see cref="RuntimeSwitch"/> also keeps the route open for
+/// weekly recruitment. Off, every slate and signing is unchanged.
+/// </summary>
+public static class MidTierNationalAr {
+	public const string Switch = "--midtier-national-ar";
+	public const string RuntimeSwitch = "--midtier-national-ar-runtime";
+	private static bool configured;
+	public static bool Enabled { get; private set; }
+	public static bool Runtime { get; private set; }
+	// Set only while RosterManager allocates opening rosters, which runs on one thread before week 1.
+	private static bool launchAllocation;
+
+	public static void Configure(IEnumerable<string> arguments) {
+		if (configured) return;
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		Runtime = args.Contains(RuntimeSwitch);
+		Enabled = Runtime || args.Contains(Switch);
+		configured = true;
+	}
+
+	internal static void SetEnabledForChecks(bool value, bool runtime = false) { configured = true; Enabled = value || runtime; Runtime = runtime; }
+
+	internal static bool Applies => Enabled && (Runtime || launchAllocation);
+
+	internal static void RunLaunchAllocation(Action allocate) {
+		launchAllocation = true;
+		try { allocate(); } finally { launchAllocation = false; }
+	}
+}

@@ -60,7 +60,7 @@ public partial class RosterManager {
             initialAccessible = new(StringComparer.Ordinal);
             initialUnsigned = ArtistManager.Instance.GetLaunchRosterCandidates().Select(a => a.artistId).ToHashSet(StringComparer.Ordinal);
         }
-        try { InitializeSceneRostersCore(labels, year); }
+        try { MidTierNationalAr.RunLaunchAllocation(() => InitializeSceneRostersCore(labels, year)); }
         finally { initialAccessible = null; initialUnsigned = null; }
     }
 

@@ -121,3 +121,95 @@ Reading:
    thin rosters (Q1). It touches the local-scene allocation, so it needs its own screen.
 4. Not recommended: raising MidTier opening cash, or exempting MidTiers from `Struggling`. Both impose survival instead of
    letting it be earned.
+
+## 5. National A&R for MidTiers (`--midtier-national-ar`, follow-up 3)
+
+**Switch.** `--midtier-national-ar` gives a MidTier with `scoutingAbility` >= .5 and `nationalReach` >= .5 the `NationalAr`
+route (weight .12) that capable Majors already have in `SceneRecruitmentService.ExplainBeyondGuest`. The route applies
+only while `RosterManager.InitializeSceneRosters` runs. `--midtier-national-ar-runtime` also leaves it open for weekly
+recruitment, to answer whether it should apply after launch. Road-circuit and catchment acts keep their nearer, heavier
+routes. Independents and the founder tiers are untouched. Off, nothing changes: `--midtier-opening-realism-check` adds 9
+route checks (616 pass), and seed 1001 of the control arm was rerun on this build. 95 of its 96 CSVs are byte-identical to `mts-ab2-both`; the other is the wall-clock `performance-profile`.
+
+### Launch fill (1-week census, `--scene-recruitment-audit`, 3 seeds, bundle + staffing + British deferral)
+
+| tier | control fill | national fill | control mean quality | national mean quality |
+|---|---|---|---|---|
+| Major | 570/570 = 100% | 483/570 = 84.7% (61%, 100%, 100%) | .541 | .537 |
+| MidTier | 685/966 = 70.9% | 961/966 = 99.5% | .538 | .544 |
+| Independent | 3709/4778 = 77.6% | 3753/4778 = 78.5% | .542 | .543 |
+| Boutique | 1811/2193 = 82.6% | 1823/2193 = 83.1% | .545 | .542 |
+| Small | 1848/2007 = 92.1% | 1848/2007 = 92.1% | .550 | .549 |
+
+- **MidTiers fill their targets.** In the national arm, 611 of 961 MidTier signings use `NationalAr`. New York's MidTiers
+  fill 258/260 slots against 138/260, Chess 23/23 and 21/21 (was 12/23 and 17/21), King 21/21 and 24/24 (11/21 and
+  17/24), and Cameo-Parkway 17/17, 16/16 and 23/23. Mean act quality does not fall.
+- **Independents do not lose acts at launch; they gain.** Independents gain 21, 17 and 6 acts per seed. A national
+  MidTier draws on distant pools and leaves acts near its home that local Independents then sign. Their mean quality and
+  strong-act counts are level (136 → 142 strong acts).
+- **Seed 1001 exhausts the US launch pool.** Its Majors carry a 225-act target (149–196 in the other seeds). With about
+  20 national MidTiers drawing from the same pool in the round-robin, every accessible US act is signed by round 23. All
+  six Majors stop at 23 acts with no accessible act left: 138/225, 87 fewer acts than control. Total launch signings rise
+  in every seed (2970 → 3000, 2827 → 2944, 2826 → 2924). The route redistributes a finite pool once it binds; it is not
+  free supply.
+
+### A/B: 53 weeks, 3 seeds, game profile, slate-screen-v9 bundle + `--workload-scaled-staffing --defer-british-labels`
+
+The control is `mts-ab2-both` (section 3, same bundle). Arms: `mtn-ab-national` (launch only) and `mtn-ab-runtime`.
+
+| arm | US MidTier closed | per seed (pp) | Independent | Boutique | Small | Historical alive |
+|---|---|---|---|---|---|---|
+| control | 20/59 = 33.9% | | 29/620 = 4.7% | 13/399 = 3.3% | 5/687 = 0.7% | 7/12 |
+| national | 24/59 = 40.7% | +8, +6, +6 | 45/620 = 7.3% (+1, +3, +4 pp) | 14/399 = 3.5% | 2/687 | 4/12 |
+| runtime | 24/59 = 40.7% | +4, +6, +12 | 43/620 = 6.9% (+2, +2, +3 pp) | 17/399 = 4.3% | 1/687 | 4/12 |
+
+| arm | 1960 Top 10 CR4 (per seed) | Major Top 10 | MidTier Top 10 | unit share Major / MidTier / Indep | Q1 distress | MidTier launches | MidTier payroll (Jan) |
+|---|---|---|---|---|---|---|---|
+| control | .333 (.317 .302 .381) | .396 | .162 | .326 / .126 / .352 | .224 | 863 | $12.0k |
+| national | .356 (.352 .388 .327) | .379 | .196 | .316 / .147 / .367 | .253 | 920 | $15.0k |
+| runtime | .338 (.262 .487 .267) | .374 | .183 | .325 / .145 / .356 | .253 | 881 | $15.0k |
+
+Reading:
+
+- **Fuller rosters raise MidTier closures in all 3 seeds.** The switch works as intended: rosters fill and MidTier Top 10
+  share (.162 → .196) and unit share (.126 → .147) rise. But under `--workload-scaled-staffing` a fuller roster brings
+  back the payroll that switch removed. January MidTier payroll rises from $12.0k to $15.0k (+25%) because launch rosters
+  are near the 15-act reference. Year-one gross per MidTier rises only ~10% ($1.12M → $1.24M per firm-year), because
+  new acts have not released yet. Q1 distress weeks rise from .224 to .253. Chess and King close in both arms in every
+  seed, and with full rosters Atlantic and Cameo-Parkway join them. Historical MidTiers alive at week 53 fall from 7/12
+  to 4/12.
+- **The two switches pull against each other.** Workload staffing cut closures by making a thin roster cheap. National
+  A&R removes the thin roster, and with it the saving. Section 1 showed that a tier-fixed payroll against ~2.5 months of
+  opening cash puts MidTiers on the Struggling line. A full roster is the historical case, so the opening cash or the
+  payroll per act, not the roster, has to carry a full-roster MidTier through 1960. That needs its own screen; this one
+  cannot settle it.
+- **Independent closures rise +2.6 pp (29 → 45), with the same sign in every seed.** Seed 3003's 23-vs-10 swing in
+  section 3 means three seeds cannot separate this from reshuffle. It is not lost supply: Independents gain acts at
+  launch, and after launch no Independent appointment fails for lack of a candidate (1 in 3 seeds). Runtime signings dip
+  344 → 324 because more appointments end "advance unaffordable" (97 → 151), a cash signal. It is not lost share
+  either: Independent unit share is .352 → .367. It is not distributor contagion: no closed Independent's distributor
+  failed before it, and nearly all were self-distributed. Their bankruptcies cluster at the week-31–40 month-ends, as in
+  control.
+- **Top 10 CR4 stays in the 30–40 band under launch-only national A&R.** It moves .333 → .356, with per-seed values .327–.388 and
+  the Major share down slightly (.396 → .379). The runtime arm spreads CR4 to .262–.487, and seed 2002 falls outside the
+  band.
+
+### Should it apply at runtime? No.
+
+After launch, MidTier recruitment is not access-bound. Across 3 seeds and all three arms, no MidTier appointment fails for
+lack of a candidate, while about 270 a year end "advance unaffordable". The runtime route adds no signings (104 against 102
+for launch-only and 111 in control). It adds a national draw on talent that Independents also bid for, and it widens the
+CR4 spread. Keep the route launch-only.
+
+### Recommendation
+
+1. Keep `--midtier-national-ar` opt-in, launch-only. It fixes the cause found in Q1: MidTiers open at 99.5% of their
+   drawn targets instead of 71%, Chess, King and Cameo-Parkway open full, and Independents do not lose launch acts. Do not
+   add it to the working bundle yet. It raises MidTier closures (+6.6 pp, all seeds) because it cancels the workload-staffing
+   saving.
+2. Drop `--midtier-national-ar-runtime`, or keep it only as a probe. Runtime MidTier recruitment is bound by cash, not access.
+3. Before adopting it, fix the launch pool. In seed 1001 the round-robin lets national MidTiers exhaust the US pool and
+   leaves the Majors 87 acts short. Options: give national MidTiers the route only after the Majors are full, or treat
+   the binding pool as a supply-sizing miss (launch candidates against summed targets).
+4. Then screen a full-roster MidTier's first year: what carries Chess or King through 1960 with 20 acts? Test this as a
+   cash or cost question, without imposing survival.
