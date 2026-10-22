@@ -213,3 +213,111 @@ CR4 spread. Keep the route launch-only.
    the binding pool as a supply-sizing miss (launch candidates against summed targets).
 4. Then screen a full-roster MidTier's first year: what carries Chess or King through 1960 with 20 acts? Test this as a
    cash or cost question, without imposing survival.
+
+## 6. Majors first, then what carries a full-roster MidTier through 1960
+
+### 6.1 The national route opens after the Majors (changes `--midtier-national-ar`)
+
+At launch the `NationalAr` route for MidTiers now stays shut until every Major has filled its target or run dry.
+Until then a capable MidTier recruits locally as before. If its local pool runs dry, it waits for the route instead of
+leaving the allocation. When the route opens, those MidTiers rejoin the round-robin and their cached access lists are
+rebuilt. `--midtier-opening-realism-check` adds 2 checks (618, then 623 with 6.3).
+
+| tier | control fill | ungated (section 5) | gated |
+|---|---|---|---|
+| Major | 570/570 = 100% | 483/570 = 84.7% | 570/570 = 100% (every seed) |
+| MidTier | 685/966 = 70.9% | 961/966 = 99.5% | 882/966 = 91.3% (82%, 97%, 98%) |
+| Independent | 3709/4778 | 3753/4778 | 3709/4778 (identical to control) |
+| Boutique / Small | 1811 / 1848 | 1823 / 1848 | 1811 / 1848 (identical to control) |
+
+The gated route takes only acts that no other label signed: 197 `NationalAr` MidTier signings on top of control's 685
+local ones. Independent, Boutique and Small launch rosters match control act for act. Seed 1001 still binds: its
+national MidTiers stop at 82% of target because the leftover US pool is about 30 acts.
+
+### 6.2 Anatomy: what closes a full-roster MidTier (`analyze_midtier_first_year_cash.py`)
+
+Ungated national arm (section 5), US MidTiers, medians:
+
+| | n | launch acts | week-1 cash | monthly overhead | cover (months) | below 3 months | H1 receipts/mo | H1 spend/mo | Q1 launch quality | Q1 distress weeks | Q1 launches |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| closed | 24 | 18 | $34k | $18.2k | 2.03 | 20/24 | $20.9k | $28.1k | .616 | 7.7/13 | 3.8 |
+| survived | 35 | 16 | $55k | $18.3k | 3.20 | 11/35 | $143k | $104k | .620 | 0.5/13 | 7.1 |
+
+- **Cost per act is not what separates them.** Both groups carry the same overhead and about $860–990 of payroll per act.
+- **Opening cover sorts the outcomes.** `EconomicLabelLifecycle.ReviewMonth` marks a firm `Struggling` below three months'
+  overhead, and `CommitmentReserve` then holds back new releases. Of the closers, 20/24 open below that line, against
+  11/35 survivors. They spend 7.7 of 13 Q1 weeks Struggling or Dying and launch half as many records. Their records are
+  as good as survivors' (.616 vs .620), so these closures are not earned.
+- **It is not a collection lag.** Opening receivables are zero, and receipts run at ~90% of gross in the same month.
+  Plant credit (30-day terms) is already on by default.
+- **Opening cash ignores the roster.** It is drawn from `LabelStartingFinances` before the organisation is sized. With
+  full rosters, overhead rises from $15.6k to $18.2k and the median cover falls from 3.34 to 2.99 months.
+
+**The answer, in both currencies:**
+
+- **Cash.** Opening with three months of the opening organisation's overhead (~$55k at $18k a month) puts every MidTier
+  on the right side of the Struggling line. Closers need a median $17k more (max $34k). The extra H1 burn of a firm
+  without hits (receipts $21k against $28k spend; static shortfall median $22k, max $40k) should not be covered: that
+  part is earned.
+- **Per-act cost.** At the closers' $34k, three months' cover needs overhead of about $11.3k, so payroll per act would
+  have to fall about 38% (~$860 → ~$530). That would re-price every MidTier, not only the cash-poor ones. Nothing in
+  sections 1–5 says the per-act wage schedule is wrong, so I tested cash.
+
+### 6.3 `--midtier-going-concern-cash` (opt-in)
+
+When the 1960 world opens (`CompetitorManager` → `LabelCompanyAccounts.Open(label, openingWorld: true)`), a MidTier's
+cash is raised to at least `3 × GetMonthlyOverhead()` of the organisation it actually opens with. Cash above that is
+untouched. The floor is booked on the opening balance sheet as contributed capital, before any week runs. Runtime-born
+labels, other tiers and the player are untouched, and no later cash, release, status or survival rule changes. This
+reads a MidTier as a going concern: a firm that carried this roster through 1959 had the working capital to staff it.
+It raises 45 of 59 MidTiers (gated arm), a median $16k (max $39k), about $244k per seed in all. That is against
+$1.2–1.5M gross per MidTier-year.
+
+### 6.4 A/B: 53 weeks, 3 seeds, game profile, slate-screen-v9 bundle + staffing + British deferral
+
+| arm | US MidTier closed | per seed (pp) | Independent | Boutique | Small | Historical alive |
+|---|---|---|---|---|---|---|
+| control (`mts-ab2-both`) | 20/59 = 33.9% | | 29/620 = 4.7% | 13/399 | 5/687 | 7/12 |
+| national, ungated (§5) | 24/59 = 40.7% | +8, +6, +6 | 45/620 = 7.3% | 14/399 | 2/687 | 4/12 |
+| gated | 14/59 = 23.7% | −21, −6, 0 | 29/620 = 4.7% | 10/399 | 3/687 | 8/12 |
+| cash only | 13/59 = 22.0% | −17, −11, −6 | 26/620 = 4.2% | 15/399 | 5/687 | 10/12 |
+| gated + cash | 10/59 = 16.9% | −29, −28, +12 | 27/620 = 4.4% | 12/399 | 2/687 | 9/12 |
+
+| arm | CR4 (per seed) | Major / MidTier Top 10 | unit share Major / MidTier / Indep | Q1 distress | MidTier launches | closed vs survived Q1 launch quality | closed Q1 launches (survivors) |
+|---|---|---|---|---|---|---|---|
+| control | .333 (.317 .302 .381) | .396 / .162 | .326 / .126 / .352 | .224 | 863 | .591 vs .625 | 4.0 (7.2) |
+| national, ungated | .356 (.352 .388 .327) | .379 / .196 | .316 / .147 / .367 | .253 | 920 | .616 vs .620 | 3.8 (7.1) |
+| gated | .396 (.388 .425 .375) | .383 / .238 | .324 / .166 / .330 | .215 | 885 | .616 vs .622 | 3.5 (7.0) |
+| cash only | .331 (.302 .348 .344) | .331 / .190 | .305 / .141 / .352 | .176 | 1048 | .591 vs .624 | 4.6 (7.6) |
+| gated + cash | .359 (.325 .352 .400) | .366 / .231 | .313 / .175 / .335 | .141 | 1124 | .598 vs .628 | 5.7 (7.1) |
+
+Reading:
+
+- **Gating fixes the Major shortfall and costs nobody acts.** The ungated-vs-gated closure gap (24 vs 14) has the same
+  opening cover (31 vs 33 of 59 below three months), so most of it is the ±15 pp reshuffle, not mechanism. The Majors
+  keep their launch rosters, and Independent closures return to control (29).
+- **Gated national A&R alone pushes CR4 to the top of the band** (.396, with seed 2002 at .425). Full MidTiers in the
+  Struggling spiral still close as before, and their records are as good as survivors' (.616 vs .622).
+- **Going-concern cash makes the remaining closures earned.** In the gated + cash arm, closing MidTiers launch at nearly
+  normal volume (5.7 against 7.1) and their records are clearly weaker (.598 vs .628, the widest gap of any arm). Q1
+  distress falls from .224 to .141, and MidTier launches rise 30%. CR4 returns to .359, inside the band, because the
+  surviving MidTiers' Top 10 share comes out of the Majors' (.396 → .366) rather than adding to the head.
+- **Cash alone does less.** On thin rosters the three-month floor is about $36k. A bad first month still drops a firm
+  below the line, so closers still spend 7.1 of 13 Q1 weeks in distress. Its closures fall about as much (13), but
+  MidTiers stay at 71% of their launch targets and their unit share stays at .141.
+- **Independents are unaffected by every arm except the ungated route** (26–29 closures against 29). After launch their
+  appointments never fail for lack of a candidate.
+- Seed 3003 in the gated + cash arm rose from 3 to 5 closures (+12 pp): control's 3003 is already the low-closure
+  seed, and the per-seed reshuffle is about ±15 pp.
+
+### 6.5 Recommendation
+
+1. Make `--midtier-national-ar` (now gated on the Majors) and `--midtier-going-concern-cash` a pair, as a candidate,
+   alongside `--workload-scaled-staffing --defer-british-labels`. Together they open MidTiers near their drawn rosters,
+   leave Majors and Independents their launch acts, keep CR4 in band (.359), and make the remaining closures follow the
+   records (16.9% of US MidTiers in 1960).
+2. Confirm on a five-year screen before making it a default. Watch CR4 in the 1961 REVIEW year, since the gated route
+   alone reaches .40. Also watch whether the late-decade Major consolidation goal still holds once MidTiers survive 1960.
+3. Keep `--midtier-national-ar-runtime` as a probe only. Runtime MidTier recruitment is cash-bound, not access-bound.
+4. Seed 1001's launch pool binds: leftover US supply (~30 acts) is below the national MidTiers' deficit. That is a
+   supply-sizing question (launch candidates against summed targets), separate from this switch.

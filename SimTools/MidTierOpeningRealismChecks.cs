@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-/// <summary>--midtier-opening-realism-check: --workload-scaled-staffing, --defer-british-labels and --midtier-national-ar change only what they name.</summary>
+/// <summary>--midtier-opening-realism-check: --workload-scaled-staffing, --defer-british-labels, --midtier-national-ar and --midtier-going-concern-cash change only what they name.</summary>
 public static class MidTierOpeningRealismChecks {
 	public static void Run() {
 		int checks = 0;
 		void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("MidTier opening realism: " + why); checks++; }
 		bool staffingWas = WorkloadStaffing.Enabled, britishWas = BritishLabelDeferral.Enabled;
-		bool nationalWas = MidTierNationalAr.Enabled, nationalRuntimeWas = MidTierNationalAr.Runtime;
+		bool nationalWas = MidTierNationalAr.Enabled, nationalRuntimeWas = MidTierNationalAr.Runtime, cashWas = MidTierGoingConcernCash.Enabled;
 		string[] london = { "Parlophone", "Pye", "EMI", "Decca UK" };
 		try {
 			// Staffing: the MidTier tier term follows the roster; other tiers and full rosters are untouched.
@@ -34,6 +34,20 @@ public static class MidTierOpeningRealismChecks {
 			Check(Payroll(LabelTier.Independent, 8, true) == Payroll(LabelTier.Independent, 8, false), "Independents are untouched");
 			Check(Payroll(LabelTier.MidTier, 12, true) > Payroll(LabelTier.MidTier, 8, true), "payroll still rises with the roster");
 
+			// Going-concern cash: a MidTier opens with at least three months of its own overhead; nothing else moves.
+			float Opening(LabelTier tier, int acts, float cash, bool on) {
+				MidTierGoingConcernCash.SetEnabledForChecks(on);
+				var firm = Firm(tier, acts); firm.cashReserves = cash;
+				LabelCorporateModel.InitializeOpeningOrganization(firm);
+				MidTierGoingConcernCash.ApplyOpening(firm);
+				return firm.cashReserves / Math.Max(1f, firm.GetMonthlyOverhead());
+			}
+			Check(Opening(LabelTier.MidTier, 20, 20000f, false) < 3f, "off, a $20k 20-act MidTier opens below the Struggling line");
+			Check(Math.Abs(Opening(LabelTier.MidTier, 20, 20000f, true) - 3f) < .001f, "on, it opens with exactly three months' cover");
+			Check(Opening(LabelTier.MidTier, 8, 500000f, true) == Opening(LabelTier.MidTier, 8, 500000f, false), "cash above the floor is never touched");
+			Check(Opening(LabelTier.Independent, 20, 2000f, true) == Opening(LabelTier.Independent, 20, 2000f, false), "Independents are untouched");
+			Check(Opening(LabelTier.Major, 20, 2000f, true) == Opening(LabelTier.Major, 20, 2000f, false), "Majors are untouched");
+
 			// British deferral: the four London templates leave; nothing replaces them; the US set is unchanged.
 			List<AILabel> Generate(bool on) { BritishLabelDeferral.SetEnabledForChecks(on); GameRandom.Seed(17017); return AILabelFactory.GenerateAllLabels(600); }
 			bool IsLondon(AILabel l) => l.isHistorical && london.Any(n => l.labelName == n || l.labelName.StartsWith(n + " ", StringComparison.Ordinal));
@@ -54,7 +68,7 @@ public static class MidTierOpeningRealismChecks {
 			var boston = new SimulatedArtist { artistId = "realism-boston", geography = new GeographicIdentity { basePlaceId = "boston", originPlaceId = "boston" } };
 			string Route(AILabel label, SimulatedArtist act, bool launch) {
 				string route = null;
-				if (launch) MidTierNationalAr.RunLaunchAllocation(() => route = SceneRecruitmentService.Explain(label, act, 0).Route);
+				if (launch) MidTierNationalAr.RunLaunchAllocation(() => route = SceneRecruitmentService.Explain(label, act, 0).Route, routeOpen: true);
 				else route = SceneRecruitmentService.Explain(label, act, 0).Route;
 				return route;
 			}
@@ -68,12 +82,20 @@ public static class MidTierOpeningRealismChecks {
 			Check(Route(Scout(LabelTier.MidTier, reach: .4f), seattle, true) == "OutsideReach", "weak national reach confers no national A&R");
 			Check(Route(Scout(LabelTier.Independent), seattle, true) == "OutsideReach", "Independents are untouched");
 			Check(Route(Scout(LabelTier.Major), seattle, false) == "NationalAr", "Majors keep national A&R");
+			string gated = null; bool waits = false;
+			MidTierNationalAr.RunLaunchAllocation(() => {
+				gated = SceneRecruitmentService.Explain(Scout(LabelTier.MidTier), seattle, 0).Route;
+				waits = MidTierNationalAr.WaitsForLaunchRoute(Scout(LabelTier.MidTier));
+			});
+			Check(gated == "OutsideReach" && waits, "the launch route stays shut, and a dry MidTier waits, until the Majors are done");
+			Check(!MidTierNationalAr.LaunchRouteOpen, "the launch route closes when allocation ends");
 			MidTierNationalAr.SetEnabledForChecks(false, runtime: true);
 			Check(Route(Scout(LabelTier.MidTier), seattle, false) == "NationalAr", "the runtime switch keeps the route open after launch");
 		} finally {
 			WorkloadStaffing.SetEnabledForChecks(staffingWas);
 			BritishLabelDeferral.SetEnabledForChecks(britishWas);
 			MidTierNationalAr.SetEnabledForChecks(nationalWas, nationalRuntimeWas);
+			MidTierGoingConcernCash.SetEnabledForChecks(cashWas);
 		}
 		GD.Print($"MIDTIER_OPENING_REALISM_CHECKS passed={checks}");
 	}

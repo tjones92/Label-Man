@@ -74,15 +74,30 @@ public partial class RosterManager {
             targets.Add(label.labelId, DrawSceneInitialTarget(label));
         }
         var remaining = labels.Where(l => l.CurrentRosterSize < targets[l.labelId]).ToList();
+        // MidTier national A&R (opt-in) opens once the Majors are done; capable MidTiers that ran dry wait for it.
+        var waiting = new List<AILabel>();
+        void OpenNationalRouteOnceMajorsAreDone() {
+            if (MidTierNationalAr.LaunchRouteOpen || !MidTierNationalAr.Enabled || remaining.Any(l => l.tier == LabelTier.Major)) return;
+            MidTierNationalAr.OpenLaunchRoute();
+            foreach (var label in labels.Where(MidTierNationalAr.Qualifies)) initialAccessible?.Remove(label.labelId);
+            remaining.AddRange(waiting);
+            waiting.Clear();
+        }
+        OpenNationalRouteOnceMajorsAreDone();
         for (int round = 0; remaining.Count > 0; round++) {
             sceneInitializationRound = round;
             foreach (var label in SceneInitializationOrder(remaining, round)) {
                 var artist = FindArtistForLabel(label, year);
-                if (artist == null) { remaining.Remove(label); continue; }
+                if (artist == null) {
+                    remaining.Remove(label);
+                    if (MidTierNationalAr.WaitsForLaunchRoute(label)) waiting.Add(label);
+                    continue;
+                }
                 InitialSignArtist(label, artist, year);
                 if (artist.labelId == label.labelId) initialUnsigned?.Remove(artist.artistId);
                 if (label.CurrentRosterSize >= targets[label.labelId]) remaining.Remove(label);
             }
+            OpenNationalRouteOnceMajorsAreDone();
         }
         var unsigned = ArtistManager.Instance.GetLaunchRosterCandidates();
         foreach (var label in labels) {

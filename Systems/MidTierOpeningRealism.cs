@@ -60,7 +60,10 @@ public static class BritishLabelDeferral {
 /// Without it a MidTier recruits within 650 road miles, so city pools run dry at launch: New York's five MidTiers fill
 /// 41 of 91 opening slots, Chess 13/23 and King 12/21. Chess, Atlantic and King signed acts well beyond their home city.
 /// <see cref="Switch"/> applies to launch allocation only; <see cref="RuntimeSwitch"/> also keeps the route open for
-/// weekly recruitment. Off, every slate and signing is unchanged.
+/// weekly recruitment. At launch the route opens only once every Major has filled its target or run dry: national
+/// MidTiers otherwise share the round-robin with the Majors and, in a thin world, exhaust the US pool first. A capable
+/// MidTier whose local pool runs dry meanwhile waits for the route instead of closing its roster. Off, every slate and
+/// signing is unchanged.
 /// </summary>
 public static class MidTierNationalAr {
 	public const string Switch = "--midtier-national-ar";
@@ -69,7 +72,7 @@ public static class MidTierNationalAr {
 	public static bool Enabled { get; private set; }
 	public static bool Runtime { get; private set; }
 	// Set only while RosterManager allocates opening rosters, which runs on one thread before week 1.
-	private static bool launchAllocation;
+	private static bool launchAllocation, launchRouteOpen;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
@@ -81,10 +84,50 @@ public static class MidTierNationalAr {
 
 	internal static void SetEnabledForChecks(bool value, bool runtime = false) { configured = true; Enabled = value || runtime; Runtime = runtime; }
 
-	internal static bool Applies => Enabled && (Runtime || launchAllocation);
+	internal static bool Applies => Enabled && (launchAllocation ? launchRouteOpen : Runtime);
 
-	internal static void RunLaunchAllocation(Action allocate) {
-		launchAllocation = true;
-		try { allocate(); } finally { launchAllocation = false; }
+	internal static bool Qualifies(AILabel label) =>
+		label.tier == LabelTier.MidTier && label.scoutingAbility >= .5f && label.nationalReach >= .5f;
+
+	/// <summary>True while a capable MidTier that has run out of local acts should wait for the route rather than stop.</summary>
+	internal static bool WaitsForLaunchRoute(AILabel label) => Enabled && launchAllocation && !launchRouteOpen && Qualifies(label);
+
+	internal static bool LaunchRouteOpen => launchRouteOpen;
+
+	internal static void OpenLaunchRoute() => launchRouteOpen = true;
+
+	internal static void RunLaunchAllocation(Action allocate, bool routeOpen = false) {
+		launchAllocation = true; launchRouteOpen = routeOpen;
+		try { allocate(); } finally { launchAllocation = false; launchRouteOpen = false; }
+	}
+}
+
+/// <summary>
+/// Opt-in (SimTools/MidTierClosureResearch.md section 6): a MidTier opens 1960 as a going concern, with at least
+/// <see cref="Months"/> of the overhead its opening organisation actually carries. Opening cash is drawn without
+/// regard to the roster, so a full-roster MidTier ($18k a month) often opens with two months' cover, below the
+/// three-month <c>Struggling</c> line, and spends its first quarter releasing at half rate. Those closures do not
+/// follow the records: closing and surviving MidTiers launch records of the same quality. The floor is set once, on
+/// the opening balance sheet, before any week runs; no later cash, release or status rule changes, and a MidTier
+/// whose records fail still closes.
+/// </summary>
+public static class MidTierGoingConcernCash {
+	public const string Switch = "--midtier-going-concern-cash";
+	// The Struggling line in EconomicLabelLifecycle.ReviewMonth: cash below three months' overhead.
+	internal const float Months = 3f;
+	private static bool configured;
+	public static bool Enabled { get; private set; }
+
+	public static void Configure(IEnumerable<string> arguments) {
+		if (configured) return;
+		Enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
+		configured = true;
+	}
+
+	internal static void SetEnabledForChecks(bool value) { configured = true; Enabled = value; }
+
+	internal static void ApplyOpening(AILabel label) {
+		if (!Enabled || label.isPlayerOwned || label.tier != LabelTier.MidTier) return;
+		label.cashReserves = Math.Max(label.cashReserves, Months * label.GetMonthlyOverhead());
 	}
 }

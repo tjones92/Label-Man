@@ -378,6 +378,7 @@ public partial class ChartManager : Node {
 		WorkloadStaffing.Configure(OS.GetCmdlineUserArgs());
 		BritishLabelDeferral.Configure(OS.GetCmdlineUserArgs());
 		MidTierNationalAr.Configure(OS.GetCmdlineUserArgs());
+		MidTierGoingConcernCash.Configure(OS.GetCmdlineUserArgs());
 		LaunchPushSaturation.Configure(OS.GetCmdlineUserArgs());
 		ArtistWrittenHookScale.Configure(OS.GetCmdlineUserArgs());
 		ArtistMomentumHalfLife.Configure(OS.GetCmdlineUserArgs());
