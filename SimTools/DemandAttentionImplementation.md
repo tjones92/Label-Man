@@ -901,3 +901,20 @@ Readings:
 Candidate for the commercial-fit bundle: push weight dropped, `--major-offchart-singles=0.12
 --major-offchart-singles-hold-units`. Not adopted. The bundle's small-label closures, Boutique unit share
 (3-4% in every fit arm against 13% in control) and a 265-week run remain open.
+
+#### Reproducing these screens
+
+`SimTools/analyze_offchart_screen.py` produces every table from "What the shares should be" onward, from
+ChartAuditRunner output (pandas required). Each arm is `NAME=TAG:SEED,...`. `--trace` adds the Majors'
+release and cash ledger, and `--paired BASE:OTHER` gives seed-paired differences with standard errors.
+The six-seed table above:
+
+```powershell
+python SimTools/analyze_offchart_screen.py "nopush=doc-nopush:1001,doc-nopush:2002,doc-np3:3003,doc-np6:4004,doc-np6:5005,doc-np6:6006" "oc12=doc-np-oc12r:1001,doc-np-oc12r:2002,doc-np-oc12r:3003,doc-np-oc12r:4004,doc-np-oc12r:5005,doc-np-oc12r:6006" --trace --paired nopush:oc12
+```
+
+Shares use labels' initial tier and each record's final owner. Under `--ai-master-deals`, a picked-up
+master moves all of its units, including those sold before the deal, to the buyer. Boutique and Small
+shares in those arms are therefore understated. Boutique share is 10-11% with the fit alone (`dlong-cand`),
+7-8% with master deals alone (`dlong-ctlmd`), and 3-4% with both. Measuring by the label that sold each
+week's copies is the open fix.
