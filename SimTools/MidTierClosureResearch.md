@@ -383,3 +383,23 @@ Both switches are byte-identical when off, so `mtn5-control` can be reused as th
    arm through 1964. Re-check Major family share in 1968–69 when that lands.
 3. Watch per-seed CR4 excursions above .40 (2 of 15 seed-years) in the next screens. They come from surviving MidTiers
    charting, not from the Majors.
+
+## 8. Adopted into the working bundle (2026-10-22)
+
+`--workload-scaled-staffing`, `--defer-british-labels`, `--midtier-national-ar` and `--midtier-going-concern-cash`
+join the working bundle (evidence: sections 3, 6 and 7). The bundle now lives in `SimLogs/working-bundle/plan.json`.
+`SimLogs/slate-screen-v9/plan.json` stays as that screen's record. Run it on the game profile:
+
+```
+--single-commercial-fit=2.5 --single-commercial-fit-hit-share=0.15 --single-commercial-fit-regional=0.5
+--single-commercial-fit-scale=0.88 --single-commercial-fit-launch-weight=1.25 --single-commercial-fit-floor=0.12
+--launch-stock-share=0.1 --sell-through-reorders --ai-master-deals --ai-backers --ai-master-national-pickups
+--ai-master-capacity-decisions --major-offchart-singles=0.12 --major-offchart-singles-hold-units
+--home-operated-micro-labels --home-label-running-cost=25 --founder-label-dormancy --founder-surplus-compensation
+--distress-master-sales --prior-year-corporate-tax --hit-act-cadence --hit-act-retention --profile-performance
+--workload-scaled-staffing --defer-british-labels --midtier-national-ar --midtier-going-concern-cash
+```
+
+The four switches stay opt-in in code, so default and player games are unchanged, and they exist only on this branch
+until it merges. A build without them ignores the flags silently, so check that the branch is in before trusting a
+run. Reusable controls for the new bundle are `mtn5-pair` (265 weeks) and `mtn-ab-gated-cash` (53 weeks), 3 seeds each.
