@@ -52,6 +52,7 @@ public static class AILabelFactory {
 	// EMI and Decca UK were corporate majors with full value-chain control; Parlophone
 	// was an EMI imprint and Pye an independently distributed operation. The
 	// parent/imprint ontology problem is tracked separately in the handoff.
+	internal static int DeferredBritishCount => BritishLabelDeferral.Enabled ? britishTemplates.Length : 0;
 	private static readonly LabelTemplate[] britishTemplates = {
 		new LabelTemplate("Parlophone", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }),
 		new LabelTemplate("Decca UK", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }, LabelTier.Major),
@@ -141,6 +142,8 @@ public static class AILabelFactory {
 		foreach (var template in teenHitMachineTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
 		foreach (var template in indieTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in britishTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
+		// Deferred London labels are still drawn, then dropped, so every other label keeps its id and traits.
+		List<AILabel> deferredBritish = BritishLabelDeferral.Enabled ? labels.Skip(labels.Count - britishTemplates.Length).ToList() : null;
 		foreach (var template in countryTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in folkTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Boutique, ref idCounter));
 		foreach (var template in jazzTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Boutique, ref idCounter));
@@ -164,7 +167,8 @@ public static class AILabelFactory {
 
 		int remaining = targetCount - labels.Count;
 		for (int i = 0; i < remaining; i++) labels.Add(GenerateProceduralLabel(ref idCounter));
-		
+		if (deferredBritish != null) labels.RemoveAll(deferredBritish.Contains);
+
 		GD.Print($"AILabelFactory: Generated {labels.Count} labels");
 		return labels;
 	}

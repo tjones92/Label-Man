@@ -375,6 +375,8 @@ public partial class ChartManager : Node {
 		ChartInertiaProbe.Configure(OS.GetCmdlineUserArgs());
 		LabelHoldCapacity.Configure(OS.GetCmdlineUserArgs());
 		HeadScaleTemplates.Configure(OS.GetCmdlineUserArgs());
+		WorkloadStaffing.Configure(OS.GetCmdlineUserArgs());
+		BritishLabelDeferral.Configure(OS.GetCmdlineUserArgs());
 		LaunchPushSaturation.Configure(OS.GetCmdlineUserArgs());
 		ArtistWrittenHookScale.Configure(OS.GetCmdlineUserArgs());
 		ArtistMomentumHalfLife.Configure(OS.GetCmdlineUserArgs());
@@ -551,7 +553,7 @@ public partial class ChartManager : Node {
 	private void GenerateAILabelsIfNeeded() {
 		int targetLabels = 600;
 
-		if (aiLabels == null || aiLabels.Count < targetLabels) {
+		if (aiLabels == null || aiLabels.Count < targetLabels - AILabelFactory.DeferredBritishCount) {
 			if (NameGenerator.Instance == null) {
 				GD.PushWarning("ChartManager: NameGenerator not ready, using fallback names");
 			}

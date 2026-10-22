@@ -150,6 +150,7 @@ public static class LabelCorporateModel {
         bool smallOrganization = founder && label.tier is LabelTier.Small or LabelTier.Boutique or LabelTier.Independent;
         double scale = label.tier switch { LabelTier.Major => 4, LabelTier.MidTier => 1.8,
             LabelTier.Independent => .65, LabelTier.Boutique => .4, _ => .12 };
+        scale = WorkloadStaffing.TierScale(label.tier, scale, acts);
         double direct = Math.Clamp(label.ownedReach, 0, 1);
         double regions = Math.Max(1, label.distributionRegions?.Length ?? 1);
         var targets = new Dictionary<LabelDepartment, double> {
