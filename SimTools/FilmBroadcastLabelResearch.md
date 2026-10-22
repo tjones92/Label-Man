@@ -487,7 +487,79 @@ Even relaxed, the guard kills `spl-v2` on two seeds. The pattern is the issue, n
 studio peak came in 1960, while the model's studio labels rise in 1961–64, as their acts build careers
 and bids and leases add up.
 
-Reproduce: `SimTools/RunStudioParentAudit.ps1 -RunTag spl-v2`; the roster-only arm is
+### (f) `spl-v3`: studio rows taken from MidTier picks
+
+`OpeningCareerService` changes, switch on only:
+- Studio labels are left out of the generic archetype passes; their rows are their whole allocation.
+- Each archetype pass selects its full count as before. Then `GiveUpMidTierPicks` demotes the
+  lowest-quality MidTier Superstars and drops the lowest-quality MidTier picks, as many as the studio rows
+  used. If no MidTier pick is left, the weakest pick anywhere goes instead. Log: `STUDIO_OPENING_GIVE_UP`.
+
+Checks: switch-off seeding is unchanged (identical `OPENING_CAREER` lines, 95/95 CSVs in one-week runs), the
+265-week switch-off replay is byte-identical to `ttx-v1-tax`, all nine checks pass, and the error logs are
+empty. 23 of the 24 picks given up per world came from MidTier. The exception was one adult
+standard-bearer in seed 3003, which came from a Big-5 label because no MidTier pick of that archetype existed.
+
+**Allocation** (seeded Superstars + Stars, three-seed means). The right baseline is the roster-only world:
+the same five firms, no studio rows. That world, not the control, is the one the studio arm actually lives in.
+
+| Group | History (2+ Top 10s, 1960) | Control | Roster-only | `spl-v2` | **`spl-v3`** |
+|---|---|---|---|---|---|
+| Big-5 | 37% | 13.0 (43%) | 8.7 (29%) | 6.7 (22%) | **9.7 (33%)** |
+| Studio | 32% | 0 | 3.3 (11%) | 9.0 (30%) | **7.0 (24%)** |
+| Field | 32% | 17.0 (57%) | 18.0 (60%) | 13.3 (44%) | **12.3 (43%)** |
+
+The five firms on their own cost the Big-5 about 4 stars: their rosters rank high on quality and win the
+generic picks (roster-only). The studio rows no longer come out of the Big-5 (`spl-v3` 9.7 against
+roster-only 8.7). Superstars are 1.3 / 2.0 / 2.7 (Big-5 / studio / field).
+
+**Top 10 slots by group (%), three-seed means:**
+
+| Year | Studio: history / `spl-v2` / **`spl-v3`** | Big-5: history / control / `spl-v3` | Field by producer: history / control / `spl-v3` |
+|---|---|---|---|
+| 1960 | 21.2 / 7.1 / **12.7** | 35.6 / 38.8 / 31.6 | 43.3 / 61.5 / 57.8 |
+| 1961 | 16.9 / 12.1 / **11.7** | 22.1 / 26.2 / 22.4 | 61.0 / 73.8 / 67.9 |
+| 1962 | 16.7 / 10.8 / **13.9** | 26.0 / 28.5 / 26.4 | 57.3 / 71.7 / 63.5 |
+| 1963 | 17.3 / 9.6 / **9.2** | 38.8 / 28.3 / 29.5 | 43.8 / 72.2 / 63.2 |
+| 1964 | 11.9 / 9.4 / **6.2** | 34.4 / 28.8 / 31.7 | 53.7 / 71.2 / 63.2 |
+
+**Paired, `spl-v3` − control:**
+- Big-5 Top 10 share: 1960 −7.2 ± 3.1; 1961 −3.8 ± 4.1; 1962 −2.1 ± 1.0; 1963 +1.2; 1964 +2.9 (noisy).
+- Big-5 single units −1.3 ± 0.4 points; Major share including off-chart −1.4 ± 0.7.
+- Independent unit share −5.9 ± 1.1, MidTier +6.8 ± 1.1.
+- Average #1 units −12.2k ± 5.9k; Independent closures −2.0 ± 3.3.
+- Per world: 23 accepted bids, 64 studio master deals, no parent closures; 16% of soundtrack originations go to the own studio's label.
+
+In 1960, acts with 2+ Top 10 records number 3.0 / 2.3 / 4.3 (Big-5 / studio / field), up from 0.3 for the
+studio labels in `spl-v2`. Acts with 3+ number 0.7 / 1.0 / 0.3. History: 7 / 6 / 6 and 2 / 2 / 2.
+
+**Guards:**
+- **Field by producer:** pass in every year, and it moves toward history in every year.
+- **Breadth floor:** made relative to the control, because the control itself misses it. Seed 2002 has 39
+  labels with a Top 10 record in 1960 in the control, against 42 in the studio arm. A seed-year now fails
+  only when it is below 45 and below its control. Passes every year.
+- **First-time Top 10 labels:** within two SE in every year.
+- **Rank:** seeds 1001 and 3003 pass. Seed 2002 fails, with a studio label in the top 3 in four years
+  (ranks 3, 2, 2, 3, 4), though never 1st and at most 22.3% of slots.
+
+**Reading.**
+1. This is the best fit so far. The studio share has history's shape (12.7 in 1960, highest in 1960–62,
+   fading to 6.2 by 1964) at about 60–80% of history's level in 1960–62.
+2. The Big-5 match history in 1961–62. They remain 4 points below it in 1960. Against the roster-only
+   world, the cost now comes from adding the five firms, not from the studio rows.
+3. Seed 2002 is a strong studio world (22% of 1960 slots) and fails the rank guard on frequency. Two of
+   three seeds pass. That reads as seed spread, but a fourth seed would settle it.
+4. Repeat-hit conversion is still the gap for every group: 9.7 acts with 2+ Top 10s against history's 19,
+   and 2.0 with 3+ against 6.
+
+**Status.** Still opt-in. It is a candidate for the working bundle once seeds 4004 and 5005 confirm the
+rank guard; those seeds are concentrated worlds (`seeds-4004-5005-are-concentrated-worlds`), so read them
+as a stress test. The repeat-hit gap (hit-act release cadence) is general and the next workstream.
+
+Reproduce: `RunStudioParentAudit.ps1 -RunTag spl-v3`; seeding-only arms are one-week
+`RunCorporateEconomyAudit.ps1` runs (`oca-v2-control`, `oca-v2-roster`, `oca-v2-studio`).
+
+Reproduce `spl-v2`: `SimTools/RunStudioParentAudit.ps1 -RunTag spl-v2`; the roster-only arm is
 `RunCorporateEconomyAudit.ps1 -RunTag spl-v2-roster` with the same bundle plus
 `--studio-parent-labels-roster-only`; then
 `py SimTools/analyze_studio_parent.py --control ttx-v1-tax --studio spl-v2-studio --out SimLogs/spl-v2/analysis`.

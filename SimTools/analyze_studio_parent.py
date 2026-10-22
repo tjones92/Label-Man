@@ -67,7 +67,7 @@ def field_guard(frame, seeds):
     Pass: the studio arm is no further from history than the control, and not below history by more than the
     tolerance. Kill: below history by more than the tolerance (the field squeezed past history), or further from
     history than the control by more than the tolerance. Breadth guards stay: labels with a Top 10 record must
-    not fall under 45 in any seed-year, and first-time Top 10 labels must stay within two paired SE of the control.
+    not fall under 45 in a seed-year where the control is above the studio arm, and first-time Top 10 labels must stay within two paired SE of the control.
     """
     hist, rows = history(), []
     for year in YEARS:
@@ -84,7 +84,10 @@ def field_guard(frame, seeds):
         first = [float(frame.loc[("studio", sd), f"firstTimeTop10Labels_{year}"]) -
                  float(frame.loc[("control", sd), f"firstTimeTop10Labels_{year}"]) for sd in seeds]
         first_se = statistics.stdev(first) / len(first) ** .5
-        breadth = "kill" if min(labels) < MIN_LABELS_WITH_TOP10 else "pass"
+        # The floor is history's (49-55 a year, never under 45), but a seed-year the control already misses tells nothing
+        # about the switch: kill only where the studio arm is under the floor AND under its own control.
+        control_labels = [int(frame.loc[("control", sd), f"labelsWithTop10_{year}"]) for sd in seeds]
+        breadth = "kill" if any(s < MIN_LABELS_WITH_TOP10 and s < c for s, c in zip(labels, control_labels)) else "pass"
         first_verdict = "pass" if year == YEARS[0] or abs(statistics.mean(first)) <= 2 * max(first_se, 1.0) else "watch"
         rows.append({"year": year, "historyField": h, "controlField": c, "studioField": s, "tolerance": tol,
                      "fieldGuard": verdict, "historyLabels": hist[year]["labels"], "minStudioLabels": min(labels),

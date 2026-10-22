@@ -107,10 +107,10 @@ public static class OpeningCareerService {
 			}
 		foreach (Spec spec in Specs) {
 			studioCount.TryGetValue(spec.Archetype, out var studio);
-			int count = spec.Count - studio.Acts, superstarsLeft = Math.Max(0, spec.Superstars - studio.Superstars);
 			var candidates = new List<(SimulatedArtist Artist, AILabel Label)>();
 			foreach (AILabel label in labels) {
 				if (label?.roster == null || !spec.Tiers.Contains(label.tier)) continue;
+				if (StudioParentLabels.IsStudioLabel(label)) continue;   // the studio rows are the studio labels' whole allocation
 				foreach (SimulatedArtist artist in label.roster)
 					if (artist != null && !chosen.Contains(artist.artistId) && artist.members?.Count > 0 &&
 						spec.Genres.Contains(GenreCatalog.MapLegacy(artist.primaryGenre, year)))
@@ -120,25 +120,60 @@ public static class OpeningCareerService {
 				int byQuality = b.Artist.CalculateBaseQuality().CompareTo(a.Artist.CalculateBaseQuality());
 				return byQuality != 0 ? byQuality : string.CompareOrdinal(a.Artist.artistId, b.Artist.artistId);
 			});
-			int made = 0;
+			var picks = new List<(SimulatedArtist Artist, AILabel Label, CareerState Rung)>();
 			foreach ((SimulatedArtist artist, AILabel label) in candidates) {
-				if (made >= count) break;
+				if (picks.Count >= spec.Count) break;
 				perLabel.TryGetValue(label.labelId, out var used);
 				if (used.Total >= MaxOpeningActsPerLabel) continue;
-				CareerState rung = made < superstarsLeft ? CareerState.Superstar : spec.Rung;
+				CareerState rung = picks.Count < spec.Superstars ? CareerState.Superstar : spec.Rung;
 				if (rung == CareerState.Superstar && used.Superstars >= MaxSuperstarsPerLabel) rung = spec.Rung;
 				if (rung == CareerState.Star && used.Stars >= MaxStarsPerLabel) continue;
+				picks.Add((artist, label, rung));
+				perLabel[label.labelId] = Count(used, rung, +1);
+			}
+			if (studio.Acts > 0) GiveUpMidTierPicks(picks, perLabel, spec, studio.Acts, studio.Superstars);
+			foreach ((SimulatedArtist artist, AILabel label, CareerState rung) in picks) {
 				Stamp(artist, label, spec, rung, year);
 				chosen.Add(artist.artistId);
-				perLabel[label.labelId] = (used.Superstars + (rung == CareerState.Superstar ? 1 : 0),
-					used.Stars + (rung is CareerState.Star or CareerState.Superstar ? 1 : 0), used.Total + 1);
-				made++;
 			}
-			tally[spec.Archetype] = made + studio.Acts;
+			tally[spec.Archetype] = picks.Count + studio.Acts;
 		}
 		int superstars = labels.Sum(l => l?.roster?.Count(a => a?.openingArchetype != OpeningCareerArchetype.None && a.careerState == CareerState.Superstar) ?? 0);
 		GD.Print($"OpeningCareerService: seeded {chosen.Count} opening careers ({superstars} Superstars) - " +
 			string.Join(", ", tally.Select(t => $"{t.Key} {t.Value}")));
+	}
+
+	private static (int Superstars, int Stars, int Total) Count((int Superstars, int Stars, int Total) used, CareerState rung, int sign) =>
+		(used.Superstars + sign * (rung == CareerState.Superstar ? 1 : 0),
+		 used.Stars + sign * (rung is CareerState.Star or CareerState.Superstar ? 1 : 0), used.Total + sign);
+
+	/// <summary>
+	/// --studio-parent-labels: the studio rows replace other MidTier labels' picks, not the Big-5's. In 1960 the field held a
+	/// third of the repeat Top 10 acts and the Big-5 a bit more (FilmBroadcastLabelResearch.md (d)); taking the studio
+	/// stars out of the quality ranking halved the Big-5's. Drops the lowest-quality MidTier picks and demotes the
+	/// lowest-quality MidTier Superstars; if MidTier runs short, the lowest-quality picks anywhere make up the rest.
+	/// </summary>
+	private static void GiveUpMidTierPicks(List<(SimulatedArtist Artist, AILabel Label, CareerState Rung)> picks,
+			Dictionary<string, (int Superstars, int Stars, int Total)> perLabel, Spec spec, int acts, int superstars) {
+		int Order((SimulatedArtist Artist, AILabel Label, CareerState Rung) p) => p.Label.tier == LabelTier.MidTier ? 0 : 1;
+		var byWeakest = picks.Select((p, i) => (Pick: p, Index: i))
+			.OrderBy(x => Order(x.Pick)).ThenBy(x => x.Pick.Artist.CalculateBaseQuality()).ThenByDescending(x => x.Index).ToList();
+		int demote = superstars;
+		foreach (var x in byWeakest.Where(x => x.Pick.Rung == CareerState.Superstar)) {   // superstar budget first
+			if (demote <= 0) break;
+			perLabel[x.Pick.Label.labelId] = Count(Count(perLabel[x.Pick.Label.labelId], CareerState.Superstar, -1), spec.Rung, +1);
+			picks[x.Index] = (x.Pick.Artist, x.Pick.Label, spec.Rung);
+			demote--;
+		}
+		var drop = new HashSet<int>();
+		foreach (var x in byWeakest.Where(x => picks[x.Index].Rung != CareerState.Superstar)) {
+			if (drop.Count >= acts) break;
+			perLabel[x.Pick.Label.labelId] = Count(perLabel[x.Pick.Label.labelId], picks[x.Index].Rung, -1);
+			drop.Add(x.Index);
+		}
+		GD.Print($"STUDIO_OPENING_GIVE_UP archetype={spec.Archetype} acts={acts} dropped={drop.Count} superstars={superstars} demoted={superstars - demote} " +
+			$"fromMidTier={drop.Count(i => picks[i].Label.tier == LabelTier.MidTier)} labels={string.Join(",", drop.Select(i => picks[i].Label.labelId))}");
+		for (int i = picks.Count - 1; i >= 0; i--) if (drop.Contains(i)) picks.RemoveAt(i);
 	}
 
 	// ---- one act ---------------------------------------------------------------------------------
