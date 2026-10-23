@@ -67,7 +67,8 @@ public static class SceneRecruitmentService {
         if (miles.HasValue && float.IsFinite(miles.Value) && miles.Value > 0f && miles.Value <= radius)
             return Result(true, "RoadCircuit", miles, 1f / (1f + miles.Value / 150f));
         // Native A&R capacity only: borrowed trucks/wholesalers confer no talent connection.
-        if (label.tier == LabelTier.Major && label.scoutingAbility >= .5f && label.nationalReach >= .5f)
+        if ((label.tier == LabelTier.Major || label.tier == LabelTier.MidTier && MidTierNationalAr.Applies) &&
+            label.scoutingAbility >= .5f && label.nationalReach >= .5f)
             return Result(true, "NationalAr", miles, .12f);
         return Result(false, miles.HasValue ? "OutsideReach" : "UnknownRoadRoute", miles);
     }

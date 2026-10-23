@@ -433,7 +433,7 @@ public partial class CompetitorManager : Node {
 		// stream (never GD), so this is inert to the simulated economy.
 		CompositionCatalogService.Initialize(1960, aiLabels, SimulationSeedBootstrap.RequestedSeed ?? 0UL);
 		PopulateInitialRecords();
-		if (LabelCorporateModel.Ledger) foreach (var label in aiLabels) LabelCompanyAccounts.Open(label);
+		if (LabelCorporateModel.Ledger) foreach (var label in aiLabels) LabelCompanyAccounts.Open(label, openingWorld: true);
 		GD.Print($"CompetitorManager: Initialized with {aiLabels.Count} labels");
 	}
 

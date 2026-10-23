@@ -11,10 +11,12 @@ public static class LabelCompanyAccounts {
     public static event Action<AILabel, LabelCompanyStatement> MonthClosed;
     public static event Action<LabelCompanyCashEvent> CashChanged;
 
-    public static void Open(AILabel label) {
+    /// <param name="openingWorld">True only for the labels that open the 1960 world, before any week runs.</param>
+    public static void Open(AILabel label, bool openingWorld = false) {
         var company = LabelCorporateModel.Ensure(label);
         if (company == null || company.accountsOpened) return;
         LabelCorporateModel.InitializeOpeningOrganization(label);
+        if (openingWorld) MidTierGoingConcernCash.ApplyOpening(label);
         company.accountsOpened = true;
         company.openingPeriod = LabelCorporateModel.Period(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
         company.taxYear = LabelCorporateModel.Year(company.openingPeriod);
