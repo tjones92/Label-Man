@@ -54,6 +54,7 @@ public static class AlbumSimulator {
 		float appeal = record.GetQuality();
 		record.artistHeat = artistHeat;
 		float campaign = ChartSimulator.GetCampaignImpact(label);
+		if (LabelReleaseProgramme.CapacityEnabled) campaign *= CompetitorManager.Instance?.ProgrammePushFactor(record) ?? 1f;
 		float campaignAge = record.weeksSinceRelease <= 4 ? 1f : record.weeksSinceRelease <= 12 ? 0.45f : 0.12f;
 		record.currentLabelPush = campaign * campaignAge;
 		record.totalLabelInvestment += record.currentLabelPush;

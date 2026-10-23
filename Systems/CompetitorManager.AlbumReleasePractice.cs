@@ -18,9 +18,11 @@ public partial class CompetitorManager {
 	private string lastPracticeAlbumId;
 	private SimulatedArtist lastPracticeAlbumArtist;
 
+	// The release slate (programme: true) uses the same researched advance prior and incremental test without
+	// enabling the rest of the album-practice bundle.
 	private ReleasePlan ResolveRecordedAlbumCampaign(AILabel label, SimulatedArtist artist, GameDate date,
-		DecisionContext decision, ReleasePlan plan, Record album) {
-		if (!AlbumReleasePractice.IsLive) return plan;
+		DecisionContext decision, ReleasePlan plan, Record album, bool programme = false) {
+		if (!AlbumReleasePractice.IsLive && !programme) return plan;
 		float probability = AlbumReleasePractice.AdvanceCommissionProbability(album.primaryGenre, date.year, AlbumReleasePractice.CampaignScale);
 		float roll = AlbumReleasePractice.Roll("advance", label.labelId, artist.artistId, album.recordId, pipelineWeek);
 		AlbumTrack track = SelectAlbumSingleTrack(album, artist, date.year);

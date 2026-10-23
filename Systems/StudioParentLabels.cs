@@ -92,7 +92,8 @@ public static class StudioParentLabels {
 		Push(label.parentSupportAccrued ??= new List<float>(), accrual);
 		Push(label.parentSupportDrawn ??= new List<float>(), 0f);
 		label.parentSupportYearAccrued += accrual;
-		float need = EconomicLabelLifecycle.CommitmentReserve(label, signing: false) - label.cashReserves;
+		// Planned launches are excluded: the parent honours existing commitments, never soft programme holds.
+		float need = EconomicLabelLifecycle.CommitmentReserve(label, signing: false, includeProgramme: false) - label.cashReserves;
 		float amount = Math.Min(Math.Max(0f, need), Capacity(label));
 		if (amount > 0.005f) Contribute(label, amount, "support", date);
 		return amount;

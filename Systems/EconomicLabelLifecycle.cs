@@ -45,10 +45,11 @@ public static class EconomicLabelLifecycle {
 
 	/// <summary>Cash kept out of new bets. A losing firm reduces new commitments before it misses bills.
 	/// Under --plant-credit, cash already owed to the plant is not spendable either.</summary>
-	internal static float CommitmentReserve(AILabel label, bool signing) {
+	internal static float CommitmentReserve(AILabel label, bool signing, bool includeProgramme = true) {
 		float reserve = Math.Max(label.GetMonthlyOverhead() * (signing ? 2f : 1f),
 			Math.Max(0f, -label.RecentMonthlyCashFlow) * (signing ? 3f : 2f));
 		if (LabelPressingEconomics.PlantCredit) reserve += label.outstandingPlantPayables;
-		return reserve + (float)LabelCorporateModel.TaxAndServiceReserve(label);
+		return reserve + (float)LabelCorporateModel.TaxAndServiceReserve(label) +
+			(includeProgramme && LabelReleaseProgramme.Enabled ? CompetitorManager.Instance?.ProgrammeCashReserved(label.labelId) ?? 0f : 0f);
 	}
 }

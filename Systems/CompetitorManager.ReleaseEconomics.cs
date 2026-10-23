@@ -19,7 +19,7 @@ public partial class CompetitorManager {
 	public event Action<ReleaseProfitGateTelemetry> OnReleaseProfitGate;
 	public event Action<ReleaseCampaignCostTelemetry> OnReleaseCampaignCost;
 
-	private bool PassesReleaseProfitGate(AILabel label, SimulatedArtist artist, int year, Genre genre, ReleasePlan plan) {
+	private bool PassesReleaseProfitGate(AILabel label, SimulatedArtist artist, int year, Genre genre, ReleasePlan plan, bool undoSupplyOnFailure = true) {
 		if (!ReleaseAllInEconomics.IsLive || !plan.economicsEvaluated) return true;
 		float albumProfit = plan.projectedAlbumStandaloneNet - plan.albumPortfolioCredit;
 		float projectProfit = plan.projectedAlbumWithPromoNet - plan.albumPortfolioCredit;
@@ -34,7 +34,7 @@ public partial class CompetitorManager {
 			AlbumProfit = albumProfit, ProjectProfit = projectProfit, SelectedProfit = selected,
 			PortfolioCredit = plan.albumPortfolioCredit, ResolvedSingles = plan.resolvedSingles, Commit = commit
 		});
-		if (!commit) {
+		if (!commit && undoSupplyOnFailure) {
 			// Genre selection provisionally books one supply slot before the format fork.
 			// Waiting creates no release and must not satisfy the annual supply floor.
 			if (annualGenreSupplyByLabel.TryGetValue(label.labelId, out var recent)) UndoSupplySlot(recent, genre);

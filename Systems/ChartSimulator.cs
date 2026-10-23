@@ -1118,6 +1118,7 @@ public static class ChartSimulator {
 		float basePush = RadioPushSpread.Apply(GetCampaignImpact(label));
 		// --record-campaign-spend: the record's own campaign; exactly 1 for any record launched without it.
 		basePush *= RecordCampaignSpend.PushFactor(record);
+		if (LabelReleaseProgramme.CapacityEnabled) basePush *= CompetitorManager.Instance?.ProgrammePushFactor(record) ?? 1f;
 
 		float weekFactor = GetReleaseAgePushFactor(record.weeksSinceRelease);
 

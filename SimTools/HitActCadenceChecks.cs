@@ -65,6 +65,8 @@ public static class HitActCadenceChecks {
 			// The split: share by concurrent count, predecessors filtered to the act's charting singles, radio cut once.
 			Check(HitActCadence.LaunchShare(0) == 1f && HitActCadence.LaunchShare(1) == 0.5f &&
 				Math.Abs(HitActCadence.LaunchShare(2) - 1f / 3f) < 1e-6f, "share must be 1 / (1 + predecessors)");
+			Check(Math.Abs(HitActCadence.LaunchAwareness(.08f, .2f, .3f, .1f, .5f) - .38f) < 1e-6f,
+				"concurrent launches must share fame and campaign awareness while preserving discovery");
 			RecordRuntimeData Rec(string id, string artist, int pos, ReleaseFormat format) =>
 				new RecordRuntimeData { baseRecord = new Record { recordId = id, artistId = artist, format = format }, currentPosition = pos, radioHeat = 0.5f };
 			var chart = new List<RecordRuntimeData> {

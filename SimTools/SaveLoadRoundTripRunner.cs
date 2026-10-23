@@ -63,6 +63,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--artist-momentum-half-life-check")) { ArtistMomentumHalfLifeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--senior-cooling-check")) { SeniorCoolingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-cadence-check")) { HitActCadenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-release-programme-check")) { LabelReleaseProgrammeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--album-scale-career-milestones-check")) { AlbumScaleCareerMilestonesChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--mid-tier-promotion-audit-check")) { MidTierPromotionAuditChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--single-prior-recalibration-check")) { SinglePriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
@@ -147,6 +148,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (integration) { RunIntegration(weeks); return; }
 
 			JsonSerializerOptions opts = SaveGameService.TestJsonOptions;
+			if (LabelReleaseProgramme.Enabled) LabelReleaseProgrammeChecks.CheckLiveState();
 
 			WorldSaveData cap1 = WorldStateService.Capture();
 			string a = JsonSerializer.Serialize(cap1, opts);
@@ -161,6 +163,11 @@ public partial class SaveLoadRoundTripRunner : Node {
 				// Also exercise the real gzip + Godot FileAccess buffer IO path end-to-end, and report the
 				// compressed size (the actual on-disk save size for this world).
 				string gzipStatus = VerifyGzipFileIo(cap1, opts, out long compressedBytes);
+				if (LabelReleaseProgramme.Enabled) {
+					AdvanceOneChartWeek();
+					LabelReleaseProgrammeChecks.CheckLiveState();
+					GD.Print("LABEL_RELEASE_PROGRAMME_RESUME passed");
+				}
 				GD.Print($"SAVELOAD_ROUNDTRIP_PASS weeks={weeks} bytes={a.Length} gzipBytes={compressedBytes} " +
 					$"ratio={(a.Length / (double)Math.Max(1, compressedBytes)):F1}x gzipIo={gzipStatus} " +
 					$"labels={cap1.Labels.Count} artists={cap1.Artists.Count} unsigned={cap1.UnsignedArtistIds.Count} " +

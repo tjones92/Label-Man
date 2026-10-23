@@ -1142,3 +1142,35 @@ year, because the control's field is 13–28 points too high. The Big-5 are −3
 Not adopted. Next: seed their 1960 rosters through opening careers, and replace the
 §17l field guard with the historical field share. Details:
 [FilmBroadcastLabelResearch.md](FilmBroadcastLabelResearch.md).
+
+#### Hit-act release cadence (2026-10-22; matched screen complete)
+
+This screen used the adopted `ttx-v1-tax` bundle with
+`--studio-parent-labels` absent throughout. The existing cadence and retention
+probes are tested separately and together. The same-act launch split now also
+shares artist/campaign awareness, preserving the basic discovery floor; the
+previous implementation split radio only. No shipping defaults change.
+Implementation, measurements and results:
+[DemandAttentionHitActCadence.md](DemandAttentionHitActCadence.md).
+
+**Studio adoption is deferred.** The previous `spl-v1` results do not establish
+acceptance on a changed cadence base. Once cadence lands, re-screen the studio
+switch on that base before deciding adoption; this supersedes the earlier
+ordering that put opening studio rosters immediately next.
+
+The user's follow-up retains both cadence and retention for the scheduling work
+and explicitly authorizes replacing the old one-attempt-per-label-per-week cap.
+The next design is a research-backed release programme and dated roster slate,
+including independent single/LP timing and real shared resource constraints:
+[LabelReleaseSchedulingResearch.md](LabelReleaseSchedulingResearch.md).
+
+
+**Completed (`hac-v2`, three matched seeds, 265 weeks per arm).** All nine
+cadence/retention treatment audits pass; the off replay is byte-identical in all
+95 streams. Both mechanisms raise hit-act singles per 52 signed weeks from 1.52
+to 2.22 and reduce recorded 52-week departures from 32.44% to 16.27%. Repeat-hit
+calibration remains open (1960: 12 two-hit / 2 three-hit acts, history 19 / 6).
+Single units rise 5.84%; 1961 Big-5 Top 10 share rises 10.38 points. Retain both
+for the planned scheduler as the user directed; carry these balance effects into
+that work. No shipping-default or studio-adoption change. Full results and
+measurement boundaries are in the cadence report linked above.

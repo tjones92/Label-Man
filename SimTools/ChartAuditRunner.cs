@@ -1102,6 +1102,7 @@ public partial class ChartAuditRunner : Node {
 		OpenEconomyAuditBOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
+		OpenReleaseProgrammeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
 		songMaterialWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-song-material.csv"));
 		if (OS.GetCmdlineUserArgs().Contains("--polar-song-shadow")) polarSongShadow = new PolarSongShadowTelemetry(outputDirectory, runName);
@@ -3919,6 +3920,7 @@ public partial class ChartAuditRunner : Node {
 		CloseEconomyAuditBOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
+		CloseReleaseProgrammeOutputs();
 		ClosePolarFinalAudit();
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordRetired -= OnRecordRetired;

@@ -10,6 +10,16 @@ directives and hand-written handoffs. Everything a run or an analysis script
 reports, logs, before-edit snapshots) is written under `SimLogs/` and is not
 committed. New JSON under `SimTools/` is gitignored to enforce this.
 
+`--label-release-slate` adds dated single/LP intentions, prepared masters and cash
+holds; `--label-release-capacity` adds multiple weekly slots and a conserved label
+promotion pool. Both retain cadence and retention, and remain experimental.
+`RunLabelReleaseProgrammeAudit.ps1` runs allocation × capacity with studio labels
+on and off. `analyze_label_release_programme.py --plan SimLogs/TAG/plan.json
+--output SimLogs/TAG/review.json` validates the complete screen and reports annual
+issues, concentration, conversion, costs and paired factorial effects. See
+[LabelReleaseProgrammeImplementation.md](LabelReleaseProgrammeImplementation.md)
+for parameters, save v28 and finance boundaries.
+
 The first demand/attention measurement slice appends explicit before/after-marketing
 contribution fields to release outcomes and local single/LP clearing totals to
 market telemetry. `analyze_demand_attention.py PREFIX ... --output SimLogs/REPORT.json`

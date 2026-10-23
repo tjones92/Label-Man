@@ -380,6 +380,7 @@ public partial class ChartManager : Node {
 		ArtistMomentumHalfLife.Configure(OS.GetCmdlineUserArgs());
 		SeniorCooling.Configure(OS.GetCmdlineUserArgs());
 		HitActCadence.Configure(OS.GetCmdlineUserArgs());
+		LabelReleaseProgramme.Configure(OS.GetCmdlineUserArgs());
 		AlbumScaleCareerMilestones.Configure(OS.GetCmdlineUserArgs());
 		KnownActAirplay.Configure(OS.GetCmdlineUserArgs());
 		ArtistHeatAttribution.Configure(OS.GetCmdlineUserArgs());

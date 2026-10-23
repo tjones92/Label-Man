@@ -17,11 +17,10 @@ using Godot;
 /// act with a Top 40 entry in the last <see cref="HotWindowWeeks"/> weeks that has gone <see cref="DueWeeks"/> weeks
 /// since its last release takes the roll ahead of the lottery, and the release is a single. The label's capacity
 /// (<c>releasesPerMonth</c>) is unchanged, so the hit act's extra singles come out of the rest of the roster's rolls.
-/// It comes with the same-act split: while an act has singles on the Hot 100, a new single's airplay reads (its label
-/// push radio and recognition radio lift) are divided by the number of the act's singles then charting, and each
-/// charting predecessor's radio heat is cut by <see cref="PredecessorRadioCut"/>. Awareness and stock stay whole:
-/// fans still buy a known act's new single, while programmers ration its airplay. In history fame bought entry, not
-/// height (§17w). Without the split, more releases would mean more big hits, not more, smaller ones.</item>
+/// It comes with the same-act split: a new single shares its artist/campaign launch awareness and its label-push
+/// and recognition radio lift with the act's singles already on the Hot 100 (1 / (1 + predecessors)). Each charting
+/// predecessor's radio heat is cut by <see cref="PredecessorRadioCut"/>. The basic discovery floor and physical stock
+/// stay whole. This restores awareness sharing to the later radio-only probe for the adopted-bundle screen.</item>
 /// <item><c>--hit-act-retention</c>: a label re-signs any act with a Top 40 under the current contract. No act is let
 /// go within <see cref="RetentionWeeks"/> weeks of its last Top 40 (the lane's own hot window), whether by the label's review or by the career
 /// ladder's own fall to Dropped.</item>
@@ -61,8 +60,9 @@ public static class HitActCadence {
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		string[] args = (arguments ?? Array.Empty<string>()).ToArray();
-		lane = args.Contains(Switch);
-		retention = args.Contains(RetentionSwitch);
+		bool programme = args.Contains(LabelReleaseProgramme.AllocationSwitch) || args.Contains(LabelReleaseProgramme.CapacitySwitch);
+		lane = programme || args.Contains(Switch);
+		retention = programme || args.Contains(RetentionSwitch);
 		configured = true;
 	}
 
@@ -145,6 +145,10 @@ public static class HitActCadence {
 
 	/// <summary>The new single's share of the act's fame and push: 1 / (1 + charting predecessors). 1 when off.</summary>
 	public static float LaunchShare(int predecessors) => !lane || predecessors <= 0 ? 1f : 1f / (1 + predecessors);
+
+	/// <summary>Share the artist and campaign awareness, preserving the single's ordinary discovery floor.</summary>
+	public static float LaunchAwareness(float discovery, float artist, float campaign, float label, float share) =>
+		Mathf.Clamp(discovery + (artist + campaign + label) * share, 0f, 1f);
 
 	public static void CutPredecessors(List<RecordRuntimeData> predecessors) {
 		if (!lane || predecessors == null || predecessors.Count == 0) return;

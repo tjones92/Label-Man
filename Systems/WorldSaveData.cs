@@ -178,6 +178,8 @@ public sealed class RosterSaveData {
 /// whole; their id-keyed indices and the record object refs inside a project are relinked on load. Transient
 /// weekly telemetry (per-label revenue/lifecycle accumulators, reset each week) is intentionally not saved.</summary>
 public sealed class CompetitorSaveData {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public ReleaseProgrammeState ReleaseProgramme { get; set; }
 	public List<AlbumProject> AlbumProjects { get; set; } = new();
 	public List<AlbumProject> PendingAlbumProjects { get; set; } = new();
 	public Dictionary<string, string> ProjectById { get; set; } = new();        // index key -> projectId

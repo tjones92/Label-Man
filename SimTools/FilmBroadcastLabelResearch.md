@@ -572,3 +572,11 @@ Reproduce `spl-v2`: `SimTools/RunStudioParentAudit.ps1 -RunTag spl-v2`; the rost
    year acceptable as the only anchor?
 3. Include Dot and UA (no 1960 Top 10 head presence; Dot is album-led) or only the
    three §12-confirmed firms plus Colpix?
+
+### Sequencing update: hit-act cadence first (2026-10-22)
+
+The user's next workstream is the general hit-act cadence repair. Its screen
+uses the adopted `ttx-v1-tax` bundle with `--studio-parent-labels` off. Studio
+adoption remains deferred until cadence lands and this switch is re-screened on
+that base. The earlier studio-only screen is not acceptance evidence for the
+changed base. See [DemandAttentionHitActCadence.md](DemandAttentionHitActCadence.md).

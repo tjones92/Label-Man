@@ -1,10 +1,12 @@
 using System.Globalization;
 using System.IO;
+using System.Linq;
 
 public partial class ChartAuditRunner {
 	private StreamWriter albumPracticeWriter;
 	private void OpenAlbumPracticeOutputs(string directory) {
-		if (!AlbumReleasePractice.Enabled) return;
+		// The release slate takes advance-single decisions through the same rule.
+		if (!AlbumReleasePractice.Enabled && !Godot.OS.GetCmdlineUserArgs().Contains(LabelReleaseProgramme.AllocationSwitch)) return;
 		albumPracticeWriter = CreateWriter(Path.Combine(directory, $"{runName}-album-practice.csv"));
 		albumPracticeWriter.WriteLine("week,year,labelId,artistId,albumId,singleId,genre,format,route,reason,commissionProbability,roll,singleContribution,preparationCost,campaignCost,lpLift,cannibalization,delayCost,incrementalNet,sourceAlbumAge,sourceAlbumPeak,opportunityCost,masterId,songId,hook,production,priorChartedSingles");
 		CompetitorManager.Instance.OnAlbumPracticeDecision += OnAlbumPracticeDecision;
