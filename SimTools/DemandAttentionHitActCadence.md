@@ -13,6 +13,12 @@ the preceding 52 weeks the next label release roll once it has waited 13 weeks.
 Longest wait wins, with artist ID breaking ties. The roll becomes a single if
 the format decision chose an album. Label release capacity is unchanged.
 
+Reproduction note: awareness sharing is now explicitly named by
+`--hit-act-awareness-split`; `RunHitActCadenceAudit.ps1` supplies it in the lane
+and combined arms. The working bundle's plain `--hit-act-cadence` retains the
+radio-only behavior used by `mtn5-pair`, so scheduler-off controls replay that
+reference. Older cadence manifests used the awareness behavior implicitly.
+
 The previous implementation had evolved into a radio-only launch split
 (`HistoricalLabelTierBalanceResearch.md`, §17y). This screen restores the
 awareness component requested for this work: with N other same-act singles on

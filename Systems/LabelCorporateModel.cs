@@ -279,7 +279,8 @@ public static class LabelCorporateModel {
         double projects = Math.Max(company.recentProjectSpend, label.releasesPerMonth * label.GetProductionCost());
         return 3 * overhead + 2 * projects + Math.Max(0, company.recentPlantSpend)
             + Math.Max(0, label.outstandingPlantPayables) + TaxAndServiceReserve(label)
-            + Math.Max(0, -label.RecentMonthlyCashFlow) * 2;
+            + Math.Max(0, -label.RecentMonthlyCashFlow) * 2
+            + (LabelReleaseProgramme.Enabled ? CompetitorManager.Instance?.ProgrammeCashReserved(label.labelId) ?? 0f : 0f);
     }
 
     // Shared by project/signing commitments and the larger investment/payout buffer.

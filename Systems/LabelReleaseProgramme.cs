@@ -10,6 +10,7 @@ public static class LabelReleaseProgramme {
 	public const string CapacitySwitch = "--label-release-capacity";
 	public static bool AllocationEnabled { get; private set; }
 	public static bool CapacityEnabled { get; private set; }
+	public static bool MaterialSearchEnabled { get; private set; }
 	public static bool Enabled => AllocationEnabled || CapacityEnabled;
 	public static int SingleFloor { get; private set; } = 6;
 	public const int Horizon = 8, PreparationWeeks = 2, AlbumFloor = 18, CampaignWeeks = 4;
@@ -20,6 +21,9 @@ public static class LabelReleaseProgramme {
 		var args = arguments.ToArray();
 		AllocationEnabled = args.Contains(AllocationSwitch);
 		CapacityEnabled = args.Contains(CapacitySwitch);
+		MaterialSearchEnabled = args.Contains("--anticipatory-material-search");
+		if (MaterialSearchEnabled && !AllocationEnabled)
+			throw new ArgumentException("--anticipatory-material-search requires " + AllocationSwitch);
 		SingleFloor = (int)Read(args, "--slate-single-floor=", 6, 1, 13);
 		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 16);
 		MajorAlbumsPerMonth = Read(args, "--programme-major-albums=", 5, 0, 12);
@@ -52,18 +56,29 @@ public static class LabelReleaseProgramme {
 			(label.releasesPerMonth * .67f, label.releasesPerMonth * .33f);
 	}
 	internal static bool IsOpen(ReleaseSlateItem item) => item.State is not (ReleaseSlateState.Issued or ReleaseSlateState.Cancelled);
+	internal static bool CanUseIdleSlot(ReleaseSlateItem item, int week) =>
+		IsOpen(item) && item.State != ReleaseSlateState.AwaitingDelivery && item.IntendedWeek > week && item.DueWeek > week &&
+		!(item.State == ReleaseSlateState.Postponed && item.LastReviewWeek == week);
+	internal static int EarliestIssueWeek(ReleaseSlateItem item) => item.PreparedWeek is int prepared
+		? prepared == item.ProposedWeek && prepared == item.IntendedWeek ? prepared : prepared + 1
+		: item.ReadyWeek; // Older saves did not record the actual session week.
 	internal static string LabelIdentity(AILabel label) => FormattableString.Invariant(
 		$"{label.labelName}|{label.founderName}|{label.foundedYear}|{label.homeCityId}|{label.isHistorical}|{label.archetype}|{label.budgetLevel:R}|{label.productionQuality:R}|{label.marketingPower:R}");
 	internal static void SetForChecks(bool allocation, bool capacity) { AllocationEnabled = allocation; CapacityEnabled = capacity; }
+	internal static void SetMaterialSearchForChecks(bool value) => MaterialSearchEnabled = value;
 }
 
-public enum ReleaseSlateState { Proposed, InPreparation, Ready, Scheduled, Postponed, Issued, Cancelled }
+public enum ReleaseSlateState { Proposed, InPreparation, Ready, Scheduled, Postponed, Issued, Cancelled, AwaitingDelivery }
 public sealed class ReleaseSlateItem {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public ProgrammeMaterialSearch MaterialSearch;
 	public string Id, LabelId, ArtistId, Source, Evidence, Reason, RecordId;
 	public ReleaseFormat Format;
 	public ReleaseSlateState State;
 	public GameDate IntendedDate, ActualDate;
 	public int ProposedWeek, IntendedWeek, DueWeek, ReadyWeek, LastReviewWeek, ActualWeek, ContractSequence;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? PreparedWeek;
 	public float ReservedProduction, ReservedMarketing, ReservedPressing, Score;
 	public Record PreparedRecord;
 	public bool PreparedRetainedIdentity;
@@ -88,5 +103,5 @@ public sealed class ReleaseProgrammeState {
 public sealed class ProgrammeResourceTelemetry {
 	public int Week, Year, Attempts, Successes, OpenItems, DueFollowUps, UnplannedFollowUps;
 	public string LabelId, Tier;
-	public float CashReserved, PromotionPool, PromotionBooked, SingleWeeklyRate, AlbumWeeklyRate;
+	public float CashReserved, PromotionPool, PromotionBooked, PromotionCommittedPeak, SingleWeeklyRate, AlbumWeeklyRate;
 }

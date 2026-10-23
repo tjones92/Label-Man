@@ -12,13 +12,43 @@ committed. New JSON under `SimTools/` is gitignored to enforce this.
 
 `--label-release-slate` adds dated single/LP intentions, prepared masters and cash
 holds; `--label-release-capacity` adds multiple weekly slots and a conserved label
-promotion pool. Both retain cadence and retention, and remain experimental.
+promotion pool. Both retain cadence and retention. The active working bundle
+(`SimLogs/working-bundle/plan.json`) enables both plus `--studio-parent-labels`
+by user decision; economy/statistics will be reassessed on this complete base.
+The prior bundle is archived alongside it as `mtn5-pair-plan.json`.
 `RunLabelReleaseProgrammeAudit.ps1` runs allocation × capacity with studio labels
-on and off. `analyze_label_release_programme.py --plan SimLogs/TAG/plan.json
+on and off, explicitly removing those three treatments from the saved working
+bundle to reconstruct its untreated control. Its default is one seed, 53 weeks;
+longer validation follows candidate review. `analyze_label_release_programme.py --plan SimLogs/TAG/plan.json
 --output SimLogs/TAG/review.json` validates the complete screen and reports annual
 issues, concentration, conversion, costs and paired factorial effects. See
 [LabelReleaseProgrammeImplementation.md](LabelReleaseProgrammeImplementation.md)
 for parameters, save v28 and finance boundaries.
+
+Through `SaveLoadRoundTripRunner.tscn`, `--label-release-ownership-check` probes
+subsidiary continuity and protection of slate cash from payouts/capital purchases.
+`--label-release-ownership-roundtrip --weeks=53` searches up to 53 weeks for a
+funded independent with a pending LP and a prepared slate master, forces the
+existing absorption path, checks whole-world and gzip save/load, then resumes
+through LP delivery under its retained imprint. Use the complete working bundle;
+run both studio settings. These are forced integration scenarios, not evidence
+on acquisition frequency or historical consolidation calibration.
+
+`--distribution-funding-check` exercises protected advance quotes, atomic
+buyout/replacement payments, voluntary exits, financing accounts and stale
+player-offer acceptance. `--distribution-funding-roundtrip --weeks=13` stages
+a funded incumbent advance and Major buyout in a live world with a prepared
+slate master, checks full-world and gzip save/load, then resumes recoupment.
+Use the full working bundle with studio labels both off and on. The transaction
+is forced for validation; it does not measure late-decade poaching frequency.
+
+`--distribution-ownership-check` checks ownership and distribution paths together,
+including direct, nested and mixed dependency loops. Under the programme, offer
+selection, signing, replacement and absorption reject a path back to the client.
+Acceptance also rechecks whether the client has become a subsidiary, studio
+division or a tier that cannot sign. Rejected transactions preserve existing
+contracts, claims, cash and prepared work; stale player offers remain pending.
+Run with the working bundle and studio labels both off and on.
 
 The first demand/attention measurement slice appends explicit before/after-marketing
 contribution fields to release outcomes and local single/LP clearing totals to

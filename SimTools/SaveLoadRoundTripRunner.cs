@@ -65,6 +65,13 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--senior-cooling-check")) { SeniorCoolingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-cadence-check")) { HitActCadenceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-release-programme-check")) { LabelReleaseProgrammeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-release-ownership-check")) { LabelReleaseOwnershipChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distribution-funding-check")) { DistributionFundingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distribution-ownership-check")) { DistributionOwnershipChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-material-check")) { ProgrammeMaterialChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-material-roundtrip")) { RunProgrammeMaterialRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distribution-funding-roundtrip")) { RunDistributionFundingRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-release-ownership-roundtrip")) { RunProgrammeOwnershipRoundTrip(weeks); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--album-scale-career-milestones-check")) { AlbumScaleCareerMilestonesChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--mid-tier-promotion-audit-check")) { MidTierPromotionAuditChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--single-prior-recalibration-check")) { SinglePriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
@@ -358,11 +365,13 @@ public partial class SaveLoadRoundTripRunner : Node {
 			PlayerDesk.Instance.DebugSetPendingDistributionOffer(pendingOfferStage);
 
 			var signedDealStage = new DistributionDeal {
-				distributorId = "probe_distributor_2", reachGranted = 0.6f, grantedRegions = new[] { "probe_region_2" },
+				distributorId = LabelReleaseProgramme.Enabled ? CompetitorManager.Instance.GetAllLabels().First(l => l.IsActive && l.tier == LabelTier.Major && !l.isPlayerOwned).labelId
+					: "probe_distributor_2", reachGranted = 0.6f, grantedRegions = new[] { "probe_region_2" },
 				marginSkim = 0.35f, ownsMasters = true, advance = 800f, unrecoupedAdvance = 800f,
 				signedWeek = ChartManager.Instance.GetCurrentChartWeek(), termWeeks = 104, origin = DealOrigin.DistributorCourted
 			};
-			CompetitorManager.Instance.SignDistributionDeal(PlayerDesk.Instance.Label, signedDealStage);
+			if (!CompetitorManager.Instance.SignDistributionDeal(PlayerDesk.Instance.Label, signedDealStage))
+				throw new InvalidOperationException("The staged integration distribution offer could not be funded.");
 
 			// Promo mechanic directive §14 verification 2: stage every piece of persisted promo state --
 			// a split press run (§3.1), servicing rows at real reporter stations (§3.2), a resolved trade

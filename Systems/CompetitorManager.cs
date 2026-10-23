@@ -612,7 +612,8 @@ public partial class CompetitorManager : Node {
 		foreach (AILabel major in aiLabels) {
 			if (major.tier != LabelTier.Major || !major.IsActive || major == client) continue;
 			if (WouldCreateCircularDeal(client, major)) continue;
-			if (major.cashReserves <= major.GetMonthlyOverhead() * 3f) continue;
+			if (LabelReleaseProgramme.Enabled ? AvailableDistributionFunding(major, DistributionBuyout(client.activeDeal)) <= 0
+				: major.cashReserves <= major.GetMonthlyOverhead() * 3f) continue;
 			if (!(major.distributionRegions ?? System.Array.Empty<string>())
 				.Any(region => !client.HasDistributionInRegion(region))) continue;
 			foreach (AILabel held in aiLabels) {
@@ -1553,6 +1554,7 @@ public partial class CompetitorManager : Node {
 		if (resolution == DealResolution.Exit || resolution == DealResolution.Graduated) {
 			AILabel distributor = GetLabel(deal.distributorId);
 			float paid = distributor == null || distributor == client ? 0f
+				: LabelReleaseProgramme.Enabled ? Mathf.Min(balance, AvailableDistributionFunding(client))
 				: DistributionAdvanceRecoupment.ExitSettlement(balance, client.cashReserves, client.GetMonthlyOverhead());
 			if (paid > 0f) {
 				LabelCompanyAccounts.ChangeCash(client, -paid, LabelCashKind.Financing);
@@ -1571,7 +1573,13 @@ public partial class CompetitorManager : Node {
 	}
 
 	/// <summary>Audit B3: a poaching Major buys the incumbent's balance out and carries it on the new deal.</summary>
-	internal void BuyOutDistributionAdvance(AILabel client, DistributionDeal current, AILabel incumbent, DistributionDeal offer, AILabel major) {
+	internal bool BuyOutDistributionAdvance(AILabel client, DistributionDeal current, AILabel incumbent, DistributionDeal offer, AILabel major) {
+		if (!CanFundDistributionDeal(major, offer.advance, DistributionBuyout(current))) return false;
+		PayDistributionBuyout(client, current, incumbent, offer, major);
+		return true;
+	}
+
+	private void PayDistributionBuyout(AILabel client, DistributionDeal current, AILabel incumbent, DistributionDeal offer, AILabel major) {
 		if (!DistributionAdvanceRecoupment.Enabled || current == null || current.unrecoupedAdvance <= 0f) return;
 		float balance = current.unrecoupedAdvance;
 		current.unrecoupedAdvance = 0f;
@@ -3828,8 +3836,15 @@ public partial class CompetitorManager : Node {
 			int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 			// Release Judgement 2A (--release-judgement-select): a live orphan single is cut from the act's shortlist; an empty
 			// or refused shortlist, and every other caller, keeps the legacy source choice. Off: never reached.
-			SelectedSongMaterial material = judgedOrphan && format == ReleaseFormat.Single && ReleaseJudgement.Selecting
+			bool plannedMaterial = LabelReleaseProgramme.MaterialSearchEnabled && format == ReleaseFormat.Single &&
+				issuingSlateItem?.MaterialSearch?.State == ProgrammeMaterialState.Ready;
+			SelectedSongMaterial material = plannedMaterial ? BuildProgrammeMaterial(issuingSlateItem, label, artist, record, record.primaryGenre, year, pipelineWeek)
+				: judgedOrphan && format == ReleaseFormat.Single && ReleaseJudgement.Selecting
 				? AiRepertoireService.SelectMaterial(label, artist, record, record.primaryGenre, year) : null;
+			if (plannedMaterial && material == null) {
+				MaterialReview(issuingSlateItem, pipelineWeek, ProgrammeMaterialState.Failed, "material-refused-at-session");
+				return null;
+			}
 			material ??= SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek);
 			if (PolarSongBehavior.UsePolarFitSelection && material == null) return null;
 			// Early-game Phase 5A (§7.2): a song the player placed with this label, cut in place of the outside song the act
@@ -4129,7 +4144,9 @@ public partial class CompetitorManager : Node {
 		if (runtime == null || snapshot == null) return;
 		float quality = runtime.GetQuality();
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
-		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + label.reputation * 0.1f;
+		float labelAwareness = label.reputation * 0.1f;
+		if (LabelReleaseProgramme.CapacityEnabled) labelAwareness *= ProgrammePushFactor(runtime);
+		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + labelAwareness;
 		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
 		// A5: the same launch without the promo's awareness bonus.
 		if (trackPromoShadow) { runtime.promoShadowAwareness = Mathf.Clamp(baseAwareness, 0f, 1f); runtime.promoShadowDemand = 0d; }
@@ -4213,6 +4230,8 @@ public partial class CompetitorManager : Node {
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(project.artistId);
 			ReleasePreparedRecord(project.albumRecord, artist, owner, date, project.albumProductionCost,
 				project.releaseTimeAlbumExpectedNet, ProjectRecordRole.LinkedAlbum, project.projectId);
+			if (LabelReleaseProgramme.Enabled) CompleteProgrammeDelivery(project.albumRecord.recordId, date);
+			BookProgrammeCampaign(project.albumRecord, artist, owner, marketingBudget);
 			RecordRuntimeData promoRuntime = ChartManager.Instance.GetRecordRuntimeData(project.promoSingleId);
 			int promoPeak = promoRuntime?.peakPosition ?? project.promoPeakAtDrop;
 			project.promoPeakAtDrop = promoPeak;
@@ -4255,7 +4274,7 @@ public partial class CompetitorManager : Node {
 		float programmeShare = ProgrammePushFactor(runtimeData);
 		if (LabelReleaseProgramme.CapacityEnabled) labelAwareness *= programmeShare;
 		// --hit-act-cadence (§17y): a single launched while the act already has singles on the Hot 100 shares the act's
-		// launch awareness and airplay with them, and cools their radio. Physical stock is unchanged.
+		// airplay with them, and cools their radio. The separate awareness probe also shares launch awareness.
 		// share is exactly 1 when off or when nothing else by the act is charting.
 		float share = 1f;
 		if (HitActCadence.SplitEnabled && !isAlbum) {
@@ -4265,7 +4284,7 @@ public partial class CompetitorManager : Node {
 		}
 
 		// Keep the original arithmetic when off, including its floating-point addition order.
-		runtimeData.awareness = share < 1f
+		runtimeData.awareness = HitActCadence.AwarenessSplitEnabled && share < 1f
 			? HitActCadence.LaunchAwareness(0.08f, artistAwareness, marketingAwareness, labelAwareness, share)
 			: Mathf.Clamp((isAlbum ? 0.04f : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
 
@@ -4720,29 +4739,15 @@ public partial class CompetitorManager : Node {
 			if (major == null) return;
 		}
 
-		DistributionDeal offer = GenerateDealTerms(client, major, DealOrigin.DistributorCourted, year, currentWeek);
+		float buyout = LabelReleaseProgramme.Enabled ? DistributionBuyout(current) : 0;
+		if (LabelReleaseProgramme.Enabled && !CanFundDistributionDeal(major, 0, buyout)) return;
+		DistributionDeal offer = GenerateDealTerms(client, major, DealOrigin.DistributorCourted, year, currentWeek, buyout);
 		DistributionOffersGenerated++;
 		if (!ShouldAcceptDeal(client, offer)) return;
-		DistributionOffersAccepted++;
-
 		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
 			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
 		offer.Cover(evidence.EarningRecordId);
-		if (dropped != null) {
-			// The dropped imprint keeps what a completed term leaves behind, exactly as an
-			// ordinary exit does, and is free to place its line with wholesale houses instead.
-			DistributionDeal endedDeal = dropped.activeDeal;
-			dropped.ownedReach = Mathf.Min(1f, dropped.ownedReach + (endedDeal.reachGranted * 0.50f));
-			SettleEndedDistributionAdvance(dropped, endedDeal, DealResolution.Dropped);
-			EmitDealEvent(dropped, major, endedDeal, DealResolution.Dropped, dropped.DistributionDependency);
-			dropped.activeDeal = null;
-		}
-		BuyOutDistributionAdvance(client, current, incumbent, offer, major);
-		EmitDealEvent(client, incumbent, current, DealResolution.Poached, client.DistributionDependency);
-		client.activeDeal = offer;
-		LabelCompanyAccounts.ChangeCash(client, offer.advance, LabelCashKind.Financing);
-		LabelCompanyAccounts.ChangeCash(major, -offer.advance, LabelCashKind.Financing);
-		EmitDealEvent(client, major, offer, DealResolution.Signed, client.DistributionDependency);
+		TryCommitDistributionPoach(client, current, incumbent, offer, major, dropped);
 	}
 
 	private void TryGenerateDistributionOffer(AILabel client, int year, int currentWeek) {
@@ -4810,15 +4815,16 @@ public partial class CompetitorManager : Node {
 			OnDistributionOfferAttempt?.Invoke(attempt);
 			return;
 		}
-		DistributionOffersAccepted++;
-
 		// The deal is struck to carry the record that broke out regionally. Everything
 		// the label releases while the contract runs then goes out through the same
 		// network; the back catalog stays on the label's own distribution.
 		offer.Cover(regionalEvidence.EarningRecordId);
-		client.activeDeal = offer;
-		LabelCompanyAccounts.ChangeCash(client, offer.advance, LabelCashKind.Financing);
-		LabelCompanyAccounts.ChangeCash(distributor, -offer.advance, LabelCashKind.Financing);
+		if (!TryStartDistributionDeal(client, distributor, offer)) {
+			attempt.outcome = "FundingUnavailable";
+			OnDistributionOfferAttempt?.Invoke(attempt);
+			return;
+		}
+		DistributionOffersAccepted++;
 		attempt.outcome = "Signed";
 		OnDistributionOfferAttempt?.Invoke(attempt);
 		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
@@ -4961,13 +4967,17 @@ public partial class CompetitorManager : Node {
 			: distributor.tier == LabelTier.MidTier ? 6 : 3;
 		if (aiLabels.Count(label => label.activeDeal?.distributorId == distributor.labelId) >= capacity) return false;
 		float minimumAdvance = origin == DealOrigin.DistributorCourted ? client.GetMonthlyOverhead() * 6f : 0f;
-		if (distributor.cashReserves - minimumAdvance <= distributor.GetMonthlyOverhead() * 3f) return false;
+		if (LabelReleaseProgramme.Enabled ? AvailableDistributionFunding(distributor,
+			origin == DealOrigin.DistributorCourted ? DistributionBuyout(client.activeDeal) : 0) <= minimumAdvance
+			: distributor.cashReserves - minimumAdvance <= distributor.GetMonthlyOverhead() * 3f) return false;
 
 		var offeredRegions = distributor.distributionRegions ?? System.Array.Empty<string>();
 		return offeredRegions.Any(region => !client.HasDistributionInRegion(region));
 	}
 
 	private static bool WouldCreateCircularDeal(AILabel client, AILabel distributor) {
+		if (LabelReleaseProgramme.Enabled)
+			return DistributionChainReachesClient(client, distributor, id => Instance?.GetLabel(id));
 		var visited = new HashSet<string>(System.StringComparer.Ordinal);
 		AILabel current = distributor;
 		while (current?.activeDeal != null && visited.Add(current.labelId)) {
@@ -4987,13 +4997,13 @@ public partial class CompetitorManager : Node {
 		return Mathf.Lerp(majorDistributorMastersOwnershipRateEarly, majorDistributorMastersOwnershipRateLate, t);
 	}
 
-	private DistributionDeal GenerateDealTerms(AILabel client, AILabel distributor, DealOrigin origin, int year, int currentWeek) {
+	internal DistributionDeal GenerateDealTerms(AILabel client, AILabel distributor, DealOrigin origin, int year, int currentWeek, float buyout = 0) {
 		bool push = origin == DealOrigin.DistributorCourted;
 		string[] availableRegions = GetGrantedDistributionRegions(client, distributor.distributionRegions);
 		float advance = push
 			? client.GetMonthlyOverhead() * (float)GameRandom.RandRange(6f, 12f)
 			: (GameRandom.Randf() < 0.35f ? 0f : client.GetMonthlyOverhead() * (float)GameRandom.RandRange(0.5f, 2f));
-		advance = Mathf.Min(advance, Mathf.Max(0f, distributor.cashReserves - (distributor.GetMonthlyOverhead() * 3f)));
+		advance = Mathf.Min(advance, AvailableDistributionFunding(distributor, buyout));
 		// Borrowed reach is worth the market the distributor's owned network actually
 		// reaches. It was formerly an independent random draw, so a distributor owning
 		// three regions could grant more national reach than one owning all seven.
@@ -5104,13 +5114,12 @@ public partial class CompetitorManager : Node {
 	/// as the AI's own signing (TryGenerateDistributionOffer): advance changes hands, the deal event
 	/// fires, and everything downstream (RouteDistributionSkim, ResolveDistributionDeal at term) picks
 	/// the player up exactly like any other client from here -- no separate settlement path needed.</summary>
-	public void SignDistributionDeal(AILabel client, DistributionDeal offer) {
-		if (client == null || offer == null || client.activeDeal != null) return;
+	public bool SignDistributionDeal(AILabel client, DistributionDeal offer) {
+		if (client == null || offer == null || client.activeDeal != null) return false;
 		AILabel distributor = GetLabel(offer.distributorId);
-		client.activeDeal = offer;
-		LabelCompanyAccounts.ChangeCash(client, offer.advance, LabelCashKind.Financing);
-		if (distributor != null) LabelCompanyAccounts.ChangeCash(distributor, -offer.advance, LabelCashKind.Financing);
+		if (!TryStartDistributionDeal(client, distributor, offer)) return false;
 		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
+		return true;
 	}
 
 	private void ResolveDistributionDeal(AILabel client, AILabel distributor, int currentWeek, int year) {
@@ -5212,7 +5221,7 @@ public partial class CompetitorManager : Node {
 	// acquiredBy chain the audit builds from the Absorb event -- which is what lets each
 	// subsidiary keep producing as Major-owned so consolidation actually raises owner-Major
 	// chart share instead of bottlenecking the absorbed roster onto a capacity-bound Major.
-	private bool AbsorbLabel(AILabel client, AILabel distributor, float dependency) {
+	internal bool AbsorbLabel(AILabel client, AILabel distributor, float dependency) {
 		if (client == null || distributor == null || client == distributor || !client.IsActive || !distributor.IsActive) return false;
 		if (client.IsSubsidiary) return false;
 		DistributionDeal deal = client.activeDeal;
@@ -5361,6 +5370,9 @@ public partial class CompetitorManager : Node {
 		CompetitorSaveData c = w.Competitor;
 		if (c == null) return;
 		ProgrammeState = c.ReleaseProgramme;
+		if (!LabelReleaseProgramme.MaterialSearchEnabled && ProgrammeState?.Items.Any(i => i.MaterialSearch?.State is
+			ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready) == true)
+			throw new System.InvalidOperationException("Resume outstanding material work with --anticipatory-material-search enabled.");
 		programmeCampaignByRecord.Clear();
 		issuingSlateItem = null; programmeCampaignBudget = null;
 

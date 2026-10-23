@@ -17,10 +17,10 @@ using Godot;
 /// act with a Top 40 entry in the last <see cref="HotWindowWeeks"/> weeks that has gone <see cref="DueWeeks"/> weeks
 /// since its last release takes the roll ahead of the lottery, and the release is a single. The label's capacity
 /// (<c>releasesPerMonth</c>) is unchanged, so the hit act's extra singles come out of the rest of the roster's rolls.
-/// It comes with the same-act split: a new single shares its artist/campaign launch awareness and its label-push
-/// and recognition radio lift with the act's singles already on the Hot 100 (1 / (1 + predecessors)). Each charting
-/// predecessor's radio heat is cut by <see cref="PredecessorRadioCut"/>. The basic discovery floor and physical stock
-/// stay whole. This restores awareness sharing to the later radio-only probe for the adopted-bundle screen.</item>
+/// It comes with the same-act radio split: label-push and recognition radio lift share the act's charting singles,
+/// and predecessors' radio heat is cut by <see cref="PredecessorRadioCut"/>. Launch awareness stays whole, matching
+/// the working bundle's mtn5-pair control. <c>--hit-act-awareness-split</c> explicitly opts into also sharing
+/// artist/campaign launch awareness, preserving the basic discovery floor and physical stock.</item>
 /// <item><c>--hit-act-retention</c>: a label re-signs any act with a Top 40 under the current contract. No act is let
 /// go within <see cref="RetentionWeeks"/> weeks of its last Top 40 (the lane's own hot window), whether by the label's review or by the career
 /// ladder's own fall to Dropped.</item>
@@ -32,6 +32,7 @@ using Godot;
 public static class HitActCadence {
 	public const string Switch = "--hit-act-cadence";
 	public const string RetentionSwitch = "--hit-act-retention";
+	public const string AwarenessSwitch = "--hit-act-awareness-split";
 	public const int HotWindowWeeks = 52;
 	public const int DueWeeks = 13;
 	public const int RetentionWeeks = 52;
@@ -42,8 +43,10 @@ public static class HitActCadence {
 	private static bool configured;
 	private static bool lane;
 	private static bool retention;
+	private static bool awarenessSplit;
 	public static bool LaneEnabled => lane;
 	public static bool SplitEnabled => lane;
+	public static bool AwarenessSplitEnabled => lane && awarenessSplit;
 	public static bool RetentionEnabled => retention;
 	public static bool AnyEnabled => lane || retention;
 	/// <summary>The hot clock is also read by <see cref="KnownActAirplay"/>, so it is written while either probe is on.</summary>
@@ -63,11 +66,13 @@ public static class HitActCadence {
 		bool programme = args.Contains(LabelReleaseProgramme.AllocationSwitch) || args.Contains(LabelReleaseProgramme.CapacitySwitch);
 		lane = programme || args.Contains(Switch);
 		retention = programme || args.Contains(RetentionSwitch);
+		awarenessSplit = args.Contains(AwarenessSwitch);
 		configured = true;
 	}
 
-	internal static void SetForChecks(bool laneOn, bool retentionOn) {
+	internal static void SetForChecks(bool laneOn, bool retentionOn, bool? awarenessOn = null) {
 		configured = true; lane = laneOn; retention = retentionOn;
+		if (awarenessOn.HasValue) awarenessSplit = awarenessOn.Value;
 		LastPickWasLane = false; LanePicks = LaneAlbumOverrides = SplitLaunches = RetentionRenewals = RetentionProtectedReviews = 0;
 	}
 

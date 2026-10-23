@@ -28,8 +28,8 @@ public partial class PlayerDesk : Node {
 	public const int ScheduleHours = ActionCosts.Planning;          // 2 -- booking the release
 	public const int TeachHours = ActionCosts.QuickMeeting;         // 2 -- sitting the act down to start a cover
 	public const int CommissionHours = ActionCosts.QuickMeeting;    // 2 -- putting the brief to a writer
-	public const int CommissionDeliveryDays = 7;                    // a writer turns a commission around in about a week
-	public const float CommissionFee = 150f;                        // the writer's / publisher's fee, paid on commission
+	public const int CommissionDeliveryDays = MaterialPreparationService.CommissionDeliveryDays;
+	public const float CommissionFee = MaterialPreparationService.CommissionFee;
 	public const int ArtistBuyInHours = ActionCosts.QuickMeeting;   // 2 -- sit the act down and hand off the cartons
 
 	// Inbound demand (directive §4): thresholds and pacing for "they called me." All read off real
@@ -131,8 +131,8 @@ public partial class PlayerDesk : Node {
 	// A cover is now worked up over several days, not learned on the spot: teaching costs a short setup at the
 	// desk (TeachHours) and then the act rehearses on its own for this many days -- fewer the more capable the
 	// act, scaled by musicianship/cohesion/studio craft in EstimateCoverLearnDays.
-	public const int MinCoverLearnDays = 3;
-	public const int MaxCoverLearnDays = 14;
+	public const int MinCoverLearnDays = MaterialPreparationService.MinCoverLearnDays;
+	public const int MaxCoverLearnDays = MaterialPreparationService.MaxCoverLearnDays;
 
 	// Working a town out of the trunk is, first, the drive to get there -- one-way hours off REAL road
 	// miles at a period highway average. A far adjacent town can outrun a single day; that's the seam the
@@ -2332,13 +2332,7 @@ public partial class PlayerDesk : Node {
 	/// <summary>How many days this act would take to work a new cover into their set: fewer the more capable
 	/// they are (musicianship / group cohesion / studio craft), between <see cref="MinCoverLearnDays"/> and
 	/// <see cref="MaxCoverLearnDays"/>.</summary>
-	public int EstimateCoverLearnDays(SimulatedArtist artist) {
-		if (artist == null) return MaxCoverLearnDays;
-		float ability = Mathf.Clamp(
-			artist.musicianship * 0.45f + artist.groupCohesion * 0.30f + artist.studioPerformance * 0.25f, 0f, 1f);
-		return Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(MaxCoverLearnDays, MinCoverLearnDays, ability)),
-			MinCoverLearnDays, MaxCoverLearnDays);
-	}
+	public int EstimateCoverLearnDays(SimulatedArtist artist) => MaterialPreparationService.CoverLearnDays(artist);
 
 	/// <summary>Whether this act already has a cover in rehearsal (only one at a time). Commissions are a
 	/// separate track, so a commission in flight does not close the cover catalog and vice versa.</summary>
@@ -5826,7 +5820,10 @@ public partial class PlayerDesk : Node {
 		message = null;
 		if (pendingDistributionOffer == null) { message = "No offer on the table."; return false; }
 		DistributionDeal offer = pendingDistributionOffer;
-		CompetitorManager.Instance?.SignDistributionDeal(Label, offer);
+		if (CompetitorManager.Instance?.SignDistributionDeal(Label, offer) != true) {
+			message = "This offer can no longer be funded. You can decline it and seek a new offer.";
+			return false;
+		}
 		string distributorName = CompetitorManager.Instance?.GetLabel(offer.distributorId)?.labelName ?? "the distributor";
 		pendingDistributionOffer = null;
 		Note($"Signed with {distributorName} -- {offer.termWeeks}-week P&D deal.");

@@ -9,7 +9,8 @@ using Godot;
 public static class HitActCadenceChecks {
 	public static void Run() {
 		void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("Hit-act cadence: " + why); }
-		bool wasLane = HitActCadence.LaneEnabled, wasRetention = HitActCadence.RetentionEnabled;
+		bool wasLane = HitActCadence.LaneEnabled, wasRetention = HitActCadence.RetentionEnabled,
+			wasAwareness = HitActCadence.AwarenessSplitEnabled;
 		try {
 			// Off: nothing is written and every read is the identity.
 			HitActCadence.SetForChecks(false, false);
@@ -65,6 +66,10 @@ public static class HitActCadenceChecks {
 			// The split: share by concurrent count, predecessors filtered to the act's charting singles, radio cut once.
 			Check(HitActCadence.LaunchShare(0) == 1f && HitActCadence.LaunchShare(1) == 0.5f &&
 				Math.Abs(HitActCadence.LaunchShare(2) - 1f / 3f) < 1e-6f, "share must be 1 / (1 + predecessors)");
+			HitActCadence.SetForChecks(true, true, false);
+			Check(!HitActCadence.AwarenessSplitEnabled, "the working cadence split leaves launch awareness whole");
+			HitActCadence.SetForChecks(true, true, true);
+			Check(HitActCadence.AwarenessSplitEnabled, "awareness sharing is a separate explicit probe");
 			Check(Math.Abs(HitActCadence.LaunchAwareness(.08f, .2f, .3f, .1f, .5f) - .38f) < 1e-6f,
 				"concurrent launches must share fame and campaign awareness while preserving discovery");
 			RecordRuntimeData Rec(string id, string artist, int pos, ReleaseFormat format) =>
@@ -110,7 +115,7 @@ public static class HitActCadenceChecks {
 			Check(offLadder.careerState == CareerState.Dropped, "off must leave the ladder's drop untouched");
 			GD.Print("HIT_ACT_CADENCE_CHECK passed");
 		} finally {
-			HitActCadence.SetForChecks(wasLane, wasRetention);
+			HitActCadence.SetForChecks(wasLane, wasRetention, wasAwareness);
 		}
 	}
 }

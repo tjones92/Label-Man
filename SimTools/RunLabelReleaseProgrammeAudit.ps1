@@ -1,8 +1,10 @@
 [CmdletBinding()]
 param(
  [ValidatePattern('^[a-z0-9-]+$')][string]$RunTag='slate-v1',
- [int[]]$Seeds=@(1001,2002,3003),
- [ValidateRange(13,574)][int]$Weeks=265,
+ [int[]]$Seeds=@(1001),
+ [ValidateRange(13,574)][int]$Weeks=53,
+ [string]$WorkingPlan='SimLogs/working-bundle/plan.json',
+ [string]$ReuseChecksFrom='',
  [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe'
 )
 $ErrorActionPreference='Stop'
@@ -11,19 +13,41 @@ $programmeOutput=Join-Path $programmeRoot "SimLogs/$RunTag"
 if(Test-Path -LiteralPath $programmeOutput){throw 'Choose a new run tag.'}
 if(!$Seeds.Count -or @($Seeds | Select-Object -Unique).Count -ne $Seeds.Count){throw 'Use distinct seeds.'}
 New-Item -ItemType Directory -Path $programmeOutput | Out-Null
-# Accepted working bundle plus the retained cadence and retention mechanisms, shared by every arm.
-$programmeBundle=@('--single-commercial-fit=2.5','--single-commercial-fit-hit-share=0.15',
- '--single-commercial-fit-regional=0.5','--single-commercial-fit-scale=0.88',
- '--single-commercial-fit-launch-weight=1.25','--single-commercial-fit-floor=0.12',
- '--launch-stock-share=0.1','--sell-through-reorders','--ai-master-deals','--ai-backers',
- '--ai-master-national-pickups','--ai-master-capacity-decisions',
- '--major-offchart-singles=0.12','--major-offchart-singles-hold-units',
- '--home-operated-micro-labels','--home-label-running-cost=25','--founder-label-dormancy',
- '--founder-surplus-compensation','--distress-master-sales','--prior-year-corporate-tax',
- '--hit-act-cadence','--hit-act-retention','--profile-performance')
+# Resolve the accepted bundle at invocation, so subsequent adoption changes cannot silently leave this screen on an old base.
+$programmeWorkingPath=if([IO.Path]::IsPathRooted($WorkingPlan)){$WorkingPlan}else{Join-Path $programmeRoot $WorkingPlan}
+$programmeWorking=Get-Content -LiteralPath $programmeWorkingPath -Raw | ConvertFrom-Json
+$programmeTreatments=@('--label-release-slate','--label-release-capacity','--studio-parent-labels')
+$programmeSourceBundle=@($programmeWorking.bundle)
+# Reconstruct the untreated base explicitly when the working bundle already adopts the scheduler/studio arms.
+$programmeBundle=@($programmeSourceBundle | Where-Object {$_ -notin $programmeTreatments})
+if($programmeWorking.profile -ne 'game' -or !$programmeBundle.Count){throw 'Working plan must contain a game-profile bundle.'}
+if(@($programmeBundle | Select-Object -Unique).Count -ne $programmeBundle.Count){throw 'Working bundle has duplicate flags.'}
+foreach($programmeRequired in @('--hit-act-cadence','--hit-act-retention')){
+ if($programmeRequired -notin $programmeBundle){throw "Working bundle must retain $programmeRequired."}
+}
+if(@($programmeBundle | Where-Object {$_ -match '^--(label-release-|studio-parent-labels)'}).Count){throw 'Working bundle contains an unsupported factorial treatment.'}
+$programmeWorkingHash=(Get-FileHash -LiteralPath $programmeWorkingPath).Hash
+$programmeWorking | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $programmeOutput 'working-plan.json') -Encoding utf8
 $programmeAssembly=Join-Path $programmeRoot '.godot/mono/temp/bin/Debug/Label Man.dll'
 $programmeHash=(Get-FileHash -LiteralPath $programmeAssembly).Hash
-$programmePlan=[ordered]@{weeks=$Weeks;seeds=$Seeds;assemblySha256=$programmeHash;bundle=$programmeBundle;checks=@();groups=@()}
+$programmePlan=[ordered]@{weeks=$Weeks;seeds=$Seeds;assemblySha256=$programmeHash;bundle=$programmeBundle;
+ workingPlan=$programmeWorkingPath;workingPlanSha256=$programmeWorkingHash;controlReference='mtn5-pair';checks=@();groups=@()}
+$programmePlan['factorialTreatmentsExcluded']=$programmeTreatments
+if($ReuseChecksFrom){
+ $programmeChecksPath=if([IO.Path]::IsPathRooted($ReuseChecksFrom)){$ReuseChecksFrom}else{Join-Path $programmeRoot $ReuseChecksFrom}
+ $programmePrior=Get-Content -LiteralPath $programmeChecksPath -Raw | ConvertFrom-Json
+ if($programmePrior.assemblySha256 -ne $programmeHash -or ($programmePrior.bundle -join "`n") -cne ($programmeBundle -join "`n")){
+  throw 'Reused native checks must have the identical assembly and working bundle.'
+ }
+ foreach($programmeStudio in @('off','on')){foreach($programmeCheck in @('mechanism','roundtrip')){
+  $programmeMatched=@($programmePrior.checks | Where-Object {$_.studio -eq $programmeStudio -and $_.check -eq $programmeCheck})
+  if($programmeMatched.Count -ne 1 -or !$programmeMatched[0].passed){throw 'Reused plan must contain all four passed native checks.'}
+ }}
+ $programmePlan.checks=@($programmePrior.checks)
+ $programmePlan['checksSource']=$programmeChecksPath
+ $programmePlan | ConvertTo-Json -Depth 9 | Set-Content -LiteralPath (Join-Path $programmeOutput 'plan.json') -Encoding utf8
+}
+if(!$ReuseChecksFrom){
 foreach($programmeStudio in @('off','on')){
  $programmeStudioFlags=@()
  if($programmeStudio -eq 'on'){$programmeStudioFlags=@('--studio-parent-labels')}
@@ -42,6 +66,7 @@ foreach($programmeStudio in @('off','on')){
   $programmePlan | ConvertTo-Json -Depth 9 | Set-Content -LiteralPath (Join-Path $programmeOutput 'plan.json') -Encoding utf8
   if(!$programmePassed){throw "Failed studio-$programmeStudio $programmeCheck; inspect logs."}
  }
+}
 }
 foreach($programmeStudio in @('off','on')){
  foreach($programmeArm in @('control','allocation','capacity','both')){

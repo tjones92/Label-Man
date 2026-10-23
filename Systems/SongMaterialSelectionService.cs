@@ -508,7 +508,7 @@ public static class SongMaterialSelectionService {
 		return song == null ? -1 : PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(song, artist, projectGenre, year, track.masterId)) *
 			PolarSongBehavior.PromotionRealizationFactor(track) * SongbookExceptionFactor(track.songSource, projectGenre, artist.primaryGenre);
 	}
-	private static float SourceMix(SongMaterialSource source, Genre genre, int year, Genre? actGenre = null) {
+	internal static float SourceMix(SongMaterialSource source, Genre genre, int year, Genre? actGenre = null) {
 		Mix a = Anchor1960(genre), b = Anchor1969(genre);
 		float t = SmoothYear(1962f, 1968f, year);
 		float Lerp(float x, float y) => Mathf.Lerp(x, y, t);

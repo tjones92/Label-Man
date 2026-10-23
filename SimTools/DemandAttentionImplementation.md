@@ -1174,3 +1174,14 @@ Single units rise 5.84%; 1961 Big-5 Top 10 share rises 10.38 points. Retain both
 for the planned scheduler as the user directed; carry these balance effects into
 that work. No shipping-default or studio-adoption change. Full results and
 measurement boundaries are in the cadence report linked above.
+
+#### Release programme implementation follow-through
+
+The subsequent scheduler, capacity and studio-label implementation is tracked in
+[LabelReleaseProgrammeImplementation.md](LabelReleaseProgrammeImplementation.md).
+The active development bundle includes all three, following the user's later
+implementation decision; that report supersedes the earlier screen's ordering.
+After protected distribution funding, the latest pass adds corporate ownership
+to distribution and absorption cycle checks and rechecks stale client eligibility
+at acceptance. Economy calibration and natural consolidation frequency remain
+open; these mechanism checks do not establish either.

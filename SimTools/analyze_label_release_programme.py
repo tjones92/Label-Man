@@ -6,6 +6,7 @@ provisional bands; this report does not certify a historical calibration.
 """
 import argparse
 import csv
+import hashlib
 import json
 import statistics
 from collections import Counter, defaultdict
@@ -16,6 +17,7 @@ from analyze_demand_attention import clearing_summary
 SINGLES = dict(zip(range(1960, 1965), (5797, 6036, 6700, 6543, 6504)))
 ALBUMS = dict(zip(range(1960, 1965), (3112, 2927, 3655, 3686, 3553)))
 BIG5 = {f'label_{n:04}' for n in range(1, 6)}
+STUDIO_NAMES = ('MGM', 'ABC-Paramount', 'Warner Bros.', 'United Artists', 'Dot', 'Colpix')
 
 
 def rows(prefix, stream, optional=False):
@@ -75,18 +77,69 @@ def validate_resources(resources, capacity):
             raise ValueError('Duplicate resource label/week')
         seen.add(key)
         booked, pool = float(row['promotionBooked']), float(row['promotionPool'])
+        committed = float(row.get('promotionCommittedPeak', row['promotionBooked']))
         if capacity and booked > pool + .1:
             raise ValueError(f'Promotion overbooking {key}: {booked} > {pool}')
-        if min(booked, pool, float(row['cashReserved'])) < 0:
+        if capacity and committed > pool + .1:
+            raise ValueError(f'Future promotion overbooking {key}: {committed} > {pool}')
+        if committed + .1 < booked:
+            raise ValueError(f'Future promotion audit omits current campaigns {key}')
+        if min(booked, pool, committed, float(row['cashReserved'])) < 0:
             raise ValueError(f'Negative resource reservation {key}')
         if int(row['successes']) > int(row['attempts']):
             raise ValueError('Successes exceed attempts')
         counts['labelWeeks'] += 1
+        counts['labelWeeksWithFuturePromotionAudit'] += 'promotionCommittedPeak' in row
         counts['idleLabelWeeks'] += int(row['successes']) == 0
         counts['multipleSuccessLabelWeeks'] += int(row['successes']) > 1
         counts['dueFollowUpActWeeks'] += int(row.get('dueFollowUps', 0))
         counts['unplannedFollowUpActWeeks'] += int(row.get('unplannedFollowUps', 0))
     return dict(counts)
+
+
+def validate_slate_transition(row, launches):
+    if row['state'] in ('Issued', 'AwaitingDelivery') and row.get('preparedWeek', '') != '':
+        prepared = int(row['preparedWeek'])
+        earliest = prepared if prepared == int(row['proposedWeek']) == int(row['intendedWeek']) else prepared + 1
+        issued = int(row['actualWeek']) if row['state'] == 'Issued' else int(row['week'])
+        if issued < earliest:
+            raise ValueError('Slate launch precedes the recorded master issue lead')
+    if row['state'] == 'AwaitingDelivery':
+        if row['format'] != 'Album' or int(row['actualWeek']) != 0 or row['actualDate']:
+            raise ValueError('Awaiting LP delivery must not claim an actual issue date')
+        if any(float(row[key] or 0) != 0 for key in ('reservedProduction', 'reservedMarketing', 'reservedPressing')):
+            raise ValueError('Awaiting LP duplicates existing project resource holds')
+    if row['state'] != 'Issued':
+        return
+    if not row['recordId'] or int(row['actualWeek']) < int(row['readyWeek']):
+        raise ValueError('Issued slate item has no record or precedes readiness')
+    # Older manifests counted the advance single as the LP's issue. Preserve their readability explicitly.
+    if row['reason'] == 'issued-advance-single-lp-to-follow':
+        return
+    launch = launches.get(row['recordId'])
+    if launch is None:
+        raise ValueError('Issued slate item is absent from the actual release census')
+    if int(row['actualWeek']) != int(launch['observedAuditWeek']):
+        raise ValueError('Slate actual issue week differs from the release census')
+
+
+def validate_weekly_reviews(slate):
+    deferred = set()
+    guarded = 0
+    for row in slate:
+        if 'weeklyReviewPolicy' not in row:
+            continue  # Older streams did not promise this boundary.
+        if row['weeklyReviewPolicy'] != 'defer-failed-work':
+            raise ValueError('Unknown slate weekly review policy')
+        guarded += 1
+        key = int(row['week']), row['slotId']
+        if key in deferred and row['state'] != 'Cancelled':
+            raise ValueError('Deferred slate work was retried in the same week')
+        if row['state'] == 'Postponed' and row['reason'] != 'observed-breakout-rush-review':
+            if any(float(row[k] or 0) != 0 for k in ('reservedProduction', 'reservedMarketing', 'reservedPressing')):
+                raise ValueError('Deferred slate work retains unspent holds')
+            deferred.add(key)
+    return {'guardedReviewRows': guarded, 'deferredItemWeeks': len(deferred)}
 
 
 def measure(prefix):
@@ -100,6 +153,11 @@ def measure(prefix):
     launches = {r['recordId']: r for r in census if r['observationKind'] == 'Launch'}
     chart = rows(prefix, 'records')
     hot, top, top40_acts = defaultdict(set), defaultdict(Counter), defaultdict(set)
+    top_titles = defaultdict(lambda: defaultdict(set))
+    directory = rows(prefix, 'label-directory')
+    studios = {r['labelId'] for r in directory if any(r['labelName'] == name or r['labelName'].startswith(name + ' ') for name in STUDIO_NAMES)}
+    projects = rows(prefix, 'album-projects')
+    promo_ids = {r['promoSingleId'] for r in projects if r['promoSingleId']}
     peaks = defaultdict(lambda: 101)
     seen = set()
     for r in chart:
@@ -113,12 +171,21 @@ def measure(prefix):
             peaks[r['recordId']] = min(peaks[r['recordId']], position)
         if 0 < position <= 10:
             top[year][r['labelId']] += 1
+            top_titles[year][r['artistId']].add(r['recordId'])
         if 0 < position <= 40:
             top40_acts[year].add(r['artistId'])
     for year, row in report['annual'].items():
         slots = sum(top[year].values())
         row.update(hot100Acts=len(hot[year]), big5Top10SlotShare=sum(n for label, n in top[year].items() if label in BIG5) / slots if slots else None,
                    cr4Top10SlotShare=sum(sorted(top[year].values(), reverse=True)[:4]) / slots if slots else None)
+        # Same annual definition as the cadence screen: distinct Top 10 titles, including carryovers.
+        row['actsWithTwoPlusTop10Records'] = sum(len(ids) >= 2 for ids in top_titles[year].values())
+        row['actsWithThreePlusTop10Records'] = sum(len(ids) >= 3 for ids in top_titles[year].values())
+        row['studioTop10SlotShare'] = sum(n for label, n in top[year].items() if label in studios) / slots if slots else None
+        ordered_labels = sorted(top[year], key=lambda label: (-top[year][label], label))
+        row['bestStudioTop10Rank'] = next((i + 1 for i, label in enumerate(ordered_labels) if label in studios), None)
+        row['lpPromoOrAdvanceSingleIssues'] = sum(r['recordId'] in promo_ids and r['format'] == 'Single' and int(r['observedYear']) == year for r in launches.values())
+        row['programmeSingleIssues'] = row['singleIssues'] - row['lpPromoOrAdvanceSingleIssues']
         major = [r for r in launches.values() if r['format'] == 'Single' and r['launchTier'] == 'Major' and int(r['observedYear']) == year]
         row['majorTop10ConversionThroughRunEnd'] = sum(peaks[r['recordId']] <= 10 for r in major) / len(major) if major else None
         row['majorConversionCohort'] = len(major)
@@ -175,24 +242,25 @@ def measure(prefix):
         raise ValueError('Enabled programme is missing its resource ledger')
     report['resources'] = validate_resources(resources, '--label-release-capacity' in flags)
     slate = rows(prefix, 'release-slate', optional=True)
+    report['weeklyReviews'] = validate_weekly_reviews(slate)
     terminal = {}
+    advance_ids = set()
     for row in slate:
         terminal[row['slotId']] = row
-        if row['state'] == 'Issued' and (not row['recordId'] or int(row['actualWeek']) < int(row['readyWeek'])):
-            raise ValueError('Issued slate item has no record or precedes readiness')
-        # An LP issued behind its advance single drops after the existing gap, possibly after the run ends.
-        if row['state'] == 'Issued' and row['recordId'] not in launches and row['reason'] != 'issued-advance-single-lp-to-follow':
-            raise ValueError('Issued slate item is absent from the actual release census')
+        if row['reason'] in ('advance-single-issued-awaiting-lp', 'issued-advance-single-lp-to-follow'):
+            advance_ids.add(row['slotId'])
+        validate_slate_transition(row, launches)
     report['slateLatestStates'] = dict(Counter(r['state'] for r in terminal.values()))
     report['slateReasons'] = dict(Counter(r['reason'] for r in slate))
-    advances = [r for r in terminal.values() if r['state'] == 'Issued' and r['reason'] == 'issued-advance-single-lp-to-follow']
+    advances = [terminal[identity] for identity in advance_ids]
     report['slateAdvanceSingles'] = len(advances)
-    report['slateAdvanceLpsPendingAtRunEnd'] = sum(r['recordId'] not in launches for r in advances)
+    report['slateAdvanceLpsPendingAtRunEnd'] = sum(r['recordId'] not in launches and r['state'] != 'Cancelled' for r in advances)
+    report['slateAdvanceLpsCancelled'] = sum(r['state'] == 'Cancelled' for r in advances)
     report['missedPlannedFollowUps'] = sum(r['missedFollowUp'] == '1' for r in terminal.values())
     report['cancelledPreparedProductionCost'] = sum(float(r.get('paidProduction') or 0) for r in terminal.values() if r['state'] == 'Cancelled')
     report['unissuedPreparedProductionCost'] = sum(float(r.get('paidProduction') or 0) for r in terminal.values() if r['state'] not in ('Issued', 'Cancelled'))
     finance = rows(prefix, 'label-finance')
-    initial = {r['labelId'] for r in rows(prefix, 'label-directory') if r['initialTier'] == 'Small'}
+    initial = {r['labelId'] for r in directory if r['initialTier'] == 'Small'}
     last = {r['labelId']: r for r in finance}
     report['startingSmall'] = {'firms': len(initial), 'closed': sum(last.get(i, {}).get('status') in ('Bankrupt', 'Defunct') for i in initial)}
     gaps = [int(r['weeksSinceLastSingle']) for r in rows(prefix, 'single-launch-quality') if int(r['weeksSinceLastSingle']) >= 0]
@@ -206,7 +274,9 @@ def measure(prefix):
 
 EFFECT_METRICS = ('singleIssues', 'albumIssues', 'lpToSingleRatio', 'big5Top10SlotShare',
                   'cr4Top10SlotShare', 'hot100Acts', 'majorTop10ConversionThroughRunEnd',
-                  'liveSingleMarketUnits', 'liveAlbumMarketUnits', 'liveLpUnitShare')
+                  'liveSingleMarketUnits', 'liveAlbumMarketUnits', 'liveLpUnitShare',
+                  'programmeSingleIssues', 'lpPromoOrAdvanceSingleIssues', 'studioTop10SlotShare',
+                  'actsWithTwoPlusTop10Records', 'actsWithThreePlusTop10Records')
 
 
 def factorial_effects(cells):
@@ -242,8 +312,21 @@ def factorial_effects(cells):
                                 for (studio, year), values in sorted(means.items())]}
 
 
+def factorial_bundle(snapshot, excluded):
+    allowed = {'--label-release-slate', '--label-release-capacity', '--studio-parent-labels'}
+    if set(excluded) - allowed:
+        raise ValueError('Unsupported treatment excluded from working bundle')
+    if snapshot['profile'] != 'game':
+        raise ValueError('Working-plan snapshot must use game profile')
+    return [flag for flag in snapshot['bundle'] if flag not in excluded]
+
+
 def measure_plan(plan_path):
     plan = json.loads(plan_path.read_text(encoding='utf-8-sig'))
+    if 'workingPlanSha256' in plan:
+        snapshot = json.loads((plan_path.parent / 'working-plan.json').read_text(encoding='utf-8-sig'))
+        if factorial_bundle(snapshot, plan.get('factorialTreatmentsExcluded', [])) != plan['bundle']:
+            raise ValueError('Screen bundle differs from its saved working-plan snapshot')
     seeds = plan['seeds']
     if not seeds or len(seeds) != len(set(seeds)):
         raise ValueError('Screen seeds must be distinct')
@@ -277,17 +360,60 @@ def measure_plan(plan_path):
             runs.append(report)
     if set(cells) != {(s, a, seed) for s in ('on', 'off') for a in ('control', 'allocation', 'capacity', 'both') for seed in seeds}:
         raise ValueError('All eight arms and all seeds are required')
-    return {'runs': runs, 'factorial': factorial_effects(cells), 'calibrationAccepted': False}
+    return {'runs': runs, 'factorial': factorial_effects(cells), 'calibrationAccepted': False,
+            'base': {key: plan[key] for key in ('workingPlan', 'workingPlanSha256', 'controlReference', 'factorialTreatmentsExcluded') if key in plan}}
+
+
+def compare_control_reference(plan_path, reference_path):
+    """Compare all common CSV streams against the named five-year baseline, without requiring its older DLL hash."""
+    plan = json.loads(plan_path.read_text(encoding='utf-8-sig'))
+    reference = json.loads(reference_path.read_text(encoding='utf-8-sig'))
+    if reference['weeks'] != plan['weeks'] or reference['profile'] != 'game' or reference['modes'] != ['default'] or set(reference['extraFlags']) != set(plan['bundle']):
+        raise ValueError('Reference must use the same working bundle, profile and duration')
+    controls = [g for g in plan['groups'] if g['studio'] == 'off' and g['arm'] == 'control']
+    if len(controls) != 1:
+        raise ValueError('Exactly one untreated control group is required')
+    native = json.loads((plan_path.parent.parent / controls[0]['tag'] / 'runs.json').read_text(encoding='utf-8-sig'))
+    comparisons = []
+    for seed in plan['seeds']:
+        def completed(manifest):
+            matches = [r for r in manifest['results'] if r['seed'] == seed and r['passed']]
+            if len(matches) != 1:
+                raise ValueError('Reference/control needs one completed run per seed')
+            return matches[0]['name']
+        old_name, new_name = completed(reference), completed(native)
+        def streams(root, name):
+            return {p.name[len(name) + 1:]: p for p in root.glob(f'{name}-*.csv')}
+        old = streams(reference_path.parent.parent, old_name)
+        new = streams(plan_path.parent.parent, new_name)
+        if not old or not new:
+            raise ValueError('Reference/control CSV streams are missing')
+        def digest(path):
+            with path.open('rb') as source:
+                return hashlib.file_digest(source, 'sha256').hexdigest()
+        common = old.keys() & new.keys()
+        changed = sorted(key for key in common if digest(old[key]) != digest(new[key]))
+        comparisons.append({'seed': seed, 'commonStreams': len(common), 'changedStreams': changed,
+                            'missingStreams': sorted(old.keys() - new.keys()), 'addedStreams': sorted(new.keys() - old.keys()),
+                            'byteIdentical': not changed and old.keys() == new.keys(),
+                            'simulationStreamsByteIdentical': not (set(changed) - {'performance-profile.csv'}) and old.keys() == new.keys(),
+                            'timingStreamsExcludedFromSimulationIdentity': ['performance-profile.csv']})
+    return {'manifest': str(reference_path), 'seeds': comparisons}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('prefix', type=Path, nargs='*')
     parser.add_argument('--plan', type=Path)
+    parser.add_argument('--control-reference', type=Path, help='runs.json of the mtn5-pair baseline; requires --plan')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if bool(args.plan) == bool(args.prefix):
         parser.error('Supply either run prefixes or --plan')
+    if args.control_reference and not args.plan:
+        parser.error('--control-reference requires --plan')
     result = measure_plan(args.plan) if args.plan else {'runs': [measure(prefix) for prefix in args.prefix], 'calibrationAccepted': False}
+    if args.control_reference:
+        result['controlReferenceReplay'] = compare_control_reference(args.plan, args.control_reference)
     args.output.write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
     print(f'Validated {len(result["runs"])} runs; report: {args.output}')

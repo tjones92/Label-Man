@@ -233,7 +233,9 @@ def main():
               'both': ['--hit-act-cadence', '--hit-act-retention']}
     for arm in ('lane', 'retention', 'both'):
         manifest = json.loads((Path(ROOT) / (args.tag + '-' + arm) / 'runs.json').read_text(encoding='utf-8-sig'))
-        if sorted(manifest['extraFlags']) != sorted(control_flags + extras[arm]):
+        # Older cadence screens applied awareness sharing implicitly; new invocations name it explicitly.
+        flags = [f for f in manifest['extraFlags'] if f != '--hit-act-awareness-split' or arm == 'retention']
+        if sorted(flags) != sorted(control_flags + extras[arm]):
             raise ValueError(f'{arm} flags differ from the adopted control plus the intended treatment')
     result = {'definitions': __doc__, 'history': history(),
               'identity': identity(args.tag + '-off', args.seeds[0], args.control, args.weeks), 'runs': {}}

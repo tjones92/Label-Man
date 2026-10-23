@@ -192,6 +192,25 @@ public static class AiRepertoireService {
 		Emit("ready", c, label.labelId, week, null);
 	}
 
+	/// <summary>The act's next original at its mean craft (no craft noise), heard as a provisional demo: what the session's
+	/// artist-written source is expected to bring. Pure: no draw and no shadow state.</summary>
+	internal static ShadowCandidate MeanOwnOriginal(AILabel label, SimulatedArtist artist, int year, out MaterialFit? fit) {
+		Genre genre = ProjectGenre(artist, year);
+		float craft = SongMaterialSelectionService.ArtistWriterCraft(artist);
+		float era = SongMaterialSelectionService.GetArtistWrittenEraWeight(genre, year);
+		var c = new ShadowCandidate { Id = "programme-baseline:" + artist.artistId, ArtistId = artist.artistId, Source = SongMaterialSource.ArtistWritten };
+		c.Craft = Mathf.Clamp(craft * 0.80f + era * 0.10f, 0f, 1f);
+		c.Hook = ArtistWrittenHookScale.Hook(c.Craft, craft, 0f, MeanPerformanceHook(artist, label), 0f);
+		c.Lyric = Mathf.Clamp(craft * 0.70f + era * 0.10f, 0f, 1f);
+		c.Originality = Mathf.Clamp(artist.members.Count > 0 ? artist.members[0].creativity * 0.6f + 0.2f : 0.4f, 0f, 1f);
+		fit = null;
+		if (PolarSongBehavior.UsePolarFitSelection) {
+			var f = PolarSongBehavior.Fit(ProvisionalDemo(c, artist, year), artist, genre, year, label: label);
+			c.Capability = f.Capability; c.Identity = f.Identity; c.Moment = f.Moment; fit = f;
+		}
+		return c;
+	}
+
 	/// <summary>A local composition for an original the act has written but nobody has recorded: the same traits it will be
 	/// authored with, the act's genre, no registry entry and no RNG (mirrors the player's provisional demo).</summary>
 	private static SongComposition ProvisionalDemo(ShadowCandidate c, SimulatedArtist artist, int year) {

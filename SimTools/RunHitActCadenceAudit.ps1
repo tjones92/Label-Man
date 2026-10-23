@@ -33,7 +33,7 @@ $hacChecks=@(
  @{name='company';flags=@('--label-company-check');marker='LABEL_COMPANY_CHECK passed'},
  @{name='economic';flags=@('--economic-label-check');marker='ECONOMIC_LABEL_CHECK'},
  @{name='stocking';flags=@('--demand-stocking-check');marker='DEMAND_STOCKING_CHECK'},
- @{name='roundtrip';flags=@('--weeks=13','--seed=1001')+$hacBundle+@('--hit-act-cadence','--hit-act-retention');marker='SAVELOAD_ROUNDTRIP_PASS'}
+ @{name='roundtrip';flags=@('--weeks=13','--seed=1001')+$hacBundle+@('--hit-act-cadence','--hit-act-awareness-split','--hit-act-retention');marker='SAVELOAD_ROUNDTRIP_PASS'}
 )
 foreach($hacCheck in $hacChecks){
  $hacStdout=Join-Path $hacOutput "$($hacCheck.name)-console.log"
@@ -51,9 +51,9 @@ foreach($hacCheck in $hacChecks){
 }
 $hacGroups=@(
  @{tag="$RunTag-off";seeds=@($Seeds[0]);flags=$hacBundle},
- @{tag="$RunTag-lane";seeds=$Seeds;flags=@($hacBundle+'--hit-act-cadence')},
+ @{tag="$RunTag-lane";seeds=$Seeds;flags=@($hacBundle+@('--hit-act-cadence','--hit-act-awareness-split'))},
  @{tag="$RunTag-retention";seeds=$Seeds;flags=@($hacBundle+'--hit-act-retention')},
- @{tag="$RunTag-both";seeds=$Seeds;flags=@($hacBundle+@('--hit-act-cadence','--hit-act-retention'))}
+ @{tag="$RunTag-both";seeds=$Seeds;flags=@($hacBundle+@('--hit-act-cadence','--hit-act-awareness-split','--hit-act-retention'))}
 )
 foreach($hacGroup in $hacGroups){
  if((Get-FileHash -LiteralPath $hacAssembly).Hash -ne $hacHash){throw 'Assembly changed during screen.'}

@@ -55,9 +55,10 @@ public static class EconomyAuditBChecks {
 			Check(manager.WithholdDistributionAdvance(client, 0f, 400f) == 0f, "uncarried receipts are never withheld");
 
 			float overhead = client.GetMonthlyOverhead();
-			client.cashReserves = overhead * 3f + 250f; distributorCash = distributor.cashReserves;
+			float settlementReserve = LabelReleaseProgramme.Enabled ? manager.DistributionFundingReserve(client) : overhead * 3f;
+			client.cashReserves = settlementReserve + 250f; distributorCash = distributor.cashReserves;
 			manager.SettleEndedDistributionAdvance(client, deal, DealResolution.Exit);
-			Check(deal.unrecoupedAdvance == 0f && Near(client.cashReserves, overhead * 3f) && Near(distributor.cashReserves, distributorCash + 250f),
+			Check(deal.unrecoupedAdvance == 0f && Near(client.cashReserves, settlementReserve) && Near(distributor.cashReserves, distributorCash + 250f),
 				"an exit settles what the client can spare and writes off the rest");
 
 			foreach (DealResolution resolution in new[] { DealResolution.Dropped, DealResolution.Absorb, DealResolution.DistributorCollapsed, DealResolution.ClientClosed }) {
@@ -70,7 +71,7 @@ public static class EconomyAuditBChecks {
 
 			var current = Deal(distributor, 800f);
 			var offer = Deal(major, 2000f);
-			float majorCash = major.cashReserves = 50000f; distributorCash = distributor.cashReserves;
+			float majorCash = major.cashReserves = 50000f + (LabelReleaseProgramme.Enabled ? manager.DistributionFundingReserve(major) : 0f); distributorCash = distributor.cashReserves;
 			manager.BuyOutDistributionAdvance(client, current, distributor, offer, major);
 			Check(current.unrecoupedAdvance == 0f && offer.unrecoupedAdvance == 2800f && offer.advance == 2000f
 				&& major.cashReserves == majorCash - 800f && distributor.cashReserves == distributorCash + 800f,

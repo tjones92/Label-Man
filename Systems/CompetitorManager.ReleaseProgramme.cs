@@ -51,6 +51,7 @@ public partial class CompetitorManager {
 			OpenItems = ProgrammeState.Items.Count(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i)),
 			DueFollowUps = due.Count, UnplannedFollowUps = due.Count(a => !ProgrammeState.Items.Any(i => i.ArtistId == a.artistId && i.Format == ReleaseFormat.Single && LabelReleaseProgramme.IsOpen(i))),
 			CashReserved = ProgrammeCashReserved(label.labelId), PromotionPool = ProgrammePromotionPool(label),
+			PromotionCommittedPeak = ProgrammePromotionCommittedPeak(label.labelId),
 			PromotionBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend),
 			SingleWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Single), AlbumWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Album) });
 	}
@@ -66,12 +67,18 @@ public partial class CompetitorManager {
 
 	private void ReviewSlate(ReleaseSlateItem item, ReleaseSlateState state, string reason) {
 		item.State = state; item.Reason = reason; item.LastReviewWeek = pipelineWeek;
+		if (state == ReleaseSlateState.Cancelled && item.MaterialSearch?.State is ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready)
+			MaterialReview(item, pipelineWeek, ProgrammeMaterialState.Cancelled, "slate-cancelled-no-refund");
 		if (state == ReleaseSlateState.Cancelled) item.ReservedProduction = item.ReservedMarketing = item.ReservedPressing = 0f;
 		OnReleaseSlateReview?.Invoke(item, pipelineWeek);
 		if (state is ReleaseSlateState.Issued or ReleaseSlateState.Cancelled) item.PreparedRecord = null;
 	}
 
 	private bool PrepareSlateMaster(AILabel label, SimulatedArtist artist, GameDate date, ReleaseSlateItem item) {
+		if (LabelReleaseProgramme.MaterialSearchEnabled) {
+			AdvanceProgrammeMaterial(item, label, artist, date, pipelineWeek);
+			if (item.MaterialSearch?.State == ProgrammeMaterialState.Pending) return false;
+		}
 		issuingSlateItem = item;
 		try {
 			float reserve = EconomicLabelLifecycle.CommitmentReserve(label, false);
@@ -93,6 +100,10 @@ public partial class CompetitorManager {
 			ChargeProjectCost(label, artist, production, production);
 			WeeklyProductionSpend += production; WeeklyProductionEvents++;
 			item.PreparedRecord = master; item.RecordId = master.recordId; item.PaidProduction = production;
+			if (item.MaterialSearch?.State == ProgrammeMaterialState.Ready)
+				MaterialReview(item, pipelineWeek, master.songId == item.MaterialSearch.SongId ? ProgrammeMaterialState.Consumed : ProgrammeMaterialState.Failed,
+					master.songId == item.MaterialSearch.SongId ? "material-session-completed" : "player-placement-selected-instead");
+			item.PreparedWeek = pipelineWeek;
 			item.PreparedRetainedIdentity = selection.RetainedIdentity;
 			// Work done ahead of the plan records when the master was actually ready.
 			item.ReadyWeek = Math.Min(item.ReadyWeek, pipelineWeek);
@@ -120,16 +131,41 @@ public partial class CompetitorManager {
 
 	private float ProgrammePromotionPool(AILabel label) => label.GetStandardMarketingBudget() * Math.Max(1f, Math.Min(4f, label.releasesPerMonth));
 
-	private float AvailableProgrammeCampaign(AILabel label, int week) {
+	private float AvailableProgrammeCampaign(AILabel label, int week, ReleaseSlateItem exclude = null) {
 		if (!LabelReleaseProgramme.CapacityEnabled) return float.PositiveInfinity;
 		float remaining = ProgrammePromotionPool(label);
 		for (int w = week; w < week + LabelReleaseProgramme.CampaignWeeks; w++) {
 			float booked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= w && w < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
-			booked += ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem &&
+			booked += ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem && i != exclude &&
 				i.DueWeek <= w && w < i.DueWeek + LabelReleaseProgramme.CampaignWeeks).Sum(i => i.ReservedMarketing);
 			remaining = Math.Min(remaining, ProgrammePromotionPool(label) - booked);
 		}
 		return Math.Max(0, remaining);
+	}
+
+	internal float ProgrammePromotionCommittedPeak(string labelId) {
+		if (ProgrammeState == null) return 0;
+		var changes = new SortedDictionary<int, double>();
+		void Add(int start, float amount) {
+			int end = start + LabelReleaseProgramme.CampaignWeeks;
+			if (amount <= 0 || end <= pipelineWeek) return;
+			start = Math.Max(start, pipelineWeek);
+			changes[start] = changes.GetValueOrDefault(start) + amount;
+			changes[end] = changes.GetValueOrDefault(end) - amount;
+		}
+		foreach (var campaign in ProgrammeState.Campaigns.Where(c => c.LabelId == labelId)) Add(campaign.Week, campaign.Spend);
+		foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == labelId && LabelReleaseProgramme.IsOpen(i))) Add(item.DueWeek, item.ReservedMarketing);
+		double running = 0, peak = 0;
+		foreach (double change in changes.Values) { running += change; peak = Math.Max(peak, running); }
+		return (float)peak;
+	}
+
+	internal void RescheduleProgrammeItem(ReleaseSlateItem item, int week, ReleaseSlateState state, string reason) {
+		item.DueWeek = week;
+		// Only unspent holds move. Keep the recorded master and its already paid production cost.
+		item.ReservedProduction = item.ReservedMarketing = item.ReservedPressing = 0;
+		item.MissedFollowUp |= item.Source == "hit-follow-up" && pipelineWeek >= item.IntendedWeek && week > item.IntendedWeek;
+		ReviewSlate(item, state, reason);
 	}
 
 	internal float ProgrammePushFactor(RecordRuntimeData record) {
@@ -160,7 +196,7 @@ public partial class CompetitorManager {
 		programmeCampaignByRecord.Clear();
 	}
 
-	private void BookProgrammeCampaign(Record record, SimulatedArtist artist, AILabel label, float spend) {
+	internal void BookProgrammeCampaign(Record record, SimulatedArtist artist, AILabel label, float spend) {
 		if (!LabelReleaseProgramme.CapacityEnabled || label.isPlayerOwned || ProgrammeState == null) return;
 		if (ProgrammeState.Campaigns.Any(c => c.RecordId == record.recordId)) return;
 		float booked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
@@ -250,6 +286,7 @@ public partial class CompetitorManager {
 		// A label's first horizon starts this week: the opening world, or a newly founded label, already has work in
 		// hand, as under the control, rather than idling through the preparation lead.
 		if (!ProgrammeState.PlannedThrough.ContainsKey(label.labelId)) PlanProgramme(label, date, pipelineWeek);
+		ReviewProgrammeMaterialSearches(label, date);
 		var remainingSlots = new Dictionary<ReleaseFormat, int>();
 		var preparationSlots = new Dictionary<ReleaseFormat, int>();
 		var preparedNow = new HashSet<ReleaseSlateItem>();
@@ -259,7 +296,7 @@ public partial class CompetitorManager {
 			preparationSlots[format] = LabelReleaseProgramme.Slots(ProgrammeWeeklyRate(label, date.AddDays(7), format),
 				ProgrammeRoll(label, null, format.ToString(), pipelineWeek + 1, 0));
 		}
-		foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i)).OrderBy(i => i.IntendedWeek).ThenByDescending(i => i.Score).ToList()) {
+		foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) && i.State != ReleaseSlateState.AwaitingDelivery).OrderBy(i => i.IntendedWeek).ThenByDescending(i => i.Score).ToList()) {
 			var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
 			if (artist == null || artist.contractSequence != item.ContractSequence || !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist)) {
 				ReviewSlate(item, ReleaseSlateState.Cancelled, "rights-or-artist-unavailable"); continue;
@@ -267,35 +304,30 @@ public partial class CompetitorManager {
 			if (pipelineWeek - item.IntendedWeek > LabelReleaseProgramme.Horizon) { ReviewSlate(item, ReleaseSlateState.Cancelled, "window-expired"); continue; }
 			if (item.Format == ReleaseFormat.Single && item.DueWeek > pipelineWeek + LabelReleaseProgramme.PreparationWeeks &&
 				HitActCadence.WeeksSinceTop40(artist, pipelineWeek) <= 2 && pipelineWeek - ProgrammeClockFor(artist).SingleWeek >= LabelReleaseProgramme.SingleFloor) {
-				item.DueWeek = pipelineWeek + LabelReleaseProgramme.PreparationWeeks;
-				item.ReadyWeek = Math.Min(item.ReadyWeek, item.DueWeek - 1);
-				ReviewSlate(item, item.State, "observed-breakout-rush-review");
+				int rushWeek = pipelineWeek + LabelReleaseProgramme.PreparationWeeks;
+				item.ReadyWeek = Math.Min(item.ReadyWeek, rushWeek - 1);
+				RescheduleProgrammeItem(item, rushWeek, item.State, "observed-breakout-rush-review");
 			}
 			// Opening intentions dated this week were prepared before the horizon began, in this week's dated slot.
 			bool opening = item.IntendedWeek == item.ProposedWeek && pipelineWeek == item.IntendedWeek;
 			if (pipelineWeek >= item.ReadyWeek && item.PreparedRecord == null && !opening && preparationSlots[item.Format] <= 0) {
 				// Work queued behind the dated capacity holds no cash; it re-reserves when it reaches a slot, so a
 				// backlog cannot starve the label's next intention of funds.
-				item.ReservedProduction = item.ReservedMarketing = 0;
-				item.DueWeek = Math.Max(item.DueWeek, pipelineWeek + 1);
-				item.MissedFollowUp |= item.Source == "hit-follow-up" && pipelineWeek >= item.IntendedWeek;
-				ReviewSlate(item, ReleaseSlateState.Postponed, "preparation-capacity-unavailable"); continue;
+				RescheduleProgrammeItem(item, Math.Max(item.DueWeek, pipelineWeek + 1), ReleaseSlateState.Postponed, "preparation-capacity-unavailable"); continue;
 			}
-			if (item.PreparedRecord == null && item.ReservedMarketing <= 0 &&
+			if (item.ReservedMarketing <= 0 &&
 				pipelineWeek >= Math.Min(item.IntendedWeek, item.DueWeek) - LabelReleaseProgramme.PreparationWeeks) {
-				if (ReserveSlate(label, artist, item, date, out string shortfall)) ReviewSlate(item, ReleaseSlateState.InPreparation, "work-and-cash-reserved");
+				if (ReserveSlate(label, artist, item, date, out string shortfall)) ReviewSlate(item,
+					item.PreparedRecord == null ? ReleaseSlateState.InPreparation : ReleaseSlateState.Scheduled, "work-and-cash-reserved");
 				else if (pipelineWeek >= item.ReadyWeek) {
 					// Short cash postpones the work; the window, not one week's balance, decides cancellation.
-					item.DueWeek = Math.Max(item.DueWeek, pipelineWeek + 1);
-					item.MissedFollowUp |= item.Source == "hit-follow-up" && pipelineWeek >= item.IntendedWeek;
-					ReviewSlate(item, ReleaseSlateState.Postponed, shortfall); continue;
+					RescheduleProgrammeItem(item, Math.Max(item.DueWeek, pipelineWeek + 1), ReleaseSlateState.Postponed, shortfall); continue;
 				}
 			}
 			if (pipelineWeek >= item.ReadyWeek && item.PreparedRecord == null) {
 				if (!PrepareSlateMaster(label, artist, date, item)) {
 					if (pipelineWeek - item.IntendedWeek > LabelReleaseProgramme.Horizon) ReviewSlate(item, ReleaseSlateState.Cancelled, "preparation-window-expired");
-					else { item.DueWeek = Math.Max(item.DueWeek, pipelineWeek + 1); item.MissedFollowUp |= item.Source == "hit-follow-up" && pipelineWeek >= item.IntendedWeek;
-						ReviewSlate(item, ReleaseSlateState.Postponed, "preparation-material-economics-or-funding"); }
+					else RescheduleProgrammeItem(item, Math.Max(item.DueWeek, pipelineWeek + 1), ReleaseSlateState.Postponed, "preparation-material-economics-or-funding");
 					continue;
 				}
 				if (!opening) preparationSlots[item.Format]--;
@@ -303,25 +335,23 @@ public partial class CompetitorManager {
 			}
 			if (item.State == ReleaseSlateState.Ready) ReviewSlate(item, ReleaseSlateState.Scheduled, "dated-issue-slot");
 			if (item.DueWeek > pipelineWeek) continue;
+			if (pipelineWeek < LabelReleaseProgramme.EarliestIssueWeek(item)) {
+				RescheduleProgrammeItem(item, LabelReleaseProgramme.EarliestIssueWeek(item), ReleaseSlateState.Postponed, "recorded-master-needs-issue-lead"); continue;
+			}
 			if (pipelineWeek - item.IntendedWeek > LabelReleaseProgramme.Horizon) { ReviewSlate(item, ReleaseSlateState.Cancelled, "window-expired"); continue; }
 			if (remainingSlots[item.Format] <= 0) {
-				item.DueWeek = pipelineWeek + 1; item.MissedFollowUp |= item.Source == "hit-follow-up";
-				ReviewSlate(item, ReleaseSlateState.Postponed, "issue-capacity-unavailable"); continue;
+				RescheduleProgrammeItem(item, pipelineWeek + 1, ReleaseSlateState.Postponed, "issue-capacity-unavailable"); continue;
 			}
 			if (!IssueSlate(label, artist, item, date, remainingSlots)) {
-				item.MissedFollowUp |= item.Source == "hit-follow-up";
-				item.DueWeek = pipelineWeek + 1;
 				// Release reservations when a slot fails. Re-admit next week against the live cash and promotion books.
-				item.ReservedProduction = item.ReservedMarketing = item.ReservedPressing = 0;
-				ReviewSlate(item, ReleaseSlateState.Postponed, "material-economics-funding-or-availability");
+				RescheduleProgrammeItem(item, pipelineWeek + 1, ReleaseSlateState.Postponed, "material-economics-funding-or-availability");
 			}
 		}
 		// Dated work left idle this week (an empty, failed or cash-short slot) prepares the next intentions early, and
 		// issues ones prepared in an earlier week, so one failure does not push every later intention back a week.
 		// Unused work is still not banked. Only intentions dated after this week qualify: a failure is not retried,
 		// and a master is never recorded and issued in the same week.
-		foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) &&
-				i.IntendedWeek > pipelineWeek && i.DueWeek > pipelineWeek && !preparedNow.Contains(i))
+		foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.CanUseIdleSlot(i, pipelineWeek) && !preparedNow.Contains(i))
 			.OrderBy(i => i.DueWeek).ThenByDescending(i => i.Score).ToList()) {
 			if (preparationSlots[item.Format] <= 0 && remainingSlots[item.Format] <= 0) continue;
 			var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
@@ -332,29 +362,35 @@ public partial class CompetitorManager {
 					if (!ReserveSlate(label, artist, item, date, out _)) continue;
 					ReviewSlate(item, ReleaseSlateState.InPreparation, "work-and-cash-reserved");
 				}
-				if (!PrepareSlateMaster(label, artist, date, item)) continue;
+				if (!PrepareSlateMaster(label, artist, date, item)) {
+					RescheduleProgrammeItem(item, item.DueWeek, ReleaseSlateState.Postponed, "idle-preparation-material-economics-or-funding"); continue;
+				}
 				preparationSlots[item.Format]--;
 				ReviewSlate(item, ReleaseSlateState.Scheduled, "worked-ahead-into-idle-preparation");
 				continue;
 			}
 			if (remainingSlots[item.Format] <= 0 || !CanProgrammeArtist(label, artist, item.Format, pipelineWeek)) continue;
-			IssueSlate(label, artist, item, date, remainingSlots);
+			if (!IssueSlate(label, artist, item, date, remainingSlots))
+				RescheduleProgrammeItem(item, item.DueWeek, ReleaseSlateState.Postponed, "idle-issue-material-economics-funding-or-availability");
 		}
 		PlanProgramme(label, date);
 	}
 
-	private bool ReserveSlate(AILabel label, SimulatedArtist artist, ReleaseSlateItem item, GameDate date, out string shortfall) {
+	internal bool ReserveSlate(AILabel label, SimulatedArtist artist, ReleaseSlateItem item, GameDate date, out string shortfall, int? campaignWeek = null) {
 		var decision = BuildDecisionContext(label, artist, date.year, date.month);
 		float production = item.PreparedRecord != null ? 0 : item.Format == ReleaseFormat.Single ? decision.singleProductionCost : CalculateAlbumPriorCost(label, artist, date.year, decision);
+		float pressing = item.PreparedRecord == null ? 0 : InitialRunReserve(label, item.PreparedRecord);
 		float marketing = label.GetMarketingBudget(artist);
 		if (LabelReleaseProgramme.CapacityEnabled) {
 			var rates = LabelReleaseProgramme.MonthlyCapacity(label);
-			marketing = Math.Min(marketing, Math.Min(AvailableProgrammeCampaign(label, Math.Max(item.DueWeek, pipelineWeek)),
+			marketing = Math.Min(marketing, Math.Min(AvailableProgrammeCampaign(label, campaignWeek ?? Math.Max(item.DueWeek, pipelineWeek), item),
 				ProgrammePromotionPool(label) / Math.Max(1, rates.Singles + rates.Albums)));
 		}
 		shortfall = marketing <= 0 ? "promotion-congestion" : "insufficient-unreserved-cash";
-		if (marketing <= 0 || label.cashReserves - EconomicLabelLifecycle.CommitmentReserve(label, false) < production + marketing) return false;
-		item.ReservedProduction = production; item.ReservedMarketing = marketing;
+		float ownHold = item != issuingSlateItem && ProgrammeState.Items.Contains(item) && LabelReleaseProgramme.IsOpen(item)
+			? item.ReservedProduction + item.ReservedMarketing + item.ReservedPressing : 0;
+		if (marketing <= 0 || label.cashReserves - (EconomicLabelLifecycle.CommitmentReserve(label, false) - ownHold) < production + marketing + pressing) return false;
+		item.ReservedProduction = production; item.ReservedMarketing = marketing; item.ReservedPressing = pressing;
 		return true;
 	}
 
@@ -363,10 +399,13 @@ public partial class CompetitorManager {
 	// competes for production cash, the promotion pool and the act's single clock. Requiring a coincident free
 	// single slot instead blocked ~90% of decisions on calendar accident, not on the researched selectivity.
 	private bool IssueSlate(AILabel label, SimulatedArtist artist, ReleaseSlateItem item, GameDate date, Dictionary<ReleaseFormat, int> remainingSlots) {
-		if (item.ReservedMarketing <= 0) ReserveSlate(label, artist, item, date, out _);
+		if (item.PreparedRecord == null || pipelineWeek < LabelReleaseProgramme.EarliestIssueWeek(item)) return false;
+		// An idle slot may issue before the reserved date. Requote the actual launch window and live cash,
+		// excluding this item's old holds; a future booking cannot authorize an unfunded launch today.
+		bool funded = ReserveSlate(label, artist, item, date, out _, campaignWeek: pipelineWeek);
 		bool success = false;
 		programmeAdvanceSingleId = null;
-		if (item.ReservedMarketing > 0 && CanProgrammeArtist(label, artist, item.Format, pipelineWeek)) {
+		if (funded && item.ReservedMarketing > 0 && CanProgrammeArtist(label, artist, item.Format, pipelineWeek)) {
 			issuingSlateItem = item;
 			programmeAdvanceSlot = item.Format == ReleaseFormat.Album;
 			programmeCampaignBudget = Math.Min(item.ReservedMarketing, AvailableProgrammeCampaign(label, pipelineWeek));
@@ -379,10 +418,36 @@ public partial class CompetitorManager {
 		var issued = ChartManager.Instance.GetRecordRuntimeData(item.RecordId);
 		if (issued != null && issued.baseRecord.labelId == item.LabelId && Math.Abs(issued.sunkProductionCost - item.PaidProduction) > .01f)
 			throw new InvalidOperationException("Programme production must enter the issued record exactly once.");
-		item.ActualWeek = pipelineWeek; item.ActualDate = date;
-		ReviewSlate(item, ReleaseSlateState.Issued, programmeAdvanceSingleId != null ? "issued-advance-single-lp-to-follow" :
-			"issued-through-existing-finance-and-catalogue");
+		if (programmeAdvanceSingleId != null) AwaitProgrammeDelivery(item);
+		else {
+			item.ActualWeek = pipelineWeek; item.ActualDate = date;
+			ReviewSlate(item, ReleaseSlateState.Issued, "issued-through-existing-finance-and-catalogue");
+		}
 		return true;
+	}
+
+	internal void AwaitProgrammeDelivery(ReleaseSlateItem item) {
+		// The existing LP project now owns the recorded master and its outstanding costs.
+		item.PreparedRecord = null;
+		item.ReservedProduction = item.ReservedMarketing = item.ReservedPressing = 0;
+		item.ActualWeek = 0; item.ActualDate = default;
+		ReviewSlate(item, ReleaseSlateState.AwaitingDelivery, "advance-single-issued-awaiting-lp");
+	}
+
+	internal void CompleteProgrammeDelivery(string recordId, GameDate date, int? actualWeek = null) {
+		if (ProgrammeState == null) return;
+		var item = ProgrammeState.Items.FirstOrDefault(i => i.RecordId == recordId && i.State == ReleaseSlateState.AwaitingDelivery);
+		if (item == null) return;
+		item.ActualWeek = actualWeek ?? pipelineWeek; item.ActualDate = date;
+		ReviewSlate(item, ReleaseSlateState.Issued, "issued-delayed-lp");
+	}
+
+	internal void ReconcileProgrammeDelivery(ReleaseSlateItem item, AlbumProject project) {
+		if (project == null || project.terminalState == AlbumProjectTerminalState.Cancelled) {
+			ReviewSlate(item, ReleaseSlateState.Cancelled, project == null ? "lp-project-missing" : "lp-project-cancelled");
+		} else if (project.terminalState == AlbumProjectTerminalState.Released) {
+			CompleteProgrammeDelivery(item.RecordId, project.dropDate, project.dropWeek);
+		}
 	}
 
 	private void CountProgrammeAttempt(AILabel label, bool success) {
@@ -398,7 +463,10 @@ public partial class CompetitorManager {
 				var label = GetLabel(group.Key);
 				if (label == null || label.isPlayerOwned) continue;
 				var recent = group.Where(r => r.weeksSinceRelease < LabelReleaseProgramme.CampaignWeeks).ToList();
-				float share = ProgrammePromotionPool(label) / Math.Max(1, recent.Count);
+				float alreadyBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek &&
+					pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
+				int unbooked = recent.Count(r => !ProgrammeState.Campaigns.Any(c => c.RecordId == r.baseRecord.recordId));
+				float share = Math.Max(0, ProgrammePromotionPool(label) - alreadyBooked) / Math.Max(1, unbooked);
 				foreach (var record in group) {
 					if (ProgrammeState.Campaigns.Any(c => c.RecordId == record.baseRecord.recordId)) continue;
 					float spend = recent.Contains(record) ? share : 0;
@@ -409,7 +477,15 @@ public partial class CompetitorManager {
 			}
 			ProgrammeState.CampaignsInitialized = true;
 		}
+		foreach (var item in ProgrammeState.Items.Where(i => i.State == ReleaseSlateState.AwaitingDelivery ||
+			i.State == ReleaseSlateState.Issued && i.Reason == "issued-advance-single-lp-to-follow")) {
+			// v28 saves from the earlier implementation prematurely marked these LPs issued.
+			if (item.State == ReleaseSlateState.Issued) AwaitProgrammeDelivery(item);
+			ReconcileProgrammeDelivery(item, albumProjects.FirstOrDefault(p => p.albumRecord?.recordId == item.RecordId));
+		}
 		foreach (var item in ProgrammeState.Items.Where(LabelReleaseProgramme.IsOpen)) {
+			// Contract/ownership changes are handled by the existing project transfer/delivery service.
+			if (item.State == ReleaseSlateState.AwaitingDelivery) continue;
 			var label = GetLabel(item.LabelId);
 			if (label?.IsActive != true || label.isPlayerOwned) ReviewSlate(item, ReleaseSlateState.Cancelled, "label-inactive-or-player-owned");
 			else if (!label.roster.Any(a => a.artistId == item.ArtistId && a.contractSequence == item.ContractSequence && GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(a)))
