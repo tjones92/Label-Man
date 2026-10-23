@@ -764,3 +764,83 @@ single loss share .68 vs .70. Studio Top 10 share is again higher (11.5% vs
 4.0%), the one effect repeated across v23 and v24; it is one seed.
 
 Evidence: `SimLogs/slate-material-v24/`. No default or working-bundle change.
+
+### slate-lp-assembly-v25 (Release Judgement 5A: LP assembly)
+
+`--lp-assembly` (requires the slate) replaces the compilation lottery on the
+slate's LP path. Before, `GetCompilationChance` (up to .97 × single
+orientation) drew a "compilation" whose reused masters were simply the act's
+last four singles, at the 0.6-session compilation cost even with nothing to
+reuse. At preparation, an LP intention now prices three propositions on their
+actual track lists with the existing album margin model (`BuildLpAssembly`,
+`Systems/CompetitorManager.LpAssembly.cs`) and takes the best feasible one:
+
+* **Ordinary studio LP:** new sessions, plus up to three of the act's
+  strongest shelved masters.
+* **Hit-led studio LP:** up to three recent (≤52 weeks) Top 40 singles the
+  label controls and not already on a studio LP, up to two other recent
+  singles, then shelved masters. Reuse is capped at half the tracks.
+* **Greatest-hits package:** needs `--lp-assembly-gh-hits` (default 3)
+  relevant hits, meaning controlled Top 40 singles not already on a hits
+  package. Hits lead, then the rest of the controlled catalogue, then shelved
+  masters ("previously unissued"). No new sessions; at least 8 tracks.
+
+Statement and live LPs remain ordinary-LP outcomes of the existing draws.
+
+Supporting state (save v30, all null when unused):
+
+* A **master-control ledger** filled in `TrackRelease`, so it follows master
+  sales and leases. A single from a former label is not this label's
+  catalogue.
+* A **shelf** of paid slate singles whose window expired while the act stayed
+  signed: six per act, cleared when the act leaves, each master used once.
+* Each item's chosen `LpAssemblyPlan`.
+
+Pricing:
+
+* New sessions cost 2.4 sessions each and reused masters 0.6, pro rata.
+* Only included singles enter the hit inventory, at full weight.
+* A hits package registers comp uses, which lower later freshness. A studio LP
+  marks its singles as used for later studio LPs.
+
+The track length (9–12) is keyed to the intention. The planning and slot
+choice still use the legacy prior, so the format opportunity policy is
+unchanged. Telemetry: `*-lp-assembly.csv`.
+
+Validation: build clean. In each studio setting, 20 LP-assembly assertions,
+the 46 scheduler and 31 material assertions (both with assembly on), and a
+26-week live roundtrip passed. The roundtrip checked every assembled master
+against its plan as it was made: references, track counts, compilation only
+for packages, and shelved masters consumed. It then checked byte-identical
+full-world and gzip saves, unchanged ledger after load, and 13 resumed weeks
+under the live-state audit (studio off: 705 ordinary and 100 hit-led LPs,
+306 reused masters; studio on: 703/88/258).
+
+53-week seed-1001 smoke, working bundle with and without the switch. The
+switch-off run matched all 98 simulation streams of v24's base.
+
+| 1960 | LPs pressed | Compilation | LP production paid | LP units | LP unit share | Singles | Single units |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| control | 1,078 | 61.5% | $2.98M | 29.2M | 16.9% | 3,023 | 144.0M |
+| assembly | 1,061 | 0.1% | $4.64M | 32.4M | 18.6% | 3,029 | 141.6M |
+
+* Of 1,197 assembled LPs: 1,077 ordinary, 115 hit-led, 5 greatest hits.
+  938 ordinary LPs belong to new signings with no controlled catalogue. Hit-led
+  LPs reuse 2.5 released masters on average (multiplier 1.95). All 5 packages
+  are Major Star/Established acts. 11 LPs had 3+ relevant hits; the other 6
+  chose differently or were too short (the ledger starts empty in 1960, so
+  opening-career discographies are not reusable masters).
+* Retiring the lottery is the main economic change, not the new kinds. The
+  control's 663 "compilations" were mostly filler LPs at the 0.6-session cost
+  and 0.68 track-quality scale. They are now studio LPs at full cost and the
+  0.88 scale, so LP production rises 56% and LP units 11%. LP unit share moves
+  toward the ~30% 1960 reference, and no starting Small label closed (control:
+  1). Shelved masters were rarely used (0.09 per ordinary LP), because most LPs
+  belong to new acts.
+* Hot 100 acts 383 vs 383; Big-5 Top 10 share 36.2% vs 37.9%; Major conversion
+  6.9% vs 7.9%; single loss share .70 vs .70. All within single-seed noise.
+
+Open: the three-hit gate against 2 and 4 (`--lp-assembly-gh-hits`), multi-seed
+and five-year runs (LP losses are unfinalized at 53 weeks), and an opening
+discography for proven 1960 acts. Evidence: `SimLogs/slate-lp-assembly-v25/`.
+No default or working-bundle change.

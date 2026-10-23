@@ -99,7 +99,7 @@ public static class LabelReleaseProgrammeChecks {
 			var restored = JsonSerializer.Deserialize<ReleaseProgrammeState>(json, SaveGameService.TestJsonOptions);
 			Check(JsonSerializer.Serialize(restored, SaveGameService.TestJsonOptions) == json, "dates, reservations, clocks and bounded ledger round-trip");
 			Check(restored.Items.Single().MissedFollowUp && restored.PlannedThrough[label.labelId] == 22, "misses and planning cursor persist");
-			Check(SaveGameService.WritingVersion == 28, "programme state requires save v28");
+			Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 28), "programme state requires save v28 (v30 with LP assembly)");
 			var timing = new ReleaseSlateItem { ProposedWeek = 5, IntendedWeek = 8, ReadyWeek = 7, PreparedWeek = 10 };
 			Check(LabelReleaseProgramme.EarliestIssueWeek(timing) == 11, "overdue recording cannot issue in the session week");
 			timing.PreparedWeek = 6;

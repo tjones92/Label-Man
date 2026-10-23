@@ -31,12 +31,12 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 29; // v29: anticipatory material work; v28: dated label release programme.
+	public const int CurrentVersion = 30; // v30: LP assembly ledger, shelf and plans; v29: anticipatory material work; v28: dated label release programme.
 	// Legacy-mode worlds still use exactly the v21 schema. Only experimental RNG
 	// worlds need v22, so older executables cannot silently change their dice on load.
 	// Only a world carrying the observe-only release-judgement shadow needs v23.
 	// Keep v24 while tagged history survives, including after the experimental switch is turned off.
-	public static int WritingVersion => LabelReleaseProgramme.MaterialSearchEnabled || CompetitorManager.Instance?.HasMaterialSearchState == true ? 29 : LabelReleaseProgramme.HasState ? 28 : RecordCampaignSpend.HasState ? 27 : PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
+	public static int WritingVersion => LabelReleaseProgramme.LpAssemblyEnabled || CompetitorManager.Instance?.HasLpAssemblyState == true ? 30 : LabelReleaseProgramme.MaterialSearchEnabled || CompetitorManager.Instance?.HasMaterialSearchState == true ? 29 : LabelReleaseProgramme.HasState ? 28 : RecordCampaignSpend.HasState ? 27 : PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {

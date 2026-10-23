@@ -70,6 +70,7 @@ public partial class CompetitorManager {
 		if (state == ReleaseSlateState.Cancelled && item.MaterialSearch?.State is ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready)
 			MaterialReview(item, pipelineWeek, ProgrammeMaterialState.Cancelled, "slate-cancelled-no-refund");
 		if (state == ReleaseSlateState.Cancelled) item.ReservedProduction = item.ReservedMarketing = item.ReservedPressing = 0f;
+		if (state == ReleaseSlateState.Cancelled) ShelveExpiredMaster(item);
 		OnReleaseSlateReview?.Invoke(item, pipelineWeek);
 		if (state is ReleaseSlateState.Issued or ReleaseSlateState.Cancelled) item.PreparedRecord = null;
 	}
@@ -90,6 +91,10 @@ public partial class CompetitorManager {
 			var plan = DecideRelease(label, decisionArtist, date.year, decision, singleProgrammeOnly: item.Format == ReleaseFormat.Single);
 			plan.format = item.Format;
 			plan.strategy = item.Format == ReleaseFormat.Single ? ReleaseStrategy.OrphanSingle : ReleaseStrategy.AlbumStandalone;
+			if (item.Format == ReleaseFormat.Album && LabelReleaseProgramme.LpAssemblyEnabled) {
+				item.LpAssembly = BuildLpAssembly(label, artist, decisionArtist, date.year, decision, item);
+				plan.projectedAlbumStandaloneNet = item.LpAssembly.ProjectedNet;
+			}
 			if (item.Format == ReleaseFormat.Album) plan.projectedAlbumNet = plan.projectedAlbumStandaloneNet;
 			if (!PassesReleaseProfitGate(label, artist, date.year, selection.Genre, plan)) return false;
 			Record master = GenerateRecordFromArtist(label, artist, date.year, item.Format, judgedOrphan: item.Format == ReleaseFormat.Single);
@@ -100,6 +105,7 @@ public partial class CompetitorManager {
 			ChargeProjectCost(label, artist, production, production);
 			WeeklyProductionSpend += production; WeeklyProductionEvents++;
 			item.PreparedRecord = master; item.RecordId = master.recordId; item.PaidProduction = production;
+			if (item.LpAssembly != null && item.Format == ReleaseFormat.Album) CompleteLpAssembly(item, label);
 			if (item.MaterialSearch?.State == ProgrammeMaterialState.Ready)
 				MaterialReview(item, pipelineWeek, master.songId == item.MaterialSearch.SongId ? ProgrammeMaterialState.Consumed : ProgrammeMaterialState.Failed,
 					master.songId == item.MaterialSearch.SongId ? "material-session-completed" : "player-placement-selected-instead");

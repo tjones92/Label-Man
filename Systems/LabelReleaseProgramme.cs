@@ -11,6 +11,7 @@ public static class LabelReleaseProgramme {
 	public static bool AllocationEnabled { get; private set; }
 	public static bool CapacityEnabled { get; private set; }
 	public static bool MaterialSearchEnabled { get; private set; }
+	public static bool LpAssemblyEnabled { get; private set; }
 	public static bool Enabled => AllocationEnabled || CapacityEnabled;
 	public static int SingleFloor { get; private set; } = 6;
 	public const int Horizon = 8, PreparationWeeks = 2, AlbumFloor = 18, CampaignWeeks = 4;
@@ -24,6 +25,11 @@ public static class LabelReleaseProgramme {
 		MaterialSearchEnabled = args.Contains("--anticipatory-material-search");
 		if (MaterialSearchEnabled && !AllocationEnabled)
 			throw new ArgumentException("--anticipatory-material-search requires " + AllocationSwitch);
+		LpAssemblyEnabled = args.Contains(LpAssembly.Switch);
+		if (LpAssemblyEnabled && !AllocationEnabled) throw new ArgumentException(LpAssembly.Switch + " requires " + AllocationSwitch);
+		LpAssembly.GreatestHitsHits = (int)Read(args, LpAssembly.GreatestHitsSwitch, 3, 1, 8);
+		if (args.Any(a => a.StartsWith(LpAssembly.GreatestHitsSwitch, StringComparison.Ordinal)) && !LpAssemblyEnabled)
+			throw new ArgumentException(LpAssembly.GreatestHitsSwitch + " requires " + LpAssembly.Switch);
 		SingleFloor = (int)Read(args, "--slate-single-floor=", 6, 1, 13);
 		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 16);
 		MajorAlbumsPerMonth = Read(args, "--programme-major-albums=", 5, 0, 12);
@@ -36,7 +42,7 @@ public static class LabelReleaseProgramme {
 		string value = args.SingleOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
 		if (value == null) return fallback;
 		if (!float.TryParse(value[prefix.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) ||
-			!float.IsFinite(x) || x < min || x > max || prefix == "--slate-single-floor=" && x != MathF.Truncate(x))
+			!float.IsFinite(x) || x < min || x > max || (prefix == "--slate-single-floor=" || prefix == LpAssembly.GreatestHitsSwitch) && x != MathF.Truncate(x))
 			throw new ArgumentException($"{prefix} requires a value between {min} and {max}.");
 		return x;
 	}
@@ -66,12 +72,15 @@ public static class LabelReleaseProgramme {
 		$"{label.labelName}|{label.founderName}|{label.foundedYear}|{label.homeCityId}|{label.isHistorical}|{label.archetype}|{label.budgetLevel:R}|{label.productionQuality:R}|{label.marketingPower:R}");
 	internal static void SetForChecks(bool allocation, bool capacity) { AllocationEnabled = allocation; CapacityEnabled = capacity; }
 	internal static void SetMaterialSearchForChecks(bool value) => MaterialSearchEnabled = value;
+	internal static void SetLpAssemblyForChecks(bool value) => LpAssemblyEnabled = value;
 }
 
 public enum ReleaseSlateState { Proposed, InPreparation, Ready, Scheduled, Postponed, Issued, Cancelled, AwaitingDelivery }
 public sealed class ReleaseSlateItem {
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public ProgrammeMaterialSearch MaterialSearch;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public LpAssemblyPlan LpAssembly;
 	public string Id, LabelId, ArtistId, Source, Evidence, Reason, RecordId;
 	public ReleaseFormat Format;
 	public ReleaseSlateState State;
@@ -98,6 +107,11 @@ public sealed class ReleaseProgrammeState {
 	public List<ProgrammeCampaign> Campaigns = new();
 	public Dictionary<string, int> PlannedThrough = new(StringComparer.Ordinal);
 	public Dictionary<string, string> LabelIdentities = new(StringComparer.Ordinal);
+	// LP assembly only; null otherwise so earlier programme worlds keep their exact shape.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public Dictionary<string, LpMasterControl> MasterControl;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public List<ShelvedMaster> Shelf;
 }
 
 public sealed class ProgrammeResourceTelemetry {

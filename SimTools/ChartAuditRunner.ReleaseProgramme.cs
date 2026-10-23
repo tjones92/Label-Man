@@ -5,6 +5,7 @@ public partial class ChartAuditRunner {
 	private StreamWriter releaseSlateWriter;
 	private StreamWriter programmeResourceWriter;
 	private StreamWriter programmeMaterialWriter;
+	private StreamWriter lpAssemblyWriter;
 	private void OpenReleaseProgrammeOutputs(string directory) {
 		if (!LabelReleaseProgramme.Enabled) return;
 		releaseSlateWriter = CreateWriter(Path.Combine(directory, $"{runName}-release-slate.csv"));
@@ -18,6 +19,21 @@ public partial class ChartAuditRunner {
 			programmeMaterialWriter.WriteLine("week,slotId,labelId,artistId,state,reason,professional,songId,supplierId,startedWeek,deliveryWeek,holdUntilWeek,paidFee,proposalRead,baselineRead,expectedBenefit,referenceMasterId,recordId");
 			CompetitorManager.Instance.OnProgrammeMaterialSearch += WriteProgrammeMaterial;
 		}
+		if (LabelReleaseProgramme.LpAssemblyEnabled) {
+			lpAssemblyWriter = CreateWriter(Path.Combine(directory, $"{runName}-lp-assembly.csv"));
+			lpAssemblyWriter.WriteLine("week,year,slotId,labelId,tier,artistId,careerState,kind,albumFormat,recordId,trackCount,releasedMasters,shelvedMasters,newSessions,relevantHits,controlledSingles,productionMultiplier,paidProduction,projectedNet,ordinaryNet,hitLedFeasible,hitLedNet,greatestHitsFeasible,greatestHitsNet,reason");
+			CompetitorManager.Instance.OnLpAssembly += WriteLpAssembly;
+		}
+	}
+	private void WriteLpAssembly(ReleaseSlateItem item, AILabel label, int week) {
+		var p = item.LpAssembly;
+		var artist = label.roster.Find(a => a.artistId == item.ArtistId);
+		string R(float n) => n.ToString("R", CultureInfo.InvariantCulture);
+		lpAssemblyWriter.WriteLine(string.Join(",", week, item.IntendedDate.year, Csv(item.Id), Csv(label.labelId), label.tier, Csv(item.ArtistId),
+			artist?.careerState.ToString() ?? "", p.Kind, item.PreparedRecord?.album?.albumFormat.ToString() ?? "", Csv(item.RecordId), p.TrackCount,
+			p.ReleasedMasterIds.Count, p.ShelvedMasterIds.Count, p.NewSessions, p.RelevantHits, p.ControlledSingles, R(p.ProductionMultiplier),
+			R(item.PaidProduction), R(p.ProjectedNet), R(p.OrdinaryNet), p.HitLedFeasible ? 1 : 0, R(p.HitLedNet), p.GreatestHitsFeasible ? 1 : 0,
+			R(p.GreatestHitsNet), Csv(p.Reason)));
 	}
 	private void WriteProgrammeMaterial(ReleaseSlateItem item, int week) {
 		var s = item.MaterialSearch;
@@ -40,8 +56,10 @@ public partial class ChartAuditRunner {
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnReleaseSlateReview -= WriteReleaseSlate;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeResources -= WriteProgrammeResources;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeMaterialSearch -= WriteProgrammeMaterial;
+		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnLpAssembly -= WriteLpAssembly;
 		releaseSlateWriter?.Dispose(); releaseSlateWriter = null;
 		programmeResourceWriter?.Dispose(); programmeResourceWriter = null;
 		programmeMaterialWriter?.Dispose(); programmeMaterialWriter = null;
+		lpAssemblyWriter?.Dispose(); lpAssemblyWriter = null;
 	}
 }

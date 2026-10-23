@@ -2647,6 +2647,7 @@ public partial class CompetitorManager : Node {
 				ChartManager.Instance.RegisterCompUse(track?.sourceRecordId);
 			}
 		}
+		if (record.format == ReleaseFormat.Album) NoteStudioLpUse(record);
 		RecordRuntimeData runtime = ChartManager.Instance.GetRecordRuntimeData(record.recordId)
 			?? throw new System.InvalidOperationException($"Released record '{record.recordId}' has no runtime data.");
 		runtime.sunkProductionCost = productionCost;
@@ -3317,7 +3318,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private float CalculateAlbumPriorNet(AILabel label, SimulatedArtist artist, int year, DecisionContext decision,
-		float compCostWeight, HitInventory hitInventory, out AlbumPriorDiagnostics diagnostics) {
+		float compCostWeight, HitInventory hitInventory, out AlbumPriorDiagnostics diagnostics, float? productionMultiplier = null) {
 		IEnumerable<MarketRegion> regions = ChartManager.Instance != null ? ChartManager.Instance.GetAllRegions() : Enumerable.Empty<MarketRegion>();
 		bool live = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		AlbumPriorExplanation opportunity = GetAlbumPriorExplanation(artist.primaryGenre, regions, year, live);
@@ -3357,6 +3358,8 @@ public partial class CompetitorManager : Node {
 			TimeManager.Instance?.CurrentDate ?? new GameDate(year, 1, 1));
 		float multiplier = compCostWeight * compilationProductionMultiplier + (1f - compCostWeight) * 2.4f;
 		if (AlbumMasterCosts.IsLive) multiplier = AlbumMasterCosts.ExpectedMultiplier(compCostWeight, hitInventory.resolvedSingles, compilationProductionMultiplier);
+		// LP assembly prices a known track list: new sessions at the full rate, reused masters at the compilation rate.
+		if (productionMultiplier.HasValue) multiplier = productionMultiplier.Value;
 		float productionCost = MarketSeasonality.Enabled
 			? label.GetProductionCost() * decision.recordingCostMultiplier * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging
 			: label.GetProductionCost() * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging;
@@ -3429,6 +3432,8 @@ public partial class CompetitorManager : Node {
 			: label.GetProductionCost();
 		if (AlbumReleasePractice.IsLive && !string.IsNullOrEmpty(record?.sourceAlbumRecordId)) return baseCost * .15f;
 		if (record?.format != ReleaseFormat.Album) return baseCost;
+		if (LabelReleaseProgramme.LpAssemblyEnabled && issuingSlateItem?.LpAssembly is { } assembled)
+			return baseCost * assembled.ProductionMultiplier + albumPackagingFixedCost * (record.album?.packaging ?? 0f);
 		float multiplier = record.album?.albumFormat == AlbumFormat.Compilation
 			? compilationProductionMultiplier
 			: 2.4f;
@@ -3877,7 +3882,17 @@ public partial class CompetitorManager : Node {
 
 		AlbumFormat albumFormat;
 		bool statementViable = cohesionCeiling >= 0.72f && thematicCohesion >= 0.62f;
-		if (statementViable && year >= AlbumModel.EarlyStatementYear && GameRandom.Randf() < 0.24f) {
+		// LP assembly (5A): the proposition is already chosen. A hits package is a compilation; statement and live
+		// projects remain ordinary-LP outcomes; the compilation lottery is retired. The legacy draws still advance.
+		LpAssemblyPlan assembly = LabelReleaseProgramme.LpAssemblyEnabled ? issuingSlateItem?.LpAssembly : null;
+		if (assembly != null) {
+			bool statement = statementViable && year >= AlbumModel.EarlyStatementYear && GameRandom.Randf() < 0.24f;
+			float typeRoll = GameRandom.Randf();
+			albumFormat = assembly.Kind == LpProposalKind.GreatestHits ? AlbumFormat.Compilation
+				: assembly.Kind == LpProposalKind.Ordinary && statement ? AlbumFormat.Concept
+				: assembly.Kind == LpProposalKind.Ordinary && typeRoll < 0.12f ? AlbumFormat.Live : AlbumFormat.Standard;
+			if (albumFormat == AlbumFormat.Concept) thematicCohesion = Mathf.Max(thematicCohesion, 0.68f);
+		} else if (statementViable && year >= AlbumModel.EarlyStatementYear && GameRandom.Randf() < 0.24f) {
 			albumFormat = AlbumFormat.Concept;
 			thematicCohesion = Mathf.Max(thematicCohesion, 0.68f);
 		} else if (GameRandom.Randf() < AlbumModel.GetCompilationChance(artist.primaryGenre, year)) {
@@ -3894,7 +3909,12 @@ public partial class CompetitorManager : Node {
 		}
 
 		var referencedSingles = new List<AlbumTrack>();
-		if (albumFormat == AlbumFormat.Compilation) {
+		var nonSingleTracks = new List<AlbumTrack>();
+		if (assembly != null) {
+			var (released, shelvedTracks) = ResolveLpAssemblyTracks(assembly);
+			referencedSingles.AddRange(released);
+			nonSingleTracks.AddRange(shelvedTracks);
+		} else if (albumFormat == AlbumFormat.Compilation) {
 			foreach (string recordId in artist.releasedSingleIds.AsEnumerable().Reverse()) {
 				if (referencedSingles.Count >= 4) break;
 				if (ChartManager.Instance.TryResolveTrackSnapshot(recordId, out AlbumTrack track, out _)) referencedSingles.Add(track);
@@ -3902,7 +3922,7 @@ public partial class CompetitorManager : Node {
 		}
 
 		int targetTracks = (int)GameRandom.RandRange(9, 13);
-		var nonSingleTracks = new List<AlbumTrack>();
+		if (assembly != null) targetTracks = assembly.TrackCount;
 		float originalMaterialScale = albumFormat == AlbumFormat.Compilation ? 0.68f : albumFormat == AlbumFormat.Live ? 0.80f : 0.88f;
 		// How unevenly this family's albums are put together in this year. A jazz LP in 1960 is
 		// already a body of work; a pop LP in 1960 is a hit with filler around it, and rock
@@ -3916,7 +3936,7 @@ public partial class CompetitorManager : Node {
 		// cohesion only reshapes WITHIN the album. Deterministic (no GD); album tracks never settle, so this
 		// is inert to the economy. Empty pools fall back to the free mix inside ChooseMaterial.
 		SongMaterialSource[] planSlots = null;
-		int nonSingleTarget = Mathf.Max(0, targetTracks - referencedSingles.Count);
+		int nonSingleTarget = assembly != null ? assembly.NewSessions : Mathf.Max(0, targetTracks - referencedSingles.Count);
 		if (AlbumMaterialPlanner.Enabled && SongMaterialSelectionService.Enabled && albumRecordId != null && nonSingleTarget > 0) {
 			AlbumMaterialPlan plan = AlbumMaterialPlanner.Plan(artist.primaryGenre, year, thematicCohesion, nonSingleTarget, artist.artistId, albumRecordId);
 			planSlots = AlbumMaterialPlanner.ExpandSlots(plan, artist.artistId, albumRecordId);
@@ -3965,6 +3985,7 @@ public partial class CompetitorManager : Node {
 			}
 			nonSingleTracks.Add(track);
 		}
+		if (assembly != null) targetTracks = referencedSingles.Count + nonSingleTracks.Count;
 
 		float avgTrackMinutes = (float)GameRandom.RandRange(2.45, year >= 1967 ? 4.10 : 3.35);
 		float[] referencedFreshness = referencedSingles
@@ -4406,6 +4427,7 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private void TrackRelease(string labelId, string recordId) {
+		NoteMasterControl(labelId, recordId);
 		if (!labelActiveRecords.ContainsKey(labelId)) labelActiveRecords[labelId] = new List<string>();
 		if (labelActiveRecords[labelId].Contains(recordId)) return;
 		labelActiveRecords[labelId].Add(recordId);

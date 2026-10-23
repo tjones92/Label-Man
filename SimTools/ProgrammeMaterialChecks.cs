@@ -70,9 +70,9 @@ public static class ProgrammeMaterialChecks {
             var restored = JsonSerializer.Deserialize<ReleaseProgrammeState>(json, options);
             Check(JsonSerializer.Serialize(restored, options) == json && restored.Items[0].MaterialSearch.SupplierId == item.MaterialSearch.SupplierId,
                 "the supplier commitment and work timing roundtrip without a fresh quote");
-            Check(SaveGameService.WritingVersion == 29, "active material work requires save v29");
+            Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 29), "active material work requires save v29 (v30 with LP assembly)");
             LabelReleaseProgramme.SetMaterialSearchForChecks(false);
-            Check(SaveGameService.WritingVersion == 29, "retained work still requires v29 with the switch off");
+            Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 29), "retained work still requires v29 with the switch off");
             LabelReleaseProgramme.SetMaterialSearchForChecks(true);
             manager.AdvanceProgrammeMaterial(item, label, act, date, 11);
             Check(item.MaterialSearch.State == ProgrammeMaterialState.Ready && label.cashReserves == cash - 150,
@@ -111,7 +111,7 @@ public static class ProgrammeMaterialChecks {
             held.rights.exclusiveHold = false; held.rights.compulsoryMechanicalAvailable = false;
             Check(!CompetitorManager.CanObtainProgrammeSong(held, label, false, 1960, 10), "a cover requires the existing rights route");
             manager.SetProgrammeForChecks(new ReleaseProgrammeState()); LabelReleaseProgramme.SetMaterialSearchForChecks(false);
-            Check(SaveGameService.WritingVersion == 28 && !JsonSerializer.Serialize(new ReleaseSlateItem(), options).Contains("MaterialSearch"),
+            Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 28) && !JsonSerializer.Serialize(new ReleaseSlateItem(), options).Contains("MaterialSearch"),
                 "old programme worlds keep v28 and omit the optional material field");
             GD.Print($"PROGRAMME_MATERIAL_CHECK passed checks={checks} studio={StudioParentLabels.Enabled}");
         } finally {

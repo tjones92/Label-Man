@@ -50,6 +50,14 @@ division or a tier that cannot sign. Rejected transactions preserve existing
 contracts, claims, cash and prepared work; stale player offers remain pending.
 Run with the working bundle and studio labels both off and on.
 
+`--lp-assembly` (with the slate) builds each slate LP as an ordinary, hit-led or
+greatest-hits proposition from masters the label controls, shelved expired
+masters and new sessions, replacing the compilation lottery (save v30).
+`--lp-assembly-check` runs its native assertions; `--lp-assembly-roundtrip
+--weeks=26` checks every assembled master against its plan in a live world,
+then save/load and resume. Telemetry: `*-lp-assembly.csv`. See
+[LabelReleaseProgrammeImplementation.md](LabelReleaseProgrammeImplementation.md).
+
 The first demand/attention measurement slice appends explicit before/after-marketing
 contribution fields to release outcomes and local single/LP clearing totals to
 market telemetry. `analyze_demand_attention.py PREFIX ... --output SimLogs/REPORT.json`
