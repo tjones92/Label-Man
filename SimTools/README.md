@@ -69,6 +69,16 @@ gives MidTiers their own budget. `--slate-going-concern-reserve` tests a work-bu
 reservation, session and issue against tax due within two month-ends, not the full tax-and-service hold.
 A budget run writes `*-programme-cash-shortfalls.csv`, one row per refused reservation with its reserve parts.
 
+`--slate-breakout-planning` (requires the work budget; excludes hit-follow-up finance) assigns existing single
+work after an observed Top 40 entry. It advances the act's own open intention or reassigns an unrecorded,
+uncommitted future single slot, preserving the original slot count and expiry window. Cash, material,
+promotion and the single floor still apply. `--slate-breakout-planning-check` verifies the scheduling and
+saved-state boundaries. `RunMidTierBreakoutAudit.ps1` runs three seeds through five years for the MidTier
+repair alone and repair plus earlier planning, with a fresh off replay against the archived T .90 baseline,
+native checks and a gzip save/load/resume check. `analyze_midtier_breakout.py --tag mbk-v1` validates the manifests
+and replay, then reports annual owner-group repeaters, MidTier survival, singles, units and rationing alongside
+fully followed 52-week hit cohorts, including silent acts. Reports and logs stay under `SimLogs/mbk-v1`.
+
 The first demand/attention measurement slice appends explicit before/after-marketing
 contribution fields to release outcomes and local single/LP clearing totals to
 market telemetry. `analyze_demand_attention.py PREFIX ... --output SimLogs/REPORT.json`

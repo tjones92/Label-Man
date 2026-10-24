@@ -1970,3 +1970,51 @@ the cadence analysis. The existing +/-5% r guard is a review diagnostic against 
 independent historical fact: retain it while testing the replacement mechanism, then assess the joint volume,
 units and hit distribution rather than preserving .60 at any cost. Do not raise aggregate consumer demand to
 make extra releases profitable without separate evidence for a larger market.
+
+### MidTier five-year validation with breakout planning (`mbk-v1`, 2026-10-24)
+
+The requested timing test is now part of the MidTier validation, as a separate treatment arm rather than a
+change to both arms. `RunMidTierBreakoutAudit.ps1` uses seeds 1001/2002/3003, 265 weeks, on the T .90 bundle:
+
+| Arm | Work budget / reserve | Breakout planning |
+|---|---|---|
+| Baseline (`tpk-v2-t90`, archived) | Existing stacked gates | Off |
+| Repair (`mbk-v1-repair`) | S .67 / SM 1 / going-concern reserve | Off |
+| Repair + timing (`mbk-v1-breakout`) | Same repair | On |
+
+`--slate-breakout-planning` requires the work budget and rejects `--hit-follow-up-finance` so the timing
+comparison cannot add dedicated slots or factoring. It applies to work-budget non-Majors, including smaller
+field labels; the reserve repair remains MidTier-only. A new in-run Top 40 entry is a pending follow-up request
+until the act has released a later single or the 52-week hot window ends. Planning can start before the six-week
+single floor is reached. It first reuses the act's own open single intention. If there is none, it may reassign
+an existing future slot with no recorded master, paid production or material-search commitment, excluding the
+hit-follow-up lane. With no existing work, the request waits for the rolling horizon; no additional slot is made.
+
+The work date is brought forward to the later of the ordinary two-week preparation lead and the single floor;
+an already nearer own intention can proceed sooner. The slot ID, proposed date, original intended date and
+expiry window stay. A prepared own master retains its paid production and session week. Unspent holds are
+released and requoted through the existing cash and promotion tests; material, profit and actual release-spacing
+checks still apply. Evidence records the Top 40 trigger and previous artist. The same saved evidence prevents
+repeated rescheduling after a cash/material failure or save/load. No new save field or global RNG draw is needed.
+
+Validation before the long runs: build clean; 20 breakout-planning, 46 programme and 49 work-budget native
+assertions pass. The 13-week whole-world round trip, gzip file I/O and resumed live programme checks pass
+(`gzipIo=ok`; the round trip uses a 3.5 GB heap ceiling instead of the simulation's 2.5 GB). `mbk-v1-off`, seed
+1001, 53 weeks, matches the archived T .90 baseline row for row in all 62 week-keyed streams through week 52.
+Three analyzer fixtures cover silent/censored cohorts, owner changes, fixed observation windows, replay drift,
+and incomplete/mixed manifests. The analyzer also runs successfully on a completed archived five-year world.
+
+At this entry, the six treatment worlds are **running**, not accepted. Native runs are serial to limit memory.
+The combined analyzer (`analyze_midtier_breakout.py --tag mbk-v1`) validates the complete manifests, flags,
+assembly hashes and off replay. It writes `annual.csv`, `cohorts.json`, `cohort-summary.csv`, `guards.csv`,
+`review.json` and `review.md` under `SimLogs/mbk-v1`. The runner generates the report automatically; a
+`-FinalizeOnly` invocation attaches that step to a screen already running on the earlier runner version.
+
+The comparison reads field/Big-5/studio annual 2+/3+ counts, first-hit breadth and opening field-MidTier survival
+through 1964. Hit cohorts require their first non-opening Top 10 in weeks 5 through end minus 52; group is fixed
+at that hit's selling label. Silent acts remain in release/debut-rate denominators; median event gaps exclude
+acts without the event, whose silence is reported separately. Both next-release and next-Hot-100-debut gaps
+are measured, plus subsequent debut spacing, 52-week release/entry/conversion counts, and cancellations of
+triggered work. The approximate four-release aim is diagnostic, not enforced. Annual rationing, Top 10 units,
+unit shares, closures, mature-cohort losses and native elapsed time accompany the timing result. No pooled
+repeat count or shorter gap alone establishes success.

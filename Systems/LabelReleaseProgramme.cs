@@ -60,7 +60,14 @@ public static class LabelReleaseProgramme {
 		GoingConcernReserveEnabled = args.Contains(GoingConcernReserveSwitch);
 		if (GoingConcernReserveEnabled && WorkBudgetSingles <= 0)
 			throw new ArgumentException(GoingConcernReserveSwitch + " requires " + WorkBudgetSwitch);
+		BreakoutPlanningEnabled = args.Contains(BreakoutPlanningSwitch);
+		if (BreakoutPlanningEnabled && WorkBudgetSingles <= 0)
+			throw new ArgumentException(BreakoutPlanningSwitch + " requires " + WorkBudgetSwitch);
+		if (BreakoutPlanningEnabled && HitFollowUpFinanceEnabled)
+			throw new ArgumentException(BreakoutPlanningSwitch + " uses existing work only; drop " + HitFollowUpFinanceSwitch);
 	}
+	public const string BreakoutPlanningSwitch = "--slate-breakout-planning";
+	public static bool BreakoutPlanningEnabled { get; private set; }
 	// --slate-going-concern-reserve: a work-budget MidTier tests its slate reservations against a going-concern reserve.
 	// Overhead, the negative-flow hold, plant payables and programme holds stay; the tax-and-service hold is replaced by
 	// the tax that falls due within the reservation lead (two month-ends). wbg-v2: surviving MidTiers were refused $2.5k

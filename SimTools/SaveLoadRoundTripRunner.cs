@@ -71,6 +71,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--hit-follow-up-finance-check")) { HitFollowUpFinanceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--slate-preparation-headroom-check")) { PreparationHeadroomChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--slate-work-budget-check")) { WorkBudgetChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--slate-breakout-planning-check")) { BreakoutPlanningChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-release-ownership-check")) { LabelReleaseOwnershipChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--distribution-funding-check")) { DistributionFundingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--distribution-ownership-check")) { DistributionOwnershipChecks.Run(); GetTree().Quit(0); return; }

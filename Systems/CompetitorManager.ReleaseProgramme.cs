@@ -299,6 +299,7 @@ public partial class CompetitorManager {
 		// hand, as under the control, rather than idling through the preparation lead.
 		if (!ProgrammeState.PlannedThrough.ContainsKey(label.labelId)) PlanProgramme(label, date, pipelineWeek);
 		SeedOpeningCatalogue();
+		PlanBreakoutFollowUps(label);
 		ReviewProgrammeMaterialSearches(label, date);
 		var remainingSlots = new Dictionary<ReleaseFormat, int>();
 		var preparationSlots = new Dictionary<ReleaseFormat, int>();
