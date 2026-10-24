@@ -1385,7 +1385,7 @@ public partial class RosterManager : Node {
 		foreach (var artist in expiring) {
 			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) continue;
 			bool wantToResign = ShouldResignArtist(label, artist);
-			if (wantToResign && label.CanAffordToSign(label.CalculateAdvanceOffer(artist))) {
+			if (HitActRenewalFinance.CanAfford(label, artist, wantToResign, date)) {
 				float newAdvance = label.CalculateAdvanceOffer(artist);
 				// --cross-collateralized-renewal carries the old balance into the new deal (audit B7).
 				artist.unrecoupedAdvance = CrossCollateralizedRenewal.RenewedBalance(artist.unrecoupedAdvance, newAdvance);
@@ -1396,6 +1396,7 @@ public partial class RosterManager : Node {
 				artist.contractReleases = 0;
 				artist.royaltyRate = label.CalculateRoyaltyRate(artist);
 				CompetitorManager.Instance?.RecordExpense(label, newAdvance, LabelCashKind.ArtistAdvances);
+				HitActRenewalFinance.RecordPaid(label, artist, newAdvance);
 				artist.careerEvents.Add($"{year}: Re-signed with {label.labelName}");
 				if (debugMode) GD.Print($"RE-SIGN: {label.labelName} re-signs {artist.stageName}");
 			} else {

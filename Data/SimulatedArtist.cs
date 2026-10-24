@@ -131,6 +131,8 @@ public class SimulatedArtist {
 	// Untouched unless ArtistRecognition is observing or enabled.
 	public float publicRecognition;
 	public float culturalStanding;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public ArtistFanbaseData fanbase;
 	// Telemetry snapshot taken at each release, so the A/B can read recognition against the
 	// outcome it preceded (causation, not correlation) rather than its post-outcome value.
 	public float recognitionAtLastRelease;

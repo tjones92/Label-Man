@@ -124,6 +124,8 @@ public partial class ChartAuditRunner : Node {
 	private HashSet<string> previousChartIds = new();
 	private HashSet<string> previousActiveIds = new();
 	private StreamWriter recordWriter;
+	private StreamWriter followupCareerWriter;
+	private StreamWriter fanbaseWriter;
 	private StreamWriter songMaterialWriter;
 	private PolarSongShadowTelemetry polarSongShadow;
 	private readonly HashSet<string> songMaterialSeen = new(StringComparer.Ordinal);
@@ -271,6 +273,9 @@ public partial class ChartAuditRunner : Node {
 	private ulong? requestedSeed;
 	private bool aggregateOnly;
 	private bool leanProbe;
+	// Read-only follow-up diagnosis: keep off-chart observations for recent non-opening hit acts.
+	private bool followupChartTrace;
+	private readonly Dictionary<string, int> followupTraceFirstHits = new(StringComparer.Ordinal);
 	// Calibration mode: the simulation runs at full fidelity (nothing about the economy changes),
 	// but CaptureWeek emits ONLY the accumulations the calibration CSVs read -- LP unit share
 	// (WriteFormatMixRows), decision share (OnReleaseStrategy event), active counts
@@ -552,6 +557,8 @@ public partial class ChartAuditRunner : Node {
 				// Retain cohort cash/status under fast calibration output, without walking
 				// every record/region for the full diagnostic CSV suite.
 				smallLabelFinance = true;
+			} else if (argument == "--followup-chart-trace") {
+				followupChartTrace = true;
 			} else if (argument == "--profile-performance") {
 				profilePerformance = true;
 			} else if (argument == "--force-distribution-deal") {
@@ -1134,7 +1141,7 @@ public partial class ChartAuditRunner : Node {
 			singleReleaseLaneWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-release-lanes.csv"));
 			// single-demand-stages is a per-record per-region per-week diagnostic (~1.8 GB/decade);
 			// suppress under --lean-probe like the heavy settlement dumps below.
-			if (!leanProbe) singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
+			if (!leanProbe || followupChartTrace) singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
 		}
 		revenueMemoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-revenue-memory.csv"));
 		liveRecordsSnapshotWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-live-records-snapshot.csv"));
@@ -1208,6 +1215,14 @@ public partial class ChartAuditRunner : Node {
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier,weeksSincePeakUnits,radioPanelShare,launchArtistRecognition,launchCulturalStanding,launchEffectiveRecognition,launchRecognitionAwarenessLift,launchRecognitionStockMultiplier,launchRecognitionRadioLift,surveySample,unsampledChartPoints");
+		if (followupChartTrace) {
+			followupCareerWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-followup-careers.csv"));
+			followupCareerWriter.WriteLine("week,firstHitWeek,artistId,labelId,careerState,lifecycleStatus,cohort,formedYear,publicRecognition,culturalStanding,momentum,reputation,totalReleases,charted,top40Hits,top10Hits,numberOnes");
+		}
+		if (ArtistFanbase.Enabled) {
+			fanbaseWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-fanbase-weekly.csv"));
+			fanbaseWriter.WriteLine("week,year,artistId,labelId,careerState,cohort,attachedHeads,activeRegions,newHeadsThisWeek,returningPurchasesThisWeek,openingHeads,recruitedHeads,departedHeads,publicRecognition,regionalHeads");
+		}
 		// Publishing & Cover-Song Phase 1: one row per single at first observation, joined to
 		// records.csv by recordId for songSource x chart-outcome analysis (self-written / professional /
 		// cover-standard share by year, #1s by source).
@@ -1245,7 +1260,10 @@ public partial class ChartAuditRunner : Node {
 		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,cannibalizationCharged,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumChoiceProbability,formatChoiceRoll,albumCapacityReroute");
 		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,genre,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet,unitsPressed,pressingBookSold,sunkMarketingCost,bookedContributionBeforeMarketing,bookedContributionAfterMarketing");
 		singleReleaseLaneWriter?.WriteLine("week,year,recordId,projectId,releaseLane,labelId,tier,artistId,genre,careerState,hookStrength,productionQuality,danceability,quality,enabledOpportunityMass,acceptedOpportunityMass,cohortNormalizer,normalizerSource,coldStartFallback");
-		singleDemandStagesWriter?.WriteLine("week,year,recordId,releaseLane,region,age,potentialAudience,baselineAwareness,earnedDiscoveryExposure,awareBuyers,intrinsicQualityFactor,acceptanceFactor,formatFactor,intrinsicConversionRate,rawDemand,serviceableDemand,clearedUnits,chartSignal,momentumSignal,radioSignal,inventoryFulfillmentRate,marketFulfillmentRate");
+		singleDemandStagesWriter?.WriteLine("week,year,recordId,releaseLane,region,age,potentialAudience,baselineAwareness,earnedDiscoveryExposure,awareBuyers,intrinsicQualityFactor,acceptanceFactor,formatFactor,intrinsicConversionRate,rawDemand,serviceableDemand,clearedUnits,chartSignal,momentumSignal,radioSignal,inventoryFulfillmentRate,marketFulfillmentRate" +
+			(followupChartTrace ? ",commercialFitAtCapture" +
+				(HitActFitSupport.Enabled ? ",commercialFitWithoutSupportAtCapture,hitActFitFloorAtLaunch" : "") : "") +
+			(ArtistFanbase.Enabled ? ",fanAnonymousRaw,fanRaw,clearedFanUnits,fanLaunchHeads,fanPurchasedToDate" : ""));
 		revenueMemoryWriter.WriteLine("week,year,labelId,format,emaNetPerRelease,releasesObserved");
 		liveRecordsSnapshotWriter.WriteLine("week,year,recordId,labelId,artistId,format,ageWeeks,lifetimeLabelNet,sunkProductionCost,observedNetLowerBound,currentPosition,totalUnitsSold");
 		priorCostAssumptionWriter.WriteLine("week,year,recordId,assumedCompilationCost,actualAlbumFormat");
@@ -2213,14 +2231,41 @@ public partial class ChartAuditRunner : Node {
 		foreach (RecordRuntimeData record in singleRecords) {
 			if (!calibrationMode) WriteSingleLaneDiagnostics(week, date.year, record);
 			LifecycleState state = ObserveRecord(record, wasPresentAtStart: false);
+			if (followupChartTrace && !state.WasPresentAtStart && record.currentPosition is > 0 and <= 10)
+				followupTraceFirstHits.TryAdd(record.baseRecord.artistId, week);
+			// Audit-owned clocks only. Retain the first 26 weeks of each single during the 52 weeks
+			// after the act's first non-opening Top 10; include misses before their first chart entry.
+			bool traceFollowup = followupChartTrace &&
+				followupTraceFirstHits.TryGetValue(record.baseRecord.artistId, out int firstHitWeek) &&
+				firstHitWeek >= 5 && week <= firstHitWeek + 52 && record.weeksSinceRelease <= 26;
+			if (calibrationMode && traceFollowup) WriteSingleLaneDiagnostics(week, date.year, record);
 			if (state.DebutPosition == 0 && record.currentPosition > 0) {
 				state.DebutPosition = record.currentPosition;
 			}
 			if (record.currentPosition == 1) state.WeeksAtNumberOne++;
-			if (!aggregateOnly || calibrationMode && smallLabelFinance && record.currentPosition > 0)
+			if (!aggregateOnly || calibrationMode && smallLabelFinance && record.currentPosition > 0 || traceFollowup)
 				WriteRecordRow(week, date.year, record, chartCutoff);
 			if (!aggregateOnly) MaybeWriteSongMaterialRow(week, date.year, record);
 			if (!leanProbe) WriteBreakoutRows(week, record);
+		}
+
+		if (followupCareerWriter != null) foreach (var hit in followupTraceFirstHits) {
+			if (hit.Value < 5 || week > hit.Value + 52) continue;
+			var artist = ArtistManager.Instance?.GetArtist(hit.Key);
+			if (artist == null) continue;
+			followupCareerWriter.WriteLine(string.Join(",", week, hit.Value, Csv(artist.artistId), Csv(artist.labelId),
+				artist.careerState, artist.lifecycleStatus, artist.cohort, artist.formedYear,
+				F(artist.publicRecognition), F(artist.culturalStanding), F(artist.momentum), F(artist.reputation),
+				artist.totalReleases, artist.charted, artist.top40Hits, artist.top10Hits, artist.numberOnes));
+		}
+		if (fanbaseWriter != null) foreach (var artist in ArtistManager.Instance.GetAllArtists()) {
+			var fans = artist.fanbase;
+			if (fans == null || ArtistFanbase.Heads(fans) < 1) continue;
+			fanbaseWriter.WriteLine(string.Join(",", week, date.year, Csv(artist.artistId), Csv(artist.labelId),
+				artist.careerState, artist.cohort, F((float)ArtistFanbase.Heads(fans)), fans.regions.Count(r => r.Value.Values.Sum() >= 1),
+				F((float)fans.newHeadsThisWeek), F((float)fans.returningPurchasesThisWeek), F((float)fans.openingHeads),
+				F((float)fans.recruitedHeads), F((float)fans.departedHeads), F(artist.publicRecognition),
+				Csv(string.Join(";", fans.regions.OrderBy(p => p.Key).Select(p => p.Key + "=" + F((float)p.Value.Values.Sum()))))));
 		}
 
 		foreach ((string id, LifecycleState state) in lifecycle.ToArray()) {
@@ -2309,12 +2354,22 @@ public partial class ChartAuditRunner : Node {
 		if (singleDemandStagesWriter != null) foreach (MarketRegion region in regions) if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
 			float inventoryRate = data.rawDemandThisWeek > 0f ? Mathf.Clamp(data.serviceableIntentThisWeek / data.rawDemandThisWeek, 0f, 1f) : 1f;
 			float marketRate = data.serviceableIntentThisWeek > 0 ? Mathf.Clamp((float)(data.localClearedThisWeek + data.spilloverClearedThisWeek) / data.serviceableIntentThisWeek, 0f, 1f) : 1f;
+			FanReleaseRegion fans = null;
+			record.fanAudience?.regions.TryGetValue(region.regionId, out fans);
 			singleDemandStagesWriter.WriteLine(string.Join(",", new[] { week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 				Csv(record.baseRecord.recordId), Csv(record.projectRole.ToString()), Csv(region.regionId), record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
 				F(data.demandPotentialAudience), F(data.demandBaselineAwareness), F(data.demandEarnedDiscoveryExposure), F(data.demandAwareBuyers),
 				F(data.demandIntrinsicQualityFactor), F(data.demandAcceptanceFactor), F(data.demandFormatFactor), F(data.demandIntrinsicConversionRate),
 				F(data.rawDemandThisWeek), data.serviceableIntentThisWeek.ToString(CultureInfo.InvariantCulture), (data.localClearedThisWeek + data.spilloverClearedThisWeek).ToString(CultureInfo.InvariantCulture),
-				F(data.demandChartSignal), F(data.demandMomentumSignal), F(data.demandRadioSignal), F(inventoryRate), F(marketRate) }));
+				F(data.demandChartSignal), F(data.demandMomentumSignal), F(data.demandRadioSignal), F(inventoryRate), F(marketRate) }) +
+				// Counter RNG lookup, not a new random draw. Current owner/push may differ from the
+				// demand-time owner after a master transfer, hence the explicit AtCapture name.
+				(followupChartTrace ? "," + F(SingleCommercialFit.Multiplier(record, region.regionId, label)) +
+					(HitActFitSupport.Enabled ? "," + F(SingleCommercialFit.WithoutHitSupport(record, region.regionId, label)) +
+						"," + F(record.hitActFitFloorAtLaunch ?? 0f) : "") : "") +
+				(ArtistFanbase.Enabled ? "," + F((float)(fans != null && ArtistFanbase.TrialRate > 0 && record.weeksSinceRelease <= 26 ? fans.anonymousRaw : data.rawDemandThisWeek)) +
+					"," + F((float)(fans?.fanRaw ?? 0)) + "," + F((float)(fans?.clearedFans ?? 0)) +
+					"," + F((float)(fans?.initial.Values.Sum() ?? 0)) + "," + F((float)(fans?.purchased.Values.Sum() ?? 0)) : ""));
 		}
 	}
 
@@ -3958,6 +4013,8 @@ public partial class ChartAuditRunner : Node {
 		WriteMusicianRecognitionRows();
 		WriteBandLifeEndOfRun();
 		recordWriter?.Dispose();
+		followupCareerWriter?.Dispose();
+		fanbaseWriter?.Dispose();
 		songMaterialWriter?.Dispose();
 		polarSongShadow?.Dispose();
 		weekWriter?.Dispose();

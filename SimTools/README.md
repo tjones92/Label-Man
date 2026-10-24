@@ -79,6 +79,87 @@ native checks and a gzip save/load/resume check. `analyze_midtier_breakout.py --
 and replay, then reports annual owner-group repeaters, MidTier survival, singles, units and rationing alongside
 fully followed 52-week hit cohorts, including silent acts. Reports and logs stay under `SimLogs/mbk-v1`.
 
+`--followup-chart-trace` retains off-chart `records.csv` observations and regional
+`single-demand-stages.csv` for singles aged up to 26 weeks during the 52 weeks
+after each act's first non-opening Top 10 (first hits before week 5 excluded).
+It works with `--calibration`; ordinary chart rows remain present for the entire run.
+Stages add `commercialFitAtCapture`, a deterministic counter-RNG lookup under the
+current owner/push, which can differ from the demand-time owner after a transfer.
+Use `--head-hit-attribution` alongside it for launch stock, awareness and campaign
+inputs for misses. `RunFollowupChartTrace.ps1` runs a 106-week replay of a completed
+reference, then `analyze_followup_chart_trace.py` checks all existing week-keyed
+simulation streams, filtering additive off-chart rows and excluding the two expanded
+diagnostic streams. `-WaitForPlan SimLogs/mbk-v1/plan.json` waits for its final review
+before rebuilding. Identity covers the completed weeks before the terminal snapshot
+boundary (105 weeks for a 106-week replay). The trace changes audit output only. Its diagnostics distinguish
+raw demand, inventory serviceability, purchase-budget clearing, airplay and proximity
+to the published cutoff; they are observations, not causal ablations.
+`analyze_followup_chart_funnel.py` compares common completed seeds and reconstructs
+history with the same 52-week endpoint. It never treats a difference between two
+conditional medians as the launch-to-entry delay of a particular record.
+
+`--hit-act-fit-floor=F` tests a recent hit's support for a later AI single's
+national commercial-response downside. F is an absolute national floor up to 1;
+regional response and the market budget still apply. It requires commercial fit
+and hit-act hype, whose saved Top 10 career clock includes scaled album milestones.
+The support halves after 26 weeks and expires after 52. It is captured at release
+and saved as optional `hitActFitFloorAtLaunch`; existing active records are not
+retroactively assigned support. `--hit-act-fit-support-check` tests boundaries,
+unchanged upside/cold launches, RNG, persistence and serialization. Full-world
+round trips also check supported launches before and after restore/resume.
+`RunHitActFitSupportAudit.ps1` runs native checks, a fresh off replay, and the .6/1
+screen. `analyze_hit_act_fit_support.py --runs off=TAG f1=TAG --weeks 106 --output
+SimLogs/TAG/review` compares completed common seeds, including entries, repeats,
+recognition, career progression, settlement, losses and closures. Comma-separated
+tags combine seed sources; longer controls are truncated to the observation window.
+`--followup-chart-trace` also writes `followup-careers.csv` for each hit act's next
+52 weeks, retaining silent and declining acts. Compare career metrics only where
+both arms have that trace. These are opt-in experiments, not game defaults.
+`--artist-fanbase=P` is an optional AI-single returning-audience experiment.
+Zero observes acquisitions without changing demand. Positive values partition
+the existing audience into anonymous and returning cohorts; inventory and the
+consumer purse still clear purchases. Artists save regional/segment attachment;
+titles save immutable launch cohorts and purchase depletion. Recruitment and
+calendar retention are exposed as `--artist-fanbase-recruit=` and
+`--artist-fanbase-half-life=`. The first values are assumptions to screen.
+`RunArtistFanbaseAudit.ps1` validates native checks and real save/resume, then
+runs observation, fan-only and fan-plus-.6 arms. It accepts `-ExtraFlags` for
+isolated additional mechanisms. `analyze_artist_fanbase.py --review FOLDER`
+validates stock/raw/cleared attribution and depletion on a completed comparison;
+`analyze_fanbase_career_cases.py --review FOLDER` retains progressed and stalled
+career sequences. Player daily purchases and live/media recruitment are outside
+this first prototype. See [NationalFanbaseInvestigation.md](NationalFanbaseInvestigation.md)
+for assumptions and [NationalFanbaseScreenResults.md](NationalFanbaseScreenResults.md)
+for the completed three-seed comparison and review candidate.
+
+`analyze_label_balance.py --review SimLogs/afb-v2/review --arms blend f06
+--output SimLogs/label-balance-v1` separates label opportunities, unique single
+intentions, equal demand windows and per-firm chart outcomes. Historical side
+clustering and limited backing-credit aliases are explicit sensitivities.
+`RunLabelBalanceAudit.ps1 -RunTag NAME` runs a fresh blend control and a
+13-week single-floor pilot, using one seed by default. Analyze its completed
+plan with `analyze_label_balance.py --pilot-plan SimLogs/NAME/plan.json
+--output SimLogs/NAME/review`; the reader requires the same assembly and only
+the declared spacing change. See [LabelBalanceInvestigation.md](LabelBalanceInvestigation.md)
+for findings, limits and experiment disposition. These commands do not adopt
+game defaults.
+
+`--audit-hit-act-renewals` records the exact renewal-affordability gate without
+altering it. `--hit-act-going-concern-renewal` separately tests a profitable
+MidTier's recent-hit renewal against its going-concern tax/service horizon,
+preserving operating/plant/slate holds and actually paying the advance and taxes.
+It requires retention and the going-concern slate switches. It does not change
+fresh signings, distressed firms, player negotiations or the desire to renew.
+Extra receipts assert that every newly permitted renewal debits the advance and
+leaves its tested cash reserve intact. This is a finance probe, not a fanbase
+promotion rule or default policy.
+`analyze_hit_act_fit_discrepancies.py --review SimLogs/TAG/review` adds recovered
+same-year chart comparisons, per-seed career counts and eligible follow-up peak
+bands. It retains misses and distinguishes a chart-side benchmark from model
+singles. It reports allocation, tenure and breadth separately; a career gain is
+not rejected by an aggregate chart discrepancy alone. Compare doses on the same
+seeds, and read progression counts alongside rates as outcome cohorts can change.
+
 The first demand/attention measurement slice appends explicit before/after-marketing
 contribution fields to release outcomes and local single/LP clearing totals to
 market telemetry. `analyze_demand_attention.py PREFIX ... --output SimLogs/REPORT.json`

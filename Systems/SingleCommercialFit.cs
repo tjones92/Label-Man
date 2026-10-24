@@ -123,14 +123,23 @@ public static class SingleCommercialFit {
 	/// Push is read from the label's current campaign capacity, which changes rarely; a transferred master
 	/// is re-read against its new owner.
 	public static float Multiplier(RecordRuntimeData record, string regionId, AILabel label) {
+		return Evaluate(record, regionId, label, applyHitSupport: true);
+	}
+
+	/// <summary>Read-only attribution under the current owner/push; not a counterfactual simulation.</summary>
+	public static float WithoutHitSupport(RecordRuntimeData record, string regionId, AILabel label) =>
+		Evaluate(record, regionId, label, applyHitSupport: false);
+
+	private static float Evaluate(RecordRuntimeData record, string regionId, AILabel label, bool applyHitSupport) {
 		if (!Enabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned) return 1f;
 		if (record.baseRecord.releaseDate <= GameDate.StartDate) return 1f;
 		string id = record.baseRecord.recordId;
 		if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(regionId))
 			throw new InvalidOperationException("Commercial fit requires persistent record and region IDs.");
 		float push = ChartSimulator.GetCampaignImpact(label) * RecordCampaignSpend.PushFactor(record);
-		double log = National(Normal(id, NationalKey, NationalDecision), record.initialLaunchAwareness, push)
-			+ Lognormal(RegionalSigma, Normal(id, regionId, RegionalDecision));
+		double nationalLog = National(Normal(id, NationalKey, NationalDecision), record.initialLaunchAwareness, push);
+		if (applyHitSupport && HitActFitSupport.Enabled) nationalLog = HitActFitSupport.Apply(record, nationalLog);
+		double log = nationalLog + Lognormal(RegionalSigma, Normal(id, regionId, RegionalDecision));
 		return (float)(Scale * Math.Exp(log));
 	}
 

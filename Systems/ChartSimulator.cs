@@ -579,6 +579,8 @@ public static class ChartSimulator {
 			regionalData.demandRadioSignal = Mathf.Max(.01f, .75f + record.radioHeat * .5f);
 		}
 		float rawSales = awareBuyers * conversionRate;
+		if (stagedLiveDemand && ArtistFanbase.Enabled)
+			rawSales = ArtistFanbase.Demand(record, region, quality, baselineAwareness, rawSales, label);
 		// Backorders represent recent unmet intent, not a permanent bank of future
 		// purchases. Most stale intent expires before this week's demand is added.
 		regionalData.unitsBackordered = Mathf.RoundToInt(regionalData.unitsBackordered * 0.35f);

@@ -2018,3 +2018,200 @@ are measured, plus subsequent debut spacing, 52-week release/entry/conversion co
 triggered work. The approximate four-release aim is diagnostic, not enforced. Annual rationing, Top 10 units,
 unit shares, closures, mature-cohort losses and native elapsed time accompany the timing result. No pooled
 repeat count or shorter gap alone establishes success.
+
+### Follow-up entry investigation and opt-in trace (2026-10-24)
+
+`mbk-v1` has completed all three seeds and its combined manifest/replay review. Annual
+1960-64 means, baseline / MidTier repair / repair plus earlier planning:
+
+| Metric | Baseline | Repair | Earlier planning |
+|---|---:|---:|---:|
+| All-owner acts with 2+ Top 10s | 17.00 | 16.73 | 17.80 |
+| Field acts with 2+ Top 10s | 4.07 | 5.40 | 5.73 |
+| Big Five acts with 2+ Top 10s | 11.80 | 9.20 | 9.80 |
+| Field single releases / hit act, next 52 weeks | 2.07 | 2.69 | 2.93 |
+| Field newly released follow-ups charting in that window | .78 | .90 | 1.04 |
+| First Top 10 -> next single, weeks | 15.33 | 11.67 | 7.00 |
+| First Top 10 -> next Hot 100 debut, weeks | 24.50 | 18.00 | 16.50 |
+| Singles issued / year | 3196 | 3699 | 3684 |
+| Singles rationing factor r | .570 | .499 | .496 |
+| Top 10 units / year, millions | 50.90 | 46.22 | 46.72 |
+| Opening field MidTier closures through 1964, of 25 | 13.00 | 9.33 | 11.33 |
+
+These are descriptive seed means, not adoption. Earlier planning has a small positive
+field-repeat effect over the repair, while history's field 2+ target remains 8.8; its
+closure result is worse than repair alone. Matching history's pooled 17.8 two-hit acts
+does not settle the owner mix. The earlier one-seed field-repeat decline does not hold
+in the completed mean.
+
+The six-week figure in the seed-1001 interim report was a median across field hit acts
+with a next release, measured from the first Top 10 milestone. It was not one artist's
+regular single spacing. That seed's first follow-up comes a median ten weeks after the
+preceding single; all follow-up single-to-single gaps have median eleven weeks. Across
+seeds the latter medians average twelve weeks. No historical actual-release-date median
+has been established by the weekly Hot 100 data. Silent acts have no event gap and stay
+in release-rate denominators.
+
+`analyze_followup_chart_funnel.py` traces the released single IDs into the chart. The
+successful field follow-ups enter a median two weeks after release in every treatment
+seed. Subtracting the next-release and next-debut medians would mislabel failed attempts
+as a long climb. About 43% of field acts with an eventually charted newly released
+follow-up need their second or later released attempt. Equal 13-week entry windows are
+used for launches within the first 39 weeks after the hit, avoiding shorter observation
+of late releases. All three arms retain the original fully followed 52-week hit cohorts.
+
+The historical comparison is recomputed from the cached recovered Hot 100, excluding
+opening records and first hits before week 5, with a complete 52-week endpoint. Its 149
+field hit acts average 2.25 later Hot 100 sides, or 1.96 charting-event proxies after
+merging same-act debuts within three weeks; 24.8% have no next debut. Model earlier
+planning has about 1.07 later debuts and 41.4% with none. Historical and model conditional
+Top 10 conversion within that window are about 16% and 22%, respectively. There is no
+conversion shortfall to justify indiscriminately improving all follow-up songs. Close
+debuts are only a proxy for two sides, and the model extends into early 1965 whereas the
+historical file ends in December 1964. Four releases with roughly half charting is a
+sizing scenario for two charting events, not a release quota or forecast.
+
+The compact runs omit off-chart weekly trajectories. `--followup-chart-trace` now retains
+them for singles up to age 26 in the 52 weeks after the act's first non-opening Top 10
+(first hits before week 5 excluded). It also writes the existing per-region single
+demand stages under calibration: raw demand, serviceable intent after inventory/channel
+constraints, cleared purchases after the market budget, discovery and radio signals.
+`commercialFitAtCapture` is a deterministic counter-RNG read under the capture-time
+owner/push, not guaranteed to be the exact demand-time factor after a transfer. Existing
+`--head-hit-attribution` adds launch inputs for misses. No simulation parameter, saved
+field or global RNG draw is changed.
+
+`RunFollowupChartTrace.ps1` replays a completed game-profile reference, optionally waiting
+for an active screen's final review before rebuilding. Its analyzer compares every
+existing week-keyed simulation stream through the replay endpoint; additive off-chart
+record rows are filtered and the two expanded diagnostic streams are excluded. Fixtures
+verify that economic drift is rejected, silence/censoring stay visible, and a failed
+first single is not counted as a delayed entry. Generated evidence belongs under
+`SimLogs/followup-chart-investigation`, not in this source document.
+
+The identity endpoint excludes the terminal snapshot week (105 completed weeks for a
+106-week replay), matching the original off-replay boundary. Native 106-week trace
+`fct-v2`, seed 1001, passed and matches the reference in all 62 existing week-keyed
+streams through week 105. It adds 7,763 off-chart record/week rows and follows 262
+mature follow-up launches across 65 fully observed hit acts (125 field launches).
+Build and six Python fixture tests pass. The initial `fct-v1` launch crashed before
+engine initialization in the restricted sandbox; the same diagnostic ran successfully
+with the normal local runtime outside it.
+
+**First trace result: commercial downside is the strongest next lead.** Of the 125
+field follow-ups, 79 miss within 13 weeks and 46 enter. Misses' aggregate serviceable
+intent retains 96.5% of their raw demand, versus 86.2% for entrants; purchase-budget
+clearing retains 47.4% / 47.7% of serviceable intent. Their median best published score
+is only .153 of the contemporaneous #100 cutoff, versus 1.473 for entrants. Only 2 of
+79 misses ever reach .8 of that cutoff. This makes an inventory-only explanation
+unlikely in this sample. Comparing unsampled scores with the published cutoff is a
+diagnostic, not a full no-noise reranking.
+
+Median capture-time commercial-fit factors are .198 for misses and 2.606 for entrants;
+84% of misses have a factor below .5. The gap also appears within quality bands. Material
+still matters (median quality .609 / .659, awareness .512 / .663), but five follow-ups
+above .75 quality also miss, with median fit .130. The record-specific response draw
+can suppress an otherwise viable known act's follow-up. This is mechanical and
+observational evidence from one seed, not an estimated causal treatment effect.
+
+Existing hype, recognition and hometown-following effects already provide awareness;
+`SingleCommercialFit` additionally uses launch awareness to move its response kink.
+There is therefore no basis for claiming fame is absent. Its response draw is keyed
+to the record and region, so the hit's favorable draw does not carry automatically
+to the next record. The next controlled mechanism should test whether recent success
+needs bounded support on the downside of that response, reflecting the continuing
+audience/programmer interest, rather than another uniform awareness or song-quality
+increase. Keep upside, repaired work budget, scheduling, consumer purse and cold-act
+behavior fixed; fade any support with recency and retain real failures. This is a
+proposed probe, not implemented behavior or an adopted parameter. Check entry and
+conditional Top 10 conversion separately, and revalidate owner-group repeats, units,
+rationing, losses and survival over matched seeds before adoption.
+
+### Recent-hit response support probe (`hfs-v2`, 2026-10-24)
+
+Implemented after the user approved testing the commercial downside. It remains off
+unless `--hit-act-fit-floor=F` is named; no game default is changed. F is an absolute
+national-response floor between the existing commercial floor and 1. The first screen
+uses .6 and 1, on the complete earlier-planning bundle with all budgets and the singles
+purse retained. Both the quality/connected-response upside and regional response draws
+remain as authored.
+
+`HitActFitSupport` uses the saved hype Top 10 career clock. This includes an album's
+scaled Top 10-equivalent milestone under the existing album/career rules, not only
+Hot 100 singles. A Top 40 alone does not activate the probe. At release, recent-success
+weight is `2^(-age/26)` through age 52 weeks, zero beyond that window. The launch's
+floor is `.12 + (F - .12) * weight` on this bundle; e.g. F=1 is .56 at 26 weeks. The
+national log factor is bounded by that floor before the original regional factor and
+.88 scale. Thus the final regional multiplier can still be below the national floor.
+Fading applies to the qualifying success **at launch**. The saved floor remains fixed
+afterward; another hit cannot refresh it. The original response calculation still
+reads the record's current owner and campaign push as before.
+
+The snapshot is captured in `ChartManager.ReleaseRecord`, before any weekly sales or
+chart credit, as optional `RecordRuntimeData.hitActFitFloorAtLaunch`. A captured cold
+launch is 0, an old/off record is null. Null active records are not retrospectively
+rescued; a later hit or transfer cannot resnapshot an existing single. Full-world JSON
+and the player/transfer DTO retain the optional state; old saves omit it safely. The
+probe requires commercial fit and hit-act hype for its existing saved clock. Player
+records, albums as demand products, opening catalogue and cold launches retain the
+old demand path. No new global RNG draw is added. Connected national factors above
+the bounded floor remain bit-identical; the extra audience still competes for the
+same consumer budget.
+
+Validation: build clean; the support suite passes 1,023 assertions (including 500
+keyed records checked for persistence and non-reduction), and the existing demand/
+stocking suite passes 47. A 13-week full-world and real gzip round trip passes with
+70 supported launches before restore, followed by resumed play and 77 supported
+launches. The fresh 106-week off replay reproduces `fct-v2`, seed 1001, in all 64
+existing week-keyed streams through week 105. The final snapshot boundary is excluded,
+as in the earlier trace check.
+
+The trace now adds the unprotected capture-time fit alongside the protected one and
+checks that each launched record's floor is invariant. `followup-careers.csv` observes
+the first-hit act every week through its next 52 weeks, including silence, decline and
+disbanding. Analysis reports recognition, new Established careers and repeat Top 40s
+alongside the single-entry funnel. The unchanged ladder requires a number one for
+Star, so its title alone is not a measure of successful career building. Career
+counters can include album credits; the release funnel remains singles-only.
+
+The one-seed .6 dose is mixed: field 13-week entry .368 -> .429, no next debut .410 ->
+.283, below-Established -> Established .125 -> .318, but conditional Top 10 conversion
+.228 -> .333, Top 10 units 91.76M -> 84.78M over 106 weeks, and opening field-MidTier
+closures 11 -> 13. First-hit field breadth changes 39 -> 46, so these are different
+fully observed outcome cohorts, not matched individual artists. This is not adoption.
+The 1.0 dose completed on 1001/2002/3003. Field entry improves .421 -> .481 and
+the mean seed-median next-debut gap falls 16.67 -> 10.17 weeks, but annual field
+two-Top-10 acts fall 7.33 -> 6.67. New Established careers rise 4.67 -> 6.00 per
+seed (progression .194 -> .234), while recognition growth barely changes.
+Generated plans, comparisons and paired differences belong under `SimLogs/hfs-v2`
+and `SimLogs/hfs-v3`; the fresh additional off controls are `hfs-v4-off`.
+
+After the user's request to investigate the .6 dose's career gains despite its
+chart discrepancies, `hfs-v5` extends it to seeds 2002/3003 with the identical
+assembly and bundle. A stronger per-record floor need not produce monotonically
+better careers in the full world: chart slots, contracts, subsequent material,
+cohort membership and future release slates all respond. The .6 candidate must
+be evaluated directly. Its seed-1001 seven new Established acts equal the 1.0
+count; its higher progression rate also reflects a smaller eligible cohort.
+`analyze_hit_act_fit_discrepancies.py` compares chart allocation, tenure, repeats
+and breadth against recovered same-year history, retaining the career results
+and misses rather than imposing an aggregate-only rejection rule.
+
+The .6 extension completed on all three seeds. Field later debuts/act rise
+1.48 -> 1.61 and recognition growth .071 -> .080. Annual field two-Top-10 acts
+rise 7.33 -> 9.50 (history 8.50), but new Established counts total 14 in both
+arms: .6 gives 7/4/3 versus control 3/3/8. Its career gain is not replicated
+across all worlds. The user selected .6 as a provisional development reference
+for investigating national fanbase continuity; the no-floor comparison remains.
+The completed dose review is `SimLogs/hfs-v5/dose-investigation.md`.
+
+The code audit and first returning-audience implementation are in
+[NationalFanbaseInvestigation.md](NationalFanbaseInvestigation.md). Recognition,
+local draw and media fan attachment already exist, but the media implementation
+is observe-only. The new opt-in component connects actual AI single purchases to
+a saved artist audience and later title demand. The completed three-seed screen
+is in [NationalFanbaseScreenResults.md](NationalFanbaseScreenResults.md). Adding
+the `.25` audience trial setting to `.6` raises field entry within 13 weeks from
+45.6% to 55.0%, restores more middle-chart peaks and increases recognition;
+Big Five/studio allocation remains a material discrepancy. `.6` plus audience is
+a review candidate, not a changed default or a completed player fanbase feature.

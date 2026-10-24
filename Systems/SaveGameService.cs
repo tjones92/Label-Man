@@ -1209,6 +1209,10 @@ public sealed class RuntimeRecordSaveData {
 	public int weeksOfGrammyBump { get; set; }
 	public int initialLaunchStock { get; set; }
 	public float perceivedQualityMultiplier { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? hitActFitFloorAtLaunch { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public FanReleaseAudience fanAudience { get; set; }
 
 	public static RuntimeRecordSaveData From(RecordRuntimeData r) => new() {
 		Record = RecordSaveData.From(r.baseRecord),
@@ -1233,7 +1237,7 @@ public sealed class RuntimeRecordSaveData {
 		currentLabelPush = r.currentLabelPush, totalLabelInvestment = r.totalLabelInvestment, peakMomentum = r.peakMomentum,
 		weeksPositive = r.weeksPositive, weeksNegative = r.weeksNegative, isGrammyNominated = r.isGrammyNominated,
 		isGrammyWinner = r.isGrammyWinner, weeksOfGrammyBump = r.weeksOfGrammyBump, initialLaunchStock = r.initialLaunchStock,
-		perceivedQualityMultiplier = r.perceivedQualityMultiplier
+		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, fanAudience = r.fanAudience
 	};
 
 	public RecordRuntimeData ToRuntime() {
@@ -1257,7 +1261,7 @@ public sealed class RuntimeRecordSaveData {
 			currentLabelPush = currentLabelPush, totalLabelInvestment = totalLabelInvestment, peakMomentum = peakMomentum,
 			weeksPositive = weeksPositive, weeksNegative = weeksNegative, isGrammyNominated = isGrammyNominated,
 			isGrammyWinner = isGrammyWinner, weeksOfGrammyBump = weeksOfGrammyBump, initialLaunchStock = initialLaunchStock,
-			perceivedQualityMultiplier = perceivedQualityMultiplier
+			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, fanAudience = fanAudience
 		};
 		runtime.regionalData = (Regions ?? new List<RegionalRecordSaveData>())
 			.ToDictionary(region => region.regionId, region => region.ToRegional(), StringComparer.Ordinal);

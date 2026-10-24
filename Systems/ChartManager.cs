@@ -376,6 +376,7 @@ public partial class ChartManager : Node {
 		ChartEntryFeedbackProbe.Configure(OS.GetCmdlineUserArgs());
 		ChartTailProbe.Configure(OS.GetCmdlineUserArgs());
 		HitActHype.Configure(OS.GetCmdlineUserArgs());
+		ArtistFanbase.Configure(OS.GetCmdlineUserArgs());
 		LabelHoldCapacity.Configure(OS.GetCmdlineUserArgs());
 		HeadScaleTemplates.Configure(OS.GetCmdlineUserArgs());
 		WorkloadStaffing.Configure(OS.GetCmdlineUserArgs());
@@ -388,6 +389,7 @@ public partial class ChartManager : Node {
 		SeniorCooling.Configure(OS.GetCmdlineUserArgs());
 		HitActCadence.Configure(OS.GetCmdlineUserArgs());
 		LabelReleaseProgramme.Configure(OS.GetCmdlineUserArgs());
+		HitActRenewalFinance.Configure(OS.GetCmdlineUserArgs());
 		AlbumScaleCareerMilestones.Configure(OS.GetCmdlineUserArgs());
 		KnownActAirplay.Configure(OS.GetCmdlineUserArgs());
 		ArtistHeatAttribution.Configure(OS.GetCmdlineUserArgs());
@@ -428,6 +430,7 @@ public partial class ChartManager : Node {
 		SelfExcludedArtistHeat.Configure(OS.GetCmdlineUserArgs());
 		UnchartedSingleExposure.Configure(OS.GetCmdlineUserArgs());
 		SingleCommercialFit.Configure(OS.GetCmdlineUserArgs());
+		HitActFitSupport.Configure(OS.GetCmdlineUserArgs());
 		LaunchStocking.Configure(OS.GetCmdlineUserArgs());
 		MajorOffChartSingles.Configure(OS.GetCmdlineUserArgs());
 		AiMasterDeals.Configure(OS.GetCmdlineUserArgs());
@@ -759,6 +762,8 @@ public partial class ChartManager : Node {
 		chartWeekEndingDate = date.AddDays(1);
 		ApplyCanonicalLiveIdentities(date.year);
 		foreach (var region in allRegions) region.SetGenreMarketV2Live(true);
+		if (ArtistFanbase.Enabled) ArtistFanbase.PrepareWeek(ArtistManager.Instance.GetAllArtists(), allRecords,
+			allRegions, currentChartWeek, date.year);
 
 		SimulateWeek(triggerEvents: true);
 		PolarSongBehavior.ObserveCompletedWeek(currentChart, currentChartWeek);
@@ -773,6 +778,7 @@ public partial class ChartManager : Node {
 			SimulationPerformanceProfiler.EndBookSettlement(bookProfileStart);
 			if (lastCompletedWeekSettlement?.IsBooked != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement?.SettlementId} was not booked.");
+			if (ArtistFanbase.Enabled) ArtistFanbase.SettleWeek(allRecords, allRegions, currentChartWeek, date.year);
 			var auditEventProfileStart = SimulationPerformanceProfiler.Begin();
 			OnWeekSettlement?.Invoke(lastCompletedWeekSettlement);
 			SimulationPerformanceProfiler.EndSettlementAuditEvent(auditEventProfileStart);
@@ -907,6 +913,10 @@ public partial class ChartManager : Node {
 		// durable canonical identities before any market calculation sees them.
 		if (GenreMarketV2.Enabled && currentChartWeek > 0) GenreMigration.Canonicalize(record);
 		var runtimeData = new RecordRuntimeData(record);
+		if (HitActFitSupport.Enabled) HitActFitSupport.CaptureLaunch(runtimeData,
+			ArtistManager.Instance?.GetArtist(record.artistId), currentChartWeek);
+		if (ArtistFanbase.Enabled) ArtistFanbase.CaptureLaunch(runtimeData,
+			ArtistManager.Instance?.GetArtist(record.artistId), allRegions, currentChartWeek, record.releaseDate.year);
 		if (ArtistPopulationLifecycle.Enabled) {
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.artistId);
 			runtimeData.artistContractSequenceAtRelease = artist?.contractSequence ?? -1;

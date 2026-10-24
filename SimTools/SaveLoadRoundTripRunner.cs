@@ -59,6 +59,8 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--chart-entry-feedback-check")) { ChartEntryFeedbackChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--chart-tail-check")) { ChartTailChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-hype-check")) { HitActHypeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--hit-act-fit-support-check")) { HitActFitSupportChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--artist-fanbase-check")) { ArtistFanbaseChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-hold-capacity-check")) { LabelHoldCapacityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-heat-attribution-check")) { ArtistHeatAttributionChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--seed-head-templates-check")) { HeadScaleTemplatesChecks.Run(); GetTree().Quit(0); return; }
@@ -168,12 +170,16 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (LabelReleaseProgramme.Enabled) LabelReleaseProgrammeChecks.CheckLiveState();
 
 			WorldSaveData cap1 = WorldStateService.Capture();
+			HitActFitSupportChecks.CheckLiveState();
+			ArtistFanbaseChecks.CheckLiveState();
 			string a = JsonSerializer.Serialize(cap1, opts);
 
 			WorldSaveData restored = JsonSerializer.Deserialize<WorldSaveData>(a, opts);
 			WorldStateService.Apply(restored, TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
 
 			WorldSaveData cap2 = WorldStateService.Capture();
+			HitActFitSupportChecks.CheckLiveState();
+			ArtistFanbaseChecks.CheckLiveState();
 			string b = JsonSerializer.Serialize(cap2, opts);
 
 			if (a == b) {
@@ -184,6 +190,8 @@ public partial class SaveLoadRoundTripRunner : Node {
 					AdvanceOneChartWeek();
 					LabelReleaseProgrammeChecks.CheckLiveState();
 					GD.Print("LABEL_RELEASE_PROGRAMME_RESUME passed");
+					HitActFitSupportChecks.CheckLiveState();
+					ArtistFanbaseChecks.CheckLiveState();
 				}
 				GD.Print($"SAVELOAD_ROUNDTRIP_PASS weeks={weeks} bytes={a.Length} gzipBytes={compressedBytes} " +
 					$"ratio={(a.Length / (double)Math.Max(1, compressedBytes)):F1}x gzipIo={gzipStatus} " +

@@ -152,6 +152,11 @@ public class RecordRuntimeData {
 	// whether the act was hot at launch (-1 undecided), and this week's radio push in place of currentLabelPush (-1 none).
 	public sbyte knownActHotAtLaunch = -1;
 	public float knownActRadioPush = -1f;
+	// Optional launch-time state for --hit-act-fit-floor. Null on old saves/off; 0 is a captured cold launch.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? hitActFitFloorAtLaunch;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public FanReleaseAudience fanAudience;
 
 	// === AUDIT TELEMETRY (write-only from launch paths) ===
 	public float initialLaunchAwareness;
