@@ -12,6 +12,7 @@ public partial class CompetitorManager {
 	public event Action<ReleaseSlateItem, int> OnReleaseSlateReview;
 	public event Action<ProgrammeResourceTelemetry> OnProgrammeResources;
 	public event Action<ProgrammeCashShortfall> OnProgrammeCashShortfall;
+	public event Action<ProgrammeChoiceAudit> OnProgrammeChoiceReview;
 	public IReadOnlyList<ReleaseSlateItem> GetReleaseSlate() => ProgrammeState?.Items ?? (IReadOnlyList<ReleaseSlateItem>)Array.Empty<ReleaseSlateItem>();
 	internal void SetProgrammeForChecks(ReleaseProgrammeState state) { ProgrammeState = state; programmeCampaignByRecord.Clear(); }
 
@@ -240,8 +241,17 @@ public partial class CompetitorManager {
 				for (int slot = 0; slot < slots + financedSlots; slot++) {
 					bool financed = slot >= slots;
 					string id = $"{ProgrammeLabelKey(label)}|{intended.year:D4}-{intended.month:D2}-{intended.day:D2}|{format}|{slot}";
-					var candidates = label.roster.Where(a => CanProgrammeArtist(label, a, format, week) && !HasConflictingIntention(a, format, week) &&
-							(!financed || IsHotProgrammeAct(a, week)))
+					var audit = OnProgrammeChoiceReview == null ? null : new List<ProgrammeCandidateAudit>();
+					var candidates = label.roster.Where(a => {
+						// Preserve the original short circuit and its clock reads. Audit exclusions
+						// without evaluating a rejected artist's forecast or drawing anything new.
+						string reason = !CanProgrammeArtist(label, a, format, week) ? "artist-or-spacing-ineligible" :
+							HasConflictingIntention(a, format, week) ? "conflicting-intention" :
+							financed && !IsHotProgrammeAct(a, week) ? "not-eligible-for-financed-slot" : null;
+						if (reason == null) return true;
+						audit?.Add(new ProgrammeCandidateAudit { ArtistId = a?.artistId, CareerState = a?.careerState.ToString(), Reason = reason });
+						return false;
+					})
 						.Select(a => {
 							var clock = ProgrammeClockFor(a);
 							int last = format == ReleaseFormat.Single ? clock.SingleWeek : clock.AlbumWeek;
@@ -258,8 +268,25 @@ public partial class CompetitorManager {
 							float contribution = Math.Clamp(net / Math.Max(1f, context.singleProductionCost), -1f, 1f);
 							float score = (due ? 10 : 0) + a.GetCareerPriority() + a.momentum + a.contractRegionalBreakouts * .1f + contribution +
 								Math.Min(1f, age / 52f) + obligations * .1f + (float)ProgrammeRoll(label, a, id, week, 1) * (.5f - label.scoutingAbility * .25f);
-							return (Artist: a, Score: score, Due: due, Age: age, Obligations: obligations, Net: net);
+							var read = audit == null ? null : new ProgrammeCandidateAudit {
+								ArtistId = a.artistId, CareerState = a.careerState.ToString(), Eligible = true, Reason = "scored",
+								Score = score, Hot = hot, Due = due, Gap = age, ExpectedNet = net, Contribution = contribution,
+								QualityEstimate = context.qualityEstimate, Priority = a.GetCareerPriority(), Momentum = a.momentum,
+								Obligations = obligations, AttachedAudienceAtAudit = ArtistFanbase.Heads(a.fanbase)
+							};
+							return (Artist: a, Score: score, Due: due, Age: age, Obligations: obligations, Net: net, Audit: read);
 						}).OrderByDescending(c => c.Score).ThenBy(c => c.Artist.artistId, StringComparer.Ordinal).ToList();
+					if (audit != null) {
+						for (int rank = 0; rank < candidates.Count; rank++) {
+							var read = candidates[rank].Audit;
+							read.Rank = rank + 1; read.Selected = rank == 0;
+							read.Reason = read.Selected ? "selected-best-score" : "passed-over-lower-score";
+							audit.Add(read);
+						}
+						OnProgrammeChoiceReview?.Invoke(new ProgrammeChoiceAudit { LabelId = label.labelId, Tier = label.tier.ToString(),
+							Status = label.status.ToString(), SlotId = id, Format = format, Week = pipelineWeek, Year = date.year,
+							IntendedWeek = week, IntendedYear = intended.year, Financed = financed, Candidates = audit });
+					}
 					if (candidates.Count == 0) continue;
 					var chosen = candidates[0];
 					var decision = BuildDecisionContext(label, chosen.Artist, intended.year, intended.month);

@@ -144,6 +144,16 @@ the declared spacing change. See [LabelBalanceInvestigation.md](LabelBalanceInve
 for findings, limits and experiment disposition. These commands do not adopt
 game defaults.
 
+`--label-decision-audit` adds `*-programme-choices.csv`: every considered roster
+artist, score/rank, eligibility exclusion and empty planning opportunity before
+an intention is created. `RunLabelDecisionAudit.ps1 -RunTag NAME` replays the
+completed blend and requires economic/chart identity before
+`analyze_label_decisions.py` reports choices, passed-over alternatives, initial
+intentions and the existing daily A&R appointment outcomes. Attached audience
+in this trace is observational, not a new planning input. See
+[LabelAISimulationAudit.md](LabelAISimulationAudit.md) for the active-path audit
+and the shared-rule specification for a continuing label business.
+
 `--audit-hit-act-renewals` records the exact renewal-affordability gate without
 altering it. `--hit-act-going-concern-renewal` separately tests a profitable
 MidTier's recent-hit renewal against its going-concern tax/service horizon,

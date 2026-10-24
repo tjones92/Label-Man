@@ -7,8 +7,14 @@ public partial class ChartAuditRunner {
 	private StreamWriter programmeMaterialWriter;
 	private StreamWriter lpAssemblyWriter;
 	private StreamWriter programmeCashShortfallWriter;
+	private StreamWriter programmeChoiceWriter;
 	private void OpenReleaseProgrammeOutputs(string directory) {
 		if (!LabelReleaseProgramme.Enabled) return;
+		if (System.Linq.Enumerable.Contains(Godot.OS.GetCmdlineUserArgs(), "--label-decision-audit")) {
+			programmeChoiceWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-choices.csv"));
+			programmeChoiceWriter.WriteLine("week,year,labelId,tier,status,slotId,format,intendedWeek,intendedYear,financed,artistId,careerState,eligible,reason,rank,selected,score,hot,due,gap,expectedNet,contribution,qualityEstimate,careerPriority,momentum,obligations,attachedAudienceAtAudit");
+			CompetitorManager.Instance.OnProgrammeChoiceReview += WriteProgrammeChoice;
+		}
 		releaseSlateWriter = CreateWriter(Path.Combine(directory, $"{runName}-release-slate.csv"));
 		releaseSlateWriter.WriteLine("week,slotId,labelId,artistId,format,state,source,intendedWeek,dueWeek,readyWeek,actualWeek,intendedDate,actualDate,recordId,reservedProduction,reservedMarketing,reservedPressing,score,evidence,reason,missedFollowUp,paidProduction,preparedWeek,proposedWeek,weeklyReviewPolicy");
 		CompetitorManager.Instance.OnReleaseSlateReview += WriteReleaseSlate;
@@ -53,6 +59,22 @@ public partial class ChartAuditRunner {
 	private void WriteProgrammeCashShortfall(ProgrammeCashShortfall r) => programmeCashShortfallWriter.WriteLine(string.Join(",", r.Week, Csv(r.LabelId), r.Tier, r.Status,
 		Csv(r.SlotId), Csv(r.ArtistId), r.Format, F(r.Cash), F(r.Overhead), F(r.NegativeFlowHold), F(r.PlantPayables), F(r.TaxAndService), F(r.OtherProgrammeHolds),
 		F(r.Production), F(r.Marketing), F(r.Pressing), F(r.Receivables), F(r.Factored), F(r.TaxPayable), F(r.UnprovidedTax), F(r.CommercialHold)));
+	private void WriteProgrammeChoice(ProgrammeChoiceAudit r) {
+		void Row(ProgrammeCandidateAudit a) {
+			string N(int n) => n.ToString(CultureInfo.InvariantCulture);
+			string Read(float value) => a?.Eligible == true ? value.ToString("R", CultureInfo.InvariantCulture) : "";
+			programmeChoiceWriter.WriteLine(string.Join(",", N(r.Week), N(r.Year), Csv(r.LabelId), Csv(r.Tier), Csv(r.Status),
+				Csv(r.SlotId), r.Format, N(r.IntendedWeek), N(r.IntendedYear), r.Financed ? "1" : "0",
+				Csv(a?.ArtistId), Csv(a?.CareerState), a?.Eligible == true ? "1" : "0", Csv(a?.Reason ?? "empty-roster"),
+				a?.Eligible == true ? N(a.Rank) : "", a?.Selected == true ? "1" : "0", Read(a?.Score ?? 0),
+				a?.Eligible == true ? (a.Hot ? "1" : "0") : "", a?.Eligible == true ? (a.Due ? "1" : "0") : "",
+				a?.Eligible == true ? N(a.Gap) : "", Read(a?.ExpectedNet ?? 0), Read(a?.Contribution ?? 0),
+				Read(a?.QualityEstimate ?? 0), Read(a?.Priority ?? 0), Read(a?.Momentum ?? 0), Read(a?.Obligations ?? 0),
+				a?.Eligible == true ? a.AttachedAudienceAtAudit.ToString("R", CultureInfo.InvariantCulture) : ""));
+		}
+		if (r.Candidates.Count == 0) Row(null);
+		else foreach (var candidate in r.Candidates) Row(candidate);
+	}
 	private void WriteReleaseSlate(ReleaseSlateItem item, int week) {
 		string N(int n) => n.ToString(CultureInfo.InvariantCulture);
 		releaseSlateWriter.WriteLine(string.Join(",", N(week), Csv(item.Id), Csv(item.LabelId), Csv(item.ArtistId), item.Format, item.State,
@@ -67,10 +89,12 @@ public partial class ChartAuditRunner {
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeMaterialSearch -= WriteProgrammeMaterial;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnLpAssembly -= WriteLpAssembly;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeCashShortfall -= WriteProgrammeCashShortfall;
+		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeChoiceReview -= WriteProgrammeChoice;
 		releaseSlateWriter?.Dispose(); releaseSlateWriter = null;
 		programmeResourceWriter?.Dispose(); programmeResourceWriter = null;
 		programmeMaterialWriter?.Dispose(); programmeMaterialWriter = null;
 		lpAssemblyWriter?.Dispose(); lpAssemblyWriter = null;
 		programmeCashShortfallWriter?.Dispose(); programmeCashShortfallWriter = null;
+		programmeChoiceWriter?.Dispose(); programmeChoiceWriter = null;
 	}
 }
