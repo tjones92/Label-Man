@@ -11,6 +11,14 @@ the first intervention supported by these observations. This is a diagnosis of
 channels and an experiment, not proof that one parameter explains the entire
 imbalance.
 
+**User direction, 24 October:** differences between firms should emerge from
+shared rules and their evolving circumstances. Use individual firms as diagnostic
+cases, not separate calibration targets. Do not add named-label success bonuses,
+release quotas, bespoke career templates or corrective rules keyed to a firm's
+identity. Test common responses to repertoire, roster, audience, staffing,
+finances, distribution and competing campaigns, then inspect the resulting
+variation across firms and seeds.
+
 ## The discrepancy is real, with measurement limits
 
 The four completed 106-week arms use seeds 1001, 2002 and 3003. Annual metrics
@@ -100,12 +108,34 @@ single. An intention never created is outside the denominator.
 | Ever refused for unreserved cash | 4.9% | 2.3% | 10.2% |
 | Expired | 35.1% | 5.6% | 6.6% |
 
-Studios generally execute the work they plan. Creating appropriate opportunities
-and allocating them across acts is a more plausible first focus than rescuing
-a large queue of unfunded studio follow-ups. Major firms, meanwhile, expire
-many intentions while concentrating successful acts near the six-week floor.
-That is evidence to inspect their allocator; it is not evidence that their
-total capacity should be increased to clear the queue.
+The 91.9% is an execution rate conditional on a dated intention having been
+created. It does not measure the share of all candidate artists, songs or
+possible projects approved. Planning already restricts candidates by roster,
+artist availability, release spacing and conflicting intentions; cash and
+material are checked later, so these are not fully funded commitments either.
+
+The high rate is partly a consequence of the experimental work-budget rule:
+non-Major firms' dated plans are their work budget, with no second preparation
+or issue-capacity lottery. This deliberately avoids losing the same unit of work
+to repeated capacity draws. Cash, material, economics, promotion and expiry can
+still stop it. Major firms retain a different execution path, so their 61.4%
+is not an independent standard of desirable editorial selectivity.
+
+**There is no established target for this completion percentage.** A selective
+planner with reliable execution and an overpermissive planner can both issue
+92% of their plans. The studio firms average 33.78 single launches per label
+over 106 weeks, approximately 16.6 per year, including launches outside this
+intention denominator. This supplies scale, not a historical output benchmark.
+Neither the completion percentage nor the lower follow-up count alone proves
+that studios should release more records.
+
+The next shared-rule diagnosis should examine what receives a plan, the acts
+and material passed over, forecast and realized returns, and cash/staff/campaign
+load. It may identify excess weak projects, poor allocation to promising
+follow-ups, or missing opportunities. Avoid imposing extra cancellations merely
+to lower completion. Major firms' expired intentions and concentration of
+successful acts near the six-week floor likewise call for inspection of the
+common allocator, rather than more capacity to clear its queue.
 
 Equal 13-week demand windows also weaken the broad cash/stock hypothesis:
 studios service 92.7% of raw intent against 94.2% for the Big Five, and clear
@@ -121,7 +151,7 @@ units, compared with 8.5% for the Big Five. The audience mechanism reaches studi
 acts; its aggregate share is not unusually weak there. These percentages are
 attribution within each world, not causal sales increments.
 
-## Studios require firm-specific diagnosis
+## Firm variation as evidence for shared mechanisms
 
 | Firm | Historical annual Top 10 slots | Blend annual Top 10 slots | Blend annual repeat acts |
 |---|---:|---:|---:|
@@ -135,15 +165,18 @@ attribution within each world, not causal sales increments.
 Slot credit follows the actual seller/owner in each chart week; repeat credit
 follows the act's first Top 10 seller that year. Names have cosmetic suffixes
 across seeds, so model aggregation uses stable label IDs. Warner is already
-above this short-window historical slot benchmark and Dot is close. A uniform
-studio multiplier would reward those firms too.
+above this short-window historical slot benchmark and Dot is close. These
+comparisons diagnose the aggregate discrepancy; they are not desired outcomes
+to enforce for the individual labels.
 
 Colpix is the exception to the broad finance finding: 3.33 of its 12.0 early
 single intentions per seed encounter cash refusal, versus .67 for MGM, .33 for
-ABC and none for Warner, UA or Dot. Its low output and absent hits merit a
-separate case investigation. MGM, ABC and UA account for much of the remaining
-slot deficit, and their opening careers, repertoire and work allocation need
-inspection independently of Colpix's cash.
+ABC and none for Warner, UA or Dot. These cases distinguish circumstances the
+same rules encounter. Trace cash-constrained plans wherever they occur and
+compare them with similarly situated firms; test the same decision rule on all
+eligible firms. MGM, ABC and UA account for much of the remaining slot deficit,
+providing cases to inspect repertoire and work allocation without assigning
+those names a compensating parameter or a prescribed trajectory.
 
 ## Code paths implicated
 
@@ -210,10 +243,12 @@ are system outcomes, not effects on matched individual artists.
 
 **Disposition:** retain the 13-week setting as an unselected diagnostic. Do not
 adopt a universal cap or a uniform studio bonus from this pilot. The next
-targeted tests should distinguish the Major allocator's repeated early
-selection of known acts from the studio firms' repertoire and work allocation.
-Colpix's cash-constrained output deserves its own decision-level trace. Keep
-the earned-audience candidate and evaluate continuing careers alongside owner
+targeted tests should distinguish the common allocator's repeated early
+selection of known acts from repertoire selection, resource constraints and
+missing opportunities. Trace the same decisions across all eligible firms,
+including the cash-constrained cases observed at Colpix. Let different firm
+outcomes emerge from their state and shared decision rules. Keep the
+earned-audience candidate and evaluate continuing careers alongside owner
 shares. Replication and a narrower scheduling intervention are needed before a
 policy selection.
 
