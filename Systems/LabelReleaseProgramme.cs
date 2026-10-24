@@ -30,6 +30,9 @@ public static class LabelReleaseProgramme {
 		LpAssembly.GreatestHitsHits = (int)Read(args, LpAssembly.GreatestHitsSwitch, 3, 1, 8);
 		if (args.Any(a => a.StartsWith(LpAssembly.GreatestHitsSwitch, StringComparison.Ordinal)) && !LpAssemblyEnabled)
 			throw new ArgumentException(LpAssembly.GreatestHitsSwitch + " requires " + LpAssembly.Switch);
+		LpAssembly.PackageGapWeeks = (int)Read(args, LpAssembly.PackageGapSwitch, 104, 0, 520);
+		if (args.Any(a => a.StartsWith(LpAssembly.PackageGapSwitch, StringComparison.Ordinal)) && !LpAssemblyEnabled)
+			throw new ArgumentException(LpAssembly.PackageGapSwitch + " requires " + LpAssembly.Switch);
 		SingleFloor = (int)Read(args, "--slate-single-floor=", 6, 1, 13);
 		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 16);
 		MajorAlbumsPerMonth = Read(args, "--programme-major-albums=", 5, 0, 12);
@@ -37,12 +40,79 @@ public static class LabelReleaseProgramme {
 			throw new ArgumentException("Programme capacity parameters require " + CapacitySwitch);
 		if (args.Any(a => a.StartsWith("--slate-single-floor=", StringComparison.Ordinal)) && !AllocationEnabled)
 			throw new ArgumentException("The single floor requires " + AllocationSwitch);
+		HitFollowUpFinanceEnabled = args.Contains(HitFollowUpFinanceSwitch);
+		if (HitFollowUpFinanceEnabled && !(AllocationEnabled && CapacityEnabled))
+			throw new ArgumentException(HitFollowUpFinanceSwitch + " requires " + AllocationSwitch + " and " + CapacitySwitch);
+		HitFollowUpSinglesPerYear = Read(args, HitFollowUpSinglesSwitch, 2, 0, 6);
+		if (args.Any(a => a.StartsWith(HitFollowUpSinglesSwitch, StringComparison.Ordinal)) && !HitFollowUpFinanceEnabled)
+			throw new ArgumentException(HitFollowUpSinglesSwitch + " requires " + HitFollowUpFinanceSwitch);
+		PreparationHeadroom = Read(args, PreparationHeadroomSwitch, 1, 1, 4);
+		if (args.Any(a => a.StartsWith(PreparationHeadroomSwitch, StringComparison.Ordinal)) && !AllocationEnabled)
+			throw new ArgumentException(PreparationHeadroomSwitch + " requires " + AllocationSwitch);
+		WorkBudgetSingles = Read(args, WorkBudgetSwitch, 0, .25f, 3);
+		if (args.Any(a => a.StartsWith(WorkBudgetSwitch, StringComparison.Ordinal)) && !(AllocationEnabled && CapacityEnabled))
+			throw new ArgumentException(WorkBudgetSwitch + " requires " + AllocationSwitch + " and " + CapacitySwitch);
+		if (WorkBudgetSingles > 0 && PreparationHeadroom != 1f)
+			throw new ArgumentException(WorkBudgetSwitch + " replaces the preparation draw; drop " + PreparationHeadroomSwitch);
+		WorkBudgetMidTierSingles = Read(args, WorkBudgetMidTierSwitch, 0, .25f, 3);
+		if (args.Any(a => a.StartsWith(WorkBudgetMidTierSwitch, StringComparison.Ordinal)) && WorkBudgetSingles <= 0)
+			throw new ArgumentException(WorkBudgetMidTierSwitch + " requires " + WorkBudgetSwitch);
+		GoingConcernReserveEnabled = args.Contains(GoingConcernReserveSwitch);
+		if (GoingConcernReserveEnabled && WorkBudgetSingles <= 0)
+			throw new ArgumentException(GoingConcernReserveSwitch + " requires " + WorkBudgetSwitch);
 	}
+	// --slate-going-concern-reserve: a work-budget MidTier tests its slate reservations against a going-concern reserve.
+	// Overhead, the negative-flow hold, plant payables and programme holds stay; the tax-and-service hold is replaced by
+	// the tax that falls due within the reservation lead (two month-ends). wbg-v2: surviving MidTiers were refused $2.5k
+	// singles holding a median $87k, behind accrued tax due the next March/June and two months of variable selling costs.
+	public const string GoingConcernReserveSwitch = "--slate-going-concern-reserve";
+	public const int GoingConcernTaxMonths = 2;
+	public static bool GoingConcernReserveEnabled { get; private set; }
+	internal static void SetGoingConcernReserveForChecks(bool value) => GoingConcernReserveEnabled = value;
+	internal static bool UsesGoingConcernReserve(AILabel label) => GoingConcernReserveEnabled && UsesWorkBudget(label) && label.tier == LabelTier.MidTier;
+	// --slate-work-budget=S: a non-Major label's planned intentions are its whole work budget, S singles a month per unit of
+	// releasesPerMonth (LPs keep .33). Preparation and issue take no further dated draws, so planned work is lost only to
+	// cash, material, economics or the window. A Struggling label keeps its slots and halves its campaign spend instead
+	// (LabelReleaseProgrammeImplementation.md, "Preparation headroom"). A probe sized to pre-slate output, not a sourced rate.
+	public const string WorkBudgetSwitch = "--slate-work-budget=";
+	public static float WorkBudgetSingles { get; private set; }
+	// --slate-work-budget-midtier=SM: MidTiers take SM in place of S; the smaller tiers keep S (wbg-v1: at one S the small
+	// tiers added nine singles in ten and cut r by .11 while MidTiers stayed below their pre-slate output).
+	public const string WorkBudgetMidTierSwitch = "--slate-work-budget-midtier=";
+	public static float WorkBudgetMidTierSingles { get; private set; }
+	internal static void SetWorkBudgetForChecks(float value, float midTier = 0f) { WorkBudgetSingles = value; WorkBudgetMidTierSingles = midTier; }
+	internal static float WorkBudgetFor(AILabel label) =>
+		label.tier == LabelTier.MidTier && WorkBudgetMidTierSingles > 0 ? WorkBudgetMidTierSingles : WorkBudgetSingles;
+	internal static bool UsesWorkBudget(AILabel label) => WorkBudgetSingles > 0 && label.tier != LabelTier.Major && !label.isPlayerOwned;
+	internal static float SlotStatusFactor(AILabel label) =>
+		UsesWorkBudget(label) && label.status == LabelStatus.Struggling ? 1f : StatusFactor(label.status);
+	internal static float CampaignStatusFactor(AILabel label) =>
+		UsesWorkBudget(label) && label.status == LabelStatus.Struggling ? StatusFactor(LabelStatus.Struggling) : 1f;
+	// --slate-preparation-headroom=H: a non-Major label's weekly preparation draw runs at H x its planning rate. Planning,
+	// preparation and issue otherwise share one rate, so work that misses a preparation draw queues at utilization one
+	// and expires at the horizon (LabelReleaseProgrammeImplementation.md, "Why the control's field repeat acts collapse").
+	// A probe, not a sourced rate. At 1 the rate passes through unchanged.
+	public const string PreparationHeadroomSwitch = "--slate-preparation-headroom=";
+	public static float PreparationHeadroom { get; private set; } = 1f;
+	internal static void SetPreparationHeadroomForChecks(float value) => PreparationHeadroom = value;
+	internal static float PreparationRate(AILabel label, float planningRate) =>
+		PreparationHeadroom == 1f || label.tier == LabelTier.Major ? planningRate : planningRate * PreparationHeadroom;
+	// --hit-follow-up-finance: a non-Major label's act with a recent Top 40 gets dedicated single work, and a cash-short
+	// follow-up may factor the label's wholesale receivables at the player's terms. A scenario, not a sourced rate.
+	public const string HitFollowUpFinanceSwitch = "--hit-follow-up-finance";
+	public const string HitFollowUpSinglesSwitch = "--hit-follow-up-finance-singles=";
+	public static bool HitFollowUpFinanceEnabled { get; private set; }
+	public static float HitFollowUpSinglesPerYear { get; private set; } = 2f;
+	internal static void SetHitFollowUpFinanceForChecks(bool value, float singlesPerYear = 2f) {
+		HitFollowUpFinanceEnabled = value; HitFollowUpSinglesPerYear = singlesPerYear;
+	}
+	// The player's factoring terms (PlayerDesk.FactorRate): 70-85 cents on the dollar by the house's reliability.
+	internal static float FactorRate(float? houseReliability) => Math.Clamp(0.70f + 0.15f * (houseReliability ?? 0.5f), 0.70f, 0.85f);
 	private static float Read(string[] args, string prefix, float fallback, float min, float max) {
 		string value = args.SingleOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
 		if (value == null) return fallback;
 		if (!float.TryParse(value[prefix.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) ||
-			!float.IsFinite(x) || x < min || x > max || (prefix == "--slate-single-floor=" || prefix == LpAssembly.GreatestHitsSwitch) && x != MathF.Truncate(x))
+			!float.IsFinite(x) || x < min || x > max || (prefix == "--slate-single-floor=" || prefix == LpAssembly.GreatestHitsSwitch || prefix == LpAssembly.PackageGapSwitch) && x != MathF.Truncate(x))
 			throw new ArgumentException($"{prefix} requires a value between {min} and {max}.");
 		return x;
 	}
@@ -59,7 +129,7 @@ public static class LabelReleaseProgramme {
 	internal static (float Singles, float Albums) MonthlyCapacity(AILabel label) {
 		// RCA's 2-3 weekly singles is a head scenario only. Other tiers retain their own envelope pending evidence.
 		return label.tier == LabelTier.Major ? (MajorSinglesPerMonth, MajorAlbumsPerMonth) :
-			(label.releasesPerMonth * .67f, label.releasesPerMonth * .33f);
+			(label.releasesPerMonth * (UsesWorkBudget(label) ? WorkBudgetFor(label) : .67f), label.releasesPerMonth * .33f);
 	}
 	internal static bool IsOpen(ReleaseSlateItem item) => item.State is not (ReleaseSlateState.Issued or ReleaseSlateState.Cancelled);
 	internal static bool CanUseIdleSlot(ReleaseSlateItem item, int week) =>
@@ -94,7 +164,12 @@ public sealed class ReleaseSlateItem {
 	public float PaidProduction;
 	public bool MissedFollowUp;
 }
-public sealed class ProgrammeClock { public string Identity; public int SingleWeek, AlbumWeek; }
+public sealed class ProgrammeClock {
+	public string Identity; public int SingleWeek, AlbumWeek;
+	// LP assembly: the act's last greatest-hits package (seeded for opening acts); absent otherwise.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? PackageWeek;
+}
 public sealed class ProgrammeCampaign {
 	public string LabelId, RecordId;
 	public int Week;
@@ -112,6 +187,18 @@ public sealed class ReleaseProgrammeState {
 	public Dictionary<string, LpMasterControl> MasterControl;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public List<ShelvedMaster> Shelf;
+	// Pre-1960 discography sides as masters, by act; non-null once seeded (empty when no act has a history).
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public Dictionary<string, List<AlbumTrack>> OpeningMasters;
+}
+
+/// <summary>A work-budget label's slate reservation refused for cash, with the commitment reserve split into its parts.</summary>
+public sealed class ProgrammeCashShortfall {
+	public int Week;
+	public string LabelId, Tier, Status, SlotId, ArtistId;
+	public ReleaseFormat Format;
+	public float Cash, Overhead, NegativeFlowHold, PlantPayables, TaxAndService, OtherProgrammeHolds, Production, Marketing, Pressing,
+		Receivables, Factored, TaxPayable, UnprovidedTax, CommercialHold;
 }
 
 public sealed class ProgrammeResourceTelemetry {

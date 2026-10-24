@@ -534,7 +534,8 @@ public static class ChartSimulator {
 			int weeksOverThreshold = demandAge - 8;
 			conversionRate *= Mathf.Pow(DEMAND_AGE_DECAY_RATE, weeksOverThreshold);
 		}
-		
+		if (ChartTailProbe.Enabled) conversionRate *= ChartTailProbe.Multiplier(record.peakPosition, record.weeksSincePeakUnits);
+
 		// === 8. OTHER MODIFIERS ===
 		bool useGenreMarketV2DemandTransfer = stagedLiveDemand;
 		if (useGenreMarketV2DemandTransfer) {
@@ -799,7 +800,10 @@ public static class ChartSimulator {
 	private const int CHART_EXPOSURE_PLATEAU_RANK = 10;
 	private const float CHART_EXPOSURE_EXPONENT = 0.62f;
 
-	private static readonly float ChartExposureMean = ComputeChartExposureMean();
+	// Recomputed only when ChartEntryFeedbackProbe changes the plateau; the authored value is the same float either way.
+	private static float chartExposureMean = float.NaN;
+	private static float ChartExposureMean => float.IsNaN(chartExposureMean) ? chartExposureMean = ComputeChartExposureMean() : chartExposureMean;
+	internal static void ResetChartExposureMean() => chartExposureMean = float.NaN;
 
 	private static float ComputeChartExposureMean() {
 		float total = 0f;
@@ -812,7 +816,7 @@ public static class ChartSimulator {
 		// CHART_EXPOSURE_PLATEAU_RANK note: the residual arithmetic asks for 5.49x at #1 and 5.28x at
 		// #10, which is one number, and a store that builds a Top 10 display does not rebuild it when
 		// two records swap places inside it.
-		float x = Mathf.Max(Mathf.Clamp(position, 1, 100), CHART_EXPOSURE_PLATEAU_RANK);
+		float x = Mathf.Max(Mathf.Clamp(position, 1, 100), ChartEntryFeedbackProbe.ApplyPlateau(CHART_EXPOSURE_PLATEAU_RANK));
 		float weight = HESBACHER_INTERCEPT - HESBACHER_SCALE * x / (x + HESBACHER_HALF_RANK);
 		float floorWeight = HESBACHER_INTERCEPT - HESBACHER_SCALE * 100f / (100f + HESBACHER_HALF_RANK);
 		return Mathf.Pow(weight / floorWeight, CHART_EXPOSURE_EXPONENT);
@@ -888,8 +892,8 @@ public static class ChartSimulator {
 	/// <summary>Earned by sales, not by the position itself -- see RADIO_POSITION_BONUS_SALES_FLOOR.</summary>
 	internal static float GetRadioPositionBonus(int position, float unitsThisWeek) {
 		float positionBonusGate = Mathf.Clamp(unitsThisWeek / RADIO_POSITION_BONUS_SALES_FLOOR, 0f, 1f);
-		if (position > 0 && position <= 10) return 0.25f * positionBonusGate;
-		if (position > 0 && position <= 40) return 0.1f * positionBonusGate;
+		if (position > 0 && position <= 10) return ChartEntryFeedbackProbe.ApplyRadioBonus(0.25f) * positionBonusGate;
+		if (position > 0 && position <= 40) return ChartEntryFeedbackProbe.ApplyRadioBonus(0.1f) * positionBonusGate;
 		return 0f;
 	}
 

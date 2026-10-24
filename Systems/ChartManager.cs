@@ -373,6 +373,9 @@ public partial class ChartManager : Node {
 		RadioPushSpread.Configure(OS.GetCmdlineUserArgs());
 		AirplayRotationCeiling.Configure(OS.GetCmdlineUserArgs());
 		ChartInertiaProbe.Configure(OS.GetCmdlineUserArgs());
+		ChartEntryFeedbackProbe.Configure(OS.GetCmdlineUserArgs());
+		ChartTailProbe.Configure(OS.GetCmdlineUserArgs());
+		HitActHype.Configure(OS.GetCmdlineUserArgs());
 		LabelHoldCapacity.Configure(OS.GetCmdlineUserArgs());
 		HeadScaleTemplates.Configure(OS.GetCmdlineUserArgs());
 		WorkloadStaffing.Configure(OS.GetCmdlineUserArgs());

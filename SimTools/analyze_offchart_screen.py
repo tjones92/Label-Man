@@ -135,7 +135,8 @@ def screen(tag, seed, weeks, legacy_final_owner=False):
                              if "chartedUnits" in units else
                              charted.unitsThisWeek[charted.tier == "Major"].sum() / charted.unitsThisWeek.sum())
 
-    finance = pd.read_csv(p("label-finance"), usecols=lambda c: c in ("week", "labelId", "status", "cashReserves", "exitReason"))
+    finance = pd.read_csv(p("label-finance"), usecols=lambda c: c in ("week", "labelId", "status", "cashReserves", "exitReason"),
+                          low_memory=False)  # chunked parsing with a column filter crashes pandas
     finance["labelId"], finance["status"] = unquote(finance.labelId), unquote(finance.status)
     start = finance[finance.week == finance.week.min()].labelId.unique()
     last = finance.sort_values("week").groupby("labelId").tail(1).set_index("labelId")

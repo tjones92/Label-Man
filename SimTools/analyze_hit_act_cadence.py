@@ -1,4 +1,8 @@
-"""Matched hit-act screen; studio-parent-labels must be absent from every manifest.
+"""Hit-act repeat screen: the matched hac cadence screen, or --runs comparisons of any runs.
+
+The matched screen (default) requires studio-parent-labels off in its treatment arms.
+--runs NAME=TAG[:SEED,...] measures arbitrary completed runs, studio labels included,
+against history; it checks no flags and makes no adoption comparison.
 
 Annual repeat counts include carryovers. Debuts are first observed entries in this
 run, excluding opening catalog. Cohorts use prior calendar year's Top 10 acts,
@@ -14,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 from analyze_offchart_screen import ROOT, path, screen
-from analyze_studio_parent import BIG5, STUDIO_NAMES
+from analyze_studio_parent import BIG5, studio_ids
 
 
 def repeats(records):
@@ -95,19 +99,19 @@ def annual_metrics(records, launches, opening, years=range(1960, 1965)):
     return out
 
 
-def measure(tag, seed, weeks):
+def measure(tag, seed, weeks, allow_studio=False):
     p = lambda stream: path(tag, seed, stream, weeks)
     manifest = json.loads((Path(ROOT) / tag / 'runs.json').read_text(encoding='utf-8-sig'))
-    if '--studio-parent-labels' in manifest['extraFlags']:
-        raise ValueError('Studio switch must be off for the cadence screen')
+    if not allow_studio and '--studio-parent-labels' in manifest['extraFlags']:
+        raise ValueError('Studio switch must be off for the matched cadence screen')
     completed = [r for r in manifest['results'] if r['seed'] == seed]
     if len(completed) != 1 or not completed[0]['passed'] or manifest['weeks'] != weeks:
         raise ValueError('Missing or incomplete native audit')
     records = pd.read_csv(p('records'), usecols=['week', 'year', 'artistId', 'recordId', 'labelId', 'currentPosition'])
     if records.duplicated(['week', 'recordId']).any():
         raise ValueError('Duplicate chart record/week')
-    directory = pd.read_csv(p('label-directory'))
-    studios = set(directory.loc[directory.labelName.isin(STUDIO_NAMES), 'labelId'])
+    # Same name rule as the studio analyzer, so runtime names such as "Dot Records" count.
+    studios = studio_ids(p)
     records['group'] = records.labelId.map(lambda i: 'big5' if i in BIG5 else 'studio' if i in studios else 'field')
     q = pd.read_csv(p('single-launch-quality'))
     if q.singleId.duplicated().any():
@@ -220,13 +224,82 @@ def write_readout(frame, result, output):
     (output / 'screen.md').write_text('\n'.join(lines), encoding='utf-8')
 
 
+def flatten(run):
+    row = dict(run['guards'])
+    for year, metrics in run['annual'].items():
+        row.update({f'{year}_{k}': v for k, v in metrics.items()})
+    for key, metric in [('meanRepeat2', 'repeat2'), ('meanRepeat3', 'repeat3'),
+                        ('meanTop10Tenure', 'top10WeeksPerRecord')]:
+        row[key] = statistics.mean(v[metric] for v in run['annual'].values())
+    return row
+
+
+def compare(specs, seeds, weeks, output):
+    """Unmatched comparison of named runs against history; no flag or identity checks."""
+    arms = {}
+    for spec in specs:
+        name, _, rest = spec.partition('=')
+        tag, _, listed = rest.partition(':')
+        arms[name] = (tag, [int(s) for s in listed.split(',')] if listed else seeds)
+    flat = {(name, seed): flatten(measure(tag, seed, weeks, allow_studio=True))
+            for name, (tag, arm_seeds) in arms.items() for seed in arm_seeds}
+    frame = pd.DataFrame(flat).T
+    frame.index.names = ['arm', 'seed']
+    output.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(output / 'compare.csv')
+    means, hist = frame.groupby(level='arm', sort=False).mean(), history()
+    names = list(arms)
+    lines = ['# Hit-act repeats: run comparison', '',
+             'Unmatched runs: ' + '; '.join(f'{n} = `{t}` seeds {",".join(map(str, s))}' for n, (t, s) in arms.items()),
+             '', 'Annual **2+ / 3+** distinct Top 10 records per act, including carryovers (seed mean).', '',
+             '| Year | History | ' + ' | '.join(names) + ' |', '|---|---:|' + '---:|' * len(names)]
+    for year, h in hist.items():
+        cells = [f"{means.loc[n, f'{year}_repeat2']:.1f} / {means.loc[n, f'{year}_repeat3']:.1f}" for n in names]
+        lines.append(f"| {year} | {h['repeat2']} / {h['repeat3']} | " + ' | '.join(cells) + ' |')
+    h2 = statistics.mean(h['repeat2'] for h in hist.values())
+    h3 = statistics.mean(h['repeat3'] for h in hist.values())
+    lines.append(f'| 1960–64 mean | {h2:.1f} / {h3:.1f} | ' +
+                 ' | '.join(f"{means.loc[n, 'meanRepeat2']:.1f} / {means.loc[n, 'meanRepeat3']:.1f}" for n in names) + ' |')
+    lines += ['', '| Metric (seed mean) | ' + ' | '.join(names) + ' |', '|---|' + '---:|' * len(names)]
+    metrics = [('Top 10 records per year, 1960', '1960_top10Records', False),
+               ('Top 10 weeks/record, mean of annual means', 'meanTop10Tenure', False),
+               ('Singles/52 signed weeks, lagged lifetime Top 10 acts', 'laggedTop10SinglesPer52SignedWeeks', False),
+               ('LPs scheduled/52 signed weeks, same cohort', 'laggedTop10LpsScheduledPer52SignedWeeks', False),
+               ('Hit-act departure within 52 weeks', 'hitAct52WeekDepartureShare', True),
+               ('Single launches', 'singleLaunches', False), ('Actual album launches', 'albumLaunches', False),
+               ('Single units incl. off-chart (millions)', 'singleUnitsInclOffM', False),
+               ('Big-5 Top 10 slot share, 1960', '1960_big5_top10Share', True),
+               ('Big-5 Top 10 slot share, 1961', '1961_big5_top10Share', True),
+               ('Studio Top 10 slot share, 1961', '1961_studio_top10Share', True),
+               ('Small / Boutique / Independent closures', None, True)]
+    for label, key, percent in metrics:
+        if key is None:
+            cells = [' / '.join(f"{means.loc[n, f'closed_{t}'] * 100:.1f}%" for t in ('Small', 'Boutique', 'Independent'))
+                     for n in names]
+        else:
+            cells = [f'{means.loc[n, key] * 100:.2f}%' if percent else f'{means.loc[n, key]:.2f}' for n in names]
+        lines.append('| ' + label + ' | ' + ' | '.join(cells) + ' |')
+    lines += ['', 'Per-seed values: `compare.csv`. Arms differ in more than one switch unless stated;',
+              'three seeds understate reshuffle uncertainty.', '']
+    (output / 'compare.md').write_text('\n'.join(lines), encoding='utf-8')
+    print('\n'.join(lines))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--control', default='ttx-v1-tax')
     parser.add_argument('--tag', default='hac-v2')
     parser.add_argument('--seeds', nargs='+', type=int, default=[1001, 2002, 3003])
     parser.add_argument('--weeks', type=int, default=265)
+    parser.add_argument('--runs', nargs='+', metavar='NAME=TAG[:SEED,...]',
+                        help='compare these completed runs instead of the matched cadence screen')
+    parser.add_argument('--output', help='output directory under SimLogs for --runs')
     args = parser.parse_args()
+    if args.runs:
+        if not args.output:
+            parser.error('--runs needs --output')
+        compare(args.runs, args.seeds, args.weeks, Path(ROOT) / args.output)
+        return
     output = Path(ROOT) / args.tag
     control_flags = json.loads((Path(ROOT) / args.control / 'runs.json').read_text(encoding='utf-8-sig'))['extraFlags']
     extras = {'lane': ['--hit-act-cadence'], 'retention': ['--hit-act-retention'],
@@ -244,12 +317,7 @@ def main():
         for seed in args.seeds:
             run = measure(tag, seed, args.weeks)
             result['runs'][f'{arm}-{seed}'] = run
-            flat[(arm, seed)] = dict(run['guards'])
-            for year, metrics in run['annual'].items():
-                flat[(arm, seed)].update({f'{year}_{k}': v for k, v in metrics.items()})
-            for key, metric in [('meanRepeat2', 'repeat2'), ('meanRepeat3', 'repeat3'),
-                                ('meanTop10Tenure', 'top10WeeksPerRecord')]:
-                flat[(arm, seed)][key] = statistics.mean(v[metric] for v in run['annual'].values())
+            flat[(arm, seed)] = flatten(run)
     frame = pd.DataFrame(flat).T
     frame.index.names = ['arm', 'seed']
     frame.to_csv(output / 'screen.csv')

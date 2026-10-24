@@ -118,6 +118,9 @@ public class SimulatedArtist {
 	// --hit-act-cadence / --hit-act-retention probe (§17y): chart week of the act's last Top 40 entry.
 	// Written only while a switch is on; HitActCadence.Unset otherwise.
 	public int hitCadenceLastTop40Week = HitActCadence.Unset;
+	// --hit-act-hype probe: chart weeks of the act's last Top 40 and Top 10. Written only while the switch is on.
+	public int hypeLastTop40Week = HitActHype.Unset;
+	public int hypeLastTop10Week = HitActHype.Unset;
 	public float criticalAcclaim;
 
 	// Celebrity-recognition stock (SimTools/CelebrityRecognitionDirective.md). Both [0,1],
@@ -298,6 +301,7 @@ public class SimulatedArtist {
 		reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
 		SeniorCooling.OnTop40(this);
 		HitActCadence.OnTop40(this);
+		HitActHype.OnTop40(this);
 		if (ArtistPopulationLifecycle.Enabled && IsContractEvaluationPending() && creditCurrentContract) {
 			contractTop40Hits++;
 			contractConsecutiveFlops = 0;
@@ -309,6 +313,7 @@ public class SimulatedArtist {
 		top10Hits++;
 		momentum = Mathf.Clamp(momentum + 0.10f, 0f, 1f);
 		reputation = Mathf.Clamp(reputation + 0.02f, 0f, 1f);
+		HitActHype.OnTop10(this);
 		UpdateCareerState();
 	}
 

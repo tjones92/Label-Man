@@ -114,9 +114,43 @@ public static class LpAssemblyChecks {
             manager.ShelveExpiredMaster(Expired(gone, 0));
             Check(state.Shelf.All(s => s.ArtistId != gone.artistId), "a master of an act no longer signed is not shelved");
 
+            // Opening catalogue: pre-1960 singles on the act's current label become controlled masters, once.
+            var veteran = Act("veteran");
+            veteran.publicHistory = new List<PublicReleaseEntry> {
+                new() { year = 1951, title = "Old Gold", format = ReleaseFormat.Single, peakPosition = 1, labelName = label.labelName },
+                new() { year = 1952, title = "Second Gold", format = ReleaseFormat.Single, peakPosition = 4, labelName = label.labelName },
+                new() { year = 1953, title = "Third Gold", format = ReleaseFormat.Single, peakPosition = 12, labelName = label.labelName },
+                new() { year = 1954, title = "Elsewhere", format = ReleaseFormat.Single, peakPosition = 2, labelName = "Some Other Label" },
+                new() { year = 1955, title = "An LP", format = ReleaseFormat.Album, peakPosition = 0, labelName = label.labelName },
+                new() { year = 1957, title = "Late Side", format = ReleaseFormat.Single, peakPosition = 30, labelName = label.labelName },
+                new() { year = 1961, title = "Played Since", format = ReleaseFormat.Single, peakPosition = 5, labelName = label.labelName } };
+            for (int n = 0; n < 4; n++) veteran.publicHistory.Add(new() { year = 1956 + n % 3, title = "B" + n, format = ReleaseFormat.Single, labelName = label.labelName });
+            label.roster.Remove(young); label.roster.Remove(star); label.roster.Remove(thin);
+            manager.SeedOpeningCatalogue();
+            var opening = state.OpeningMasters[veteran.artistId];
+            Check(opening.Count == 8 && opening.All(x => x.sourceRecordId.StartsWith("opening:" + veteran.artistId) && x.releaseDate.year < 1960) &&
+                opening.All(x => state.MasterControl[x.sourceRecordId].LabelId == label.labelId),
+                "pre-1960 singles on this label become controlled masters; LPs, other labels and later sides do not");
+            int seededMasters = state.MasterControl.Count;
+            manager.SeedOpeningCatalogue();
+            Check(state.MasterControl.Count == seededMasters, "seeding happens once per world");
+            Check(state.Clocks[veteran.artistId].PackageWeek is int last && last <= manager.CurrentProgrammeWeekForChecks &&
+                last > manager.CurrentProgrammeWeekForChecks - LpAssembly.PackageGapWeeks,
+                "an act that issued LPs before 1960 has its last package placed inside the spacing window");
+            var spacedOut = manager.BuildLpAssemblyForChecks(label, veteran, Slot(veteran, "veteran"), year);
+            Check(spacedOut.OpeningMasters == 8 && spacedOut.RelevantHits == 4 && spacedOut.PackageSpacingBlocked && !spacedOut.GreatestHitsFeasible &&
+                (spacedOut.Kind != LpProposalKind.Ordinary || spacedOut.Reason == "ordinary-package-spacing"),
+                $"a package inside the spacing window is not offered (masters={spacedOut.OpeningMasters} hits={spacedOut.RelevantHits} kind={spacedOut.Kind} reason={spacedOut.Reason})");
+            state.Clocks[veteran.artistId].PackageWeek = manager.CurrentProgrammeWeekForChecks - LpAssembly.PackageGapWeeks;
+            var stale = manager.BuildLpAssemblyForChecks(label, veteran, Slot(veteran, "veteran-due"), year);
+            Check(stale.GreatestHitsFeasible && stale.GreatestHitsAppealScale < .6f && package.GreatestHitsAppealScale > stale.GreatestHitsAppealScale,
+                "a package of hits from the early 1950s is priced on its faded appeal, below one of current hits");
+            Check(plain.AppealScale > .99f && plain.AppealScale < 1.01f, "an all-new LP prices at the all-new appeal");
+
             string json = JsonSerializer.Serialize(state, options);
             var restored = JsonSerializer.Deserialize<ReleaseProgrammeState>(json, options);
             Check(JsonSerializer.Serialize(restored, options) == json && restored.MasterControl.Count == state.MasterControl.Count &&
+                restored.OpeningMasters[veteran.artistId].Count == 8 && restored.Clocks[veteran.artistId].PackageWeek == state.Clocks[veteran.artistId].PackageWeek &&
                 restored.Shelf[0].Record.recordId == state.Shelf[0].Record.recordId, "ledger and shelf roundtrip");
             var withPlan = new ReleaseSlateItem { LpAssembly = package };
             var planJson = JsonSerializer.Serialize(withPlan, options);
@@ -124,7 +158,8 @@ public static class LpAssemblyChecks {
             Check(SaveGameService.WritingVersion == 30, "LP assembly writes save v30");
             manager.SetProgrammeForChecks(new ReleaseProgrammeState()); LabelReleaseProgramme.SetLpAssemblyForChecks(false);
             string empty = JsonSerializer.Serialize(new ReleaseProgrammeState(), options) + JsonSerializer.Serialize(new ReleaseSlateItem(), options);
-            Check(SaveGameService.WritingVersion == 28 && !empty.Contains("MasterControl") && !empty.Contains("Shelf") && !empty.Contains("LpAssembly"),
+            Check(SaveGameService.WritingVersion == 28 && !empty.Contains("MasterControl") && !empty.Contains("Shelf") && !empty.Contains("LpAssembly") &&
+                !empty.Contains("OpeningMasters") && !JsonSerializer.Serialize(new ProgrammeClock(), options).Contains("PackageWeek"),
                 "programme worlds without assembly keep v28 and omit the new fields");
             GD.Print($"LP_ASSEMBLY_CHECK passed checks={checks} studio={StudioParentLabels.Enabled}");
         } finally {

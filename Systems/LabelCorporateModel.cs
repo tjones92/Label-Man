@@ -293,6 +293,22 @@ public static class LabelCorporateModel {
             + 2 * Math.Max(0, company.recentCommercialSpend);
     }
 
+    // --slate-going-concern-reserve: in place of TaxAndServiceReserve, only the tax that leaves within the next `months`
+    // month-ends. The commercial hold is dropped: distribution, trade support and excise are paid out of the receipts
+    // that create them, and stop with sales.
+    internal static double ProgrammeTaxDue(AILabel label, int month, int months) {
+        if (!ChangesEconomy || !Applies(label)) return 0;
+        var company = Ensure(label);
+        return LabelCompanyTax.DueWithin(label, month, months, UnprovidedTax(label, company));
+    }
+
+    // Telemetry only: TaxAndServiceReserve's three parts (payable, unprovided current-period tax, 2x commercial spend).
+    internal static (double Payable, double Unprovided, double Commercial) TaxAndServiceParts(AILabel label) {
+        if (!ChangesEconomy || !Applies(label)) return (0, 0, 0);
+        var company = Ensure(label);
+        return (Math.Max(0, company.taxPayable), UnprovidedTax(label, company), 2 * Math.Max(0, company.recentCommercialSpend));
+    }
+
     private static double UnprovidedTax(AILabel label, LabelCompanyState company) {
         if (!Tax || company.ownership == LabelOwnershipForm.OwnerOperated || company.lastClosedPeriod >= company.openingPeriod) return 0;
         double Cash(LabelCashKind kind) => company.cashMovements.GetValueOrDefault(kind);

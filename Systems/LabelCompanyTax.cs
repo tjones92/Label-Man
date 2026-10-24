@@ -67,6 +67,28 @@ public static class LabelCompanyTax {
         Pay(label, company, due);
     }
 
+    /// <summary>Tax cash that leaves at the month-ends of this month and the next <paramref name="months"/> - 1 on the current
+    /// books: the schedule PayQuarter would run, with this period's unprovided tax counted in the year's provision. Never more
+    /// than what is payable. Read-only; the slate's going-concern reserve uses it.</summary>
+    internal static double DueWithin(AILabel label, int month, int months, double unprovided) {
+        var company = LabelCorporateModel.Ensure(label);
+        if (company == null || !LabelCorporateModel.Tax || company.ownership == LabelOwnershipForm.OwnerOperated) return 0;
+        double payable = Math.Max(0, company.taxPayable + unprovided);
+        double Excess(double liability) => Math.Max(0, liability - CurrentPaymentThreshold);
+        double provision = company.yearTaxProvision + unprovided, prior = company.priorYearTaxDue, installments = company.currentYearTaxInstallments;
+        double total = 0;
+        for (int k = 0; k < months; k++) {
+            int m = (month - 1 + k) % 12 + 1;
+            if (m % 3 != 0) continue;
+            if (!PriorYear) return payable;
+            if (m == 3) { double due = prior < 0 ? 0 : Math.Min(company.priorYearTaxInstallment, prior); total += due; prior -= due; }
+            else if (m == 6) { total += Math.Max(0, prior); prior = 0; }
+            else if (m == 9) { double due = .25 * Excess(provision); total += due; installments += due; }
+            else total += Math.Max(0, .5 * Excess(provision) - installments);
+        }
+        return Math.Min(total, payable);
+    }
+
     private static void Pay(AILabel label, LabelCompanyState company, double due) {
         if (Math.Abs(due) < .001) return;
         LabelCompanyAccounts.ChangeCash(label, -(float)due, LabelCashKind.TaxPayment);

@@ -7,10 +7,16 @@ using System.Collections.Generic;
 /// opportunity policy is unchanged. Off: no draws, no saved fields.
 /// </summary>
 public static class LpAssembly {
-	public const string Switch = "--lp-assembly", GreatestHitsSwitch = "--lp-assembly-gh-hits=";
+	public const string Switch = "--lp-assembly", GreatestHitsSwitch = "--lp-assembly-gh-hits=", PackageGapSwitch = "--lp-assembly-package-gap=";
 	// Provisional, to test against alternatives: the directive's three distinct relevant hits, and an honest package
 	// length. A relevant hit is a controlled Top 40 single not already on a greatest-hits package.
 	public static int GreatestHitsHits { get; internal set; } = 3;
+	// The directive's star sample issued about one compilation every two years (0.47 per act-year): a cadence prior.
+	public static int PackageGapWeeks { get; internal set; } = 104;
+	// Pre-1960 discography sides are opening masters; the game opens in 1960.
+	public const int OpeningYear = 1960;
+	// Appeal pricing compares propositions at one neutral cohesion; only the ratio is used.
+	public const float PricingCohesion = .30f;
 	public const int RelevantHitPeak = 40, MinGreatestHitsTracks = 8, RecentWeeks = 52;
 	public const int MaxRecentHits = 3, MaxOtherRecentSingles = 2, MaxShelvedOnStudioLp = 3, ShelfPerAct = 6;
 	public const float NewSessionMultiplier = 2.4f;
@@ -37,7 +43,8 @@ public sealed class LpAssemblyPlan {
 	public LpProposalKind Kind;
 	public List<string> ReleasedMasterIds = new(), ShelvedMasterIds = new();
 	public int TrackCount, NewSessions, RelevantHits, ControlledSingles;
-	public float ProductionMultiplier, ProjectedNet, OrdinaryNet, HitLedNet, GreatestHitsNet;
-	public bool HitLedFeasible, GreatestHitsFeasible;
+	public float ProductionMultiplier, ProjectedNet, OrdinaryNet, HitLedNet, GreatestHitsNet, AppealScale = 1, GreatestHitsAppealScale;
+	public bool HitLedFeasible, GreatestHitsFeasible, PackageSpacingBlocked;
+	public int OpeningMasters;
 	public string Reason;
 }

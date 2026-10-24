@@ -55,8 +55,19 @@ greatest-hits proposition from masters the label controls, shelved expired
 masters and new sessions, replacing the compilation lottery (save v30).
 `--lp-assembly-check` runs its native assertions; `--lp-assembly-roundtrip
 --weeks=26` checks every assembled master against its plan in a live world,
-then save/load and resume. Telemetry: `*-lp-assembly.csv`. See
+then save/load and resume. Opening acts' pre-1960 singles are seeded as controlled masters;
+`--lp-assembly-package-gap=104` spaces packages per act. Telemetry: `*-lp-assembly.csv`. See
 [LabelReleaseProgrammeImplementation.md](LabelReleaseProgrammeImplementation.md).
+
+`--slate-work-budget=S` (with the slate and revised capacity) makes a non-Major label's
+planned intentions its whole work budget: S singles a month per unit of `releasesPerMonth`,
+with no separate preparation or issue draw, and a Struggling label halves its campaign
+spend instead of its slots. `--slate-work-budget-check` runs its native assertions;
+`analyze_work_budget.py --control TAG:WEEKS --arm NAME=TAG:WEEKS` gives the paired
+screen, including the singles purse's rationing factor r. `--slate-work-budget-midtier=SM`
+gives MidTiers their own budget. `--slate-going-concern-reserve` tests a work-budget MidTier's slate
+reservation, session and issue against tax due within two month-ends, not the full tax-and-service hold.
+A budget run writes `*-programme-cash-shortfalls.csv`, one row per refused reservation with its reserve parts.
 
 The first demand/attention measurement slice appends explicit before/after-marketing
 contribution fields to release outcomes and local single/LP clearing totals to

@@ -2296,8 +2296,10 @@ public partial class CompetitorManager : Node {
 		float productionCost = programmeMaster == record ? 0 : CalculateProductionCost(label, record, date);
 		float marketingBudget = ClampProgrammeMarketing(label.GetMarketingBudget(artist) * perceivedQualityMult);
 		float totalCost = productionCost + marketingBudget;
+		// As in TryClampFirstEventCost: a going-concern slate single meets the reserve that funded its reservation.
 		float minReserve = (EconomicLabelLifecycle.Enabled && !label.isPlayerOwned
-			? EconomicLabelLifecycle.CommitmentReserve(label, signing: false) : label.GetMonthlyOverhead())
+			? programmeMaster == record && LabelReleaseProgramme.UsesGoingConcernReserve(label) ? ProgrammeCommitmentReserve(label)
+			: EconomicLabelLifecycle.CommitmentReserve(label, signing: false) : label.GetMonthlyOverhead())
 			+ InitialRunReserve(label, record);
 
 		if (label.cashReserves - totalCost < minReserve) {
@@ -2619,8 +2621,11 @@ public partial class CompetitorManager : Node {
 	}
 
 	private bool TryClampFirstEventCost(AILabel label, float productionCost, ref float marketingBudget, float pressingReserve = 0f) {
+		// A going-concern slate issue is tested against the reserve that funded its reservation, not re-gated behind the
+		// tax-and-service hold after its master is paid for (wbg-v3: prepared MidTier masters were refused here until they expired).
 		float minReserve = (EconomicLabelLifecycle.Enabled && !label.isPlayerOwned
-			? EconomicLabelLifecycle.CommitmentReserve(label, signing: false) : label.GetMonthlyOverhead()) + pressingReserve;
+			? issuingSlateItem != null && LabelReleaseProgramme.UsesGoingConcernReserve(label) ? ProgrammeCommitmentReserve(label)
+			: EconomicLabelLifecycle.CommitmentReserve(label, signing: false) : label.GetMonthlyOverhead()) + pressingReserve;
 		if (label.cashReserves - productionCost - marketingBudget >= minReserve) return true;
 		float available = label.cashReserves - minReserve - productionCost;
 		if (available < 0f) return false;
@@ -3318,13 +3323,14 @@ public partial class CompetitorManager : Node {
 	}
 
 	private float CalculateAlbumPriorNet(AILabel label, SimulatedArtist artist, int year, DecisionContext decision,
-		float compCostWeight, HitInventory hitInventory, out AlbumPriorDiagnostics diagnostics, float? productionMultiplier = null) {
+		float compCostWeight, HitInventory hitInventory, out AlbumPriorDiagnostics diagnostics, float? productionMultiplier = null,
+		float affinityScale = 1f) {
 		IEnumerable<MarketRegion> regions = ChartManager.Instance != null ? ChartManager.Instance.GetAllRegions() : Enumerable.Empty<MarketRegion>();
 		bool live = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		AlbumPriorExplanation opportunity = GetAlbumPriorExplanation(artist.primaryGenre, regions, year, live);
 		float statureMultiplier = GetAlbumPriorCareerMultiplier(artist.careerState, live || AlbumPriorRecalibration.IsLive);
 		float baseAffinityUnits = priorUnitScalarAlbum * decision.qualityEstimate * statureMultiplier *
-			decision.reachFactor * (live ? CalculateAlbumPriorEraCalibration(year) : 1f);
+			decision.reachFactor * (live ? CalculateAlbumPriorEraCalibration(year) : 1f) * affinityScale;
 		float preTiltAffinityUnits = baseAffinityUnits * opportunity.UntiltedAlbumDemandFactor * opportunity.MarketReconciliation;
 		float unweightedHitUnits = priorCompHitUnitScalar * hitInventory.hitScore;
 		if (AlbumPriorRecalibration.IsLive) unweightedHitUnits *= AlbumPriorRecalibration.HitCoefficient;
@@ -4290,6 +4296,8 @@ public partial class CompetitorManager : Node {
 		
 		float quality = runtimeData.GetQuality();
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
+		// --hit-act-hype: a recency lift for an act with a recent Top 10 / Top 40. Off: not read.
+		if (HitActHype.Enabled && !isAlbum) artistAwareness += HitActHype.AwarenessLift(artist);
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float labelAwareness = label.reputation * 0.1f;
 		float programmeShare = ProgrammePushFactor(runtimeData);
@@ -4320,14 +4328,17 @@ public partial class CompetitorManager : Node {
 		// is the smallest of the three ceilings on purpose. Off: byte-identical.
 		float recognitionRadio = ArtistRecognition.Enabled
 			? ArtistRecognitionService.LaunchRecognition(artist) * ArtistRecognitionService.MaxRadioLift : 0f;
-		if (share < 1f) { pushRadio *= share; recognitionRadio *= share; }
+		float hypeRadio = HitActHype.Enabled && !isAlbum ? HitActHype.RadioLift(artist) : 0f;
+		if (share < 1f) { pushRadio *= share; recognitionRadio *= share; hypeRadio *= share; }
 		if (RecordCampaignSpend.Enabled && !isAlbum && !record.isPlayerOwned && !label.isPlayerOwned) {
 			float campaignFactor = RecordCampaignSpend.LaunchFactor(marketingBudget, label.GetStandardMarketingBudget());
 			runtimeData.campaignPushFactor = campaignFactor;
 			runtimeData.campaignTranches = 0;
 			pushRadio *= campaignFactor;
 		}
-		runtimeData.radioHeat = isAlbum ? 0f : Mathf.Clamp(baseRadio + pushRadio + payolaRadio + recognitionRadio, 0f, 1f);
+		runtimeData.radioHeat = isAlbum ? 0f : HitActHype.Enabled
+			? Mathf.Clamp(baseRadio + pushRadio + payolaRadio + recognitionRadio + hypeRadio, 0f, 1f)
+			: Mathf.Clamp(baseRadio + pushRadio + payolaRadio + recognitionRadio, 0f, 1f);
 		
 		var regions = ChartManager.Instance.GetAllRegions();
 		// Phase C: the discrete careerState stock cliff (2.5x for the ~92 Star+ acts) is replaced
