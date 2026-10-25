@@ -17,6 +17,7 @@ public partial class ChartAuditRunner {
 	private int demandObservationStartWeek;
 
 	private string offChartSinglesPath;
+	private string recordClubPath, recordClubCataloguePath;
 	private StreamWriter labelSalesWriter;
 
 	private void OpenDemandObservationOutputs(string directory) {
@@ -25,6 +26,10 @@ public partial class ChartAuditRunner {
 			labelSalesWriter.WriteLine("week,year,labelId,format,units,chartedUnits,top10Units");
 		}
 		if (MajorOffChartSingles.Enabled) offChartSinglesPath = Path.Combine(directory, $"{runName}-offchart-singles.csv");
+		if (RecordClubChannel.Enabled) {
+			recordClubPath = Path.Combine(directory, $"{runName}-record-club-annual.csv");
+			recordClubCataloguePath = Path.Combine(directory, $"{runName}-record-club-catalogue.csv");
+		}
 		if (PhysicalPressingInventory.Enabled) {
 			physicalInventoryWriter = CreateWriter(Path.Combine(directory, $"{runName}-physical-inventory.csv"));
 			physicalInventoryWriter.WriteLine("week,recordId,labelId,format,status,openingUnits,productionReceived,unitsPressed,bookSold,warehouse,shelves,heldForArrival,shipments,saleableReturns,heldReturns,promotionalWithdrawals,damagedCopies,terminalWriteOffs,distributedWriteOffs,productionOrdered,productionDueWeek,unbilledInitial,unbilledRepress,unfilledShipmentRequests,reconciliationDelta");
@@ -81,6 +86,23 @@ public partial class ChartAuditRunner {
 				writer.WriteLine(string.Join(",", Csv(row.LabelId), Csv(row.Tier), row.Units.ToString(CultureInfo.InvariantCulture),
 					Exact((float)row.Gross), Exact((float)row.Net)));
 			offChartSinglesPath = null;
+		}
+		if (recordClubPath != null) {
+			// Cumulative over the process by calendar year; the catalogue rows are January snapshots.
+			using (StreamWriter writer = CreateWriter(recordClubPath)) {
+				writer.WriteLine("year,labelId,tier,role,units,gross,net,artistRoyalty");
+				foreach (var row in RecordClubChannel.Annual)
+					writer.WriteLine(string.Join(",", row.Year.ToString(CultureInfo.InvariantCulture), Csv(row.LabelId), Csv(row.Tier), row.Role,
+						row.Units.ToString(CultureInfo.InvariantCulture), Exact((float)row.Gross), Exact((float)row.Net), Exact((float)row.ArtistRoyalty)));
+			}
+			using (StreamWriter writer = CreateWriter(recordClubCataloguePath)) {
+				writer.WriteLine("year,labelId,role,licensedTo,entries,titles,earnedAppeal,seedAppeal,totalAppeal");
+				foreach (var row in RecordClubChannel.Catalogue)
+					writer.WriteLine(string.Join(",", row.Year.ToString(CultureInfo.InvariantCulture), Csv(row.LabelId), row.Role, Csv(row.LicensedTo),
+						row.Entries.ToString(CultureInfo.InvariantCulture), row.Titles.ToString(CultureInfo.InvariantCulture),
+						Exact((float)row.EarnedAppeal), Exact((float)row.SeedAppeal), Exact((float)row.TotalAppeal)));
+			}
+			recordClubPath = recordClubCataloguePath = null;
 		}
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordReleased -= ObserveDemandLaunch;

@@ -485,6 +485,11 @@ public partial class CompetitorManager {
 					TaxPayable = (float)parts.Payable, UnprovidedTax = (float)parts.Unprovided, CommercialHold = (float)parts.Commercial });
 			return false;
 		}
+		// Only price bets that pass ordinary current funding. Do not label an existing cash shortfall a risk refusal.
+		if (!PassesSingleCapitalRisk(label, artist, item, decision, marketing, unreserved)) {
+			shortfall = "single-capital-risk";
+			return false;
+		}
 		item.ReservedProduction = production; item.ReservedMarketing = marketing; item.ReservedPressing = pressing;
 		return true;
 	}

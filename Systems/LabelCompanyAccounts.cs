@@ -199,6 +199,7 @@ public static class LabelCompanyAccounts {
         if (Math.Abs(statement.cashReconciliationError) > .01)
             throw new InvalidOperationException($"Company cash journal does not reconcile: {label.labelId}, period {period}, residual {statement.cashReconciliationError}");
         company.lastStatement = statement;
+        if (EarnedRosterCapacity.Enabled) EarnedRosterCapacity.Record(company, statement);
         MonthClosed?.Invoke(label, statement);
         company.openingPeriod = period + 1;
         company.openingCash = label.cashReserves;

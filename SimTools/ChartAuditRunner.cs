@@ -1104,6 +1104,8 @@ public partial class ChartAuditRunner : Node {
 		OpenLabelPromotionOutputs(outputDirectory);
 		OpenCareerMemoryOutputs(outputDirectory);
 		OpenReleaseEconomicsOutputs(outputDirectory);
+		OpenLpCapacityOutputs(outputDirectory);
+		OpenLpDemandOutputs(outputDirectory);
 		OpenDemandObservationOutputs(outputDirectory);
 		OpenPromoSynergyOutputs(outputDirectory);
 		OpenEconomyAuditBOutputs(outputDirectory);
@@ -1786,6 +1788,7 @@ public partial class ChartAuditRunner : Node {
 		if (settlement?.Entries == null) return;
 		ChartManager.Instance?.AcknowledgeSettlementAudit(settlement); // sim invariant -- must run even when telemetry is suppressed
 		WriteLabelSales(settlement);
+		WriteLpDemandSettlement(settlement);
 		if (completedWeekSettlementWriter == null) return; // heavy settlement telemetry suppressed under --lean-probe
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
 			completedWeekSettlementWriter.WriteLine(string.Join(",", new[] {
@@ -2284,6 +2287,7 @@ public partial class ChartAuditRunner : Node {
 		// Seven regional summaries are cheap and needed to distinguish unmet physical
 		// demand from purchase-budget rationing in compact economic audits too.
 		WriteMarketClearingRows(week, date.year);
+		WriteLpCapacityRows(week, date.year);
 
 		// Everything below is per-week diagnostic telemetry that walks all records/labels/rosters and
 		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
@@ -3744,6 +3748,7 @@ public partial class ChartAuditRunner : Node {
 	private const float InertAwarenessFloor = 0.001f;
 
 	private void FlushAnnualStreams() {
+		lpDemandWriter?.Flush();
 		decadeAnnualRollupWriter?.Flush();
 		performanceProfileWriter?.Flush();
 		weekWriter?.Flush();
@@ -3971,6 +3976,8 @@ public partial class ChartAuditRunner : Node {
 		CloseLabelPromotionOutputs();
 		CloseCareerMemoryOutputs();
 		CloseReleaseEconomicsOutputs();
+		CloseLpCapacityOutputs();
+		lpDemandWriter?.Dispose(); lpDemandWriter = null;
 		ClosePromoSynergyOutputs();
 		CloseEconomyAuditBOutputs();
 		CloseGenreHookOutputs();

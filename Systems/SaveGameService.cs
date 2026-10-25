@@ -1182,6 +1182,8 @@ public sealed class RuntimeRecordSaveData {
 	public float sunkProductionCost { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public float? sunkMarketingCost { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskExpectedContribution { get; set; }
 	// LabelPressingEconomics pressing book; absent on old saves, which load as an unopened book.
 	public bool pressingBookOpened { get; set; }
 	public int unitsPressed { get; set; }
@@ -1229,6 +1231,7 @@ public sealed class RuntimeRecordSaveData {
 		unitsThisWeek = r.unitsThisWeek, unitsPreviousWeek = r.unitsPreviousWeek, totalUnitsSold = r.totalUnitsSold,
 		peakWeeklyUnits = r.peakWeeklyUnits, weeksSincePeakUnits = r.weeksSincePeakUnits, radioPanelShare = r.radioPanelShare,
 		lifetimeLabelNet = r.lifetimeLabelNet, sunkProductionCost = r.sunkProductionCost, sunkMarketingCost = r.sunkMarketingCost, revenueMemoryEligible = r.revenueMemoryEligible,
+		capitalRiskExpectedContribution = r.capitalRiskExpectedContribution,
 		pressingBookOpened = r.pressingBookOpened, unitsPressed = r.unitsPressed, pressingBookSold = r.pressingBookSold,
 		physicalInventory = r.physicalInventory?.Copy(),
 		releaseTimeExpectedNet = r.releaseTimeExpectedNet, releaseTimeOpportunityScale = r.releaseTimeOpportunityScale,
@@ -1253,6 +1256,7 @@ public sealed class RuntimeRecordSaveData {
 			unitsThisWeek = unitsThisWeek, unitsPreviousWeek = unitsPreviousWeek, totalUnitsSold = totalUnitsSold,
 			peakWeeklyUnits = peakWeeklyUnits, weeksSincePeakUnits = weeksSincePeakUnits, radioPanelShare = radioPanelShare,
 			lifetimeLabelNet = lifetimeLabelNet, sunkProductionCost = sunkProductionCost, sunkMarketingCost = sunkMarketingCost, revenueMemoryEligible = revenueMemoryEligible,
+			capitalRiskExpectedContribution = capitalRiskExpectedContribution,
 			pressingBookOpened = pressingBookOpened, unitsPressed = unitsPressed, pressingBookSold = pressingBookSold,
 			physicalInventory = physicalInventory?.Copy(),
 			releaseTimeExpectedNet = releaseTimeExpectedNet, releaseTimeOpportunityScale = releaseTimeOpportunityScale,

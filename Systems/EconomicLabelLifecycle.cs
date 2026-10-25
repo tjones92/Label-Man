@@ -24,7 +24,7 @@ public static class EconomicLabelLifecycle {
 		label.recentMonthlyCashFlows ??= new List<float>();
 		label.recentMonthlyCashFlows.Add(netCashFlow);
 		if (label.recentMonthlyCashFlows.Count > MajorOffChartSingles.MomentumWindowMonths) label.recentMonthlyCashFlows.RemoveAt(0);
-		float catalogFlow = MajorOffChartSingles.CloseMonthForMomentum(label);
+		float catalogFlow = MajorOffChartSingles.CloseMonthForMomentum(label) + RecordClubChannel.CloseMonthForMomentum(label);
 		label.insolventMonthEnds = label.cashReserves < 0f ? label.insolventMonthEnds + 1 : 0;
 		float overhead = Math.Max(1f, label.GetMonthlyOverhead());
 		float burn = Math.Max(0f, -label.RecentMonthlyCashFlow);

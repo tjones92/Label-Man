@@ -24,7 +24,6 @@ public static class AlbumSimulator {
 	// 12-18wk band. Easing the weekly decay ~1pt lifts the median ~1-2wk back into band without
 	// re-growing the long tail (see D7SoundtrackCastAlbumHandoff.md §1, §3.3, §4).
 	private const float CatalogDecayStartWeeks = 8f;
-	private const float CatalogWeeklyDecay = 0.93f;
 	// Soundtrack/evergreen long tail: the old uniform-album constants, now reserved for the format
 	// that historically earned the 40-60wk (multi-year) run. Placeholder until the phase-4 box-office
 	// trajectory replaces flat decay for soundtracks; StageCast wants an even slower decay than this.
@@ -170,7 +169,7 @@ public static class AlbumSimulator {
 	internal static float GetCatalogDecayMultiplier(AlbumFormat format, int weeksSinceRelease) {
 		(float startWeeks, float weeklyDecay) = format == AlbumFormat.Soundtrack
 			? (SoundtrackCatalogDecayStartWeeks, SoundtrackCatalogWeeklyDecay)
-			: (CatalogDecayStartWeeks, CatalogWeeklyDecay);
+			: (CatalogDecayStartWeeks, LpDemandProbe.WeeklyDecay);
 		return weeksSinceRelease > startWeeks
 			? Mathf.Pow(weeklyDecay, weeksSinceRelease - startWeeks) : 1f;
 	}

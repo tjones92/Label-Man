@@ -207,6 +207,8 @@ public sealed class CompetitorSaveData {
 	// Mints every AI "gen_N"/"album_N" id. Not restoring it resets the counter to 0 on load, so newly-generated
 	// AI records collide with restored ids and the next Save's record ToDictionary throws on the duplicate.
 	public int GeneratedRecordCounter { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public RecordClubState RecordClubs { get; set; }
 }
 
 /// <summary>One entry of the (artistId, year) -> project-count map, flattened for JSON (tuple keys don't

@@ -429,3 +429,95 @@ Verification: build clean; 55 native repertoire assertions (two new for the
 slot mean and material attention); scheduler 46, breakout planning 20 and
 material 31 suites pass; the full-world programme-project roundtrip passes.
 One seed.
+
+## Studio share across seeds
+
+The single-seed screens put studio Top 10 share at 7.0% in v7 judged against
+12.4% connected. Seeds 2002 and 3003 were added for all three arms
+(`SimLogs/studio-seeds-{control,connected,judged}`, 106 weeks, balance flags as
+above). The seed-1001 rows are the archived `label-project-v1-control`,
+`-v1-connected` and `-v7-judged` runs. The new seeds were built fresh from HEAD
+(`1cce050`). Their assembly hash differs from v7's although the tree is unchanged, so arms are
+compared within a seed. History (1960-61): studio 19.0%, Big Five 28.8%.
+
+| Studio, 1960-61 | Control | Connected | Judged |
+|---|---:|---:|---:|
+| Top 10 share, seed 1001 / 2002 / 3003 | 10.3 / 12.7 / 13.4% | 12.4 / 8.1 / 7.4% | 7.0 / 13.8 / 13.1% |
+| Top 10 share, mean | 12.1% | 9.3% | 11.3% |
+| Repeat Top 10 acts a year, mean | 2.3 | 2.8 | 2.8 |
+| Singles launched (two years), mean | 200 | 190 | 202 |
+| Hot 100 entries per launch, mean | .59 | .51 | .46 |
+| Top 10 records, mean | 26.7 | 22.0 | 23.7 |
+| New-signing share of launches, mean | 32% | 33% | 41% |
+
+| Big Five, 1960-61 | Control | Connected | Judged |
+|---|---:|---:|---:|
+| Top 10 share, mean | 34.7% | 39.2% | 34.5% |
+| Singles launched, mean | 774 | 774 | 1,102 |
+| Hot 100 entries per launch, mean | .48 | .46 | .33 |
+
+**The judged arm does not lower studio share.** Seed 1001's 7.0% was one bad
+draw. On seeds 2002 and 3003, judged has the highest studio share of the three
+arms. Seed-to-seed spread within an arm (up to 6 points) exceeds any difference
+between arm means. In seed 1001, the loss came almost entirely from opening-roster acts (Top 10
+records 23 connected, 11 judged). Warner's opening Superstar is one example.
+Its follow-up hooks fell from .95 to .76, it lost its chart run, slid down the
+career ladder and was dropped for performance in week 62. In connected, the same act took two #1s in 1961. That is hook luck
+fed through the career ladder, not a project rule.
+
+Two judged-arm effects hold on all three seeds but do not move studio share
+beyond noise. More launches are by new signings (studio 41% against 33%; Big
+Five 38% against 17%, mostly the issue-gate fix releasing previously shelved
+new-signing masters). Hot 100 entries per launch also fall as the Big Five issue
+about 330 more singles into a fixed market.
+
+**The persistent gap is volume, in every arm.** Studio labels launch about 17
+singles per label a year. Their Top 10 records per launch (.12) and weeks per
+Top 10 record (4.4-4.9) match or beat the Big Five's (.10, 4.5-4.7), so hit
+conversion is not the shortfall. All five film-studio labels are ordinary MidTiers whose
+programme rate is `releasesPerMonth` (head-scale 2.0-2.1) times the MidTier work
+budget (1), divided by 52/12 weeks per month: a planned 0.42 singles a week
+(`programme-resources`). They issue about 90% of what they plan, so cash,
+promotion and issue gates are not binding. Big Five programmes run on
+`MajorSinglesPerMonth`, about 2.3 a week each. History's Dot issued about 130
+singles in 1960 (catalog span) against the model's 12-25 per studio label a
+year. Billboard's 1960 national total was 5,797 against the model's ~3,500
+(0.60). Studio share therefore tracks the studio labels' share of launches.
+Studio labels make about 20% of Big Five plus studio launches (control) and win
+26% of the two groups' combined Top 10 share. History's ratio is 40%: 19.0 /
+(19.0 + 28.8).
+
+Open: whether studio programmes should run at a head-firm rate (Dot/MGM scale)
+rather than the MidTier envelope. That would test whether studio share follows
+volume. It needs the national release total checked against Billboard first,
+because more releases into a fixed purse take units from the field.
+
+## Release volume against Billboard
+
+Billboard's 6 August 1966 International Buyers Guide ("Records Released — 1955
+Thru 1965"; unit and dollar tables by outlet, 1961-65) is now confirmed from the
+scan. Singles released 1960 / 1961: 5,797 / 6,036; LPs 3,112 / 2,927. 1961 units:
+singles 182M (stores 92, racks 40, jukebox operators 50), LPs 173M (stores 68,
+racks 60, clubs and mail order 45). The game has no jukebox-operator or record-club
+purchase channel (jukeboxes are an exposure signal only), so its units compare
+with stores plus racks: 132M singles and 128M LPs.
+
+The counting rules agree: single launch telemetry, release strategy and the
+demand census give 3,500-3,565 singles in 1960 (including 26 album promo singles),
+and `format-mix` gives 3,493. Seed 1001, 1960 single launches by launch tier:
+
+| Tier | Legacy (`hac-v2-off`) | Capacity only | Slate | Slate + work budget (balance control) | Judged v7 |
+|---|---:|---:|---:|---:|---:|
+| Major | 288 | 878 | 449 | 461 | 615 |
+| MidTier (incl. studio) | 322 | 235 | 186 | 457 | 493 |
+| Independent | 2,078 | 2,180 | 1,098 | 1,302 | 1,229 |
+| Small | 907 | 1,150 | 785 | 811 | 802 |
+| Boutique | 796 | 807 | 490 | 534 | 535 |
+| **Total (÷ Billboard)** | 4,391 (.76) | 5,250 (.91) | 3,008 (.52) | 3,565 (.61) | 3,674 (.63) |
+
+The slate removed about 1,300-2,200 singles a year, mostly from Independents and
+Majors; the work budget restored about 550, mostly to MidTiers. In 1961 the
+balance control sells 147M single units (1.11x stores plus racks) from 0.58x of
+the releases, and 50M LP units (0.39x) from 0.60x of the LPs. LP unit share is
+25.5% against 50% at retail (128 / (128 + 132)); LP retail dollars were 75% of
+the 1961 total.

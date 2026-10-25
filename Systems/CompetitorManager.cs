@@ -931,6 +931,7 @@ public partial class CompetitorManager : Node {
 			? MajorOffChartSingles.Allocate(aiLabels, settlement.Entries.Where(entry => entry.Format == ReleaseFormat.Single)
 				.Sum(entry => (long)System.Math.Max(0, entry.Units)))
 			: null;
+		AllocateRecordClubWeek(settlement);
 		foreach (var label in aiLabels) {
 			// A frozen enabled settlement may still contain a record from a label whose
 			// lifecycle status changed earlier in the week. It remains an economic fact
@@ -949,6 +950,8 @@ public partial class CompetitorManager : Node {
 			// Off-chart catalog and specialty singles ship through the Major's own branches: never deferred.
 			if (offChartUnits != null && offChartUnits.TryGetValue(label.labelId, out int catalogUnits))
 				weeklyRevenue += SettleOffChartSingles(label, catalogUnits);
+			// Record clubs and packages sell by mail and pay on their own terms: never deferred.
+			weeklyRevenue += SettleRecordClub(label);
 			label.weeklyWholesaleDeferred = deferred;
 			label.weeklyWholesaleCollected = collected + reservesReleased;
 			// Financing, not P&L: the withheld receipts still count as the client's revenue below.
@@ -1846,6 +1849,7 @@ public partial class CompetitorManager : Node {
 		}
 
 		if (LabelPressingEconomics.Enabled) LabelPressingEconomics.Learn(GetLabel(labelId), runtimeData);
+		RecordClubChannel.FoldRetired(runtimeData, TimeManager.Instance?.CurrentDate.year ?? 1960);
 		float realizedNet = runtimeData.lifetimeLabelNet - runtimeData.SunkReleaseCost;
 		OnReleaseOutcome?.Invoke(new ReleaseOutcomeTelemetry {
 			unitsPressed = runtimeData.unitsPressed,
@@ -1858,6 +1862,7 @@ public partial class CompetitorManager : Node {
 			lifetimeLabelNet = runtimeData.lifetimeLabelNet,
 			sunkProductionCost = runtimeData.sunkProductionCost,
 			sunkMarketingCost = runtimeData.sunkMarketingCost,
+			capitalRiskExpectedContribution = runtimeData.capitalRiskExpectedContribution,
 			realizedNet = realizedNet
 		});
 
@@ -1955,10 +1960,16 @@ public partial class CompetitorManager : Node {
 		}
 		if (!TryAdvanceResponsiveMemoryRevision(observation, age, finalized,
 			out bool replacedPriorRevision, out int revisionOrdinal)) return;
-		if (CareerBandedFormatMemory.Enabled) observation.careerBand = GetReleaseMemoryCareerBand(runtimeData);
+		if (CareerBandedFormatMemory.Enabled || SingleCapitalRisk.Enabled && lane == RevenueEstimatorLane.OrphanSingle)
+			observation.careerBand = GetReleaseMemoryCareerBand(runtimeData);
 		observation.allInEconomics = runtimeData.sunkMarketingCost.HasValue ? true : null;
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = maturity;
+		if ((SingleForecastRealization.Enabled || SingleCapitalRisk.Enabled) && lane == RevenueEstimatorLane.OrphanSingle) observation.estimatedOutcomeNet = estimatedOutcome;
+		if (SingleCapitalRisk.Enabled && finalized && lane == RevenueEstimatorLane.OrphanSingle && runtimeData.capitalRiskExpectedContribution.HasValue) {
+			observation.capitalRiskExpectedContribution = runtimeData.capitalRiskExpectedContribution;
+			observation.capitalRiskContribution = runtimeData.lifetimeLabelNet;
+		}
 		InvalidateResponsiveMemory(memory);
 		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
 			releaseId = releaseId, labelId = runtimeData.baseRecord.labelId, format = runtimeData.baseRecord.format,
@@ -2056,7 +2067,10 @@ public partial class CompetitorManager : Node {
 		}
 	}
 	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<FormatMemoryObservation>, ResponsiveMemorySummary> responsiveMemorySummaries = new();
-	private static void InvalidateResponsiveMemory(FormatRevenueMemory memory) => responsiveMemorySummaries.Remove(memory.observations);
+	private static void InvalidateResponsiveMemory(FormatRevenueMemory memory) {
+		responsiveMemorySummaries.Remove(memory.observations);
+		SingleForecastRealization.Invalidate(memory.observations);
+	}
 
 	private static float CalculateResponsiveMemoryConfidence(float effectiveWeight) =>
 		Mathf.Min(ResponsiveMemoryMaximumConfidence,
@@ -2351,6 +2365,7 @@ public partial class CompetitorManager : Node {
 		runtimeData.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(runtimeData.releaseTimeExpectedNet), productionCost));
 		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtimeData.projectRole = record.projectRole;
+		CaptureSingleRiskExpectation(runtimeData, label, artist, decision);
 		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
 		CaptureSingleOpportunity(runtimeData, label, date.year);
 		TrackRelease(label.labelId, record.recordId);
@@ -2816,7 +2831,9 @@ public partial class CompetitorManager : Node {
 		// Current priors remain the centre of the decision; memory is only a bounded
 		// relative-performance adjustment scaled to the opportunity visible today.
 		float projectedSingle = useResponsiveMemory
-			? priorSingle + confidenceSingle * singleResponsive.Residual * Mathf.Max(1f, Mathf.Abs(priorSingle))
+			? SingleForecastRealization.Enabled
+				? SingleForecastRealization.Forecast(priorSingle, SingleForecastRealization.Ratio(singleMemory.observations, currentWeek))
+				: priorSingle + confidenceSingle * singleResponsive.Residual * Mathf.Max(1f, Mathf.Abs(priorSingle))
 			: Mathf.Lerp(priorSingle, singleMemory.emaNetPerRelease, confidenceSingle);
 		float projectedAlbum = useResponsiveMemory
 			? priorAlbum + confidenceAlbum * albumResponsive.Residual * Mathf.Max(1f, Mathf.Abs(priorAlbum))
@@ -5412,7 +5429,8 @@ public partial class CompetitorManager : Node {
 			PipelineWeek = pipelineWeek,
 			ReleaseProgramme = ProgrammeState,
 			GenreSupplyYear = genreSupplyYear,
-			GeneratedRecordCounter = generatedRecordCounter
+			GeneratedRecordCounter = generatedRecordCounter,
+			RecordClubs = RecordClubChannel.Capture()
 		};
 		w.Competitor = c;
 	}
@@ -5422,6 +5440,7 @@ public partial class CompetitorManager : Node {
 	public void RehydrateEconomy(WorldSaveData w) {
 		CompetitorSaveData c = w.Competitor;
 		if (c == null) return;
+		RecordClubChannel.Restore(c.RecordClubs);
 		ProgrammeState = c.ReleaseProgramme;
 		if (!LabelReleaseProgramme.MaterialSearchEnabled && ProgrammeState?.Items.Any(i => i.MaterialSearch?.State is
 			ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready) == true)
@@ -6032,6 +6051,7 @@ public sealed class ReleaseOutcomeTelemetry {
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public float? sunkMarketingCost;
+	public float? capitalRiskExpectedContribution;
 	public float realizedNet;
 	// LabelPressingEconomics book at retirement (0 / 0 while the switch is off).
 	public int unitsPressed, pressingBookSold;

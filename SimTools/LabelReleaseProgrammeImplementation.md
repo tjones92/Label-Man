@@ -1683,6 +1683,34 @@ so they carry ±10-15%. Unissued numbers inflate spans slightly: Cadence skipped
 | Fire / Fury (Robinson) | Independent | complete list | 25 / 13 (all 7 imprints 79) | 9 / 9 |
 | Revelation, VIM, Vest, Fling, Everlast (Robinson) | | complete list | 21, 11, 4, 3, 2 | |
 
+Added 2026-10-25 for the release-volume step ([ReleaseVolumeCalibrationPlan.md](ReleaseVolumeCalibrationPlan.md)).
+Every anchor is a musicvf chart-entry month, which trails release by about 2-8 weeks, and slow climbers trail
+by more. Each estimate is the
+middle of two or three spans of about a year, and the spread between those spans is the stated range. The last
+column is singles issued in 1960 by the balance control (`label-project-v1-control`, seed 1001).
+
+| Label (company) | Model tier | Anchors (artist, chart entry) | Singles, 1960 | Balance control issued, 1960 |
+|---|---|---|---:|---:|
+| Mercury (main 71000 series; pop, R&B and country) | Major | 71508 (Washington, Oct 59), 71554 (Benton, Dec 59) ... 71696 (Oct 60), 71744 (Dec 60), 71812 (May 61) | ~195 (185-215) | 78 |
+| Decca (main 31000 series, incl. country) | Major | 30967 (Lee, Dec 59), 31093 (May 60), 31141 (Kaempfert, Nov 60), 31195 (Dec 60), 31279 (Jul 61) | ~185 (155-230) | 80 |
+| Capitol (4000 series) | Major | 4303 (Kingston Trio, Dec 59), 4325 (Cole, Feb 60) ... 4481 (Dec 60), 4519 (Mar 61) | ~178 (175-195) | 74 |
+| MGM (K-12000 series; Cub separate) | MidTier, studio | 12841 (Francis, Nov 59), 12878 (Feb 60) ... 12964 (Nov 60), 12971 (Jan 61), 12995 (Apr 61) | ~110 (100-125) | 20 |
+| ABC-Paramount (10000 series) | MidTier, studio | 10064 (Anka, Nov 59), 10082 (Feb 60) ... 10168 (Jan 61), 10194 (Mar 61), 10220 (May 61) | ~100 (90-115) | 17 |
+| United Artists | MidTier, studio | 185 (M. Johnson, Oct 59), 208 (Mar 60) ... 273 (Dec 60), 294 (Mar 61) | ~80 (75-87) | 17 |
+| Warner Bros. (5000 series) | MidTier, studio | 5137 (C. Stevens, Feb 60), 5151 (Everlys, Apr 60) ... 5199 (Jan 61), 5220 (May 61) | ~65 (64-68) | 29 |
+| Colpix (100 series; 600 series from 1961) | Independent, studio | 119 (Darren, Aug 59) ... 142 (Aug 60); 609 (Oct 61) | ~25 | 3 |
+
+Mercury's December 1959 number (71554) and March-April 1960 numbers (71560, 71566) are close together. Those
+early-1960 sides were slow climbers that entered the chart months after release. The mid-year spans (about
+200) are the firmer figure. Decca's spans spread the widest; its range covers the gap between Brenda Lee's long
+1959 climb and later sides. Sources: musicvf.com pages for Connie Francis, Paul Anka, Brenda Lee, Bert Kaempfert,
+Brook Benton, Dinah Washington, The Kingston Trio, Nat King Cole, Marv Johnson, The Everly Brothers, Connie
+Stevens and James Darren.
+
+With these rows, the five Majors issued about 1,080 singles in 1960 (model 392), and the six studio labels,
+counting Dot, about 510 (model ~100). History's studio-to-Big-Five volume ratio is about .47, against .25 in the
+model, and its Top 10 share ratio was .66 (19.0% to 28.8%).
+
 The model's 1960 total is 2,962 singles from about 600 labels: Majors 446, MidTiers 184, Independents
 1,084, Smalls 764, Boutiques 484 (release census; `single-launch-quality` agrees). The 16 historical companies
 above alone issued about 1,300. No sourced industry total for 1960 turned up.

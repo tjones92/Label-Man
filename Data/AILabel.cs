@@ -892,6 +892,14 @@ public sealed class FormatMemoryObservation {
 	// means unknown in older saves; never infer a retired release's band from its artist's current career.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? careerBand;
+	// Latest estimated outcome in dollars, kept under the realization or capital-risk probes; null preserves the save schema.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? estimatedOutcomeNet;
+	// v3 risk evidence: immutable release-time prior and final contribution before fixed commitments.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskExpectedContribution;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskContribution;
 	public string releaseId;
 	public string projectId;
 	public ProjectRecordRole releaseLane;

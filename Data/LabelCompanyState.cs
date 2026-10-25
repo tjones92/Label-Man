@@ -57,6 +57,16 @@ public sealed class LabelCompanyState {
     public double priorYearTaxDue, priorYearTaxInstallment, currentYearTaxInstallments;
     public double lifetimeTaxPaid, lifetimeDistributions, lifetimeCapitalSpend;
     public LabelCompanyStatement lastStatement;
+    // --earned-roster-capacity only; absent otherwise, so other configurations keep their save shape.
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public LabelEarningsHistory earnings;
+}
+
+/// <summary>Pretax earnings by calendar year from closed statements, for a trailing-twelve-month estimate.</summary>
+public sealed class LabelEarningsHistory {
+    public int year, months;
+    public double yearToDate, priorYear;
+    public bool hasPriorYear;
 }
 
 public sealed class LabelCompanyStatement {

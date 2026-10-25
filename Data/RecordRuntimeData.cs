@@ -77,6 +77,8 @@ public class RecordRuntimeData {
 	// this field makes the SAME charge visible to outcome memory without charging again.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public float? sunkMarketingCost;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskExpectedContribution;
 	[System.Text.Json.Serialization.JsonIgnore]
 	public float SunkReleaseCost => sunkProductionCost + (sunkMarketingCost ?? 0f);
 	// LabelPressingEconomics pressing book: copies pressed and copies booked sold. Pressed minus sold at

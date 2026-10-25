@@ -367,6 +367,8 @@ public partial class LabelLifecycleManager : Node {
 		GD.Print($"[LabelManager] {label.labelName} acquired by {distributor.labelName}.");
 		// Catalog succession: the acquirer takes over the absorbed label's publishing catalog (Phase 3b).
 		CompositionCatalogService.TransferCatalogControl(label.labelId, distributor.labelId);
+		// The masters go too: the record-club catalogue, backlist and any club pass to the acquirer.
+		RecordClubChannel.OnAcquired(label.labelId, distributor.labelId);
 		OnLabelDefunct?.Invoke(label, reason);
 	}
 
@@ -506,13 +508,17 @@ public partial class LabelLifecycleManager : Node {
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		int chartingCount = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
 		int recentReleaseCount = CompetitorManager.Instance?.GetRecentReleasedRecordCount(label.labelId, 52) ?? 0;
+		// --earned-roster-capacity: the hard capacity is what the label's earnings fund, reviewed each quarter.
+		int? earnedCapacity = EarnedRosterCapacity.Enabled ? EarnedRosterCapacity.Capacity(label) : null;
+		if (earnedCapacity != null) label.maxRosterSize = earnedCapacity.Value;
 		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, recentReleaseCount, week);
 		label.lastOrganicGrowthEligibilityWeek = week;
 		label.lastOrganicGrowthBlockingReason = blockingReason;
 		if (blockingReason != "Eligible") return;
 		int priorTarget = label.OperatingRosterTarget;
 		int weeksSincePreviousOrganicIncrease = label.lastOrganicRosterTargetGrowthWeek >= 0 ? week - label.lastOrganicRosterTargetGrowthWeek : 0;
-		label.SetOperatingRosterTarget(priorTarget + 1, LabelOperatingTargetReason.OrganicGrowth, week);
+		label.SetOperatingRosterTarget(earnedCapacity != null ? label.maxRosterSize : priorTarget + 1,
+			LabelOperatingTargetReason.OrganicGrowth, week);
 		label.organicRosterTargetGrowthCount++;
 		label.lastOrganicRosterTargetGrowthWeek = week;
 		EmitTargetEvent(label, LabelOperatingTargetReason.OrganicGrowth, priorTarget, label.OperatingRosterTarget,

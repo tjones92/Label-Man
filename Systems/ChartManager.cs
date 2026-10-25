@@ -183,6 +183,8 @@ public partial class ChartManager : Node {
 		public string RegionId;
 		public int ActiveIntentCount, BasePurchaseCapacity, AlbumChannelCapacity, PurchaseCapacity, ClearedSingleUnits, ClearedAlbumUnits, PhysicalBackorders, MarketDisplacedDemand;
 		public int SingleFormatBudget, AlbumFormatBudget;
+		// LP screen: snapshots before its dedicated post-allocation addition. No serialized world state.
+		public int LegacyAlbumChannelCapacity, LegacyPurchaseCapacity, SingleBeforeLpAddition, AddedAlbumCapacity, AddedAlbumCleared;
 		public int LocalClearedSingleUnits, LocalClearedAlbumUnits;
 		public int LocalClearedUnits, UnusedAfterLocal, ExportBudget, ExportedCapacity, ImportLimit, ImportedCapacity, SpilloverClearedUnits;
 		public float RawSingleDemand, RawAlbumDemand, ServiceableSingleIntent, ServiceableAlbumIntent, EffectiveAlbumIntent, AlbumOverlapPressure;
@@ -380,6 +382,11 @@ public partial class ChartManager : Node {
 		LabelHoldCapacity.Configure(OS.GetCmdlineUserArgs());
 		HeadScaleTemplates.Configure(OS.GetCmdlineUserArgs());
 		WorkloadStaffing.Configure(OS.GetCmdlineUserArgs());
+		EarnedRosterCapacity.Configure(OS.GetCmdlineUserArgs());
+		SingleForecastRealization.Configure(OS.GetCmdlineUserArgs());
+		SingleCapitalRisk.Configure(OS.GetCmdlineUserArgs());
+		LpCapacityScreen.Configure(OS.GetCmdlineUserArgs());
+		LpDemandProbe.Configure(OS.GetCmdlineUserArgs());
 		BritishLabelDeferral.Configure(OS.GetCmdlineUserArgs());
 		MidTierNationalAr.Configure(OS.GetCmdlineUserArgs());
 		MidTierGoingConcernCash.Configure(OS.GetCmdlineUserArgs());
@@ -433,6 +440,7 @@ public partial class ChartManager : Node {
 		HitActFitSupport.Configure(OS.GetCmdlineUserArgs());
 		LaunchStocking.Configure(OS.GetCmdlineUserArgs());
 		MajorOffChartSingles.Configure(OS.GetCmdlineUserArgs());
+		RecordClubChannel.Configure(OS.GetCmdlineUserArgs());
 		AiMasterDeals.Configure(OS.GetCmdlineUserArgs());
 		AiBackers.Configure(OS.GetCmdlineUserArgs());
 		LabelCorporateModel.Configure(OS.GetCmdlineUserArgs());
@@ -1351,6 +1359,8 @@ public partial class ChartManager : Node {
 			float albumChannelShare = albumChannelMaturity *
 				(AlbumChannelShareEraC0 + AlbumChannelShareEraC1 * albumEra + AlbumChannelShareEraC2 * albumEra * albumEra);
 			int albumChannelCapacity = Mathf.RoundToInt(baseCapacity * albumChannelShare);
+			if (RecordClubChannel.HoldUnits) albumChannelCapacity = RecordClubChannel.HeldAlbumChannelCapacity(albumChannelCapacity,
+				NationalAlbumChannelCapacity(allRegions, year), year);
 			int capacity = baseCapacity + albumChannelCapacity;
 			var summary = new MarketClearingRegionalSummary {
 				RegionId = region.regionId,
@@ -1406,6 +1416,7 @@ public partial class ChartManager : Node {
 		// Donors and recipients are disjoint after local clearing, so no capacity can
 		// be forwarded through an intermediate market in the same week.
 		ApplyBoundedRegionalSpillover(intentsByRegion, summariesByRegion);
+		if (LpCapacityScreen.Audit) foreach (var pair in summariesByRegion) ApplyAdditionalLpCapacity(intentsByRegion[pair.Key], pair.Value);
 
 		foreach (MarketRegion region in allRegions) {
 			List<MarketIntent> intents = intentsByRegion[region.regionId];
@@ -1424,6 +1435,8 @@ public partial class ChartManager : Node {
 				intent.Data.unitsSoldTotal += intent.Cleared;
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
+			if (LpCapacityScreen.Audit && summary.ClearedSingleUnits != summary.SingleBeforeLpAddition)
+				throw new InvalidOperationException("LP-only purchasing changed same-state single allocation.");
 			if (summary.LocalClearedUnits > summary.PurchaseCapacity || summary.ExportedCapacity > summary.ExportBudget ||
 				summary.ImportedCapacity > summary.ImportLimit || summary.ImportedCapacity > summary.ServiceableTotalIntent - summary.LocalClearedUnits ||
 				summary.ClearedTotalUnits > summary.ServiceableTotalIntent || summary.ClearedAlbumUnits > summary.AlbumFormatBudget ||
@@ -1531,17 +1544,22 @@ public partial class ChartManager : Node {
 		}
 	}
 
-	private static void AllocateProportionalSpillover(List<MarketIntent> intents, int capacity) {
+	private static void AllocateProportionalSpillover(List<MarketIntent> intents, int capacity, bool spillover = true) {
 		int total = intents.Sum(intent => intent.Serviceable - intent.Cleared);
 		int allocated = Mathf.Min(Mathf.Max(0, capacity), total);
 		if (allocated == 0 || total == 0) return;
 		int assigned = 0;
 		foreach (MarketIntent intent in intents) {
 			float exact = (intent.Serviceable - intent.Cleared) * (float)allocated / total;
-			int units = Mathf.FloorToInt(exact); intent.Cleared += units; intent.SpilloverCleared += units; intent.Fraction = exact - units; assigned += units;
+			int units = Mathf.FloorToInt(exact); intent.Cleared += units;
+			if (spillover) intent.SpilloverCleared += units; else intent.Data.localClearedThisWeek += units;
+			intent.Fraction = exact - units; assigned += units;
 		}
 		int remaining = allocated - assigned;
-		foreach (MarketIntent intent in LargestRemainders(intents, remaining)) { intent.Cleared++; intent.SpilloverCleared++; }
+		foreach (MarketIntent intent in LargestRemainders(intents, remaining)) {
+			intent.Cleared++;
+			if (spillover) intent.SpilloverCleared++; else intent.Data.localClearedThisWeek++;
+		}
 	}
 
 	// The intents that take the leftover units: largest fraction first, then record id. Fractions are never negative, so
@@ -1979,6 +1997,19 @@ public partial class ChartManager : Node {
 	/// calibration untouched and only relieves the smaller ones, so this removes a
 	/// structural handicap rather than retuning the model.
 	/// </summary>
+	/// <summary>The week's national album channel before any club hold, for the record-club hold arm.</summary>
+	private static long NationalAlbumChannelCapacity(MarketRegion[] regions, int year) {
+		long total = 0;
+		foreach (MarketRegion region in regions ?? Array.Empty<MarketRegion>()) {
+			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
+				* WeeklyRegionalPurchaseCapacityMultiplier));
+			float era = region.GetAlbumDemandEraProgress(year);
+			total += Mathf.RoundToInt(baseCapacity * AlbumModel.GetRetailFulfillmentMaturity(year) *
+				(AlbumChannelShareEraC0 + AlbumChannelShareEraC1 * era + AlbumChannelShareEraC2 * era * era));
+		}
+		return total;
+	}
+
 	// Shelf a record can physically occupy in a market: record-store racks it can always
 	// reach, plus department-store racks it has to earn. The rack share is gated on the
 	// record being proven and weighted by the decade's shift toward rack and discount retail.

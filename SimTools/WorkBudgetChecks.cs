@@ -67,6 +67,7 @@ public static class WorkBudgetChecks {
 			}
 			label.status = savedStatus;
 			GoingConcern(label, independent, major, Check, Rejects, slate, capacity);
+			ActCadence(label, independent, major, Check, Rejects, slate, capacity);
 			major.status = LabelStatus.Struggling;
 			Check(LabelReleaseProgramme.SlotStatusFactor(major) == .5f && LabelReleaseProgramme.CampaignStatusFactor(major) == 1f,
 				"a Struggling Major keeps the old slot cut");
@@ -124,5 +125,24 @@ public static class WorkBudgetChecks {
 			LabelCompanyTax.SetPriorYearForChecks(priorYear);
 			LabelReleaseProgramme.Configure(new[] { slate, capacity });
 		}
+	}
+	private static void ActCadence(AILabel mid, AILabel independent, AILabel major, Action<bool, string> Check,
+		Func<string[], bool> Rejects, string slate, string capacity) {
+		string sw = LabelReleaseProgramme.ActCadenceSwitch;
+		Check(Rejects(new[] { slate, sw + "13" }), "the act cadence requires revised capacity");
+		Check(Rejects(new[] { slate, capacity, sw + "2" }), "rejects a cadence below 4 weeks");
+		Check(Rejects(new[] { slate, capacity, sw + "60" }), "rejects a cadence above 52 weeks");
+		LabelReleaseProgramme.Configure(new[] { slate, capacity, "--slate-work-budget=0.67", sw + "13" });
+		Check(LabelReleaseProgramme.ActCadenceWeeks == 13f, "parses the cadence");
+		foreach (var label in new[] { mid, independent, major }) {
+			var rates = LabelReleaseProgramme.MonthlyCapacity(label);
+			float expected = LabelReleaseProgramme.ReleaseEligibleActs(label) * (52f / 12f) / 13f;
+			Check(Math.Abs(rates.Singles - expected) < 1e-4f, $"{label.tier} singles follow eligible acts, not the tier");
+			LabelReleaseProgramme.SetActCadenceForChecks(0);
+			Check(rates.Albums == LabelReleaseProgramme.MonthlyCapacity(label).Albums, $"{label.tier} LPs keep their envelope");
+			LabelReleaseProgramme.SetActCadenceForChecks(13);
+		}
+		LabelReleaseProgramme.Configure(new[] { slate, capacity });
+		Check(LabelReleaseProgramme.ActCadenceWeeks == 0f, "the cadence defaults to off");
 	}
 }

@@ -65,6 +65,9 @@ public static class LabelReleaseProgramme {
 		GoingConcernReserveEnabled = args.Contains(GoingConcernReserveSwitch);
 		if (GoingConcernReserveEnabled && WorkBudgetSingles <= 0)
 			throw new ArgumentException(GoingConcernReserveSwitch + " requires " + WorkBudgetSwitch);
+		ActCadenceWeeks = Read(args, ActCadenceSwitch, 0, 4, 52);
+		if (args.Any(a => a.StartsWith(ActCadenceSwitch, StringComparison.Ordinal)) && !(AllocationEnabled && CapacityEnabled))
+			throw new ArgumentException(ActCadenceSwitch + " requires " + AllocationSwitch + " and " + CapacitySwitch);
 		BreakoutPlanningEnabled = args.Contains(BreakoutPlanningSwitch);
 		if (BreakoutPlanningEnabled && WorkBudgetSingles <= 0)
 			throw new ArgumentException(BreakoutPlanningSwitch + " requires " + WorkBudgetSwitch);
@@ -140,9 +143,20 @@ public static class LabelReleaseProgramme {
 	};
 	internal static (float Singles, float Albums) MonthlyCapacity(AILabel label) {
 		// RCA's 2-3 weekly singles is a head scenario only. Other tiers retain their own envelope pending evidence.
-		return label.tier == LabelTier.Major ? (MajorSinglesPerMonth, MajorAlbumsPerMonth) :
+		var tier = label.tier == LabelTier.Major ? (MajorSinglesPerMonth, MajorAlbumsPerMonth) :
 			(label.releasesPerMonth * (UsesWorkBudget(label) ? WorkBudgetFor(label) : .67f), label.releasesPerMonth * .33f);
+		float singles = UsesActCadence(label) ? ReleaseEligibleActs(label) * (52f / 12f) / ActCadenceWeeks : tier.Item1;
+		return (singles, LpCapacityScreen.AlbumRate(label, tier.Item2));
 	}
+	// --programme-act-cadence=W: an AI label plans one single per release-eligible signed act every W weeks, whatever its
+	// tier. Volume then follows roster depth; cash, promotion, material and spacing decide what is issued. LPs keep their
+	// envelope. Firm catalog counts (LabelReleaseProgrammeImplementation.md) are a benchmark, never an input. A probe.
+	public const string ActCadenceSwitch = "--programme-act-cadence=";
+	public static float ActCadenceWeeks { get; private set; }
+	internal static void SetActCadenceForChecks(float weeks) => ActCadenceWeeks = weeks;
+	internal static bool UsesActCadence(AILabel label) => ActCadenceWeeks > 0 && !label.isPlayerOwned;
+	internal static int ReleaseEligibleActs(AILabel label) =>
+		label.roster?.Count(GenreSupplyService.IsEligibleExistingArtistForEnabledRelease) ?? 0;
 	internal static bool IsOpen(ReleaseSlateItem item) => item.State is not (ReleaseSlateState.Issued or ReleaseSlateState.Cancelled);
 	internal static bool CanUseIdleSlot(ReleaseSlateItem item, int week) =>
 		IsOpen(item) && item.State != ReleaseSlateState.AwaitingDelivery && item.IntendedWeek > week && item.DueWeek > week &&
