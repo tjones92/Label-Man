@@ -43,7 +43,9 @@ public static class ReleaseJudgement {
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		string[] args = (arguments ?? Array.Empty<string>()).ToArray();
-		Shadow = args.Contains(ShadowSwitch);
+		bool projects = args.Contains(LabelReleaseProgramme.ProjectJudgementSwitch);
+		Shadow = args.Contains(ShadowSwitch) || projects;
+		if (projects) Select = ReleaseSelectMode.Perceived;
 		Events = args.Contains(EventsSwitch);
 		if (Events && !Shadow) throw new ArgumentException($"{EventsSwitch} requires {ShadowSwitch}.");
 		foreach (string argument in args) {
@@ -64,6 +66,8 @@ public static class ReleaseJudgement {
 			if (argument.StartsWith("--release-judgement-", StringComparison.Ordinal) && argument != ShadowSwitch && argument != EventsSwitch)
 				throw new ArgumentException($"{argument}: only the Phase 1 shadow and Phase 2A selection exist (later phases are not implemented).");
 		}
+		if (projects && Select != ReleaseSelectMode.Perceived)
+			throw new ArgumentException(LabelReleaseProgramme.ProjectJudgementSwitch + " requires perceived material selection.");
 		configured = true;
 	}
 

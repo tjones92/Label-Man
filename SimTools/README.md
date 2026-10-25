@@ -365,3 +365,13 @@ compares against the frozen Phase 3 `scene3-matched-v1-rooms` outputs, checks al
 84 economic CSVs for the off control and all nine integrity counters. Enabled
 economic changes are descriptive; no new acceptance tolerance is inferred. Use
 the bundled Python runtime when the system Python launcher has no installed runtime.
+
+## Connected label project experiment
+
+See [LabelProjectJudgement.md](LabelProjectJudgement.md) for the first shared
+material-review implementation and its limits. Reproduce the control / connected
+systems / reviewed projects comparison with
+`./SimTools/RunLabelProjectAudit.ps1 -RunTag label-project-v1 -Seed 1001 -Weeks 106`.
+Use an unused tag. `--label-project-judgement` connects existing repertoire,
+perceived selection and advance material search; it requires the release slate.
+

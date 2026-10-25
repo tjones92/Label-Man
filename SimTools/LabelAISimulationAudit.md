@@ -176,6 +176,11 @@ it does not claim the complete mini-label decision model is implemented.
 
 ## Behavioral acceptance
 
+Implementation has begun in [LabelProjectJudgement.md](LabelProjectJudgement.md):
+the first step connects existing repertoire and material work, persists prepared
+song choices, and adds a shared material review before recording. The audit above
+describes the unchanged comparison control.
+
 Evaluate whole label histories as well as owner-group statistics. A credible
 trace should explain a hit follow-up, a prospect investment, a refusal or delay
 for weak material, a capacity conflict, an unsuccessful campaign and a later

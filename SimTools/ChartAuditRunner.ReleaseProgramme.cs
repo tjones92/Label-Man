@@ -8,8 +8,15 @@ public partial class ChartAuditRunner {
 	private StreamWriter lpAssemblyWriter;
 	private StreamWriter programmeCashShortfallWriter;
 	private StreamWriter programmeChoiceWriter;
+	private StreamWriter programmeProjectWriter;
+	private StreamWriter programmeIssueRefusalWriter;
 	private void OpenReleaseProgrammeOutputs(string directory) {
 		if (!LabelReleaseProgramme.Enabled) return;
+		if (LabelReleaseProgramme.ProjectJudgementEnabled) {
+			programmeProjectWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-projects.csv"));
+			programmeProjectWriter.WriteLine("week,slotId,labelId,artistId,source,candidateId,action,perceived,routineRead,useSearchedMaterial,uncertainty");
+			CompetitorManager.Instance.OnProgrammeProjectReview += WriteProgrammeProject;
+		}
 		if (System.Linq.Enumerable.Contains(Godot.OS.GetCmdlineUserArgs(), "--label-decision-audit")) {
 			programmeChoiceWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-choices.csv"));
 			programmeChoiceWriter.WriteLine("week,year,labelId,tier,status,slotId,format,intendedWeek,intendedYear,financed,artistId,careerState,eligible,reason,rank,selected,score,hot,due,gap,expectedNet,contribution,qualityEstimate,careerPriority,momentum,obligations,attachedAudienceAtAudit");
@@ -18,6 +25,9 @@ public partial class ChartAuditRunner {
 		releaseSlateWriter = CreateWriter(Path.Combine(directory, $"{runName}-release-slate.csv"));
 		releaseSlateWriter.WriteLine("week,slotId,labelId,artistId,format,state,source,intendedWeek,dueWeek,readyWeek,actualWeek,intendedDate,actualDate,recordId,reservedProduction,reservedMarketing,reservedPressing,score,evidence,reason,missedFollowUp,paidProduction,preparedWeek,proposedWeek,weeklyReviewPolicy");
 		CompetitorManager.Instance.OnReleaseSlateReview += WriteReleaseSlate;
+		programmeIssueRefusalWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-issue-refusals.csv"));
+		programmeIssueRefusalWriter.WriteLine("week,slotId,labelId,artistId,format,source,intendedWeek,paidProduction,gate");
+		CompetitorManager.Instance.OnProgrammeIssueRefused += WriteProgrammeIssueRefusal;
 		programmeResourceWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-resources.csv"));
 		programmeResourceWriter.WriteLine("week,year,labelId,tier,attempts,successes,openItems,cashReserved,promotionPool,promotionBooked,singleWeeklyRate,albumWeeklyRate,dueFollowUps,unplannedFollowUps,promotionCommittedPeak");
 		CompetitorManager.Instance.OnProgrammeResources += WriteProgrammeResources;
@@ -54,6 +64,13 @@ public partial class ChartAuditRunner {
 			s.Professional ? 1 : 0, Csv(s.SongId), Csv(s.SupplierId), s.StartedWeek, s.DeliveryWeek, s.HoldUntilWeek,
 			R(s.PaidFee), R(s.ProposalRead), R(s.BaselineRead), R(s.ExpectedBenefit), Csv(s.ReferenceMasterId), Csv(item.RecordId)));
 	}
+	private void WriteProgrammeProject(ReleaseSlateItem item, int week) {
+		var p = item.ProjectReview;
+		programmeProjectWriter.WriteLine(string.Join(",", week, Csv(item.Id), Csv(item.LabelId), Csv(item.ArtistId), Csv(item.Source),
+			Csv(p.CandidateId), Csv(p.Action), p.Perceived.ToString("R", CultureInfo.InvariantCulture),
+			p.RoutineRead.ToString("R", CultureInfo.InvariantCulture), p.UseSearchedMaterial ? 1 : 0,
+			p.Uncertainty.ToString("R", CultureInfo.InvariantCulture)));
+	}
 	private void WriteProgrammeResources(ProgrammeResourceTelemetry r) => programmeResourceWriter.WriteLine(string.Join(",", r.Week, r.Year,
 		Csv(r.LabelId), Csv(r.Tier), r.Attempts, r.Successes, r.OpenItems, F(r.CashReserved), F(r.PromotionPool), F(r.PromotionBooked), F(r.SingleWeeklyRate), F(r.AlbumWeeklyRate), r.DueFollowUps, r.UnplannedFollowUps, F(r.PromotionCommittedPeak)));
 	private void WriteProgrammeCashShortfall(ProgrammeCashShortfall r) => programmeCashShortfallWriter.WriteLine(string.Join(",", r.Week, Csv(r.LabelId), r.Tier, r.Status,
@@ -83,7 +100,14 @@ public partial class ChartAuditRunner {
 			F(item.ReservedPressing), F(item.Score), Csv(item.Evidence), Csv(item.Reason), item.MissedFollowUp ? "1" : "0", F(item.PaidProduction),
 			item.PreparedWeek.HasValue ? N(item.PreparedWeek.Value) : "", N(item.ProposedWeek), "defer-failed-work"));
 	}
+	private void WriteProgrammeIssueRefusal(ReleaseSlateItem item, int week, string gate) =>
+		programmeIssueRefusalWriter.WriteLine(string.Join(",", week, Csv(item.Id), Csv(item.LabelId), Csv(item.ArtistId), item.Format,
+			Csv(item.Source), item.IntendedWeek, item.PaidProduction.ToString("R", CultureInfo.InvariantCulture), Csv(gate)));
 	private void CloseReleaseProgrammeOutputs() {
+		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeIssueRefused -= WriteProgrammeIssueRefusal;
+		programmeIssueRefusalWriter?.Dispose(); programmeIssueRefusalWriter = null;
+		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeProjectReview -= WriteProgrammeProject;
+		programmeProjectWriter?.Dispose(); programmeProjectWriter = null;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnReleaseSlateReview -= WriteReleaseSlate;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeResources -= WriteProgrammeResources;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeMaterialSearch -= WriteProgrammeMaterial;

@@ -59,7 +59,7 @@ public static class SongMaterialSelectionService {
 
 	public static SelectedSongMaterial ChooseMaterial(
 		AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek,
-		SongMaterialSource? forcedSource = null
+		SongMaterialSource? forcedSource = null, bool forcedOnly = false
 	) {
 		using var timingScope = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.MaterialSelection);
 		using var materialEvaluation = PolarSongBehavior.EvaluateMaterial();
@@ -73,6 +73,8 @@ public static class SongMaterialSelectionService {
 				RepertoireInfluenceService.OnSelected(prepared, artist, record, year);
 				return prepared;
 			}
+			// A caller that needs exactly this source (a project's own session) treats a refusal as no material.
+			if (forcedOnly) return null;
 		}
 		var candidates = new List<MaterialCandidate>();
 

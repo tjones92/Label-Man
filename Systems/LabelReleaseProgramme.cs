@@ -11,6 +11,8 @@ public static class LabelReleaseProgramme {
 	public static bool AllocationEnabled { get; private set; }
 	public static bool CapacityEnabled { get; private set; }
 	public static bool MaterialSearchEnabled { get; private set; }
+	public const string ProjectJudgementSwitch = "--label-project-judgement";
+	public static bool ProjectJudgementEnabled { get; private set; }
 	public static bool LpAssemblyEnabled { get; private set; }
 	public static bool Enabled => AllocationEnabled || CapacityEnabled;
 	public static int SingleFloor { get; private set; } = 6;
@@ -22,7 +24,10 @@ public static class LabelReleaseProgramme {
 		var args = arguments.ToArray();
 		AllocationEnabled = args.Contains(AllocationSwitch);
 		CapacityEnabled = args.Contains(CapacitySwitch);
-		MaterialSearchEnabled = args.Contains("--anticipatory-material-search");
+		ProjectJudgementEnabled = args.Contains(ProjectJudgementSwitch);
+		if (ProjectJudgementEnabled && !AllocationEnabled)
+			throw new ArgumentException(ProjectJudgementSwitch + " requires " + AllocationSwitch);
+		MaterialSearchEnabled = args.Contains("--anticipatory-material-search") || ProjectJudgementEnabled;
 		if (MaterialSearchEnabled && !AllocationEnabled)
 			throw new ArgumentException("--anticipatory-material-search requires " + AllocationSwitch);
 		LpAssemblyEnabled = args.Contains(LpAssembly.Switch);
@@ -149,11 +154,14 @@ public static class LabelReleaseProgramme {
 		$"{label.labelName}|{label.founderName}|{label.foundedYear}|{label.homeCityId}|{label.isHistorical}|{label.archetype}|{label.budgetLevel:R}|{label.productionQuality:R}|{label.marketingPower:R}");
 	internal static void SetForChecks(bool allocation, bool capacity) { AllocationEnabled = allocation; CapacityEnabled = capacity; }
 	internal static void SetMaterialSearchForChecks(bool value) => MaterialSearchEnabled = value;
+	internal static void SetProjectJudgementForChecks(bool value) => ProjectJudgementEnabled = value;
 	internal static void SetLpAssemblyForChecks(bool value) => LpAssemblyEnabled = value;
 }
 
 public enum ReleaseSlateState { Proposed, InPreparation, Ready, Scheduled, Postponed, Issued, Cancelled, AwaitingDelivery }
 public sealed class ReleaseSlateItem {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public ProgrammeProjectReview ProjectReview;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public ProgrammeMaterialSearch MaterialSearch;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

@@ -23,6 +23,7 @@ public partial class ReleaseJudgementChecks : Node {
 			DomainSeparation();
 			SaveContinuation();
 			Selection();
+			PreparedProjects();
 			Disabled();
 			GD.Print($"RELEASE_JUDGEMENT_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
@@ -234,6 +235,106 @@ public partial class ReleaseJudgementChecks : Node {
 		Check(m5 == null && act.Candidates.Count(c => c.Disposition == ShadowDisposition.ShadowIssued) == issued,
 			"an empty shortlist falls back to the legacy choice and consumes nothing");
 		ReleaseJudgement.SetForProbe(true);
+	}
+
+	private void PreparedProjects() {
+		ReleaseJudgement.SetForProbe(true, select: ReleaseSelectMode.Perceived);
+		AiRepertoireService.Reset(); Run(1, 30);
+		var label = Labels().First(l => l.roster.Any(a => AiRepertoireService.Acts.TryGetValue(a.artistId, out var act) &&
+			act.Candidates.Any(c => c.Source == SongMaterialSource.ArtistWritten && c.Disposition == ShadowDisposition.Active && c.Readiness == ShadowReadiness.Recordable)));
+		var artist = label.roster.First(a => AiRepertoireService.Acts.TryGetValue(a.artistId, out var act) &&
+			act.Candidates.Any(c => c.Source == SongMaterialSource.ArtistWritten && c.Disposition == ShadowDisposition.Active && c.Readiness == ShadowReadiness.Recordable));
+		var repertoire = AiRepertoireService.Acts[artist.artistId];
+		var candidate = repertoire.Candidates.First(c => c.Source == SongMaterialSource.ArtistWritten && c.Disposition == ShadowDisposition.Active && c.Readiness == ShadowReadiness.Recordable);
+		foreach (var c in repertoire.Candidates.Where(c => c != candidate)) c.Disposition = ShadowDisposition.Archived;
+		var record = Scratch(label, artist, "prepared-project-check");
+		var material = AiRepertoireService.SelectMaterial(label, artist, record, record.primaryGenre, 1960);
+		Check(material != null, "a ready project can record a concrete shortlist song");
+		AiRepertoireService.CommitPreparedPick(artist, record, 30, "material-search");
+		Check(candidate.Disposition == ShadowDisposition.Recorded && AiRepertoireService.HasPreparedState,
+			"a paid master removes its song before issue and retains its pick");
+		Check(AiRepertoireService.Judge(label, artist, 1960, 30).BestId != candidate.Id, "a prepared song is unavailable to another intention");
+		Run(31, 1);
+		var saved = new WorldSaveData(); AiRepertoireService.CaptureWorld(saved);
+		string json = JsonSerializer.Serialize(saved.AiRepertoire, Json);
+		AiRepertoireService.Reset();
+		AiRepertoireService.RehydrateWorld(new WorldSaveData { AiRepertoire = JsonSerializer.Deserialize<AiRepertoireSaveData>(json, Json) });
+		Check(StateJson() == json && SaveGameService.WritingVersion == 31, "prepared song identity survives week-end and a versioned save/load");
+		ShadowJudgement observed = null;
+		void Capture(ShadowJudgement j) => observed = j;
+		AiRepertoireService.OnJudgement += Capture;
+		try { AiRepertoireService.ObserveSingleRelease(label, artist, record, ReleaseStrategy.OrphanSingle, Start); }
+		finally { AiRepertoireService.OnJudgement -= Capture; }
+		Check(observed?.SelectedId == candidate.Id && observed.Outcome == "pool" && !AiRepertoireService.HasPreparedState,
+			"later issue consumes exactly the recorded song after restoration");
+		var outside = Scratch(label, artist, "prepared-outside-check");
+		AiRepertoireService.CommitPreparedPick(artist, outside, 32, "material-search");
+		AiRepertoireService.OnJudgement += Capture;
+		try { AiRepertoireService.ObserveSingleRelease(label, artist, outside, ReleaseStrategy.OrphanSingle, Start); }
+		finally { AiRepertoireService.OnJudgement -= Capture; }
+		Check(observed?.SelectedId == null && observed.Outcome == "material-search", "outside material does not consume an unrelated shortlist song");
+		AiRepertoireService.CommitPreparedPick(artist, outside, 33, "material-search");
+		AiRepertoireService.CancelPreparedPick(outside.recordId, 34);
+		Check(!AiRepertoireService.HasPreparedState, "cancelling a prepared project removes its pending issue identity");
+		bool projects = LabelReleaseProgramme.ProjectJudgementEnabled;
+		try {
+			LabelReleaseProgramme.SetProjectJudgementForChecks(true);
+			int week = CompetitorManager.Instance.ProgrammeWeekForChecks;
+			var item = new ReleaseSlateItem { ArtistId = artist.artistId, Format = ReleaseFormat.Single, IntendedWeek = week };
+			foreach (var c in AiRepertoireService.Acts[artist.artistId].Candidates) c.Disposition = ShadowDisposition.Archived;
+			Check(!CompetitorManager.Instance.ReviewProgrammeProject(label, artist, Start, item) && item.ProjectReview.Action == "hold-for-stronger-material",
+				"an act with no ready material is held without a legacy fallback");
+			var heard = AiRepertoireService.Acts[artist.artistId].Candidates.First(c => c.Id == candidate.Id);
+			heard.Disposition = ShadowDisposition.Active; heard.Hook = 0; heard.Capability = 1;
+			var career = artist.careerState;
+			artist.careerState = CareerState.Star;
+			Check(!CompetitorManager.Instance.ReviewProgrammeProject(label, artist, Start, item), "a hitmaker's weak heard song does not earn a session");
+			item.IntendedWeek = week - LabelReleaseProgramme.Horizon + LabelReleaseProgramme.PreparationWeeks;
+			Check(CompetitorManager.Instance.ReviewProgrammeProject(label, artist, Start, item) && CompetitorManager.IsOwnSession(item) &&
+				!item.ProjectReview.UseSearchedMaterial, "out of time for stronger material, the act records its own session rather than expiring");
+			item.MaterialSearch = new ProgrammeMaterialSearch { State = ProgrammeMaterialState.Pending };
+			Check(CompetitorManager.Instance.ReviewProgrammeProject(label, artist, Start, item) && CompetitorManager.IsOwnSession(item),
+				"an undelivered order does not hold a project past its last workable session");
+			item.MaterialSearch = null; item.IntendedWeek = week;
+			int closing = week + LabelReleaseProgramme.Horizon - LabelReleaseProgramme.PreparationWeeks;
+			Check(!CompetitorManager.LastProjectReview(item, closing - 1) && CompetitorManager.LastProjectReview(item, closing) &&
+				CompetitorManager.LastProjectReview(item, week + LabelReleaseProgramme.Horizon - 1) &&
+				!CompetitorManager.LastProjectReview(item, week + LabelReleaseProgramme.Horizon),
+				"the closing review keeps the preparation lead and never records a master that cannot issue");
+			heard.Hook = 1;
+			artist.careerState = CareerState.NewSigning;
+			Check(CompetitorManager.Instance.ReviewProgrammeProject(label, artist, Start, item), "a prospect's strong heard song earns a session under the same standard");
+			Check(AiRepertoireService.SelectionScore(heard, label, artist, ReleaseSelectMode.Perceived) >= CompetitorManager.SessionMinimumRead(item.ProjectReview) &&
+				CompetitorManager.SessionMinimumRead(item.ProjectReview) == item.ProjectReview.RoutineRead - item.ProjectReview.Uncertainty,
+				"the session accepts the song its review approved, at the review's own tolerance");
+			float cash = label.cashReserves; int songs = CompositionCatalogService.SongCount; ulong rng = GameRandom.StateForChecks;
+			string review = JsonSerializer.Serialize(item.ProjectReview, Json);
+			CompetitorManager.Instance.ReviewProgrammeProject(label, artist, Start, item);
+			Check(JsonSerializer.Serialize(item.ProjectReview, Json) == review && label.cashReserves == cash && CompositionCatalogService.SongCount == songs && GameRandom.StateForChecks == rng,
+				"reviewing the same evidence rerolls nothing, spends nothing and authors nothing");
+			artist.careerState = career;
+			item.MaterialSearch = new ProgrammeMaterialSearch { State = ProgrammeMaterialState.Pending };
+			Check(!CompetitorManager.Instance.ReviewProgrammeProject(label, artist, Start, item) && item.ProjectReview.Action == "await-material-delivery",
+				"ordered material earns preparation attention before it earns a session");
+			Check(!CompetitorManager.WorthRecording(.3f, .6f) && CompetitorManager.WorthRecording(.7f, .6f),
+				"weak material holds and stronger material clears the same act-relative standard");
+			Check(!CompetitorManager.WorthRecording(-1, .6f) && !CompetitorManager.WorthRecording(float.NaN, .6f), "missing or invalid evidence cannot authorize recording");
+			float tolerance = CompetitorManager.ComparisonUncertainty(.09f, .09f);
+			Check(Math.Abs(tolerance - .09f * MathF.Sqrt(2f / 3f)) < 1e-6f && CompetitorManager.WorthRecording(.6f - tolerance * .9f, .6f, tolerance) &&
+				!CompetitorManager.WorthRecording(.6f - tolerance * 1.1f, .6f, tolerance) && !CompetitorManager.WorthRecording(-1, .6f, 1f),
+				"a shortfall inside the label's read uncertainty records; one beyond it holds; missing material still holds");
+			Check(item.ProjectReview.Uncertainty > 0 && item.ProjectReview.Uncertainty < .2f, "each review records the uncertainty it compared against");
+			Check(CompetitorManager.IssueGateNet(-400f, 1500f, productionPaid: true) == 1100f && CompetitorManager.IssueGateNet(-400f, 1500f, productionPaid: false) == -400f &&
+				CompetitorManager.IssueGateNet(-400f, -5f, productionPaid: true) == -400f,
+				"a paid master is judged on remaining costs; an unrecorded single still carries its production; no negative credit");
+			float mean = CompetitorManager.SlotMaterialMean(new[] { .5f, .7f, -1f, float.NaN });
+			Check(Math.Abs(mean - .6f) < 1e-6f && CompetitorManager.SlotMaterialMean(new[] { -1f }) == 0f,
+				"the slot's material mean counts only acts with heard material");
+			Check(CompetitorManager.MaterialAttention(.7f, mean) > CompetitorManager.MaterialAttention(.5f, mean) &&
+				Math.Abs(CompetitorManager.MaterialAttention(.65f, mean) - .2f) < 1e-5f && CompetitorManager.MaterialAttention(.95f, mean) == 1f &&
+				CompetitorManager.MaterialAttention(-1f, mean) == -1f,
+				"planner attention ranks acts by heard material on one scale, independent of each act's own writing");
+		} finally { LabelReleaseProgramme.SetProjectJudgementForChecks(projects); }
 	}
 
 	// Off is absent: no steps, no save block, no version bump.

@@ -67,10 +67,13 @@ public partial class CompetitorManager {
         return total > 0 ? (float)(sum / total) : ownExpected;
     }
 
-    private float ProgrammeMaterialRead(AILabel label, SimulatedArtist artist, SongComposition song, bool professional, int year, bool heard) {
+    private float ProgrammeMaterialRead(AILabel label, SimulatedArtist artist, SongComposition song, bool professional, int year, bool heard) =>
+        ProgrammeMaterialRead(label, artist, song, professional, year, heard, out _);
+
+    private float ProgrammeMaterialRead(AILabel label, SimulatedArtist artist, SongComposition song, bool professional, int year, bool heard, out float band) {
+        band = Mathf.Lerp(.20f, .08f, Math.Clamp(label.scoutingAbility, 0, 1)) * (heard ? 1 : 1.5f);
         float expectation = ProgrammeMaterialExpectation(label, artist, song, professional, year, out _);
         if (expectation < 0) return -1;
-        float band = Mathf.Lerp(.20f, .08f, Math.Clamp(label.scoutingAbility, 0, 1)) * (heard ? 1 : 1.5f);
         // Stable label/act/song evidence, independent of slot and reread count. No free averaging by waiting.
         double error = ProgrammeRoll(label, artist, "material-read|" + song.songId + (heard ? "|heard" : "|offer"), 0, 20);
         return Math.Clamp(expectation + ((float)error * 2 - 1) * band, 0, 1);
@@ -145,6 +148,8 @@ public partial class CompetitorManager {
                 }
             }
             float baseline = DefaultSessionExpectation(label, artist, genre, date.year, sample);
+            if (LabelReleaseProgramme.ProjectJudgementEnabled)
+                baseline = Math.Max(RoutineProjectRead(label, artist, date.year, out _), AiRepertoireService.Judge(label, artist, date.year, pipelineWeek).BestPerceived);
             var proposals = new List<(SongComposition Song, bool Professional, float Benefit, float Net)>();
             foreach (var (song, professional) in sample) {
                 float read = ProgrammeMaterialRead(label, artist, song, professional, date.year, false);

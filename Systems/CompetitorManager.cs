@@ -2209,6 +2209,17 @@ public partial class CompetitorManager : Node {
 		project.promoOutcomeState = ProjectOutcomeState.RedirectedToSingle;
 	}
 	
+	// --label-project-judgement: a prepared master's session is already paid, so the issue gate judges it on the costs
+	// still to come. The forecast net deducted its production estimate; add exactly that back rather than charge it twice.
+	internal static float IssueGateNet(float projectedNet, float productionEstimate, bool productionPaid) =>
+		productionPaid ? projectedNet + Mathf.Max(0f, productionEstimate) : projectedNet;
+
+	// Observation only: names the gate that refused a programme issue. Always false; no effect outside an issue.
+	private bool RefuseProgrammeIssue(string gate) {
+		if (issuingSlateItem != null) lastProgrammeIssueRefusal = gate;
+		return false;
+	}
+
 	private bool TryReleaseRecord(AILabel label, GameDate date, bool singlesOnly = false, SimulatedArtist scheduledSingleArtist = null, bool albumsOnly = false) {
 		lastReleaseAttemptFailedArtistSelection = false;
 		lastPracticeStandalone = false;
@@ -2258,9 +2269,10 @@ public partial class CompetitorManager : Node {
 			plan.projectedAlbumNet = plan.projectedAlbumStandaloneNet;
 		}
 		if (singlesOnly) {
-			if (!ReleaseAllInEconomics.IsLive && plan.projectedOrphanSingleNet <= label.GetMarketingBudget(artist)) {
+			if (!ReleaseAllInEconomics.IsLive && IssueGateNet(plan.projectedOrphanSingleNet, decision.singleProductionCost,
+					programmeMaster != null && LabelReleaseProgramme.ProjectJudgementEnabled) <= label.GetMarketingBudget(artist)) {
 				if (!explicitProjectIdentity) { artist.primaryGenre = artistPrimary; artist.secondaryGenre = artistSecondary; }
-				return false;
+				return RefuseProgrammeIssue("single-net-below-marketing");
 			}
 			plan.format = ReleaseFormat.Single; plan.strategy = ReleaseStrategy.OrphanSingle;
 		}
@@ -2277,7 +2289,7 @@ public partial class CompetitorManager : Node {
 			if (!PassesReleaseProfitGate(label, artist, date.year, projectGenre, plan, undoSupplyOnFailure: programmeMaster == null)) return false;
 			return TryInitiateAlbumProject(label, artist, date, decision, plan, projectGenre);
 		}
-		if (programmeMaster != null && !PassesReleaseProfitGate(label, artist, date.year, projectGenre, plan, undoSupplyOnFailure: false)) return false;
+		if (programmeMaster != null && !PassesReleaseProfitGate(label, artist, date.year, projectGenre, plan, undoSupplyOnFailure: false)) return RefuseProgrammeIssue("all-in-profit-gate");
 		// A catalogue extraction already has its own incremental-profit and funding checks.
 		// Evaluate that cheaper option before rejecting a newly recorded single.
 		var record = programmeMaster ?? TryExtractSuccessfulAlbumSingle(label, artist, date, decision, ref plan);
@@ -2306,7 +2318,7 @@ public partial class CompetitorManager : Node {
 			float available = label.cashReserves - minReserve - productionCost;
 			// Opt-in early-game routes, in the founder's order: borrow from the one backer (keeps the master), else shop it.
 			if (available < 0 && AiBackers.TryBorrow(label, -available, date)) available = label.cashReserves - minReserve - productionCost;
-			if (available < 0) return AiMasterDeals.TryShopUnreleased(this, label, artist, record, productionCost, perceivedQuality, date);
+			if (available < 0) return AiMasterDeals.TryShopUnreleased(this, label, artist, record, productionCost, perceivedQuality, date) || RefuseProgrammeIssue("launch-cash-short");
 			marketingBudget = available * 0.8f;
 			totalCost = productionCost + marketingBudget;
 		}
@@ -3848,14 +3860,22 @@ public partial class CompetitorManager : Node {
 			// Release Judgement 2A (--release-judgement-select): a live orphan single is cut from the act's shortlist; an empty
 			// or refused shortlist, and every other caller, keeps the legacy source choice. Off: never reached.
 			bool plannedMaterial = LabelReleaseProgramme.MaterialSearchEnabled && format == ReleaseFormat.Single &&
-				issuingSlateItem?.MaterialSearch?.State == ProgrammeMaterialState.Ready;
+				issuingSlateItem?.MaterialSearch?.State == ProgrammeMaterialState.Ready &&
+				(!LabelReleaseProgramme.ProjectJudgementEnabled || issuingSlateItem.ProjectReview?.UseSearchedMaterial == true);
+			// A reviewed project out of time for stronger material cuts the act's own original, never another source.
+			bool ownSession = LabelReleaseProgramme.ProjectJudgementEnabled && format == ReleaseFormat.Single && IsOwnSession(issuingSlateItem);
 			SelectedSongMaterial material = plannedMaterial ? BuildProgrammeMaterial(issuingSlateItem, label, artist, record, record.primaryGenre, year, pipelineWeek)
+				: ownSession ? SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek,
+					SongMaterialSource.ArtistWritten, forcedOnly: true)
 				: judgedOrphan && format == ReleaseFormat.Single && ReleaseJudgement.Selecting
-				? AiRepertoireService.SelectMaterial(label, artist, record, record.primaryGenre, year) : null;
+				? AiRepertoireService.SelectMaterial(label, artist, record, record.primaryGenre, year,
+					LabelReleaseProgramme.ProjectJudgementEnabled ? SessionMinimumRead(issuingSlateItem?.ProjectReview) : -1) : null;
 			if (plannedMaterial && material == null) {
 				MaterialReview(issuingSlateItem, pipelineWeek, ProgrammeMaterialState.Failed, "material-refused-at-session");
 				return null;
 			}
+			// A reviewed slate cannot manufacture an unreviewed fallback when its available songs fail.
+			if (material == null && LabelReleaseProgramme.ProjectJudgementEnabled && issuingSlateItem?.Format == ReleaseFormat.Single) return null;
 			material ??= SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek);
 			if (PolarSongBehavior.UsePolarFitSelection && material == null) return null;
 			// Early-game Phase 5A (§7.2): a song the player placed with this label, cut in place of the outside song the act

@@ -73,6 +73,7 @@ public partial class CompetitorManager {
 			MaterialReview(item, pipelineWeek, ProgrammeMaterialState.Cancelled, "slate-cancelled-no-refund");
 		if (state == ReleaseSlateState.Cancelled) item.ReservedProduction = item.ReservedMarketing = item.ReservedPressing = 0f;
 		if (state == ReleaseSlateState.Cancelled) ShelveExpiredMaster(item);
+		if (state == ReleaseSlateState.Cancelled) AiRepertoireService.CancelPreparedPick(item.RecordId, pipelineWeek);
 		OnReleaseSlateReview?.Invoke(item, pipelineWeek);
 		if (state is ReleaseSlateState.Issued or ReleaseSlateState.Cancelled) item.PreparedRecord = null;
 	}
@@ -80,8 +81,9 @@ public partial class CompetitorManager {
 	private bool PrepareSlateMaster(AILabel label, SimulatedArtist artist, GameDate date, ReleaseSlateItem item) {
 		if (LabelReleaseProgramme.MaterialSearchEnabled) {
 			AdvanceProgrammeMaterial(item, label, artist, date, pipelineWeek);
-			if (item.MaterialSearch?.State == ProgrammeMaterialState.Pending) return false;
+			if (item.MaterialSearch?.State == ProgrammeMaterialState.Pending && !LabelReleaseProgramme.ProjectJudgementEnabled) return false;
 		}
+		if (!ReviewProgrammeProject(label, artist, date, item)) return false;
 		issuingSlateItem = item;
 		try {
 			float reserve = ProgrammeCommitmentReserve(label);
@@ -107,6 +109,7 @@ public partial class CompetitorManager {
 			ChargeProjectCost(label, artist, production, production);
 			WeeklyProductionSpend += production; WeeklyProductionEvents++;
 			item.PreparedRecord = master; item.RecordId = master.recordId; item.PaidProduction = production;
+			AiRepertoireService.CommitPreparedPick(artist, master, pipelineWeek, IsOwnSession(item) ? "own-session" : "material-search");
 			if (item.LpAssembly != null && item.Format == ReleaseFormat.Album) CompleteLpAssembly(item, label);
 			if (item.MaterialSearch?.State == ProgrammeMaterialState.Ready)
 				MaterialReview(item, pipelineWeek, master.songId == item.MaterialSearch.SongId ? ProgrammeMaterialState.Consumed : ProgrammeMaterialState.Failed,
@@ -242,7 +245,7 @@ public partial class CompetitorManager {
 					bool financed = slot >= slots;
 					string id = $"{ProgrammeLabelKey(label)}|{intended.year:D4}-{intended.month:D2}-{intended.day:D2}|{format}|{slot}";
 					var audit = OnProgrammeChoiceReview == null ? null : new List<ProgrammeCandidateAudit>();
-					var candidates = label.roster.Where(a => {
+					IEnumerable<SimulatedArtist> eligible = label.roster.Where(a => {
 						// Preserve the original short circuit and its clock reads. Audit exclusions
 						// without evaluating a rejected artist's forecast or drawing anything new.
 						string reason = !CanProgrammeArtist(label, a, format, week) ? "artist-or-spacing-ineligible" :
@@ -251,7 +254,19 @@ public partial class CompetitorManager {
 						if (reason == null) return true;
 						audit?.Add(new ProgrammeCandidateAudit { ArtistId = a?.artistId, CareerState = a?.careerState.ToString(), Reason = reason });
 						return false;
-					})
+					});
+					// --label-project-judgement: heard material ranks the competing acts on one scale, each act's best read against
+					// the slot's mean. Whether a song beats the act's own writing is the hold review's question, not the ranking's.
+					Dictionary<string, float> materialReads = null;
+					float materialMean = 0f;
+					if (LabelReleaseProgramme.ProjectJudgementEnabled && format == ReleaseFormat.Single) {
+						var acts = eligible.ToList();
+						eligible = acts;
+						materialReads = new(StringComparer.Ordinal);
+						foreach (var a in acts) materialReads[a.artistId] = AiRepertoireService.Judge(label, a, intended.year, pipelineWeek).BestPerceived;
+						materialMean = SlotMaterialMean(materialReads.Values);
+					}
+					var candidates = eligible
 						.Select(a => {
 							var clock = ProgrammeClockFor(a);
 							int last = format == ReleaseFormat.Single ? clock.SingleWeek : clock.AlbumWeek;
@@ -266,7 +281,10 @@ public partial class CompetitorManager {
 							float net = format == ReleaseFormat.Single ? SinglePriorNetAtBookedPrice(context) :
 								CalculateAlbumPriorNet(label, a, intended.year, context, CalculateCompilationCostWeight(a.primaryGenre, intended.year), ResolveHitInventory(a), out _);
 							float contribution = Math.Clamp(net / Math.Max(1f, context.singleProductionCost), -1f, 1f);
-							float score = (due ? 10 : 0) + a.GetCareerPriority() + a.momentum + a.contractRegionalBreakouts * .1f + contribution +
+							float attention = due ? 10 : 0;
+							// Hit urgency remains useful, but cannot swamp material and all other business evidence.
+							if (materialReads != null) attention = (due ? .75f : 0) + MaterialAttention(materialReads[a.artistId], materialMean);
+							float score = attention + a.GetCareerPriority() + a.momentum + a.contractRegionalBreakouts * .1f + contribution +
 								Math.Min(1f, age / 52f) + obligations * .1f + (float)ProgrammeRoll(label, a, id, week, 1) * (.5f - label.scoutingAbility * .25f);
 							var read = audit == null ? null : new ProgrammeCandidateAudit {
 								ArtistId = a.artistId, CareerState = a.careerState.ToString(), Eligible = true, Reason = "scored",
@@ -375,7 +393,7 @@ public partial class CompetitorManager {
 			if (pipelineWeek >= item.ReadyWeek && item.PreparedRecord == null) {
 				if (!PrepareSlateMaster(label, artist, date, item)) {
 					if (pipelineWeek - item.IntendedWeek > LabelReleaseProgramme.Horizon) ReviewSlate(item, ReleaseSlateState.Cancelled, "preparation-window-expired");
-					else RescheduleProgrammeItem(item, Math.Max(item.DueWeek, pipelineWeek + 1), ReleaseSlateState.Postponed, "preparation-material-economics-or-funding");
+						else RescheduleProgrammeItem(item, Math.Max(item.DueWeek, pipelineWeek + 1), ReleaseSlateState.Postponed, item.ProjectReview?.Action is "hold-for-stronger-material" or "await-material-delivery" ? item.ProjectReview.Action : "preparation-material-economics-or-funding");
 					continue;
 				}
 				if (!opening) preparationSlots[item.Format]--;
@@ -411,7 +429,7 @@ public partial class CompetitorManager {
 					ReviewSlate(item, ReleaseSlateState.InPreparation, "work-and-cash-reserved");
 				}
 				if (!PrepareSlateMaster(label, artist, date, item)) {
-					RescheduleProgrammeItem(item, item.DueWeek, ReleaseSlateState.Postponed, "idle-preparation-material-economics-or-funding"); continue;
+					RescheduleProgrammeItem(item, item.DueWeek, ReleaseSlateState.Postponed, item.ProjectReview?.Action is "hold-for-stronger-material" or "await-material-delivery" ? item.ProjectReview.Action : "idle-preparation-material-economics-or-funding"); continue;
 				}
 				preparationSlots[item.Format]--;
 				ReviewSlate(item, ReleaseSlateState.Scheduled, "worked-ahead-into-idle-preparation");
@@ -475,22 +493,30 @@ public partial class CompetitorManager {
 	// event, the single, uses the LP's dated slot and the LP drops after the existing gap. The single still
 	// competes for production cash, the promotion pool and the act's single clock. Requiring a coincident free
 	// single slot instead blocked ~90% of decisions on calendar accident, not on the researched selectivity.
+	// Observation only: which issue-time gate refused a prepared master. Nothing reads it back.
+	public event Action<ReleaseSlateItem, int, string> OnProgrammeIssueRefused;
+	private string lastProgrammeIssueRefusal;
+
 	private bool IssueSlate(AILabel label, SimulatedArtist artist, ReleaseSlateItem item, GameDate date, Dictionary<ReleaseFormat, int> remainingSlots) {
 		if (item.PreparedRecord == null || pipelineWeek < LabelReleaseProgramme.EarliestIssueWeek(item)) return false;
 		// An idle slot may issue before the reserved date. Requote the actual launch window and live cash,
 		// excluding this item's old holds; a future booking cannot authorize an unfunded launch today.
-		bool funded = ReserveSlate(label, artist, item, date, out _, campaignWeek: pipelineWeek);
+		bool funded = ReserveSlate(label, artist, item, date, out string shortfall, campaignWeek: pipelineWeek);
 		bool success = false;
 		programmeAdvanceSingleId = null;
+		string refusal = !funded ? "reserve:" + shortfall : item.ReservedMarketing <= 0 ? "no-reserved-marketing" : null;
 		if (funded && item.ReservedMarketing > 0 && CanProgrammeArtist(label, artist, item.Format, pipelineWeek)) {
 			issuingSlateItem = item;
 			programmeAdvanceSlot = item.Format == ReleaseFormat.Album;
-			programmeCampaignBudget = Math.Min(item.ReservedMarketing, AvailableProgrammeCampaign(label, pipelineWeek));
+			float campaign = Math.Min(item.ReservedMarketing, AvailableProgrammeCampaign(label, pipelineWeek));
+			programmeCampaignBudget = campaign;
+			lastProgrammeIssueRefusal = null;
 			try { if (programmeCampaignBudget > 0) success = TryReleaseRecord(label, date, item.Format == ReleaseFormat.Single, artist, item.Format == ReleaseFormat.Album); }
 			finally { issuingSlateItem = null; programmeCampaignBudget = null; programmeAdvanceSlot = false; }
-		}
+			refusal = campaign <= 0 ? "campaign-budget-exhausted" : lastProgrammeIssueRefusal ?? "release-failed";
+		} else refusal ??= "artist-spacing-or-eligibility";
 		CountProgrammeAttempt(label, success);
-		if (!success) return false;
+		if (!success) { OnProgrammeIssueRefused?.Invoke(item, pipelineWeek, refusal); return false; }
 		remainingSlots[item.Format]--;
 		var issued = ChartManager.Instance.GetRecordRuntimeData(item.RecordId);
 		if (issued != null && issued.baseRecord.labelId == item.LabelId && Math.Abs(issued.sunkProductionCost - item.PaidProduction) > .01f)

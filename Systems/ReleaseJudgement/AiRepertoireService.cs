@@ -4,7 +4,11 @@ using System.Linq;
 using Godot;
 
 public enum ShadowReadiness { Offered, Recordable }
-public enum ShadowDisposition { Active, Archived, ShadowIssued }
+public enum ShadowDisposition { Active, Archived, ShadowIssued, Recorded }
+
+public sealed class PreparedRepertoirePick {
+	public string ArtistId, CandidateId, Outcome;
+}
 
 /// <summary>
 /// One song an AI act has access to, in the Phase 1 shadow. A catalogue song is referenced by <see cref="SongId"/> and never
@@ -36,6 +40,8 @@ public sealed class ShadowActRepertoire {
 
 /// <summary>Saved Phase 1 state. Absent from saves written without the shadow, so those saves are unchanged.</summary>
 public sealed class AiRepertoireSaveData {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public Dictionary<string, PreparedRepertoirePick> PreparedPicks { get; set; }
 	public int ConfigVersion { get; set; }
 	public int LastStepWeek { get; set; } = -1;
 	public Dictionary<string, ShadowActRepertoire> Acts { get; set; } = new();
@@ -108,6 +114,7 @@ public static class AiRepertoireService {
 	public static IReadOnlyDictionary<string, ShadowActRepertoire> Acts => state.Acts;
 	public static IReadOnlyDictionary<string, long> Counters => state.Counters;
 	public static bool HasState => state.LastStepWeek >= 0 || state.Acts.Count > 0;
+	public static bool HasPreparedState => state.PreparedPicks?.Count > 0;
 
 	// ---- the weekly step -------------------------------------------------------------------------------------
 
@@ -245,7 +252,7 @@ public static class AiRepertoireService {
 	private static void Prune(int week, HashSet<string> signed) {
 		var drop = new List<string>();
 		foreach (var pair in state.Acts.OrderBy(p => p.Key, StringComparer.Ordinal)) {
-			pair.Value.Candidates.RemoveAll(c => c.Disposition != ShadowDisposition.Active &&
+			pair.Value.Candidates.RemoveAll(c => c.Disposition != ShadowDisposition.Active && c.Disposition != ShadowDisposition.Recorded &&
 				week - c.DispositionWeek > ReleaseJudgement.Parameters.ArchiveRetentionWeeks);
 			if (!signed.Contains(pair.Key) && week - pair.Value.LastSignedWeek > ReleaseJudgement.Parameters.UntrackAfterWeeks) drop.Add(pair.Key);
 		}
@@ -458,7 +465,11 @@ public static class AiRepertoireService {
 		// Selection on: an orphan consumes exactly the song it was cut from (none on a fallback). A promo single still
 		// consumes the best perceived song counterfactually, as calibrated: the LP project spends the act's ready material.
 		string consume;
-		if (pendingPicks.Remove(record.recordId, out var pick)) { consume = pick.CandidateId; judgement.Outcome = pick.Outcome; }
+		if (state.PreparedPicks?.Remove(record.recordId, out var prepared) == true) {
+			consume = prepared.CandidateId; judgement.Outcome = prepared.Outcome;
+			if (state.PreparedPicks.Count == 0) state.PreparedPicks = null;
+		}
+		else if (pendingPicks.Remove(record.recordId, out var pick)) { consume = pick.CandidateId; judgement.Outcome = pick.Outcome; }
 		else { consume = judgement.BestId; judgement.Outcome = ReleaseJudgement.Selecting ? "observe-promo" : "observe"; }
 		judgement.SelectedId = consume;
 		if (consume != null) {
@@ -490,7 +501,7 @@ public static class AiRepertoireService {
 	/// is authored on its first recording and keeps that composition for any later take. Returns null (legacy fallback)
 	/// when nothing is recordable or the session refuses the top songs. Draws nothing from the global stream.
 	/// </summary>
-	internal static SelectedSongMaterial SelectMaterial(AILabel label, SimulatedArtist artist, Record record, Genre genre, int year) {
+	internal static SelectedSongMaterial SelectMaterial(AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, float minimumRead = -1f) {
 		if (!ReleaseJudgement.Selecting || label == null || label.isPlayerOwned || artist == null || record == null) return null;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		ShadowActRepertoire act = Ensure(label, artist, week, year);
@@ -498,6 +509,7 @@ public static class AiRepertoireService {
 		var ranked = act.Candidates
 			.Where(c => c.Disposition == ShadowDisposition.Active && c.Readiness == ShadowReadiness.Recordable)
 			.Select(c => (Candidate: c, Score: SelectionScore(c, label, artist, mode)))
+			.Where(x => x.Score >= minimumRead)
 			.OrderByDescending(x => x.Score).ThenBy(x => x.Candidate.Id, StringComparer.Ordinal)
 			.Select(x => x.Candidate).Take(3).ToList();
 		string outcome = "fallback-empty";
@@ -522,6 +534,30 @@ public static class AiRepertoireService {
 
 	internal static (string CandidateId, string Outcome)? PendingForChecks(string recordId) =>
 		pendingPicks.TryGetValue(recordId, out var pick) ? pick : null;
+
+	// A paid slate session removes its song from available material immediately. Keep the identity through
+	// week-end cleanup and save/load; later issue must consume this song, never the then-best alternative.
+	internal static void CommitPreparedPick(SimulatedArtist artist, Record record, int week, string outsideOutcome) {
+		if (!ReleaseJudgement.Selecting || record?.format != ReleaseFormat.Single) return;
+		var pick = pendingPicks.Remove(record.recordId, out var pending) ? pending : (CandidateId: (string)null, Outcome: outsideOutcome);
+		state.PreparedPicks ??= new(StringComparer.Ordinal);
+		state.PreparedPicks[record.recordId] = new PreparedRepertoirePick { ArtistId = artist.artistId, CandidateId = pick.CandidateId, Outcome = pick.Outcome };
+		state.ConfigVersion = ReleaseJudgement.ConfigVersion;
+		if (pick.CandidateId != null) {
+			var candidate = state.Acts[artist.artistId].Candidates.Single(c => c.Id == pick.CandidateId);
+			candidate.Disposition = ShadowDisposition.Recorded; candidate.DispositionWeek = week;
+			candidate.DispositionReason = "paid-prepared-master";
+		}
+	}
+
+	internal static void CancelPreparedPick(string recordId, int week) {
+		if (recordId == null || state.PreparedPicks?.Remove(recordId, out var pick) != true) return;
+		if (pick.CandidateId != null && state.Acts.TryGetValue(pick.ArtistId, out var act)) {
+			var c = act.Candidates.FirstOrDefault(c => c.Id == pick.CandidateId);
+			if (c != null) Archive(c, act, week, "prepared-master-cancelled");
+		}
+		if (state.PreparedPicks.Count == 0) state.PreparedPicks = null;
+	}
 
 	/// <summary>A player placement replaced the label's pick at the session: the shortlist song was not recorded.</summary>
 	internal static void ReleasePick(Record record) {

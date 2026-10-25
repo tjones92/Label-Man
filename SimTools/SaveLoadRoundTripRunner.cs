@@ -79,6 +79,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--distribution-ownership-check")) { DistributionOwnershipChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--programme-material-check")) { ProgrammeMaterialChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--programme-material-roundtrip")) { RunProgrammeMaterialRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-project-roundtrip")) { RunProgrammeProjectRoundTrip(weeks); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--lp-assembly-check")) { LpAssemblyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--lp-assembly-roundtrip")) { RunLpAssemblyRoundTrip(weeks); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--distribution-funding-roundtrip")) { RunDistributionFundingRoundTrip(weeks); return; }
