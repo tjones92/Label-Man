@@ -104,7 +104,7 @@ public static class RackJobberChannel {
 	// numerator. Stores see last week's racks; racks also see this week's already-cleared stores.
 	internal static double ExhaustionUnits(RegionalRecordData data, bool rack) =>
 		Enabled && SharedExhaustion ? (double)data.unitsSoldTotal + data.rackUnitsTotal
-			: rack ? data.rackUnitsTotal : data.unitsSoldTotal;
+			: rack ? data.rackUnitsTotal - (double)data.rackStoreBuyerUnitsTotal : data.unitsSoldTotal + (double)data.rackStoreBuyerUnitsTotal;
 
 	// Sell-through is already net of returns. A fraction r of shipments returned implies
 	// r/(1-r) extra unsold copies per sold copy. This stress assumes full write-off, no salvage.
@@ -147,6 +147,8 @@ public static class RackJobberChannel {
 		public RecordRuntimeData Record;
 		public RegionalRecordData Data;
 		public int StoreUnits, Tier, Rank;
+		public int StoreChoice;
+		public float AutonomousDemand;
 		public bool LabelShips, PastPeak;
 		public float Demand;
 		public int Units;
@@ -200,6 +202,7 @@ public static class RackJobberChannel {
 		// Off, the week-local fields are never written and stay zero.
 		if (!Enabled) return;
 		BudgetLpChannel.BeginWeek();
+		LpChannelExperiment.BeginWeek();
 		foreach (RecordRuntimeData record in records) {
 			record.rackUnitsThisWeek = 0;
 			foreach (RegionalRecordData data in record.regionalData.Values) data.rackUnitsThisWeek = 0;
@@ -221,7 +224,7 @@ public static class RackJobberChannel {
 					LabelShips = ships, PastPeak = record.weeksSincePeakUnits > 0
 				});
 			}
-			AssignTiers(candidates, HitTitles, CatalogueTitles - (budget?.Count ?? 0));
+			AssignTiers(candidates, HitTitles, LpChannelExperiment.CatalogueSlots(budget?.Count ?? 0));
 			float pool = ShopperPool(region, year);
 			var racked = new List<Candidate>();
 			foreach (var c in candidates) {
@@ -229,21 +232,27 @@ public static class RackJobberChannel {
 				if (c.Tier == TierNone) continue;
 				float titlePool = pool * GenreWeight(c.Record, year);
 				float penetration = SharedExhaustion ? (float)((ExhaustionUnits(c.Data, rack: true) + (pendingStoreUnits != null ? c.StoreUnits : 0)) / Mathf.Max(1f, titlePool))
-					: c.Data.rackUnitsTotal / Mathf.Max(1f, titlePool);
+					: (c.Data.rackUnitsTotal - c.Data.rackStoreBuyerUnitsTotal) / Mathf.Max(1f, titlePool);
 				penetration += BudgetLpChannel.SourcePurchases(c.Record.baseRecord.recordId, region.regionId) / Mathf.Max(1f, titlePool);
 				c.Demand = titlePool * Exposure(c.Tier, c.Rank, c.Record.awareness) * Conversion(c.Record, year, month, liveTick) *
 					AlbumSimulator.CalculateAlbumExhaustion(penetration);
 				racked.Add(c);
+				c.AutonomousDemand = c.Demand;
+				LpChannelExperiment.Plan(region.regionId, c, year);
+				c.Demand += c.StoreChoice;
 			}
+			if (budget != null) LpChannelExperiment.ReserveBudgetBuyers(region.regionId, budget, racked);
 			int shelf = Shelf(region, year);
 			if (budget != null) {
 				BudgetLpChannel.AllocateShared(racked, budget, shelf);
 				BudgetLpChannel.Complete(region, week, year, shelf, racked.Sum(c => c.Units));
 			} else AllocateUnits(racked, shelf);
+			LpChannelExperiment.CompleteFront(region.regionId, racked);
 			var row = new RegionWeekRow { Week = week, Year = year, RegionId = region.regionId, Pool = pool, Shelf = shelf };
 			foreach (var c in racked) {
 				c.Data.rackUnitsThisWeek = c.Units;
 				c.Data.rackUnitsTotal += c.Units;
+				c.Data.rackStoreBuyerUnitsTotal += LpChannelExperiment.FrontSwitches(region.regionId, c.Record.baseRecord.recordId);
 				c.Record.rackUnitsThisWeek += c.Units;
 				row.Demand += c.Demand; row.Units += c.Units;
 				if (c.Tier == TierHit) { row.HitTitles++; row.HitUnits += c.Units; } else { row.CatalogueTitles++; row.CatalogueUnits += c.Units; }

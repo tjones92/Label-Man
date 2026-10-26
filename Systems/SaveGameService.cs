@@ -31,12 +31,12 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 32; // v32: separate own-master budget products and regional depletion.
+	public const int CurrentVersion = 33; // v33: saved LP assortment and buyer channel-choice treatments.
 	// Legacy-mode worlds still use exactly the v21 schema. Only experimental RNG
 	// worlds need v22, so older executables cannot silently change their dice on load.
 	// Only a world carrying the observe-only release-judgement shadow needs v23.
 	// Keep v24 while tagged history survives, including after the experimental switch is turned off.
-	public static int WritingVersion => BudgetLpChannel.Enabled || BudgetLpChannel.State != null ? 32 : LabelReleaseProgramme.ProjectJudgementEnabled || AiRepertoireService.HasPreparedState || CompetitorManager.Instance?.HasProjectJudgementState == true ? 31 : LabelReleaseProgramme.LpAssemblyEnabled || CompetitorManager.Instance?.HasLpAssemblyState == true ? 30 : LabelReleaseProgramme.MaterialSearchEnabled || CompetitorManager.Instance?.HasMaterialSearchState == true ? 29 : LabelReleaseProgramme.HasState ? 28 : RecordCampaignSpend.HasState ? 27 : PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
+	public static int WritingVersion => LpChannelExperiment.Enabled ? 33 : BudgetLpChannel.Enabled || BudgetLpChannel.State != null ? 32 : LabelReleaseProgramme.ProjectJudgementEnabled || AiRepertoireService.HasPreparedState || CompetitorManager.Instance?.HasProjectJudgementState == true ? 31 : LabelReleaseProgramme.LpAssemblyEnabled || CompetitorManager.Instance?.HasLpAssemblyState == true ? 30 : LabelReleaseProgramme.MaterialSearchEnabled || CompetitorManager.Instance?.HasMaterialSearchState == true ? 29 : LabelReleaseProgramme.HasState ? 28 : RecordCampaignSpend.HasState ? 27 : PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -1106,6 +1106,8 @@ public sealed class RegionalRecordSaveData {
 	public int? rackUnits { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? rackTier { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? rackStoreBuyers { get; set; }
 
 	public static RegionalRecordSaveData From(RegionalRecordData d) => new() {
 		regionId = d.regionId, awareness = d.awareness, sentiment = d.sentiment, radioPlay = d.radioPlay,
@@ -1117,6 +1119,7 @@ public sealed class RegionalRecordSaveData {
 		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge,
 		dealEvidenceAge = d.dealEvidenceAge,
 		rackUnits = d.rackUnitsTotal != 0 ? d.rackUnitsTotal : null, rackTier = d.rackTier != 0 ? d.rackTier : null,
+		rackStoreBuyers = d.rackStoreBuyerUnitsTotal != 0 ? d.rackStoreBuyerUnitsTotal : null,
 		arrival = d.awaitingArrival || d.pendingLaunchStock != 0 || d.arrivalAge >= 0
 			? new RegionalArrivalSaveData { awaitingArrival = d.awaitingArrival, arrivalAge = d.arrivalAge,
 				stock = d.pendingLaunchStock, awareness = d.pendingLaunchAwareness, radio = d.pendingLaunchRadio } : null
@@ -1138,6 +1141,11 @@ public sealed class RegionalRecordSaveData {
 		if (rackUnits != null || rackTier != null) {
 			RackJobberChannel.RequireForResume();
 			d.rackUnitsTotal = rackUnits ?? 0; d.rackTier = rackTier ?? 0;
+		}
+		if (rackStoreBuyers != null) {
+			if (LpChannelExperiment.ChoiceShare <= 0 || rackStoreBuyers < 0 || rackStoreBuyers > d.rackUnitsTotal)
+				throw new InvalidOperationException("Resume routed store buyers with their valid saved rack-choice treatment.");
+			d.rackStoreBuyerUnitsTotal = rackStoreBuyers.Value;
 		}
 		if (arrival != null) {
 			d.awaitingArrival = arrival.awaitingArrival; d.arrivalAge = arrival.arrivalAge;

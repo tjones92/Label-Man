@@ -5,7 +5,7 @@ param(
  [string]$Reference='rcl-v1',
  # Its clubs arm is the flag-off replay reference for the 13-week check.
  [string]$ReplayRun='rcl-v1-clubs-default-1001-106',
- [ValidateSet('control','racks','overlap','returns10','returns20','budget','budgetadd','budgetturnover45','budgetprice125','budgetfullswitch')][string[]]$Arms=@('control','racks'),
+ [ValidateSet('control','racks','overlap','returns10','returns20','budget','budgetadd','budgetturnover45','budgetprice125','budgetfullswitch','budgetmix','budgetchoice','budgetmixchoice','budgetchoicepure')][string[]]$Arms=@('control','racks'),
  # 0 keeps the code's frozen default scale.
  [double]$Scale=0,
  # V2 supply screen only: emits catalogue aggregates; books no budget units.
@@ -16,6 +16,8 @@ param(
  [int[]]$Seeds=@(1001),
  [ValidateRange(1,2)][int]$MaxParallel=2,
  [switch]$SkipChecks,
+ # Reuse completed checks only when their manifest has this exact assembly hash.
+ [string]$ValidationTag='',
  [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe'
 )
 $ErrorActionPreference='Stop'
@@ -35,25 +37,34 @@ if($BudgetLpAudit){$probeRackFlags+='--budget-lp-audit'}
 $probeHash=(Get-FileHash -LiteralPath (Join-Path $probeRoot '.godot/mono/temp/bin/Debug/Label Man.dll')).Hash
 New-Item -ItemType Directory -Path $probeDir | Out-Null
 $probePlan=[ordered]@{reference=$Reference;replayRun=$ReplayRun;arms=$Arms;weeks=$Weeks;seeds=$Seeds;scale=$Scale;assemblySha256=$probeHash;bundle=$probeFlags;rackFlags=$probeRackFlags;scenarioDefaults=@{budgetPrice=1.75;budgetShopperScale=0.08;budgetSubstitution=0.25;rackTurnover=30};checks=@();runs=@();calibrationAccepted=$false}
+if($ValidationTag){
+ if(!$SkipChecks){throw 'ValidationTag requires SkipChecks.'}
+ $probeValidation=Get-Content -LiteralPath (Join-Path $probeRoot "SimLogs/$ValidationTag/plan.json") -Raw | ConvertFrom-Json
+ if($probeValidation.assemblySha256 -ne $probeHash -or !$probeValidation.checks.Count -or @($probeValidation.checks | Where-Object {!$_.passed}).Count -or @($probeValidation.runs | Where-Object {!$_.passed}).Count -or $probeValidation.runs.Count -ne ($probeValidation.arms.Count * $probeValidation.seeds.Count)){throw 'Validation evidence must be complete and use this assembly.'}
+ if(@($Arms | Where-Object {$_ -in @('budgetmix','budgetchoice','budgetmixchoice','budgetchoicepure')}).Count -and (@('channelnative','channelroundtrip') | Where-Object {$_ -notin @($probeValidation.checks.check)})){throw 'LP treatments need native and v33 roundtrip evidence.'}
+ $probePlan.checks=@($probeValidation.checks | ForEach-Object {@{check=$_.check;passed=$_.passed;sourceTag=$ValidationTag;args=$_.args}})
+}
 $probePlan | ConvertTo-Json -Depth 9 | Set-Content -LiteralPath (Join-Path $probeDir 'plan.json') -Encoding utf8
 $probeChecks=if($SkipChecks){@()}else{@('native','off13','roundtrip')}
 if($BudgetLpAudit -and !$SkipChecks){$probeChecks+=@('budgetnative')}
 if(@($Arms | Where-Object {$_ -like 'budget*'}).Count -and !$SkipChecks){$probeChecks+=@('budgetproducts','budgetroundtrip')}
+if(@($Arms | Where-Object {$_ -in @('budgetmix','budgetchoice','budgetmixchoice','budgetchoicepure')}).Count -and !$SkipChecks){$probeChecks+=@('channelnative','channelroundtrip')}
 foreach($probeCheck in $probeChecks) {
  $probeName="$RunTag-$probeCheck"
  $probeScene=if($probeCheck -eq 'off13'){'SimTools/ChartAuditRunner.tscn'}else{'SimTools/SaveLoadRoundTripRunner.tscn'}
- $probeExtra=if($probeCheck -eq 'native'){@('--rack-jobber-check')}elseif($probeCheck -eq 'budgetnative'){@('--budget-lp-catalogue-check')}elseif($probeCheck -eq 'budgetproducts'){@('--budget-lp-check')}else{@('--weeks=13',"--seed=$($Seeds[0])",'--calibration','--small-label-finance')+$probeFlags}
+ $probeExtra=if($probeCheck -eq 'native'){@('--rack-jobber-check')}elseif($probeCheck -eq 'budgetnative'){@('--budget-lp-catalogue-check')}elseif($probeCheck -eq 'budgetproducts'){@('--budget-lp-check')}elseif($probeCheck -eq 'channelnative'){@('--lp-channel-check')}else{@('--weeks=13',"--seed=$($Seeds[0])",'--calibration','--small-label-finance')+$probeFlags}
  if($probeCheck -eq 'off13'){$probeExtra=@('--weeks=13',"--seed=$($Seeds[0])",'--calibration','--small-label-finance')+$probeReplayFlags}
  if($probeCheck -eq 'off13'){$probeExtra+="--run=$probeName"}
  if($probeCheck -eq 'roundtrip'){$probeExtra+=$probeRackFlags}
  if($probeCheck -eq 'budgetroundtrip'){$probeExtra+=$probeRackFlags; $probeExtra+='--budget-lps'}
+ if($probeCheck -eq 'channelroundtrip'){$probeExtra+=$probeRackFlags; $probeExtra+=@('--budget-lps','--rack-mixed-assortment','--rack-store-choice=0.5')}
  $probeArgs=@('--headless','--path','.', $probeScene,'--')+$probeExtra
  $probeStdout=Join-Path $probeDir "$probeCheck-console.log"; $probeStderr=Join-Path $probeDir "$probeCheck-errors.log"
  $probeProcess=Start-Process -FilePath $Godot -ArgumentList $probeArgs -WorkingDirectory $probeRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $probeStdout -RedirectStandardError $probeStderr
  $null=$probeProcess.Handle
  while(!$probeProcess.WaitForExit(10000)){Write-Output "Rack jobbers $probeCheck running."}
  $probeProcess.WaitForExit()
- $probeMarker=switch($probeCheck){'native'{'RACK_JOBBER_CHECKS_OK'} 'budgetnative'{'BUDGET_LP_CATALOGUE_CHECKS_OK'} 'budgetproducts'{'BUDGET_LP_CHECKS_OK'} 'off13'{"CHART_AUDIT_COMPLETE run=$probeName weeks=13"} default{'SAVELOAD_ROUNDTRIP_PASS'}}
+ $probeMarker=switch($probeCheck){'native'{'RACK_JOBBER_CHECKS_OK'} 'budgetnative'{'BUDGET_LP_CATALOGUE_CHECKS_OK'} 'budgetproducts'{'BUDGET_LP_CHECKS_OK'} 'channelnative'{'LP_CHANNEL_CHECKS_OK'} 'off13'{"CHART_AUDIT_COMPLETE run=$probeName weeks=13"} default{'SAVELOAD_ROUNDTRIP_PASS'}}
  $probePassed=$probeProcess.ExitCode -eq 0 -and (Get-Content -LiteralPath $probeStdout -Raw).Contains($probeMarker) -and !(Select-String -LiteralPath $probeStderr -Pattern 'SCRIPT ERROR|ERROR:' -Quiet)
  $probePlan.checks+=@{check=$probeCheck;passed=$probePassed;args=$probeArgs}
  $probePlan | ConvertTo-Json -Depth 9 | Set-Content -LiteralPath (Join-Path $probeDir 'plan.json') -Encoding utf8
@@ -67,10 +78,13 @@ foreach($probeArm in $Arms) {foreach($probeSeed in $Seeds) {
  if($probeArm -eq 'overlap'){$probeExtra+='--rack-shared-exhaustion'}
  if($probeArm -eq 'returns10'){$probeExtra+='--rack-returns=0.1'}
  if($probeArm -eq 'returns20'){$probeExtra+='--rack-returns=0.2'}
- if($probeArm -like 'budget*'){$probeExtra+='--budget-lps'; $probeBudgetPool=if($probeArm -eq 'budgetfullswitch'){'0'}else{'0.08'}; $probeExtra+="--budget-shopper-scale=$probeBudgetPool"; $probeBudgetPrice=if($probeArm -eq 'budgetprice125'){'1.25'}else{'1.75'}; $probeExtra+="--budget-price=$probeBudgetPrice"}
+ if($probeArm -like 'budget*'){$probeExtra+='--budget-lps'; $probeBudgetPool=if($probeArm -in @('budgetfullswitch','budgetchoicepure')){'0'}else{'0.08'}; $probeExtra+="--budget-shopper-scale=$probeBudgetPool"; $probeBudgetPrice=if($probeArm -eq 'budgetprice125'){'1.25'}else{'1.75'}; $probeExtra+="--budget-price=$probeBudgetPrice"}
  if($probeArm -eq 'budgetadd'){$probeExtra+='--budget-substitution=0'}
  if($probeArm -eq 'budgetfullswitch'){$probeExtra+='--budget-substitution=1'}
  if($probeArm -eq 'budgetturnover45'){$probeExtra+='--rack-turnover=45'}
+ if($probeArm -in @('budgetmix','budgetmixchoice','budgetchoicepure')){$probeExtra+='--rack-mixed-assortment'}
+ if($probeArm -in @('budgetchoice','budgetmixchoice')){$probeExtra+='--rack-store-choice=0.5'}
+ if($probeArm -eq 'budgetchoicepure'){$probeExtra+=@('--rack-store-choice=1','--rack-shopper-scale=0.000001','--budget-substitution=1')}
  $probeJobs.Enqueue(@{arm=$probeArm;seed=$probeSeed;name=$probeName;flags=$probeExtra})
 }}
 $probeActive=[Collections.Generic.List[object]]::new()

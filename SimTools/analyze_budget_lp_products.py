@@ -29,6 +29,7 @@ def analyse(plan_path, completed_only=False):
         front = read(prefix, 'rack-region-weekly')
         titles = read(prefix, 'rack-title-weekly')
         company = read(prefix, 'company-monthly')
+        census = read(prefix, 'demand-release-census')
         week_year = sales.groupby('week').year.first()
         if sales.groupby('week').year.nunique().max() != 1:
             raise ValueError('Ambiguous settlement year')
@@ -39,6 +40,8 @@ def analyse(plan_path, completed_only=False):
         if company.cashReconciliationError.abs().max() > .02:
             raise ValueError('Cash reconciliation fails: ' + run['name'])
         budget, product, finance = None, None, None
+        choice = None
+        wide = '--rack-mixed-assortment' in run['args']
         if run['arm'].startswith('budget'):
             budget = read(prefix, 'budget-region-weekly')
             product = read(prefix, 'budget-product-weekly')
@@ -48,7 +51,7 @@ def analyse(plan_path, completed_only=False):
             if ((product.switchedStoreUnits > product.units) | (product.switchedStoreUnits < 0)).any():
                 raise ValueError('Unfulfilled buyer substitution')
             assortment = front.set_index(['week', 'regionId'])[['hitTitles', 'catalogueTitles']].sum(axis=1)
-            if assortment.add(budget.set_index(['week', 'regionId']).budgetOffers, fill_value=0).max() > 75:
+            if assortment.add(budget.set_index(['week', 'regionId']).budgetOffers, fill_value=0).max() > (100 if wide else 75):
                 raise ValueError('Duplicate assortment slots')
             equal(budget.groupby(['week', 'regionId']).frontUnits.sum(), front.groupby(['week', 'regionId']).units.sum(), 'shared front units')
             equal(budget.groupby(['week', 'regionId']).budgetUnits.sum(), product.groupby(['week', 'regionId']).units.sum(), 'budget product units')
@@ -61,15 +64,31 @@ def analyse(plan_path, completed_only=False):
                 raise ValueError('Product sold before holdback')
             if run['arm'] == 'budgetadd' and budget.switchedStoreUnits.sum() != 0:
                 raise ValueError('Zero weekly-substitution arm switched buyers')
-            if run['arm'] == 'budgetfullswitch' and not budget.budgetUnits.eq(budget.switchedStoreUnits).all():
+            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure'} and not budget.budgetUnits.eq(budget.switchedStoreUnits).all():
                 raise ValueError('Zero-incremental-pool stress invented buyers')
-            if run['arm'] == 'budgetfullswitch' and budget.budgetUnits.sum() <= 0:
+            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure'} and budget.budgetUnits.sum() <= 0:
                 raise ValueError('Zero-incremental-pool stress must exercise actual sales')
+            if Path(f'{prefix}-lp-channel-choice-weekly.csv').exists():
+                choice = read(prefix, 'lp-channel-choice-weekly')
+                if not choice.storeBefore.eq(choice.storeAfter + choice.frontSwitched + choice.budgetSwitched).all():
+                    raise ValueError('Front-line/budget/store buyers do not conserve')
+                if ((choice.frontSwitched > choice.frontPlanned) | (choice.frontPlanned > choice.storeBefore) |
+                    (choice.budgetSwitched > choice.storeBefore - choice.frontPlanned) |
+                    choice[['storeBefore', 'frontPlanned', 'frontSwitched', 'budgetSwitched', 'storeAfter']].lt(0).any(axis=1)).any():
+                    raise ValueError('Buyer cohorts overlap or exceed available purchases')
+                equal(choice.groupby('week').storeAfter.sum(), stores.groupby('week').lpUnits.sum(), 'final store choice units')
+                equal(choice.groupby(['week', 'regionId']).budgetSwitched.sum(), budget.groupby(['week', 'regionId']).switchedStoreUnits.sum(), 'budget transfers')
+                if choice.set_index(['week', 'regionId']).frontSwitched.sub(front.set_index(['week', 'regionId']).units, fill_value=0).max() > 0:
+                    raise ValueError('Unfulfilled front-line switches')
+                if not any(a.startswith('--rack-store-choice=') and float(a.split('=')[1]) > 0 for a in run['args']) and choice.frontSwitched.sum() != 0:
+                    raise ValueError('Choice-off arm routed buyers')
+                if run['arm'] == 'budgetchoicepure' and choice.frontSwitched.sum() <= 0:
+                    raise ValueError('Choice conservation stress must exercise front-line routes')
         elif (front.units > front.shelf).any():
             raise ValueError('Front-line shelf exceeded')
         checks.append(dict(run=run['name'], cashMaxError=float(company.cashReconciliationError.abs().max()),
                            shelf=True, productAndFinanceIdentity=True))
-        for frame in [front, titles, budget, product]:
+        for frame in [front, titles, budget, product, choice]:
             if frame is not None:
                 frame['year'] = frame.week.map(week_year)
                 if frame.year.isna().any():
@@ -84,6 +103,16 @@ def analyse(plan_path, completed_only=False):
                        budgetNet=total(finance, 'net'), frontDemandM=total(front, 'demand') / 1e6,
                        frontHitM=total(front, 'hitUnits') / 1e6, frontCatalogueM=total(front, 'catalogueUnits') / 1e6,
                        budgetDemandM=total(budget, 'budgetDemand') / 1e6)
+            row.update(frontSwitchedM=total(choice, 'frontSwitched') / 1e6, frontPlannedM=total(choice, 'frontPlanned') / 1e6,
+                       storeBeforeChoiceM=total(choice, 'storeBefore') / 1e6, mixedAssortment=wide)
+            row['totalSwitchedM'] = row['frontSwitchedM'] + row['switchedStoreM']
+            row['autonomousFrontUnitsM'] = row['frontRacksM'] - row['frontSwitchedM']
+            row['autonomousFrontDemandM'] = max(0, row['frontDemandM'] - row['frontPlannedM'])
+            store_year = stores[stores.year == year]
+            row['meanLiveLps'] = float(store_year.groupby('week').liveLps.sum().mean())
+            row['lpLaunchEntrants'] = int(store_year.launchChartEntrants.sum())
+            row['singlesM'] = float(sales.loc[(sales.year == year) & (sales.format == 'Single'), 'units'].sum()) / 1e6
+            row['lpRetirements'] = int(((census.format == 'Album') & census.retiredAuditWeek.map(week_year).eq(year)).sum())
             if product is not None:
                 row['budgetOwnMasterM'] = float(product.loc[(product.year == year) & (product.provenance == 'OwnMaster'), 'units'].sum()) / 1e6
                 row['budgetOpeningM'] = float(product.loc[(product.year == year) & (product.provenance == 'OpeningSyntheticBasket'), 'units'].sum()) / 1e6
@@ -107,7 +136,7 @@ def analyse(plan_path, completed_only=False):
                               ['storesM', 'frontRacksM', 'budgetRacksM', 'allRacksM', 'totalLpM']}))
     return dict(assemblySha256=plan['assemblySha256'], matrixComplete=matrix_complete, calibrationAccepted=False, checks=checks,
                 annual=annual, paired=paired, assumptions=dict(ownMasterOnly=True, openingBasketsSynthetic=True,
-                  scenarioDefaults=defaults, scenarios={r['arm']: [a for a in r['args'] if a.startswith(('--budget-', '--rack-turnover='))]
+                  scenarioDefaults=defaults, scenarios={r['arm']: [a for a in r['args'] if a.startswith(('--budget-', '--rack-'))]
                                                        for r in plan['runs']},
                   warning='Scenario defaults; no market size inferred from a net sales gap. Partial years are never annualized.'))
 

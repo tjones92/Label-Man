@@ -1,5 +1,12 @@
 # Headless chart realism audit
 
+The LP assortment × channel-choice experiment is in
+[LpChannelFactorial.md](LpChannelFactorial.md). Its four arms hold shopper scales,
+prices and rack unit capacity fixed while testing wider assortment and routing
+existing store buyers to racks. Native checks use `--lp-channel-check`; active
+treatments save as v33. `analyze_lp_channel_factorial.py --tag TAG` validates the
+buyer identities and reports the factorial effects.
+
 This removable harness runs the real Godot autoload chain. It waits for normal
 autoload initialization and prewarming, then advances `TimeManager` one week at
 a time. CSV files under `SimLogs/` are scratch output and are gitignored.

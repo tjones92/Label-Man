@@ -24,6 +24,8 @@ public partial class ChartAuditRunner {
 		}
 		Write("budget-region-weekly", "week,year,regionId,shelf,frontUnits,budgetUnits,switchedStoreUnits,budgetOffers,budgetDemand",
 			BudgetLpChannel.Regions.Select(r => new object[] { r.Week, r.Year, r.RegionId, r.Shelf, r.FrontUnits, r.BudgetUnits, r.Switched, r.BudgetOffers, r.Demand }));
+		Write("lp-channel-choice-weekly", "week,year,regionId,storeBefore,frontPlanned,frontSwitched,budgetSwitched,storeAfter",
+			LpChannelExperiment.Rows.Select(r => new object[] { r.Week, r.Year, r.RegionId, r.StoreBefore, r.FrontPlanned, r.FrontSwitched, r.BudgetSwitched, r.StoreAfter }));
 		Write("budget-product-weekly", "week,year,regionId,productId,ownerId,provenance,genre,demand,units,switchedStoreUnits",
 			BudgetLpChannel.Products.Select(r => new object[] { r.Week, r.Year, r.RegionId, r.ProductId, r.OwnerId, r.Provenance, r.Genre, r.Demand, r.Units, r.Switched }));
 		Write("budget-finance-weekly", "week,year,ownerId,units,gross,cogs,royalty,returnWriteOff,net",

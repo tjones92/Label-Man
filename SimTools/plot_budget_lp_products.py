@@ -21,16 +21,22 @@ if __name__ == '__main__':
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    review = json.loads((folder / 'budget-review.json').read_text())
+    review_path = folder / 'budget-review.json'
+    if not review_path.exists():
+        review_path = folder / 'factorial-review.json'
+    review = json.loads(review_path.read_text())
     if not review['matrixComplete']:
         raise ValueError('The declared comparison matrix must be complete')
     rows = [r for r in review['annual'] if r['year'] == args.year and r['seed'] == args.seed and not r['partial']]
     if not rows or args.year not in BILLBOARD:
         raise ValueError('A completed historical comparison year is required')
-    order = ['racks', 'budget', 'budgetadd', 'budgetturnover45', 'budgetprice125']
+    order = ['racks', 'budget', 'budgetmix', 'budgetchoice', 'budgetmixchoice', 'budgetadd', 'budgetturnover45', 'budgetprice125']
     rows.sort(key=lambda row: order.index(row['arm']) if row['arm'] in order else len(order))
     names = {'racks': 'Front-line\nonly', 'budget': 'Budget +\nsubstitution', 'budgetadd': 'Budget,\nweekly switch off',
-             'budgetturnover45': 'Budget +\nturnover 45', 'budgetprice125': '$1.25 +\nmargin gate'}
+             'budgetturnover45': 'Budget +\nturnover 45', 'budgetprice125': '$1.25 +\nmargin gate',
+             'budgetmix': 'Wider\nassortment', 'budgetchoice': 'Broader\nchannel choice', 'budgetmixchoice': 'Both\ntreatments'}
+    if any(r['arm'] == 'budgetmix' for r in rows):
+        names['budget'] = 'Current\nbudget model'
     x = np.arange(len(rows))
     plt.rcParams.update({'font.family': 'DejaVu Sans', 'font.size': 11})
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.4))

@@ -446,6 +446,7 @@ public partial class ChartManager : Node {
 		RecordClubChannel.Configure(OS.GetCmdlineUserArgs());
 		RackJobberChannel.Configure(OS.GetCmdlineUserArgs());
 		BudgetLpChannel.Configure(OS.GetCmdlineUserArgs());
+		LpChannelExperiment.Configure(OS.GetCmdlineUserArgs());
 		AiMasterDeals.Configure(OS.GetCmdlineUserArgs());
 		AiBackers.Configure(OS.GetCmdlineUserArgs());
 		LabelCorporateModel.Configure(OS.GetCmdlineUserArgs());
@@ -1432,24 +1433,35 @@ public partial class ChartManager : Node {
 				(record, region) => pending[region].GetValueOrDefault(record));
 			foreach (var (region, intents) in intentsByRegion) {
 				var summary = summariesByRegion[region];
+				void RemoveStore(MarketIntent intent, int remove) {
+					if (remove < 0 || remove > intent.Cleared) throw new InvalidOperationException("LP channel switch exceeds title's store buyers.");
+					intent.Cleared -= remove;
+					int spill = Math.Min(remove, intent.SpilloverCleared); intent.SpilloverCleared -= spill;
+					int local = remove - spill; intent.Data.localClearedThisWeek -= local;
+					summary.SpilloverClearedUnits -= spill;
+					summary.LocalClearedAlbumUnits -= local; summary.LocalClearedUnits -= local;
+				}
+				long beforeStores = intents.Where(i => i.Record.baseRecord.format == ReleaseFormat.Album && !i.Record.baseRecord.isPlayerOwned).Sum(i => (long)i.Cleared);
+				long budgetSwitched = 0;
 				foreach (var group in intents.Where(i => i.Record.baseRecord.format == ReleaseFormat.Album && !i.Record.baseRecord.isPlayerOwned).GroupBy(i => i.Record.baseRecord.primaryGenre)) {
+					foreach (var intent in group) RemoveStore(intent, LpChannelExperiment.FrontSwitches(region, intent.Record.baseRecord.recordId));
 					int switchUnits = BudgetLpChannel.SwitchUnits(region, group.Key);
-					var chosen = group.Where(i => i.Cleared > 0).OrderBy(i => i.Record.baseRecord.recordId, StringComparer.Ordinal).ToList();
-					int total = chosen.Sum(i => i.Cleared), remaining = switchUnits;
+					budgetSwitched += switchUnits;
+					var chosen = group.Select(i => (intent: i, eligible: LpChannelExperiment.BudgetEligible(region, i.Record.baseRecord.recordId, i.Cleared)))
+						.Where(p => p.eligible > 0).OrderBy(p => p.intent.Record.baseRecord.recordId, StringComparer.Ordinal).ToList();
+					int total = chosen.Sum(p => p.eligible), remaining = switchUnits;
 					if (switchUnits > total) throw new InvalidOperationException("Budget switch exceeds store purchases.");
 					// Cumulative proportional integer allocation conserves every switched buyer.
 					long cumulative = 0; int allocated = 0;
-					foreach (var intent in chosen) {
-						cumulative += intent.Cleared;
+					foreach (var (intent, eligible) in chosen) {
+						cumulative += eligible;
 						int to = (int)(cumulative * switchUnits / Math.Max(1, total)), remove = to - allocated;
-						allocated = to; remaining -= remove; intent.Cleared -= remove;
-						int spill = Math.Min(remove, intent.SpilloverCleared); intent.SpilloverCleared -= spill;
-						int local = remove - spill; intent.Data.localClearedThisWeek -= local;
-						summary.SpilloverClearedUnits -= spill;
-						summary.LocalClearedAlbumUnits -= local; summary.LocalClearedUnits -= local;
+						allocated = to; remaining -= remove; RemoveStore(intent, remove);
 					}
 					if (remaining != 0) throw new InvalidOperationException("Budget buyer transfer failed.");
 				}
+				LpChannelExperiment.Record(currentChartWeek, year, region, beforeStores, budgetSwitched,
+					intents.Where(i => i.Record.baseRecord.format == ReleaseFormat.Album && !i.Record.baseRecord.isPlayerOwned).Sum(i => (long)i.Cleared));
 			}
 		}
 

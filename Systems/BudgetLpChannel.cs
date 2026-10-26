@@ -40,13 +40,15 @@ public static class BudgetLpChannel {
 			throw new InvalidOperationException("Resume with the saved budget shopper scale, substitution and price.");
 		if (state != null && state.RackTurnover != RackJobberChannel.Turnover)
 			throw new InvalidOperationException("Resume with the saved rack turnover.");
-		State = state?.Copy(); weekRows.Clear();
+		LpChannelExperiment.RequireSettings(state);
+		State = state?.Copy(); weekRows.Clear(); LpChannelExperiment.BeginWeek();
 	}
 	internal static void ResetForChecks(bool enabled = false, double scale = .08, double substitution = .25) {
 		configured = enabled; Enabled = enabled; ShopperScale = scale; Substitution = substitution; Price = 1.75;
 		State = null; weekRows.Clear(); regions.Clear(); products.Clear(); finance.Clear();
 	}
-	private static BudgetLpState Ensure() => State ??= new BudgetLpState { Scale = ShopperScale, Substitution = Substitution, Price = Price, RackTurnover = RackJobberChannel.Turnover };
+	private static BudgetLpState Ensure() => State ??= new BudgetLpState { Scale = ShopperScale, Substitution = Substitution, Price = Price,
+		RackTurnover = RackJobberChannel.Turnover, MixedAssortment = LpChannelExperiment.MixedAssortment, RackChoice = LpChannelExperiment.ChoiceShare };
 	internal static void Remember(RecordRuntimeData record, int week) {
 		if (!Enabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned || record.baseRecord.format != ReleaseFormat.Album ||
 			record.totalUnitsSold <= 0 || string.IsNullOrEmpty(record.baseRecord.labelId)) return;
@@ -189,7 +191,12 @@ public sealed class BudgetLpState {
 	public double Price { get; set; } = 1.75;
 	public float RackTurnover { get; set; } = RackJobberChannel.UnitsPerRackWeek;
 	public Dictionary<string, BudgetLpProduct> Products { get; set; } = new(StringComparer.Ordinal);
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public bool MixedAssortment { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public double RackChoice { get; set; }
 	public BudgetLpState Copy() => new() { Initialized = Initialized, Scale = Scale, Substitution = Substitution, Price = Price, RackTurnover = RackTurnover,
+		MixedAssortment = MixedAssortment, RackChoice = RackChoice,
 		Products = Products.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value.Copy(), StringComparer.Ordinal) };
 }
 public sealed class BudgetLpProduct {

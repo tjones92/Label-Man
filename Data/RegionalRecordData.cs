@@ -101,6 +101,8 @@ public class RegionalRecordData {
 	// (RackJobberChannel.Tier*). The last two are saved only when nonzero.
 	public int rackUnitsThisWeek;
 	public int rackUnitsTotal;
+	// Accounting stays in racks; these purchases still exhaust the original store buyer cohort.
+	public int rackStoreBuyerUnitsTotal;
 	public int rackTier;
 	public float salesVelocity;
 	public int sustainedGrowthWeeks;
