@@ -209,6 +209,8 @@ public sealed class CompetitorSaveData {
 	public int GeneratedRecordCounter { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public RecordClubState RecordClubs { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public BudgetLpState BudgetLps { get; set; }
 }
 
 /// <summary>One entry of the (artistId, year) -> project-count map, flattened for JSON (tuple keys don't

@@ -263,6 +263,8 @@ public partial class ChartManager : Node {
 		public string RecordId, LabelId, LabelTier, Genre;
 		public ReleaseFormat Format;
 		public int Units;
+		// Rack-jobber LP units: booked as sales with Units, but kept apart so Units stays the chart and market total.
+		public int RackUnits;
 		public IReadOnlyList<CompletedWeekSettlementRegion> Regions;
 		public float Gross, ManufacturingCost, ArtistRoyalty, DistributionSkim, LabelNet, DistributionIncome, MarketNet;
 		// Publishing (Scouting Mechanic Phase 4). PublishingIncome is the composition-royalty slice the
@@ -296,6 +298,7 @@ public partial class ChartManager : Node {
 		public string RegionId;
 		public int RawIntent, ServiceableIntent, LocalCleared, SpilloverCleared, FinalCleared;
 		public int PhysicalBackorders, MarketDisplacedDemand, InventoryMovement;
+		public int RackUnits;
 	}
 	private sealed class MarketIntent {
 		public RecordRuntimeData Record;
@@ -441,6 +444,8 @@ public partial class ChartManager : Node {
 		LaunchStocking.Configure(OS.GetCmdlineUserArgs());
 		MajorOffChartSingles.Configure(OS.GetCmdlineUserArgs());
 		RecordClubChannel.Configure(OS.GetCmdlineUserArgs());
+		RackJobberChannel.Configure(OS.GetCmdlineUserArgs());
+		BudgetLpChannel.Configure(OS.GetCmdlineUserArgs());
 		AiMasterDeals.Configure(OS.GetCmdlineUserArgs());
 		AiBackers.Configure(OS.GetCmdlineUserArgs());
 		LabelCorporateModel.Configure(OS.GetCmdlineUserArgs());
@@ -837,6 +842,7 @@ public partial class ChartManager : Node {
 					Genre = record.baseRecord.primaryGenre.ToString(),
 					Format = record.baseRecord.format,
 					Units = record.unitsThisWeek,
+					RackUnits = record.rackUnitsThisWeek,
 					RetiredAfterSettlement = retirementEligible,
 					Regions = record.regionalData.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new CompletedWeekSettlementRegion {
 						RegionId = pair.Key,
@@ -847,7 +853,8 @@ public partial class ChartManager : Node {
 						SpilloverCleared = pair.Value.spilloverClearedThisWeek,
 						PhysicalBackorders = pair.Value.unitsBackordered,
 						MarketDisplacedDemand = pair.Value.marketDisplacedDemandThisWeek,
-						InventoryMovement = pair.Value.unitsSoldThisWeek
+						InventoryMovement = pair.Value.unitsSoldThisWeek,
+						RackUnits = pair.Value.rackUnitsThisWeek
 					}).ToArray()
 				};
 				return entry;
@@ -1301,6 +1308,7 @@ public partial class ChartManager : Node {
 		lastMarketClearingSummaries.Clear();
 		lastMarketSpilloverTransfers.Clear();
 		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(allRecords.Count), StringComparer.Ordinal);
+		BudgetLpChannel.Prepare(allRecords, GetLabelById, currentChartWeek);
 		int intentCount = 0;
 		// Demand evaluation deliberately retains record-major / region-minor order so
 		// the existing sales jitter consumes precisely the same RNG sequence.
@@ -1418,6 +1426,33 @@ public partial class ChartManager : Node {
 		ApplyBoundedRegionalSpillover(intentsByRegion, summariesByRegion);
 		if (LpCapacityScreen.Audit) foreach (var pair in summariesByRegion) ApplyAdditionalLpCapacity(intentsByRegion[pair.Key], pair.Value);
 
+		if (BudgetLpChannel.Enabled) {
+			var pending = intentsByRegion.ToDictionary(p => p.Key, p => p.Value.ToDictionary(i => i.Record, i => i.Cleared));
+			RackJobberChannel.ClearWeek(allRecords, allRegions, GetLabelById, currentChartWeek, year, month, triggerEvents,
+				(record, region) => pending[region].GetValueOrDefault(record));
+			foreach (var (region, intents) in intentsByRegion) {
+				var summary = summariesByRegion[region];
+				foreach (var group in intents.Where(i => i.Record.baseRecord.format == ReleaseFormat.Album && !i.Record.baseRecord.isPlayerOwned).GroupBy(i => i.Record.baseRecord.primaryGenre)) {
+					int switchUnits = BudgetLpChannel.SwitchUnits(region, group.Key);
+					var chosen = group.Where(i => i.Cleared > 0).OrderBy(i => i.Record.baseRecord.recordId, StringComparer.Ordinal).ToList();
+					int total = chosen.Sum(i => i.Cleared), remaining = switchUnits;
+					if (switchUnits > total) throw new InvalidOperationException("Budget switch exceeds store purchases.");
+					// Cumulative proportional integer allocation conserves every switched buyer.
+					long cumulative = 0; int allocated = 0;
+					foreach (var intent in chosen) {
+						cumulative += intent.Cleared;
+						int to = (int)(cumulative * switchUnits / Math.Max(1, total)), remove = to - allocated;
+						allocated = to; remaining -= remove; intent.Cleared -= remove;
+						int spill = Math.Min(remove, intent.SpilloverCleared); intent.SpilloverCleared -= spill;
+						int local = remove - spill; intent.Data.localClearedThisWeek -= local;
+						summary.SpilloverClearedUnits -= spill;
+						summary.LocalClearedAlbumUnits -= local; summary.LocalClearedUnits -= local;
+					}
+					if (remaining != 0) throw new InvalidOperationException("Budget buyer transfer failed.");
+				}
+			}
+		}
+
 		foreach (MarketRegion region in allRegions) {
 			List<MarketIntent> intents = intentsByRegion[region.regionId];
 			MarketClearingRegionalSummary summary = summariesByRegion[region.regionId];
@@ -1444,6 +1479,8 @@ public partial class ChartManager : Node {
 				summary.AllocationViolationCount++;
 			lastMarketClearingSummaries.Add(summary);
 		}
+		// Rack jobbers sell to their own shoppers after the stores have cleared; their units bypass every summary above.
+		if (!BudgetLpChannel.Enabled) RackJobberChannel.ClearWeek(allRecords, allRegions, GetLabelById, currentChartWeek, year, month, triggerEvents);
 		foreach (RecordRuntimeData record in allRecords) {
 			int totalSales = record.regionalData.Values.Sum(data => data.unitsSoldThisWeek);
 			ChartSimulator.FinalizeWeeklySales(record, totalSales);

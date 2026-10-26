@@ -86,6 +86,12 @@ public static class AlbumSimulator {
 		int regionalCumulativeUnitsBeforeSale = data.unitsSoldTotal;
 		float observedPenetration = regionalCumulativeUnitsBeforeSale / Mathf.Max(1f, buyerPool);
 		float penetration = CalculateEffectiveRegionalPenetration(data, regionalCumulativeUnitsBeforeSale, buyerPool, genreMarketLive);
+		if (BudgetLpChannel.Enabled) {
+			double purchases = regionalCumulativeUnitsBeforeSale + (double)BudgetLpChannel.SourcePurchases(record.baseRecord.recordId, region.regionId)
+				+ (RackJobberChannel.SharedExhaustion ? data.rackUnitsTotal : 0);
+			penetration = Mathf.Max(penetration, (float)(purchases / Mathf.Max(1f, buyerPool)));
+			if (genreMarketLive) data.albumPeakEffectivePenetration = Mathf.Max(data.albumPeakEffectivePenetration, penetration);
+		}
 		float exhaustion = CalculateAlbumExhaustion(penetration);
 		float conversion = BasePurchaseRate * Mathf.Pow(appeal, 2.5f) * exhaustion;
 		conversion *= 0.72f + record.wordOfMouth * 0.45f;
@@ -147,6 +153,8 @@ public static class AlbumSimulator {
 	internal static float CalculateEffectiveRegionalPenetration(RegionalRecordData data, int regionalCumulativeUnitsBeforeSale,
 		float buyerPool, bool genreMarketLive) {
 		float observedPenetration = regionalCumulativeUnitsBeforeSale / Mathf.Max(1f, buyerPool);
+		if (RackJobberChannel.Enabled && RackJobberChannel.SharedExhaustion)
+			observedPenetration = (float)(((double)regionalCumulativeUnitsBeforeSale + data.rackUnitsTotal) / Mathf.Max(1f, buyerPool));
 		if (!genreMarketLive) return observedPenetration;
 		float effectivePenetration = Mathf.Max(data.albumPeakEffectivePenetration, observedPenetration);
 		data.albumPeakEffectivePenetration = effectivePenetration;

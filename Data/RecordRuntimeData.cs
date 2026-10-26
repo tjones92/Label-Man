@@ -49,6 +49,8 @@ public class RecordRuntimeData {
 	
 	// === SALES TRACKING ===
 	public int unitsThisWeek;
+	// Rack-jobber LP units this week (RackJobberChannel): booked as sales, never chart points. Week-local.
+	public int rackUnitsThisWeek;
 	public int unitsPreviousWeek;
 	public int totalUnitsSold;
 	// Running maximum, not the eventual peak: it equals unitsThisWeek all the way up the climb and

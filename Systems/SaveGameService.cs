@@ -31,12 +31,12 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 31; // v31: reviewed projects and prepared repertoire picks; v30: LP assembly; v29: material work.
+	public const int CurrentVersion = 32; // v32: separate own-master budget products and regional depletion.
 	// Legacy-mode worlds still use exactly the v21 schema. Only experimental RNG
 	// worlds need v22, so older executables cannot silently change their dice on load.
 	// Only a world carrying the observe-only release-judgement shadow needs v23.
 	// Keep v24 while tagged history survives, including after the experimental switch is turned off.
-	public static int WritingVersion => LabelReleaseProgramme.ProjectJudgementEnabled || AiRepertoireService.HasPreparedState || CompetitorManager.Instance?.HasProjectJudgementState == true ? 31 : LabelReleaseProgramme.LpAssemblyEnabled || CompetitorManager.Instance?.HasLpAssemblyState == true ? 30 : LabelReleaseProgramme.MaterialSearchEnabled || CompetitorManager.Instance?.HasMaterialSearchState == true ? 29 : LabelReleaseProgramme.HasState ? 28 : RecordCampaignSpend.HasState ? 27 : PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
+	public static int WritingVersion => BudgetLpChannel.Enabled || BudgetLpChannel.State != null ? 32 : LabelReleaseProgramme.ProjectJudgementEnabled || AiRepertoireService.HasPreparedState || CompetitorManager.Instance?.HasProjectJudgementState == true ? 31 : LabelReleaseProgramme.LpAssemblyEnabled || CompetitorManager.Instance?.HasLpAssemblyState == true ? 30 : LabelReleaseProgramme.MaterialSearchEnabled || CompetitorManager.Instance?.HasMaterialSearchState == true ? 29 : LabelReleaseProgramme.HasState ? 28 : RecordCampaignSpend.HasState ? 27 : PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -1101,6 +1101,11 @@ public sealed class RegionalRecordSaveData {
 	public int localPeakAge { get; set; } = -1;
 	// RegionalHitDealGate's last qualifying week; absent (-1) in older saves and switched-off runs.
 	public int dealEvidenceAge { get; set; } = -1;
+	// Rack-jobber ledger and tier; absent unless the rack channel has sold or racked here.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? rackUnits { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? rackTier { get; set; }
 
 	public static RegionalRecordSaveData From(RegionalRecordData d) => new() {
 		regionId = d.regionId, awareness = d.awareness, sentiment = d.sentiment, radioPlay = d.radioPlay,
@@ -1111,6 +1116,7 @@ public sealed class RegionalRecordSaveData {
 		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks,
 		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge,
 		dealEvidenceAge = d.dealEvidenceAge,
+		rackUnits = d.rackUnitsTotal != 0 ? d.rackUnitsTotal : null, rackTier = d.rackTier != 0 ? d.rackTier : null,
 		arrival = d.awaitingArrival || d.pendingLaunchStock != 0 || d.arrivalAge >= 0
 			? new RegionalArrivalSaveData { awaitingArrival = d.awaitingArrival, arrivalAge = d.arrivalAge,
 				stock = d.pendingLaunchStock, awareness = d.pendingLaunchAwareness, radio = d.pendingLaunchRadio } : null
@@ -1129,6 +1135,10 @@ public sealed class RegionalRecordSaveData {
 			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
 			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge
 		};
+		if (rackUnits != null || rackTier != null) {
+			RackJobberChannel.RequireForResume();
+			d.rackUnitsTotal = rackUnits ?? 0; d.rackTier = rackTier ?? 0;
+		}
 		if (arrival != null) {
 			d.awaitingArrival = arrival.awaitingArrival; d.arrivalAge = arrival.arrivalAge;
 			d.pendingLaunchStock = arrival.stock; d.pendingLaunchAwareness = arrival.awareness; d.pendingLaunchRadio = arrival.radio;

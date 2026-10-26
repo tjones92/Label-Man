@@ -1788,6 +1788,8 @@ public partial class ChartAuditRunner : Node {
 		if (settlement?.Entries == null) return;
 		ChartManager.Instance?.AcknowledgeSettlementAudit(settlement); // sim invariant -- must run even when telemetry is suppressed
 		WriteLabelSales(settlement);
+		WriteBudgetLpAudit(settlement);
+		WriteRackValidation(settlement);
 		WriteLpDemandSettlement(settlement);
 		if (completedWeekSettlementWriter == null) return; // heavy settlement telemetry suppressed under --lean-probe
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {

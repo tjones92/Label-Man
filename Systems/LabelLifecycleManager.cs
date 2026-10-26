@@ -369,6 +369,7 @@ public partial class LabelLifecycleManager : Node {
 		CompositionCatalogService.TransferCatalogControl(label.labelId, distributor.labelId);
 		// The masters go too: the record-club catalogue, backlist and any club pass to the acquirer.
 		RecordClubChannel.OnAcquired(label.labelId, distributor.labelId);
+		BudgetLpChannel.OnAcquired(label.labelId, distributor.labelId);
 		OnLabelDefunct?.Invoke(label, reason);
 	}
 

@@ -97,6 +97,11 @@ public class RegionalRecordData {
 	// Immutable settlement inputs captured after the two clearing stages.
 	public int localClearedThisWeek;
 	public int spilloverClearedThisWeek;
+	// Rack-jobber channel: this week's rack units (week-local), the rack exhaustion ledger and the rack tier
+	// (RackJobberChannel.Tier*). The last two are saved only when nonzero.
+	public int rackUnitsThisWeek;
+	public int rackUnitsTotal;
+	public int rackTier;
 	public float salesVelocity;
 	public int sustainedGrowthWeeks;
 	public int tractionWeeks;

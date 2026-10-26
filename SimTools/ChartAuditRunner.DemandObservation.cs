@@ -18,9 +18,12 @@ public partial class ChartAuditRunner {
 
 	private string offChartSinglesPath;
 	private string recordClubPath, recordClubCataloguePath;
+	private string rackRegionPath, rackTitlePath;
 	private StreamWriter labelSalesWriter;
 
 	private void OpenDemandObservationOutputs(string directory) {
+		OpenBudgetLpAudit(directory);
+		OpenRackValidation(directory);
 		if (GenreMarketV2.Enabled) {
 			labelSalesWriter = CreateWriter(Path.Combine(directory, $"{runName}-label-sales-weekly.csv"));
 			labelSalesWriter.WriteLine("week,year,labelId,format,units,chartedUnits,top10Units");
@@ -29,6 +32,10 @@ public partial class ChartAuditRunner {
 		if (RecordClubChannel.Enabled) {
 			recordClubPath = Path.Combine(directory, $"{runName}-record-club-annual.csv");
 			recordClubCataloguePath = Path.Combine(directory, $"{runName}-record-club-catalogue.csv");
+		}
+		if (RackJobberChannel.Enabled) {
+			rackRegionPath = Path.Combine(directory, $"{runName}-rack-region-weekly.csv");
+			rackTitlePath = Path.Combine(directory, $"{runName}-rack-title-weekly.csv");
 		}
 		if (PhysicalPressingInventory.Enabled) {
 			physicalInventoryWriter = CreateWriter(Path.Combine(directory, $"{runName}-physical-inventory.csv"));
@@ -74,6 +81,10 @@ public partial class ChartAuditRunner {
 	}
 
 	private void CloseDemandObservationOutputs() {
+		CloseBudgetProducts();
+		CloseRackValidation();
+		budgetLpWriter?.Dispose();
+		budgetLpWriter = null;
 		labelSalesWriter?.Dispose();
 		labelSalesWriter = null;
 		physicalInventoryWriter?.Dispose();
@@ -103,6 +114,28 @@ public partial class ChartAuditRunner {
 						Exact((float)row.EarnedAppeal), Exact((float)row.SeedAppeal), Exact((float)row.TotalAppeal)));
 			}
 			recordClubPath = recordClubCataloguePath = null;
+		}
+		if (rackRegionPath != null) {
+			// Cumulative over the process: a resumed world starts from zero.
+			using (StreamWriter writer = CreateWriter(rackRegionPath)) {
+				writer.WriteLine("week,year,regionId,pool,shelf,hitTitles,catalogueTitles,demand,units,hitUnits,catalogueUnits,unshippedUnits,shelfBound");
+				foreach (var row in RackJobberChannel.RegionRows)
+					writer.WriteLine(string.Join(",", row.Week.ToString(CultureInfo.InvariantCulture), row.Year.ToString(CultureInfo.InvariantCulture),
+						Csv(row.RegionId), Exact(row.Pool), row.Shelf.ToString(CultureInfo.InvariantCulture), row.HitTitles.ToString(CultureInfo.InvariantCulture),
+						row.CatalogueTitles.ToString(CultureInfo.InvariantCulture), Exact(row.Demand), row.Units.ToString(CultureInfo.InvariantCulture),
+						row.HitUnits.ToString(CultureInfo.InvariantCulture), row.CatalogueUnits.ToString(CultureInfo.InvariantCulture),
+						row.UnshippedUnits.ToString(CultureInfo.InvariantCulture), row.ShelfBound ? "1" : "0"));
+			}
+			using (StreamWriter writer = CreateWriter(rackTitlePath)) {
+				writer.WriteLine("week,year,recordId,labelId,labelTier,regionId,tier,rank,exposure,demand,units,storeUnits,age,chartPosition,labelShips");
+				foreach (var row in RackJobberChannel.TitleRows)
+					writer.WriteLine(string.Join(",", row.Week.ToString(CultureInfo.InvariantCulture), row.Year.ToString(CultureInfo.InvariantCulture),
+						Csv(row.RecordId), Csv(row.LabelId), Csv(row.LabelTier), Csv(row.RegionId), row.Tier.ToString(CultureInfo.InvariantCulture),
+						row.Rank.ToString(CultureInfo.InvariantCulture), Exact(row.Exposure), Exact(row.Demand), row.Units.ToString(CultureInfo.InvariantCulture),
+						row.StoreUnits.ToString(CultureInfo.InvariantCulture), row.Age.ToString(CultureInfo.InvariantCulture),
+						row.ChartPosition.ToString(CultureInfo.InvariantCulture), row.LabelShips ? "1" : "0"));
+			}
+			rackRegionPath = rackTitlePath = null;
 		}
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordReleased -= ObserveDemandLaunch;

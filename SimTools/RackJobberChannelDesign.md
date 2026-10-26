@@ -1,7 +1,9 @@
 # Rack-jobber LP channel: design note
 
 25 October 2026. Follow-up to [RecordClubChannelDesign.md](RecordClubChannelDesign.md) and
-[LpDemandDiagnosis.md](LpDemandDiagnosis.md). Design only; no code yet. Author decisions are
+[LpDemandDiagnosis.md](LpDemandDiagnosis.md). This records the original proposal. The implemented
+front-line channel is assessed in [RackJobberValidation.md](RackJobberValidation.md);
+the subsequent budget-product experiment is in [BudgetLpProducts.md](BudgetLpProducts.md). Author decisions are
 recorded at the end. Period sources were read from
 seven Billboard issues (1962-67), listed at the end.
 
@@ -159,7 +161,8 @@ record-shop population.
 - `rackPool = population × incomeFactor × rackReach(year) × RackShopperScale`.
 - `rackReach(year)` is the rack outlet curve. It reuses `GetRackJobberEraWeight` (0.30 in 1960 to 1.0
   by 1969). That gives +21% from 1961 to 1962 against +26-27% in the NARM rack count and rack units,
-  and 1.62x from 1961 to 1965 against Billboard's 1.77x. Close enough for v1; the analyzer reports
+  and 1.82x from 1961 to 1965 against Billboard's 1.77x (corrected from the design's earlier
+  arithmetic of 1.62x). Close enough for v1; the analyzer reports
   the gap.
 - **Genre mix** comes from the region's audience-segment shares, weighted toward AdultMOR,
   FamilyChildrens and Country, with a smaller youth slice. This uses the soundtrack pool
@@ -326,3 +329,110 @@ Secondary:
 - [Budget album (Wikipedia)](https://en.wikipedia.org/wiki/Budget_album)
 - [Sutton Records (Wikipedia)](https://en.wikipedia.org/wiki/Sutton_Records)
 - [Music Weird: the cut-out controversy](https://musicweird.blogspot.com/2014/09/the-controversy-over-cut-out-records-in.html?m=1)
+
+## Implementation (v1)
+
+- **Code.**
+  - [Systems/RackJobberChannel.cs](../Systems/RackJobberChannel.cs): switches, tiers, demand, shelf
+    allocation and telemetry.
+  - Hook: `ChartManager.CalculateLiveRegionalSalesWithMarketClearing` runs the rack pass after the
+    clearing summaries are final and before `FinalizeWeeklySales`. No market summary, chart point,
+    store ledger or stock count sees rack units.
+  - State: `RegionalRecordData.rackUnitsTotal` (exhaustion ledger) and `rackTier`, saved as optional
+    `rackUnits` / `rackTier` in `RegionalRecordSaveData` only when nonzero. A world with rack state
+    refuses to resume without `--rack-jobbers`. `rackUnitsThisWeek` on the record and region is
+    week-local.
+  - Booking: settlement entries and regions carry `RackUnits` beside `Units`. The weekly revenue pass
+    books `Units + RackUnits` for AI records, so gross, COGS (regional), distribution skim (granted
+    share), artist royalty and `lifetimeLabelNet` (release memory) include rack sales.
+- **Switches.** `--rack-jobbers`; `--rack-shopper-scale=X` (requires the channel) overrides the frozen
+  default scale.
+- **Simplifications beyond the design:**
+  - Tiers rank by this week's store units in the region, not a trailing four-week store-plus-rack
+    total. Rack sales therefore cannot hold their own title on the rack, and no extra state is saved.
+  - Tier sizes are fixed at 25 hit and 50 catalogue titles per region; the pool, not the assortment,
+    grows with rack reach.
+  - "Past peak" for the catalogue tier is the record's national `weeksSincePeakUnits > 0`.
+  - Rack units do not draw on store stock, including under the physical inventory arm.
+  - Wholesale-deferral shares still use store units only.
+  - Player records are never racked.
+  - The three test arms (chart points, shared exhaustion, returns) are not built yet.
+- **Checks.** `--rack-jobber-check` runs 37 native checks.
+- **Runner and analyzer.** [RunRackJobberProbe.ps1](RunRackJobberProbe.ps1) and
+  [analyze_rack_jobber_probe.py](analyze_rack_jobber_probe.py).
+
+## Results: rkj-v1, seed 1001, 106 weeks
+
+Base: the rcl-v1 bundle (lpc-v1-both, LP demand audit) plus `--record-clubs`. The control is
+`rkj-v0-control`, run on the same assembly.
+
+**Checks passed.**
+- 37 native checks.
+- Flag-off 13-week run: 75 streams byte-identical to `rcl-v1-clubs` through week 12.
+- 13-week save round-trip with racks on.
+- In every arm: rack units never exceed shelf, region and title rows agree every week, and company
+  cash reconciles.
+
+**Fitting the scale.** The pilot (`rkj-v0`, scale 0.10) was shelf-bound in every region-week: 166M of
+1961 rack demand against 53M of shelf. A linear estimate gave 0.0235; I set 0.026 to allow for faster
+exhaustion of a smaller pool. That gives 36.2M rack LPs in 1961, at the low edge of the 36-42M
+front-line target. The scale is frozen at 0.026 as the code default, with one correction run, not a
+search.
+
+| | Control 1960 | Racks 1960 | Control 1961 | Racks 1961 | Billboard 1961 |
+|---|---:|---:|---:|---:|---:|
+| Store LP units | 43.0M | 44.8M | 74.5M | 76.9M | 68M (stores) |
+| Rack LP units | — | 27.7M | — | **36.2M** | 60M (36-42M front-line) |
+| Stores + racks | 43.0M | 72.5M | 74.5M | **113.1M** | 128M |
+| Club LP units | 45.0M | 45.0M | 45.0M | 45.0M | 45M |
+| **Total LP units** | 88.0M | 117.5M | 119.5M | **158.1M** | 173M |
+| Racks' share of stores + racks | — | 38% | — | 32% | 47% |
+| Single units | 139.4M | 138.6M | 136.9M | 136.6M | 132M (stores + racks) |
+| Rack: hit / catalogue tier | | 13.6 / 14.1M | | 14.4 / 21.8M | about 1/3 of space hits |
+| Rack units on Top 40 LPs | | 62% | | 54% | |
+| Rack units by label tier: Major / MidTier / other | | 77 / 14 / 10% | | 79 / 17 / 4% | |
+| Rack units from regions the label does not ship to | | 2.1% | | 0.1% | |
+| Shelf-bound region-weeks | | 1.3% | | 0% | |
+| Distinct racked LPs | | 547 | | 577 | |
+| LP chart entrants (launches) | 162 | 167 | 254 | 247 | |
+| Live LPs, mean per week | 942 | 966 | 3,551 | 3,665 | |
+| Major record gross | $198M | $259M | $236M | $309M | |
+| Closures to date, all tiers | 42 | 35 | 78 | 63 | |
+| Hot 100 C4 share | .329 | .350 | .356 | .268 | |
+
+Run time: 1,021 s against 1,001 s for the control (+2%).
+
+- **The front-line gap closes as designed.** Store LPs and singles stay within noise of the control.
+  Total LPs reach 158M, 0.91 of Billboard's 173M. The rest (about 15-20M) is the budget LPs v1 does
+  not sell.
+- **No clog.** Live LPs rise 3% and LP chart entrants move within noise (247 against 254). Rack
+  sales never touch chart points or retirement, and titles fall off the rack with their store sales.
+- **Demand sets volume, not shelf.** At the fitted scale the shelf binds in no 1961 region-week.
+  The shelf constant matters only for a much larger pool.
+- **Racks favour the Majors heavily.** 79% of 1961 rack units go to Major LPs. Any LP a label ships
+  to the region is eligible, and the Majors ship everywhere and have the top store sellers. Racks
+  outside the label's own distribution, the regional-hit route, carry almost nothing (0.1%). This is
+  the main shape to check against history. The 1964 jazz complaint that racks only took "hot chart
+  items" fits it, but no source gives the rack split by label.
+- **The catalogue tier outsells the hit tier** (21.8M against 14.4M in 1961). It has twice the slots
+  and its titles are not yet exhausted with rack buyers. That fits "one third of space to best
+  sellers" in space, but the split of units is not sourced.
+- **Label economics.** Major record gross rises $73M in 1961 (+31%) and MidTier $26M (+73%). Closures
+  fall 78 → 63 by end-1961, mostly Independent and Small. One seed cannot separate this from the
+  reshuffle. The Hot 100 C4 drop (.356 → .268) is below the club-enabled control range in rcl-v2
+  (.309-.356). Whether it repeats requires matched rack seeds. The previously quoted .322-.373
+  range belongs to the no-club controls and is not the relevant comparison.
+
+Next: seeds 1002-1003 on the frozen scale, then the test arms (chart points, shared exhaustion,
+returns), then the decade A/B at audit end. Results: `SimLogs/rkj-v1/review/`; pilot and control:
+`SimLogs/rkj-v0/`.
+
+### Historical validation follow-up
+
+The shared-exhaustion and 10%/20% return-cost arms are now implemented, with
+compact settlement diagnostics, rack finance reconciliation and a runner that
+supports longer comparisons. The default scale, assortment and chart treatment
+are unchanged. Chart-points sensitivity remains unimplemented. See
+[RackJobberValidation.md](RackJobberValidation.md) for the precise stress
+definitions, the settlement-year correction, concentration decomposition and
+results. Original v1 numbers above retain their original timing convention.

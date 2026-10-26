@@ -10,6 +10,35 @@ directives and hand-written handoffs. Everything a run or an analysis script
 reports, logs, before-edit snapshots) is written under `SimLogs/` and is not
 committed. New JSON under `SimTools/` is gitignored to enforce this.
 
+Budget products now have an opt-in `--budget-lps` own-master ledger, fulfilled
+store-buyer substitution and one rack shelf/assortment shared with front-line LPs.
+The $1.75 reference price, bargain shopper pool and substitution are scenarios;
+unprofitable offerings are declined. `RunRackJobberProbe.ps1 -Compact -Arms
+racks,budget,budgetadd,budgetturnover45,budgetprice125` screens channel substitution,
+turnover and price. `analyze_budget_lp_products.py --tag TAG` validates the completed
+matrix and reports separate store/rack errors. See [BudgetLpProducts.md](BudgetLpProducts.md)
+for saved v32 state, economics, assumptions and remaining licensing work.
+
+The earlier supply observer uses `--budget-lp-audit` alongside `--record-clubs --rack-jobbers`
+on the genre-market-v2 bundle. It writes `*-budget-lp-supply.csv` with retired,
+older-live and synthetic-opening catalogue sources; it books no budget sales.
+`--budget-lp-catalogue-check` runs the supply checks through the save/load runner.
+`RunRackJobberProbe.ps1 -BudgetLpAudit` includes the observer in rack arms.
+`analyze_budget_lp_supply.py --tag rkj-v1 --supply-run RUN_PREFIX` reports the
+separate channel gaps, price sensitivities and observed supply. See
+[BudgetLpV2.md](BudgetLpV2.md) for the remaining historical checks and next slice.
+
+Rack robustness checks use `RunRackJobberProbe.ps1 -Compact` with `control,racks`,
+`overlap`, `returns10`, or `returns20` arms. The runner accepts up to 530 weeks.
+`--rack-shared-exhaustion` shares title/region purchase exhaustion;
+`--rack-returns=R` charges full manufacturing/freight write-offs on a returned
+fraction R of shipments, without turning unsold copies into consumer sales.
+Both switches require `--rack-jobbers`; defaults remain separate buyers and zero
+return costs. `analyze_rack_jobber_probe.py` reports all observed years, marks
+partial years, aligns rack rows to the store settlement calendar, and accepts
+`--include-tag TAG` to combine completed probes built from the same assembly.
+See [RackJobberValidation.md](RackJobberValidation.md) for assumptions and evidence.
+
 `--label-release-slate` adds dated single/LP intentions, prepared masters and cash
 holds; `--label-release-capacity` adds multiple weekly slots and a conserved label
 promotion pool. Both retain cadence and retention. The active working bundle

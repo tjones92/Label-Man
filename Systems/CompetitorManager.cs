@@ -952,6 +952,7 @@ public partial class CompetitorManager : Node {
 				weeklyRevenue += SettleOffChartSingles(label, catalogUnits);
 			// Record clubs and packages sell by mail and pay on their own terms: never deferred.
 			weeklyRevenue += SettleRecordClub(label);
+			weeklyRevenue += SettleBudgetLps(label, settlement);
 			label.weeklyWholesaleDeferred = deferred;
 			label.weeklyWholesaleCollected = collected + reservesReleased;
 			// Financing, not P&L: the withheld receipts still count as the client's revenue below.
@@ -1135,7 +1136,7 @@ public partial class CompetitorManager : Node {
 			// byte-for-byte unchanged.
 			float weeklyUnits = runtimeData.baseRecord.isPlayerOwned
 				? (entry.Regions?.Sum(region => Mathf.Max(0, region.FinalCleared)) ?? 0f)
-				: entry.Units;
+				: entry.Units + entry.RackUnits; // rack units are sales too (zero while the rack channel is off)
 			ReleaseFormat format = runtimeData.baseRecord.format;
 			// Dealer-margin directive §2.2: the settlement's job is to book what the LABEL receives on a
 			// unit a dealer sold, not what the kid at the counter paid. Player-only, singles only (the
@@ -1340,6 +1341,19 @@ public partial class CompetitorManager : Node {
 				}
 				entry.ArtistRoyalty = artistPayment + (artistOwnsPublishing ? publishingPool : 0f);
 			}
+			// Rack return stress: these extra manufactured copies never sold, so there is no
+			// revenue or artist royalty to reverse. Charge their write-off to the label after
+			// the distributor's ordinary sold-copy skim; do not give the distributor a rebate.
+			float rackSoldCogs = 0f;
+			if (RackJobberChannel.Enabled && entry.RackUnits > 0) {
+				foreach (var region in entry.Regions)
+					rackSoldCogs += region.RackUnits * pressingCost * DistanceModel.GetDistributionCostFactor(label,
+						DistanceModel.GetHubCityIdForRegion(region.RegionId));
+				float writeOff = RackJobberChannel.ReturnWriteOff(rackSoldCogs);
+				if (writeOff > 0f) { bookedCogs += writeOff; recordRevenue -= writeOff; }
+				RackJobberChannel.RecordFinance(settlement.SettlementId, settlement.Date.year, label, entry.RackUnits,
+					entry.RackUnits * pricePerUnit, rackSoldCogs, writeOff);
+			}
 			entry.Gross = retailGross;
 			entry.ManufacturingCost = bookedCogs;
 			entry.PressingCost = pressingSpend;
@@ -1442,7 +1456,7 @@ public partial class CompetitorManager : Node {
 		if (!liveSettlement) return GetLegacyDistributionSkimFraction(label);
 		IEnumerable<KeyValuePair<string, int>> regionalUnits = runtimeData?.regionalData?
 			.Select(pair => new KeyValuePair<string, int>(pair.Key,
-				Mathf.Max(0, pair.Value?.unitsSoldThisWeek ?? 0)));
+				Mathf.Max(0, (pair.Value?.unitsSoldThisWeek ?? 0) + (pair.Value?.rackUnitsThisWeek ?? 0))));
 		return GetSettlementDistributionSkimFraction(label, regionalUnits, weeklyUnits);
 	}
 
@@ -1478,14 +1492,14 @@ public partial class CompetitorManager : Node {
 		float cogs = 0f;
 		int regionalUnits = 0;
 		foreach (var pair in runtimeData.regionalData) {
-			int units = pair.Value?.unitsSoldThisWeek ?? 0;
+			int units = (pair.Value?.unitsSoldThisWeek ?? 0) + (pair.Value?.rackUnitsThisWeek ?? 0);
 			if (units <= 0) continue;
 			regionalUnits += units;
 			string regionHubCity = DistanceModel.GetHubCityIdForRegion(pair.Key);
 			cogs += units * pressingCost * DistanceModel.GetDistributionCostFactor(label, regionHubCity);
 		}
 
-		int unassignedUnits = runtimeData.unitsThisWeek - regionalUnits;
+		int unassignedUnits = runtimeData.unitsThisWeek + runtimeData.rackUnitsThisWeek - regionalUnits;
 		if (unassignedUnits != 0) {
 			cogs += unassignedUnits * pressingCost * DistanceModel.GetDistributionCostFactor(label, label.headquartersCity);
 		}
@@ -1850,6 +1864,7 @@ public partial class CompetitorManager : Node {
 
 		if (LabelPressingEconomics.Enabled) LabelPressingEconomics.Learn(GetLabel(labelId), runtimeData);
 		RecordClubChannel.FoldRetired(runtimeData, TimeManager.Instance?.CurrentDate.year ?? 1960);
+		BudgetLpChannel.Remember(runtimeData, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		float realizedNet = runtimeData.lifetimeLabelNet - runtimeData.SunkReleaseCost;
 		OnReleaseOutcome?.Invoke(new ReleaseOutcomeTelemetry {
 			unitsPressed = runtimeData.unitsPressed,
@@ -5430,7 +5445,8 @@ public partial class CompetitorManager : Node {
 			ReleaseProgramme = ProgrammeState,
 			GenreSupplyYear = genreSupplyYear,
 			GeneratedRecordCounter = generatedRecordCounter,
-			RecordClubs = RecordClubChannel.Capture()
+			RecordClubs = RecordClubChannel.Capture(),
+			BudgetLps = BudgetLpChannel.Capture()
 		};
 		w.Competitor = c;
 	}
@@ -5441,6 +5457,7 @@ public partial class CompetitorManager : Node {
 		CompetitorSaveData c = w.Competitor;
 		if (c == null) return;
 		RecordClubChannel.Restore(c.RecordClubs);
+		BudgetLpChannel.Restore(c.BudgetLps);
 		ProgrammeState = c.ReleaseProgramme;
 		if (!LabelReleaseProgramme.MaterialSearchEnabled && ProgrammeState?.Items.Any(i => i.MaterialSearch?.State is
 			ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready) == true)
