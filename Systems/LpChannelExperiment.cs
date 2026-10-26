@@ -7,7 +7,9 @@ using System.Linq;
 public static class LpChannelExperiment {
 	public const string AssortmentSwitch = "--rack-mixed-assortment";
 	public const string ChoiceSwitch = "--rack-store-choice=";
+	public const string AccessSwitch = "--rack-buyer-access";
 	public static bool MixedAssortment { get; private set; }
+	public static bool BuyerAccess { get; private set; }
 	public static double ChoiceShare { get; private set; }
 	public static bool Enabled => MixedAssortment || ChoiceShare > 0;
 	private static bool configured;
@@ -19,29 +21,31 @@ public static class LpChannelExperiment {
 		if (choice != null && (!double.TryParse(choice[ChoiceSwitch.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out double share) ||
 			!double.IsFinite(share) || share < 0 || share > 1)) throw new ArgumentException("Invalid " + choice);
 		ChoiceShare = choice == null ? 0 : double.Parse(choice[ChoiceSwitch.Length..], CultureInfo.InvariantCulture);
+		BuyerAccess = args.Contains(AccessSwitch);
+		if (BuyerAccess && ChoiceShare <= 0) throw new ArgumentException(AccessSwitch + " requires positive " + ChoiceSwitch);
 		if ((MixedAssortment || choice != null) && (!BudgetLpChannel.Enabled || !RackJobberChannel.Enabled))
 			throw new ArgumentException("LP channel treatments require --budget-lps and --rack-jobbers.");
 		configured = true;
 	}
-	internal static void ResetForChecks(bool mixed = false, double share = 0) {
-		configured = false; MixedAssortment = mixed; ChoiceShare = share; choices.Clear(); rows.Clear();
+	internal static void ResetForChecks(bool mixed = false, double share = 0, bool access = false) {
+		configured = false; MixedAssortment = mixed; ChoiceShare = share; BuyerAccess = access; choices.Clear(); rows.Clear();
 	}
 	internal static int CatalogueSlots(int budgetOffers) => RackJobberChannel.CatalogueTitles - (MixedAssortment ? 0 : budgetOffers);
 	public static void RequireSettings(BudgetLpState state) {
-		if (state != null && (state.MixedAssortment != MixedAssortment || state.RackChoice != ChoiceShare))
-			throw new InvalidOperationException("Resume with the saved mixed assortment and rack store-choice settings.");
+		if (state != null && (state.MixedAssortment != MixedAssortment || state.RackChoice != ChoiceShare || state.RackBuyerAccess != BuyerAccess))
+			throw new InvalidOperationException("Resume with the saved mixed assortment, rack store-choice and buyer-access settings.");
 	}
 	internal sealed class Choice {
 		public int Before, Planned, Fulfilled;
 	}
 	private static readonly Dictionary<(string region, string record), Choice> choices = new();
 	internal static void BeginWeek() => choices.Clear();
-	internal static int Plan(int stores, float reach, float display, double share) =>
-		(int)Math.Floor(Math.Max(0, stores) * Math.Clamp(reach, 0, 1) * Math.Clamp(display, 0, 1) * Math.Clamp(share, 0, 1));
+	internal static int Plan(int stores, float reach, float display, double share, bool access = false) =>
+		(int)Math.Floor(Math.Max(0, stores) * Math.Clamp(reach, 0, 1) * (access ? 1 : Math.Clamp(display, 0, 1)) * Math.Clamp(share, 0, 1));
 	internal static void Plan(string region, RackJobberChannel.Candidate candidate, int year) {
-		if (ChoiceShare <= 0) return;
+		if (ChoiceShare <= 0 || candidate.Tier == RackJobberChannel.TierNone) return;
 		candidate.StoreChoice = Plan(candidate.StoreUnits, RackJobberChannel.Reach(year),
-			RackJobberChannel.Exposure(candidate.Tier, candidate.Rank, candidate.Record.awareness), ChoiceShare);
+			RackJobberChannel.Exposure(candidate.Tier, candidate.Rank, candidate.Record.awareness), ChoiceShare, BuyerAccess);
 		choices[(region, candidate.Record.baseRecord.recordId)] = new Choice { Before = candidate.StoreUnits, Planned = candidate.StoreChoice };
 	}
 	// Front-line preferences reserve a disjoint cohort before the remaining store buyers can choose budget.

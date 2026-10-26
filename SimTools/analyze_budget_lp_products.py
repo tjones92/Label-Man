@@ -64,9 +64,9 @@ def analyse(plan_path, completed_only=False):
                 raise ValueError('Product sold before holdback')
             if run['arm'] == 'budgetadd' and budget.switchedStoreUnits.sum() != 0:
                 raise ValueError('Zero weekly-substitution arm switched buyers')
-            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure'} and not budget.budgetUnits.eq(budget.switchedStoreUnits).all():
+            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure', 'budgetaccesspure'} and not budget.budgetUnits.eq(budget.switchedStoreUnits).all():
                 raise ValueError('Zero-incremental-pool stress invented buyers')
-            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure'} and budget.budgetUnits.sum() <= 0:
+            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure', 'budgetaccesspure'} and budget.budgetUnits.sum() <= 0:
                 raise ValueError('Zero-incremental-pool stress must exercise actual sales')
             if Path(f'{prefix}-lp-channel-choice-weekly.csv').exists():
                 choice = read(prefix, 'lp-channel-choice-weekly')
@@ -82,7 +82,7 @@ def analyse(plan_path, completed_only=False):
                     raise ValueError('Unfulfilled front-line switches')
                 if not any(a.startswith('--rack-store-choice=') and float(a.split('=')[1]) > 0 for a in run['args']) and choice.frontSwitched.sum() != 0:
                     raise ValueError('Choice-off arm routed buyers')
-                if run['arm'] == 'budgetchoicepure' and choice.frontSwitched.sum() <= 0:
+                if run['arm'] in {'budgetchoicepure', 'budgetaccesspure'} and choice.frontSwitched.sum() <= 0:
                     raise ValueError('Choice conservation stress must exercise front-line routes')
         elif (front.units > front.shelf).any():
             raise ValueError('Front-line shelf exceeded')

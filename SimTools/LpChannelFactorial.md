@@ -1,5 +1,8 @@
 # LP assortment × buyer channel choice
 
+The subsequent known-buyer access and throughput experiment is in
+[LpBuyerAccess.md](LpBuyerAccess.md).
+
 26 October 2026. Continues [BudgetLpProducts.md](BudgetLpProducts.md). The user
 requested crossing assortment changes with broader buyer channel choice. This
 experiment keeps the front-line .026 shopper scale, budget .08 shopper scale,

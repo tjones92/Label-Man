@@ -13,7 +13,7 @@ public static class LpChannelChecks {
 			Record = Album(id), StoreUnits = stores, Demand = demand, AutonomousDemand = demand, Tier = RackJobberChannel.TierHit, Rank = 1 };
 		try {
 			BudgetLpChannel.ResetForChecks(); LpChannelExperiment.ResetForChecks();
-			foreach (string arg in new[] { "--rack-mixed-assortment", "--rack-store-choice=0.5", "--rack-store-choice=NaN", "--rack-store-choice=-1", "--rack-store-choice=1.1" }) {
+			foreach (string arg in new[] { "--rack-mixed-assortment", "--rack-buyer-access", "--rack-store-choice=0.5", "--rack-store-choice=NaN", "--rack-store-choice=-1", "--rack-store-choice=1.1" }) {
 				bool refused = false;
 				try { LpChannelExperiment.Configure(new[] { arg }); } catch (ArgumentException) { refused = true; }
 				Check(refused, "invalid or orphan treatment " + arg); LpChannelExperiment.ResetForChecks();
@@ -26,6 +26,12 @@ public static class LpChannelChecks {
 				"choice uses reach and display, and zero is exactly off");
 			Check(LpChannelExperiment.Plan(100, 0, 1, 1) == 0 && LpChannelExperiment.Plan(100, 1, 0, 1) == 0 &&
 				LpChannelExperiment.Plan(0, 1, 1, 1) == 0, "no coverage, no display or no store buyers means no route");
+			Check(LpChannelExperiment.Plan(100, .4f, .1f, .5, true) == 20 &&
+				LpChannelExperiment.Plan(100, .4f, 1, .5, true) == 20,
+				"known-buyer access retains reach and choice but is independent of discovery exposure");
+			Check(LpChannelExperiment.Plan(100, 0, 1, 1, true) == 0 && LpChannelExperiment.Plan(0, 1, 1, 1, true) == 0 &&
+				LpChannelExperiment.Plan(100, 1, 1, 0, true) == 0 && LpChannelExperiment.Plan(100, 1, 0, 1, true) == 100,
+				"access cannot create buyers or bypass coverage or the choice coefficient");
 			Check(LpChannelExperiment.Fulfilled(374, 374.195573, 100) <= 100 && LpChannelExperiment.Fulfilled(12, 12, 12) == 12 &&
 				LpChannelExperiment.Fulfilled(0, 100, 50) == 0, "fulfilled cohorts conserve exact pure routes and never remove unfulfilled buyers");
 			LpChannelExperiment.ResetForChecks(mixed: true, share: .5);
@@ -73,6 +79,36 @@ public static class LpChannelChecks {
 			bool mismatch = false;
 			try { BudgetLpChannel.Restore(state); } catch (InvalidOperationException) { mismatch = true; }
 			Check(mismatch, "resume rejects changed treatment settings");
+			LpChannelExperiment.ResetForChecks(mixed: true, share: .5, access: true);
+			BudgetLpChannel.ResetForChecks(true);
+			BudgetLpChannel.Prepare(new[] { Album("access-save") }, _ => new AILabel { labelId = "owner", tier = LabelTier.Major }, 1);
+			var accessState = BudgetLpChannel.Capture();
+			Check(accessState.RackBuyerAccess && SaveGameService.WritingVersion == 34, "buyer access persists in v34");
+			string accessSaved = JsonSerializer.Serialize(accessState);
+			BudgetLpChannel.Restore(JsonSerializer.Deserialize<BudgetLpState>(accessSaved));
+			Check(accessSaved == JsonSerializer.Serialize(BudgetLpChannel.Capture()), "buyer-access state round-trips canonically");
+			bool accessMismatch = false;
+			try { BudgetLpChannel.Restore(state); } catch (InvalidOperationException) { accessMismatch = true; }
+			Check(accessMismatch, "old display-choice saves cannot resume silently with buyer access");
+			var accessFront = new List<RackJobberChannel.Candidate> { Candidate("access", 1000, 0) };
+			accessFront[0].Tier = RackJobberChannel.TierCatalogue;
+			LpChannelExperiment.BeginWeek();
+			LpChannelExperiment.Plan("access", accessFront[0], 1961);
+			Check(accessFront[0].StoreChoice == LpChannelExperiment.Plan(1000, RackJobberChannel.Reach(1961), 1, .5),
+				"stocked catalogue titles use access without their display penalty");
+			accessFront[0].Demand = accessFront[0].StoreChoice;
+			BudgetLpChannel.AllocateShared(accessFront, new List<BudgetLpChannel.Offer>(), 10);
+			LpChannelExperiment.CompleteFront("access", accessFront);
+			LpChannelExperiment.Record(1, 1961, "access", 1000, 0, 990);
+			Check(LpChannelExperiment.FrontSwitches("access", "access") == 10,
+				"access removes only fulfilled buyers when shelf capacity binds");
+			var unavailable = Candidate("unavailable", 1000, 0); unavailable.Tier = RackJobberChannel.TierNone;
+			LpChannelExperiment.Plan("access", unavailable, 1961);
+			Check(unavailable.StoreChoice == 0, "buyer access cannot route an unstocked title");
+			LpChannelExperiment.ResetForChecks(mixed: true, share: .5);
+			accessMismatch = false;
+			try { BudgetLpChannel.Restore(accessState); } catch (InvalidOperationException) { accessMismatch = true; }
+			Check(accessMismatch, "access saves require buyer access on resume");
 			LpChannelExperiment.ResetForChecks(share: .5); RackJobberChannel.SetForChecks(true);
 			var depletion = new RegionalRecordData("r") { unitsSoldTotal = 80, rackUnitsTotal = 60, rackStoreBuyerUnitsTotal = 20 };
 			Check(RackJobberChannel.ExhaustionUnits(depletion, false) == 100 && RackJobberChannel.ExhaustionUnits(depletion, true) == 40,
@@ -93,7 +129,8 @@ public static class LpChannelChecks {
 				Math.Abs(AlbumSimulator.CalculateEffectiveRegionalPenetration(depletion, 80, 100, false) - 1.4) < 1e-6,
 				"shared exhaustion counts each routed purchase once");
 			var old = new BudgetLpState();
-			Check(!JsonSerializer.Serialize(old).Contains("RackChoice") && !JsonSerializer.Serialize(old).Contains("MixedAssortment"), "off settings leave the old v32 JSON unchanged");
+			Check(!JsonSerializer.Serialize(old).Contains("RackChoice") && !JsonSerializer.Serialize(old).Contains("MixedAssortment") &&
+				!JsonSerializer.Serialize(old).Contains("RackBuyerAccess"), "off settings leave the old v32 JSON unchanged");
 		} finally { BudgetLpChannel.ResetForChecks(); LpChannelExperiment.ResetForChecks(); RackJobberChannel.ResetForChecks(); }
 		Godot.GD.Print($"LP_CHANNEL_CHECKS_OK {count}");
 	}

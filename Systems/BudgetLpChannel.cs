@@ -48,7 +48,8 @@ public static class BudgetLpChannel {
 		State = null; weekRows.Clear(); regions.Clear(); products.Clear(); finance.Clear();
 	}
 	private static BudgetLpState Ensure() => State ??= new BudgetLpState { Scale = ShopperScale, Substitution = Substitution, Price = Price,
-		RackTurnover = RackJobberChannel.Turnover, MixedAssortment = LpChannelExperiment.MixedAssortment, RackChoice = LpChannelExperiment.ChoiceShare };
+		RackTurnover = RackJobberChannel.Turnover, MixedAssortment = LpChannelExperiment.MixedAssortment, RackChoice = LpChannelExperiment.ChoiceShare,
+		RackBuyerAccess = LpChannelExperiment.BuyerAccess };
 	internal static void Remember(RecordRuntimeData record, int week) {
 		if (!Enabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned || record.baseRecord.format != ReleaseFormat.Album ||
 			record.totalUnitsSold <= 0 || string.IsNullOrEmpty(record.baseRecord.labelId)) return;
@@ -195,8 +196,10 @@ public sealed class BudgetLpState {
 	public bool MixedAssortment { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
 	public double RackChoice { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public bool RackBuyerAccess { get; set; }
 	public BudgetLpState Copy() => new() { Initialized = Initialized, Scale = Scale, Substitution = Substitution, Price = Price, RackTurnover = RackTurnover,
-		MixedAssortment = MixedAssortment, RackChoice = RackChoice,
+		MixedAssortment = MixedAssortment, RackChoice = RackChoice, RackBuyerAccess = RackBuyerAccess,
 		Products = Products.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value.Copy(), StringComparer.Ordinal) };
 }
 public sealed class BudgetLpProduct {
