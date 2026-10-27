@@ -95,6 +95,9 @@ public static class SongMaterialSelectionService {
 				PolarSongBehavior.Prepare(candidate.Material, artist, record, genre, year, label);
 				candidate.Score = SourceMix(candidate.Material.Source, genre, year, artist.primaryGenre) * PolarSongBehavior.SelectionScore(candidate.Material.PolarProposal.fit);
 			}
+			// --self-writing-craft-gate: a weak writer is handed songs. Off: multiplier 1.
+			if (candidate.Material.Source == SongMaterialSource.ArtistWritten && record.format != ReleaseFormat.Album && label?.isPlayerOwned != true)
+				candidate.Score *= SelfWritingCraftGate.Multiplier(ArtistWriterCraft(artist));
 			Observe(artist, record, candidate.Material.Song, genre, year, "source", candidate.Material.Source.ToString(), candidate.Material.OriginalRecordId);
 		}
 		var selected = WeightedPick(candidates, artist, record, year);

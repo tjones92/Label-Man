@@ -1402,6 +1402,43 @@ Handoff for outside review: `SimTools/GenreHookCalibrationHandoff.md`.
 Evidence: `SimLogs/awkf-on-*`, `awpp-on-*`, `awrw2-on-1001-260-*`. `awkf_vs_awrw.txt`, `awpp_vs_awkf.txt` and
 `launch_awpp.py` are in the session notes folder.
 
+### 2026-10-27: `--self-writing-craft-gate=0.5` on the hook-scale base (`hs52*-SMP-HG` against `hs52*-SMP-H`)
+
+**Why.** Holding the realized hook fixed, artist-written singles chart as well as professional ones or better
+(Top 40 rate at hook ≥ .8: AW .21, Pro .14). Nothing after the hook penalises a song for being self-penned. The low
+self-written average comes from new signings in every genre (AW hook .48 with the hook scale, against .66 for
+professional songs). The source choice barely reads writer craft: the polar fit overwrites the artist-written
+score with `SourceMix × fit`, and a release-judgement arrival weights craft only 0.4 + 1.2 × craft.
+
+**What it does.** It multiplies the artist-written share by `0.1 + 0.9 × logistic((craft − 0.5) / 0.06)`. This
+applies to the legacy pick and to release-judgement arrivals; in arrivals the other sources are scaled up so total
+arrivals hold. It skips live weeks' albums and the player, and it skips the prewarm (chart week 0). It makes no
+draws.
+
+**Prewarm.** The first version also gated the prewarm, which reshuffled the opening world. On three seeds, launches
+moved −179, +161 and −10, and one seed lost five MidTier labels to weak opening hits. Gating live weeks only leaves
+weeks 1-4 byte-identical to the control on seed 1001.
+
+**Results.** 52 weeks, today's default profile, `--artist-written-hook-scale` in both arms, single seed.
+
+| Seed 1001 | Control (H) | Gate, live weeks only (HG) |
+|---|---|---|
+| R&R hook, year average | .652 | .676 |
+| R&R hook, Q1 → Q4 | .667 → .638 | .671 → .682 |
+| R&R AW share | .53 | .42 (to hit covers) |
+| New-signing AW hook (all genres) | .63 | .66 |
+| 1960 R&R market share (history 13.54) | 9.41 | 9.39 |
+| R&R Top 10 records (AW) | 15 (11) | 10 (6) |
+| Single launches | 4,276 | 4,318 |
+
+- **The hook lift is real, and it builds as ungated warm-up shortlists turn over.**
+- **It does not raise R&R share on a matched world.** The +2-4 point share gain in the prewarm-gated
+  three-seed screen came from the reshuffled worlds.
+- **Hit covers are a weak home for freed self-writing.** Without `--rock-hit-writers`, R&R has almost no
+  professional pool, so weak writers' share goes to covers.
+- **Owed.** Matched-world seeds 1002-1003, and the gate combined with a smaller writers' office (see
+  [[self-penned-deficit-is-new-signing-craft]]).
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic

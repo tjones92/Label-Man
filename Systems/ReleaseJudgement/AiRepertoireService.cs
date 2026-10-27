@@ -289,7 +289,8 @@ public static class AiRepertoireService {
 	/// <summary>SourceMix shapes which opportunities ARRIVE (directive §2), not a lottery at release.</summary>
 	internal static float ArrivalRate(SongMaterialSource source, AILabel label, SimulatedArtist artist, int year) {
 		Genre genre = ProjectGenre(artist, year);
-		SourceShares shares = SongMaterialSelectionService.GetSourceMixShares(genre, year, artist.primaryGenre);
+		SourceShares shares = SelfWritingCraftGate.Apply(SongMaterialSelectionService.GetSourceMixShares(genre, year, artist.primaryGenre),
+			SongMaterialSelectionService.ArtistWriterCraft(artist));
 		float b = ReleaseJudgement.Parameters.BaseArrivalRate;
 		return source switch {
 			SongMaterialSource.ArtistWritten => b * shares.Aw * (0.4f + 1.2f * SongMaterialSelectionService.ArtistWriterCraft(artist)),
