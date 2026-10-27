@@ -1,5 +1,8 @@
 # Known-buyer rack access
 
+The subsequent purchase-intention calibration is in
+[LpDemandCalibration.md](LpDemandCalibration.md).
+
 26 October 2026. Continues [LpChannelFactorial.md](LpChannelFactorial.md).
 The user authorized testing access for existing store buyers before changing
 autonomous shopper demand. This is an opt-in experiment, not an adopted fit.

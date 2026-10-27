@@ -31,7 +31,7 @@ public static class ArtistHeatAttribution {
 	}
 
 	public static void Open(string prefix) {
-		Configure(OS.GetCmdlineUserArgs());
+		Configure(SimulationArguments.Get());
 		if (!TraceEnabled) return;
 		heatWriter = new StreamWriter(prefix + "-artist-heat-attribution.csv");
 		launchWriter = new StreamWriter(prefix + "-single-launch-attribution.csv");

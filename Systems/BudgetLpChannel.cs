@@ -113,7 +113,7 @@ public static class BudgetLpChannel {
 				double bargain = weights > 0 ? pool * .095 * Math.Min(3, 3d / Price) *
 					MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick) * availability * weight / weights : 0;
 				double switched = genreWeight > 0 ? switching * weight / genreWeight : 0;
-				offers.Add(new Offer { Product = p, Demand = bargain + switched, SwitchDemand = switched, StoreLimit = storeUnits.GetValueOrDefault(genre.Key) });
+				offers.Add(new Offer { Product = p, Demand = LpDemandCalibration.BudgetDemand(bargain, switched), SwitchDemand = switched, StoreLimit = storeUnits.GetValueOrDefault(genre.Key) });
 			}
 		}
 		weekRows[region.regionId] = offers.Where(o => o.Demand > 0).ToList();

@@ -59,7 +59,7 @@ public sealed class GenreProfile {
 
 public static class GenreCatalog {
 	/// <summary>TEMPORARY A/B control (2026-10-13): restores the pre-trim Soul and R&B keyframes. Remove after the decade A/B.</summary>
-	private static readonly bool RsControl = Array.IndexOf(OS.GetCmdlineUserArgs(), "--rs-keyframes-control") >= 0;
+	private static readonly bool RsControl = Array.IndexOf(SimulationArguments.Get(), "--rs-keyframes-control") >= 0;
 	// Calibration probes, inert unless named. --genre-keyframe-scale=TraditionalPop@1960=1.07,... multiplies one
 	// baseline keyframe; --radio-acceptance=RockAndRoll=1.0,... replaces a genre's RadioAcceptance multiplier.
 	private static readonly Dictionary<(Genre, int), float> KeyframeScaleProbe = ParseProbe("--genre-keyframe-scale=", true)
@@ -72,7 +72,7 @@ public static class GenreCatalog {
 		.GroupBy(p => p.genre).ToDictionary(g => g.Key, g => g.Select(p => ((float)p.year, p.value)).OrderBy(k => k.Item1).ToArray());
 	internal static List<(Genre genre, int year, float value)> ParseProbe(string prefix, bool withYear) {
 		var result = new List<(Genre, int, float)>();
-		foreach (string arg in OS.GetCmdlineUserArgs().Where(a => a.StartsWith(prefix, StringComparison.Ordinal)))
+		foreach (string arg in SimulationArguments.Get().Where(a => a.StartsWith(prefix, StringComparison.Ordinal)))
 			foreach (string item in arg.Substring(prefix.Length).Split(',', StringSplitOptions.RemoveEmptyEntries)) {
 				string[] kv = item.Split('=');
 				string[] key = kv[0].Split('@');

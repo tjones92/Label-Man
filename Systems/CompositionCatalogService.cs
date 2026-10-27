@@ -237,7 +237,7 @@ public static class CompositionCatalogService {
 			if(LiveRepertoire.AuditPhase>=1)RepertoireTaxonomy.Assign(song, family, maxYear + 1);
 			// Retain the original Gospel fixture evidence alongside creation-time table authoring.
 			if(family == "Gospel Standard" && song.repertoireSeedFamily == family && (!PolarSongTable.AuditLegacyRepair ||
-				(SimulationSeedBootstrap.RequestedSeed is 1001 or 1002 && OS.GetCmdlineUserArgs().Contains("--polar-context-fixture"))))
+				(SimulationSeedBootstrap.RequestedSeed is 1001 or 1002 && SimulationArguments.Get().Contains("--polar-context-fixture"))))
 				CompositionShapeVariation.AuthorContext(song, SongContentContext.Sacred, "seeded-authored-fixture:Gospel Standard");
 			Register(song);
 			RepertoireProvenance.Admit(song, "seedFamily", family);
@@ -958,7 +958,7 @@ public static class CompositionCatalogService {
 	public static void RehydrateWorld(WorldSaveData w) {
 		CompositionSaveData c = w.Composition;
 		if (c == null) return;
-		CompositionShapeVariation.ActiveVersion = CompositionShapeVariation.ResolveVersion(OS.GetCmdlineUserArgs(), c.ShapeVariationVersion);
+		CompositionShapeVariation.ActiveVersion = CompositionShapeVariation.ResolveVersion(SimulationArguments.Get(), c.ShapeVariationVersion);
 		CompositionShapeVariation.WorldSeed = c.ShapeVariationWorldSeed ?? (c.HasRng ? c.RngSeed ^ 0x736f6e6763617461UL : CompositionShapeVariation.WorldSeed);
 		PolarSongBehavior.UsePolarFitSelection = c.UsePolarFitSelection;
 		PolarSongBehavior.RestoreTaste(c.PolarTaste);

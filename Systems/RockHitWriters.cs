@@ -14,7 +14,7 @@ using Godot;
 /// </summary>
 public static class RockHitWriters {
 	public const string Switch = "--rock-hit-writers";
-	public static readonly bool Enabled = Array.IndexOf(OS.GetCmdlineUserArgs(), Switch) >= 0;
+	public static readonly bool Enabled = Array.IndexOf(SimulationArguments.Get(), Switch) >= 0;
 
 	public static readonly Genre[] OfficeFocus = { Genre.RockAndRoll, Genre.DooWop, Genre.RnB };
 

@@ -26,6 +26,8 @@ using Godot;
 /// re-link against the restored world.</para>
 /// </summary>
 public sealed class WorldSaveData {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public double? LpDemandScale { get; set; }
 	// --- Clock (Phase 0) ---
 	public int ChartWeek { get; set; }
 	public int Hour { get; set; }
@@ -279,6 +281,7 @@ public static class WorldStateService {
 	public static WorldSaveData Capture() {
 		GameDate ending = ChartManager.Instance?.ChartWeekEndingDate ?? default;
 		var world = new WorldSaveData {
+			LpDemandScale = LpDemandCalibration.SavedScale,
 			ChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Hour = TimeManager.Instance?.CurrentHour ?? 0,
 			Minute = TimeManager.Instance?.CurrentMinute ?? 0,
@@ -311,6 +314,7 @@ public static class WorldStateService {
 	/// Order matters: artists first, then labels (whose rosters relink to those artists), then the lifecycle
 	/// (whose active list is the very same object as the label list).</summary>
 	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
+		LpDemandCalibration.RequireSaved(world?.LpDemandScale);
         SceneAttentionFeedback.Reset(); // derived prior-week cache must not survive a load/rollback
 		if (world == null) {
 			if (deferSceneRelink) {

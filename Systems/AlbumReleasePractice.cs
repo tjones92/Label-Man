@@ -11,13 +11,13 @@ using Godot;
 /// </summary>
 public static class AlbumReleasePractice {
 	public const string Switch = "--album-release-practice";
-	public static readonly bool Enabled = OS.GetCmdlineUserArgs().Contains(Switch);
+	public static readonly bool Enabled = SimulationArguments.Get().Contains(Switch);
 	public static readonly float CampaignScale = ReadScale("--album-promo-campaign-scale=", 1f);
 	// Late-decade LP-led singles, opt-in: --album-practice-late-advance=K. Inert unless named; 1960-64 never change.
 	public static readonly float LateAdvanceScale = ReadScale("--album-practice-late-advance=", 0f);
 	public static bool IsLive => Enabled && GenreMarketV2.Enabled && CompetitorManager.Instance?.AlbumPracticeLiveTick == true;
-	public static readonly bool SeparateSinglesCalendar = !OS.GetCmdlineUserArgs().Contains("--album-practice-coupled-calendar");
-	public static readonly bool HitLedAlbums = !OS.GetCmdlineUserArgs().Contains("--album-practice-album-first");
+	public static readonly bool SeparateSinglesCalendar = !SimulationArguments.Get().Contains("--album-practice-coupled-calendar");
+	public static readonly bool HitLedAlbums = !SimulationArguments.Get().Contains("--album-practice-album-first");
 
 	internal static bool NeedsSingleAudience(Genre genre, int year, int priorSingles, float roll) {
 		float orientation = GenreCatalog.Get(GenreCatalog.MapLegacy(genre, year)).SingleOrientation;
@@ -25,7 +25,7 @@ public static class AlbumReleasePractice {
 	}
 
 	private static float ReadScale(string prefix, float absent) {
-		string arg = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
+		string arg = SimulationArguments.Get().FirstOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
 		if (arg == null) return absent;
 		if (!float.TryParse(arg.Split('=')[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float scale) ||
 			!float.IsFinite(scale) || scale < 0f || scale > 3f)

@@ -1,5 +1,19 @@
 # Headless chart realism audit
 
+Ordinary gameplay now uses the `lp-retail-v1` economic baseline in
+`Systems/SimulationArguments.cs`, including the full release/audience bundle,
+LP demand scale .98, rack/budget shopper scales .02652/.0816, wider assortment,
+known-buyer rack access and turnover 45. See [LpDemandCalibration.md](LpDemandCalibration.md)
+for the retained decade, historical-reference revisions and unresolved issues.
+Headless audits retain explicit flags so old comparisons remain reproducible;
+add `--default-simulation-profile` to test the ordinary-game bundle headlessly.
+Explicit parameter values replace their profile defaults. Use
+`--legacy-simulation-profile` for the earlier flag-free configuration, including
+when loading saves that require its settings. Conflicting profile switches fail.
+`--simulation-arguments-check` exercises profile resolution and, with the default
+switch, verifies the initialized channels and saved LP factor through the
+save/load runner. Active baseline saves use v35; mismatched LP factors are rejected.
+
 The LP assortment × channel-choice experiment is in
 [LpChannelFactorial.md](LpChannelFactorial.md). Its four arms hold shopper scales,
 prices and rack unit capacity fixed while testing wider assortment and routing
@@ -36,7 +50,8 @@ separate channel gaps, price sensitivities and observed supply. See
 [BudgetLpV2.md](BudgetLpV2.md) for the remaining historical checks and next slice.
 
 Rack robustness checks use `RunRackJobberProbe.ps1 -Compact` with `control,racks`,
-`overlap`, `returns10`, or `returns20` arms. The runner accepts up to 530 weeks.
+`overlap`, `returns10`, or `returns20` arms. The runner accepts up to 521 weeks,
+covering the 1960s without advancing beyond the game's end date.
 `--rack-shared-exhaustion` shares title/region purchase exhaustion;
 `--rack-returns=R` charges full manufacturing/freight write-offs on a returned
 fraction R of shipments, without turning unsold copies into consumer sales.

@@ -19,6 +19,7 @@ using Godot;
 public partial class SaveLoadRoundTripRunner : Node {
 	public override void _Ready() {
 		try {
+			if (OS.GetCmdlineUserArgs().Contains("--simulation-arguments-check")) { SimulationArgumentsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--regional-sales-rng-check")) { RegionalSalesRandomChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--simulation-optimization-check")) { SimulationOptimizationChecks.Run(); GetTree().Quit(0); return; }
 			int weeks = 26;
@@ -78,6 +79,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--single-capital-risk-check")) { SingleCapitalRiskChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--lp-capacity-check")) { LpCapacityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--lp-demand-check")) { LpDemandChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--lp-demand-calibration-check")) { LpDemandCalibrationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--record-club-check")) { RecordClubChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--rack-jobber-check")) { RackJobberChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--budget-lp-catalogue-check")) { BudgetLpCatalogueChecks.Run(); GetTree().Quit(0); return; }

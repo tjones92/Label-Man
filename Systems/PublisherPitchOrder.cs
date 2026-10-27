@@ -15,7 +15,7 @@ using Godot;
 /// </summary>
 public static class PublisherPitchOrder {
 	public const string Switch = "--publisher-pitch-order";
-	public static readonly bool Enabled = Array.IndexOf(OS.GetCmdlineUserArgs(), Switch) >= 0;
+	public static readonly bool Enabled = Array.IndexOf(SimulationArguments.Get(), Switch) >= 0;
 
 	private static readonly Dictionary<(IReadOnlyList<SongComposition>, int, int), IReadOnlyList<SongComposition>> slices = new();
 

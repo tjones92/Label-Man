@@ -9,16 +9,34 @@ from analyze_rack_jobber_probe import BILLBOARD
 from analyze_single_capital_risk import ROOT, read
 
 
-def analyse(plan_path, completed_only=False):
+def analyse(plan_path, completed_only=False, endpoint_overrun_runs=()):
     plan = json.loads(plan_path.read_text(encoding='utf-8-sig'))
     expected = {(a, s) for a in plan['arms'] for s in plan['seeds']}
-    completed = {(r['arm'], r['seed']) for r in plan['runs'] if r['passed']}
+    # Explicitly adjudicate only the known end-date harness error. Keep the original
+    # native failure visible; final callers must additionally verify full-year coverage.
+    endpoint_names = set(endpoint_overrun_runs)
+    if not endpoint_names <= {r['name'] for r in plan['runs']}:
+        raise ValueError('Unknown endpoint exception run')
+    for run in plan['runs']:
+        if run['name'] not in endpoint_names:
+            continue
+        source = ROOT / run['sourceTag'] if run.get('sourceTag') else plan_path.parent
+        error = (source / f"{run['name']}-errors.log").read_text(encoding='utf-8-sig')
+        marker = 'ERROR: CHART_AUDIT_FAILED: System.InvalidOperationException: The game ended before another chart week could be simulated.'
+        if run['passed'] or run.get('exitCode') != 1 or error.count('ERROR:') != 1 or marker not in error:
+            raise ValueError('Not an isolated end-date harness overrun: ' + run['name'])
+        sales = read(ROOT / run['name'], 'label-sales-weekly', usecols=['week', 'year'])
+        coverage = sales[sales.year.between(1960, 1969)].groupby('year').week.nunique()
+        if set(coverage.index) != set(range(1960, 1970)) or not coverage.isin([52, 53]).all():
+            raise ValueError('Endpoint exception lacks a complete decade: ' + run['name'])
+    native_completed = {(r['arm'], r['seed']) for r in plan['runs'] if r['passed']}
+    completed = {(r['arm'], r['seed']) for r in plan['runs'] if r['passed'] or r['name'] in endpoint_names}
     matrix_complete = expected == completed
     if (not matrix_complete and not completed_only) or any(not c['passed'] for c in plan['checks']):
         raise ValueError('All declared checks and worlds must complete before analysis')
     if not completed:
         raise ValueError('No completed worlds')
-    plan['runs'] = [r for r in plan['runs'] if r['passed']]
+    plan['runs'] = [r for r in plan['runs'] if r['passed'] or r['name'] in endpoint_names]
     annual, checks = [], []
     defaults = plan.get('scenarioDefaults', {})
     for run in plan['runs']:
@@ -64,9 +82,9 @@ def analyse(plan_path, completed_only=False):
                 raise ValueError('Product sold before holdback')
             if run['arm'] == 'budgetadd' and budget.switchedStoreUnits.sum() != 0:
                 raise ValueError('Zero weekly-substitution arm switched buyers')
-            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure', 'budgetaccesspure'} and not budget.budgetUnits.eq(budget.switchedStoreUnits).all():
+            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure', 'budgetaccesspure', 'budgetlp096pure'} and not budget.budgetUnits.eq(budget.switchedStoreUnits).all():
                 raise ValueError('Zero-incremental-pool stress invented buyers')
-            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure', 'budgetaccesspure'} and budget.budgetUnits.sum() <= 0:
+            if run['arm'] in {'budgetfullswitch', 'budgetchoicepure', 'budgetaccesspure', 'budgetlp096pure'} and budget.budgetUnits.sum() <= 0:
                 raise ValueError('Zero-incremental-pool stress must exercise actual sales')
             if Path(f'{prefix}-lp-channel-choice-weekly.csv').exists():
                 choice = read(prefix, 'lp-channel-choice-weekly')
@@ -82,7 +100,7 @@ def analyse(plan_path, completed_only=False):
                     raise ValueError('Unfulfilled front-line switches')
                 if not any(a.startswith('--rack-store-choice=') and float(a.split('=')[1]) > 0 for a in run['args']) and choice.frontSwitched.sum() != 0:
                     raise ValueError('Choice-off arm routed buyers')
-                if run['arm'] in {'budgetchoicepure', 'budgetaccesspure'} and choice.frontSwitched.sum() <= 0:
+                if run['arm'] in {'budgetchoicepure', 'budgetaccesspure', 'budgetlp096pure'} and choice.frontSwitched.sum() <= 0:
                     raise ValueError('Choice conservation stress must exercise front-line routes')
         elif (front.units > front.shelf).any():
             raise ValueError('Front-line shelf exceeded')
@@ -135,8 +153,9 @@ def analyse(plan_path, completed_only=False):
                            **{name + 'Delta': float(row[name] - base.iloc[0][name]) for name in
                               ['storesM', 'frontRacksM', 'budgetRacksM', 'allRacksM', 'totalLpM']}))
     return dict(assemblySha256=plan['assemblySha256'], matrixComplete=matrix_complete, calibrationAccepted=False, checks=checks,
+                nativeMatrixComplete=expected == native_completed, endpointOverrunRuns=sorted(endpoint_names),
                 annual=annual, paired=paired, assumptions=dict(ownMasterOnly=True, openingBasketsSynthetic=True,
-                  scenarioDefaults=defaults, scenarios={r['arm']: [a for a in r['args'] if a.startswith(('--budget-', '--rack-'))]
+                  scenarioDefaults=defaults, scenarios={r['arm']: [a for a in r['args'] if a.startswith(('--budget-', '--rack-', '--lp-demand-scale='))]
                                                        for r in plan['runs']},
                   warning='Scenario defaults; no market size inferred from a net sales gap. Partial years are never annualized.'))
 

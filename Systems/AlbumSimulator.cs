@@ -119,7 +119,7 @@ public static class AlbumSimulator {
 		data.albumExhaustionThisWeek = exhaustion;
 		data.albumCatalogDecayMultiplierThisWeek = catalogDecayMultiplier;
 		data.albumFormatTiltThisWeek = formatTilt;
-		data.albumConversionThisWeek = conversion;
+		data.albumConversionThisWeek = LpDemandCalibration.Apply(conversion);
 		data.albumRawDemandBeforeCannibalizationThisWeek = rawDemandBeforeCannibalization;
 		data.albumRawDemandAfterCannibalizationThisWeek = rawSales;
 		data.albumUnitsInStoresBeforeSaleThisWeek = data.unitsInStores;
@@ -231,7 +231,7 @@ public static class AlbumSimulator {
 	}
 
 	internal static float CalculateRawDemandBeforeCannibalization(float buyerPool, float awareness, float conversion) =>
-		buyerPool * awareness * conversion;
+		LpDemandCalibration.Apply(buyerPool * awareness * conversion);
 
 	internal static float CalculateAlbumExhaustion(float effectivePenetration) =>
 		Mathf.Max(0.15f, 1f / (1f + effectivePenetration * 4f));

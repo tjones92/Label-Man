@@ -10,7 +10,7 @@ using Godot;
 /// </summary>
 public static class AlbumSessionProduction {
 	public const string Switch = "--album-session-production";
-	public static readonly bool Enabled = Array.IndexOf(OS.GetCmdlineUserArgs(), Switch) >= 0;
+	public static readonly bool Enabled = Array.IndexOf(SimulationArguments.Get(), Switch) >= 0;
 
 	public static float ForTrack(float legacyProduction, AILabel label, SimulatedArtist artist, string albumId, int slot) {
 		if (!Enabled) return legacyProduction;
