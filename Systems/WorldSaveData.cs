@@ -28,6 +28,8 @@ using Godot;
 public sealed class WorldSaveData {
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public double? LpDemandScale { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? RetailPurchasePolicy { get; set; }
 	// --- Clock (Phase 0) ---
 	public int ChartWeek { get; set; }
 	public int Hour { get; set; }
@@ -282,6 +284,7 @@ public static class WorldStateService {
 		GameDate ending = ChartManager.Instance?.ChartWeekEndingDate ?? default;
 		var world = new WorldSaveData {
 			LpDemandScale = LpDemandCalibration.SavedScale,
+			RetailPurchasePolicy = RetailPurchaseEnvelope.SavedVersion,
 			ChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Hour = TimeManager.Instance?.CurrentHour ?? 0,
 			Minute = TimeManager.Instance?.CurrentMinute ?? 0,
@@ -315,6 +318,7 @@ public static class WorldStateService {
 	/// (whose active list is the very same object as the label list).</summary>
 	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
 		LpDemandCalibration.RequireSaved(world?.LpDemandScale);
+		RetailPurchaseEnvelope.RequireSaved(world?.RetailPurchasePolicy);
         SceneAttentionFeedback.Reset(); // derived prior-week cache must not survive a load/rollback
 		if (world == null) {
 			if (deferSceneRelink) {

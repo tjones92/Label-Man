@@ -66,6 +66,14 @@ public static class LpChannelExperiment {
 		Math.Min(planned, totalDemand == planned ? units : Math.Min(units, (int)Math.Floor(units * (planned / totalDemand))));
 	internal static void CompleteFront(string region, IReadOnlyList<RackJobberChannel.Candidate> candidates) {
 		if (ChoiceShare <= 0) return;
+		if (RetailPurchaseEnvelope.Enabled) {
+			foreach (var c in candidates) if (choices.TryGetValue((region, c.Record.baseRecord.recordId), out var choice)) {
+				if (c.StoreChoiceCleared < 0 || c.StoreChoiceCleared > choice.Planned || c.StoreChoiceCleared > c.Units)
+					throw new InvalidOperationException("Shared LP migration exceeds its store cohort.");
+				choice.Fulfilled = c.StoreChoiceCleared;
+			}
+			return;
+		}
 		var parts = candidates.Where(c => choices.ContainsKey((region, c.Record.baseRecord.recordId))).Select(c => {
 			var choice = choices[(region, c.Record.baseRecord.recordId)];
 			double demand = (double)c.AutonomousDemand + choice.Planned;

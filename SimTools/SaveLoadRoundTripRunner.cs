@@ -78,6 +78,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--single-forecast-realization-check")) { SingleForecastRealizationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--single-capital-risk-check")) { SingleCapitalRiskChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--lp-capacity-check")) { LpCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--retail-purchase-envelope-check")) { RetailPurchaseEnvelopeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--lp-demand-check")) { LpDemandChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--lp-demand-calibration-check")) { LpDemandCalibrationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--record-club-check")) { RecordClubChecks.Run(); GetTree().Quit(0); return; }

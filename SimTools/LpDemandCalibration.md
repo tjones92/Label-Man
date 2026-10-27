@@ -583,3 +583,74 @@ using only `--default-simulation-profile` plus its seed/horizon passed byte-exac
 world save/load, gzip file IO and an additional resumed release-programme week.
 Python analyzers compiled, the PowerShell probe parsed and `git diff --check`
 passed. These are startup/mechanical smoke checks, not another decade holdout.
+
+### Buyer-pool inspection against the 1969 guide (no new simulation)
+
+27 October 2026. The user requested analysis and static sensitivities on the
+retained world, expressly prohibiting decade runs. No simulation or gameplay
+change was made. The guide's revised early figures do not replace the existing
+1960-1965 reference series. Its U.S. Record Survey reports through 1968, so it
+does not supply a completed 1969 endpoint.
+
+Printed pages 10-11 of the 1969-1970 guide give non-rack/rack LP units of
+56/77M in 1966, 56/87M in 1967 and 54/93M in 1968. Derived retail LP totals
+are 133/143/147M: +10.526% over 1966-1968, against the retained world's
+181.034/224.703/268.475M (+48.301%). Corresponding retail-only LP unit shares
+are 50.763/52.381/53.846%, against 54.553/60.921/65.855%. Clubs and jukeboxes
+are excluded from both retail comparisons. Direct PDF access returned 403;
+the same edition's indexed mirror supplied the complete relevant table text,
+but visual page verification was unavailable in this pass.
+
+The retained world's 1966-1969 retail LP increase decomposes exactly into
+82.011M pre-choice store purchases, 26.946M autonomous front-line rack units
+and 18.074M autonomous budget units. Switchers cancel from total retail sales.
+Thus 64.56% of the increase originates in the store cohort before channel
+routing. Holding the initial model LP share fixed at its observed 1969 total
+retail volume gives 242.746M LPs, versus 308.065M recorded: the 65.319M mix
+component is 51.42% of the total LP increase under this starting-share
+accounting convention, not an independent causal attribution.
+
+`analyze_lp_buyer_pool_static.py` reconstructs every regional store pre-choice
+total and planned front-line switch cohort exactly. Shared-shelf replay differs
+by at most one unit per region/week and one unit per annual retail total.
+Source simulation years drive formulas; settlement years drive comparisons.
+Static store serviceable-intention contractions of 10/20/30% yield 1969 retail
+totals of 303.894/296.326/281.240M. Holding both autonomous rack pools at 1966
+reach gives 279.768M; combining that with a 20% store contraction gives 268.029M.
+These are diagnostic ledger interventions, not valid `--lp-demand-scale`
+settings, selected parameters, native simulations or feedback forecasts.
+
+Store affinity/willingness are separate from rack autonomous pool reach.
+Willingness is already clamped in the three largest affluent regions by 1966;
+fixed-genre sizing-propensity growth to 1969 ranges from about 2% for already
+saturated affinities to 20.68% for unclamped examples. The compact retained run
+omitted per-title store pool/exhaustion telemetry, so actual formula changes
+cannot be replayed exactly from these ledgers. New LP cohort mean quality^2.5
+also rises about 30.3%; this is a plausible healthy contribution, not a
+sales-weighted causal decomposition.
+
+The legacy store capacity curve's comments target an overall LP/singles share
+near 55% at decade end, while autonomous rack channels add buyers alongside
+that curve. Reconcile the combined LP purchase envelope and channel split
+before interpreting these separate curves as a calibrated total market. No
+duplicate multiplication by store affinity/willingness was established. No
+default policy or historical target was changed.
+
+Generated evidence remains under `SimLogs/lpdc-pool102-decade-holdout/`:
+`buyer-pool-static-readout.md`, `buyer-pool-static-method.json`,
+`buyer-guide-late-comparison.csv`, `buyer-pool-static-scenarios.csv`,
+`buyer-pool-channel-components.csv`, `buyer-pool-authored-curves.csv`,
+`buyer-pool-affinity-grid.csv`, `buyer-pool-lp-launch-quality.csv` and
+`buyer-pool-static-review.png`.
+
+### Shared purchasing implementation
+
+The subsequent user-authorized implementation is documented in
+[RetailPurchaseEnvelope.md](RetailPurchaseEnvelope.md). Ordinary gameplay now
+uses `lp-retail-v2` with a common store/autonomous-rack LP purse, separate
+transfer cohorts, a corrected live Single purse and protected format-specific
+Single spillover. Active saves use v36. The production-allocator replay gives
+1.571% mean channel error for 1966-1968; the older 1961-1965 comparison worsens
+to 13.726% and remains visible. No new decade or long feedback run was started.
+Earlier sections describe the retained v1 evidence and are not relabeled as
+validation of the new policy.

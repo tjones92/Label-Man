@@ -391,6 +391,7 @@ public partial class ChartManager : Node {
 		LpCapacityScreen.Configure(SimulationArguments.Get());
 		LpDemandProbe.Configure(SimulationArguments.Get());
 		LpDemandCalibration.Configure(SimulationArguments.Get());
+		RetailPurchaseEnvelope.Configure(SimulationArguments.Get());
 		BritishLabelDeferral.Configure(SimulationArguments.Get());
 		MidTierNationalAr.Configure(SimulationArguments.Get());
 		MidTierGoingConcernCash.Configure(SimulationArguments.Get());
@@ -1398,7 +1399,7 @@ public partial class ChartManager : Node {
 			int albumBudget = AlbumSalesVolume.Budget(budget.Album);
 			capacity -= budget.Album - albumBudget;
 			// The Majors' off-chart base buys from the same singles purse; spillover cannot reclaim it either.
-			int singleBudget = MajorOffChartSingles.HeldSingleBudget(budget.Single);
+			int singleBudget = RetailPurchaseEnvelope.SingleBudget(MajorOffChartSingles.HeldSingleBudget(budget.Single));
 			capacity -= budget.Single - singleBudget;
 			summary.PurchaseCapacity = capacity;
 			budget = new FormatClearingBudget(singleBudget, albumBudget, budget.EffectiveAlbum);
@@ -1417,8 +1418,15 @@ public partial class ChartManager : Node {
 			}
 			summary.LocalClearedUnits = intents.Sum(intent => intent.Cleared);
 			summary.UnusedAfterLocal = Mathf.Max(0, capacity - summary.LocalClearedUnits);
-			summary.ExportBudget = CalculateSpilloverExportBudget(summary.UnusedAfterLocal);
-			summary.ImportLimit = Mathf.FloorToInt(capacity * SpilloverMaximumImportShare);
+			// The shared policy keeps unused LP purchasing in the LP purse. Only
+			// genuinely idle Single purchasing can back an additional Single sale.
+			int portable = RetailPurchaseEnvelope.Enabled
+				? Math.Max(0, RetailPurchaseEnvelope.SingleBudget(MajorOffChartSingles.HeldSingleBudget(baseCapacity)) - summary.LocalClearedSingleUnits)
+				: summary.UnusedAfterLocal;
+			summary.ExportBudget = CalculateSpilloverExportBudget(portable);
+			summary.ImportLimit = RetailPurchaseEnvelope.Enabled
+				? (int)Math.Floor(RetailPurchaseEnvelope.SingleBudget(MajorOffChartSingles.HeldSingleBudget(baseCapacity)) * .03)
+				: Mathf.FloorToInt(capacity * SpilloverMaximumImportShare);
 			summariesByRegion[region.regionId] = summary;
 		}
 
@@ -1430,8 +1438,26 @@ public partial class ChartManager : Node {
 
 		if (BudgetLpChannel.Enabled) {
 			var pending = intentsByRegion.ToDictionary(p => p.Key, p => p.Value.ToDictionary(i => i.Record, i => i.Cleared));
+			void AllocateStoreCohort(string regionId, int target) {
+				var albums = intentsByRegion[regionId].Where(i => i.Record.baseRecord.format == ReleaseFormat.Album)
+					.OrderBy(i => i.Record.baseRecord.recordId, StringComparer.Ordinal).ToList();
+				int before = albums.Sum(i => i.Cleared);
+				if (target < 0 || target > before) throw new InvalidOperationException("Invalid shared LP store cohort.");
+				int[] allocated = RetailPurchaseEnvelope.Allocate(albums.Select(i => (double)i.Cleared).ToArray(), target);
+				var summary = summariesByRegion[regionId];
+				for (int i = 0; i < albums.Count; i++) {
+					var intent = albums[i]; int remove = intent.Cleared - allocated[i];
+					int spill = Math.Min(remove, intent.SpilloverCleared), local = remove - spill;
+					intent.Cleared -= remove; intent.SpilloverCleared -= spill;
+					intent.Data.localClearedThisWeek -= local;
+					summary.SpilloverClearedUnits -= spill;
+					summary.LocalClearedAlbumUnits -= local; summary.LocalClearedUnits -= local;
+					pending[regionId][intent.Record] = intent.Cleared;
+				}
+			}
 			RackJobberChannel.ClearWeek(allRecords, allRegions, GetLabelById, currentChartWeek, year, month, triggerEvents,
-				(record, region) => pending[region].GetValueOrDefault(record));
+				(record, region) => pending[region].GetValueOrDefault(record),
+				region => RetailPurchaseEnvelope.AlbumBudget(summariesByRegion[region].BasePurchaseCapacity, year), AllocateStoreCohort);
 			foreach (var (region, intents) in intentsByRegion) {
 				var summary = summariesByRegion[region];
 				void RemoveStore(MarketIntent intent, int remove) {
@@ -1647,6 +1673,7 @@ public partial class ChartManager : Node {
 			}
 		}
 		int album = Mathf.Min(Mathf.Max(0, summary.AlbumFormatBudget - albumCleared), albumResidual);
+		if (RetailPurchaseEnvelope.Enabled) return Math.Max(0, single);
 		return Mathf.Max(0, single + album);
 	}
 

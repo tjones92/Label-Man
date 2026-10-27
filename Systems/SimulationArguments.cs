@@ -7,7 +7,7 @@ using Godot;
 public static class SimulationArguments {
     public const string DefaultSwitch = "--default-simulation-profile";
     public const string LegacySwitch = "--legacy-simulation-profile";
-    public const string ProfileName = "lp-retail-v1";
+    public const string ProfileName = "lp-retail-v2";
     private static string[] effective;
     // The complete validated base matters: LP calibration depends on its release and audience systems.
     // Telemetry-only --calibration, --small-label-finance and profiling flags are deliberately excluded.
@@ -69,6 +69,7 @@ public static class SimulationArguments {
         "--rack-store-choice=1",
         "--rack-turnover=45",
         "--lp-demand-scale=0.98",
+        "--retail-purchase-envelope=1",
     };
 
     public static string[] Get() => effective ??= Resolve(OS.GetCmdlineUserArgs(),

@@ -1106,6 +1106,7 @@ public partial class ChartAuditRunner : Node {
 		OpenReleaseEconomicsOutputs(outputDirectory);
 		OpenLpCapacityOutputs(outputDirectory);
 		OpenLpDemandOutputs(outputDirectory);
+		OpenRetailPurchaseOutputs(outputDirectory);
 		OpenDemandObservationOutputs(outputDirectory);
 		OpenPromoSynergyOutputs(outputDirectory);
 		OpenEconomyAuditBOutputs(outputDirectory);
@@ -2290,6 +2291,7 @@ public partial class ChartAuditRunner : Node {
 		// demand from purchase-budget rationing in compact economic audits too.
 		WriteMarketClearingRows(week, date.year);
 		WriteLpCapacityRows(week, date.year);
+		WriteRetailPurchaseRows(week, date.year);
 
 		// Everything below is per-week diagnostic telemetry that walks all records/labels/rosters and
 		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
@@ -3979,6 +3981,7 @@ public partial class ChartAuditRunner : Node {
 		CloseCareerMemoryOutputs();
 		CloseReleaseEconomicsOutputs();
 		CloseLpCapacityOutputs();
+		CloseRetailPurchaseOutputs();
 		lpDemandWriter?.Dispose(); lpDemandWriter = null;
 		ClosePromoSynergyOutputs();
 		CloseEconomyAuditBOutputs();

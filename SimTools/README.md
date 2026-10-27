@@ -1,9 +1,16 @@
 # Headless chart realism audit
 
-Ordinary gameplay now uses the `lp-retail-v1` economic baseline in
+Ordinary gameplay now uses the `lp-retail-v2` economic baseline in
 `Systems/SimulationArguments.cs`, including the full release/audience bundle,
 LP demand scale .98, rack/budget shopper scales .02652/.0816, wider assortment,
-known-buyer rack access and turnover 45. See [LpDemandCalibration.md](LpDemandCalibration.md)
+known-buyer rack access and turnover 45. The shared retail purchase envelope
+places stores and autonomous racks inside one prospective LP purse, tracks
+migration separately and prevents idle LP purchasing from serving Singles.
+See [RetailPurchaseEnvelope.md](RetailPurchaseEnvelope.md) for static calibration,
+historical scope limits and verification without a decade run.
+Use `--retail-purchase-envelope=0` with the default profile to reproduce the
+previous LP retail policy, including when resuming its v35 saves.
+See [LpDemandCalibration.md](LpDemandCalibration.md)
 for the retained decade, historical-reference revisions and unresolved issues.
 Headless audits retain explicit flags so old comparisons remain reproducible;
 add `--default-simulation-profile` to test the ordinary-game bundle headlessly.
@@ -12,7 +19,8 @@ Explicit parameter values replace their profile defaults. Use
 when loading saves that require its settings. Conflicting profile switches fail.
 `--simulation-arguments-check` exercises profile resolution and, with the default
 switch, verifies the initialized channels and saved LP factor through the
-save/load runner. Active baseline saves use v35; mismatched LP factors are rejected.
+save/load runner. Active baseline saves use v36; mismatched LP factors and retail
+purchase policies are rejected before world mutation.
 
 The LP assortment × channel-choice experiment is in
 [LpChannelFactorial.md](LpChannelFactorial.md). Its four arms hold shopper scales,

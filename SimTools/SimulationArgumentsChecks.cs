@@ -10,7 +10,7 @@ public static class SimulationArgumentsChecks {
             checks++;
         }
         var ordinary = SimulationArguments.Resolve(Array.Empty<string>(), true);
-        Check(ordinary.Length == 57 && ordinary.Distinct().Count() == 57, "Complete ordinary-game profile");
+        Check(ordinary.Length == 58 && ordinary.Distinct().Count() == 58, "Complete ordinary-game profile");
         Check(ordinary.Contains("--lp-demand-scale=0.98") && ordinary.Contains("--rack-shopper-scale=0.02652") &&
             ordinary.Contains("--budget-shopper-scale=0.0816"), "Adopted LP calibration");
         Check(SimulationArguments.Resolve(Array.Empty<string>(), false).Length == 0, "Historical headless audits stay explicit");
@@ -37,8 +37,9 @@ public static class SimulationArgumentsChecks {
             Check(LabelReleaseProgramme.ProjectJudgementEnabled && LabelReleaseProgramme.Enabled &&
                 Math.Abs(LpCapacityScreen.PurchaseShare - .48) < 1e-7 && LpCapacityScreen.ProgrammeScale == 2,
                 "Complete release and LP capacity baseline active");
-            Check(SaveGameService.WritingVersion == 35 && WorldStateService.Capture().LpDemandScale == .98,
-                "Default factor captured in v35 saves");
+            Check(RetailPurchaseEnvelope.Enabled && SaveGameService.WritingVersion == 36 &&
+                WorldStateService.Capture().LpDemandScale == .98 && WorldStateService.Capture().RetailPurchasePolicy == 1,
+                "Default purchase policy captured in v36 saves");
         }
         GD.Print($"SIMULATION_ARGUMENTS_CHECKS_OK {checks} profile={SimulationArguments.ProfileName}");
     }

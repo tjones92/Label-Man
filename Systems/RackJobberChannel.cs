@@ -152,6 +152,7 @@ public static class RackJobberChannel {
 		public bool LabelShips, PastPeak;
 		public float Demand;
 		public int Units;
+		public int StoreChoiceCleared;
 	}
 
 	/// <summary>
@@ -198,11 +199,15 @@ public static class RackJobberChannel {
 	/// </summary>
 	public static void ClearWeek(IReadOnlyList<RecordRuntimeData> records, IReadOnlyList<MarketRegion> regions,
 		Func<string, AILabel> labelOf, int week, int year, int month, bool liveTick,
-		Func<RecordRuntimeData, string, int> pendingStoreUnits = null) {
+		Func<RecordRuntimeData, string, int> pendingStoreUnits = null,
+		Func<string, int> retailLpBudget = null, Action<string, int> allocateStoreCohort = null) {
 		// Off, the week-local fields are never written and stay zero.
 		if (!Enabled) return;
 		BudgetLpChannel.BeginWeek();
 		LpChannelExperiment.BeginWeek();
+		RetailPurchaseEnvelope.BeginWeek();
+		if (RetailPurchaseEnvelope.Enabled && (!BudgetLpChannel.Enabled || pendingStoreUnits == null || retailLpBudget == null || allocateStoreCohort == null))
+			throw new InvalidOperationException("Shared LP purchasing requires joint store/rack clearing.");
 		foreach (RecordRuntimeData record in records) {
 			record.rackUnitsThisWeek = 0;
 			foreach (RegionalRecordData data in record.regionalData.Values) data.rackUnitsThisWeek = 0;
@@ -239,16 +244,38 @@ public static class RackJobberChannel {
 				c.Demand = LpDemandCalibration.Apply(c.Demand);
 				racked.Add(c);
 				c.AutonomousDemand = c.Demand;
+			}
+			int storeBefore = 0, storeAllocated = 0, autonomousAllowance = 0;
+			if (RetailPurchaseEnvelope.Enabled) {
+				storeBefore = records.Where(r => r.baseRecord.format == ReleaseFormat.Album)
+					.Sum(r => pendingStoreUnits(r, region.regionId));
+				double autonomous = racked.Sum(c => (double)c.AutonomousDemand) + budget.Sum(o => Math.Max(0, o.Demand - o.SwitchDemand));
+				(storeAllocated, autonomousAllowance) = RetailPurchaseEnvelope.Split(storeBefore, autonomous, retailLpBudget(region.regionId), RetailPurchaseEnvelope.RackWeight(year));
+				allocateStoreCohort(region.regionId, storeAllocated);
+				foreach (var c in racked) c.StoreUnits = pendingStoreUnits(c.Record, region.regionId);
+				budget = BudgetLpChannel.Offers(region, week, year, month, liveTick, labelOf,
+					albums.GroupBy(r => r.baseRecord.primaryGenre).ToDictionary(g => g.Key,
+						g => g.Sum(r => pendingStoreUnits(r, region.regionId))));
+			}
+			foreach (var c in racked) {
 				LpChannelExperiment.Plan(region.regionId, c, year);
-				c.Demand += c.StoreChoice;
+				c.Demand = c.AutonomousDemand + c.StoreChoice;
 			}
 			if (budget != null) LpChannelExperiment.ReserveBudgetBuyers(region.regionId, budget, racked);
 			int shelf = Shelf(region, year);
 			if (budget != null) {
-				BudgetLpChannel.AllocateShared(racked, budget, shelf);
+				if (RetailPurchaseEnvelope.Enabled) AllocatePurchasingCohorts(racked, budget, shelf, autonomousAllowance);
+				else BudgetLpChannel.AllocateShared(racked, budget, shelf);
 				BudgetLpChannel.Complete(region, week, year, shelf, racked.Sum(c => c.Units));
 			} else AllocateUnits(racked, shelf);
 			LpChannelExperiment.CompleteFront(region.regionId, racked);
+			if (RetailPurchaseEnvelope.Enabled) {
+				int switched = racked.Sum(c => LpChannelExperiment.FrontSwitches(region.regionId, c.Record.baseRecord.recordId)) + budget.Sum(o => o.Switched);
+				RetailPurchaseEnvelope.Record(new() { Week = week, Year = year, RegionId = region.regionId,
+					Budget = retailLpBudget(region.regionId), StoreBefore = storeBefore, StoreAllocated = storeAllocated,
+					AutonomousAllowance = autonomousAllowance, FinalStores = storeAllocated - switched,
+					RackUnits = racked.Sum(c => c.Units) + budget.Sum(o => o.Units), Switchers = switched });
+			}
 			var row = new RegionWeekRow { Week = week, Year = year, RegionId = region.regionId, Pool = pool, Shelf = shelf };
 			foreach (var c in racked) {
 				c.Data.rackUnitsThisWeek = c.Units;
@@ -270,6 +297,19 @@ public static class RackJobberChannel {
 			row.ShelfBound = row.Demand + (budget?.Sum(o => o.Demand) ?? 0) >= shelf && shelf > 0;
 			regionRows.Add(row);
 		}
+	}
+
+	internal static void AllocatePurchasingCohorts(List<Candidate> front, List<BudgetLpChannel.Offer> budget, int shelf, int autonomousAllowance) {
+		var products = budget.Select(o => (Id: "budget:" + o.Product.Id, Switch: o.SwitchDemand,
+			Auto: Math.Max(0, o.Demand - o.SwitchDemand), Put: (Action<int, int>)((s, a) => {
+				o.Switched = s; o.ExactSwitchUnits = s; o.Units = s + a;
+			})))
+			.Concat(front.Select(c => (Id: "front:" + c.Record.baseRecord.recordId, Switch: (double)c.StoreChoice,
+				Auto: (double)c.AutonomousDemand, Put: (Action<int, int>)((s, a) => { c.StoreChoiceCleared = s; c.Units = s + a; }))))
+			.OrderBy(p => p.Id, StringComparer.Ordinal).ToList();
+		int[] switched = RetailPurchaseEnvelope.Allocate(products.Select(p => p.Switch).ToArray(), shelf);
+		int[] autonomous = RetailPurchaseEnvelope.Allocate(products.Select(p => p.Auto).ToArray(), Math.Min(autonomousAllowance, Math.Max(0, shelf - switched.Sum())));
+		for (int i = 0; i < products.Count; i++) products[i].Put(switched[i], autonomous[i]);
 	}
 
 	// Telemetry: process-cumulative, written by the audit runner at close. No saved state.

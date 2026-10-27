@@ -87,6 +87,7 @@ public static class BudgetLpChannel {
 		public BudgetLpProduct Product;
 		public double Demand, SwitchDemand;
 		public int Units, Switched, StoreLimit;
+		public int? ExactSwitchUnits;
 	}
 	internal static bool HasMargin(double manufacturing) => Price * WholesaleShare * (1 - RoyaltyRate) - manufacturing
 		- LabelPressingEconomics.ExpectedAlbumCompositionCost - RackJobberChannel.ReturnWriteOff((float)manufacturing) > 0;
@@ -150,7 +151,7 @@ public static class BudgetLpChannel {
 	internal static void Complete(MarketRegion region, int week, int year, int shelf, int frontUnits) {
 		var offers = weekRows[region.regionId];
 		foreach (var o in offers)
-			o.Switched = FulfilledSwitchers(o);
+			o.Switched = o.ExactSwitchUnits ?? FulfilledSwitchers(o);
 		foreach (var group in offers.GroupBy(o => o.Product.Genre)) BoundSwitchers(group.ToList(), group.First().StoreLimit);
 		foreach (var o in offers) {
 			o.Product.RegionUnits[region.regionId] = o.Product.RegionUnits.GetValueOrDefault(region.regionId) + o.Units;
