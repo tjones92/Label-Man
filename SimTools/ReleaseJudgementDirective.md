@@ -1439,6 +1439,29 @@ weeks 1-4 byte-identical to the control on seed 1001.
 - **Owed.** Matched-world seeds 1002-1003, and the gate combined with a smaller writers' office (see
   [[self-penned-deficit-is-new-signing-craft]]).
 
+**Matched seeds 1002-1003 and a half office** (`hs52live1002/1003-SMP-HG`, `hs52live-SMP-HRh/HGRh`).
+`--rock-hit-writers-share=S` scales R&R's professional anchor (1960 .35, 1969 .15) and leaves the office catalogue as
+it is.
+
+| Gate effect, matched worlds | 1001 | 1002 | 1003 | Mean |
+|---|---|---|---|---|
+| R&R hook | .652 → .676 | .637 → .657 | .645 → .649 | +.016 |
+| 1960 R&R market share | 9.41 → 9.39 | 14.51 → 17.36 | 10.29 → 10.25 | 11.40 → 12.33 |
+| R&R Top 10 records (AW) | 15 (11) → 10 (6) | 19 (17) → 20 (14) | 17 (13) → 15 (12) | 51 (41) → 45 (32) |
+| Single launches | +42 | −36 | −6 | flat |
+
+- **The gate gives a small, consistent hook lift.** Its effect on share is one seed's worth of noise, and the R&R
+  Top 10 drifts slightly down.
+- **The share spread across seeds (9.4-14.5 with no gate) is larger than any of these levers.** Share calls need more
+  seeds than three.
+
+**The half office on seed 1001.** The office reshapes the world, so these cells compare only with each other.
+Half office without the gate: hook .715, share 16.66, R&R Top 10 18 (5 AW, 7 Pro). With the gate: .722, 16.20, 15 (6
+AW, 4 Pro). The full office was .727, 15.22, 17 (1 AW, 14 Pro).
+
+- **At half size the office still overshoots history** (13.54) and still takes R&R hits from self-writers.
+- **A 0.2-0.25 share, or no office, is the next probe.**
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic

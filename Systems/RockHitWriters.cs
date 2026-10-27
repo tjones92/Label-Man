@@ -18,6 +18,21 @@ public static class RockHitWriters {
 
 	public static readonly Genre[] OfficeFocus = { Genre.RockAndRoll, Genre.DooWop, Genre.RnB };
 
+	/// <summary><c>--rock-hit-writers-share=S</c> scales R&amp;R's professional anchor share (1960 .35, 1969 .15); the source mix
+	/// renormalises, so the rest goes to the other sources in proportion. Default 1. The office's catalogue is unchanged.</summary>
+	public const string SharePrefix = "--rock-hit-writers-share=";
+	public static readonly float ProShareScale = ReadShareScale();
+
+	private static float ReadShareScale() {
+		string arg = Array.Find(SimulationArguments.Get(), a => a.StartsWith(SharePrefix, StringComparison.Ordinal));
+		if (arg == null) return 1f;
+		if (!Enabled) throw new ArgumentException(SharePrefix + " needs " + Switch + ".");
+		if (!float.TryParse(arg.Substring(SharePrefix.Length), System.Globalization.NumberStyles.Float,
+				System.Globalization.CultureInfo.InvariantCulture, out float s) || !(s >= 0f && s <= 2f))
+			throw new ArgumentException(SharePrefix + " needs a value in [0, 2].");
+		return s;
+	}
+
 	/// <summary>R&amp;R professional availability: high through the Brill years, easing as bands write their own.</summary>
 	public static float RockAndRollAvailability(float smoothedLateShift) => Mathf.Clamp(0.60f - 0.30f * smoothedLateShift, 0f, 1f);
 }
