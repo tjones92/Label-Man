@@ -534,6 +534,7 @@ public partial class ChartManager : Node {
 		GD.Print("=== INITIALIZATION STEP 5: Pre-warm ===");
 		GD.Print($"Records before prewarm: {allRecords.Count}");
 		PrewarmSimulation();
+		RockHitOfficePlacement.EndOpening();
 		StartupProfile.Mark("chart-prewarm");
 		GD.Print($"Records after prewarm: {allRecords.Count}");
 		GD.Print($"Chart size: {currentChart.Count}");
@@ -931,6 +932,7 @@ public partial class ChartManager : Node {
 		// Prewarm stays on its historical path. New live enabled releases acquire
 		// durable canonical identities before any market calculation sees them.
 		if (GenreMarketV2.Enabled && currentChartWeek > 0) GenreMigration.Canonicalize(record);
+		RockHitOfficePlacement.PlacedAtOpening(record);
 		var runtimeData = new RecordRuntimeData(record);
 		if (HitActFitSupport.Enabled) HitActFitSupport.CaptureLaunch(runtimeData,
 			ArtistManager.Instance?.GetArtist(record.artistId), currentChartWeek);

@@ -1536,6 +1536,117 @@ world with each other, not with HG.
 
 Evidence: `SimLogs/hs52live*-SMP-HGRx`, `hs52live*-SMP-HGRP`, `hs52live*-SMP-HGRP4`.
 
+**The three open items, traced from the same runs (no new runs).** The office's genres are R&R, Doo-Wop and R&B
+(`RockHitWriters.OfficeFocus`).
+
+- **Launches: the −71 is the opening world, not placement.** Split by genre, against HG:
+
+  | Launch difference vs HG (SE) | Office genres (R&R, Doo-Wop, R&B) | All other genres |
+  |---|---|---|
+  | HGRx (office as was) | +92 (25) | −77 (33) |
+  | HGRP (W=2) | −20 (20) | −51 (26) |
+  | HGRP4 (W=4) | −24 (17) | −63 (30) |
+
+  - The non-office genres are low in all three office arms, by the most on the same seeds (1001, 1003).
+    The office never writes those genres, so that is the shared `--rock-hit-writers` opening world.
+  - Placed once, the office's own genres land back on HG's level (−20, SE 20). The old office added ~90 launches there.
+  - On matched worlds (HGRP vs HGRx), placement cuts 83 R&R and 31 Doo-Wop launches: the office's surplus, gone.
+  - The programme material search shows how. Professional R&R sessions fall from 155 to 3 a year, and
+    professional R&B sessions from 73 to 32 (HG 88). Placed office songs stay in the genre pool, so the search's
+    fixed four-draw sample keeps hitting songs it cannot have, and the slot waits instead ("no worthwhile offer",
+    +740 a year). R&B launches are unchanged (+2), because the slot falls back to the ordinary session. This costs
+    material choice, not launches. Watch it in long runs: dead office songs pile up in the R&B and Doo-Wop pools.
+- **History check on ~14 office Top 40s.** The Hot 100 file has no writer credits. I classified the 303 1960 Top 40
+  records by writer from memory, not from a source:
+  - Confident NY hit-office writers (Hill & Range incl. Pomus–Shuman, Schroeder, Wise–Weisman; Aldon:
+    Sedaka–Greenfield, Goffin–King, Keller, Mann; Leiber–Stoller; Blackwell; Paul Evans; Jeff Barry): ~22 records
+    charting in 1960, ~18 debuting in 1960.
+  - In the office's genres (Elvis, Drifters, Shirelles, Coasters, Jimmy Jones, Conway Twitty, plus Sedaka and
+    Bobby Vee as teen rock): ~12-15 charting, ~10-12 debuting, ~6-7 of them Top 10.
+  - Model, HGRP: 23.4 office Top 40 records chart in the year. Only 9.8 were released in the run (4.2 Top 10). The
+    other 13.6 are office masters from the prewarm, which the switch does not gate.
+  - At W=4 the in-run count is 13.4 (5.2 Top 10).
+  - **The placement rate is on history. The year-one total is not,** because the opening world carries a full year
+    of the ungated office. In-run office Top 40s by tier: Major 1.8, MidTier 4.2, Indep 1.8, Boutique 1.0, Small 1.0.
+- **Self-written R&R Top 10s.** Counting every R&R record that peaked in the Top 10 during the year (prewarm
+  releases included):
+
+  | | HG | HGRx | HGRP | HGRP − HG (SE) | HGRP − HGRx (SE) |
+  |---|---|---|---|---|---|
+  | R&R Top 10, all | 17.2 | 20.2 | 17.0 | −0.2 (1.9) | −3.2 (1.2) |
+  | Artist-written | 12.0 | 6.4 | 8.8 | −3.2 (1.9) | +2.4 (2.4) |
+  | Office | 0 | 12.0 | 3.6 | +3.6 (0.2) | −8.4 (1.2) |
+  | Recent-hit covers | 4.4 | 2.0 | 5.2 | +0.8 (2.0) | +3.2 (1.6) |
+
+  - Total R&R Top 10s hold, so office hits displace other sources one for one. The open question is which.
+  - On matched worlds, 8.4 fewer office Top 10s return 2.4 to self-writers and 3.2 to covers: about 0.3 self-written
+    per office Top 10.
+  - At that rate, HGRP's 3.6 office Top 10s cost ~1 self-written Top 10. That leaves ~2 of the −3.2 against HG for
+    the different opening world and noise. The 0.3 rate assumes the swap is linear.
+  - The displacement sits at Majors (−2.6, SE 1.4 against HG), which the office always pitches. That is the Brill
+    pattern, not a defect.
+
+**Next.** The office's year one is inflated by the prewarm. Gating the prewarm the same way, or seeding the opening
+world from it, is a separate change, and it would change the opening world. The search's dead-draw waste in R&B and
+Doo-Wop is worth a long-run check before any decade A/B.
+
+### 2026-10-27: `--rock-hit-office-opening`, the office placement rules on the opening catalogue
+
+**Size of the problem.** Ungated, the opening catalogue cut 33 office songs into 59 records (Independent 24, MidTier 17,
+Major 8). That put 17.4 office records in the first-quarter Top 40, against ~6-7 in 1960 history (up to ~11 if
+borderline writers count). Those records were 9.8% of first-quarter market units, falling to zero by week 40.
+
+**What the switch does** (needs `--rock-hit-office-placement=W`):
+- **Pitch list.** No chart exists yet, so the opening pitch list is the Majors plus labels with a Rising, Star or
+  Superstar act. That comes to 16-20 labels.
+- **One placement.** Each office song is placed once.
+- **When it holds.** From the seeded catalogue through the warm-up weeks and on into live play, including live week 1.
+- **Load.** After a load, placements are read off the records.
+- **Off, it is inert.** The new HGRP controls are byte-identical to the earlier ones over all 52 weeks (seeds 1001-1002;
+  launch quality, records, song material and concentration files compared).
+
+**A gap in the base switch.** Live week 1's releases run at chart week 0, because the chart week advances after them.
+So `--rock-hit-office-placement` alone leaves the first live week ungated. That is where the earlier "prewarm leftovers"
+came from, repeat cuts included. The first build of this switch (v1) gated only the seeding and left that week open.
+
+**Results.** Five seeds (1001-1005), 52 weeks, against a fresh HGRP control from the same world. Paired differences
+carry a 5-seed SE.
+
+| | HGRP | v1: seeding only | v3: seeding + live week 1 |
+|---|---|---|---|
+| Opening office records / songs | 58.8 / 32.8 | 24.4 / 21.4 | **13.2 / 12.8** |
+| Office records in Q1 Top 40 (history ~6-7, up to ~11) | 17.4 | 11.6 | **9.0** |
+| Opening office share of Q1 units | 9.8% | 7.0% | 4.3% |
+| 1960 R&R market share (history 13.54) | 13.47 | 13.13 | 13.31 (diff −0.16, SE 0.57) |
+| R&R Top 10: all / artist-written | 15.2 / 8.2 | 16.0 / 10.8 | 15.8 / 9.2 |
+| Office Top 40 records in the year | 14.0 | 9.8 | 10.2 |
+| Single launches | 4,129 | −42 (SE 28) | **+140 (SE 14)** |
+| MidTier labels silent after week 30 | 5.8 | 5.8 | **3.6** (−2.2, SE 0.4) |
+| 1960 CR8 (floor 48) | 47.5 | 47.6 | **44.7** (−2.9, SE 1.4) |
+
+- **Gating the seeding alone is clean.** The office's first quarter moves toward history, while R&R share,
+  launches, closures and CR8 hold.
+- **Closing live week 1 brings the rest of the opening fix, but the extra launches come with it.** The launch gain is
+  MidTier (+98, SE 9) new signings, from week 5 on. About two fewer MidTiers per seed close, and each releases ~40
+  singles a year. CR8 falls below its floor.
+  - It isn't the material search: MidTier search outcomes barely move.
+  - It isn't a direct cost of the office records: week-1 cash barely correlates with opening office records (−0.11).
+  - It isn't only the labels that lost office records. MidTiers that never held one also close less, 15.7% against
+    19.7% in the control.
+  - So it runs through a market-wide channel I haven't traced.
+- **Per seed, the launch and closure effects replicate and CR8 does not.**
+  - v3 launches are +100 to +177 on all five seeds. v1, which changes the opening world just as much, ranges −143
+    to +11.
+  - MidTier launches rise (+71 to +113) and MidTier closures fall (1 to 3 fewer) on every seed.
+  - CR8 moves −0.5 to −8.4 under v3, but v1 alone moves it −5.4 to +5.8. Seed 1003 carries the mean; without it the
+    mean is about −1.5. So the CR8 drop is within reshuffle noise.
+- **Kept, week-1 gating included.** +3.4% launches and two more surviving MidTiers per seed move toward the 1960
+  per-label singles counts (model 3-10x low) and away from slate-starved MidTiers. Neither is a regression.
+
+Evidence: `SimLogs/hs52op*-SMP-HGRP` (control), `hs52op*-SMP-HGRPO` (v3), `SimLogs/hs52op-v1/` (v1). An intermediate
+v2 held the gate through the warm-up but not week 1. Its CSVs were byte-identical to v1, so the warm-up weeks release
+no office records. Its console logs are in `SimLogs/hs52op-v2/`.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic

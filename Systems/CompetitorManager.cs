@@ -687,7 +687,8 @@ public partial class CompetitorManager : Node {
 		int needed = targetActiveRecords - historicalCount;
 		
 		var releaseQuotas = CalculateInitialQuotas(needed);
-		
+		RockHitOfficePlacement.BeginOpening(aiLabels);
+
 		foreach (var label in aiLabels) {
 			if (!releaseQuotas.TryGetValue(label.labelId, out int quota)) continue;
 			for (int i = 0; i < quota; i++) {
