@@ -2058,8 +2058,19 @@ public partial class ChartManager : Node {
 				data.radioPlay = tail;
 			}
 
+			// Big-5 handoff probe: both tail branches are linear in last week's radioPlay, so the panel's share of
+			// it carries forward the same way; what is left is the rotation with no panel blend in any week.
+			float awarenessRadio = data.radioPlay;
+			if (StationRegionalSupport.PanelFreeAwareness) {
+				float carriedExcess = data.stationsDropped
+					? ChartSimulator.GetDroppedRotation(data.panelExcessRadio)
+					: data.panelExcessRadio * RegionalRadioHold * (1f - RegionalRadioLerp);
+				awarenessRadio = Mathf.Max(0f, tail - carriedExcess);
+				data.panelExcessRadio = data.radioPlay - awarenessRadio;
+			}
+
 			// Radio builds regional awareness
-			data.awareness += data.radioPlay * 0.12f;
+			data.awareness += awarenessRadio * 0.12f;
 			data.awareness = Mathf.Clamp(data.awareness, 0f, 1f);
 
 			// Jukebox decay
@@ -2287,7 +2298,9 @@ public partial class ChartManager : Node {
 			float volumeInput = CalculateBreakoutVolumeInput(data.rawDemandThisWeek, data.unitsSoldThisWeek, regionScale);
 			float velocityInput = Mathf.Clamp((velocity + 0.10f) / 0.65f, 0f, 1f);
 			float audienceInput = Mathf.Clamp(data.awareness, 0f, 1f);
-			float mediaInput = Mathf.Clamp(data.radioPlay * 0.75f + data.jukeboxPlay * 0.25f, 0f, 1f);
+			float breakoutRadio = StationRegionalSupport.PanelFreeBreakout
+				? Mathf.Max(0f, data.radioPlay - data.panelExcessRadio) : data.radioPlay;
+			float mediaInput = Mathf.Clamp(breakoutRadio * 0.75f + data.jukeboxPlay * 0.25f, 0f, 1f);
 			float genreFit = region.GetGenreAcceptance(record.baseRecord.primaryGenre, year);
 			// Unmet demand is deliberately NOT multiplied by volumeInput. Scaling it by
 			// volume counted volume a third time and cancelled the signal for exactly the

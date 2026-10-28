@@ -1158,3 +1158,52 @@ names vary by seed ("Mercury" / "Mercury Music"), so match on ID. Eight seeds (1
 control. Measure on the Big-5 by label ID, not the runtime Major tier. Station-side options are now exhausted: non-sales
 picks (§9m) and a size-blind order inside the sellers (§9n, with the floor) both fail. What remains is the
 chart-points side, option (a) of §9l, or accepting 5e as an observe-only station picture.
+
+### 9p. Probe: is the units-only rise panel airplay feeding awareness? (`--station-regional-support-panel-free`, 2026-10-28)
+
+`Big5ShareHandoff.md` lead 1. The floor arm (`ufw085`) lifts the Big-5 share of a top 10 ranked by units by +3.1 (SE
+1.5) over the control. The suspected route was `data.awareness += data.radioPlay * 0.12f`, with `radioPlay` carrying the
+panel blend.
+
+**Probe.** `=awareness` makes the regional awareness update read the rotation the region would carry with no panel
+blend. Chart points still read the blended `radioPlay`. `=sales` also takes the panel out of the breakout media
+evidence (`mediaInput`). The panel-free value is tracked, not just read from `tailRadioPlay`. That is because the tail
+decays last week's *blended* `radioPlay` (`tail = Lerp(radioPlay × 0.92, target, 0.15)`), so the panel's share carries
+forward. `panelExcessRadio` follows it with the same linear decay (× 0.782 on rotation, `STATION_DROP_RESIDUAL` once
+dropped). Runtime-only, not saved. **Inert unnamed:** `hs52op1001-SMP-HGRPO-ufw085e` is byte-identical to `-ufw085`
+on all 123 CSVs.
+
+A side fact this exposes: through that carry, W .085 is not an 8.5% panel weight. In steady state
+`radioPlay ≈ 0.48 × target + 0.30 × panel` (W 0 gives 0.69 × target), so the panel is roughly a third of regional
+rotation for a record a few weeks into its life. The time constant is ~3.5 weeks.
+
+**Eight seeds, 1960, Big-5 by label ID** (`SimLogs/hs52op100{1-8}-SMP-HGRPO-{ufpfa,ufpfs}`; floor-arm flags plus the
+probe; control is `-sp`; scratchpad `big5.py`):
+
+| Arm | Big-5 Top-10 | Units-only top 10 | Offset | Big-5 share of all units | Airplay | Top-10 artists |
+|---|---:|---:|---:|---:|---:|---:|
+| Control | 34.7 | 38.7 | −4.0 | 28.2 | 25.5 | 81.8 |
+| Floor (W .085) | 39.6 | 41.8 | −2.2 | 29.3 | 27.8 | 74.8 |
+| Floor, panel-free awareness | 42.3 | 43.4 | −1.2 | 30.0 | 27.7 | 75.2 |
+| Floor, panel-free awareness + breakout | 43.1 | 45.2 | −2.1 | 30.4 | 27.9 | 73.2 |
+
+Paired against the floor arm (SE): panel-free awareness **+2.7 (1.3)** Big-5 Top-10, +1.7 (1.6) units-only, +0.7 (0.6)
+unit share. With breakout as well: **+3.5 (1.3)**, +3.5 (1.4), +1.1 (0.6). Airplay is unchanged (±0.1), so chart
+points are untouched as designed.
+
+- **The rise does not vanish. It grows.** Taking panel airplay out of awareness moves the Big-5 *up* on every
+  measure. Panel-fed awareness therefore leans toward non-Big-5 records. The panel follows each market's sellers,
+  including regional sellers the label push does not reach. Without it, regional awareness comes only from the tail,
+  which is driven by `radioHeat`, and that favours the pushed records.
+- **So radio → awareness is not where the fix lives.** Lead 1's question has an answer: the floor arm's units-only
+  rise comes from a route the probe leaves in place. What remains is chart rank feeding sales. Panel airplay seats
+  Big-5 records higher, and rank sells through `GetChartExposureWeight`, the Top-10/40 awareness floors, national
+  chart-visibility awareness, and the top-20 push hold in `UpdateLabelPush`. That fits §9o's split. The floor's Big-5
+  share of *all* units rises only +1.1 (0.5), but its share of a units-ranked top 10 rises +3.1. The extra sales are
+  concentrated on records the chart already holds high.
+- **Implication for lead 2.** One chart-side change acts on both halves of the lift: the offset directly, and the
+  units-only rise through rank feedback. Paying the panel term linearly, outside `AIRPLAY_CONVEXITY`, should be
+  screened on both, and on the units-only share specifically. W re-calibration also has to account for the carry
+  above, because the panel's effective weight in `radioPlay` is ~3.5× the nominal W.
+
+**Status.** Probe off by default; not for adoption. Lead 1 is closed negative.

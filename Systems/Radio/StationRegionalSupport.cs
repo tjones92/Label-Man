@@ -21,6 +21,7 @@ public static class StationRegionalSupport {
 	private const string ChartPrefix = "--station-regional-support-chart=";
 	private const string UnsoldFloorFlag = "--station-regional-support-unsold-floor";
 	private const string PlateauPrefix = "--station-regional-support-rank-plateau=";
+	private const string PanelFreePrefix = "--station-regional-support-panel-free=";
 	/// <summary>Standing weight: exp(-(rank - 1) / scale), floored; an unranked record reads the floor.</summary>
 	public const float DefaultStandingRankScale = 25f, StandingFloor = .02f;
 	private static bool configured;
@@ -50,6 +51,11 @@ public static class StationRegionalSupport {
 	/// stations agree on which records are the market's sellers but order them by where each is in its own life (the
 	/// size-blind ratio), as the national meeting did. 0 (off, decay from rank 1) unless named.</summary>
 	public static int StandingRankPlateau { get; private set; }
+	/// <summary>Big-5 handoff lead 1: panel airplay stays in chart points but not in the regional awareness update
+	/// (<c>=awareness</c>), or not in awareness nor the breakout media evidence (<c>=sales</c>). Those reads take the
+	/// rotation the region would carry with no panel blend, today's or carried in the tail. Off unless named.</summary>
+	public static bool PanelFreeAwareness { get; private set; }
+	public static bool PanelFreeBreakout { get; private set; }
 
 	/// <summary>§9h calibration: the reporter panel's weight in regional radioPlay (the calibrated constant unless
 	/// <c>--station-regional-support-panel-weight</c> is named). Standing concentrates panel spins on the records
@@ -74,6 +80,15 @@ public static class StationRegionalSupport {
 			}
 			if (a.StartsWith(PlateauPrefix, StringComparison.Ordinal)) {
 				StandingRankPlateau = (int)PositiveFloat(a, PlateauPrefix);
+				continue;
+			}
+			if (a.StartsWith(PanelFreePrefix, StringComparison.Ordinal)) {
+				PanelFreeAwareness = true;
+				PanelFreeBreakout = a.Substring(PanelFreePrefix.Length) switch {
+					"awareness" => false,
+					"sales" => true,
+					_ => throw new ArgumentException(PanelFreePrefix + " takes awareness or sales.")
+				};
 				continue;
 			}
 			if (a == UnsoldFloorFlag) {
