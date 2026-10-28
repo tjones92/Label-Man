@@ -52,6 +52,7 @@ public sealed partial class StationNetwork {
 
 	public StationNetwork(ulong seed) {
 		rng.Seed = seed;   // seeded off the sim master seed for reproducibility
+		shadowRng.Seed = seed ^ ShadowRngSalt;   // §9l: the shadow playlists' own stream; unused unless that probe is on
 	}
 
 	/// <summary>

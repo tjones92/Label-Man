@@ -153,6 +153,8 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter releaseStrategyWriter;
 	private StreamWriter releaseOutcomeWriter;
 	private StreamWriter singleReleaseLaneWriter;
+	private StreamWriter stationPlaylistWriter;
+	private bool stationPlaylists;
 	private StreamWriter singleDemandStagesWriter;
 	private StreamWriter revenueMemoryWriter;
 	private StreamWriter liveRecordsSnapshotWriter;
@@ -559,6 +561,9 @@ public partial class ChartAuditRunner : Node {
 				smallLabelFinance = true;
 			} else if (argument == "--followup-chart-trace") {
 				followupChartTrace = true;
+			} else if (argument == "--station-playlists") {
+				// Each reporter station's weekly ranked playlist with its city (RegionalSyncDesign.md §9f).
+				stationPlaylists = true;
 			} else if (argument == "--profile-performance") {
 				profilePerformance = true;
 			} else if (argument == "--force-distribution-deal") {
@@ -1147,6 +1152,11 @@ public partial class ChartAuditRunner : Node {
 			if (!leanProbe || followupChartTrace) singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
 		}
 		revenueMemoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-revenue-memory.csv"));
+		if (stationPlaylists) {
+			stationPlaylistWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-station-playlists.csv"));
+			stationPlaylistWriter.WriteLine("week,year,stationId,callsign,city,regionId,format,rank,tier,recordId");
+			StationNetwork.PlaylistSink = WriteStationPlaylist;
+		}
 		liveRecordsSnapshotWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-live-records-snapshot.csv"));
 		priorCostAssumptionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-prior-cost-assumptions.csv"));
 		albumTrackLinkWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-track-links.csv"));
@@ -2165,6 +2175,14 @@ public partial class ChartAuditRunner : Node {
 			(record.lastSalesAboveRetirementFloorAge + 1).ToString(CultureInfo.InvariantCulture),
 			record.unitsThisWeek.ToString(CultureInfo.InvariantCulture), F(ChartManager.Instance.GetRetirementRadioPlay(record))
 		}));
+	}
+
+	private void WriteStationPlaylist(RadioStation station, int week, int year, IReadOnlyList<(string Id, SpinTier Tier)> ranked) {
+		if (stationPlaylistWriter == null) return;
+		for (int i = 0; i < ranked.Count; i++)
+			stationPlaylistWriter.WriteLine(string.Join(",", week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+				Csv(station.stationId), Csv(station.callsign), Csv(station.cityName), Csv(station.regionId), station.format.ToString(),
+				(i + 1).ToString(CultureInfo.InvariantCulture), ranked[i].Tier.ToString(), Csv(ranked[i].Id)));
 	}
 
 	private static StreamWriter CreateWriter(string path) =>
@@ -4061,6 +4079,8 @@ public partial class ChartAuditRunner : Node {
 		releaseOutcomeWriter?.Dispose();
 		singleReleaseLaneWriter?.Dispose();
 		singleDemandStagesWriter?.Dispose();
+		stationPlaylistWriter?.Dispose();
+		StationNetwork.PlaylistSink = null;
 		revenueMemoryWriter?.Dispose();
 		liveRecordsSnapshotWriter?.Dispose();
 		priorCostAssumptionWriter?.Dispose();

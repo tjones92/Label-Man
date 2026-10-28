@@ -303,8 +303,16 @@ public sealed partial class StationNetwork {
 			float rockCrossover = RockCrossover(year);
 			// FormatMatch depends only on genre, format and these region terms: one table per region.
 			foreach (float[] table in formatMatchTables.Values) Array.Fill(table, float.NaN);
-			foreach (RadioStation station in roster)
-				DecideStationPlaylist(station, integration, rockCrossover, week);
+			foreach (RadioStation station in roster) {
+				if (StationRegionalSupport.ChartReadsNational) {
+					// §9l option (a): the chart's panel is the national meeting, exactly as with 5e off; the regional
+					// playlists run beside it on shadow state and their own draws, and only they are exported.
+					DecideStationPlaylist(station, station.rt, rng, false, false, integration, rockCrossover, week);
+					DecideStationPlaylist(station, ShadowRuntime(station), shadowRng, true, true, integration, rockCrossover, week);
+				} else {
+					DecideStationPlaylist(station, station.rt, rng, StationRegionalSupport.Enabled, true, integration, rockCrossover, week);
+				}
+			}
 		}
 	}
 
@@ -323,15 +331,31 @@ public sealed partial class StationNetwork {
 
 	private readonly List<(string id, float adjusted, SpinTier prior)> primaryScratch = new();
 	private readonly List<(string id, float adjusted)> readdScratch = new();
+	private readonly List<(string id, float score)> pickScratch = new();
 
-	private void DecideStationPlaylist(RadioStation station, float integration, float rockCrossover, int week) {
-		StationRuntime rt = station.rt;
+	// §9l option (a): per-station shadow state and draws for the regional playlists that run beside the national meeting.
+	private const ulong ShadowRngSalt = 0x5EC9_1A57_0000_0001UL;
+	private readonly PcgRandom shadowRng = new();
+	private readonly Dictionary<string, StationRuntime> shadowRuntimes = new(StringComparer.Ordinal);
+
+	private StationRuntime ShadowRuntime(RadioStation station) {
+		if (station.rt == null) return null;
+		if (!shadowRuntimes.TryGetValue(station.stationId, out StationRuntime rt))
+			shadowRuntimes[station.stationId] = rt = new StationRuntime();
+		return rt;
+	}
+
+	private void DecideStationPlaylist(RadioStation station, StationRuntime rt, PcgRandom draws, bool readsRegional, bool export,
+			float integration, float rockCrossover, int week) {
 		if (rt == null) return;
 		Deejay dj = GetDeejay(station.leadDjId);
 		float autonomy = station.djAutonomy;
 
 		primaryScratch.Clear();
 		readdScratch.Clear();
+		pickScratch.Clear();
+		// §9m: the regional meeting may reserve a block of new-release picks not chosen by sales standing.
+		bool picks = readsRegional && StationPicks.Enabled;
 		float[] formatMatches = FormatMatchTable(station.format, station.latinLeaning);
 
 		foreach (RecordFactors f in factorScratch) {
@@ -347,13 +371,17 @@ public sealed partial class StationNetwork {
 			// Regional sync 5c: a station cannot add a record it has not been serviced (not yet arrived here).
 			if (!incumbent && f.rec.regionalData.TryGetValue(station.regionId, out RegionalRecordData local) &&
 				local.awaitingArrival) continue;
+			// §9d: nor one that has not reached this station's city.
+			if (!incumbent && CityReach.Enabled && !CityReach.CityReached(f.rec, station.cityName, station.regionId)) continue;
 
 			// Re-add hysteresis: a record this station dropped cannot re-enter for MIN_READD_WEEKS.
 			bool everDropped = rt.droppedOnWeek.TryGetValue(f.id, out int droppedWeek);
 			bool locked = !incumbent && everDropped && week - droppedWeek < MIN_READD_WEEKS;
 			if (locked) continue;
 
-			float candidacy = Candidacy(f, quality, formatMatch, station, dj, autonomy, rt);
+			float candidacy = Candidacy(f, quality, formatMatch, station, dj, autonomy, rt, draws, readsRegional, picks, out float pickScore);
+			if (picks && pickScore > 0f && f.rec.weeksSinceRelease <= StationPicks.MaxAgeWeeks && (incumbent || !everDropped))
+				pickScratch.Add((f.id, pickScore * (1f + TierInertiaBase(prior) * (0.3f + autonomy * 0.7f))));
 			if (candidacy <= 0f) continue;
 
 			if (!incumbent && everDropped) {
@@ -369,6 +397,13 @@ public sealed partial class StationNetwork {
 		primaryScratch.Sort((a, b) => b.adjusted.CompareTo(a.adjusted));
 		var next = new Dictionary<string, SpinTier>(StringComparer.Ordinal);
 		int high = station.highSlots, mid = station.midSlots, light = station.lightSlots;
+		int pickSlots = 0;
+		if (picks) {
+			// §9m: the block comes out of its tier before the ranking fills it.
+			if (StationPicks.Tier == SpinTier.High) { pickSlots = Mathf.Min(StationPicks.Slots, high); high -= pickSlots; }
+			else if (StationPicks.Tier == SpinTier.Mid) { pickSlots = Mathf.Min(StationPicks.Slots, mid); mid -= pickSlots; }
+			else { pickSlots = Mathf.Min(StationPicks.Slots, light); light -= pickSlots; }
+		}
 
 		// The DJ's own picks come off the top of the Light tier, before the ranking runs. Only records
 		// he personally committed to, only if the format admits them, only while the commitment lasts.
@@ -402,6 +437,17 @@ public sealed partial class StationNetwork {
 			filled++;
 		}
 
+		// §9m: seat the picks from records the ranking left out.
+		if (pickSlots > 0 && pickScratch.Count > 0) {
+			pickScratch.Sort((a, b) => b.score.CompareTo(a.score));
+			foreach (var c in pickScratch) {
+				if (pickSlots <= 0) break;
+				if (next.ContainsKey(c.id)) continue;
+				next[c.id] = StationPicks.Tier;
+				pickSlots--;
+			}
+		}
+
 		// Re-adds compete only for LEFTOVER Light capacity, and must beat the light cutoff by the
 		// hysteresis margin -- a dropped record cannot bump an incumbent, only fill genuine slack.
 		int lightUsed = 0;
@@ -418,9 +464,26 @@ public sealed partial class StationNetwork {
 			}
 		}
 
+		if (export && PlaylistSink != null) {
+			// Rank = seating order: discretionary picks, then the candidacy ranking, then re-adds (all as seated).
+			rankedScratch.Clear();
+			if (picks) {
+				// §9m picks are seated after the ranking; list them with their tier so ranks stay tier-ordered.
+				foreach (SpinTier t in new[] { SpinTier.High, SpinTier.Mid, SpinTier.Light })
+					foreach (var kv in next) if (kv.Value == t) rankedScratch.Add((kv.Key, kv.Value));
+			} else {
+				foreach (var kv in next) rankedScratch.Add((kv.Key, kv.Value));
+			}
+			PlaylistSink(station, week, currentYear, rankedScratch);
+		}
 		CommitPlaylist(rt, next, week);
 		StakeBreakClaims(station, rt, next, week);
 	}
+
+	/// <summary>Audit hook: each reporter station's ranked playlist after its weekly meeting. Null outside audits;
+	/// reads only, so it changes nothing.</summary>
+	public static Action<RadioStation, int, int, IReadOnlyList<(string Id, SpinTier Tier)>> PlaylistSink;
+	private readonly List<(string Id, SpinTier Tier)> rankedScratch = new();
 
 	/// <summary>Stake a break-claim (doc c) for any record this station just committed to High rotation
 	/// while it is still nationally un-validated -- capturing when and how strongly it was breaking in
@@ -483,16 +546,19 @@ public sealed partial class StationNetwork {
 	}
 
 	/// <summary>candidacy = formatMatch x qualityTaste x salesSupport x relationship x advocacy x payola x freshness x heatPull x vitality x chartGuard.</summary>
-	private float Candidacy(RecordFactors f, float quality, float formatMatch, RadioStation station, Deejay dj, float autonomy, StationRuntime rt) {
+	private float Candidacy(RecordFactors f, float quality, float formatMatch, RadioStation station, Deejay dj, float autonomy, StationRuntime rt,
+			PcgRandom draws, bool readsRegional, bool picks, out float pickScore) {
 		// qualityTaste: the DJ's ear, weighted by autonomy. Boss station (autonomy~0) -> ~1 (neutral).
 		float affinity = dj?.GenreAffinity(f.canonical) ?? 1f;
 		float tasteRead = (0.6f + quality * 0.8f) * affinity;
 		float noiseMag = (1f - (dj?.taste ?? 0.5f)) * 0.4f;
-		float judgment = Mathf.Max(0.05f, tasteRead + (rng.Randf() - 0.5f) * 2f * noiseMag);
+		float judgment = Mathf.Max(0.05f, tasteRead + (draws.Randf() - 0.5f) * 2f * noiseMag);
 		float qualityTaste = Mathf.Lerp(1f, judgment, autonomy);
 
 		// salesSupport: Boss stations follow sales sharply; personality stations tolerate a slow seller.
-		float salesSupport = Mathf.Pow(Mathf.Max(0f, f.support), 1f + (1f - autonomy) * 2f);
+		// 5e: the station's own region's sales when --station-regional-support is on; the national ratio otherwise.
+		float support = readsRegional ? StationRegionalSupport.Support(f.rec, f.support, station.regionId, station.stationId) : f.support;
+		float salesSupport = Mathf.Pow(Mathf.Max(0f, support), 1f + (1f - autonomy) * 2f);
 
 		// relationship: cultivation edge (Phase 4 cultivation writes these; 0 until then).
 		float relationship = 1f + rt.Rapport(f.labelId) * REL_WEIGHT + rt.Loyalty(f.artistId) * LOYALTY_WEIGHT;
@@ -518,8 +584,20 @@ public sealed partial class StationNetwork {
 		float length = f.rec?.baseRecord is { isPlayerOwned: true } own
 			? LengthFit((int)(PolarSongMetadataService.Get(own.masterId)?.taxonomy?.durationSeconds ?? 0), currentYear, station.format) : 1f;
 
+		// cityTaste (§9b): the station's own city's audience for the genre. 1 when the switch is off.
+		float cityTaste = RegionalGenreTaste.Enabled ? RegionalGenreTaste.Station(f.canonical, station.cityName, station.regionId, currentYear) : 1f;
+
+		// §9m pick score, from the same draw: `trial` is the national meeting's candidacy (size-blind support); `ear` is
+		// the DJ's own read of the record, with no sales or heat term.
+		pickScore = 0f;
+		if (picks) {
+			float common = formatMatch * freshness * f.vitality * GenreChartGuard(f.canonical) * length * cityTaste;
+			pickScore = StationPicks.Score == StationPicks.PickScore.Ear ? common * judgment
+				: common * qualityTaste * Mathf.Pow(Mathf.Max(0f, f.support), 1f + (1f - autonomy) * 2f) * relationship * advocacy * payola * f.heatPull;
+		}
+
 		return formatMatch * qualityTaste * salesSupport * relationship * advocacy * payola * freshness * f.heatPull
-			* f.vitality * GenreChartGuard(f.canonical) * length;
+			* f.vitality * GenreChartGuard(f.canonical) * length * cityTaste;
 	}
 
 	/// <summary>How a station's programmer takes a side's length. Early-sixties Top 40 wanted records under three minutes,

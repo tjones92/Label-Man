@@ -442,6 +442,10 @@ public partial class ChartManager : Node {
 		SelfExcludedArtistHeat.Configure(SimulationArguments.Get());
 		UnchartedSingleExposure.Configure(SimulationArguments.Get());
 		SingleCommercialFit.Configure(SimulationArguments.Get());
+		RegionalGenreTaste.Configure(SimulationArguments.Get());
+		CityReach.Configure(SimulationArguments.Get());
+		StationRegionalSupport.Configure(SimulationArguments.Get());
+		StationPicks.Configure(SimulationArguments.Get());
 		HitActFitSupport.Configure(SimulationArguments.Get());
 		LaunchStocking.Configure(SimulationArguments.Get());
 		MajorOffChartSingles.Configure(SimulationArguments.Get());
@@ -1058,6 +1062,7 @@ public partial class ChartManager : Node {
 			RegionalAudience.ApplyLaunchDeposit(record, promotedArtist, TimeManager.Instance.CurrentDate);
 		if (genreMarketLive) RegionalAudience.ApplyLaunchProbe(record, label);
 		if (genreMarketLive) RegionalAudience.HoldUntilArrival(record, label, promotedArtist);
+		if (genreMarketLive) CityReach.Launch(record, label, promotedArtist);
 		ArtistRecognitionService.RecordLaunchAudit(promotedArtist, record);
 
 		if (debugMode) {
@@ -1194,6 +1199,7 @@ public partial class ChartManager : Node {
 			if (record.baseRecord.format == ReleaseFormat.Album) continue;
 			UpdateLocalLifecycle(record);
 			UpdateRegionalBreakoutState(record, year);
+			if (genreMarketLive) CityReach.Spread(record);
 			// Regional sync 5a: arrival reads this week's breakout state and last week's chart, before restock.
 			if (RegionalAudience.RegionalArrival && genreMarketLive) {
 				AILabel arrivalLabel = GetLabelById(record.baseRecord.labelId);
@@ -2028,6 +2034,8 @@ public partial class ChartManager : Node {
 				float targetRegionalRadio = (seasonalRadio ? regionHeat / radioDifficulty * radioOpportunity * genreRadio : regionHeat / radioDifficulty * genreRadio) * radioBuild;
 				// Regional sync 5c: a station cannot programme a record it has not been serviced.
 				if (data.awaitingArrival) targetRegionalRadio = 0f;
+				// §9d: only the reached share of the region's stations can programme it.
+				if (CityReach.Enabled && genreMarketLive) targetRegionalRadio *= CityReach.Fraction(record, region.regionId);
 				// Stations phase a record out of rotation rather than dropping it, and this is the whole
 				// plateau: sales fall to 65% of peak in a single week, so airplay only holds a record up
 				// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to
@@ -2041,9 +2049,11 @@ public partial class ChartManager : Node {
 			// panel; the tail carries reach. Phase 2a holds REPORTER_PANEL_WEIGHT at 0, so radioPlay is
 			// exactly `tail` -- byte-identical to the former behaviour. Phase 2b raises the weight and
 			// feeds the per-station playlists computed by StationNetwork.UpdatePlaylists().
-			if (REPORTER_PANEL_WEIGHT > 0f && stationNetwork != null) {
+			// §9h: the 5e calibration may override the weight; the constant otherwise.
+			float reporterPanelWeight = StationRegionalSupport.PanelWeight(REPORTER_PANEL_WEIGHT);
+			if (reporterPanelWeight > 0f && stationNetwork != null) {
 				float reporterRadioPlay = stationNetwork.ReporterRadioPlay(record.baseRecord.recordId, region.regionId);
-				data.radioPlay = Mathf.Lerp(tail, reporterRadioPlay, REPORTER_PANEL_WEIGHT);
+				data.radioPlay = Mathf.Lerp(tail, reporterRadioPlay, reporterPanelWeight);
 			} else {
 				data.radioPlay = tail;
 			}

@@ -457,11 +457,17 @@ public static class ChartSimulator {
 		else if (stagedLiveDemand && RegionalAudience.RegionalCampaignFocus && !record.baseRecord.isPlayerOwned)
 			effectiveAwareness += regionalData.campaignAwarenessThisWeek;
 
+		// §9d city reach: the national blend and the chart floors reach only the share of the region that has the
+		// record, above a hearsay floor. Exactly 1 (and skipped) when off or fully reached.
+		float cityReach = stagedLiveDemand && !awaitingArrival && CityReach.Enabled ? CityReach.Fraction(record, region.regionId) : 1f;
+		if (cityReach < 1f)
+			effectiveAwareness = regionalData.awareness * 0.6f + record.awareness * 0.4f * CityReach.BlendShare(cityReach);
+
 		if (awaitingArrival || (stagedLiveDemand && RegionalAudience.ProbeNoFloors)) { }
 		else if (record.currentPosition > 0 && record.currentPosition <= 10) {
-			effectiveAwareness = Mathf.Max(effectiveAwareness, 0.7f);
+			effectiveAwareness = Mathf.Max(effectiveAwareness, cityReach < 1f ? 0.7f * cityReach : 0.7f);
 		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {
-			effectiveAwareness = Mathf.Max(effectiveAwareness, 0.4f);
+			effectiveAwareness = Mathf.Max(effectiveAwareness, cityReach < 1f ? 0.4f * cityReach : 0.4f);
 		}
 		regionalData.salesRecordAwarenessThisWeek = record.awareness;
 		regionalData.salesRegionalAwarenessThisWeek = regionalData.awareness;
@@ -541,6 +547,9 @@ public static class ChartSimulator {
 		if (useGenreMarketV2DemandTransfer) {
 			conversionRate *= GenreAcceptanceService.GetEnabledSingleDemandMultiplier(genreAcceptance);
 			if (singleOpportunityNormalization != 1f) conversionRate *= singleOpportunityNormalization;
+			// §9b: who lives in the region, applied after the transfer so it is not compressed.
+			if (RegionalGenreTaste.Enabled) conversionRate *= RegionalGenreTaste.Demand(record.baseRecord.primaryGenre,
+				record.baseRecord.secondaryGenre, region.regionId, year);
 		} else conversionRate *= 0.6f + genreAcceptance * 0.5f;
 		conversionRate *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
