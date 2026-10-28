@@ -1647,6 +1647,29 @@ Evidence: `SimLogs/hs52op*-SMP-HGRP` (control), `hs52op*-SMP-HGRPO` (v3), `SimLo
 v2 held the gate through the warm-up but not week 1. Its CSVs were byte-identical to v1, so the warm-up weeks release
 no office records. Its console logs are in `SimLogs/hs52op-v2/`.
 
+**Hit artists by label, 1960 (same runs, no new runs).** Each artist with a record peaking in the Top 10 (or Top 40)
+during 1960 is credited once, to the label of their best-peaking record. History is
+`SimLogs/historical-1960-top10/records_1960_final.csv` (operating label as printed; ties by most Top 10 slots). Five
+seeds, paired SE.
+
+| Top 10 artists | History | HGRP | HGRPO | HGRPO − HGRP (SE) |
+|---|---|---|---|---|
+| Distinct artists | 73 | 87.0 | 81.4 | −5.6 (3.1) |
+| Labels with one | 48 | 50.2 | 48.4 | −1.8 (1.4) |
+| Top label share | 11.0% | 10.1% | 9.1% | −1.0 (0.5) |
+| CR4 / CR8 | 27.4 / 41.1 | 29.1 / 43.7 | 28.6 / 42.3 | −0.5 (2.0) / −1.3 (1.9) |
+| HHI | 355 | 372 | 355 | −17 (16) |
+| Big-5 share | 27.4% | 30.0% | 29.0% | −1.0 (2.4) |
+| Labels with 2+ artists | 11 | 14.4 | 14.6 | +0.2 (2.6) |
+| Top 10 records per artist | 1.40 | 1.4 | 1.5 | +0.13 (0.07) |
+
+- **How hits split across labels is on history.** History's leaders are RCA 8, Columbia 5, Mercury 4; the model's
+  shape (CR4, CR8, HHI, Big-5) sits within 1-2 points.
+- **The miss is the number of hit acts, not their split:** Top 10 artists +11% (81 vs 73), Top 40 artists +15% (199
+  vs 173; history has no Top 40 labels, so only the count is checked). Hits are spread over too many acts.
+- **Office opening:** Top 40 artist CR4 −1.4 (SE 0.5), Big-5 −0.7 (SE 0.3). By tier, Top 10 artists move Major
+  36.3% → 32.5% and MidTier 26.5% → 30.4%, consistent with the ~2 extra surviving MidTiers per seed.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic
