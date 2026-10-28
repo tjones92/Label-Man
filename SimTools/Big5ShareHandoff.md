@@ -34,10 +34,10 @@ The +4.9 lift (SE 1.0, paired) has two parts:
    1.3) over the floor arm. Adding breakout raises it +3.5. The rise is rank feedback (exposure weight, Top-10/40
    awareness floors, top-20 push hold), not radio → awareness. Also note that the tail carries the blended
    `radioPlay`, so W .085 is ~0.30 of steady-state rotation.
-2. **Change how the panel term is paid.** Today `radioPlay = Lerp(tail, panel, W)` is raised to the fifth power
-   (`ChartSimulator.CalculateChartPoints`, `AIRPLAY_CONVEXITY`). So a panel that agrees with a pushed record's high
-   tail is compounded. Try paying the panel term linearly, outside the exponent, then re-calibrate W to the airplay
-   guard.
+2. ~~**Change how the panel term is paid.**~~ **Done, negative (§9q).** With the panel paid linearly (L 0.15, airplay
+   on the guard), the offset goes to −0.5 (Δ +1.7, SE 0.4, vs the floor) and Big-5 to 43.3. Under the floor arm the
+   tail alone is ~2% of airplay, so there is no tail × panel compounding to remove. A linear payout of a sales-ordered
+   panel is pure reinforcement.
 3. **Chart-side split (§9l option (a), already built):** `--station-regional-support-chart=national` holds the
    control exactly. Only take this if 1-2 fail, since it leaves the player-facing playlists disagreeing with what
    scores (~17% overlap).

@@ -33,6 +33,9 @@ public class RegionalRecordData {
 	// tail carried of earlier weeks' blends. Written only under --station-regional-support-panel-free; not saved.
 	[System.Text.Json.Serialization.JsonIgnore]
 	public float panelExcessRadio;
+	// This week's reporter panel rotation, for --station-regional-support-panel-linear's chart payout; not saved.
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float panelRadioPlay;
 	public float jukeboxPlay;    // 0-1: Jukebox presence
 	// A 1960s Top 40 playlist was a list of thirty or forty slots, re-cut weekly by a programme
 	// director reading local sales reports. A record did not fade off it; it was dropped, and once

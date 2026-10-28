@@ -2054,6 +2054,7 @@ public partial class ChartManager : Node {
 			if (reporterPanelWeight > 0f && stationNetwork != null) {
 				float reporterRadioPlay = stationNetwork.ReporterRadioPlay(record.baseRecord.recordId, region.regionId);
 				data.radioPlay = Mathf.Lerp(tail, reporterRadioPlay, reporterPanelWeight);
+				if (StationRegionalSupport.PanelLinear) data.panelRadioPlay = reporterRadioPlay;
 			} else {
 				data.radioPlay = tail;
 			}
@@ -2061,12 +2062,13 @@ public partial class ChartManager : Node {
 			// Big-5 handoff probe: both tail branches are linear in last week's radioPlay, so the panel's share of
 			// it carries forward the same way; what is left is the rotation with no panel blend in any week.
 			float awarenessRadio = data.radioPlay;
-			if (StationRegionalSupport.PanelFreeAwareness) {
+			if (StationRegionalSupport.TracksPanelExcess) {
 				float carriedExcess = data.stationsDropped
 					? ChartSimulator.GetDroppedRotation(data.panelExcessRadio)
 					: data.panelExcessRadio * RegionalRadioHold * (1f - RegionalRadioLerp);
-				awarenessRadio = Mathf.Max(0f, tail - carriedExcess);
-				data.panelExcessRadio = data.radioPlay - awarenessRadio;
+				float panelFree = Mathf.Max(0f, tail - carriedExcess);
+				data.panelExcessRadio = data.radioPlay - panelFree;
+				if (StationRegionalSupport.PanelFreeAwareness) awarenessRadio = panelFree;
 			}
 
 			// Radio builds regional awareness

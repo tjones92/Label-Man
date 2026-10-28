@@ -1311,10 +1311,15 @@ public static class ChartSimulator {
 				// divided back out, the record's own rotation carries the exponent, and access is then
 				// paid back linearly.
 				float access = data.genreRadioOpportunityThisWeek > 0f ? data.genreRadioOpportunityThisWeek : 1f;
+				// Big-5 handoff lead 2 (off unless --station-regional-support-panel-linear): the exponent takes the
+				// rotation with no panel blend, and the panel is paid beside it, linearly.
+				bool panelLinear = StationRegionalSupport.PanelLinear;
+				float convexRadio = panelLinear ? Mathf.Max(0f, data.radioPlay - data.panelExcessRadio) : data.radioPlay;
 				// AirplayRotationCeiling is a probe on this payout only; identity unless --airplay-rotation-ceiling is named.
-				float ownRotation = AirplayRotationCeiling.Apply(data.radioPlay / access);
+				float ownRotation = AirplayRotationCeiling.Apply(convexRadio / access);
 				float rotation = AIRPLAY_REFERENCE_PLAY *
 					Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, AIRPLAY_CONVEXITY) * access;
+				if (panelLinear) rotation += StationRegionalSupport.PanelLinearWeight * data.panelRadioPlay;
 				airplayPoints += rotation * region.media.radioReach * region.population *
 					AIRPLAY_POINTS_PER_MILLION_REACHED;
 			}

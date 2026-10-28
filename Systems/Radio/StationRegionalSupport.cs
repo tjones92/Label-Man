@@ -22,6 +22,7 @@ public static class StationRegionalSupport {
 	private const string UnsoldFloorFlag = "--station-regional-support-unsold-floor";
 	private const string PlateauPrefix = "--station-regional-support-rank-plateau=";
 	private const string PanelFreePrefix = "--station-regional-support-panel-free=";
+	private const string PanelLinearPrefix = "--station-regional-support-panel-linear=";
 	/// <summary>Standing weight: exp(-(rank - 1) / scale), floored; an unranked record reads the floor.</summary>
 	public const float DefaultStandingRankScale = 25f, StandingFloor = .02f;
 	private static bool configured;
@@ -56,6 +57,14 @@ public static class StationRegionalSupport {
 	/// rotation the region would carry with no panel blend, today's or carried in the tail. Off unless named.</summary>
 	public static bool PanelFreeAwareness { get; private set; }
 	public static bool PanelFreeBreakout { get; private set; }
+	/// <summary>Big-5 handoff lead 2: chart points raise only the panel-free rotation to <c>AIRPLAY_CONVEXITY</c> and
+	/// pay this week's reporter panel linearly, L × panel, beside it, so a panel that agrees with a pushed record's high
+	/// tail is no longer compounded. Sales reads (awareness, breakout) keep the blended radioPlay. 0 (off) unless
+	/// <c>--station-regional-support-panel-linear=L</c> is named.</summary>
+	public static float PanelLinearWeight { get; private set; }
+	public static bool PanelLinear => PanelLinearWeight > 0f;
+	/// <summary>Whether ChartManager must track the panel's share of radioPlay (panelExcessRadio, panelRadioPlay).</summary>
+	public static bool TracksPanelExcess => PanelFreeAwareness || PanelLinear;
 
 	/// <summary>§9h calibration: the reporter panel's weight in regional radioPlay (the calibrated constant unless
 	/// <c>--station-regional-support-panel-weight</c> is named). Standing concentrates panel spins on the records
@@ -89,6 +98,10 @@ public static class StationRegionalSupport {
 					"sales" => true,
 					_ => throw new ArgumentException(PanelFreePrefix + " takes awareness or sales.")
 				};
+				continue;
+			}
+			if (a.StartsWith(PanelLinearPrefix, StringComparison.Ordinal)) {
+				PanelLinearWeight = PositiveFloat(a, PanelLinearPrefix);
 				continue;
 			}
 			if (a == UnsoldFloorFlag) {

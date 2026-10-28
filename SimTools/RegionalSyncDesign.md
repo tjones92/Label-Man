@@ -1207,3 +1207,51 @@ points are untouched as designed.
   above, because the panel's effective weight in `radioPlay` is ~3.5× the nominal W.
 
 **Status.** Probe off by default; not for adoption. Lead 1 is closed negative.
+
+### 9q. Screen: the panel paid linearly, outside the airplay convexity (`--station-regional-support-panel-linear=L`, 2026-10-28)
+
+`Big5ShareHandoff.md` lead 2. Chart points raise only the panel-free rotation (the §9p shadow, so the panel is out of
+the tail's carry as well) to `AIRPLAY_CONVEXITY`. This week's `ReporterRadioPlay` is paid beside it as `L × panel`,
+weighted by reach × population like the rest of airplay. Sales reads (awareness, breakout) keep the blended
+`radioPlay` at W .085, so only the chart changes. **Inert unnamed:** `hs52op1001-SMP-HGRPO-ufw085f` is
+byte-identical to `-ufw085` on all 123 CSVs.
+
+**Calibration (seed 1001, airplay = pooled top-40 share; control 27.6, floor 27.6):**
+
+| L | 0.001 | 0.03 | 0.06 | 0.1 | **0.15** | 0.2 | 0.5 | 1 | 8 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Airplay | 2.0 | 7.4 | 12.2 | 18.4 | **25.2** | 30.0 | 52.1 | 68.8 | 94.7 |
+| Big-5 offset | +0.6 | +0.6 | +1.2 | −0.4 | −1.0 | −0.6 | +1.5 | −5.6 | −0.4 |
+
+- **Under the floor arm, chart airplay is the panel.** With the panel out of the exponent, the tail alone gives 2%
+  airplay. The tail is too small at the fifth power (the lerp toward `radioHeat / difficulty` settles well under the
+  0.30 reference). This fits §9j, where airplay fell 26.5 → 13.5 as W went 0.13 → 0.092. Whatever pays the chart's
+  airplay, its order is the panel's order.
+- **A linear payout cannot be tuned near the exponent's.** It pays every region's modest rotation, which the fifth
+  power used to crush. That is why L 0.5 already doubles airplay.
+
+**Eight seeds at L 0.15, 1960, Big-5 by label ID** (`SimLogs/hs52op100{1-8}-SMP-HGRPO-lin015`; control `-sp`):
+
+| Arm | Big-5 Top-10 | Units-only top 10 | Offset | Big-5 share of all units | Airplay | Top-10 artists |
+|---|---:|---:|---:|---:|---:|---:|
+| Control | 34.7 | 38.7 | −4.0 | 28.2 | 25.5 | 81.8 |
+| Floor (W .085) | 39.6 | 41.8 | −2.2 | 29.3 | 27.8 | 74.8 |
+| Floor, panel linear L .15 | 43.3 | 43.8 | **−0.5** | 30.2 | 25.0 | 75.5 |
+
+Paired against the floor arm (SE): Big-5 Top-10 **+3.8 (1.9)**, offset **+1.7 (0.4)**, units-only +2.0 (1.9). Against
+the control: +8.7 (2.1). Per seed the offset is −1.0 / +1.2 / 0.0 / −0.4 / −1.0 / +0.2 / −2.3 / −0.4, and none is below
+the floor arm's −2.2 mean. Airplay sits on the guard (25.0) and breadth is unchanged (75.5).
+
+- **Linear payment takes the offset to zero.** A linear payout of a sales-ordered panel gives each record airplay in
+  proportion to its regional sales standing. That re-ranks nothing against units. The floor arm's remaining −2.2 most likely came
+  from the convexity (not tested directly): it piles points on each region's very top records, so a strong regional seller can pass a
+  national seller of the same total. Linearising removes that and leaves airplay purely as reinforcement.
+- **The handoff's premise does not hold here.** Compounding of the panel with a pushed record's tail can only work
+  where the tail matters, and under the floor arm the tail is ~2% of airplay. The Big-5 lift is not a tail × panel
+  interaction. It is the panel's composition (§9k: Majors gain seats in every tier), and no monotone payout of that
+  panel can produce an offset against sales.
+
+**Status.** Probe off by default; not for adoption. Lead 2 is closed negative. Together with §9k, §9m, §9n and §9p, every
+route that keeps one sales-ordered panel scoring the chart has now failed to hold the Big-5 share. What remains is lead
+3 (§9l option (a), the national panel scores the chart, the control by construction), or a non-sales signal *inside
+the High tier*, which §9m showed costs the airplay guard.
