@@ -29,7 +29,7 @@ public partial class ChartAuditRunner {
 		programmeIssueRefusalWriter.WriteLine("week,slotId,labelId,artistId,format,source,intendedWeek,paidProduction,gate");
 		CompetitorManager.Instance.OnProgrammeIssueRefused += WriteProgrammeIssueRefusal;
 		programmeResourceWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-resources.csv"));
-		programmeResourceWriter.WriteLine("week,year,labelId,tier,attempts,successes,openItems,cashReserved,promotionPool,promotionBooked,singleWeeklyRate,albumWeeklyRate,dueFollowUps,unplannedFollowUps,promotionCommittedPeak");
+		programmeResourceWriter.WriteLine("week,year,labelId,tier,attempts,successes,openItems,cashReserved,promotionPool,promotionBooked,singleWeeklyRate,albumWeeklyRate,dueFollowUps,unplannedFollowUps,promotionCommittedPeak,rosterActs,releaseEligibleActs,programmeCapacityActive,nominalSingleMonthlyCapacity,nominalAlbumMonthlyCapacity,staffCoverage,slotStatusFactor,seasonalAvailability");
 		CompetitorManager.Instance.OnProgrammeResources += WriteProgrammeResources;
 		if (LabelReleaseProgramme.MaterialSearchEnabled) {
 			programmeMaterialWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-material-search.csv"));
@@ -72,7 +72,8 @@ public partial class ChartAuditRunner {
 			p.Uncertainty.ToString("R", CultureInfo.InvariantCulture)));
 	}
 	private void WriteProgrammeResources(ProgrammeResourceTelemetry r) => programmeResourceWriter.WriteLine(string.Join(",", r.Week, r.Year,
-		Csv(r.LabelId), Csv(r.Tier), r.Attempts, r.Successes, r.OpenItems, F(r.CashReserved), F(r.PromotionPool), F(r.PromotionBooked), F(r.SingleWeeklyRate), F(r.AlbumWeeklyRate), r.DueFollowUps, r.UnplannedFollowUps, F(r.PromotionCommittedPeak)));
+		Csv(r.LabelId), Csv(r.Tier), r.Attempts, r.Successes, r.OpenItems, F(r.CashReserved), F(r.PromotionPool), F(r.PromotionBooked), F(r.SingleWeeklyRate), F(r.AlbumWeeklyRate), r.DueFollowUps, r.UnplannedFollowUps, F(r.PromotionCommittedPeak),
+		r.RosterActs, r.ReleaseEligibleActs, r.ProgrammeCapacityActive ? 1 : 0, F(r.NominalSingleMonthlyCapacity), F(r.NominalAlbumMonthlyCapacity), F(r.StaffCoverage), F(r.SlotStatusFactor), F(r.SeasonalAvailability)));
 	private void WriteProgrammeCashShortfall(ProgrammeCashShortfall r) => programmeCashShortfallWriter.WriteLine(string.Join(",", r.Week, Csv(r.LabelId), r.Tier, r.Status,
 		Csv(r.SlotId), Csv(r.ArtistId), r.Format, F(r.Cash), F(r.Overhead), F(r.NegativeFlowHold), F(r.PlantPayables), F(r.TaxAndService), F(r.OtherProgrammeHolds),
 		F(r.Production), F(r.Marketing), F(r.Pressing), F(r.Receivables), F(r.Factored), F(r.TaxPayable), F(r.UnprovidedTax), F(r.CommercialHold)));

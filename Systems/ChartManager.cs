@@ -776,6 +776,7 @@ public partial class ChartManager : Node {
 		currentChartWeek++;
 		// Fired on the Friday day-end; the chart it produces is dated to the week-ending Saturday.
 		chartWeekEndingDate = date.AddDays(1);
+		RockHitOfficePlacement.WriteWeek(currentChartWeek, date.year);
 		ApplyCanonicalLiveIdentities(date.year);
 		foreach (var region in allRegions) region.SetGenreMarketV2Live(true);
 		if (ArtistFanbase.Enabled) ArtistFanbase.PrepareWeek(ArtistManager.Instance.GetAllArtists(), allRecords,

@@ -344,6 +344,51 @@ public static class CompositionCatalogService {
 		}
 	}
 
+	/// <summary>
+	/// --rock-hit-office-placement: one new song from an office, written in a live week. Its traits match the initial
+	/// office catalogue but come from a private stream keyed by (world seed, office, serial), and it takes an id from its
+	/// own namespace, so the trait, title and song-id streams the rest of the world reads are unchanged. The serial is
+	/// recovered from the saved catalogue, so nothing new is saved.
+	/// </summary>
+	internal static SongComposition WriteOfficeSong(string publisherId, Genre[] focus, int year) {
+		MusicPublisher pub = publishers.FirstOrDefault(p => p.publisherId == publisherId);
+		if (pub == null || focus == null || focus.Length == 0) return null;
+		string prefix = $"song_{publisherId}_";
+		int serial = songs.Keys.Count(k => k.StartsWith(prefix, StringComparison.Ordinal)) + 1;
+		var r = new PcgRandom { Seed = BandLife.WorldSeed ^ 0x6f6666696365UL ^ ((ulong)serial * 0x9E3779B97F4A7C15UL) };
+		float N(float mean, float sd) {
+			float u1 = Mathf.Max(.000001f, r.Randf()), u2 = r.Randf();
+			return Mathf.Clamp(mean + Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(2f * Mathf.Pi * u2) * sd, 0f, 1f);
+		}
+		Genre primary = focus[r.RandiRange(0, focus.Length - 1)];
+		var bank = primary is Genre.RnB or Genre.DooWop or Genre.Soul ? SoulTitles : RockTitles;
+		var song = new SongComposition {
+			songId = $"{prefix}{serial:D5}",
+			title = $"{bank.Openers[r.RandiRange(0, bank.Openers.Length - 1)]} {bank.Closers[r.RandiRange(0, bank.Closers.Length - 1)]}",
+			primaryGenre = primary,
+			secondaryGenre = focus.Length > 1 ? focus[1] : primary,
+			originYear = year,
+			originKind = SongOriginKind.ProfessionalOffice,
+			compositionQuality = N(.62f, .15f), melodicStrength = N(.62f, .15f), lyricQuality = N(.56f, .16f),
+			commercialHook = N(.68f, .15f), rhythmicAppeal = N(.58f, .17f), adaptability = N(.55f, .18f),
+			originality = N(.42f, .16f), standardDurability = N(.35f, .16f),
+			nationalFamiliarity = 0f, isStandard = false
+		};
+		song.rights.controlType = PublishingControlType.ExternalPublisher;
+		song.rights.publisherId = pub.publisherId;
+		song.rights.publisherName = pub.publisherName;
+		song.credits.Add(new SongwriterCredit {
+			writerType = WriterEntityType.ProfessionalSongwriter,
+			writerId = pub.staffWriterIds.Count > 0 ? pub.staffWriterIds[r.RandiRange(0, pub.staffWriterIds.Count - 1)] : null,
+			writerName = "Staff Writer", share = 1f
+		});
+		CompositionShapeVariation.AuthorContext(song, SongContentContext.Secular, "procedural-publishing-office:" + pub.publisherId + ":" + pub.scene);
+		Register(song);
+		pub.catalogSongIds.Add(song.songId);
+		if (LiveRepertoire.AuditPhase >= 5) AdmitRepertoire(song, "unpublished", year);
+		return song;
+	}
+
 	// ---- Per-release attachment (Phase 0: artist-original stub, ZERO randomness) --------------
 
 	/// <summary>

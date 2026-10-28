@@ -1462,6 +1462,80 @@ AW, 4 Pro). The full office was .727, 15.22, 17 (1 AW, 14 Pro).
 - **At half size the office still overshoots history** (13.54) and still takes R&R hits from self-writers.
 - **A 0.2-0.25 share, or no office, is the next probe.**
 
+**Five-seed screen: gate alone (`SMP-HG`) against gate + office at share 0.2 (`SMP-HGR2`)**, seeds 1001-1005,
+52 weeks. Paired differences carry a 5-seed SE.
+
+| | HG | HGR2 | Paired diff (SE) |
+|---|---|---|---|
+| R&R hook | .664 | .718 | +.053 (.008) |
+| 1960 R&R market share (history 13.54) | **13.13 ± 1.47** | 15.65 ± 0.98 | +2.5 (1.6) |
+| 1960 R&R chart-week share | 14.19 | 17.57 | +3.4 (1.7) |
+| R&R professional share | .025 | .358 | +.33 |
+| R&R Top 10 records (AW / Pro) | 15.4 (10.8 / 0.4) | 20.2 (8.8 / 6.6) | +4.8 |
+| 1960 CR8 (floor 48) | 47.6 | 46.2 | −1.4 (1.6) |
+| Single launches | 4,200 | 4,200 | 0 |
+
+- **The gate alone puts R&R's 1960 share on history** across five seeds.
+- **Even a 0.2 office overshoots by ~2.5 points**, and its songs take R&R Top 10s from self-writers.
+- **The share knob is a weak lever.** A professional anchor of .07 realises a .36 professional share. The
+  release-judgement read favours the office's higher-hook songs, and the gate sends weak writers to them.
+  Scaling the anchor does not scale the office.
+- **The office does not fix the 1960 head** (CR8 −1.4). That was its other rationale, alongside the Brill pattern.
+- **Recommendation:** gate + hook scale without the office, as the R&R candidate for the decade A/B. If the office
+  stays as history, it needs a pool or access limit, not a smaller source anchor.
+
+Evidence: `SimLogs/hs52live*-SMP-HG`, `hs52live*-SMP-HGR2`.
+
+### 2026-10-27: `--rock-hit-office-placement=W`, the office places songs the way the NY offices did
+
+**The author wants the office kept.** Not having one is ahistorical.
+
+**The problem was placement, not size.** The office was a fixed 90-song catalogue that every label sampled
+without limit. Seed 1001 cut 82 songs into 610 singles in a year, one song 33 times, with 116 singles on Small
+labels and 63 on Majors. The release-judgement read then favoured those high-hook songs.
+
+**What the switch does** (`Systems/RockHitOfficePlacement.cs`, needs `--rock-hit-writers`):
+- **Pitch list.** The office pitches only to Majors and to labels with a Top 40 record in the last 52 weeks
+  (the distribution-deal test).
+- **One placement.** A song is gone once it is on a shortlist or has a committed master. A charting song can come
+  back as a hit cover.
+- **Supply.** The office writes W songs a week in live weeks. A private stream keyed by serial supplies them, under
+  an id namespace of their own.
+- **Unpitched labels.** Their professional arrival share goes to the other sources, so total arrivals hold.
+- **Every path.** It covers release-judgement arrivals, the legacy pick and album slots (`BuildProfessional`), and
+  the programme material search (`CanObtainProgrammeSong`). The first screen missed the material search, which
+  kept re-placing songs.
+- **Left alone.** The prewarm, the player and other publishers. Off, weeks 1-4 are byte-identical.
+
+**Results.** Five seeds (1001-1005), 52 weeks, default profile + hook scale + gate. The office arms share an opening
+world with each other, not with HG.
+
+| | HG (no office) | HGRx (office as was) | HGRP (W=2) | HGRP4 (W=4) |
+|---|---|---|---|---|
+| R&R hook | .664 | .732 | .666 | .669 |
+| 1960 R&R market share (history 13.54) | 13.13 | 15.93 | **13.47** | 13.44 |
+| 1960 R&R chart-week share | 14.19 | 18.19 | 15.20 | 15.58 |
+| R&R professional share | .025 | .583 | .047 | .071 |
+| R&R Top 10 records (AW / Pro) | 15.4 (10.8 / 0.4) | 18.2 (5.8 / 10.4) | 15.2 (8.2 / 1.8) | 14.6 (8.2 / 1.6) |
+| Office singles a year | 0 | 831 | 146 | 177 |
+| Distinct songs / max cuts per song | — | 82 / 56 | 93 / 6 | 122 / 6 |
+| Office singles: Major / MidTier / Indep / Boutique / Small | — | 72 / 182 / 291 / 105 / 182 | 19 / 39 / 50 / 14 / 23 | 26 / 56 / 53 / 16 / 26 |
+| Office Top 40 records | — | 58 | 14 | 18 |
+| 1960 CR8 | 47.6 | 45.8 | 47.5 | 46.1 |
+| Single launches | 4,200 | 4,215 | 4,129 | 4,113 |
+
+- **R&R lands on history with the office kept.** The office shrinks to ~150 placements and ~14 Top 40 records a
+  year, mostly at Majors, MidTiers and charting independents.
+- **Repeats and Small-label cuts are now prewarm leftovers.** Several shortlists hold the same pre-1960 office
+  songs. After week 1 they are 1-8 a seed, and some come from Small labels that earned a Top 40 hit.
+- **W is a weak dial.** 2 → 4 adds only ~30 placements: the pitch list and acts' choices bind, not supply.
+- **Open.**
+  - Launches are −71 (SE 27) against HG. That is across different opening worlds; HGRx was +15, so it is unexplained.
+  - The ~14 office Top 40 records a year have no historical count to check against yet.
+  - Self-written R&R Top 10s are 8.2 against 10.8 (SE 1.9).
+
+Evidence: `SimLogs/hs52live*-SMP-HGRx`, `hs52live*-SMP-HGRP`, `hs52live*-SMP-HGRP4`.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic

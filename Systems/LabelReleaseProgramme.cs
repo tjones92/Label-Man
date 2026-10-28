@@ -62,6 +62,9 @@ public static class LabelReleaseProgramme {
 		WorkBudgetMidTierSingles = Read(args, WorkBudgetMidTierSwitch, 0, .25f, 3);
 		if (args.Any(a => a.StartsWith(WorkBudgetMidTierSwitch, StringComparison.Ordinal)) && WorkBudgetSingles <= 0)
 			throw new ArgumentException(WorkBudgetMidTierSwitch + " requires " + WorkBudgetSwitch);
+		WorkBudgetNamedIndependentSingles = Read(args, WorkBudgetNamedIndependentSwitch, 0, .25f, 3);
+		if (args.Any(a => a.StartsWith(WorkBudgetNamedIndependentSwitch, StringComparison.Ordinal)) && WorkBudgetSingles <= 0)
+			throw new ArgumentException(WorkBudgetNamedIndependentSwitch + " requires " + WorkBudgetSwitch);
 		GoingConcernReserveEnabled = args.Contains(GoingConcernReserveSwitch);
 		if (GoingConcernReserveEnabled && WorkBudgetSingles <= 0)
 			throw new ArgumentException(GoingConcernReserveSwitch + " requires " + WorkBudgetSwitch);
@@ -95,8 +98,19 @@ public static class LabelReleaseProgramme {
 	// tiers added nine singles in ten and cut r by .11 while MidTiers stayed below their pre-slate output).
 	public const string WorkBudgetMidTierSwitch = "--slate-work-budget-midtier=";
 	public static float WorkBudgetMidTierSingles { get; private set; }
-	internal static void SetWorkBudgetForChecks(float value, float midTier = 0f) { WorkBudgetSingles = value; WorkBudgetMidTierSingles = midTier; }
+	// --slate-work-budget-named-independents=SN: the 1960-61 Top 10 Independents (Imperial, Liberty, Monument) take SN in
+	// place of their tier's S, whatever tier they later hold. Their programme slots, not their rosters, bound their singles
+	// (two-seed mt25 trace: ~6 a year each, acts passed over for slots). A probe, not a sourced catalogue rate.
+	public const string WorkBudgetNamedIndependentSwitch = "--slate-work-budget-named-independents=";
+	public static float WorkBudgetNamedIndependentSingles { get; private set; }
+	private static readonly string[] NamedIndependents = { "Imperial", "Liberty", "Monument" };
+	internal static bool IsNamedIndependent(AILabel label) => label.isHistorical && label.labelName != null &&
+		NamedIndependents.Any(n => label.labelName == n || label.labelName.StartsWith(n + " ", StringComparison.Ordinal));
+	internal static void SetWorkBudgetForChecks(float value, float midTier = 0f, float namedIndependents = 0f) {
+		WorkBudgetSingles = value; WorkBudgetMidTierSingles = midTier; WorkBudgetNamedIndependentSingles = namedIndependents;
+	}
 	internal static float WorkBudgetFor(AILabel label) =>
+		WorkBudgetNamedIndependentSingles > 0 && IsNamedIndependent(label) ? WorkBudgetNamedIndependentSingles :
 		label.tier == LabelTier.MidTier && WorkBudgetMidTierSingles > 0 ? WorkBudgetMidTierSingles : WorkBudgetSingles;
 	internal static bool UsesWorkBudget(AILabel label) => WorkBudgetSingles > 0 && label.tier != LabelTier.Major && !label.isPlayerOwned;
 	internal static float SlotStatusFactor(AILabel label) =>
@@ -234,4 +248,9 @@ public sealed class ProgrammeResourceTelemetry {
 	public int Week, Year, Attempts, Successes, OpenItems, DueFollowUps, UnplannedFollowUps;
 	public string LabelId, Tier;
 	public float CashReserved, PromotionPool, PromotionBooked, PromotionCommittedPeak, SingleWeeklyRate, AlbumWeeklyRate;
+	// Observed after the existing weekly work. Eligibility excludes terminal acts,
+	// but does not call the clock/material/spacing gates or create new slate work.
+	public int RosterActs, ReleaseEligibleActs;
+	public bool ProgrammeCapacityActive;
+	public float NominalSingleMonthlyCapacity, NominalAlbumMonthlyCapacity, StaffCoverage, SlotStatusFactor, SeasonalAvailability;
 }

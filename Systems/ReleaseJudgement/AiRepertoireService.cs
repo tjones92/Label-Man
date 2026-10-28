@@ -291,6 +291,13 @@ public static class AiRepertoireService {
 		Genre genre = ProjectGenre(artist, year);
 		SourceShares shares = SelfWritingCraftGate.Apply(SongMaterialSelectionService.GetSourceMixShares(genre, year, artist.primaryGenre),
 			SongMaterialSelectionService.ArtistWriterCraft(artist));
+		// --rock-hit-office-placement: a label pitched nothing from the professional pool has no professional share; it
+		// goes to the other sources in proportion, so total arrivals hold. Off: unchanged.
+		if (RockHitOfficePlacement.Enabled && shares.Pro > 0f && shares.Pro < 1f &&
+			!RockHitOfficePlacement.AnyVisible(PoolFor(SongMaterialSource.ExternalProfessional, genre), label)) {
+			float scale = 1f / (1f - shares.Pro);
+			shares = new SourceShares { Aw = shares.Aw * scale, Std = shares.Std * scale, Hit = shares.Hit * scale, Trad = shares.Trad * scale };
+		}
 		float b = ReleaseJudgement.Parameters.BaseArrivalRate;
 		return source switch {
 			SongMaterialSource.ArtistWritten => b * shares.Aw * (0.4f + 1.2f * SongMaterialSelectionService.ArtistWriterCraft(artist)),
@@ -343,9 +350,10 @@ public static class AiRepertoireService {
 			c.TitleSeed = RepertoireTaxonomy.Hash(BandLife.WorldSeed.ToString(System.Globalization.CultureInfo.InvariantCulture) +
 				$"|release-judgement|title|{artist.artistId}|{key}");
 		} else {
-			SongComposition song = PickSong(act, source, artist, year, key);
+			SongComposition song = PickSong(act, label, source, artist, year, key);
 			if (song == null) { Count("empty-pool:" + source); return null; }
 			c.SongId = song.songId;
+			if (source == SongMaterialSource.ExternalProfessional) RockHitOfficePlacement.Reserve(song);
 			c.Craft = song.compositionQuality; c.Hook = song.commercialHook; c.Lyric = song.lyricQuality; c.Originality = song.originality;
 		}
 		act.Sequence++;
@@ -359,8 +367,9 @@ public static class AiRepertoireService {
 		return c;
 	}
 
-	private static SongComposition PickSong(ShadowActRepertoire act, SongMaterialSource source, SimulatedArtist artist, int year, string key) {
+	private static SongComposition PickSong(ShadowActRepertoire act, AILabel label, SongMaterialSource source, SimulatedArtist artist, int year, string key) {
 		IReadOnlyList<SongComposition> pool = PoolFor(source, ProjectGenre(artist, year));
+		if (source == SongMaterialSource.ExternalProfessional) pool = RockHitOfficePlacement.Visible(pool, label);
 		if (pool.Count == 0) return null;
 		for (int attempt = 0; attempt < 4; attempt++) {
 			int index = Math.Min(pool.Count - 1, (int)(ReleaseJudgement.Unit($"pick|{artist.artistId}|{key}|{attempt}") * pool.Count));
@@ -577,6 +586,7 @@ public static class AiRepertoireService {
 			return SongMaterialSelectionService.BuildArtistOriginalForSong(label, artist, record, song, genre, year);
 		}
 		if (song == null) return null;
+		if (c.Source == SongMaterialSource.ExternalProfessional && RockHitOfficePlacement.PlacedElsewhere(song)) return null;
 		return c.Source == SongMaterialSource.ExternalProfessional
 			? SongMaterialSelectionService.BuildProfessionalForSong(label.tier, artist, record, song, genre, year)
 			: SongMaterialSelectionService.BuildCoverForSong(artist, record, song, genre, year);
@@ -615,6 +625,7 @@ public static class AiRepertoireService {
 	// ---- bookkeeping -------------------------------------------------------------------------------------------
 
 	private static void Archive(ShadowCandidate c, ShadowActRepertoire act, int week, string reason) {
+		if (c.Source == SongMaterialSource.ExternalProfessional) RockHitOfficePlacement.Release(c.SongId);
 		c.Disposition = ShadowDisposition.Archived;
 		c.DispositionWeek = week;
 		c.DispositionReason = reason;
@@ -648,8 +659,13 @@ public static class AiRepertoireService {
 			saved = null;
 		}
 		state = saved ?? new AiRepertoireSaveData();
+		RockHitOfficePlacement.Invalidate();
 	}
 
+	/// <summary>Catalogue songs on active shortlists, for derived reservations (--rock-hit-office-placement).</summary>
+	internal static IEnumerable<string> ActiveCatalogueSongIds() =>
+		state.Acts.Values.SelectMany(a => a.Candidates).Where(c => c.Disposition == ShadowDisposition.Active && c.SongId != null).Select(c => c.SongId);
+
 	/// <summary>A fresh world in the same process must not inherit a previous world's shortlists.</summary>
-	public static void Reset() { state = new AiRepertoireSaveData(); health = null; current = new ShadowRepertoireHealth(); pendingPicks.Clear(); }
+	public static void Reset() { state = new AiRepertoireSaveData(); health = null; current = new ShadowRepertoireHealth(); pendingPicks.Clear(); RockHitOfficePlacement.Invalidate(); }
 }

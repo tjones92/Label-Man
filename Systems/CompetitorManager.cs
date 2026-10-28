@@ -4998,6 +4998,7 @@ public partial class CompetitorManager : Node {
 
 	private bool HasRecentTop40Record(AILabel label) => label != null &&
 		GetRecentTop40RecordCount(label.labelId, 52) > 0;
+	internal bool LabelHasRecentTop40(AILabel label) => HasRecentTop40Record(label);
 
 	private AILabel SelectDistributor(AILabel client, DealOrigin origin, bool requireMajorDistributor = false) {
 		var weighted = new List<(AILabel Label, float Weight)>();

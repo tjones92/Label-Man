@@ -25,7 +25,8 @@ public partial class CompetitorManager {
     internal static bool CanObtainProgrammeSong(SongComposition song, AILabel label, bool professional, int year, int week) =>
         song != null && song.originYear <= year &&
         (!song.rights.exclusiveHold || song.rights.exclusiveHoldUntilWeek < week || song.rights.controllerLabelId == label.labelId) &&
-        (professional || song.isPublicDomain || song.rights.compulsoryMechanicalAvailable);
+        (professional || song.isPublicDomain || song.rights.compulsoryMechanicalAvailable) &&
+        (!professional || RockHitOfficePlacement.CanPlace(song, label));
 
     private static string MaterialSupplier(SongComposition song) => song.credits
         .FirstOrDefault(c => c.writerType == WriterEntityType.ProfessionalSongwriter && !string.IsNullOrEmpty(c.writerId))?.writerId

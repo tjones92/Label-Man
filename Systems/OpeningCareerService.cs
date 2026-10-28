@@ -81,32 +81,53 @@ public static class OpeningCareerService {
 		(StudioParentLabels.UnitedArtists, OpeningCareerArchetype.EstablishedHitmaker, CareerState.Established, new[] { Genre.RnB, Genre.DooWop, Genre.TeenPop }),
 	};
 
+	// --historical-independent-stars: named Independents' January 1960 stars. Imperial had Ricky Nelson (a run of Top 10s
+	// since 1957) and Fats Domino (on Imperial since 1949); both made the 1960-61 Top 10 there. Liberty's 1960-61 Top 10s
+	// were all acts without a prior national hit (Bobby Vee, Johnny Burnette, Gene McDaniels, Timi Yuro) and Monument's were
+	// Roy Orbison's first, so neither label gets a row. Like the studio rows, these come out of the same archetype budget.
+	private static readonly (string Label, OpeningCareerArchetype Archetype, CareerState Rung, Genre[] Genres)[] IndependentStars = {
+		("Imperial", OpeningCareerArchetype.CurrentHitmaker, CareerState.Star, new[] { Genre.TeenPop, Genre.RockAndRoll }),
+		("Imperial", OpeningCareerArchetype.EstablishedHitmaker, CareerState.Star, new[] { Genre.RnB, Genre.RockAndRoll }),
+	};
+
+	private static bool IsNamed(AILabel l, string name) =>
+		l != null && l.isHistorical && l.labelName != null && (l.labelName == name || l.labelName.StartsWith(name + " ", StringComparison.Ordinal));
+
 	public static void Seed(List<AILabel> labels, int year) {
 		if (labels == null) return;
 		var chosen = new HashSet<string>(StringComparer.Ordinal);
 		var perLabel = new Dictionary<string, (int Superstars, int Stars, int Total)>(StringComparer.Ordinal);
 		var tally = new Dictionary<OpeningCareerArchetype, int>();
 		var studioCount = new Dictionary<OpeningCareerArchetype, (int Acts, int Superstars)>();
+		var independentCount = new Dictionary<OpeningCareerArchetype, (int Acts, int Superstars)>();
+		void SeedRow(string tag, string owner, AILabel label, OpeningCareerArchetype archetype, CareerState rung, Genre[] genres,
+				Dictionary<OpeningCareerArchetype, (int Acts, int Superstars)> count) {
+			SimulatedArtist artist = label?.roster?
+				.Where(a => a != null && !chosen.Contains(a.artistId) && a.members?.Count > 0 &&
+					genres.Contains(GenreCatalog.MapLegacy(a.primaryGenre, year)))
+				.OrderByDescending(a => a.CalculateBaseQuality()).ThenBy(a => a.artistId, StringComparer.Ordinal).FirstOrDefault();
+			GD.Print($"{tag} label={label?.labelId} {owner} archetype={archetype} rung={rung} " +
+				$"artist={artist?.artistId} genre={artist?.primaryGenre} quality={artist?.CalculateBaseQuality() ?? 0f:F3}");
+			if (artist == null) return;
+			Stamp(artist, label, Specs.First(s => s.Archetype == archetype), rung, year);
+			chosen.Add(artist.artistId);
+			perLabel.TryGetValue(label.labelId, out var used);
+			perLabel[label.labelId] = Count(used, rung, +1);
+			count.TryGetValue(archetype, out var n);
+			count[archetype] = (n.Acts + 1, n.Superstars + (rung == CareerState.Superstar ? 1 : 0));
+		}
 		if (StudioParentLabels.Enabled)
-			foreach (var row in StudioStars) {
-				AILabel label = labels.FirstOrDefault(l => StudioParentLabels.IsStudioLabel(l) && l.studioParent == row.Parent);
-				SimulatedArtist artist = label?.roster?
-					.Where(a => a != null && !chosen.Contains(a.artistId) && a.members?.Count > 0 &&
-						row.Genres.Contains(GenreCatalog.MapLegacy(a.primaryGenre, year)))
-					.OrderByDescending(a => a.CalculateBaseQuality()).ThenBy(a => a.artistId, StringComparer.Ordinal).FirstOrDefault();
-				GD.Print($"STUDIO_OPENING_CAREER label={label?.labelId} parent=\"{row.Parent}\" archetype={row.Archetype} rung={row.Rung} " +
-					$"artist={artist?.artistId} genre={artist?.primaryGenre} quality={artist?.CalculateBaseQuality() ?? 0f:F3}");
-				if (artist == null) continue;
-				Stamp(artist, label, Specs.First(s => s.Archetype == row.Archetype), row.Rung, year);
-				chosen.Add(artist.artistId);
-				perLabel.TryGetValue(label.labelId, out var used);
-				perLabel[label.labelId] = (used.Superstars + (row.Rung == CareerState.Superstar ? 1 : 0),
-					used.Stars + (row.Rung is CareerState.Star or CareerState.Superstar ? 1 : 0), used.Total + 1);
-				studioCount.TryGetValue(row.Archetype, out var n);
-				studioCount[row.Archetype] = (n.Acts + 1, n.Superstars + (row.Rung == CareerState.Superstar ? 1 : 0));
-			}
+			foreach (var row in StudioStars)
+				SeedRow("STUDIO_OPENING_CAREER", $"parent=\"{row.Parent}\"",
+					labels.FirstOrDefault(l => StudioParentLabels.IsStudioLabel(l) && l.studioParent == row.Parent),
+					row.Archetype, row.Rung, row.Genres, studioCount);
+		if (OpeningCareers.IndependentStars)
+			foreach (var row in IndependentStars)
+				SeedRow("INDEPENDENT_OPENING_CAREER", $"name=\"{row.Label}\"", labels.FirstOrDefault(l => IsNamed(l, row.Label)),
+					row.Archetype, row.Rung, row.Genres, independentCount);
 		foreach (Spec spec in Specs) {
 			studioCount.TryGetValue(spec.Archetype, out var studio);
+			independentCount.TryGetValue(spec.Archetype, out var independent);
 			var candidates = new List<(SimulatedArtist Artist, AILabel Label)>();
 			foreach (AILabel label in labels) {
 				if (label?.roster == null || !spec.Tiers.Contains(label.tier)) continue;
@@ -132,11 +153,13 @@ public static class OpeningCareerService {
 				perLabel[label.labelId] = Count(used, rung, +1);
 			}
 			if (studio.Acts > 0) GiveUpMidTierPicks(picks, perLabel, spec, studio.Acts, studio.Superstars);
+			// The Independents' rows replace the weakest picks wherever they sit: the Big-5 already over-hold 1960-61 Top 10s.
+			if (independent.Acts > 0) GiveUpMidTierPicks(picks, perLabel, spec, independent.Acts, independent.Superstars, midTierFirst: false);
 			foreach ((SimulatedArtist artist, AILabel label, CareerState rung) in picks) {
 				Stamp(artist, label, spec, rung, year);
 				chosen.Add(artist.artistId);
 			}
-			tally[spec.Archetype] = picks.Count + studio.Acts;
+			tally[spec.Archetype] = picks.Count + studio.Acts + independent.Acts;
 		}
 		int superstars = labels.Sum(l => l?.roster?.Count(a => a?.openingArchetype != OpeningCareerArchetype.None && a.careerState == CareerState.Superstar) ?? 0);
 		GD.Print($"OpeningCareerService: seeded {chosen.Count} opening careers ({superstars} Superstars) - " +
@@ -152,10 +175,11 @@ public static class OpeningCareerService {
 	/// third of the repeat Top 10 acts and the Big-5 a bit more (FilmBroadcastLabelResearch.md (d)); taking the studio
 	/// stars out of the quality ranking halved the Big-5's. Drops the lowest-quality MidTier picks and demotes the
 	/// lowest-quality MidTier Superstars; if MidTier runs short, the lowest-quality picks anywhere make up the rest.
+	/// With <paramref name="midTierFirst"/> off, the lowest-quality picks of any tier give way.
 	/// </summary>
 	private static void GiveUpMidTierPicks(List<(SimulatedArtist Artist, AILabel Label, CareerState Rung)> picks,
-			Dictionary<string, (int Superstars, int Stars, int Total)> perLabel, Spec spec, int acts, int superstars) {
-		int Order((SimulatedArtist Artist, AILabel Label, CareerState Rung) p) => p.Label.tier == LabelTier.MidTier ? 0 : 1;
+			Dictionary<string, (int Superstars, int Stars, int Total)> perLabel, Spec spec, int acts, int superstars, bool midTierFirst = true) {
+		int Order((SimulatedArtist Artist, AILabel Label, CareerState Rung) p) => midTierFirst && p.Label.tier == LabelTier.MidTier ? 0 : 1;
 		var byWeakest = picks.Select((p, i) => (Pick: p, Index: i))
 			.OrderBy(x => Order(x.Pick)).ThenBy(x => x.Pick.Artist.CalculateBaseQuality()).ThenByDescending(x => x.Index).ToList();
 		int demote = superstars;
@@ -171,7 +195,7 @@ public static class OpeningCareerService {
 			perLabel[x.Pick.Label.labelId] = Count(perLabel[x.Pick.Label.labelId], picks[x.Index].Rung, -1);
 			drop.Add(x.Index);
 		}
-		GD.Print($"STUDIO_OPENING_GIVE_UP archetype={spec.Archetype} acts={acts} dropped={drop.Count} superstars={superstars} demoted={superstars - demote} " +
+		GD.Print($"{(midTierFirst ? "STUDIO" : "INDEPENDENT")}_OPENING_GIVE_UP archetype={spec.Archetype} acts={acts} dropped={drop.Count} superstars={superstars} demoted={superstars - demote} " +
 			$"fromMidTier={drop.Count(i => picks[i].Label.tier == LabelTier.MidTier)} labels={string.Join(",", drop.Select(i => picks[i].Label.labelId))}");
 		for (int i = picks.Count - 1; i >= 0; i--) if (drop.Contains(i)) picks.RemoveAt(i);
 	}

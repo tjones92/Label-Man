@@ -55,7 +55,13 @@ public partial class CompetitorManager {
 			CashReserved = ProgrammeCashReserved(label.labelId), PromotionPool = ProgrammePromotionPool(label),
 			PromotionCommittedPeak = ProgrammePromotionCommittedPeak(label.labelId),
 			PromotionBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend),
-			SingleWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Single), AlbumWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Album) });
+			SingleWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Single), AlbumWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Album),
+			RosterActs = label.CurrentRosterSize, ReleaseEligibleActs = LabelReleaseProgramme.ReleaseEligibleActs(label),
+			ProgrammeCapacityActive = LabelReleaseProgramme.CapacityEnabled,
+			NominalSingleMonthlyCapacity = LabelReleaseProgramme.CapacityEnabled ? LabelReleaseProgramme.MonthlyCapacity(label).Singles : 0,
+			NominalAlbumMonthlyCapacity = LabelReleaseProgramme.CapacityEnabled ? LabelReleaseProgramme.MonthlyCapacity(label).Albums : 0,
+			StaffCoverage = LabelCorporateModel.CapacityFactor(label), SlotStatusFactor = LabelReleaseProgramme.SlotStatusFactor(label),
+			SeasonalAvailability = MarketSeasonality.Enabled ? MarketSeasonality.GetArtistAvailabilityMultiplier(date.year, date.month, liveTick: true) : 1 });
 	}
 
 	internal void ObserveProgrammeRelease(SimulatedArtist artist, string recordId, ReleaseFormat format) {

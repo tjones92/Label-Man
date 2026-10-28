@@ -12,6 +12,9 @@ public static class OpeningCareers {
 	private static bool configured;
 	private static bool enabled;
 	public static bool Enabled => enabled;
+	// --historical-independent-stars: named Independents hold their own January 1960 stars (OpeningCareerService.IndependentStars).
+	public const string IndependentStarsSwitch = "--historical-independent-stars";
+	public static bool IndependentStars { get; private set; }
 
 	public static void Configure(bool sceneDefault, IEnumerable<string> arguments) {
 		if (configured) return;
@@ -19,6 +22,7 @@ public static class OpeningCareers {
 		foreach (string argument in arguments ?? Array.Empty<string>()) {
 			if (argument == "--opening-careers") enable = true;
 			if (argument == "--no-opening-careers") disable = true;
+			if (argument == IndependentStarsSwitch) IndependentStars = true;
 		}
 		if (enable && disable)
 			throw new ArgumentException("--opening-careers and --no-opening-careers cannot be used together.");
@@ -27,5 +31,6 @@ public static class OpeningCareers {
 	}
 
 	internal static void ConfigureForProbe(bool enable) { configured = true; enabled = enable; }
-	internal static void ResetForProbe() { configured = false; enabled = false; }
+	internal static void ResetForProbe() { configured = false; enabled = false; IndependentStars = false; }
+	internal static void SetIndependentStarsForChecks(bool value) => IndependentStars = value;
 }
