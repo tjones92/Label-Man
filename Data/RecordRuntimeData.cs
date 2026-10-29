@@ -21,6 +21,11 @@ public class RecordRuntimeData {
 	public int lastChartedAge = -1;
 	public int lastSalesAboveRetirementFloorAge = -1;
 	public int weeksInTopTen;
+	// Regional sync §9u (--regional-fit-exposure-relive): the chart position demand read at each age (index = weeks since
+	// release), so a region exposed late can relive the record's rise. Null when off.
+	public List<int> fitRelivePositions;
+	// §9u awareness relive (--regional-fit-exposure-relive-awareness): national awareness at each age. Null when off.
+	public List<float> fitReliveAwareness;
 	// --album-scale-career-milestones: the album run's best singles-equivalent position (0 = unset). Written only on.
 	public int albumCareerPeak;
 	public bool artistChartEntryCredited;

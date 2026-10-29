@@ -1108,6 +1108,9 @@ public sealed class RegionalRecordSaveData {
 	public int? rackTier { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? rackStoreBuyers { get; set; }
+	// Regional sync §9s exposure age; absent (exposed from launch) in older saves and switched-off runs.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? fitExposureAge { get; set; }
 
 	public static RegionalRecordSaveData From(RegionalRecordData d) => new() {
 		regionId = d.regionId, awareness = d.awareness, sentiment = d.sentiment, radioPlay = d.radioPlay,
@@ -1120,6 +1123,7 @@ public sealed class RegionalRecordSaveData {
 		dealEvidenceAge = d.dealEvidenceAge,
 		rackUnits = d.rackUnitsTotal != 0 ? d.rackUnitsTotal : null, rackTier = d.rackTier != 0 ? d.rackTier : null,
 		rackStoreBuyers = d.rackStoreBuyerUnitsTotal != 0 ? d.rackStoreBuyerUnitsTotal : null,
+		fitExposureAge = d.fitExposureAge != 0 ? d.fitExposureAge : null,
 		arrival = d.awaitingArrival || d.pendingLaunchStock != 0 || d.arrivalAge >= 0
 			? new RegionalArrivalSaveData { awaitingArrival = d.awaitingArrival, arrivalAge = d.arrivalAge,
 				stock = d.pendingLaunchStock, awareness = d.pendingLaunchAwareness, radio = d.pendingLaunchRadio } : null
@@ -1136,7 +1140,8 @@ public sealed class RegionalRecordSaveData {
 			// An older save has no arrival; a region that has already sold is treated as in play from
 			// release, which is what every region's clock was before local clocks existed.
 			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
-			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge
+			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge,
+			fitExposureAge = fitExposureAge ?? 0
 		};
 		if (rackUnits != null || rackTier != null) {
 			RackJobberChannel.RequireForResume();
@@ -1231,6 +1236,11 @@ public sealed class RuntimeRecordSaveData {
 	public float perceivedQualityMultiplier { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public float? hitActFitFloorAtLaunch { get; set; }
+	// Regional sync §9u relive log; absent when off.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public List<int> fitRelivePositions { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public List<float> fitReliveAwareness { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public FanReleaseAudience fanAudience { get; set; }
 
@@ -1258,7 +1268,9 @@ public sealed class RuntimeRecordSaveData {
 		currentLabelPush = r.currentLabelPush, totalLabelInvestment = r.totalLabelInvestment, peakMomentum = r.peakMomentum,
 		weeksPositive = r.weeksPositive, weeksNegative = r.weeksNegative, isGrammyNominated = r.isGrammyNominated,
 		isGrammyWinner = r.isGrammyWinner, weeksOfGrammyBump = r.weeksOfGrammyBump, initialLaunchStock = r.initialLaunchStock,
-		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, fanAudience = r.fanAudience
+		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, fanAudience = r.fanAudience,
+		fitRelivePositions = r.fitRelivePositions != null ? new List<int>(r.fitRelivePositions) : null,
+		fitReliveAwareness = r.fitReliveAwareness != null ? new List<float>(r.fitReliveAwareness) : null
 	};
 
 	public RecordRuntimeData ToRuntime() {
@@ -1283,7 +1295,9 @@ public sealed class RuntimeRecordSaveData {
 			currentLabelPush = currentLabelPush, totalLabelInvestment = totalLabelInvestment, peakMomentum = peakMomentum,
 			weeksPositive = weeksPositive, weeksNegative = weeksNegative, isGrammyNominated = isGrammyNominated,
 			isGrammyWinner = isGrammyWinner, weeksOfGrammyBump = weeksOfGrammyBump, initialLaunchStock = initialLaunchStock,
-			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, fanAudience = fanAudience
+			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, fanAudience = fanAudience,
+			fitRelivePositions = fitRelivePositions != null ? new List<int>(fitRelivePositions) : null,
+			fitReliveAwareness = fitReliveAwareness != null ? new List<float>(fitReliveAwareness) : null
 		};
 		runtime.regionalData = (Regions ?? new List<RegionalRecordSaveData>())
 			.ToDictionary(region => region.regionId, region => region.ToRegional(), StringComparer.Ordinal);

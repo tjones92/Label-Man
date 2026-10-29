@@ -443,8 +443,16 @@ public static class ChartSimulator {
 		float potentialBuyers = populationMillions * 1000000f * buyingPercentage;
 		
 		// === 2. AWARENESS FILTER ===
-		float effectiveAwareness = (record.awareness * 0.4f) + (regionalData.awareness * 0.6f);
 		bool stagedLiveDemand = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		// §9u: a region exposed late relives the record's rise (0 = off, or exposed at launch). With awareness relive on,
+		// the national blend, the chart floors and the chart visibility read the record's awareness and position at the
+		// region's local age too, so the region does not know a record its stations and racks have only just taken.
+		int reliveAge = stagedLiveDemand ? RegionalFitExposure.ReliveAge(record, regionalData) : 0;
+		bool reliveAwareness = reliveAge > 0 && RegionalFitExposure.ReliveAwareness;
+		float nationalAwareness = reliveAwareness ? RegionalFitExposure.AwarenessAt(record, reliveAge) : record.awareness;
+		int floorPosition = reliveAwareness ? RegionalFitExposure.PositionAt(record, reliveAge) : record.currentPosition;
+		int visibilityPosition = reliveAwareness ? RegionalFitExposure.PositionAt(record, reliveAge) : internalChartPosition;
+		float effectiveAwareness = (nationalAwareness * 0.4f) + (regionalData.awareness * 0.6f);
 		if (stagedLiveDemand && RegionalAudience.ProbeNoBlend) effectiveAwareness = regionalData.awareness;
 		// Regional sync 5b: national awareness reaches a region through its own channels, so a region the record
 		// has not arrived in sees what its own breakout and neighbours gave it plus only a hearsay share of the
@@ -453,7 +461,7 @@ public static class ChartSimulator {
 		// are demand evidence only, never an automatic grant of regional arrival.
 		bool awaitingArrival = stagedLiveDemand && regionalData.awaitingArrival;
 		if (awaitingArrival)
-			effectiveAwareness = regionalData.awareness * 0.6f + record.awareness * 0.4f * RegionalAudience.HearsayShare;
+			effectiveAwareness = regionalData.awareness * 0.6f + nationalAwareness * 0.4f * RegionalAudience.HearsayShare;
 		else if (stagedLiveDemand && RegionalAudience.RegionalCampaignFocus && !record.baseRecord.isPlayerOwned)
 			effectiveAwareness += regionalData.campaignAwarenessThisWeek;
 
@@ -461,12 +469,12 @@ public static class ChartSimulator {
 		// record, above a hearsay floor. Exactly 1 (and skipped) when off or fully reached.
 		float cityReach = stagedLiveDemand && !awaitingArrival && CityReach.Enabled ? CityReach.Fraction(record, region.regionId) : 1f;
 		if (cityReach < 1f)
-			effectiveAwareness = regionalData.awareness * 0.6f + record.awareness * 0.4f * CityReach.BlendShare(cityReach);
+			effectiveAwareness = regionalData.awareness * 0.6f + nationalAwareness * 0.4f * CityReach.BlendShare(cityReach);
 
 		if (awaitingArrival || (stagedLiveDemand && RegionalAudience.ProbeNoFloors)) { }
-		else if (record.currentPosition > 0 && record.currentPosition <= 10) {
+		else if (floorPosition > 0 && floorPosition <= 10) {
 			effectiveAwareness = Mathf.Max(effectiveAwareness, cityReach < 1f ? 0.7f * cityReach : 0.7f);
-		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {
+		} else if (floorPosition > 0 && floorPosition <= 40) {
 			effectiveAwareness = Mathf.Max(effectiveAwareness, cityReach < 1f ? 0.4f * cityReach : 0.4f);
 		}
 		regionalData.salesRecordAwarenessThisWeek = record.awareness;
@@ -498,9 +506,9 @@ public static class ChartSimulator {
 		else if (label?.tier == LabelTier.MidTier) conversionRate *= LegacyMidTierDemandScale;
 		
 		// === 5. CHART VISIBILITY BONUS ===
-		float chartVisibility = GetChartVisibilityMultiplier(internalChartPosition);
+		float chartVisibility = GetChartVisibilityMultiplier(visibilityPosition);
 		float regionalDiscovery = 0f;
-		if (internalChartPosition <= 0) {
+		if (visibilityPosition <= 0) {
 			// Proven local discovery softens, but never erases, the uncharted moat.
 			// Even the strongest regional signal remains below #100's 1.0 exposure.
 			regionalDiscovery = Mathf.Clamp((regionalData.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
@@ -515,13 +523,15 @@ public static class ChartSimulator {
 		// cannot express Hesbacher at all. This carries the rank curve directly instead: it is
 		// purchase exposure -- rack space, jukebox slots, the listening booth -- rather than
 		// discovery, so it belongs on conversion and not inside the awareness odds.
-		conversionRate *= GetChartExposureWeight(internalChartPosition);
+		// §9u: in a late region, rack and jukebox exposure read the position the record held at the region's local age,
+		// and the release ramp runs on that age.
+		conversionRate *= GetChartExposureWeight(reliveAge > 0 ? RegionalFitExposure.PositionAt(record, reliveAge) : internalChartPosition);
 		if (stagedLiveDemand && !record.baseRecord.isPlayerOwned)
 			conversionRate *= UnchartedSingleExposure.Multiplier(internalChartPosition, regionalDiscovery, record.weeksSinceRelease,
 				record.weeksSincePeakUnits);
 		if (stagedLiveDemand) conversionRate *= SingleCommercialFit.Multiplier(record, region.regionId, label);
 		// === 6. RELEASE RAMP ===
-		conversionRate *= GetReleaseRampWeight(record.weeksSinceRelease, record.currentLabelPush) *
+		conversionRate *= GetReleaseRampWeight(reliveAge > 0 ? reliveAge : record.weeksSinceRelease, record.currentLabelPush) *
 			RELEASE_RAMP_UNIT_RENORMALIZATION;
 		
 		// === 7. MOMENTUM BONUS ===

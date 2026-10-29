@@ -1255,3 +1255,630 @@ the floor arm's −2.2 mean. Airplay sits on the guard (25.0) and breadth is unc
 route that keeps one sales-ordered panel scoring the chart has now failed to hold the Big-5 share. What remains is lead
 3 (§9l option (a), the national panel scores the chart, the control by construction), or a non-sales signal *inside
 the High tier*, which §9m showed costs the airplay guard.
+
+### 9r. Screen: option (a) with the unsold floor, eight seeds (`--station-regional-support-chart=national`, 2026-10-28)
+
+`Big5ShareHandoff.md` lead 3. This is §9l's option (a) with the §9n floor fix. The regional meeting (`standing`, S 25,
+σ 0.5, unsold floor) runs on shadow state and feeds only the playlist export. The national meeting scores the chart
+at the calibrated W 0.13 (`--station-regional-support-panel-weight` is unnamed). The national meeting never calls
+`Support()`, so the floor reaches only the shadow playlists. Runs `SimLogs/hs52op100{1-8}-SMP-HGRPO-optaf`.
+
+**The chart is the control's on all eight seeds.** Every CSV except the playlist export (122/123) is byte-identical to
+`-sp` (1001, 1002, 1006-1008), or to §9l's `-opta` (1003-1005), which was already identical to the control. So the Big-5
+Top-10 share is 34.7 (history 34.2) and the Big-5 offset is −4.0, by construction. Airplay is 25.5 and top-10 artists
+81.8.
+
+**The station shape is the floor arm's** (survey cities, Top40 + FullService, 8-seed means):
+
+| | Same city | Cross city | Cross rank / absent | Uncharted slots | Major share High / Mid / Light |
+|---|---:|---:|---|---:|---|
+| History 1960 | 69.7 | 40.3 | 53.8 / 17.8 | – | – |
+| Floor (W .085, scores the chart) | 68.7 | 50.7 | 60.1 / 19.6 | 7.7 | 41.4 / 38.3 / 33.0 |
+| **Option (a) + floor** | **68.7** | **51.9** | **61.4 / 18.0** | 8.0 | 39.0 / 37.1 / 32.4 |
+| Option (a), no floor (§9l, 5 seeds) | 72.0 | 40.6 | 46.0 / 35.2 | 32.3 | 25.3 / 23.9 / 27.4 |
+
+**The cost: the playlists shown are not the panel that scores.** Measured against the national meeting's own export
+(the `-sp` lists, which are the chart's panel here), per station-week, Top40 + FullService, on the five seeds that
+have it (scratchpad `overlap.py`):
+
+| | Option (a) + floor | Option (a), no floor (§9l) |
+|---|---:|---:|
+| Share of the shown list also on the station's national list | 19.4 | 16.6 |
+| Shown ranks 1-11 also on the national list | 33.6 | 25.5 |
+| Shown High records also High nationally | 24.6 | 18.4 |
+| Big-5 share of High: shown / scoring | **32.7 / 20.5** | 19.2 / 18.4 |
+
+- **Option (a) meets the handoff goal.** The Big-5 share is the control's, and the station shape keeps everything the
+  floor bought (same city 68.7, history-shaped mismatch mix). Cross-city overlap stays at ~51 against 40. That is
+  the regional-sales lockstep, and no station knob reaches it.
+- **The floor widens the gap in what the player sees.** The shown lists now follow each market's sellers, so a
+  third of their High slots are Big-5. The size-blind panel that scores the chart gives the Big-5 a fifth. A player
+  reading a DJ's sheet sees more Big-5 rotation than the chart is paying for. They agree on a fifth of slots, and on
+  a third of the top eleven.
+- **This is what §9k-9q add up to.** The control's Big-5 share depends on a scoring panel that is *not* sales-ordered.
+  Any one panel that looks like 1960 station sheets is sales-ordered, so it overshoots by ~5. This holds whether it is
+  re-weighted (§9j), re-picked (§9m), re-ordered (§9n), kept out of sales (§9p) or re-paid (§9q). Option (a) works
+  because it keeps two panels.
+
+**Status.** Off by default. The handoff's goal, Big-5 within ~2 points of the control while keeping the station shape,
+is met only by option (a). Adopting it is a game-design choice, not a calibration one: which sheet the player-facing
+reads (`SpinTierOf`, Rolodex, courtesy calls, DJ adds, break claims) should follow. In this probe they all still
+read the national meeting, so the standing lists exist only in the export.
+
+### 9s. Regional breaks: what history shows, why the model cannot make one, and an offline-tested design (2026-10-28)
+
+**The goal, restated by the author.** Regional radio should drive the simulation the way it historically did: an
+indie record gets hot in a town and spreads. Option (a) (§9r) holds the Big-5 share only by keeping regional
+stations out of the simulation, so it is not that. This section works offline on existing runs, with no new seeds.
+
+**History** (`SimTools/analyze_regional_break_history.py`). Los Angeles (KFWB + KRLA) and Minneapolis (KDWB) have
+weekly top-40 surveys for all of 1960. For each Hot 100 record debuting Feb-Nov: its first week on each city's
+survey, its Hot 100 debut, and the gap between the cities. Matching is on title words plus an artist word, within
+±26 weeks. Labels come from the 102 labelled 1960 Top-10 records (§17).
+
+| 1960 | n | Leads the Hot 100 ≥ 2 wk | City gap ≥ 3 / ≥ 6 wk | Top 10 in one city before the other has it | One city only |
+|---|---:|---:|---|---:|---:|
+| Top 10, Big-5 | 20 | **0** | 16.7 / **0** | 44 | 10 |
+| Top 10, indie | 54 | **18.5** | 33.3 / **14.6** | 44 | 11 |
+| Peak 41-100 | 243 | 16.0 | 58.6 / 24.1 | 7 | 33 (vs 12 in both) |
+
+Big-5 hits reached every market together. Indie hits had a tail of staggered local breaks: about one in six took 6+
+weeks to cross from one city to the other, and about one in five was on a local survey 2+ weeks before the Hot 100.
+Most records below the top 40 were one-city records. The examples are the familiar ones: "Image of a Girl" (Eldo),
+"Mission Bell" (Era), "Stay" (Herald), "A Thousand Stars" (Indigo), "Mule Skinner Blues" (Soma).
+
+**The model** (scratchpad `model_spread.py`, the same metrics). The "city survey" is the union of a city's Top40 +
+FullService playlists; the "region" is the region's weekly sales list. Five seeds, 1960, Top-10 indie:
+
+| Top 10, indie | Lead ≥ 2 | Gap ≥ 3 / ≥ 6 | Top 10 in one city first |
+|---|---:|---|---:|
+| History | 18.5 | 33 / 15 | 44 |
+| Control, city playlists (national panel) | 27.6 | 12 / 3.6 | 1.5 |
+| Floor arm, city playlists (standing) | 0 | 25 / **0** | 19 |
+| Control, regional sales (westcoast vs greatplains) | 0 | 13 / **0** | 5 |
+
+(The control's "lead" is the national meeting seating trial records before they chart, in both cities at once:
+gap 0.) Peak 41-100 records are already near history (floor arm: 38% one-city only).
+
+**Why the model cannot make a regional break.** Measured on `ufw085` seed 1001 (scratchpad `diag_local.py`,
+`sizing.py`, `decomp.py`):
+
+1. *Regions differ in level, never in timing.* An indie hit's per-capita demand is ~5× higher in its best region than
+   its worst. That ratio is flat from 5 weeks before its national debut to 8 after, and the same region leads every
+   week for 96% of hits. Indie hits lean more on national awareness than Big-5 hits do: ~35% of their effective
+   awareness is regional, against ~55% for Big-5. Regional media input is ~0.05 before debut and rises only after
+   the record charts, so radio follows the chart.
+2. *A hit is made by conversion, not exposure.* Young non-Big-5 singles in their label's home region, before charting:
+
+   | Eventual national peak | Home demand / wk | Effective awareness | × needed for home top 40 / top 10 |
+   |---|---:|---:|---|
+   | Top 10 | 2,953 | 0.37 | 0.7 / 2.2 |
+   | Never charts | 107 | **0.29** | **20 / 65** |
+
+   93% of the log gap is conversion (22×). Of that, quality is 1.9×; the rest is the kinked `SingleCommercialFit`
+   draw (σ 2.5, 15% hit share, floor 0.12, launch weight 1.25), visible as a bimodal inferred fit (flop mode near −1.1,
+   connected mode near +2). A flop already has 29% awareness everywhere. Local airplay can at most triple awareness,
+   so no local champion can make an ordinary single a local hit. And a single that *does* connect does so in all
+   seven regions from week 1, so it goes national at once.
+3. *The breakout plumbing is too small to matter.* A regional breakout adds 0.006-0.02 local awareness a week and a
+   neighbour test ~0.002-0.006, against a national blend of 0.4 × national awareness (~0.1-0.25 for a hit). And it
+   only triggers once a record already sells heavily in that region.
+
+**Design: exposure-gated fit realization.** Keep the draw: most records really did fail to connect, and "fit varies
+by record and market" is the research basis (DemandAttentionResearch §8). But a record's connection is *realized*
+only in regions where it is exposed (worked and played). Unexposed, it sells at the flop level: its national fit is
+capped at the median. Exposure:
+- **At launch:** the label's home region, plus each other region with probability `0.3 + 0.7 × label national reach`.
+  Big-5 and the large indies (reach ~1) are exposed everywhere, so they connect everywhere at once, as in history.
+- **Later:** a neighbour region once the record ranks in a reached region's top 40 (2-week lag); everywhere once it is
+  in the national top 40 (1 week).
+- **A late region runs its own clock from exposure.** This is essential: on the national clock a late region gets an
+  already-aged record and the stagger vanishes.
+- Flops are under the cap whatever happens, so they lose nothing. Launch stock and awareness are never held. That is
+  the cost that sank the October arrival arms (§6c: Small-tier bankruptcies came from lost out-of-territory launch
+  weeks).
+
+**Offline replay** (`SimTools/replay_exposure_gated_fit.py`). This takes each 1960 single's actual regional demand
+curve from a run and replays it under an exposure rule, recomputing regional and national (units-only) ranks each
+week. With every region exposed at launch, it reproduces the run (no stagger, Big-5 top-10 by units 37.7 vs the run's
+39.6 on cleared units). Floor arm, three seeds:
+
+| Seed | Rule | Indie top 10: gap ≥ 3 / ≥ 6 / one city first | Big-5 top 10 gap ≥ 6 | Big-5 share of units top 10 | Indie live demand |
+|---|---|---|---:|---:|---:|
+| 1001 | all exposed (= run) | 8 / 0 / 2 | 0 | 37.7 | 383M |
+| | gated | 44 / 15.4 / 21 | 0 | 41.2 | 340M |
+| | gated, 15% of Big-5 connects demoted | 45 / 17.5 / 20 | 0 | **38.1** | 341M |
+| 1002 | all exposed | 13 / 0 / 7 | 0 | 35.2 | 378M |
+| | gated, demoted | 45 / 11.8 / 29 | 5.9 | **33.8** | 341M |
+| 1006 | all exposed | 6 / 0 / 6 | 0 | 40.0 | 391M |
+| | gated, demoted | 42 / 13.3 / 33 | 0 | **36.2** | 349M |
+
+Other arms on 1001: the national clock gives no stagger (gap ≥ 6: 0). Gating by reach alone with a narrow spread
+(neighbour top 10) gives gap ≥ 6 of 9% but costs indies 21% of demand. Trade-report spread (any region's top 10/20/40
+→ everywhere) adds little beyond the national top-40 rule.
+
+- **The stagger has history's shape:** indie hits gap ≥ 6 in 12-18% of cases (history 15), Big-5 hits ~0 (history 0),
+  one-city-first 20-33% (history 44).
+- **The cost is the familiar one, but now it can be read for what it is.** Gating takes ~10% of indie demand and adds
+  +1.7 to +3.5 to the Big-5 units top 10. That demand is the "connected but modest" records that used to sell a
+  little in all seven regions and now stay in their home markets, which is history's shape for records below the top
+  40. The fix is in *who connects*, not in exposure. Today a stronger launch moves the kink (launch weight 1.25), so
+  Big-5 singles connect more often *and* everywhere. Demoting ~15% of Big-5 connects returns the share to within
+  ~1-2 points of the baseline on all three seeds. In the game that is a lower launch weight (or a reach-specific
+  one), not a new term.
+- **Limits of the replay.** It uses raw demand (no stock, no market purse), a units-only national chart, and no
+  feedback from rank to demand or from airplay to awareness. History's "leads the Hot 100" cannot be measured, since a
+  regional top-40 seller is already a units-only national top-100 record. It is a sizing tool for the rules and the
+  rebalance, not a verdict.
+
+**Building it (proposal).** `--regional-fit-exposure`, off by default:
+1. Per-region `fitExposedAge` (−1 = not yet). In `SingleCommercialFit.Multiplier`, an unexposed region reads
+   `min(nationalLog, cap)` (the regional draw is untouched).
+2. Exposure at launch: home region (label home; the act's scene city where 3g knows it) plus a keyed draw
+   `< 0.3 + 0.7 × EffectiveNationalReachForRecord`. Later: neighbour region `localSalesRank ≤ 40` (2-week lag),
+   national top 40 (1 week). Connected records only (the national draw above the cap), so flops are not touched.
+3. On a late exposure, `localIntroAge` takes the exposure age, so 3b's demand-age clock restarts there.
+4. Radio is the carrier: in a second step, the neighbour rule becomes a station rule. A station adds a record that
+   ranks in an adjacent market's top sellers (the trade-report pick), and exposure is that add. The panel reads
+   regional sales (5e floor), so the break shows in the stations a player sees.
+5. Rebalance `--single-commercial-fit-launch-weight` against the Big-5 Top-10 benchmark (34.2).
+
+Screen: 8 seeds, 52 weeks. Score with the §9s metrics on city playlists and regional sales, plus Big-5 Top-10 (§9o),
+airplay, units, and Small-tier bankruptcies (§6c).
+
+### 9t. Screen: exposure-gated fit realization (`--regional-fit-exposure`, 2026-10-28)
+
+§9s steps 1-3 and 5, built as `RegionalFitExposure`. Step 4 (radio as the carrier) is not built. Per region,
+`fitExposureAge` is the record age from which its connection is realized. It defaults to 0 (from launch), so albums,
+player records, older saves and switch-off runs are unchanged, and it is saved only when nonzero. An unexposed region
+reads the national log capped at `SingleCommercialFit.UnexposedCapLog`, the reference launch's median draw (−1.335, a
+factor of 0.26, the flop mode). The regional draw is untouched, and the hit-act fit floor applies after the cap, so
+a hit act's follow-up keeps its floor everywhere.
+- **Launch:** the label's home region and the act's 3g home region, plus a keyed draw under 0.3 + 0.7 × the label's
+  national reach for the record.
+- **Spread:** connected records only. A neighbour of an exposed region is exposed 2 weeks after the record is in that
+  region's local top 40, and every region the week after it is in the national top 40.
+- **Late regions:** `localIntroAge` restarts at the exposure.
+- **Requirements:** the switch requires the kinked fit and the 3b local clock, and it computes the local sales ranks
+  itself if 3c is off.
+
+Base: the floor arm (`ufw085` flags). Runs `SimLogs/hs52op100{1-8}-SMP-HGRPO-{ufx,ufxl075}`. `ufxl075` adds
+`--single-commercial-fit-launch-weight=0.75`. That cuts the modelled Big-5 connect rate 23.3% → 19.6%, the replay's
+"15% demoted", while indies move only 16.3% → 15.7%.
+
+**Inert unnamed:** `hs52op1001-SMP-HGRPO-ufw085h` is byte-identical to `-ufw085` on all 123 CSVs. On seed 1001 the
+switch holds 32% of launch regions (8,948 of 28,000) and spreads ~420 (neighbour 347, national 71).
+
+**Stagger** (8 seeds, `model_spread.py`; city = LA vs Minneapolis Top40 + FullService, region = westcoast vs
+greatplains sales):
+
+| | Indie top 10: gap ≥ 3 / ≥ 6 | One city first | Lead ≥ 2 | Big-5 top 10 gap ≥ 6 | Peak 41-100 gap ≥ 6 |
+|---|---|---:|---:|---:|---:|
+| History 1960 | 33 / 15 | 44 | 18.5 | 0 | 24 |
+| Floor arm, city | 23 / 0.5 | 18 | 0.5 | 0.4 | 2.6 |
+| **Gated, city** | **36 / 4.5** | **24** | 2.5 | 0.4 | 8.3 |
+| Gated + LW 0.75, city | 34 / 4.3 | 26 | 2.9 | 1.0 | 9.7 |
+| Floor arm, region | 17 / 0.5 | 10 | 0.3 | 0 | 0 |
+| Gated, region | 24 / 1.1 | 14 | 0.6 | 0.4 | 10.6 |
+| Gated + LW 0.75, region | 26 / 2.2 | 11 | 1.1 | 0 | 7.6 |
+
+**Headline and cost** (8 seeds, paired vs the floor arm, SE in brackets; bankruptcies per seed-year):
+
+| | Big-5 Top 10 | Offset | Big-5 unit share | Airplay | Top-10 artists | Bankruptcies |
+|---|---|---|---|---|---|---|
+| Floor arm (level) | 39.6 | −2.2 | 29.3 | 27.8 | 74.8 | 37.9 |
+| Gated | +3.0 (2.3) | +1.6 (0.8) | +3.1 (1.1) | −1.3 (0.2) | −3.6 (1.6) | +3.5 (1.1) |
+| Gated + LW 0.75 | +0.6 (2.1) | +0.6 (0.9) | +1.7 (0.8) | −1.0 (0.3) | +1.8 (1.7) | +2.5 (1.6) |
+
+- **The direction is history's, the size is a third of it.** Indie gap ≥ 3 reaches history's level and one-city-first
+  moves 18 → 24, but gap ≥ 6 is 4.5 against history's 15 and the replay's 12-18. Big-5 hits stay at ~0 and
+  records below the top 40 open up (gap ≥ 6: 2.6 → 8-11).
+- **Why it is smaller than the replay: the national rule fires early.** Indie top-10s debut on the Hot 100 in their
+  first week and reach the top 40 in a median of 4 weeks (41% within 3) in both arms. The national top-40 rule then
+  exposes every region before a 2-week neighbour lag can open a 6-week gap. In the replay the chart was units-only,
+  so a record held in most regions charted late. In the game, launch airplay and the reporter panel chart it anyway.
+  So in the game the bar for "the trade press has it" is about as early as a record's first chart weeks.
+- **The rebalance works as the replay said.** At launch weight 0.75, the Big-5 Top-10 is +0.6 over the floor arm
+  (SE 2.1), and breadth is back (+1.8 artists). The Big-5 *unit* share stays +1.7 (SE 0.8): connected-but-modest indie
+  records lose the regions they never reach.
+- **Bankruptcies rise.** The total is +2.5 to +3.5 per seed-year, almost all Independent tier (25.0 → 27.6 / 28.2),
+  and Small stays 0.4-1.5. This is the §6c cost in a milder form: the stock is not held, but connected-but-modest
+  records now earn only in their home markets.
+
+**Status.** Off by default. The mechanism is live and history-shaped in direction, but the stagger is a third of the
+target, and the binding rule is national exposure at chart top 40. Next, prototype in the replay before more runs:
+the national rule gated by the record's *units* rank (the trade-report spread) or by a later chart bar (top 20 / 10),
+and the radio carrier (step 4), which spreads exposure through station adds instead of the chart. Then rescreen at
+LW 0.75 with bankruptcies scored.
+
+### 9u. The late region must relive the record: replay v2 and the relive rule (`--regional-fit-exposure-relive`, 2026-10-28)
+
+§9t's next step was to prototype a later national bar and the radio carrier in the replay. First the replay was checked
+against the built game, and it did not match. Replay v2 is `SimTools/replay_regional_relive.py`, which uses the floor
+arm's (`ufw085`) demand, eight seeds, the §9t rules, and LW 0.75 as "demote 0.16".
+
+**Calibration.** Here the game's own runs are scored on the replay's metric (regional raw-demand ranks, westcoast vs
+greatplains, game chart):
+
+| Indie top 10 | Gap ≥ 3 / ≥ 6 | One city first | Big-5 units | Big-5 Top 10 | Indie demand |
+|---|---|---:|---:|---:|---:|
+| Game, floor arm `ufw085` | 12.7 / 0.3 | 5.7 | 27.2 | 39.6 | 376M |
+| Game, gated `ufx` | 14.1 / 0.8 | 6.2 | 30.5 | 42.5 | 328M |
+| Replay v1 clock (whole curve local), §9t rules | 39.9 / 14.1 | 26.1 | 29.5 | 42.4 | 330M |
+| Replay, national clock, §9t rules | 10.6 / 0.0 | 4.0 | 29.7 | 39.9 | 326M |
+
+The cost side of v1 was right, but its stagger was not. In the game a held region enters its top 40 **in the same week
+it is exposed** (indie top-10 hits, 704 late regions: median delay 0, found from the jump in conversion). The reason
+is that 3b's local clock moves only the post-week-8 decay (`ChartSimulator` demand age). Awareness is national, and
+the conversion ramp is the chart exposure weight: the Hesbacher curve on the *national* position, which rises 2.5 log
+by week 8, the same as the whole conversion ramp. So a late region gets the record's current rack and jukebox
+exposure in full. v1 replayed the whole curve on the local clock, which a game region never does. With a national
+clock the replay matches the game on stagger and units. It misses ~2.6 of the game's Big-5 Top-10 rise (there is no
+chart → demand feedback), so the Big-5 Top-10 deltas below are understated.
+
+**The national bar does not bind** (national clock, demote 0.16):
+
+| Rule | Indie gap ≥ 3 / ≥ 6 | One city first | Big-5 Top 10 | Indie demand |
+|---|---|---:|---:|---:|
+| §9t (chart top 40) | 13.9 / 0.5 | 4.6 | 38.9 | 327M |
+| Chart top 20 / top 10 / top 5 | 18-20 / 0.5 | 11-12 | 37.6-38.1 | 326M |
+| Units top 20 / top 10, or no national rule | 18-21 / 0.2 | 9-12 | 35.6 | 326M |
+| Chart top 10, neighbour top 20 | 33.9 / 3.2 | 18.6 | 38.1 | 314M |
+| Chart top 10, neighbour top 10, lag 3 | 43.1 / 10.5 | 25.3 | 39.5 | 302M |
+| Chart top 10, radio top 10, 1-3 adds/wk | 33-35 / 3.7-4.6 | 20-23 | 38.4-38.6 | 307M |
+| Chart top 10, no neighbour rule | 43.4 / 14.1 | 25.2 | 40.2 | 298M |
+
+With the national rule removed, the neighbour rule still spreads a hit to every region before any national bar
+matters. §9t's reading that the national rule fires early was wrong. A slower chain (tighter neighbour or radio rank,
+longer lag) does open a stagger, but only by holding sales: each point of gap ≥ 6 costs ~2.5M of indie demand. The
+radio carrier is that kind of chain. A region's Top-40 stations take ~7 new records a week, and capacity hardly binds,
+since 2 or 3 adds a week give the same result. What matters is the rank bar.
+
+**What does work is the late region reliving the record's rise.** Same §9t spread rules, demote 0.16:
+
+| Late region | Indie gap ≥ 3 / ≥ 6 | One city first | Big-5 hits gap ≥ 6 | Peak 41-100 gap ≥ 6 | Big-5 units | Big-5 Top 10 | Indie demand |
+|---|---|---:|---:|---:|---:|---:|---:|
+| History 1960 | 33 / 15 | 44 | 0 | 24 | | 34.2 (§9o) | |
+| National clock (= game) | 13.9 / 0.5 | 4.6 | 0 | 0 | 27.5 | 38.9 | 327M |
+| Awareness local, conversion national | 24.2 / 2.2 | 10.0 | 0 | 0 | 28.2 | 39.8 | 312M |
+| Conversion local, awareness national | 39.6 / 7.8 | 24.0 | 2.1 | 14.3 | 27.6 | 39.6 | 331M |
+| Generic ramp on weeks since exposure (floor 0.1-0.4, 4-8 wk) | 24-39 / 1.2-5.5 | 10-24 | ≤ 1.7 | ≤ 2.4 | 27.5-27.7 | 39.0-39.4 | 304-317M |
+| **Relive** (the game rule) | **45.0 / 19.7** | **28.1** | 3.8 | 6.5 | 28.2 | 40.8 | 323M |
+| **Relive, launch base 0.5** | **27.8 / 12.0** | 14.4 | **0.4** | 4.8 | **27.0** | 40.2 | **348M** |
+
+- **Relive:** in a late region, the chart exposure weight reads the national position the record held at the region's
+  local age (weeks since exposure), and the release ramp runs on that age. Awareness, the chart floors and the fit are
+  unchanged. History's story is that the racks, jukebox operators and one-stops in a market stock a record as it
+  breaks *there*. A generic ramp fails because it hands the late region a record whose national position may already
+  be past its peak, so that region never gets a peak.
+- It holds on every seed: indie gap ≥ 6 is 14-26% on each of the eight (relive, base 0.3).
+- The stagger is close to free, because the late region still gets its whole lifecycle (indie demand −1% against the
+  national clock). The costs are Big-5 hits staggering (3.8% gap ≥ 6, against history's 0) and Big-5 Top-10 +1.9 in
+  the replay (+3-4 likely in the game, given the missing feedback). Staggered indie hits peak lower nationally.
+- Launch base 0.5 (each other region exposed at launch with chance 0.5 + 0.7 × reach) trades some stagger (gap ≥ 6:
+  12 vs history 15; one-city-first: 14 vs 44) for Big-5 hits back at ~0, Big-5 units at the floor level, and half the
+  gating's indie demand loss recovered (348M vs 323M, against the floor arm's 376M). That should cut the §9t
+  Independent-tier bankruptcy cost.
+- Further demotion (0.25 / 0.30) moves the replay's Big-5 Top-10 by less than a point.
+
+**Built:** `--regional-fit-exposure-relive` (requires `--regional-fit-exposure`). `RegionalFitExposure.NotePosition`
+logs the internal position each week's demand reads (`RecordRuntimeData.fitRelivePositions`, saved when non-null).
+`ReliveAge` and `PositionAt` feed `GetChartExposureWeight` and `GetReleaseRampWeight` in `CalculateRegionalSales`.
+Also `--regional-fit-exposure-launch-base=B` (default 0.3). Off, both are identity.
+
+Screen: 8 seeds, 52 weeks, floor arm + `--regional-fit-exposure`, LW 0.75. Runs `hs52op100{1-8}-SMP-HGRPO-ufxr`
+(relive) and `-ufxr5` (relive, launch base 0.5).
+
+**Screen result** (8 seeds, all at LW 0.75; `ufxl075` is §9t's gated arm). Stagger (`model_spread.py`; city = LA vs
+Minneapolis Top40 + FullService, region = westcoast vs greatplains cleared units):
+
+| | Indie top 10, city: gap ≥ 3 / ≥ 6 | One city first | Indie, region: gap ≥ 6 / one first | Big-5 top 10 gap ≥ 6 (city) | Peak 41-100 gap ≥ 6 (city) |
+|---|---|---:|---|---:|---:|
+| History 1960 | 33 / 15 | 44 | | 0 | 24 |
+| Floor arm `ufw085` | 23 / 0.5 | 18 | 0.5 / 10 | 0.4 | 2.6 |
+| §9t gated `ufxl075` | 34 / 4.3 | 26 | 2.2 / 11 | 1.0 | 9.7 |
+| **Relive `ufxr`** | 36 / **9.3** | **33** | **7.0** / 24 | 2.9 | 9.2 |
+| Relive, base 0.5 `ufxr5` | 34 / 5.6 | 24 | 5.4 / 18 | 1.0 | 4.9 |
+
+Per seed, indie city gap ≥ 6, ufxl075 / ufxr / ufxr5: 4/13/7, 12/0/13, 2/7/2, 0/14/5, 6/16/6, 2/10/9, 6/5/0, 0/10/3.
+Paired against ufxl075: relive +5.2 (SE ~2.8), base 0.5 +1.5 (SE ~1.3).
+
+Headline (paired vs the floor arm, SE; bankruptcies per seed-year):
+
+| | Big-5 Top 10 | Offset | Big-5 unit share | Airplay | Top-10 artists | Bankruptcies (Indep.) | Indie live demand |
+|---|---|---|---|---|---|---|---:|
+| Floor arm (level) | 39.6 | −2.2 | 29.3 | 27.8 | 74.8 | 37.9 (25.0) | 376M |
+| §9t gated, LW 0.75 | +0.6 (2.1) | +0.6 (0.9) | +1.7 (0.8) | −1.0 (0.3) | +1.8 (1.7) | 40.4 (28.2) | 320M |
+| Relive | +1.9 (1.8) | +0.6 (0.7) | +2.5 (0.7) | −0.4 (0.3) | −1.0 (2.0) | 40.1 (27.1) | 300M |
+| **Relive, base 0.5** | **−0.6 (1.2)** | +0.5 (0.5) | **+0.4 (0.4)** | −0.2 (0.4) | **+3.2 (1.9)** | **38.6 (25.8)** | **329M** |
+
+- **The relive rule works in the game, but at about half the replay's size.** Relive doubles the indie city stagger
+  (gap ≥ 6: 4.3 → 9.3, history 15; one-city-first: 26 → 33, history 44), and on regional sales it triples (2.2 → 7.0).
+  The replay said 19.7, and its cost was smaller: indie demand −6% against §9t vs the replay's −1%. The diagnosis below
+  shows the gap was the replay's error (raw Hesbacher), not chart feedback. Big-5 hits stagger slightly (2.9, history 0).
+- **Launch base 0.5 is the cleaner arm.** Every cost metric is at or better than the floor arm: Big-5 Top-10 −0.6,
+  unit share +0.4, breadth +3.2 artists. Bankruptcies are +0.7 against §9t's +2.5, and indie demand is above §9t. It
+  keeps a modest stagger (city gap ≥ 6: 5.6, region 5.4 against the floor's 0.5), but its paired gain over §9t on the
+  city metric is within noise.
+- **Status.** Both off by default. Relive is the mechanism the stagger needs, and launch base 0.5 is the
+  cost-neutral setting. Neither reaches history's 15 / 44. The diagnosis follows.
+
+**Diagnosis: why the game gave half the replay** (`ufxr` vs the replay, eight seeds, indie top-10 hits, regional
+measure). The case mix is the same: the later city is held at launch in 34% of pairs (replay 38%), and connected
+indie singles carry ~2 held regions in both, top-10 hits included, so there is no selection against held records. The
+whole shortfall sits inside that case. There the game's gap averages 4.0 weeks against the replay's 5.6, with game
+gaps peaking at 3 weeks and the replay's at 6.
+- **Exposure timing is not it.** The spread rules fire ~1.4 weeks after the early city's top-40 entry in both (the game
+  runs ~0.6 weeks earlier throughout, which cancels in the gap). The game's exposure week was fitted from the step in
+  a held region's conversion relative to its launch-exposed regions, net of the relive path. The step is +2.7 log,
+  the expected fit-minus-cap jump. 16% of game cases show no step and reach the top 40 without exposure (gap 2.6, none
+  ≥ 6).
+- **The ramp after exposure is the gap:** ~2.5 weeks to the local top 40 in the game against ~4.2 in the replay.
+- **Cause: the replay's relive used raw Hesbacher (21×, 3.05 log).** The game's chart exposure weight is the Hesbacher
+  ratio ^0.62 with a top-10 plateau (`CHART_EXPOSURE_EXPONENT`, `CHART_EXPOSURE_PLATEAU_RANK`): 4.4×, or 1.5 log. With
+  the game's function, the replay's relive gives indie gap ≥ 6 / one-city-first **8.6 / 24** (game 7.0 / 24), and at
+  launch base 0.5 **4.5 / 13.5** (game 5.4 / 18). The replay is now calibrated to the built rule
+  (`replay_regional_relive.py` defaults `--expo 0.62`; `--expo -1` gives the raw first cut). Chart feedback is a
+  minor term: it adds ~3 points of indie demand cost (game −6% vs replay −3%).
+- **Conversion-side reliving has nothing more to give.** The game's relive already resets the whole conversion ramp
+  (exposure + release ramp ≈ the measured +2.5 log), and it matches the replay's "conversion local" arm (7.8).
+
+**What is left: awareness.** A late region still gets the national blend (0.4 × record awareness) and the national
+top-10 / top-40 awareness floors (0.7 / 0.4) at full strength from the week it is exposed. With awareness also on the
+local clock (the replay's full local clock, which is now the target rule):
+
+| Late region | Indie gap ≥ 3 / ≥ 6 | One city first | Big-5 hits gap ≥ 6 | Peak 41-100 gap ≥ 6 | Big-5 units | Big-5 Top 10 | Indie demand |
+|---|---|---:|---:|---:|---:|---:|---:|
+| National clock (§9t) | 13.9 / 0.5 | 4.6 | 0 | 0 | 27.5 | 38.9 | 327M |
+| Relive (built, game function) | 41.8 / 8.6 | 24.1 | 2.9 | 5.3 | 27.7 | 39.4 | 318M |
+| Relive + awareness | 42.9 / **18.9** | 26.0 | 3.3 | 29.0 | 27.8 | 40.6 | 330M |
+| Relive + awareness, base 0.5 | 28.6 / 10.2 | 15.3 | 0.9 | 13.8 | 26.9 | 39.9 | **351M** |
+
+In history, Minneapolis did not know an LA indie hit before its own stations and racks had it. A game rule would log
+`record.awareness` by age beside `fitRelivePositions`. In a late region, the national blend and the chart floors would
+read the record's awareness and position at the region's local age. Before any build, discount the replay by the
+feedback term (indie demand −3% more in the game, Big-5 Top-10 understated by ~1-2.6).
+
+**Built and screened: awareness relive** (`--regional-fit-exposure-relive-awareness`, requires relive, 2026-10-28). The
+record's national awareness is logged by age beside the positions (`fitReliveAwareness`, saved when non-null). In a
+late region, the national blend, the top-10 / top-40 awareness floors and the chart visibility read the awareness and
+position at the region's local age. The region's own accumulated awareness (the 0.6 share) is not relived. Runs
+`hs52op100{1-8}-SMP-HGRPO-ufxa` (base 0.3) and `-ufxa5` (base 0.5), LW 0.75, eight seeds, all exit 0, no exceptions.
+
+| Indie top 10 | City gap ≥ 3 / ≥ 6 | City one first | Region gap ≥ 6 / one first | Big-5 hits gap ≥ 6 (city) | Peak 41-100 gap ≥ 6 (city) |
+|---|---|---:|---|---:|---:|
+| History 1960 | 33 / 15 | 44 | | 0 | 24 |
+| §9t gated `ufxl075` | 34 / 4.3 | 26 | 2.2 / 11 | 1.0 | 9.7 |
+| Relive `ufxr` | 36 / 9.3 | 33 | 7.0 / 24 | 2.9 | 9.2 |
+| **Relive + awareness `ufxa`** | **44 / 16.1** | **41** | **15.4 / 30** | 2.8 | 7.0 |
+| Relive + awareness, base 0.5 `ufxa5` | 32 / 7.7 | 26 | 7.0 / 19 | 0.0 | 4.3 |
+| (Replay prediction, base 0.3 / 0.5) | | | 18.9 / 26 · 10.2 / 15 | | |
+
+Per seed, indie city gap ≥ 6, `ufxa`: 11, 18, 14, 21, 26, 13, 13, 15. Every seed is ≥ 11, and the paired gain over
+`ufxl075` is +12 (SE ~2). For `ufxa5`: 4, 10, 2, 16, 5, 7, 9, 9 (+3.6 vs `ufxl075`).
+
+| Paired vs floor arm (SE) | Big-5 Top 10 | Offset | Big-5 unit share | Airplay | Top-10 artists | Bankruptcies (Indep.) | Indie live demand |
+|---|---|---|---|---|---|---|---:|
+| §9t gated | +0.6 (2.1) | +0.6 (0.9) | +1.7 (0.8) | −1.0 (0.3) | +1.8 (1.7) | 40.4 (28.2) | 320M |
+| Relive + awareness | +1.9 (1.8) | +0.8 (0.7) | **+2.4 (0.7)** | −0.1 (0.3) | −2.1 (1.7) | 38.6 (26.5) | 299M |
+| Relive + awareness, base 0.5 | +0.9 (1.5) | +0.2 (0.8) | +1.2 (0.6) | −0.3 (0.4) | +1.4 (1.8) | 39.9 (25.4) | 323M |
+
+Against `ufxl075`, `ufxa` loses 3.9 Top-10 artists (SE 1.2); `ufxa5` loses 0.4 (SE 0.8).
+
+- **History's indie stagger, reached for the first time.** Base 0.3 gives indie top-10 gap ≥ 6 of 16 (history 15) and
+  one-city-first of 41 (44). The replay predicted it (regional 18.9 vs 15.4 built; one-first 26 vs 30), so replay v2
+  now forecasts the built rules. Gap ≥ 3 overshoots (44 vs 33).
+- **Its costs** are Big-5 unit share +2.4 over the floor arm (significant), Big-5 Top-10 +1.9 (within noise),
+  breadth −3.9 artists against §9t, and indie demand −7% against §9t. Bankruptcies do not rise (38.6, the floor arm
+  37.9, §9t 40.4). Big-5 hits still stagger a little (2.8, history 0). Records below the top 40 do not open up (7.0,
+  history 24).
+- **Base 0.5** halves the stagger (7.7 / 26), is near cost-neutral, and has no Big-5 stagger.
+- **Status.** Off by default. Relive + awareness at base 0.3 is the first arm on history's indie shape. What remains
+  is its Big-5 cost (unit share +2.4, Top-10 +1.9, breadth): staggered indie hits sell less nationally, and the
+  Big-5 picks up the share. The candidates are an intermediate launch base (0.4) or a lower launch weight, run
+  through replay v2 before any seeds.
+
+**Replay grid: launch base × launch weight** (relive + awareness = the replay's full local clock, eight seeds,
+2026-10-28). LW enters the replay as a share of connected singles that never connect, read from the fit formula. A
+record connects (draws above the median) when z > −LW × (launch awareness − 0.2), so P(hit) = Φ(LW (a − 0.2) − kink).
+On 1960 launches (Big-5 median awareness 0.32, indie 0.17), relative to LW 1.25 that gives Big-5 / indie hits:
+LW 0.75 −16% / −4% (reproduces §9t's 23.3 → 19.6 and 16.3 → 15.7), 0.5 −22% / −6%, 0.25 −28% / −7%, 0 −34% / −9%.
+Lowering LW cuts Big-5 hits and also, less, indie hits (`--demote` / `--demote_indie`). A first grid that demoted the
+Big-5 alone, at steps past LW 0, overstated the gain.
+
+Calibration: replay base 0.3 / LW 0.75 against the built `ufxa` on the regional raw-demand measure gives 17.0 / 25.4 /
+28.2 / 40.7 vs 14.4 / 28.4 / 29.7 / 41.5 (gap ≥ 6 / one first / Big-5 units / Big-5 Top 10). The game is stagger
+× 0.85, units +1.5, Top-10 +0.8, and the city gap ≥ 6 is ~1.12 × regional. Projected game values, floor arm at Big-5
+units 27.2, Top-10 39.6, history city gap ≥ 6 at 15:
+
+| Base / LW | Replay gap ≥ 6 / one first | Big-5 hits gap ≥ 6 | Replay Big-5 units / Top 10 | **Projected game: city gap ≥ 6** | **Big-5 units vs floor** | **Big-5 Top 10 vs floor** | Indie demand (replay) |
+|---|---|---:|---|---:|---:|---:|---:|
+| 0.3 / 0.75 (= `ufxa`, built) | 17.0 / 25.4 | 3.4 | 28.2 / 40.7 | 16.1 (actual) | +2.5 (actual) | +1.9 (actual) | 324M |
+| 0.3 / 0.5 | 16.0 / 24.8 | 2.1 | 27.8 / 40.4 | ~15.2 | +2.1 | +1.6 | 321M |
+| **0.3 / 0.25** | 15.7 / 24.6 | 2.2 | 27.1 / 39.5 | **~14.9** | **+1.4** | **+0.7** | 319M |
+| 0.3 / 0 | 15.0 / 23.2 | 1.8 | 26.7 / 39.4 | ~14.3 | +1.0 | +0.6 | 317M |
+| 0.35 / 0.25 | 13.9 / 21.2 | 1.3 | 27.0 / 39.2 | ~13.2 | +1.3 | +0.4 | 324M |
+| 0.35 / 0 | 12.5 / 19.7 | 1.8 | 26.5 / 39.0 | ~11.9 | +0.8 | +0.2 | 321M |
+| 0.4 / 0 | 12.0 / 19.1 | 1.4 | 26.3 / 38.7 | ~11.4 | +0.6 | −0.1 | 326M |
+
+- **Launch base sets the stagger. LW sets the Big-5 cost.** Going from LW 0.75 to 0.25 costs ~8% of the stagger and
+  takes ~1.1 off Big-5 units and ~1.2 off Big-5 Top-10.
+- **No setting is fully neutral at history's stagger.** At base 0.3 / LW 0.25 the projection is city gap ≥ 6 ~15,
+  Big-5 Top-10 +0.7 (the benchmark metric; §9t's accepted gated arm was +0.6), and Big-5 unit share +1.4 (`ufxa`:
+  +2.5). Buying the last point of unit share costs about 2 points of stagger per point (base 0.35-0.4).
+- LW 0 removes the launch-awareness term from the fit altogether, which is a design change (the Big-5 entry edge is
+  campaign impact; the launch weight carries part of it). LW 0.25 keeps it.
+- Indie demand does not recover with lower LW (it moves −2 to −3%). The gating's indie loss is a launch-base effect.
+
+Candidate screen (not run): relive + awareness, base 0.3, LW 0.25, plus base 0.35 / LW 0.25 as the cheaper bracket.
+
+**Screen: relive + awareness at LW 0.25** (2026-10-28). Runs `hs52op100{1-8}-SMP-HGRPO-ufxal025` (base 0.3) and
+`-ufxa35l025` (base 0.35), eight seeds, all exit 0, no exceptions.
+
+| Indie top 10 (city) | Gap ≥ 3 / ≥ 6 | One city first | Region gap ≥ 6 / one first | Big-5 hits gap ≥ 6 | Peak 41-100 gap ≥ 6 |
+|---|---|---:|---|---:|---:|
+| History 1960 | 33 / 15 | 44 | | 0 | 24 |
+| §9t gated `ufxl075` | 34 / 4.3 | 26 | 2.2 / 11 | 1.0 | 9.7 |
+| `ufxa` (base 0.3, LW 0.75) | 44 / 16.1 | 41 | 15.4 / 30 | 2.8 | 7.0 |
+| **`ufxal025` (base 0.3, LW 0.25)** | **41 / 14.4** | **36** | 14.9 / 30 | 2.9 | 9.8 |
+| **`ufxa35l025` (base 0.35, LW 0.25)** | **42 / 11.8** | **35** | 12.6 / 28 | 2.7 | 8.4 |
+| (Projected from replay grid) | ~15 · ~13 | | | | |
+
+Per seed, indie city gap ≥ 6: `ufxal025` 17, 17, 8, 16, 15, 18, 7, 19; `ufxa35l025` 6, 19, 8, 5, 15, 17, 10, 14.
+
+| Paired vs floor arm (SE) | Big-5 Top 10 | Offset | Big-5 unit share | Airplay | Top-10 artists | Bankruptcies (Indep.) | Indie live demand |
+|---|---|---|---|---|---|---|---:|
+| §9t gated `ufxl075` | +0.6 (2.1) | +0.6 (0.9) | +1.7 (0.8) | −1.0 (0.3) | +1.8 (1.7) | 40.4 (28.2) | 320M |
+| `ufxa` | +1.9 (1.8) | +0.8 (0.7) | +2.4 (0.7) | −0.1 (0.3) | −2.1 (1.7) | 38.6 (26.5) | 299M |
+| **`ufxal025`** | +1.3 (0.8) | +0.8 (1.1) | +1.1 (0.6) | −0.3 (0.4) | **+5.2 (1.2)** | 38.6 (25.2) | 289M |
+| **`ufxa35l025`** | **−2.1 (2.6)** | −0.5 (0.4) | **−0.1 (1.1)** | −0.4 (0.4) | **+6.0 (1.5)** | **37.2 (25.2)** | 295M |
+
+(Floor arm: Big-5 Top 10 39.6, unit share 29.3, 74.8 artists, 37.9 bankruptcies, 376M.)
+
+- **The replay grid held.** Base 0.3 / LW 0.25 came in at city gap ≥ 6 of 14.4 (projected ~15), Big-5 units +1.1
+  (+1.4) and Big-5 Top-10 +1.3 (+0.7, within SE). Base 0.35 came in at 11.8 (~13).
+- **LW 0.25 buys back the Big-5 cost and breadth.** Against `ufxa`, Big-5 unit share is −1.3 and the Top-10 has
+  +7 artists (+5.2 over the floor arm, SE 1.2). Bankruptcies stay at or below the floor arm's level.
+- **`ufxal025` is the history-shaped candidate.** Gap ≥ 6 is 14.4 / 15, one-city-first 36 / 44, and gap ≥ 3 overshoots
+  (41 / 33). Big-5 Top-10 is +1.3 (SE 0.8), the only cost left, and borderline.
+- **`ufxa35l025` is the cost-neutral one.** Big-5 Top-10 is −2.1, unit share −0.1, bankruptcies 37.2 (floor 37.9).
+  Its stagger is 11.8 / 15 and one-city-first 35 / 44, and it is noisier across seeds (5-19).
+- **Still off history:** Big-5 hits stagger ~3% (history 0), and records below the top 40 do not open up (8-10,
+  history 24). Indie live demand is 289-295M, against 320M (§9t) and 376M (floor arm), yet bankruptcies are not
+  higher. The demand lost is in the regions that never reach the record, which history's shape asks for.
+- **Not yet:** the local break before the national chart (lead ≥ 2: ~1% vs history 18.5), and regional success
+  causing a hit (whether a record hits is still its launch fit draw). These are the next design questions; both can
+  be screened in replay v2 first.
+
+### 9v. Replay: a breadth-aware national chart does not open the local lead (2026-10-29)
+
+Handoff item 1 proposed weighting chart points by regional coverage so a record selling in one region waits in
+bubbling-under. Tested in replay v2 (`replay_regional_relive.py`, new options `--breadth G --bk K --bq Q --bfloor F`:
+score × (Σ panel share × min(1, (K / local rank)^Q))^G; `--bthresh T`: records listed in regions under T of the panel
+rank below every record that clears it; `--unexp F`: indie demand in unexposed regions × F). Panel share per region =
+its share of demand (eastcoast .37, greatlakes .24, westcoast .15, the rest .02-.08). Base arm = `ufxal025` in replay
+(`--clock relive --nat chart --p0 .3 --demote .28 --demote_indie .073`), eight seeds.
+
+| Replay arm | Indie top-10 lead ≥ 2 | Region gap ≥ 6 | Peak 41-100 gap ≥ 6 | Regional top-10 on national that week | Indie demand |
+|---|---:|---:|---:|---:|---:|
+| History 1960 (city lists) | 18.5 | (city 15) | 24 | 85-88 | |
+| Base | 1.1 | 8.0 | 7.8 | 100 | 304M |
+| Soft breadth G 0.5-2, Q 1-3 | 0.0-1.1 | 6.7-7.6 | 5.7-8.7 | 100 | 300-303M |
+| Hard list (Q 50), K 20-40 | 0.0 | 4.7-6.6 | 5.2-10.3 | 100 | 301M |
+| Threshold T .25-.5 | 0.7-1.5 | 5.9-7.3 | 7.1-8.7 | 100 | 301-304M |
+| Unexposed indie demand × .1-.5 | 1.4 | 7.9 | 7.7 | 100 | 294-298M |
+| Launch exposure p .1 + .4 reach | 2.5 | 10.4 | 14.4 | 100 | 261M |
+| Launch exposure p 0 + .2 reach (+ soft G 1) | 3.8 (4.4) | 11.5 | 30.3 | 100 | 234M |
+| Home only (+ soft G 1) | 7.7 (10.2) | 12.2 | 53.1 | 99.9 | 220M |
+
+Why no chart rule can do it:
+- **Every local seller is already a national record.** The seven regional top 40s hold only ~75 distinct records a
+  week (each on ~3.7 lists), fewer than the 100 national slots. Any coverage weight or threshold leaves slots that are
+  filled by score, and a regional top-10 seller always has the score: 100% chart nationally that week, against 85-88%
+  of LA / Minneapolis survey top-10 entries in 1960 (`analyze_city_list_vs_hot100_history.py`: 75% of all survey
+  entries on the Hot 100 that week, 65% of ranks 21-40; game cities `ufxal025` 84-88%, top 10 99.5%).
+- **Hits chart before they are local sellers anywhere.** Indie top-10 hits debut at a median age of 2. At debut 207 of
+  443 are in no region's top 40; the first regional top 40 comes at age 2-4 (median 3). A breadth weight can at best
+  hold the debut to the first listing (lead 0-1), which is what the hard list does: lead exactly 0.
+- **Station adds follow the national chart.** In the game (`analyze_hit_station_adds.py ufxal025`), an indie top-10 hit
+  is on a median of 0 Top40/FullService stations the week before its debut, 2 at debut and 9 a week later (Big-5: 0, 2,
+  12). City-level overlap is already historical (Minneapolis top 30 also in LA: 65% vs history 72%), and the 50
+  stations list ~126 distinct records a week, ~40 of them off the national chart. So a station-reporter chart would be
+  selective, but it would see a hit no earlier than the national chart does.
+- **Unexposed regions do not matter; launch breadth does.** Cutting indie demand in unexposed regions changes nothing
+  (they sell little). The lead moves only with the number of regions exposed at launch (indie mean 4.2 at base 0.3 +
+  0.7 reach, 2.4 at .1 + .4, 1.4 at 0 + .2), and even home-only launches give 8-10 against 18.5, at a 28% indie demand
+  cost and a peak 41-100 stagger of 53 (history 24).
+
+Conclusion: the lead is not a chart-weighting problem. A hit has to *sell locally first*, for weeks, while the rest of
+the country has not heard it, and in the model a hit's first two weeks already sell nationally out of the launch
+regions. Leads for a next step, both outside the chart: (a) local stations adding records from local one-stop sales
+before the trades (the station path leading the national chart rather than following it), and (b) a slower launch for
+indie records: home plus few regions, with spread through the neighbour rule, costed against indie demand. (b) is a
+change to how indie distribution works at launch, and the cost is large enough that it is the author's call.
+
+### 9w. Replay: how early can stations add a hit? (2026-10-29)
+
+Lead (a) from §9v: stations add records from local sales before the trades do. Ceiling test in replay v2
+(`replay_onestop_station_adds.py`, `ufxal025` replay arm, eight seeds, 443 indie top-10 hits): a station in westcoast
+or greatplains adds any record up to 6 weeks old once its local units rank among those new releases is ≤ B (the
+one-stop's "moving" report), the next week (lag 1) or the same week (lag 0, an oracle).
+
+| Station rule | Added before debut | Lead ≥ 2 | Never added | Adds per region-week | Adds that never chart |
+|---|---:|---:|---:|---:|---:|
+| History 1960 | | 18.5 | | | ~13% of entries |
+| New-release top 10, lag 1 | 1.4 | 0.2 | 16 | 3.6 | 2% |
+| New-release top 20, lag 1 | 8.6 | 2.7 | 11 | 6.3 | 8% |
+| New-release top 40, lag 1 | 21.2 | 9.0 | 7 | 11.0 | 25% |
+| New-release top 20, lag 0 (oracle) | 43.6 | 8.6 | 11 | 6.3 | 8% |
+| Top 20 with launch exposure 0 + .2 reach | 13.7 | 7.8 | 21 | 6.1 | 32% |
+| Home-region stations add every home-label release at age 1 | | ≤ 8.8 | | | |
+
+- **A sales-reading station caps at ~9%.** The local sales that make a record a new-release leader are the same sales
+  that chart it nationally at age 2 (debut age: 1: 23, 2: 215, 3: 67, 4: 77, 5+: 61). Reading them a week sooner (the
+  oracle) does not help: an add at the debut week is lead 0.
+- **History's 18.5% needs adds before any sales.** 46% of indie hits debut at age 3 or later, so lead ≥ 2 at 18.5%
+  needs LA or Minneapolis stations to add about 40% of eventual indie hits at age 1, before they sell. Home stations
+  playing home labels reach at most 8.8%, because only 18.5% of indie hits come from westcoast or greatplains labels.
+- So stations can lead sales only through **non-sales picks at release** (DJ ear, promo man, payola), and those picks
+  must find hits more often than chance. Either the DJ hears the record's connection (the pick reads a noisy view of the
+  fit draw: stations forecast hits, and fit stays drawn), or the pick makes the connection (a locally earned fit,
+  handoff item 2). These are different meanings of commercial fit, so the choice is the author's.
+
+### 9x. Screen: release-week DJ picks that hear the fit (`--station-picks-score=fit`, 2026-10-29)
+
+The author chose the "DJ hears the fit" reading of §9w: fit stays drawn, and programmers forecast it. Built on the §9m pick
+block (`StationPicks`): `--station-picks-score=fit` ranks records up to `--station-picks-age` weeks old by
+exp(national log draw + S × keyed normal per station and record), `--station-picks-fit-noise=S`, only among records
+the label serviced to the station's region at release (the §9t launch footprint). `--station-picks-fit-bar=B` admits only
+records heard B log units above the connection line (a hit sits ~2.6 above it). `--station-picks-fit-unserviced`
+picks only records held in some region at launch. Replay first (`replay_dj_ear_picks.py`): 4 picks per region-week at
+noise 1, launch footprint only, gives indie lead ≥ 2 of 18.1 and Big-5 8.3. City-list precision scorer:
+`score_city_list_precision.py`.
+
+Runs `hs52op100{1-4}-SMP-HGRPO-<tag>`, `ufxal025` flags plus the picks, age 2, Light tier. All exit 0. 1005-1008 of
+the first three arms were stopped unfinished. Paired against `ufxal025`, four seeds (SE).
+
+| City LA / Minneapolis | Indie top-10 lead ≥ 2 | Big-5 top-10 lead ≥ 2 | All debuts lead ≥ 2 | Peak 41-100 lead ≥ 2 | Indie gap ≥ 6 | Peak 41-100 gap ≥ 6 | LA new / week, never chart | Big-5 Top 10 | Top-10 artists | Bankr. |
+|---|---:|---:|---:|---:|---:|---:|---|---|---|---:|
+| History 1960 | 18.5 | 0 (of 20) | 14.5 | 16 | 15 | 24 | 15.8, ~10% | | | |
+| `ufxal025` | 1.6 | 0 | 8.7 | 12.9 | 14.6 | 9.0 | 10.1, 13% | | | 41.5 |
+| `djf2n1` 2 slots, S 1 | 15.9 | 10.5 | 28.1 | 32.6 | 23.5 | 24.0 | 12.5, 23% | +3.0 (2.4) | −2.2 (2.5) | 37.2 |
+| `djf1n1` 1 slot, S 1 | 7.0 | 7.3 | 21.2 | 25.6 | 18.9 | 17.9 | 11.3, 19% | −0.9 (2.8) | −4.0 (0.7) | 38.5 |
+| `djf2n05` 2 slots, S .5 | 19.8 | 11.9 | 28.9 | 32.4 | 18.5 | 19.3 | 12.1, 20% | +4.9 (2.2) | −3.8 (2.5) | 37.8 |
+| `djb2` + bar 2 | 16.9 | 2.8 | 26.8 | 29.4 | 22.2 | 17.9 | 12.1, 22% | +3.4 (3.4) | −1.0 (3.5) | 36.8 |
+| `djb2u` + bar 2, unserviced | 11.0 | 0.9 | 26.3 | 31.4 | 20.8 | 18.7 | 12.4, 22% | +2.9 (2.2) | −4.0 (2.3) | 37.2 |
+| **`djb24u` + bar 2.4, unserviced** | **18.9** | **3.0** | 27.5 | 31.4 | 21.5 | 16.5 | 12.2, 22% | +2.5 (2.8) | −3.5 (5.0) | 40.0 |
+
+- **The indie lead is solved.** `djb24u` gives 18.9 against 18.5, with a Big-5 lead of 3.0 (history 0 of 20). The bar is
+  what removes the Big-5 lead (11.9 → 2.8); the unserviced switch adds little.
+- **Records below the top 10 lead about twice as often as history** in every arm (peak 41-100: 26-33 vs 16; all
+  debuts 21-29 vs 14.5). Noise, the bar and the unserviced switch do not move it. Picks mostly list records early that
+  the sales ranking would have listed later anyway (LA takes only ~2 more new records a week). Those ~2 are almost all
+  records that never chart, so the never-chart share goes 13% → 22%.
+- **Why precision cannot fix the ratio.** A hit and a record peaking 41-100 are both connected draws. What separates
+  them is mostly the label's launch and push, which a DJ hearing only the draw ignores. In history the city lead was
+  about as common for 41-100 records (16) as for indie hits (18.5); here picks give the low records the lead about 1.7×
+  as often as the hits.
+- **Costs.** Big-5 Top 10 +2.5 to +4.9 in every arm with two slots (1-2 SE at four seeds). Even with Big-5 records barely
+  picked (`djb2u`) it is +2.9, so the lift does not come from Big-5 picks. A likely route is the pick block taking Light
+  slots away from the sales ranking (airplay share −1.7 to −2.4 in every arm). Not tested. Top-10 artists −1 to −4.
+  Bankruptcies are down 1.5-5.
+
+**Extra pick slots** (`--station-picks-extra`: the block is added on top of the Light tier, and re-adds keep the tier's
+slack; 2026-10-29). Same four seeds, `djb24u` flags plus the switch.
+
+| | Indie top-10 lead ≥ 2 | Big-5 lead ≥ 2 | All debuts | Peak 41-100 lead ≥ 2 | Indie gap ≥ 6 | LA new / wk, never | Big-5 Top 10 | Big-5 Top 10 units-only | Top-10 artists | Bankr. |
+|---|---:|---:|---:|---:|---:|---|---|---|---|---:|
+| `djb24u` (reserved, 2) | 18.9 | 3.0 | 27.5 | 31.4 | 21.5 | 12.2, 22% | +2.5 (2.8) | +1.2 (3.6) | −3.5 (5.0) | 40.0 |
+| `djb24ux` (extra, 2) | 13.7 | 3.6 | 25.6 | 31.0 | 19.3 | 12.5, 24% | −0.5 (1.4) | −1.1 (2.3) | −2.5 (2.5) | 41.0 |
+| `djb24ux1` (extra, 1) | 10.0 | 3.4 | 18.6 | 22.8 | 18.0 | 11.2, 19% | +5.5 (1.8) | +6.0 (2.0) | −4.2 (3.1) | 38.2 |
+
+- **The displacement hypothesis is not supported.** Taking the reservation away removes the Big-5 cost at two slots, but
+  one extra slot, which displaces nothing and adds fewer picks, gives the largest cost of any arm (+5.5). The units-only
+  Big-5 Top 10 moves the same way (+6.0), so the swing is in sales, not chart weighting. At four seeds the Big-5 cost of
+  these arms (−0.5 to +5.5) is within reshuffle noise and cannot be attributed to a pick rule. It needs eight seeds.
+- **The low-peak ratio does not change.** Peak 41-100 lead per point of indie lead is 1.7-2.3 in every arm (history
+  0.86). One slot brings the low-peak lead near history (22.8 vs 16) only by halving the indie lead (10.0).
+- **The indie lead drops with extra slots** (18.9 → 13.7, about 1.5 binomial SE on ~180 hits), so `djb24u` stays the
+  candidate.

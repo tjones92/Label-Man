@@ -53,6 +53,9 @@ public static class SingleCommercialFit {
 	public static float Floor { get; private set; }
 	public static float OwnNormalization { get; private set; }
 	private static double kink, logNormalizer;
+	/// <summary>Regional sync §9s: the most an unexposed region reads of the national log, the reference launch's median
+	/// draw, so a connected record sells there at the flop level and a flop is unchanged.</summary>
+	public static double UnexposedCapLog { get; private set; }
 	public static bool Enabled => Sigma > 0f || RegionalSigma > 0f;
 	private static ulong? seed;
 	private static ulong Seed => seed ??= BandLife.WorldSeed;
@@ -84,11 +87,14 @@ public static class SingleCommercialFit {
 	/// <summary>Kink at the (1 - hit share) normal quantile for a launch at the reference awareness.</summary>
 	private static void Prepare() {
 		kink = logNormalizer = 0d;
+		UnexposedCapLog = 0d;
 		if (HitShare >= 1f) return;
 		double low = -8d, high = 8d;
 		for (int i = 0; i < 100; i++) { double mid = (low + high) / 2d; if (NormalCdf(mid) < 1d - HitShare) low = mid; else high = mid; }
 		kink = (low + high) / 2d;
 		logNormalizer = LogMean(kink);
+		UnexposedCapLog = -Sigma * kink - logNormalizer;
+		if (Floor > 0f) UnexposedCapLog = Math.Max(UnexposedCapLog, Math.Log(Floor));
 	}
 
 	private static double LogMean(double k) => Math.Log(Math.Exp(-Sigma * k + .5d * Sigma * Sigma) * NormalCdf(k - Sigma)
@@ -130,14 +136,32 @@ public static class SingleCommercialFit {
 	public static float WithoutHitSupport(RecordRuntimeData record, string regionId, AILabel label) =>
 		Evaluate(record, regionId, label, applyHitSupport: false);
 
+	/// <summary>Whether the record meets the market cold and so carries a commercial fit: a live AI release.</summary>
+	public static bool Applies(RecordRuntimeData record) => Enabled && record?.baseRecord != null &&
+		!record.baseRecord.isPlayerOwned && record.baseRecord.releaseDate > GameDate.StartDate;
+
+	/// <summary>§9s: whether the record's own national draw connected, i.e. is above <see cref="UnexposedCapLog"/>.</summary>
+	public static bool Connected(RecordRuntimeData record, AILabel label) =>
+		Applies(record) && RawNationalLog(record, label) > UnexposedCapLog;
+
+	/// <summary>§9x: the record's own national log draw, for a programmer's read of it (<see cref="StationPicks"/>
+	/// <c>fit</c>); 0 (the reference median) when the fit does not apply.</summary>
+	public static double NationalLog(RecordRuntimeData record, AILabel label) => Applies(record) ? RawNationalLog(record, label) : 0d;
+
+	private static double RawNationalLog(RecordRuntimeData record, AILabel label) {
+		float push = ChartSimulator.GetCampaignImpact(label) * RecordCampaignSpend.PushFactor(record);
+		return National(Normal(record.baseRecord.recordId, NationalKey, NationalDecision), record.initialLaunchAwareness, push);
+	}
+
 	private static float Evaluate(RecordRuntimeData record, string regionId, AILabel label, bool applyHitSupport) {
-		if (!Enabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned) return 1f;
-		if (record.baseRecord.releaseDate <= GameDate.StartDate) return 1f;
+		if (!Applies(record)) return 1f;
 		string id = record.baseRecord.recordId;
 		if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(regionId))
 			throw new InvalidOperationException("Commercial fit requires persistent record and region IDs.");
-		float push = ChartSimulator.GetCampaignImpact(label) * RecordCampaignSpend.PushFactor(record);
-		double nationalLog = National(Normal(id, NationalKey, NationalDecision), record.initialLaunchAwareness, push);
+		double nationalLog = RawNationalLog(record, label);
+		// §9s: the connection is realized only where the record is exposed; a hit act's floor still applies on top.
+		if (RegionalFitExposure.Enabled && !RegionalFitExposure.Exposed(record, regionId))
+			nationalLog = Math.Min(nationalLog, UnexposedCapLog);
 		if (applyHitSupport && HitActFitSupport.Enabled) nationalLog = HitActFitSupport.Apply(record, nationalLog);
 		double log = nationalLog + Lognormal(RegionalSigma, Normal(id, regionId, RegionalDecision));
 		return (float)(Scale * Math.Exp(log));

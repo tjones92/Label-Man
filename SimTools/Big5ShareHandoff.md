@@ -38,9 +38,10 @@ The +4.9 lift (SE 1.0, paired) has two parts:
    on the guard), the offset goes to −0.5 (Δ +1.7, SE 0.4, vs the floor) and Big-5 to 43.3. Under the floor arm the
    tail alone is ~2% of airplay, so there is no tail × panel compounding to remove. A linear payout of a sales-ordered
    panel is pure reinforcement.
-3. **Chart-side split (§9l option (a), already built):** `--station-regional-support-chart=national` holds the
-   control exactly. Only take this if 1-2 fail, since it leaves the player-facing playlists disagreeing with what
-   scores (~17% overlap).
+3. **Chart-side split (§9l option (a), already built):** **Screened with the floor (§9r): meets the goal.** The chart
+   is the control's byte for byte on 8 seeds (Big-5 34.7). Station shape is the floor's (68.7 / 51.9; rank / absent
+   61.4 / 18.0). The shown lists share 19% of slots with the scoring panel, and their High tier is 33% Big-5 against
+   the scoring panel's 21%. Adoption is a design decision: which sheet the player-facing reads follow.
 
 ## How to measure
 - **Big-5 by label ID**, `label_0001`-`label_0005`. Names vary by seed, and the runtime `Major` tier adds promoted

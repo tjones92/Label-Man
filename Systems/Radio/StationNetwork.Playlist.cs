@@ -398,7 +398,8 @@ public sealed partial class StationNetwork {
 		var next = new Dictionary<string, SpinTier>(StringComparer.Ordinal);
 		int high = station.highSlots, mid = station.midSlots, light = station.lightSlots;
 		int pickSlots = 0;
-		if (picks) {
+		if (picks && StationPicks.Extra) pickSlots = StationPicks.Slots;   // §9x: added on top of the tier
+		else if (picks) {
 			// §9m: the block comes out of its tier before the ranking fills it.
 			if (StationPicks.Tier == SpinTier.High) { pickSlots = Mathf.Min(StationPicks.Slots, high); high -= pickSlots; }
 			else if (StationPicks.Tier == SpinTier.Mid) { pickSlots = Mathf.Min(StationPicks.Slots, mid); mid -= pickSlots; }
@@ -438,6 +439,7 @@ public sealed partial class StationNetwork {
 		}
 
 		// §9m: seat the picks from records the ranking left out.
+		int extraLightPicks = 0;
 		if (pickSlots > 0 && pickScratch.Count > 0) {
 			pickScratch.Sort((a, b) => b.score.CompareTo(a.score));
 			foreach (var c in pickScratch) {
@@ -445,6 +447,7 @@ public sealed partial class StationNetwork {
 				if (next.ContainsKey(c.id)) continue;
 				next[c.id] = StationPicks.Tier;
 				pickSlots--;
+				if (StationPicks.Extra && StationPicks.Tier == SpinTier.Light) extraLightPicks++;
 			}
 		}
 
@@ -452,6 +455,7 @@ public sealed partial class StationNetwork {
 		// hysteresis margin -- a dropped record cannot bump an incumbent, only fill genuine slack.
 		int lightUsed = 0;
 		foreach (var kv in next) if (kv.Value == SpinTier.Light) lightUsed++;
+		lightUsed -= extraLightPicks;   // §9x: extra picks sit outside the tier and leave its slack to re-adds
 		int lightFree = Mathf.Max(0, light - lightUsed);
 		if (lightFree > 0 && readdScratch.Count > 0) {
 			readdScratch.Sort((a, b) => b.adjusted.CompareTo(a.adjusted));
@@ -592,12 +596,28 @@ public sealed partial class StationNetwork {
 		pickScore = 0f;
 		if (picks) {
 			float common = formatMatch * freshness * f.vitality * GenreChartGuard(f.canonical) * length * cityTaste;
-			pickScore = StationPicks.Score == StationPicks.PickScore.Ear ? common * judgment
-				: common * qualityTaste * Mathf.Pow(Mathf.Max(0f, f.support), 1f + (1f - autonomy) * 2f) * relationship * advocacy * payola * f.heatPull;
+			pickScore = StationPicks.Score switch {
+				StationPicks.PickScore.Ear => common * judgment,
+				// §9x `fit`: the programmer hears the record's commercial connection, noisily (a keyed normal per station and
+				// record), and only records the label serviced to this market at release.
+				StationPicks.PickScore.Fit => FitPickScore(f, station, common),
+				_ => common * qualityTaste * Mathf.Pow(Mathf.Max(0f, f.support), 1f + (1f - autonomy) * 2f) * relationship * advocacy * payola * f.heatPull
+			};
 		}
 
 		return formatMatch * qualityTaste * salesSupport * relationship * advocacy * payola * freshness * f.heatPull
 			* f.vitality * GenreChartGuard(f.canonical) * length * cityTaste;
+	}
+
+	/// <summary>§9x `fit` pick: the programmer's noisy hearing of the record's commercial connection, among records the label
+	/// serviced to this market at release (and, with the unserviced switch, could not service everywhere); 0 below the bar.</summary>
+	private static float FitPickScore(RecordFactors f, RadioStation station, float common) {
+		if (!SingleCommercialFit.Applies(f.rec) || !RegionalFitExposure.LaunchExposed(f.rec, station.regionId)) return 0f;
+		if (StationPicks.FitUnserviced && !RegionalFitExposure.HeldAtLaunch(f.rec)) return 0f;
+		double heard = SingleCommercialFit.NationalLog(f.rec, ChartManager.Instance?.GetLabelById(f.labelId))
+			+ StationPicks.FitNoise * BandLife.Normal("dj-ear|" + station.stationId + "|" + f.id);
+		if (StationPicks.FitBar.HasValue && heard - SingleCommercialFit.UnexposedCapLog < StationPicks.FitBar.Value) return 0f;
+		return common * (float)Math.Exp(heard);
 	}
 
 	/// <summary>How a station's programmer takes a side's length. Early-sixties Top 40 wanted records under three minutes,

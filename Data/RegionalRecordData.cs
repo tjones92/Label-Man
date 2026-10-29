@@ -125,6 +125,10 @@ public class RegionalRecordData {
 	public int localPeakAge = -1;
 	// This week's rank on the region's single sales list (1 = best seller), 0 if unranked or not computed.
 	public int localSalesRank;
+	// Regional sync §9s: the record age from which its commercial connection is realized here. 0 (the default, so albums,
+	// player records, older saves and switched-off runs) is from launch; RegionalFitExposure.NotExposed until a spread
+	// rule reaches the region.
+	public int fitExposureAge;
 	// Regional arrival (RegionalSyncDesign 5a). Only ever set while RegionalAudience.RegionalArrival is on, so the
 	// default (false) means "in play" for albums, player records, older saves and switched-off runs. While waiting,
 	// the promotion seed drawn for this region is held in the pending fields and lands on arrival. With sparse

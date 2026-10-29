@@ -446,6 +446,7 @@ public partial class ChartManager : Node {
 		CityReach.Configure(SimulationArguments.Get());
 		StationRegionalSupport.Configure(SimulationArguments.Get());
 		StationPicks.Configure(SimulationArguments.Get());
+		RegionalFitExposure.Configure(SimulationArguments.Get());
 		HitActFitSupport.Configure(SimulationArguments.Get());
 		LaunchStocking.Configure(SimulationArguments.Get());
 		MajorOffChartSingles.Configure(SimulationArguments.Get());
@@ -1063,6 +1064,7 @@ public partial class ChartManager : Node {
 		if (genreMarketLive) RegionalAudience.ApplyLaunchProbe(record, label);
 		if (genreMarketLive) RegionalAudience.HoldUntilArrival(record, label, promotedArtist);
 		if (genreMarketLive) CityReach.Launch(record, label, promotedArtist);
+		if (genreMarketLive) RegionalFitExposure.Launch(record, label, promotedArtist);
 		ArtistRecognitionService.RecordLaunchAudit(promotedArtist, record);
 
 		if (debugMode) {
@@ -1134,6 +1136,9 @@ public partial class ChartManager : Node {
 		// === STEP 2: Calculate regional sales ===
 		// The frozen route intentionally remains byte-for-byte the former immediate
 		// commit path.  Common clearing is enabled only after the live boundary.
+		// §9u: log the position this week's demand reads, so a region exposed late can relive the record's rise.
+		if (genreMarketLive && RegionalFitExposure.Relive)
+			foreach (var record in allRecords) RegionalFitExposure.NotePosition(record, GetInternalPreviousPosition(record));
 		if (genreMarketLive) {
 			CalculateLiveRegionalSalesWithMarketClearing(year, month, triggerEvents, acceptanceYear,
 				singleOpportunityNormalization);
@@ -1232,7 +1237,7 @@ public partial class ChartManager : Node {
 
 		// === STEP 3: Update regional awareness/radio ===
 		var regionalStateProfileStart = SimulationPerformanceProfiler.Begin();
-		if (RegionalAudience.LocalRadioFatigue && genreMarketLive) UpdateLocalSalesRanks();
+		if ((RegionalAudience.LocalRadioFatigue || RegionalFitExposure.Enabled) && genreMarketLive) UpdateLocalSalesRanks();
 		foreach (var record in allRecords) {
 			if (record.baseRecord.format == ReleaseFormat.Album) {
 				foreach (var data in record.regionalData.Values) AlbumSimulator.UpdateRegionalState(record, data);
@@ -1294,6 +1299,8 @@ public partial class ChartManager : Node {
 
 		// === STEP 6: Apply position calculations ===
 		AssignChartPositions(sortedByPoints, triggerEvents);
+		// Regional sync §9s: spread fit exposure on this week's local sales ranks and chart positions.
+		if (genreMarketLive) RegionalFitExposure.UpdateWeek(allRecords, GetLabelById);
 		currentChart = sortedByPoints.Take(chartSize).ToList();
 		OnChartCalculated?.Invoke(new List<RecordRuntimeData>(currentChart));
 

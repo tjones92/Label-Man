@@ -4461,6 +4461,7 @@ public partial class CompetitorManager : Node {
 		if (ChartManager.Instance?.IsGenreMarketV2Live == true) RegionalAudience.ApplyLaunchProbe(runtimeData, label);
 		if (ChartManager.Instance?.IsGenreMarketV2Live == true) RegionalAudience.HoldUntilArrival(runtimeData, label, artist);
 		if (ChartManager.Instance?.IsGenreMarketV2Live == true) CityReach.Launch(runtimeData, label, artist);
+		if (ChartManager.Instance?.IsGenreMarketV2Live == true) RegionalFitExposure.Launch(runtimeData, label, artist);
 		ArtistRecognitionService.RecordLaunchAudit(artist, runtimeData);
 
 		if (debugMode) GD.Print($"  Promotion: Awareness={runtimeData.awareness:F2}, Radio={runtimeData.radioHeat:F2}");
