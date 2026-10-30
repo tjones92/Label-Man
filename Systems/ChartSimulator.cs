@@ -452,6 +452,19 @@ public static class ChartSimulator {
 		float nationalAwareness = reliveAwareness ? RegionalFitExposure.AwarenessAt(record, reliveAge) : record.awareness;
 		int floorPosition = reliveAwareness ? RegionalFitExposure.PositionAt(record, reliveAge) : record.currentPosition;
 		int visibilityPosition = reliveAwareness ? RegionalFitExposure.PositionAt(record, reliveAge) : internalChartPosition;
+		int exposurePosition = reliveAge > 0 ? RegionalFitExposure.PositionAt(record, reliveAge) : internalChartPosition;
+		int shelfPosition = record.currentPosition;
+		// LocalRetailExposure: the rank-keyed retail terms read the region's own sales list, so a late region climbs it
+		// rather than reliving the national log. The national positions are kept for the mass counterfactual below.
+		bool localRetail = stagedLiveDemand && LocalRetailExposure.Enabled;
+		int nationalFloorPosition = floorPosition, nationalVisibilityPosition = visibilityPosition,
+			nationalExposurePosition = exposurePosition;
+		if (localRetail) {
+			floorPosition = LocalRetailExposure.Position(floorPosition, regionalData);
+			visibilityPosition = LocalRetailExposure.Position(visibilityPosition, regionalData);
+			exposurePosition = LocalRetailExposure.Position(exposurePosition, regionalData);
+			shelfPosition = LocalRetailExposure.Position(shelfPosition, regionalData);
+		}
 		float effectiveAwareness = (nationalAwareness * 0.4f) + (regionalData.awareness * 0.6f);
 		if (stagedLiveDemand && RegionalAudience.ProbeNoBlend) effectiveAwareness = regionalData.awareness;
 		// Regional sync 5b: national awareness reaches a region through its own channels, so a region the record
@@ -471,12 +484,9 @@ public static class ChartSimulator {
 		if (cityReach < 1f)
 			effectiveAwareness = regionalData.awareness * 0.6f + nationalAwareness * 0.4f * CityReach.BlendShare(cityReach);
 
-		if (awaitingArrival || (stagedLiveDemand && RegionalAudience.ProbeNoFloors)) { }
-		else if (floorPosition > 0 && floorPosition <= 10) {
-			effectiveAwareness = Mathf.Max(effectiveAwareness, cityReach < 1f ? 0.7f * cityReach : 0.7f);
-		} else if (floorPosition > 0 && floorPosition <= 40) {
-			effectiveAwareness = Mathf.Max(effectiveAwareness, cityReach < 1f ? 0.4f * cityReach : 0.4f);
-		}
+		bool noAwarenessFloors = awaitingArrival || (stagedLiveDemand && RegionalAudience.ProbeNoFloors);
+		float floorlessAwareness = effectiveAwareness;
+		effectiveAwareness = ApplyAwarenessFloor(floorlessAwareness, floorPosition, noAwarenessFloors, cityReach);
 		regionalData.salesRecordAwarenessThisWeek = record.awareness;
 		regionalData.salesRegionalAwarenessThisWeek = regionalData.awareness;
 		regionalData.salesEffectiveAwarenessThisWeek = effectiveAwareness;
@@ -506,15 +516,7 @@ public static class ChartSimulator {
 		else if (label?.tier == LabelTier.MidTier) conversionRate *= LegacyMidTierDemandScale;
 		
 		// === 5. CHART VISIBILITY BONUS ===
-		float chartVisibility = GetChartVisibilityMultiplier(visibilityPosition);
-		float regionalDiscovery = 0f;
-		if (visibilityPosition <= 0) {
-			// Proven local discovery softens, but never erases, the uncharted moat.
-			// Even the strongest regional signal remains below #100's 1.0 exposure.
-			regionalDiscovery = Mathf.Clamp((regionalData.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
-			regionalDiscovery = Mathf.Max(regionalDiscovery, regionalData.neighboringMarketTestStrength * 0.60f);
-			chartVisibility = 0.40f + regionalDiscovery * 0.55f;
-		}
+		float chartVisibility = GetDiscoveryVisibility(visibilityPosition, regionalData, out float regionalDiscovery);
 		regionalData.breakoutVisibilityMultiplier = chartVisibility;
 		float chartSignal = Mathf.Max(.01f, chartVisibility);
 		if (!stagedLiveDemand) conversionRate *= chartVisibility;
@@ -525,7 +527,9 @@ public static class ChartSimulator {
 		// discovery, so it belongs on conversion and not inside the awareness odds.
 		// §9u: in a late region, rack and jukebox exposure read the position the record held at the region's local age,
 		// and the release ramp runs on that age.
-		conversionRate *= GetChartExposureWeight(reliveAge > 0 ? RegionalFitExposure.PositionAt(record, reliveAge) : internalChartPosition);
+		float purchaseExposure = GetChartExposureWeight(exposurePosition);
+		if (stagedLiveDemand) purchaseExposure = LocalRadioConsumptionProbe.Shelf(record, regionalData, purchaseExposure);
+		conversionRate *= purchaseExposure;
 		if (stagedLiveDemand && !record.baseRecord.isPlayerOwned)
 			conversionRate *= UnchartedSingleExposure.Multiplier(internalChartPosition, regionalDiscovery, record.weeksSinceRelease,
 				record.weeksSincePeakUnits);
@@ -550,7 +554,13 @@ public static class ChartSimulator {
 			int weeksOverThreshold = demandAge - 8;
 			conversionRate *= Mathf.Pow(DEMAND_AGE_DECAY_RATE, weeksOverThreshold);
 		}
-		if (ChartTailProbe.Enabled) conversionRate *= ChartTailProbe.Multiplier(record.peakPosition, record.weeksSincePeakUnits);
+		float tailMultiplier = 1f, nationalTailMultiplier = 1f;
+		if (ChartTailProbe.Enabled) {
+			tailMultiplier = ChartTailProbe.Multiplier(record.peakPosition,
+				stagedLiveDemand ? LocalRetailExposure.WeeksSincePeak(record, regionalData) : record.weeksSincePeakUnits);
+			nationalTailMultiplier = localRetail ? ChartTailProbe.Multiplier(record.peakPosition, record.weeksSincePeakUnits) : tailMultiplier;
+			conversionRate *= tailMultiplier;
+		}
 
 		// === 8. OTHER MODIFIERS ===
 		bool useGenreMarketV2DemandTransfer = stagedLiveDemand;
@@ -577,12 +587,31 @@ public static class ChartSimulator {
 		// retains its historical un-clamped awareness value and rounding contract.
 		float awareBuyers = potentialBuyers * (stagedLiveDemand ? baselineAwareness : effectiveAwareness);
 		if (stagedLiveDemand) {
+			float momentumSignal = Mathf.Max(.01f, momentumBonus);
+			float radioSignal = LocalRadioConsumptionProbe.RadioSignal(record, region.regionId, Mathf.Max(.01f, .75f + record.radioHeat * .5f));
+			float formatFactor = GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
+				record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
+				region.GetMarketAlbumOpportunityWeight(year), true);
+			float otherConversion = conversionRate / Mathf.Max(.000001f, BASE_PURCHASE_RATE * demandCurve);
+			float localRetailScale = localRetail ? LocalRetailExposure.Scale(region.regionId) : 1f;
 			SingleDemandStages stages = CalculateSingleDemandStages(potentialBuyers, baselineAwareness, chartSignal,
-				Mathf.Max(.01f, momentumBonus), Mathf.Max(.01f, .75f + record.radioHeat * .5f), demandCurve,
-				genreAcceptance, GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
-					record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
-					region.GetMarketAlbumOpportunityWeight(year), true),
-				conversionRate / Mathf.Max(.000001f, BASE_PURCHASE_RATE * demandCurve));
+				momentumSignal, radioSignal, demandCurve, genreAcceptance, formatFactor,
+				localRetail ? otherConversion * localRetailScale : otherConversion);
+			if (localRetail) {
+				// The same record-region week keyed to the national chart, as the switched-off model would read it. Its
+				// regional total sets next week's scale, so the local list moves which singles hold the region's demand,
+				// not how much there is: the singles/LP split of the purse is by intent before LPs have their own channel.
+				float nationalVisibility = GetDiscoveryVisibility(nationalVisibilityPosition, regionalData, out _);
+				float nationalBaseline = Mathf.Clamp(ApplyAwarenessFloor(floorlessAwareness, nationalFloorPosition,
+					noAwarenessFloors, cityReach), 0f, 1f);
+				float exposureRatio = GetChartExposureWeight(nationalExposurePosition) / Mathf.Max(.000001f, purchaseExposure);
+				float tailRatio = tailMultiplier > 0f ? nationalTailMultiplier / tailMultiplier : 1f;
+				SingleDemandStages national = CalculateSingleDemandStages(potentialBuyers, nationalBaseline,
+					Mathf.Max(.01f, nationalVisibility), momentumSignal, radioSignal, demandCurve, genreAcceptance, formatFactor,
+					otherConversion * exposureRatio * tailRatio);
+				LocalRetailExposure.Observe(region.regionId, national.AwareBuyers * national.IntrinsicConversionRate,
+					stages.AwareBuyers * stages.IntrinsicConversionRate / Mathf.Max(.000001f, localRetailScale));
+			}
 			awareBuyers = stages.AwareBuyers;
 			conversionRate = stages.IntrinsicConversionRate;
 			regionalData.demandPotentialAudience = stages.PotentialAudience;
@@ -598,8 +627,10 @@ public static class ChartSimulator {
 			regionalData.demandRadioSignal = Mathf.Max(.01f, .75f + record.radioHeat * .5f);
 		}
 		float rawSales = awareBuyers * conversionRate;
+		if (stagedLiveDemand) rawSales = LocalRadioConsumptionProbe.Demand(record, regionalData, region.regionId, rawSales);
 		if (stagedLiveDemand && ArtistFanbase.Enabled)
 			rawSales = ArtistFanbase.Demand(record, region, quality, baselineAwareness, rawSales, label);
+		if (stagedLiveDemand) rawSales = BoundedAudienceProbe.Demand(record, regionalData, region, label, rawSales);
 		// Backorders represent recent unmet intent, not a permanent bank of future
 		// purchases. Most stale intent expires before this week's demand is added.
 		regionalData.unitsBackordered = Mathf.RoundToInt(regionalData.unitsBackordered * 0.35f);
@@ -625,12 +656,12 @@ public static class ChartSimulator {
 		// part of the authored baseline; where it has none, the jobber buying a record that
 		// turns over is the only way onto that market's shelves.
 		bool labelShipsHere = label.HasDistributionInRegionForRecord(region.regionId, record.baseRecord?.recordId);
-		float rackShelf = labelShipsHere ? 1f : GetRackJobberShelfMultiplier(record.currentPosition,
+		float rackShelf = labelShipsHere ? 1f : GetRackJobberShelfMultiplier(shelfPosition,
 			regionalData?.peakBreakoutScore ?? 0f, TimeManager.Instance?.CurrentDate.year ?? RACK_ERA_START_YEAR);
 		float deptCapacity = region.distribution.departmentStoreCount * WEEKLY_SALES_PER_DEPT_STORE * rackShelf;
 		float totalCapacity = (storeCapacity + deptCapacity) * region.distribution.inventoryDepth;
 
-		if (record.currentPosition > 0 && record.currentPosition <= 20) {
+		if (shelfPosition > 0 && shelfPosition <= 20) {
 			totalCapacity *= 1.5f;
 		}
 
@@ -851,6 +882,28 @@ public static class ChartSimulator {
 	/// </summary>
 	internal static float GetChartExposureWeight(int position) =>
 		RawChartExposure(position <= 0 ? 100 : position) / ChartExposureMean;
+
+	/// <summary>The top-10 and top-40 awareness floors; a reached-share floor under city reach.</summary>
+	private static float ApplyAwarenessFloor(float awareness, int position, bool noFloors, float cityReach) {
+		if (noFloors) return awareness;
+		if (position > 0 && position <= 10) return Mathf.Max(awareness, cityReach < 1f ? 0.7f * cityReach : 0.7f);
+		if (position > 0 && position <= 40) return Mathf.Max(awareness, cityReach < 1f ? 0.4f * cityReach : 0.4f);
+		return awareness;
+	}
+
+	/// <summary>The chart-visibility discovery signal, with regional discovery standing in for an uncharted record.</summary>
+	private static float GetDiscoveryVisibility(int position, RegionalRecordData data, out float regionalDiscovery) {
+		float visibility = GetChartVisibilityMultiplier(position);
+		regionalDiscovery = 0f;
+		if (position <= 0) {
+			// Proven local discovery softens, but never erases, the uncharted moat.
+			// Even the strongest regional signal remains below #100's 1.0 exposure.
+			regionalDiscovery = Mathf.Clamp((data.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
+			regionalDiscovery = Mathf.Max(regionalDiscovery, data.neighboringMarketTestStrength * 0.60f);
+			visibility = 0.40f + regionalDiscovery * 0.55f;
+		}
+		return visibility;
+	}
 
 	private static float GetChartVisibilityMultiplier(int position) {
 		if (position <= 0) return 0.4f;

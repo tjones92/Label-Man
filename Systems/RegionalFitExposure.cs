@@ -21,6 +21,8 @@ using System.Linq;
 /// </para>
 /// </summary>
 public static class RegionalFitExposure {
+	public const string StationsFlag = "--regional-fit-exposure-stations";
+	public static bool StationSupport { get; private set; }
 	public const string Flag = "--regional-fit-exposure";
 	/// <summary>
 	/// §9u: a region exposed late relives the record's rise. Its chart exposure weight (rack space, jukebox slots) reads
@@ -50,6 +52,9 @@ public static class RegionalFitExposure {
 		if (configured) return;
 		var args = (arguments ?? Array.Empty<string>()).ToArray();
 		Enabled = args.Contains(Flag);
+		StationSupport = args.Contains(StationsFlag);
+		if (StationSupport && (!Enabled || StationRegionalSupport.ChartReadsNational))
+			throw new ArgumentException(StationsFlag + " requires live regional exposure and cannot use shadow playlists.");
 		Relive = args.Contains(ReliveFlag);
 		ReliveAwareness = args.Contains(ReliveAwarenessFlag);
 		if (ReliveAwareness && !Relive) throw new ArgumentException(ReliveAwarenessFlag + " requires " + ReliveFlag + ".");
@@ -134,6 +139,7 @@ public static class RegionalFitExposure {
 			bool home = pair.Key == label.homeRegion || pair.Key == actHome;
 			bool exposed = home || PhiloxCounterRandom.Unit(BandLife.WorldSeed, recordId, pair.Key, 0, LaunchDecision) < chance;
 			pair.Value.fitExposureAge = exposed ? 0 : NotExposed;
+			pair.Value.fitExposureCause = exposed ? "launch" : "unexposed";
 			if (exposed) launchExposed++; else launchHeld++;
 		}
 		if (++launches % 500 == 0) Print();
@@ -144,7 +150,7 @@ public static class RegionalFitExposure {
 	/// the local clock in each region whose exposure lands next week. Connected records only, so a flop's clock is never
 	/// touched. Reads settled state only; no draws.
 	/// </summary>
-	public static void UpdateWeek(IEnumerable<RecordRuntimeData> records, Func<string, AILabel> labelOf) {
+	public static void UpdateWeek(IEnumerable<RecordRuntimeData> records, Func<string, AILabel> labelOf, Func<string, string, bool> sustainedSupport = null) {
 		if (!Enabled) return;
 		foreach (var record in records) {
 			if (record.baseRecord.format == ReleaseFormat.Album || !SingleCommercialFit.Applies(record)) continue;
@@ -153,31 +159,38 @@ public static class RegionalFitExposure {
 			foreach (var data in record.regionalData.Values) pending |= data.fitExposureAge > age;
 			if (!pending || !SingleCommercialFit.Connected(record, labelOf(record.baseRecord.labelId))) continue;
 			if (record.currentPosition >= 1 && record.currentPosition <= NationalRank)
-				foreach (var data in record.regionalData.Values) Schedule(data, age + NationalLag, national: true);
+				foreach (var data in record.regionalData.Values) Schedule(data, age + NationalLag, "national-chart");
 			foreach (var pair in record.regionalData) {
 				RegionalRecordData source = pair.Value;
-				if (source.fitExposureAge > age || source.localSalesRank < 1 || source.localSalesRank > NeighbourRank) continue;
+				bool station = StationSupport && sustainedSupport?.Invoke(record.baseRecord.recordId, pair.Key) == true;
+				if (station) Schedule(source, age + 1, "station-sustained");
+				if (source.fitExposureAge > age) continue;
+				bool sales = source.localSalesRank >= 1 && source.localSalesRank <= NeighbourRank;
+				if (!sales && !station) continue;
 				foreach (string neighbourId in ChartManager.GetNeighborRegionIds(pair.Key))
 					if (record.regionalData.TryGetValue(neighbourId, out RegionalRecordData neighbour))
-						Schedule(neighbour, age + NeighbourLag, national: false);
+						Schedule(neighbour, age + NeighbourLag, sales ? "neighbour-sales" : "neighbour-station");
 			}
 			foreach (var data in record.regionalData.Values)
 				if (data.fitExposureAge == age + 1 && data.fitExposureAge > 1) data.localIntroAge = data.fitExposureAge;
 		}
 	}
 
-	private static void Schedule(RegionalRecordData data, int exposureAge, bool national) {
+	private static void Schedule(RegionalRecordData data, int exposureAge, string cause) {
 		if (data.fitExposureAge <= exposureAge) return;
 		if (data.fitExposureAge == NotExposed) {
-			if (national) spreadNational++; else spreadNeighbour++;
-			if ((spreadNational + spreadNeighbour) % 250 == 0) Print();
+			if (cause == "national-chart") spreadNational++;
+			else if (cause == "station-sustained" || cause == "neighbour-station") spreadStation++;
+			else spreadNeighbour++;
+			if ((spreadNational + spreadNeighbour + spreadStation) % 250 == 0) Print();
 		}
 		data.fitExposureAge = exposureAge;
+		data.fitExposureCause = cause;
 	}
 
 	// Console diagnostics only (no CSV reads them).
-	private static int launches,launchExposed, launchHeld, spreadNational, spreadNeighbour;
+	private static int launches,launchExposed, launchHeld, spreadNational, spreadNeighbour, spreadStation;
 	private static void Print() =>
 		Godot.GD.Print($"REGIONAL_FIT_EXPOSURE launches={launches} launchExposed={launchExposed} launchHeld={launchHeld} " +
-			$"spreadNeighbour={spreadNeighbour} spreadNational={spreadNational}");
+			$"spreadNeighbour={spreadNeighbour} spreadNational={spreadNational} spreadStation={spreadStation}");
 }

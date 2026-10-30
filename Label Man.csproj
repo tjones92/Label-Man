@@ -10,8 +10,11 @@
   </PropertyGroup>
   <!-- Standalone naming-Core regression harness: its own project + Main, excluded from the game build. -->
   <ItemGroup>
+    <!-- Research source snapshots are evidence, not game compilation inputs. -->
+    <Compile Remove="SimLogs\**\*.cs" />
     <Compile Remove="SimTools\NamingCoreTests\**\*.cs" />
     <Compile Remove="SimTools\CounterRngTests\**\*.cs" />
+    <Compile Remove="SimTools\PlaylistMeetingTests\**\*.cs" />
     <Compile Remove="SimTools\HeapScan\**\*.cs" />
     <!-- A checkout of another branch can be nested under tmp\; its sources are not this build's. -->
     <Compile Remove="tmp\playtest-ui-ux-fixes\**\*.cs" />

@@ -80,6 +80,12 @@ public sealed partial class StationNetwork {
 	public SpinTier SpinTierOf(string stationId, string recordId) =>
 		GetStation(stationId)?.rt?.TierOf(recordId) ?? SpinTier.None;
 
+	/// <summary>Two consecutive weeks of ordinary rotation, excluding ungraduated auditions.</summary>
+	public bool HasSustainedSupport(string recordId, string regionId) =>
+		stationsByRegion.TryGetValue(regionId, out var stations) && stations.Any(s =>
+			s.rt != null && s.rt.playlist.ContainsKey(recordId) && !s.rt.activeTrials.Contains(recordId)
+			&& s.rt.sustainedWeeks.GetValueOrDefault(recordId) >= 2);
+
 	public IReadOnlyList<RadioStation> ReportersInRegion(string regionId) =>
 		stationsByRegion.TryGetValue(regionId, out var list) ? list : (IReadOnlyList<RadioStation>)Array.Empty<RadioStation>();
 	public RadioStation GetStation(string id) => id != null && stationsById.TryGetValue(id, out var s) ? s : null;

@@ -447,6 +447,9 @@ public partial class ChartManager : Node {
 		StationRegionalSupport.Configure(SimulationArguments.Get());
 		StationPicks.Configure(SimulationArguments.Get());
 		RegionalFitExposure.Configure(SimulationArguments.Get());
+		LocalRetailExposure.Configure(SimulationArguments.Get());
+		LocalRadioConsumptionProbe.Configure(SimulationArguments.Get());
+		BoundedAudienceProbe.Configure(SimulationArguments.Get());
 		HitActFitSupport.Configure(SimulationArguments.Get());
 		LaunchStocking.Configure(SimulationArguments.Get());
 		MajorOffChartSingles.Configure(SimulationArguments.Get());
@@ -802,6 +805,7 @@ public partial class ChartManager : Node {
 			if (lastCompletedWeekSettlement?.IsBooked != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement?.SettlementId} was not booked.");
 			if (ArtistFanbase.Enabled) ArtistFanbase.SettleWeek(allRecords, allRegions, currentChartWeek, date.year);
+			BoundedAudienceProbe.SettleWeek(allRecords);
 			var auditEventProfileStart = SimulationPerformanceProfiler.Begin();
 			OnWeekSettlement?.Invoke(lastCompletedWeekSettlement);
 			SimulationPerformanceProfiler.EndSettlementAuditEvent(auditEventProfileStart);
@@ -1139,6 +1143,8 @@ public partial class ChartManager : Node {
 		// §9u: log the position this week's demand reads, so a region exposed late can relive the record's rise.
 		if (genreMarketLive && RegionalFitExposure.Relive)
 			foreach (var record in allRecords) RegionalFitExposure.NotePosition(record, GetInternalPreviousPosition(record));
+		if (genreMarketLive && LocalRetailExposure.TakeSeed()) UpdateLocalSalesRanks();
+		if (genreMarketLive) LocalRetailExposure.BeginWeek();
 		if (genreMarketLive) {
 			CalculateLiveRegionalSalesWithMarketClearing(year, month, triggerEvents, acceptanceYear,
 				singleOpportunityNormalization);
@@ -1231,13 +1237,14 @@ public partial class ChartManager : Node {
 		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio
 		// aggregation reads them (design doc a 3.1). Uses the network's own RNG, so while
 		// REPORTER_PANEL_WEIGHT is 0 this is computed-but-unconsumed and simulation output is unchanged.
+		if ((RegionalAudience.LocalRadioFatigue || RegionalFitExposure.Enabled || StationRegionalSupport.Enabled ||
+			LocalRetailExposure.Enabled) && genreMarketLive) UpdateLocalSalesRanks();
 		var playlistProfileStart = SimulationPerformanceProfiler.Begin();
 		stationNetwork?.UpdatePlaylists(allRecords, allRegions, currentChartWeek, year);
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.Playlists, playlistProfileStart);
 
 		// === STEP 3: Update regional awareness/radio ===
 		var regionalStateProfileStart = SimulationPerformanceProfiler.Begin();
-		if ((RegionalAudience.LocalRadioFatigue || RegionalFitExposure.Enabled) && genreMarketLive) UpdateLocalSalesRanks();
 		foreach (var record in allRecords) {
 			if (record.baseRecord.format == ReleaseFormat.Album) {
 				foreach (var data in record.regionalData.Values) AlbumSimulator.UpdateRegionalState(record, data);
@@ -1300,7 +1307,8 @@ public partial class ChartManager : Node {
 		// === STEP 6: Apply position calculations ===
 		AssignChartPositions(sortedByPoints, triggerEvents);
 		// Regional sync §9s: spread fit exposure on this week's local sales ranks and chart positions.
-		if (genreMarketLive) RegionalFitExposure.UpdateWeek(allRecords, GetLabelById);
+		if (genreMarketLive) RegionalFitExposure.UpdateWeek(allRecords, GetLabelById,
+			(recordId, regionId) => stationNetwork?.HasSustainedSupport(recordId, regionId) == true);
 		currentChart = sortedByPoints.Take(chartSize).ToList();
 		OnChartCalculated?.Invoke(new List<RecordRuntimeData>(currentChart));
 
@@ -1324,6 +1332,7 @@ public partial class ChartManager : Node {
 	private void CalculateLiveRegionalSalesWithMarketClearing(int year, int month, bool triggerEvents,
 		float acceptanceYear, float singleOpportunityNormalization) {
 		using var demandCache = GenreAcceptanceService.MemoizeRegionalDemand();
+		BoundedAudienceProbe.PrepareWeek(allRecords, allRegions, currentChartWeek);
 		lastMarketClearingSummaries.Clear();
 		lastMarketSpilloverTransfers.Clear();
 		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(allRecords.Count), StringComparer.Ordinal);
@@ -1359,6 +1368,7 @@ public partial class ChartManager : Node {
 					record.cohortOpportunityColdStartFallback ? singleOpportunityNormalization : record.cohortOpportunityNormalizer);
 				int physicalLimit = Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek);
 				serviceable = Mathf.Clamp(serviceable, 0, Mathf.Max(0, physicalLimit));
+				serviceable = BoundedAudienceProbe.CapServiceable(data, serviceable);
 				data.serviceableIntentThisWeek = serviceable;
 				data.marketDisplacedDemandThisWeek = 0;
 				MarketIntent intent;
@@ -1807,6 +1817,9 @@ public partial class ChartManager : Node {
 				if (data.awaitingArrival) continue;
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
+				// LocalRetailExposure: one-stops and rack jobbers reorder a single on their own territory's sales list.
+				int retailPosition = LocalRetailExposure.Enabled && IsGenreMarketV2Live && record.baseRecord.format != ReleaseFormat.Album
+					? LocalRetailExposure.Position(record.currentPosition, data) : record.currentPosition;
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
 					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek);
 				bool albumUnchartedService = IsAlbumUnchartedRestockEligible(record.baseRecord.format,
@@ -1815,13 +1828,13 @@ public partial class ChartManager : Node {
 					albumChartedToleranceWeeks * 3, albumNeverChartedToleranceWeeks);
 				bool livePhysicalBackorder = GenreMarketV2.Enabled && IsGenreMarketV2Live &&
 					data.unitsBackordered > 0 && data.rawDemandThisWeek > 0f;
-				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
+				bool preChartDemandNeedsRestock = retailPosition == 0 &&
 					(data.breakoutScore >= 0.20f || specialistUnchartedService || albumUnchartedService ||
 					 (label.activeDeal?.grantedRegions?.Contains(region.regionId) ?? false)) &&
 					(data.unitsBackordered > 250 || data.rawDemandThisWeek > data.unitsInStores * 0.45f);
-				bool chartedNeedsRestock = record.currentPosition > 0 &&
+				bool chartedNeedsRestock = retailPosition > 0 &&
 					(data.unitsBackordered > 500 ||
-					(data.unitsInStores < data.unitsSoldThisWeek * 2 && record.currentPosition <= 40));
+					(data.unitsInStores < data.unitsSoldThisWeek * 2 && retailPosition <= 40));
 				bool needsRestock = chartedNeedsRestock || preChartDemandNeedsRestock ||
 					(IsGenreMarketV2Live && LaunchStocking.NeedsReorder(record, data.unitsBackordered, data.rawDemandThisWeek));
 				bool captureBreakoutDiagnostic = !record.baseRecord.isPlayerOwned &&
@@ -1833,7 +1846,7 @@ public partial class ChartManager : Node {
 					data.breakoutTriggered = preChartDemandNeedsRestock;
 					data.breakoutRequestedRestock = 0;
 					data.breakoutAppliedRestock = 0;
-					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered);
+					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered, retailPosition);
 					data.breakoutMaxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
 						: 0.20f));
@@ -1852,7 +1865,7 @@ public partial class ChartManager : Node {
 					// to retail of section 33.1 stage 2, and it is why a regional label could
 					// have a national hit without a major's branch distribution. It lifts an
 					// uncovered proven record toward -- never past -- a distributed one.
-					float rackService = ChartSimulator.GetRackJobberAccess(record.currentPosition, data.peakBreakoutScore) *
+					float rackService = ChartSimulator.GetRackJobberAccess(retailPosition, data.peakBreakoutScore) *
 						ChartSimulator.GetRackJobberEraWeight(TimeManager.Instance?.CurrentDate.year ?? 1960);
 					if (!isCovered && rackService > 0f)
 						serviceLevel = Mathf.Max(serviceLevel, rackService * ChartSimulator.RackServiceShareOfDistributed *
@@ -1864,7 +1877,7 @@ public partial class ChartManager : Node {
 						AlbumModel.GetRetailFulfillmentMaturity(TimeManager.Instance?.CurrentDate.year ?? 1960));
 					int requestedRestock = restockAmount;
 
-					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered);
+					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered, retailPosition);
 					int maxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
 						: 0.20f));
@@ -2124,10 +2137,10 @@ public partial class ChartManager : Node {
 	// reach, plus department-store racks it has to earn. The rack share is gated on the
 	// record being proven and weighted by the decade's shift toward rack and discount retail.
 	private static float RegionalPhysicalCapacity(
-		MarketRegion region, RecordRuntimeData record, RegionalRecordData data, bool labelShipsHere) {
+		MarketRegion region, RecordRuntimeData record, RegionalRecordData data, bool labelShipsHere, int chartPosition) {
 		if (region?.distribution == null) return 0f;
 		float rackShelf = labelShipsHere ? 1f : ChartSimulator.GetRackJobberShelfMultiplier(
-			record?.currentPosition ?? 0, data?.peakBreakoutScore ?? 0f,
+			chartPosition, data?.peakBreakoutScore ?? 0f,
 			TimeManager.Instance?.CurrentDate.year ?? 1960);
 		return (region.distribution.recordStoreCount * 100f) +
 			(region.distribution.departmentStoreCount * 200f * rackShelf);
@@ -3076,6 +3089,8 @@ public partial class ChartManager : Node {
 	// Player-side sellers read it directly rather than through the 13%-diluted regionalData.awareness.
 	public float ReporterAirplay(string recordId, string regionId) =>
 		stationNetwork?.ReporterRadioPlay(recordId, regionId) ?? 0f;
+	public float ListenerAirplay(string recordId, string regionId) =>
+		stationNetwork?.ListenerRadioPlay(recordId, regionId) ?? 0f;
 
 	// ── Rolodex station advocacy (player-only; see StationAdvocacyService) ───────────────────────
 	private readonly StationAdvocacyService advocacyService = new();

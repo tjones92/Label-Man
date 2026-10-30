@@ -155,6 +155,10 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter singleReleaseLaneWriter;
 	private StreamWriter stationPlaylistWriter;
 	private bool stationPlaylists;
+	private bool stationDecisions;
+	private StreamWriter stationDecisionWriter;
+	private bool stationPickSignals;
+	private StreamWriter stationPickSignalWriter;
 	private StreamWriter singleDemandStagesWriter;
 	private StreamWriter revenueMemoryWriter;
 	private StreamWriter liveRecordsSnapshotWriter;
@@ -561,6 +565,11 @@ public partial class ChartAuditRunner : Node {
 				smallLabelFinance = true;
 			} else if (argument == "--followup-chart-trace") {
 				followupChartTrace = true;
+			} else if (argument == "--station-decisions") {
+				stationDecisions = true;
+			} else if (argument == "--station-pick-signals") {
+				// What a programmer could read of each young candidate at a regional meeting (pick selection study).
+				stationPickSignals = true;
 			} else if (argument == "--station-playlists") {
 				// Each reporter station's weekly ranked playlist with its city (RegionalSyncDesign.md §9f).
 				stationPlaylists = true;
@@ -1152,6 +1161,16 @@ public partial class ChartAuditRunner : Node {
 			if (!leanProbe || followupChartTrace) singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
 		}
 		revenueMemoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-revenue-memory.csv"));
+		if (stationDecisions) {
+			stationDecisionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-station-decisions.jsonl"));
+			StationNetwork.MeetingSink = capture => stationDecisionWriter.WriteLine(System.Text.Json.JsonSerializer.Serialize(capture));
+		}
+		if (stationPickSignals) {
+			stationPickSignalWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-station-pick-signals.csv"));
+			stationPickSignalWriter.WriteLine("week,year,stationId,city,regionId,format,recordId,labelId,labelTier,age,rejection,localRank," +
+				"score,seatTier,seatSource,launchExposed,heldAtLaunch,fitApplies,nationalLog,latentZ,launchAwareness,push,djZ,capLog,djArchetype");
+			StationNetwork.PickSignalSink = WriteStationPickSignal;
+		}
 		if (stationPlaylists) {
 			stationPlaylistWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-station-playlists.csv"));
 			stationPlaylistWriter.WriteLine("week,year,stationId,callsign,city,regionId,format,rank,tier,recordId");
@@ -2183,6 +2202,23 @@ public partial class ChartAuditRunner : Node {
 			stationPlaylistWriter.WriteLine(string.Join(",", week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 				Csv(station.stationId), Csv(station.callsign), Csv(station.cityName), Csv(station.regionId), station.format.ToString(),
 				(i + 1).ToString(CultureInfo.InvariantCulture), ranked[i].Tier.ToString(), Csv(ranked[i].Id)));
+	}
+
+	// djZ is the keyed noise StationPicks' fit score adds (times its noise sd), so any noise level can be rebuilt offline.
+	private void WriteStationPickSignal(RadioStation station, Deejay dj, int week, int year, PlaylistMeeting.Candidate c, RecordRuntimeData record,
+			PlaylistMeeting.Seat seat) {
+		if (stationPickSignalWriter == null) return;
+		string labelId = record.baseRecord.labelId;
+		AILabel label = ChartManager.Instance.GetLabelById(labelId);
+		bool applies = SingleCommercialFit.Applies(record);
+		var (z, push) = applies ? SingleCommercialFit.NationalInputs(record, label) : (0d, 0f);
+		stationPickSignalWriter.WriteLine(string.Join(",", week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(station.stationId), Csv(station.cityName), Csv(station.regionId), station.format.ToString(), Csv(c.Id), Csv(labelId),
+			label?.tier.ToString() ?? "", c.ReleaseAge.ToString(CultureInfo.InvariantCulture), c.Rejection ?? "",
+			c.LocalRank.ToString(CultureInfo.InvariantCulture), F(c.Score), seat == null ? "" : seat.Tier.ToString(), seat?.Source ?? "",
+			c.LaunchExposed ? "1" : "0", RegionalFitExposure.HeldAtLaunch(record) ? "1" : "0", applies ? "1" : "0",
+			F(SingleCommercialFit.NationalLog(record, label)), F(z), F(record.initialLaunchAwareness), F(push),
+			F(BandLife.Normal("dj-ear|" + station.stationId + "|" + c.Id)), F(SingleCommercialFit.UnexposedCapLog), dj?.archetype.ToString() ?? ""));
 	}
 
 	private static StreamWriter CreateWriter(string path) =>
@@ -4081,6 +4117,10 @@ public partial class ChartAuditRunner : Node {
 		singleDemandStagesWriter?.Dispose();
 		stationPlaylistWriter?.Dispose();
 		StationNetwork.PlaylistSink = null;
+		stationDecisionWriter?.Dispose();
+		StationNetwork.MeetingSink = null;
+		stationPickSignalWriter?.Dispose();
+		StationNetwork.PickSignalSink = null;
 		revenueMemoryWriter?.Dispose();
 		liveRecordsSnapshotWriter?.Dispose();
 		priorCostAssumptionWriter?.Dispose();

@@ -129,6 +129,7 @@ public class RegionalRecordData {
 	// player records, older saves and switched-off runs) is from launch; RegionalFitExposure.NotExposed until a spread
 	// rule reaches the region.
 	public int fitExposureAge;
+	public string fitExposureCause;
 	// Regional arrival (RegionalSyncDesign 5a). Only ever set while RegionalAudience.RegionalArrival is on, so the
 	// default (false) means "in play" for albums, player records, older saves and switched-off runs. While waiting,
 	// the promotion seed drawn for this region is held in the pending fields and lands on arrival. With sparse

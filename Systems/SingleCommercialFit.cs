@@ -148,6 +148,12 @@ public static class SingleCommercialFit {
 	/// <c>fit</c>); 0 (the reference median) when the fit does not apply.</summary>
 	public static double NationalLog(RecordRuntimeData record, AILabel label) => Applies(record) ? RawNationalLog(record, label) : 0d;
 
+	/// <summary>Audit read: the latent national draw and launch push that <see cref="NationalLog"/> combines with launch
+	/// awareness. Keyed, so reading it draws nothing.</summary>
+	public static (double Z, float Push) NationalInputs(RecordRuntimeData record, AILabel label) =>
+		(Normal(record.baseRecord.recordId, NationalKey, NationalDecision),
+			ChartSimulator.GetCampaignImpact(label) * RecordCampaignSpend.PushFactor(record));
+
 	private static double RawNationalLog(RecordRuntimeData record, AILabel label) {
 		float push = ChartSimulator.GetCampaignImpact(label) * RecordCampaignSpend.PushFactor(record);
 		return National(Normal(record.baseRecord.recordId, NationalKey, NationalDecision), record.initialLaunchAwareness, push);

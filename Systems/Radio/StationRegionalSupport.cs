@@ -8,7 +8,7 @@ using Godot;
 /// Off, it is the national ratio (this week's units / the record's peak week), which says where a record is in its own
 /// life but not how big it is. <c>--station-regional-support=ratio</c> reads the same ratio from the station's own
 /// region (local units / local peak, 3a/5d signals). <c>=standing</c> also weights it by the record's rank on the
-/// region's sales list, so stations in one market follow that market's best sellers. Last week's settled values, as
+/// region's sales list, so stations in one market follow that market's best sellers. This week's settled values, as
 /// the national ratio is; no draws, and the candidacy noise is drawn before support is read.
 /// </summary>
 public static class StationRegionalSupport {

@@ -11,6 +11,8 @@
 # were committed before this rule stay tracked; any new JSON here is ignored. A genuine
 # input table belongs in Data/ (or force-add it deliberately).
 /SimTools/*.json
+# Fixed observer input contract, not generated audit output.
+!/SimTools/regional_observer_panel.json
 /tmp/
 
 # Godot import artifacts generated for the SimTools analysis CSVs.
@@ -30,3 +32,5 @@ __pycache__/
 # Build output of the standalone counter-RNG test console.
 /SimTools/CounterRngTests/bin/
 /SimTools/CounterRngTests/obj/
+/SimTools/PlaylistMeetingTests/bin/
+/SimTools/PlaylistMeetingTests/obj/
