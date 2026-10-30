@@ -35,6 +35,11 @@ ARMS = {
     'lre05': ['--local-retail-exposure=0.5'],
     'lre03': ['--local-retail-exposure=0.3'],
     'lre05_nb': ['--local-retail-exposure=0.5', '--regional-fit-exposure-launch-base=0.1'],
+    'lre04': ['--local-retail-exposure=0.4'],
+    # Per-channel λ: rack access, top-20 shelf and restocks on the national chart; +jukebox puts the exposure weight there too.
+    'lre04t': ['--local-retail-exposure=0.4', '--local-retail-exposure-trade=0'],
+    'lre04tj': ['--local-retail-exposure=0.4', '--local-retail-exposure-trade=0', '--local-retail-exposure-trade-jukebox'],
+    'lre05t05': ['--local-retail-exposure=0.5', '--local-retail-exposure-trade=0.5'],
 }
 
 def main():

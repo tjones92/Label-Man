@@ -1819,7 +1819,7 @@ public partial class ChartManager : Node {
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				// LocalRetailExposure: one-stops and rack jobbers reorder a single on their own territory's sales list.
 				int retailPosition = LocalRetailExposure.Enabled && IsGenreMarketV2Live && record.baseRecord.format != ReleaseFormat.Album
-					? LocalRetailExposure.Position(record.currentPosition, data) : record.currentPosition;
+					? LocalRetailExposure.TradePosition(record.currentPosition, data) : record.currentPosition;
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
 					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek);
 				bool albumUnchartedService = IsAlbumUnchartedRestockEligible(record.baseRecord.format,

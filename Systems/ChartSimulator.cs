@@ -462,8 +462,8 @@ public static class ChartSimulator {
 		if (localRetail) {
 			floorPosition = LocalRetailExposure.Position(floorPosition, regionalData);
 			visibilityPosition = LocalRetailExposure.Position(visibilityPosition, regionalData);
-			exposurePosition = LocalRetailExposure.Position(exposurePosition, regionalData);
-			shelfPosition = LocalRetailExposure.Position(shelfPosition, regionalData);
+			exposurePosition = LocalRetailExposure.ExposurePosition(exposurePosition, regionalData);
+			shelfPosition = LocalRetailExposure.TradePosition(shelfPosition, regionalData);
 		}
 		float effectiveAwareness = (nationalAwareness * 0.4f) + (regionalData.awareness * 0.6f);
 		if (stagedLiveDemand && RegionalAudience.ProbeNoBlend) effectiveAwareness = regionalData.awareness;

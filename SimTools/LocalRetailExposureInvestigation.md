@@ -247,6 +247,42 @@ Station sheets, Top 40, 1960 (seeds 1001 / 1002; history same 69.7, cross 40.3, 
 `lre05_nb` (λ = 0.5 with launch base 0.1) repeats the λ = 1 finding: narrow launches put Major units
 back up (+2.7, SE 1.2 against λ = 0.5) and cost indie Top-10 records (-6.8).
 
+### Per-channel λ (trade terms national): 5 seeds, 52 weeks, `SimLogs/lrt52-v1`, stopped early
+
+Hypothesis: the million-seller and Major losses come from the trade-supplied channel. Rack jobbers and one-stops
+bought from the national trade charts, and national rack access is what put a national #1 in every region.
+`--local-retail-exposure-trade=λt` gives rack-jobber access, the top-20 shelf bonus and the one-stop/rack restock
+triggers their own weight (0 = national). With `--local-retail-exposure-trade-jukebox`, the rank exposure weight
+(rack and jukebox slots) reads λt as well. The floors and the visibility signal keep λ. With λt = λ the switch is
+byte-identical to plain λ (`lrt12-chk`, 123 of 124 outputs; the exception is the timing profile).
+
+The screen was planned for 8 seeds and stopped after seed 1005, because the trade arms did not move toward the
+hypothesis. Three partial seed-1006 runs were discarded. The table shows seed-paired deltas against ctl (SE), n = 5.
+
+| Metric | ctl | λ = 0.3 | λ = 0.4 | λ = 0.4, trade 0 | λ = 0.4, trade 0 + exposure |
+|---|---:|---:|---:|---:|---:|
+| Live singles over 1M | 5.20 | -0.80 (0.86) | -1.00 (1.00) | -2.20 (0.97) | -1.80 (1.28) |
+| 12-wk cohort over 1M | 1.80 | -1.00 (0.32) | -1.00 (0.45) | -0.40 (0.93) | -0.60 (0.40) |
+| Ten largest sellers' unit share, % | 28.16 | -0.96 (0.88) | -0.54 (0.49) | -1.03 (0.77) | -0.33 (0.65) |
+| Major unit share, % | 34.82 | -1.09 (1.30) | +0.05 (1.49) | -1.28 (1.06) | -1.70 (0.74) |
+| Big-5 Top-10 slots, % | 39.54 | +0.04 (2.31) | +1.38 (3.69) | -0.92 (3.56) | -2.96 (2.04) |
+| Opening Independent closures | 20.60 | +1.40 (2.62) | +3.00 (2.17) | +3.40 (1.54) | +2.20 (1.59) |
+| Indie national Top-40 records | 110.6 | +28.8 (4.3) | +33.2 (2.6) | +30.0 (3.4) | +11.8 (3.5) |
+| ...regional top 10 >= 2 wk before national Top 40, % | 2.37 | +3.47 (1.04) | +3.86 (1.56) | +3.66 (0.43) | -0.73 (0.99) |
+| Regional top-11 overlap, % | 54.17 | -8.30 (1.66) | -8.89 (0.49) | -9.67 (1.70) | -4.75 (0.66) |
+
+Read-out:
+
+- **The trade channel is not where the top went.** With rack access, the shelf bonus and restocks on the
+  national chart, the arm loses as many million sellers as plain λ = 0.4 or more (-2.2 against -1.0), and it does not
+  restore the Majors. These terms set stock and capacity, not intent, and they do not decide which records sell a million.
+- **The rank exposure weight carries both effects.** Keying it nationally as well removes the regional-first path
+  (-0.7 against +3.9) and two thirds of the extra indie Top-40 records. The breakout and the flatter top come
+  from the same term, so splitting λ by channel cannot keep one and drop the other.
+- **Plain λ is milder on five seeds than on four.** At λ = 0.4, the Major unit share is flat (+0.05) and the Big-5 Top-10 share
+  does not move. The million-seller, top-share and closure costs lean the wrong way but sit within 1-1.5 SE. λ = 0.3
+  keeps nearly all of the breakout gain (+28.8 indie Top-40 records, +3.5 points regional-first).
+
 ## 7. Conclusions
 
 1. **The economy-safe design space is narrow and now explicit:** within-region permutations and time
@@ -263,12 +299,14 @@ back up (+2.7, SE 1.2 against λ = 0.5) and cost indie Top-10 records (-6.8).
    sellers, on a model whose #1s already sell under history). Closures among opening Independents
    rise 3-5 per year, because units move from median releases to local winners. The low-peak lead
    excess, already about 2x history, grows. Four seeds give SEs of 1-3.5 points on these; adoption
-   needs 8.
+   needs 8. On five seeds (`lrt52-v1`), the λ = 0.3-0.4 costs fall within 1-1.5 SE, and Majors are flat at 0.4.
+   A per-channel λ that keeps the trade terms national does not recover the top. The rank exposure weight carries
+   both the breakout and the flattening.
 4. **Leads and local-only hits need a city layer, not more demand.** The macro-region arithmetic
    (section 3) makes every big-region top-10 a Hot 100 record. Section 6's city decomposition of
    settled units, which changes station lists and not regional totals, is the next build.
 
-Recommended next screen: λ = 0.3 and 0.4 on eight seeds. Report the paired airplay offset, units-only
+Recommended next screen (partly run as `lrt52-v1`, 5 seeds): λ = 0.3 and 0.4 on eight seeds. Report the paired airplay offset, units-only
 Big-5 share, closures by opening tier and million sellers, alongside the regional metrics here.
 Then the city decomposition on top of the chosen λ.
 

@@ -32,13 +32,25 @@ using System.Linq;
 /// station survey. Wholly local (λ = 1, the bare flag) makes the seven regions seven independent cumulative-advantage
 /// markets: on lrc52 seed 1001 their top-11 overlap fell from 55% to 29%, under even the 40% of single-city surveys.
 /// </para>
+/// <para>
+/// <c>--local-retail-exposure-trade=λt</c> gives the trade-supplied channel its own weight: rack-jobber access, the
+/// top-20 shelf bonus and the one-stop/rack restock triggers (0 = the national chart). With
+/// <c>--local-retail-exposure-trade-jukebox</c> the rank exposure weight (rack and jukebox slots) reads λt as well.
+/// The floors and the visibility signal keep λ. Without the trade flag every term reads λ.
+/// </para>
 /// Fresh worlds only: the local list is recomputed weekly and is not saved.
 /// </summary>
 public static class LocalRetailExposure {
 	public const string Flag = "--local-retail-exposure";
+	public const string TradeFlag = "--local-retail-exposure-trade";
+	public const string TradeJukeboxFlag = "--local-retail-exposure-trade-jukebox";
 	public static bool Enabled { get; private set; }
 	/// <summary>λ: the local list's weight in a region's retail position; 1 for the bare flag.</summary>
 	public static float LocalWeight { get; private set; } = 1f;
+	/// <summary>λt: the local weight of the trade-supplied terms; λ unless the trade flag is named.</summary>
+	public static float TradeWeight { get; private set; } = 1f;
+	/// <summary>The rank exposure weight reads λt rather than λ.</summary>
+	public static bool TradeJukebox { get; private set; }
 	private const int Unlisted = 101;
 	private static bool configured;
 
@@ -55,12 +67,25 @@ public static class LocalRetailExposure {
 			LocalWeight = weight;
 		}
 		Enabled = args.Contains(Flag) || weighted.Length == 1;
+		TradeWeight = LocalWeight;
+		var trade = args.Where(a => a.StartsWith(TradeFlag + "=", StringComparison.Ordinal)).ToArray();
+		if (trade.Length > 1) throw new ArgumentException("Name " + TradeFlag + " once.");
+		if (trade.Length == 1) {
+			if (!Enabled) throw new ArgumentException(TradeFlag + " needs " + Flag + ".");
+			if (!float.TryParse(trade[0].Substring(TradeFlag.Length + 1), System.Globalization.NumberStyles.Float,
+				System.Globalization.CultureInfo.InvariantCulture, out float weight) || !(weight >= 0f && weight <= 1f))
+				throw new ArgumentException(TradeFlag + "= takes a local weight in [0, 1].");
+			TradeWeight = weight;
+		}
+		TradeJukebox = args.Contains(TradeJukeboxFlag);
+		if (TradeJukebox && trade.Length == 0) throw new ArgumentException(TradeJukeboxFlag + " needs " + TradeFlag + "=.");
 		if (Enabled && args.Any(a => a.StartsWith("--resume-world") || a.StartsWith("--save-world")))
 			throw new ArgumentException(Flag + " is a fresh-world research switch; the local list is not saved.");
 		// Both replace the exposure or the consumer that the mass counterfactual reads.
 		if (Enabled && args.Any(a => a.StartsWith("--local-consumption-shelf=") || a.StartsWith("--bounded-audience=")))
 			throw new ArgumentException(Flag + " cannot run with the local shelf or bounded audience probes.");
-		if (Enabled) Godot.GD.Print($"LOCAL_RETAIL_EXPOSURE on localWeight={LocalWeight:F2}");
+		if (Enabled) Godot.GD.Print($"LOCAL_RETAIL_EXPOSURE on localWeight={LocalWeight:F2}" +
+			(trade.Length == 1 ? $" tradeWeight={TradeWeight:F2} tradeJukebox={TradeJukebox}" : ""));
 		configured = true;
 	}
 
@@ -124,11 +149,20 @@ public static class LocalRetailExposure {
 	/// The region's retail position for a term that otherwise reads <paramref name="nationalPosition"/>: the local list
 	/// at λ = 1, else the λ-weighted geometric mean of the two positions, 0 (uncharted) beyond #100.
 	/// </summary>
-	public static int Position(int nationalPosition, RegionalRecordData data) {
+	public static int Position(int nationalPosition, RegionalRecordData data) => Position(nationalPosition, data, LocalWeight);
+
+	/// <summary>The retail position of a trade-supplied term (rack access, top-20 shelf, restocks): λt in place of λ.</summary>
+	public static int TradePosition(int nationalPosition, RegionalRecordData data) => Position(nationalPosition, data, TradeWeight);
+
+	/// <summary>The rank exposure weight's position: λt with the jukebox flag, else λ.</summary>
+	public static int ExposurePosition(int nationalPosition, RegionalRecordData data) =>
+		Position(nationalPosition, data, TradeJukebox ? TradeWeight : LocalWeight);
+
+	private static int Position(int nationalPosition, RegionalRecordData data, float weight) {
 		int local = Position(data);
-		if (LocalWeight >= 1f) return local;
+		if (weight >= 1f) return local;
 		double national = nationalPosition >= 1 && nationalPosition <= 100 ? nationalPosition : Unlisted;
-		double blended = Math.Exp((1d - LocalWeight) * Math.Log(national) + LocalWeight * Math.Log(local > 0 ? local : Unlisted));
+		double blended = Math.Exp((1d - weight) * Math.Log(national) + weight * Math.Log(local > 0 ? local : Unlisted));
 		int position = (int)Math.Round(blended);
 		return position <= 100 ? Math.Max(1, position) : 0;
 	}
