@@ -25,6 +25,7 @@ public partial class MediaAtmosphereChecks : Node {
 			ContentTags();
 			Trade();
 			Bookings();
+			TelevisionEcosystem();
 			Performance();
 			Standards();
 			EventNights();
@@ -198,6 +199,57 @@ public partial class MediaAtmosphereChecks : Node {
 			back.Appearances.Zip(MediaAtmosphereService.Appearances).All(p => p.First.Id == p.Second.Id && p.First.Airings.Count == p.Second.Airings.Count &&
 				p.First.Airings.Zip(p.Second.Airings).All(x => x.First.Tallied == x.Second.Tallied && Math.Abs(x.First.Exposure.UniqueReach - x.Second.Exposure.UniqueReach) < 1e-6)),
 			$"Media state survives a save round trip ({json.Length / 1024} KB)");
+		Check(back.Appearances.Zip(MediaAtmosphereService.Appearances).All(p => p.First.Lane == p.Second.Lane && p.First.Song == p.Second.Song && p.First.Title == p.Second.Title),
+			"Each appearance's bill lane and the song it sang survive the round trip");
+	}
+
+	// The television ecosystem (SimTools/MediaTvHeadlinerBookingDesign.md): dated programs, bills with standing and comedy
+	// lanes, and what a standing act sings. Runs on the three weeks Bookings() just booked.
+	private void TelevisionEcosystem() {
+		var tonight = MediaOutletCatalog.Get("tonight_paar");
+		Check(tonight.Runs(D(1962, 3, 30)) && !tonight.OnAir(D(1962, 4, 2)) && MediaOutletCatalog.Get("tonight_interim").Runs(D(1962, 4, 2))
+			&& !MediaOutletCatalog.Get("tonight_carson").OnAir(D(1962, 9, 28)) && MediaOutletCatalog.Get("tonight_carson").Runs(D(1962, 10, 1)),
+			"Tonight: Paar to March 30 1962, guest hosts, Carson from October 1 1962");
+		Check(!MediaOutletCatalog.Get("hootenanny").OnAir(D(1963, 4, 5)) && MediaOutletCatalog.Get("hootenanny").Runs(D(1963, 4, 6)), "No Hootenanny before April 6, 1963");
+		var dean = MediaOutletCatalog.Get("jimmy_dean");
+		Check(dean.Runs(D(1965, 9, 2)) && dean.Runs(D(1965, 9, 10)) && !dean.OnAir(D(1966, 4, 8)), "The Jimmy Dean Show moves to Fridays in September 1965 and ends April 1, 1966");
+		var como = MediaOutletCatalog.Get("perry_como");
+		int weekly = Enumerable.Range(0, 84).Count(i => como.Runs(D(1961, 1, 1).AddDays(i)));
+		int monthly = Enumerable.Range(0, 84).Count(i => como.Runs(D(1964, 1, 1).AddDays(i)));
+		Check(weekly >= 11 && monthly is >= 2 and <= 3, $"Como is weekly to 1963, then about monthly ({weekly} vs {monthly} episodes in twelve weeks)");
+		Check(MediaOutletCatalog.Programs.All(p => p.Bills.All(b => b.Total > 0)) && MediaOutletCatalog.Programs.Count(p => p.BooksNationally) >= 30,
+			$"Every bill has room for a guest; {MediaOutletCatalog.Programs.Count(p => p.BooksNationally)} programs book nationally");
+		var sullivan = MediaOutletCatalog.Get("ed_sullivan");
+		Check(sullivan.BillOn(D(1961, 3, 5)).Standing == 2 && sullivan.BillOn(D(1961, 3, 5)).Chart == 1 && sullivan.BillOn(D(1965, 3, 7)).Chart == 2,
+			"Sullivan's bill: one current record and two names in 1961, two current records from 1964");
+
+		var booked = MediaAtmosphereService.Appearances.Where(a => a.RepeatOfId == null).ToList();
+		var standing = booked.Where(a => a.Lane == BillLane.Standing).ToList();
+		var comedy = booked.Where(a => a.Lane == BillLane.Comedy).ToList();
+		foreach (var a in standing.Concat(comedy).Take(10))
+			GD.Print($"  bill: {a.Date.ToShortString()} {MediaOutletCatalog.Get(a.ProgramId).Name}: {a.ArtistName} ({a.Lane}) sings \"{a.Title}\" [{a.Song}]");
+		Check(standing.Count > 0 && standing.All(a => ArtistRecognitionService.EffectiveRecognition(ArtistManager.Instance.GetArtist(a.ArtistId))
+				>= MediaOutletCatalog.Get(a.ProgramId).StandingFloor - 0.05f),
+			$"Standing spots go to acts the public knows ({standing.Count} in three weeks)");
+		Check(standing.Any(a => a.ChartPosition <= 0 || a.ChartPosition > 40), "A name with no current top-40 record gets a standing spot");
+		Check(standing.Any(a => a.Song != PerformedSong.Record) && standing.Where(a => a.Song != PerformedSong.Record).All(a => a.StandardsQueryId == null),
+			"Standing acts sing standards, covers and old hits, which standards doesn't review as the record");
+		foreach (var a in booked.Where(a => a.ProgramId == "ed_sullivan")) {
+			var act = ArtistManager.Instance.GetArtist(a.ArtistId);
+			GD.Print($"  sullivan: {a.Date.ToShortString()} {a.ArtistName} {a.Lane} prep={a.Preparation} outcome={a.Performance?.Outcome} fault={a.Performance?.Fault} " +
+				$"musical={MediaPerformance.MusicalSkill(a.Method, act):F2} presence={MediaPerformance.Presence(act):F2} members={act?.members.Count(m => m.isActive)}");
+		}
+		var comics = ArtistManager.Instance.GetAllArtists().Where(x => x.primaryGenre == Genre.Comedy).ToList();
+		var comicRecords = ChartManager.Instance.GetAllRecords().Where(r => r.baseRecord?.primaryGenre == Genre.Comedy).ToList();
+		GD.Print($"  comedy: {comics.Count} comedy acts, {comics.Count(x => x.isActive && !string.IsNullOrEmpty(x.labelId))} signed, " +
+			$"recognition max {comics.Select(ArtistRecognitionService.EffectiveRecognition).DefaultIfEmpty(0).Max():F3}, " +
+			$"{comics.Count(x => ArtistRecognitionService.EffectiveRecognition(x) >= 0.2f)} at 0.20+; {comicRecords.Count} live comedy records " +
+			$"by {comicRecords.Select(r => r.baseRecord.artistId).Distinct().Count()} acts");
+		Check(comedy.All(a => a.Song == PerformedSong.Routine && (a.Genre == Genre.Comedy || ArtistManager.Instance.GetArtist(a.ArtistId)?.primaryGenre == Genre.Comedy)),
+			$"Comedy spots go to comedians who make records ({comedy.Count} in three weeks)");
+		Check(booked.Where(a => a.Lane == BillLane.Chart).All(a => a.Song == PerformedSong.Record), "A chart booking sings its record");
+		Check(booked.GroupBy(a => a.EpisodeId).All(g => g.Count(a => a.Lane == BillLane.Standing) <= MediaOutletCatalog.Get(g.First().ProgramId).BillOn(g.First().Date).Standing),
+			"No episode books more standing guests than its bill has");
 	}
 
 	// ---- Phase 2 --------------------------------------------------------------------------------------------------
@@ -346,6 +398,8 @@ public partial class MediaAtmosphereChecks : Node {
 		Check(stories.All(s => MediaOutletCatalog.GetPress(s.OutletId).Publishing(MediaAtmosphereService.FromDayIndex(s.IssueDay))),
 			"Every item runs in an outlet that existed that day (no Tiger Beat, Crawdaddy! or Rolling Stone in 1960)");
 		int mainstream = stories.Count(s => MediaOutletCatalog.GetPress(s.OutletId).Family == PressFamily.Mainstream);
+		foreach (var s in stories.Where(s => MediaOutletCatalog.GetPress(s.OutletId).Family == PressFamily.Mainstream))
+			GD.Print($"  mainstream: {s.OutletId} {s.Angle} {s.ArtistName} program={s.ProgramId} root={s.RootId}");
 		Check(mainstream <= 4, $"Mainstream magazines rarely cover popular music ({mainstream} items in four weeks)");
 		var desk = PlayerDesk.Instance;
 		GameRandom.Seed(777); desk.PressColumn(clock.CurrentDate); RolodexDirectory.Cards(desk, RolodexRole.Press); uint a = GameRandom.Randi();
@@ -589,7 +643,7 @@ public partial class MediaAtmosphereChecks : Node {
 
 		// Same slots, same dates: every episode's bill, player and rival together, fits its program's guest slots.
 		var byEpisode = MediaAtmosphereService.Appearances.Where(a => a.RepeatOfId == null).GroupBy(a => a.EpisodeId).ToList();
-		Check(byEpisode.All(g => g.Count() <= MediaOutletCatalog.Get(g.First().ProgramId).GuestSlots),
+		Check(byEpisode.All(g => g.Count() <= MediaOutletCatalog.Get(g.First().ProgramId).SlotsOn(g.First().Date)),
 			$"Player and rival bookings share each episode's finite slots ({byEpisode.Count} episodes)");
 		var mine = MediaAtmosphereService.Appearances.FirstOrDefault(a => a.PlayerBooking);
 		if (mine != null) GD.Print($"  shared bill: {string.Join(" / ", MediaAtmosphereService.Appearances.Where(a => a.EpisodeId == mine.EpisodeId).Select(a => a.ArtistName + (a.PlayerBooking ? " (yours)" : "")))}");

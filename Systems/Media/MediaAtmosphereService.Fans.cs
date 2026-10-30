@@ -161,7 +161,8 @@ public static partial class MediaAtmosphereService {
 		var letters = new Dictionary<string, long>(StringComparer.Ordinal);
 		var camera = new Dictionary<string, List<(string Key, double Teens, float Spark)>>(StringComparer.Ordinal);
 		foreach (var (a, airing) in airedThisWeek) {
-			if (a.Cut || airing.Exposure == null || airing.Exposure.UniqueReach <= 0) continue;
+			// A crooner's standard or a comic's routine is no evidence that teenagers are attaching to an act.
+			if (a.Cut || a.Lane != BillLane.Chart || airing.Exposure == null || airing.Exposure.UniqueReach <= 0) continue;
 			TvProgram program = MediaOutletCatalog.Get(a.ProgramId);
 			if (program == null) continue;
 			double sum = airing.Exposure.AverageByGroup.Sum();

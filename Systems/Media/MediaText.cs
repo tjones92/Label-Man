@@ -54,6 +54,11 @@ public static class MediaText {
 		TvProgramKind.NationalTeen => program.DiscoverySlot
 			? $"Current danceable singles, mostly from the national top {program.ChartCeiling}, plus one slot for a record breaking in a region before the chart catches it."
 			: $"Current singles from the national top {program.ChartCeiling}, with a presentable act that can work the cameras.",
+		TvProgramKind.TalkShow => "A singer the audience already knows and a comic who can sit on the couch afterwards. A current record helps; the host books names.",
+		TvProgramKind.MusicShow => "Acts its own audience follows, whether or not the pop chart shows them, who can play or sing their songs on the night.",
+		_ when program.Bills.Any(b => b.Standing > 0) =>
+			"Names the whole family already knows, singing what they're known for, around a current hit or two" +
+			(program.ChartCeiling > 0 ? $" from the top {program.ChartCeiling}" : "") + ". Strong production and standards authority.",
 		_ => $"Records the whole family has heard, usually from the top {program.ChartCeiling}, by an act that can carry a polished segment. Strong production and standards authority.",
 	};
 }

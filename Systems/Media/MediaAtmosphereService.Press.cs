@@ -204,7 +204,7 @@ public static partial class MediaAtmosphereService {
 	private static void PlaceHolds(Evidence evidence, GameDate weekEnd) {
 		int today = BroadcastExposure.DayIndex(weekEnd);
 		foreach (TvProgram program in MediaOutletCatalog.Programs) {
-			if (program.Network == TvNetwork.Local) continue;
+			if (!program.AnnouncesHeadliners || program.BillOn(FromDayIndex(today)).Chart == 0) continue;
 			if (state.Holds.Any(h => h.ProgramId == program.Id && h.Day > today)) continue;
 			int target = -1;
 			for (int d = today + HoldLeadMinDays; d <= today + HoldLeadMaxDays; d++) {
@@ -345,12 +345,18 @@ public static partial class MediaAtmosphereService {
 				if (good) lead.Outlets.AddRange(Outlets(PressFamily.Trade));
 				if (program.Kind == TvProgramKind.NationalTeen && good && MediaOutletCatalog.TeenFit(a.Genre) >= 0.8f) lead.Outlets.AddRange(Outlets(PressFamily.TeenFan));
 				lead.Outlets.AddRange(Outlets(PressFamily.Specialist).Where(id => MediaOutletCatalog.GetPress(id).National));
-				bool calamity = outcome == PerformanceOutcome.Breakdown && a.Broadcast == BroadcastMethod.Live && reach > 15e6;
+				// The news magazines notice a live disaster only when it happens to a name their readers know.
+				bool famous = a.ChartPosition is > 0 and <= 10 || ArtistRecognitionService.EffectiveRecognition(ArtistManager.Instance?.GetArtist(a.ArtistId)) >= 0.45f;
+				bool calamity = outcome == PerformanceOutcome.Breakdown && a.Broadcast == BroadcastMethod.Live && reach > 15e6 && famous;
 				if (calamity || a.Headliner && reach > 40e6) {
 					lead.Story.Interest += calamity ? 0.6f : 0.9f;
 					lead.Story.Angle = calamity ? StoryAngle.TvNotice : StoryAngle.CulturalPhenomenon;
 					lead.Story.Tone = calamity ? StoryTone.Curious : StoryTone.Curious;
-					lead.Outlets.AddRange(Outlets(PressFamily.Mainstream));
+					// A disaster on the air is a paragraph in one news magazine, not a cover story in all of them.
+					var mainstream = Outlets(PressFamily.Mainstream).ToList();
+					if (calamity && mainstream.Count > 0)
+						lead.Outlets.Add(mainstream[(int)(MediaAtmosphere.Unit("calamity-desk|" + a.Id) * mainstream.Count) % mainstream.Count]);
+					else lead.Outlets.AddRange(mainstream);
 				}
 			}
 			leads.Add(lead);

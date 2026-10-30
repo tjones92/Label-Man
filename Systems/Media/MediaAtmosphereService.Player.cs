@@ -15,6 +15,8 @@ public sealed class MediaPitch {
 	public StoryAngle Angle;
 	public int SentDay, AnswerDay, AirDay, OfferExpiresDay;
 	public bool Discovery;
+	/// <summary>The part of the bill the offer is for: a standing or comedy spot when the producer called on the act's name.</summary>
+	public BillLane Lane;
 	public MediaPreparation Preparation = MediaPreparation.Standard;
 	public double ReachLow, ReachHigh, TeenShare;
 	public int SlotIndex, SlotCount;
@@ -172,7 +174,15 @@ public static partial class MediaAtmosphereService {
 		bool broke = record.regionalData.Values.Any(x => x != null && x.peakBreakoutScore >= (CompetitorManager.Instance?.RegionalBreakoutDealThreshold ?? 0.2f));
 		float p;
 		string why;
-		if (program.Network == TvNetwork.Local) {
+		// A name the audience already knows can fill a standing or comedy spot without a current record (§5.2).
+		BillPlan bill = program.BillOn(today);
+		SimulatedArtist act = ArtistManager.Instance?.GetArtist(pitch.ArtistId);
+		float standing = act == null ? 0f : ArtistRecognitionService.EffectiveRecognition(act);
+		bool comic = act?.primaryGenre == Genre.Comedy || record.baseRecord.primaryGenre == Genre.Comedy;
+		BillLane lane = comic && bill.Comedy > 0 ? BillLane.Comedy : BillLane.Chart;
+		float floor = lane == BillLane.Comedy ? program.ComedyFloor : program.StandingFloor;
+		float onName = standing >= floor && (lane == BillLane.Comedy || bill.Standing > 0) ? 0.10f + 0.6f * Math.Max(standing, lane == BillLane.Comedy ? 0.3f : 0f) * fit : 0f;
+		if (program.Network == TvNetwork.Local && !program.BooksNationally) {
 			p = 0.20f + 0.35f * fit + 0.35f * local + (hometown ? 0.15f : 0f) + 0.15f * contact.Trust;
 			why = fit < 0.4f ? "it isn't a record the dancers want." : local < 0.1f ? "nobody here is asking for it yet." : "the bill is full for the next few weeks.";
 		} else if (program.Kind == TvProgramKind.NationalTeen) {
@@ -183,6 +193,12 @@ public static partial class MediaAtmosphereService {
 			p = pos > 0 && pos <= program.ChartCeiling ? 0.10f + 0.5f * (1f - pos / (float)program.ChartCeiling) * fit : 0f;
 			why = "a family variety hour books names the parents already know.";
 		}
+		if (program.BooksNationally && onName > 0f && (onName > p || lane == BillLane.Comedy)) {
+			p = onName;
+			if (lane == BillLane.Chart) lane = BillLane.Standing;
+			why = "the bill is set with bigger names for now.";
+		} else if (lane == BillLane.Comedy) lane = BillLane.Chart;
+		if (bill.Chart == 0 && lane == BillLane.Chart) { Decline("they don't book records; they book names."); return; }
 		p += 0.1f * contact.Trust;
 		if (MediaAtmosphere.Unit("pitch-consider|" + pitch.Id) >= Math.Clamp(p, 0f, 0.95f)) { Decline(why); return; }
 
@@ -202,8 +218,9 @@ public static partial class MediaAtmosphereService {
 		pitch.Status = PitchStatus.Offered;
 		pitch.AirDay = air;
 		pitch.OfferExpiresDay = day + OfferAnswerDays;
-		pitch.Discovery = pos <= 0 || pos > program.ChartCeiling;
-		pitch.SlotCount = Math.Max(1, program.GuestSlots);
+		pitch.Lane = lane;
+		pitch.Discovery = lane == BillLane.Chart && (pos <= 0 || pos > program.ChartCeiling);
+		pitch.SlotCount = Math.Max(1, program.SlotsOn(airDate));
 		pitch.SlotIndex = program.Kind == TvProgramKind.PrimetimeVariety ? 0 : pitch.Discovery ? 0 : Math.Min(1, pitch.SlotCount - 1);
 		var markets = BroadcastExposure.Markets(program, version, airDate, ChartManager.Instance?.GetAllRegions());
 		ExposureEstimate e = BroadcastExposure.Estimate(program, version.DurationMinutes, pitch.SlotIndex, pitch.SlotCount, 0f, markets);

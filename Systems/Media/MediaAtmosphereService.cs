@@ -36,12 +36,33 @@ public sealed class MediaAppearance {
 	public bool Cut;
 	/// <summary>Set when the act sang a different song than the record booked (an alternate offered to standards).</summary>
 	public string OriginalTitle;
+	/// <summary>The part of the bill the act filled, and what it sang. <see cref="RecordId"/> is the label campaign the date
+	/// was charged to; only <see cref="PerformedSong.Record"/> means the song on the air was that record.</summary>
+	public BillLane Lane;
+	public PerformedSong Song;
 	public bool PlayerBooking;
 	/// <summary>The advertised headliner of the episode (an announced hold), and the hype it carried into the air date.</summary>
 	public bool Headliner;
 	public float Hype, EventLift, TuneIn;
 	/// <summary>The player's office has been told how it went (once-only receipt).</summary>
 	public bool Reported;
+}
+
+/// <summary>
+/// What a guest sang (SimTools/MediaTvHeadlinerBookingDesign.md). On 1960-64 Sullivan bills about 80% of songs were
+/// standards, show tunes and album material, 14% other acts' current hits, and 7% the singer's own hits.
+/// </summary>
+public enum PerformedSong {
+	/// <summary>The booked record itself.</summary>
+	Record,
+	/// <summary>The act's own best-known earlier hit.</summary>
+	OwnHit,
+	/// <summary>Another act's current hit.</summary>
+	CurrentCover,
+	/// <summary>A standard or show tune from the songbook.</summary>
+	Standard,
+	/// <summary>A comedian's routine.</summary>
+	Routine,
 }
 
 public sealed class MediaEpisode {
@@ -188,6 +209,11 @@ public static partial class MediaAtmosphereService {
 		Godot.GD.Print($"MEDIA_FANS_YEAR year={year} acts={fans.Count} [{string.Join(" ", fans.GroupBy(f => f.State).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
 			$"everNational={fans.Count(f => IsNational(f.Peak))} everPhenomenon={fans.Count(f => f.Peak == FanEpisodeState.CulturalPhenomenon)} " +
 			$"loudest=\"{loud?.ArtistName}\" {loud?.State} face=\"{MediaFans.Face(loud)}\"");
+		// Who the national bookers leaned on this year, by lane: a check on a few names crowding every bill.
+		var busiest = mine.Where(a => MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true).GroupBy(a => a.ArtistId)
+			.OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Take(6)
+			.Select(g => $"\"{g.First().ArtistName}\" {g.Count()} [{string.Join(" ", g.GroupBy(a => a.Lane).OrderBy(x => x.Key).Select(x => x.Key + ":" + x.Count()))}]");
+		Godot.GD.Print($"MEDIA_BUSIEST year={year} {string.Join(" ", busiest)}");
 		var allocations = state.AiAllocations.Values.ToList();
 		Godot.GD.Print($"MEDIA_AI year={year} allocations={allocations.Count} balanced={allocations.All(a => a.Balanced)} " +
 			$"tvReserved=${allocations.Sum(a => a.TvReservedCents) / 100.0:N0} of ${allocations.Sum(a => a.TvCents) / 100.0:N0} " +
@@ -233,9 +259,10 @@ public static partial class MediaAtmosphereService {
 			Chart = FullChart.Where(Eligible).ToList();
 			Regions = charts.GetAllRegions();
 			BreakoutBar = CompetitorManager.Instance?.RegionalBreakoutDealThreshold ?? 0.20f;
-			foreach (RecordRuntimeData r in charts.GetAllRecords())
+			all = charts.GetAllRecords();
+			foreach (RecordRuntimeData r in all)
 				if (r?.baseRecord?.recordId != null) ById[r.baseRecord.recordId] = r;
-			var singles = charts.GetAllRecords().Where(Eligible).ToList();
+			var singles = all.Where(Eligible).ToList();
 			Singles = singles;
 			foreach (MarketRegion region in Regions) {
 				RegionalBest[region.regionId] = singles
@@ -289,6 +316,79 @@ public static partial class MediaAtmosphereService {
 		}
 		public int BrokeCount(RecordRuntimeData r) => r.regionalData.Values.Count(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
 		public float Breadth(RecordRuntimeData r) => Regions.Count == 0 ? 0f : BrokeCount(r) / (float)Regions.Count;
+
+		private readonly List<RecordRuntimeData> all;
+		private List<StandingAct> standing;
+		private HashSet<string> top40Artists;
+
+		/// <summary>Acts on this week's national top 40: a current hit is the chart lane's business.</summary>
+		public bool OnTop40(string artistId) {
+			top40Artists ??= new HashSet<string>(Chart.Where(r => r.currentPosition is > 0 and <= 40).Select(r => r.baseRecord.artistId), StringComparer.Ordinal);
+			return top40Artists.Contains(artistId);
+		}
+
+		/// <summary>
+		/// The recording acts a booker can call on their names (§5.2 standing fame): signed rival acts with some public
+		/// recognition and a live record for the label to charge the date to. Built once per pass, in artist-id order;
+		/// reads recognition, chart history and the opening careers' public history, writes nothing.
+		/// </summary>
+		public List<StandingAct> StandingActs() {
+			if (standing != null) return standing;
+			var latest = new Dictionary<string, RecordRuntimeData>(StringComparer.Ordinal);
+			var lastHit = new Dictionary<string, int>(StringComparer.Ordinal);
+			foreach (RecordRuntimeData r in all) {
+				Record rec = r?.baseRecord;
+				if (rec == null || rec.isPlayerOwned || string.IsNullOrEmpty(rec.artistId)) continue;
+				if (!latest.TryGetValue(rec.artistId, out RecordRuntimeData cur) || rec.releaseDate > cur.baseRecord.releaseDate
+					|| rec.releaseDate == cur.baseRecord.releaseDate && string.CompareOrdinal(rec.recordId, cur.baseRecord.recordId) > 0)
+					latest[rec.artistId] = r;
+				if (r.peakPosition is > 0 and <= 40) lastHit[rec.artistId] = Math.Max(lastHit.GetValueOrDefault(rec.artistId), rec.releaseDate.year);
+			}
+			standing = new List<StandingAct>();
+			foreach (var (id, vehicle) in latest.OrderBy(p => p.Key, StringComparer.Ordinal)) {
+				SimulatedArtist artist = ArtistManager.Instance?.GetArtist(id);
+				if (artist == null || !artist.isActive || artist.isPlayerOwned || string.IsNullOrEmpty(artist.labelId)) continue;
+				float recognition = ArtistRecognitionService.EffectiveRecognition(artist);
+				if (recognition < StandingFloorAny) continue;
+				int hit = lastHit.GetValueOrDefault(id);
+				if (artist.publicHistory != null)
+					foreach (PublicReleaseEntry e in artist.publicHistory)
+						if (e.peakPosition is > 0 and <= 40) hit = Math.Max(hit, e.year);
+				if (artist.hitCadenceLastTop40Week != HitActCadence.Unset) hit = Math.Max(hit, 1960 + artist.hitCadenceLastTop40Week / 52);
+				standing.Add(new StandingAct {
+					Artist = artist, Vehicle = vehicle, Recognition = recognition, LastHitYear = hit,
+					Comedy = artist.primaryGenre == Genre.Comedy || vehicle.baseRecord.primaryGenre == Genre.Comedy,
+				});
+			}
+			return standing;
+		}
+
+		/// <summary>The act's best-known chart record by title: its opening-career history or a live record that charted.</summary>
+		public string BestKnownHit(SimulatedArtist artist) {
+			string best = null;
+			int bestPeak = int.MaxValue, bestWeeks = 0;
+			void Consider(string title, int peak, int weeks) {
+				if (string.IsNullOrEmpty(title) || peak <= 0 || peak > 40) return;
+				if (peak < bestPeak || peak == bestPeak && weeks > bestWeeks) { best = title; bestPeak = peak; bestWeeks = weeks; }
+			}
+			if (artist.publicHistory != null)
+				foreach (PublicReleaseEntry e in artist.publicHistory) Consider(e.title, e.peakPosition, e.weeksCharted);
+			foreach (RecordRuntimeData r in all)
+				if (r?.baseRecord?.artistId == artist.artistId) Consider(r.baseRecord.title, r.peakPosition, r.weeksOnChart);
+			return best;
+		}
+	}
+
+	/// <summary>Least recognition for any standing booking; programs set their own, higher floors.</summary>
+	private const float StandingFloorAny = 0.05f;
+
+	internal sealed class StandingAct {
+		public SimulatedArtist Artist;
+		public RecordRuntimeData Vehicle;
+		public float Recognition;
+		/// <summary>Release year of the act's last top-40 record; 0 = never had one (an album or nightclub name).</summary>
+		public int LastHitYear;
+		public bool Comedy;
 	}
 
 	// ---- booking ------------------------------------------------------------------------------------------------
@@ -303,6 +403,10 @@ public static partial class MediaAtmosphereService {
 		public RecordRuntimeData Alternate;
 		/// <summary>The rehearsal a rival label can afford for this date (null: its usual).</summary>
 		public MediaPreparation? Prep;
+		public BillLane Lane;
+		public PerformedSong Song;
+		/// <summary>What the act sings when it isn't the booked record (null: the record's own title).</summary>
+		public string SongTitle;
 	}
 
 	private static void BookEpisode(TvProgram program, BroadcastScheduleVersion version, GameDate date, Evidence evidence) {
@@ -313,46 +417,63 @@ public static partial class MediaAtmosphereService {
 		if (episode.Repeat) { BookRepeat(program, version, episode); return; }
 
 		int day = BroadcastExposure.DayIndex(date);
-		List<Candidate> pool = Candidates(program, date, evidence);
+		BillPlan bill = program.BillOn(date);
+		// Free slots by lane (§5.2 bill balance): chart, standing, comedy.
+		int[] free = { bill.Chart, bill.Standing, bill.Comedy };
+		int Free() => free[0] + free[1] + free[2];
+		List<Candidate> pool = free[0] > 0 ? Candidates(program, date, evidence) : new List<Candidate>();
 		episodeDeclines = 0;
 		var chosen = new List<Candidate>();
-		int slots = program.GuestSlots;
-		// The player's confirmed dates were reserved against this episode before it was booked (§5.1): they hold their slots.
+		// The player's confirmed dates were reserved against this episode before it was booked (§5.1): they hold their slots,
+		// in their own lane when it has room, otherwise in whatever lane does.
 		foreach (MediaPitch reserved in state.Pitches.Where(p => p.Status == PitchStatus.Confirmed && p.ProgramId == program.Id && p.AirDay == day)) {
-			if (slots <= 0 || !evidence.ById.TryGetValue(reserved.RecordId ?? "", out RecordRuntimeData mine)) continue;
-			chosen.Add(new Candidate { Record = mine, Score = 0.5f, Discovery = reserved.Discovery, Pitch = reserved });
-			slots--;
+			if (Free() <= 0 || !evidence.ById.TryGetValue(reserved.RecordId ?? "", out RecordRuntimeData mine)) continue;
+			int lane = free[(int)reserved.Lane] > 0 ? (int)reserved.Lane : Array.FindIndex(free, f => f > 0);
+			chosen.Add(new Candidate { Record = mine, Score = 0.5f, Discovery = reserved.Discovery, Pitch = reserved, Lane = (BillLane)lane });
+			free[lane]--;
 		}
 		// An announced headliner (§4.5 advertised guest) takes the bill's top spot.
 		MediaHold hold = state.Holds.FirstOrDefault(h => h.ProgramId == program.Id && h.Day == day);
-		if (hold != null && slots > 0 && evidence.ById.TryGetValue(hold.RecordId, out RecordRuntimeData held) && Available(held, program, date)) {
+		if (hold != null && free[0] > 0 && evidence.ById.TryGetValue(hold.RecordId, out RecordRuntimeData held) && Available(held, program, date)) {
 			var headliner = new Candidate { Record = held, Score = 10f, Headliner = true };
 			// The label still has to say yes and afford the trip (§13); a declined headline date goes to the regular bill.
-			if (AiAccepts(headliner, program, date, episodeId, evidence)) { chosen.Add(headliner); slots--; }
+			if (AiAccepts(headliner, program, date, episodeId, evidence)) { chosen.Add(headliner); free[0]--; }
 		}
 		// The discovery slot: an eligible record below the top of the chart, chosen on fit and evidence, never guaranteed.
 		// Rival labels answer the producer's call in turn; a label that says no passes the slot to the next in line.
-		if (program.DiscoverySlot && slots > 0 && !chosen.Any(c => c.Discovery)) {
+		if (program.DiscoverySlot && free[0] > 0 && !chosen.Any(c => c.Discovery)) {
 			Candidate pick = pool.Where(c => c.Discovery && Available(c.Record, program, date) && chosen.All(x => x.Record.baseRecord.artistId != c.Record.baseRecord.artistId))
 				.OrderByDescending(c => Rank(c, program, date, "discovery")).FirstOrDefault(c => AiAccepts(c, program, date, episodeId, evidence));
-			if (pick != null) { chosen.Add(pick); slots--; }
+			if (pick != null) { chosen.Add(pick); free[0]--; }
 		}
-		var queue = pool.Where(c => !c.Discovery).OrderByDescending(c => Rank(c, program, date, "slot")).ToList();
-		int next = 0;
+		// One ranked queue per lane; the standing and comedy pools are built only for a bill that has those slots.
+		var queues = new List<Candidate>[3];
+		var next = new int[3];
+		queues[0] = pool.Where(c => !c.Discovery).OrderByDescending(c => Rank(c, program, date, "slot")).ToList();
+		for (int lane = 1; lane < 3; lane++)
+			queues[lane] = free[lane] > 0
+				? StandingCandidates(program, date, evidence, (BillLane)lane).OrderByDescending(c => Rank(c, program, date, "standing")).ToList()
+				: new List<Candidate>();
 		void Fill() {
-			while (slots > 0 && next < queue.Count) {
-				Candidate c = queue[next++];
-				if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date)) continue;
-				if (!AiAccepts(c, program, date, episodeId, evidence)) continue;
-				chosen.Add(c); slots--;
+			for (int lane = 0; lane < 3; lane++) {
+				List<Candidate> queue = queues[lane];
+				while (free[lane] > 0 && next[lane] < queue.Count) {
+					Candidate c = queue[next[lane]++];
+					if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date, lane == 0 ? MaxNationalPerActPerWeek : 1)) continue;
+					if (!AiAccepts(c, program, date, episodeId, evidence)) continue;
+					c.Lane = (BillLane)lane;
+					chosen.Add(c); free[lane]--;
+				}
 			}
 		}
 		Fill();
+		foreach (Candidate c in chosen) ChooseSong(c, program, episodeId, evidence);
 
 		// Standards review (§7.2) before the bill is final: a rival act that withdraws frees its slot for the next in line.
-		// The player's queries were raised and answered when the date was offered.
+		// The player's queries were raised and answered when the date was offered. A standard, a cover or a comedy routine
+		// isn't the record the standards department has on file.
 		foreach (Candidate c in chosen.ToList()) {
-			if (c.Pitch != null) continue;
+			if (c.Pitch != null || c.Song != PerformedSong.Record) continue;
 			StandardsQuery query = MediaStandards.Review(program, date, episodeId + "|" + c.Record.baseRecord.recordId, c.Record, RegionOf(program), date.AddDays(-6));
 			if (query == null) continue;
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(c.Record.baseRecord.artistId);
@@ -363,15 +484,21 @@ public static partial class MediaAtmosphereService {
 			c.Query = query;
 			c.Alternate = alternate;
 			if (query.Resolution == StandardsResolution.Withdrawn) {
-				chosen.Remove(c); slots++;
+				chosen.Remove(c); free[(int)c.Lane]++;
 				ReleaseReservation(c, episodeId);
 				Remember(program.Id, c.Record.baseRecord.artistId, m => { m.Withdrawn++; m.LastNote = "withdrew rather than change the song"; });
 			}
 		}
+		int before = chosen.Count;
 		Fill();
+		foreach (Candidate c in chosen.Skip(before)) ChooseSong(c, program, episodeId, evidence);
 		// Telemetry: how much of the finite bill the combined pool filled (player, rivals who said yes).
-		Ledger(program.Network == TvNetwork.Local ? "slots-local-filled" : "slots-network-filled", chosen.Count);
-		if (slots > 0) Ledger((program.Network == TvNetwork.Local ? "slots-local-empty" : "slots-network-empty") + (episodeDeclines > 0 ? "-declined" : "-nopool"), slots);
+		string scope = program.BooksNationally ? "network" : "local";
+		Ledger("slots-" + scope + "-filled", chosen.Count);
+		if (Free() > 0) Ledger("slots-" + scope + "-empty" + (episodeDeclines > 0 ? "-declined" : "-nopool"), Free());
+		if (bill.Standing > 0) { Ledger("slots-standing-filled", chosen.Count(c => c.Lane == BillLane.Standing)); Ledger("slots-standing-empty", free[1]); }
+		if (bill.Comedy > 0) { Ledger("slots-comedy-filled", chosen.Count(c => c.Lane == BillLane.Comedy)); Ledger("slots-comedy-empty", free[2]); }
+		foreach (Candidate c in chosen) Ledger("song-" + c.Lane + "-" + c.Song);
 		if (chosen.Count == 0) return;
 
 		// Running order: a variety bill closes on its biggest name; a dance show plays them as they come.
@@ -390,8 +517,8 @@ public static partial class MediaAtmosphereService {
 			var appearance = new MediaAppearance {
 				Id = episodeId + "|" + i, ProgramId = program.Id, EpisodeId = episodeId, Date = date, SlotIndex = i, SlotCount = order.Count,
 				ArtistId = record.baseRecord.artistId, ArtistName = record.baseRecord.artistName, RecordId = record.baseRecord.recordId,
-				Title = record.baseRecord.title, LabelId = record.baseRecord.labelId, Genre = record.baseRecord.primaryGenre,
-				ChartPosition = record.currentPosition, Discovery = c.Discovery, Method = program.Method, Broadcast = version.Broadcast,
+				Title = c.SongTitle ?? record.baseRecord.title, LabelId = record.baseRecord.labelId, Genre = record.baseRecord.primaryGenre,
+				ChartPosition = record.currentPosition, Discovery = c.Discovery, Method = program.Method, Broadcast = version.Broadcast, Lane = c.Lane, Song = c.Song,
 				PlayerBooking = c.Pitch != null, Headliner = c.Headliner, Hype = c.Headliner ? hype : 0f, EventLift = eventLift, TuneIn = tuneIn,
 				Preparation = c.Pitch?.Preparation ?? c.Prep ?? AiPreparation(record.baseRecord.labelId),
 			};
@@ -514,6 +641,7 @@ public static partial class MediaAtmosphereService {
 				Id = episode.Id + "|r" + old.SlotIndex, ProgramId = program.Id, EpisodeId = episode.Id, Date = episode.Date, SlotIndex = old.SlotIndex,
 				SlotCount = old.SlotCount, ArtistId = old.ArtistId, ArtistName = old.ArtistName, RecordId = old.RecordId, Title = old.Title,
 				LabelId = old.LabelId, Genre = old.Genre, ChartPosition = old.ChartPosition, RepeatOfId = old.Id, Method = old.Method, Broadcast = old.Broadcast,
+				Lane = old.Lane, Song = old.Song,
 			};
 			AddAirings(repeat, program, version, 0f, RepeatNovelty, ChartManager.Instance?.GetAllRegions());
 			foreach (MediaAiring airing in repeat.Airings) airing.Repeat = true;
@@ -549,11 +677,14 @@ public static partial class MediaAtmosphereService {
 
 	private static List<Candidate> Candidates(TvProgram program, GameDate date, Evidence evidence) {
 		var list = new List<Candidate>();
-		if (program.Network == TvNetwork.Local) {
+		if (!program.BooksNationally) {
 			string region = DistanceModel.GetCityById(program.HomeCityId)?.parentRegionId;
 			if (region == null || !evidence.RegionalBest.TryGetValue(region, out var best) || best.Count == 0) return list;
 			int top = best[0].Units;
+			// A country or soul hour books its own audience's records, not whatever the town is buying.
+			float fitFloor = program.Kind == TvProgramKind.MusicShow ? 0.5f : 0f;
 			foreach (var (record, units) in best) {
+				if (program.GenreFit(record.baseRecord.primaryGenre) < fitFloor) continue;
 				bool hometown = evidence.CityOf(record.baseRecord.artistId) == program.HomeCityId;
 				float local = units / (float)Math.Max(1, top);
 				float score = program.GenreFit(record.baseRecord.primaryGenre) * (0.4f + local) * (hometown ? 1.6f : 1f);
@@ -563,20 +694,23 @@ public static partial class MediaAtmosphereService {
 			}
 			// The region's own acts, further down the reports: cheap to bring in, and a local show's natural bench (§3.1).
 			foreach (var (record, units) in evidence.RegionalLocals(region)) {
-				if (list.Any(c => c.Record == record)) continue;
+				if (list.Any(c => c.Record == record) || program.GenreFit(record.baseRecord.primaryGenre) < fitFloor) continue;
 				bool hometown = evidence.CityOf(record.baseRecord.artistId) == program.HomeCityId;
 				float score = program.GenreFit(record.baseRecord.primaryGenre) * (0.3f + 0.5f * units / (float)Math.Max(1, top)) * (hometown ? 1.6f : 1f);
 				list.Add(new Candidate { Record = record, Score = score, Discovery = hometown || record.currentPosition == 0 || record.currentPosition > 60 });
 			}
 			return list;
 		}
+		// A specialist hour with no ceiling takes any record of its music on the national chart.
+		int ceiling = program.ChartCeiling > 0 ? program.ChartCeiling : 100;
+		float nationalFitFloor = program.Kind == TvProgramKind.MusicShow ? 0.5f : 0f;
 		foreach (RecordRuntimeData record in evidence.Chart) {
 			int pos = record.currentPosition;
-			if (pos <= 0) continue;
-			bool ordinary = pos <= program.ChartCeiling;
+			if (pos <= 0 || program.GenreFit(record.baseRecord.primaryGenre) < nationalFitFloor) continue;
+			bool ordinary = pos <= ceiling;
 			bool discovery = program.DiscoverySlot && !ordinary && evidence.Broke(record);
 			if (!ordinary && !discovery) continue;
-			float strength = ordinary ? 1f - (pos - 1) / (float)Math.Max(1, program.ChartCeiling) : 0.35f;
+			float strength = ordinary ? 1f - (pos - 1) / (float)Math.Max(1, ceiling) : 0.35f;
 			float score = program.GenreFit(record.baseRecord.primaryGenre) * (0.25f + strength);
 			list.Add(new Candidate { Record = record, Score = score, Discovery = discovery });
 		}
@@ -587,6 +721,78 @@ public static partial class MediaAtmosphereService {
 					if (record.currentPosition == 0 && evidence.Broke(record) && list.All(c => c.Record != record))
 						list.Add(new Candidate { Record = record, Score = program.GenreFit(record.baseRecord.primaryGenre) * 0.3f, Discovery = true });
 		return list;
+	}
+
+	/// <summary>
+	/// Standing and comedy candidates (§5.2): recording acts the audience already knows, scored on recognition, the
+	/// program's audience fit, and how long ago the last hit was. A current top-40 act is left to the chart lane when the
+	/// bill has one. Each candidate carries the act's latest live record as the campaign the date is charged to.
+	/// </summary>
+	private static List<Candidate> StandingCandidates(TvProgram program, GameDate date, Evidence evidence, BillLane lane) {
+		var list = new List<Candidate>();
+		bool chartLane = program.BillOn(date).Chart > 0;
+		// A local program's standing guests are its own region's names; a network or national talk show calls anyone.
+		string region = program.BooksNationally ? null : DistanceModel.GetCityById(program.HomeCityId)?.parentRegionId;
+		foreach (StandingAct s in evidence.StandingActs()) {
+			if (s.Comedy != (lane == BillLane.Comedy) || s.Recognition < (s.Comedy ? program.ComedyFloor : program.StandingFloor)) continue;
+			float fit = program.GenreFit(s.Vehicle.baseRecord.primaryGenre);
+			if (fit < 0.5f) continue;
+			if (chartLane && lane == BillLane.Standing && evidence.OnTop40(s.Artist.artistId)) continue;
+			if (region != null && DistanceModel.GetCityById(evidence.CityOf(s.Artist.artistId) ?? "")?.parentRegionId != region) continue;
+			int years = s.LastHitYear > 0 ? Math.Max(0, date.year - s.LastHitYear) : 6;
+			float recency = 1f / (1f + 0.12f * years);
+			list.Add(new Candidate { Record = s.Vehicle, Score = 2f * s.Recognition * fit * recency, Lane = lane });
+		}
+		return list;
+	}
+
+	/// <summary>
+	/// What a booked act sings (SimTools/MediaTvHeadlinerBookingDesign.md). A chart booking sings its record. A standing
+	/// act with a fresh single sings that; otherwise it sings what such acts sang on 1960-64 variety bills: mostly a
+	/// standard from its own songbook, sometimes another act's current hit, now and then its own best-known hit. A
+	/// comedian does a routine. Keyed on the episode and act, so a second read gives the same song.
+	/// </summary>
+	private static void ChooseSong(Candidate c, TvProgram program, string episodeId, Evidence evidence) {
+		Record rec = c.Record.baseRecord;
+		if (c.Lane == BillLane.Chart || c.Pitch != null) { c.Song = PerformedSong.Record; return; }
+		if (c.Lane == BillLane.Comedy) {
+			c.Song = PerformedSong.Routine;
+			c.SongTitle = rec.format == ReleaseFormat.Single ? "a routine" : $"a routine from \"{rec.title}\"";
+			return;
+		}
+		string key = episodeId + "|" + rec.artistId;
+		// A charting single gets sung half the time, a fresh one that isn't selling a fifth: even acts with a current
+		// record mostly did standards on a variety bill.
+		float r = MediaAtmosphere.Unit("song-record|" + key);
+		if (rec.format == ReleaseFormat.Single && (c.Record.currentPosition > 0 ? r < 0.5f : c.Record.weeksSinceRelease <= 12 && r < 0.2f)) {
+			c.Song = PerformedSong.Record; return;
+		}
+		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.artistId);
+		float u = MediaAtmosphere.Unit("song|" + key);
+		string ownHit = artist == null ? null : evidence.BestKnownHit(artist);
+		GenreFamily family = GenreCatalog.TryGet(rec.primaryGenre, out var profile) ? profile.Family : GenreFamily.Pop;
+		if (ownHit != null && u < 0.10f) { c.Song = PerformedSong.OwnHit; c.SongTitle = ownHit; return; }
+		if (u < 0.28f) {
+			var hits = evidence.Chart.Where(r => r.currentPosition is > 0 and <= 30 && r.baseRecord.artistId != rec.artistId
+					&& (GenreCatalog.TryGet(r.baseRecord.primaryGenre, out var p) ? p.Family : GenreFamily.Pop) == family)
+				.OrderBy(r => r.currentPosition).ToList();
+			if (hits.Count > 0) {
+				c.Song = PerformedSong.CurrentCover;
+				c.SongTitle = hits[(int)(MediaAtmosphere.Unit("cover|" + key) * hits.Count) % hits.Count].baseRecord.title;
+				return;
+			}
+		}
+		// The songbook: the act's family's best-known standards, read from the catalog without touching its draws.
+		var book = CompositionCatalogService.GetStandardsForFamily(family);
+		if (book == null || book.Count == 0) book = CompositionCatalogService.GetStandardsForFamily(GenreFamily.Pop);
+		var known = book?.Where(s => !string.IsNullOrEmpty(s.title)).OrderByDescending(s => s.adultFamiliarity).ThenBy(s => s.songId, StringComparer.Ordinal).Take(40).ToList();
+		if (known != null && known.Count > 0) {
+			c.Song = PerformedSong.Standard;
+			c.SongTitle = known[(int)(MediaAtmosphere.Unit("standard|" + key) * known.Count) % known.Count].title;
+			return;
+		}
+		if (ownHit != null) { c.Song = PerformedSong.OwnHit; c.SongTitle = ownHit; return; }
+		c.Song = PerformedSong.Record;
 	}
 
 	/// <summary>Producer judgment: fit and evidence, with a keyed spread so the same chart doesn't book the same bill
@@ -604,15 +810,16 @@ public static partial class MediaAtmosphereService {
 		return k;
 	}
 
-	/// <summary>Finite calendars (§5.1): one booking per act per day, a rebooking gap per program, a cap on national dates a week.</summary>
-	private static bool Available(RecordRuntimeData record, TvProgram program, GameDate date) {
+	/// <summary>Finite calendars (§5.1): one booking per act per day, a rebooking gap per program, a cap on national dates a
+	/// week. A name booked for its standing gets one national date a week; an act with a current hit can take two.</summary>
+	private static bool Available(RecordRuntimeData record, TvProgram program, GameDate date, int maxNationalThisWeek = MaxNationalPerActPerWeek) {
 		string artist = record.baseRecord.artistId;
 		int today = BroadcastExposure.DayIndex(date);
 		int nationalThisWeek = 0;
 		// A breached agreement shuts that program's door for a while (§7.3); the network's other shows only grow wary
 		// for a year, never an industry-wide blacklist (§2).
 		if (state.ProgramMemory.TryGetValue(program.Id + "|" + artist, out var memory) && memory.ExcludedUntilDay > today) return false;
-		if (program.Network != TvNetwork.Local && state.ProgramMemory.TryGetValue("network:" + program.Network + "|" + artist, out var review)
+		if (program.BooksNationally && state.ProgramMemory.TryGetValue("network:" + program.Network + "|" + artist, out var review)
 			&& review.ExcludedUntilDay > today && MediaAtmosphere.Unit("network-review|" + program.Id + "|" + artist + "|" + today) < 0.5f) return false;
 		if (!byArtist.TryGetValue(artist, out var mine)) return true;
 		foreach (MediaAppearance a in mine) {
@@ -620,9 +827,9 @@ public static partial class MediaAtmosphereService {
 			int day = BroadcastExposure.DayIndex(a.Date);
 			if (day == today) return false;
 			if (a.ProgramId == program.Id && today - day < 7 * program.RebookWeeks) return false;
-			if (Math.Abs(today - day) < 7 && MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local) nationalThisWeek++;
+			if (Math.Abs(today - day) < 7 && MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true) nationalThisWeek++;
 		}
-		return program.Network == TvNetwork.Local || nationalThisWeek < MaxNationalPerActPerWeek;
+		return !program.BooksNationally || nationalThisWeek < maxNationalThisWeek;
 	}
 
 	// ---- tallies and history ---------------------------------------------------------------------------------------

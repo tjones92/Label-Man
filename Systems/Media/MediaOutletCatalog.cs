@@ -3,7 +3,34 @@ using System.Collections.Generic;
 using System.Linq;
 
 public enum TvNetwork { Local, ABC, CBS, NBC, Syndicated }
-public enum TvProgramKind { LocalTeenDance, NationalTeen, PrimetimeVariety }
+public enum TvProgramKind {
+	LocalTeenDance, NationalTeen, PrimetimeVariety,
+	/// <summary>Late-night and daytime talk: a host, a couch, a singer and a comic most nights.</summary>
+	TalkShow,
+	/// <summary>A specialist music hour: country, rhythm and soul, or folk, booked for its own audience.</summary>
+	MusicShow,
+}
+
+/// <summary>Which part of a bill a guest fills (§5.2 bill balance).</summary>
+public enum BillLane {
+	/// <summary>A current record off this week's evidence: the chart, a region's report, the discovery slot.</summary>
+	Chart,
+	/// <summary>An act the public already knows, booked on standing fame with or without a current single.</summary>
+	Standing,
+	/// <summary>A comedian who makes records.</summary>
+	Comedy,
+}
+
+/// <summary>
+/// How a program fills its bill from a date. Chart slots read this week's records, standing slots the recording acts the
+/// audience already knows, comedy slots the comedians who make records. The rest of a real variety bill (Broadway casts,
+/// opera and concert artists, dancers, circus and novelty acts) are not record-business guests and are not modelled.
+/// </summary>
+public sealed class BillPlan {
+	public GameDate From;
+	public int Chart, Standing, Comedy;
+	public int Total => Chart + Standing + Comedy;
+}
 /// <summary>How the music is made on camera (§3, §6). Independent of how the picture reaches viewers.</summary>
 public enum PerformanceMethod { Mime, LiveVocalOverTrack, LiveBandAndVocal, HouseOrchestra }
 /// <summary>How the picture reaches viewers (§3). A taped show can still carry a live musical performance.</summary>
@@ -37,7 +64,10 @@ public sealed class BroadcastScheduleVersion {
 	public int[] RepeatMonths = Array.Empty<int>();
 	public SourceConfidence Confidence;
 	public string Note;
-	public bool Covers(GameDate date) => date >= First && date <= Last && Days.Contains(date.DayOfWeek);
+	/// <summary>Weeks between episodes: 1 weekly, 4 for a show that became a monthly special. Counted from <see cref="First"/>.</summary>
+	public int IntervalWeeks = 1;
+	public bool Covers(GameDate date) => date >= First && date <= Last && Days.Contains(date.DayOfWeek)
+		&& (IntervalWeeks <= 1 || (BroadcastExposure.DayIndex(date) - BroadcastExposure.DayIndex(First)) / 7 % IntervalWeeks == 0);
 }
 
 /// <summary>A market a syndicated tape reaches, from a date, a number of weeks behind the origin, at its own local hour.</summary>
@@ -71,6 +101,23 @@ public sealed class TvProgram {
 	public List<SyndicationMarket> Syndication = new();
 	public SourceConfidence Confidence;
 	public string Source;
+	/// <summary>Dated bill plans, oldest first. None: every guest slot is a chart slot (the teen and dance shows).</summary>
+	public List<BillPlan> Bills = new();
+	/// <summary>The public recognition a standing guest needs before this booker calls (§5.2: national shows read broad response).</summary>
+	public float StandingFloor = 0.20f;
+	/// <summary>The same for a comedian. A comic's name is made in clubs and on television more than on records, so the
+	/// recognition the game tracks (record-driven) runs low for them.</summary>
+	public float ComedyFloor = 0.06f;
+	/// <summary>Books from the national pool even though it is made by one station (a nationally syndicated talk show).</summary>
+	public bool NationalBooking;
+	/// <summary>Share of stations carrying a nationally syndicated program (initial design value; no network clears it).</summary>
+	public float SyndicatedClearance = 0.5f;
+	public bool BooksNationally => NationalBooking || Network != TvNetwork.Local;
+	/// <summary>Announces a headliner weeks ahead and builds an event night around it (§4.5 advertised guest).</summary>
+	public bool AnnouncesHeadliners;
+
+	public BillPlan BillOn(GameDate date) => Bills.LastOrDefault(b => b.From <= date) ?? new BillPlan { From = date, Chart = GuestSlots };
+	public int SlotsOn(GameDate date) => BillOn(date).Total;
 
 	public BroadcastScheduleVersion VersionOn(GameDate date) => Schedule.FirstOrDefault(v => v.Covers(date));
 	public bool OnAir(GameDate date) => Schedule.Any(v => date >= v.First && date <= v.Last);
@@ -112,7 +159,7 @@ public sealed class PressOutlet {
 /// cities; everything else is a labelled approximation or a fictional local program. Fictional local shows are keyed
 /// on the world seed, so two worlds differ and one world never changes on reload.
 /// </summary>
-public static class MediaOutletCatalog {
+public static partial class MediaOutletCatalog {
 	public const int ViewerGroups = 4; // Child, Teen, YoungAdult, Adult — see BroadcastExposure.ViewerGroup
 
 	private static readonly Dictionary<string, TimeZoneBand> zones = new(StringComparer.Ordinal) {
@@ -164,7 +211,12 @@ public static class MediaOutletCatalog {
 		builtForSeed = seed;
 		programs = new List<TvProgram>();
 		AddNational();
+		// The original national hours stage advertised headline nights (§4.5); the singers' hours, talk shows and
+		// specialist programs added later book their bills without an event build-up.
+		foreach (TvProgram p in programs) p.AnnouncesHeadliners = true;
 		AddHistoricalLocals();
+		AddVarietyAndTalk();
+		AddSpecialistAndLocalMusic();
 		AddFictionalLocals();
 		press = BuildPress();
 	}
@@ -276,6 +328,11 @@ public static class MediaOutletCatalog {
 		sullivan.Schedule.Add(new BroadcastScheduleVersion { First = D(1948, 6, 20), Last = Horizon, Days = new[] { DayOfWeek.Sunday }, StartMinute = Clock(20), DurationMinutes = 60,
 			Carriage = CarriageRule.NetworkPrimetime, Broadcast = BroadcastMethod.Live, ProductionCityId = "new_york", RepeatMonths = new[] { 7, 8 },
 			Confidence = SourceConfidence.Documented, Note = "Live in the East; the West sees it on a delayed tape at the same clock hour." });
+		// CTVA episode guides 1959-70 (SimTools/MediaTvHeadlinerBookingDesign.md): about four musical guests an episode, of
+		// whom 0.6 (1960-63) to 1.0 (1964-69) had a current hit; a quarter to a third were Broadway, opera and concert
+		// artists; the rest were recording stars booked on their names. One or two comedians most weeks.
+		sullivan.Bills.Add(new BillPlan { From = D(1948, 6, 20), Chart = 1, Standing = 2, Comedy = 1 });
+		sullivan.Bills.Add(new BillPlan { From = D(1964, 1, 1), Chart = 2, Standing = 2, Comedy = 1 });
 		programs.Add(sullivan);
 
 		var palace = new TvProgram {
@@ -290,6 +347,7 @@ public static class MediaOutletCatalog {
 			Carriage = CarriageRule.NetworkPrimetime, Broadcast = BroadcastMethod.Taped, ProductionCityId = "los_angeles", Confidence = SourceConfidence.Approximate, Note = "Tuesday run; hour approximate." });
 		palace.Schedule.Add(new BroadcastScheduleVersion { First = D(1968, 2, 1), Last = D(1970, 2, 7), Days = new[] { DayOfWeek.Saturday }, StartMinute = Clock(21, 30), DurationMinutes = 60,
 			Carriage = CarriageRule.NetworkPrimetime, Broadcast = BroadcastMethod.Taped, ProductionCityId = "los_angeles", RepeatMonths = new[] { 7, 8 }, Confidence = SourceConfidence.Documented });
+		palace.Bills.Add(new BillPlan { From = D(1964, 1, 4), Chart = 1, Standing = 2, Comedy = 1 });
 		programs.Add(palace);
 
 		var smothers = new TvProgram {
@@ -359,7 +417,8 @@ public static class MediaOutletCatalog {
 	private static readonly string[] LocalHostLast = { "Kane", "Dawson", "Marsh", "Tully", "Brenner", "Crowell", "Fisk", "Hollis", "Lacey", "Mercer", "Pryor", "Stroud" };
 
 	private static void AddFictionalLocals() {
-		var documented = programs.Where(p => p.HomeCityId != null).GroupBy(p => p.HomeCityId)
+		// Only a documented dance show displaces the fictional one; a country hour or a talk show in the same town doesn't.
+		var documented = programs.Where(p => p.HomeCityId != null && p.Kind == TvProgramKind.LocalTeenDance).GroupBy(p => p.HomeCityId)
 			.ToDictionary(g => g.Key, g => g.SelectMany(p => p.Schedule).ToList(), StringComparer.Ordinal);
 		foreach (string city in metro1960.Keys.OrderBy(c => c, StringComparer.Ordinal)) {
 			// A second fictional show runs in the two biggest markets, where several stations fought for the after-school crowd.
