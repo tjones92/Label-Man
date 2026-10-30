@@ -113,6 +113,12 @@ public sealed class TvProgram {
 	/// <summary>Share of stations carrying a nationally syndicated program (initial design value; no network clears it).</summary>
 	public float SyndicatedClearance = 0.5f;
 	public bool BooksNationally => NationalBooking || Network != TvNetwork.Local;
+	/// <summary>Rehearsal the production runs, separate from what the label arranged. Network variety blocks cameras and holds a dress
+	/// rehearsal before an audience ahead of air (Sullivan: camera rehearsal, then a dress at five for the eight o'clock
+	/// show); a talk or music hour runs the number once with the band. Teen and dance shows are a run-through at most.</summary>
+	public float ProductionReadiness => !BooksNationally ? 0f : Kind switch {
+		TvProgramKind.PrimetimeVariety => 0.80f, TvProgramKind.TalkShow or TvProgramKind.MusicShow => 0.55f, _ => 0f,
+	};
 	/// <summary>Announces a headliner weeks ahead and builds an event night around it (§4.5 advertised guest).</summary>
 	public bool AnnouncesHeadliners;
 

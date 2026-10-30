@@ -82,8 +82,13 @@ public static class MediaPerformance {
 	/// Resolve a segment. <paramref name="key"/> is the appearance id: every draw is keyed on it and a purpose word.
 	/// Prepared, skilled acts usually deliver; sloppy, under-rehearsed ones carry a meaningful bad-show tail. Equipment
 	/// trouble is its own small draw, never charged to the act. A taped show can retake a failure if the producer will.
+	/// <paramref name="productionReadiness"/> is the rehearsal the program itself runs (<see cref="TvProgram.ProductionReadiness"/>):
+	/// an act that has been through a camera and dress rehearsal and slips mid-number usually gets through it audibly weak
+	/// rather than coming apart. It doesn't stand in for the label's own preparation: blocking the cameras doesn't learn the
+	/// act the number, so an under-rehearsed act still slips more often and sparks less.
 	/// </summary>
-	public static MediaPerformanceResult Resolve(string key, PerformanceMethod method, BroadcastMethod broadcast, SimulatedArtist artist, MediaPreparation prep) {
+	public static MediaPerformanceResult Resolve(string key, PerformanceMethod method, BroadcastMethod broadcast, SimulatedArtist artist, MediaPreparation prep,
+		float productionReadiness = 0f) {
 		float U(string purpose) => MediaAtmosphere.Unit("perform|" + key + "|" + purpose);
 		float musical = MusicalSkill(method, artist);
 		float presence = Presence(artist);
@@ -107,7 +112,9 @@ public static class MediaPerformance {
 		bool bad = U("tail") < badChance;
 
 		if (equipment || bad) {
-			bool severe = U("severity") < (mime ? 0.25f : 0.35f + 0.3f * (1f - skill));
+			// A full collapse on a rehearsed network production was very rare: no Sullivan musical guest is remembered for one.
+			float rehearsed = (1f - productionReadiness) * (1f - productionReadiness);
+			bool severe = U("severity") < (mime ? 0.25f : 0.35f + 0.3f * (1f - skill)) * rehearsed;
 			result.Outcome = severe ? PerformanceOutcome.Breakdown : PerformanceOutcome.Weak;
 			result.Fault = equipment ? PerformanceFault.Equipment
 				: ready < 0.5f && U("blame") < 0.6f ? PerformanceFault.Preparation : PerformanceFault.Artist;

@@ -202,11 +202,79 @@ whole year; appearance lists keep the last 26 weeks.
 - **Empty comedy slots**: in seed 2002, 30 of 442 comedy slots filled. Read an empty comedy slot as a club comic who
   doesn't make records, which is most of what Sullivan's comedians were.
 
+## Follow-up: live breakdowns, star coverage, return gap
+
+### Research
+
+- **Sullivan return gaps**, from the same CTVA guides: 1,801 music appearances, 978 acts, 823 returns.
+
+  | Gap to the act's next Sullivan date | Returns | Share |
+  |---|---:|---:|
+  | 1 week | 4 | 0.5% |
+  | 2-4 weeks | 13 | 1.6% |
+  | 5-8 weeks | 80 | 10% |
+  | 9-13 weeks | 62 | 7.5% |
+  | over 13 weeks | 664 | 81% |
+
+  The four consecutive-week returns are all British Invasion package deals: the Beatles' three-show contract, the Dave
+  Clark Five, and Gerry and the Pacemakers. The most-booked music act, Connie Francis, made 22 appearances in 11
+  seasons. No dated source turned up for one act on two different national shows in the same week.
+- **Live-TV incidents.** The well-known ones are mostly not musical collapses:
+  - Defying the network's standards: the Doors on Sullivan, 1967. The game already sends a defied standards query to
+    every news magazine, the teen magazines and the critics.
+  - Production or equipment trouble: Sam Cooke cut off when Sullivan overran (1957), and the Who's flash powder on
+    the Smothers Brothers (1967).
+  - No Sullivan musical guest is remembered for simply falling apart on the air.
+- **Rehearsal.** Sullivan's show day was a camera rehearsal, a dress rehearsal before an audience, then the live show.
+  The Beatles' 1964 and 1965 days followed that pattern.
+- **Target:** one or two genuine on-air musical collapses a year across all live network television.
+
+### Changes
+
+- **`TvProgram.ProductionReadiness`**: the rehearsal the production runs itself. Network variety 0.80; talk and music
+  hours 0.55; teen and dance shows 0.
+  - It scales the share of bad nights that become a breakdown by (1 − production)². A rehearsed act that slips
+    finishes audibly Weak.
+  - It doesn't replace the label's preparation. That still sets how often an act slips and how far past adequate a
+    good night goes. Checked: on Sullivan, Extra preparation gives about 100-115 weak-or-worse nights in 800, against
+    about 155-160 with Minimal.
+- **Star coverage**: a live breakdown by a known name still goes to one keyed news magazine. A star's goes to all of
+  them. A star is a top-3 record, recognition ≥ 0.70, or a national sensation or cultural phenomenon fan state.
+- **Return gap**: a name booked on standing waits 13 weeks (`StandingReturnWeeks`) before returning to the same
+  primetime variety hour. Chart bookings keep the program's own `RebookWeeks`.
+- **Logging**: `MEDIA_PRESS` adds `nationalLive=[...]`, the outcomes of live, non-mimed national segments.
+- **Checks** (140):
+  - Added: a rehearsed network production rarely sees a collapse; the label's own rehearsal still matters on a
+    network show.
+  - The Rolodex and player-loop fixtures assumed Cleveland always had a local show on air. The ConfigVersion 4 re-key
+    can leave it between shows, so the label now founds in a town with a local dance show on the air, Cleveland when
+    it has one. The producer check is now relational.
+
+### Results (1960, 53 weeks, last 26 weeks)
+
+| Seed | Live non-mime national segments | Breakdown | Weak | Busiest standing acts (dates) |
+|---|---:|---:|---:|---|
+| 1001 | 161 | 0 | 18 | 15, 14, 14, 13 (was 18, 17, 15, 14) |
+| 2002 | 142 | 0 | 17 | 14, 13, 13, 13 |
+
+- **Breakdowns**: about 300 live national segments a year at 0.2-0.5% should give one or two collapses a year; zero in
+  52 seed-half-years is inside that. The remaining 21-25 breakdowns a half-year are on local, mimed or taped shows.
+- **Busiest guests** barely move. The 13-week gap holds per show, but a standing name rotates across some 20 variety
+  and talk shows. History suggests a top singer made roughly 10-20 national appearances a year; the sim gives 26-30.
+  An act-level limit (for example national standing dates per 13 weeks) would close it; not built.
+
+**Economy inertness**: 104-week runs at seeds 1001 and 2002 against `SimLogs/ref-f50b9a4-<seed>-104`, same flags as
+above: 106/106 economy CSVs byte-identical for each seed.
+
 ## Open
 
+- **Career effect of a TV performance**: the outcome feeds fan attachment (`Spark`), press tone and outlets, the
+  player's producer trust and letters. Nothing reaches recognition, sales or career state; media is observe-only until
+  the Phase 4 adapter. A new act's poorly rehearsed national debut therefore costs it fan evidence and press, not
+  fame or units.
+- **National appearance volume per act**: see the follow-up results.
 - **AI planner pitches** still need a chart record. Standing acts get booked because producers call them directly, so a
   standing act's label never sends a disc.
-- **Sullivan's live breakdown rate** (performance model): see above.
 - **Recognition durability** for the 1960 standard-bearers through the decade is unmeasured. The 53-week run shows them
   booked steadily in 1960; a decade run will show whether they fade off the bills by about 1963.
 - **The comedy pool** depends on how many comedy acts the world signs. If comedy records stay scarce, the comedy lane

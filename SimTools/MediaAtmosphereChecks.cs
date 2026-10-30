@@ -178,7 +178,15 @@ public partial class MediaAtmosphereChecks : Node {
 			$"Aired appearances enter the act tallies ({MediaAtmosphereService.Tallies.Count} acts)");
 
 		var desk = PlayerDesk.Instance;
-		if (desk.Label == null) desk.FoundLabel("Media Checks", "cleveland", FoundingArchetype.ExMusician, out _);
+		if (desk.Label == null) {
+			// The fictional local shows are keyed per world, so Cleveland may be between shows; found the label in a town
+			// with a local dance show on the air through the player-loop fixture, Cleveland when it has one.
+			bool airing(TvProgram p) => p.Network == TvNetwork.Local && p.Kind == TvProgramKind.LocalTeenDance && p.HomeCityId != null
+				&& p.Runs(clock.CurrentDate) && p.Runs(clock.CurrentDate.AddDays(90));
+			string town = MediaOutletCatalog.Programs.Where(airing).Select(p => p.HomeCityId)
+				.OrderBy(c => c == "cleveland" ? 0 : 1).ThenBy(c => c, StringComparer.Ordinal).FirstOrDefault() ?? "cleveland";
+			desk.FoundLabel("Media Checks", town, FoundingArchetype.ExMusician, out _);
+		}
 		int before = MediaAtmosphereService.Appearances.Count;
 		GameRandom.Seed(4242); desk.TelevisionColumn(clock.CurrentDate); RolodexDirectory.Cards(desk, RolodexRole.Press); uint r1 = GameRandom.Randi();
 		GameRandom.Seed(4242); uint r2 = GameRandom.Randi();
@@ -187,7 +195,11 @@ public partial class MediaAtmosphereChecks : Node {
 		Check(column.SequenceEqual(desk.TelevisionColumn(clock.CurrentDate)), "The television column reads the same twice");
 		foreach (string line in column) GD.Print("  paper: " + line);
 		var cards = RolodexDirectory.Cards(desk, RolodexRole.Press);
-		Check(cards.Any(c => c.Firm.Contains("Upbeat") || c.Firm.Contains("Big 5")) || cards.Any(c => c.Title == "Producer"), $"PRESS & TV lists the local producer ({cards.Count} cards)");
+		// Relational: which local show is on the air in the label's town depends on the keyed fictional catalog.
+		bool localOnAir = MediaOutletCatalog.Programs.Any(p => p.Network == TvNetwork.Local && (p.HomeCityId == desk.Label.homeCityId || p.HomeCityId == desk.CurrentCityId)
+			&& p.VersionOn(clock.CurrentDate) != null);
+		Check(cards.Any(c => c.Title == "Producer") == localOnAir && cards.Any(c => c.Title == "Talent booker"),
+			$"PRESS & TV lists a local producer exactly when a local show is on the air (local on air: {localOnAir}; {cards.Count} cards: {string.Join("; ", cards.Select(c => c.Title + " @ " + c.Firm))})");
 		foreach (var c in cards.Take(4)) GD.Print($"  card: {c.Name}, {c.Title}, {c.Firm} — {c.Facts.FirstOrDefault().Text}");
 
 		var opts = new JsonSerializerOptions { IncludeFields = true };
@@ -278,6 +290,17 @@ public partial class MediaAtmosphereChecks : Node {
 		Check(weakPrepared < weakBad, $"Rehearsal trims the avoidable errors ({weakPrepared} vs {weakBad}), not all of them");
 		int weakTaped = Bad(weak, MediaPreparation.Minimal, PerformanceMethod.LiveBandAndVocal, BroadcastMethod.Taped);
 		Check(weakTaped < weakBad, $"Tape forgives a bad take the producer lets them reshoot ({weakTaped} vs {weakBad} live)");
+		// A network variety production's own camera and dress rehearsal: a weak unrehearsed act still slips, rarely collapses.
+		float variety = MediaOutletCatalog.Get("ed_sullivan").ProductionReadiness;
+		int Collapses(float production) => Enumerable.Range(0, n).Count(i => MediaPerformance.Resolve("probe-" + i, PerformanceMethod.LiveVocalOverTrack,
+			BroadcastMethod.Live, weak, MediaPreparation.Minimal, production).Outcome == PerformanceOutcome.Breakdown);
+		int bare = Collapses(0f), rehearsed = Collapses(variety);
+		Check(variety > 0f && rehearsed <= n * 0.01 && rehearsed < bare / 5,
+			$"A rehearsed network production rarely sees a collapse ({rehearsed}/{n} for a weak act, {bare}/{n} with no production rehearsal)");
+		int Slips(MediaPreparation p) => Enumerable.Range(0, n).Count(i => MediaPerformance.Resolve("probe-" + i, PerformanceMethod.LiveVocalOverTrack,
+			BroadcastMethod.Live, weak, p, variety).Outcome <= PerformanceOutcome.Weak);
+		int slipsBare = Slips(MediaPreparation.Minimal), slipsReady = Slips(MediaPreparation.Extra);
+		Check(slipsReady < slipsBare, $"On a network show the label's own rehearsal still matters ({slipsReady} vs {slipsBare} weak or worse of {n})");
 		var mimes = Enumerable.Range(0, n).Select(i => MediaPerformance.Resolve("mime-" + i, PerformanceMethod.Mime, BroadcastMethod.Live, weak, MediaPreparation.Minimal)).ToList();
 		Check(mimes.All(r => r.SoundFromMaster) && mimes.Any(r => r.Outcome <= PerformanceOutcome.Weak),
 			$"A mime's sound is the master; its failures are on camera ({mimes.Count(r => r.Outcome <= PerformanceOutcome.Weak)} of {n})");

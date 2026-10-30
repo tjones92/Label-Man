@@ -346,15 +346,19 @@ public static partial class MediaAtmosphereService {
 				if (program.Kind == TvProgramKind.NationalTeen && good && MediaOutletCatalog.TeenFit(a.Genre) >= 0.8f) lead.Outlets.AddRange(Outlets(PressFamily.TeenFan));
 				lead.Outlets.AddRange(Outlets(PressFamily.Specialist).Where(id => MediaOutletCatalog.GetPress(id).National));
 				// The news magazines notice a live disaster only when it happens to a name their readers know.
-				bool famous = a.ChartPosition is > 0 and <= 10 || ArtistRecognitionService.EffectiveRecognition(ArtistManager.Instance?.GetArtist(a.ArtistId)) >= 0.45f;
+				float recognition = ArtistRecognitionService.EffectiveRecognition(ArtistManager.Instance?.GetArtist(a.ArtistId));
+				bool famous = a.ChartPosition is > 0 and <= 10 || recognition >= 0.45f;
+				// A star's night going wrong is news everywhere, the way a Beatle or a Doors appearance was.
+				bool star = a.ChartPosition is > 0 and <= 3 || recognition >= 0.70f
+					|| EpisodeOf(a.ArtistId) is FanEpisodeState.NationalSensation or FanEpisodeState.CulturalPhenomenon;
 				bool calamity = outcome == PerformanceOutcome.Breakdown && a.Broadcast == BroadcastMethod.Live && reach > 15e6 && famous;
 				if (calamity || a.Headliner && reach > 40e6) {
 					lead.Story.Interest += calamity ? 0.6f : 0.9f;
 					lead.Story.Angle = calamity ? StoryAngle.TvNotice : StoryAngle.CulturalPhenomenon;
 					lead.Story.Tone = calamity ? StoryTone.Curious : StoryTone.Curious;
-					// A disaster on the air is a paragraph in one news magazine, not a cover story in all of them.
+					// A lesser name's disaster is a paragraph in one news magazine; a star's runs in all of them.
 					var mainstream = Outlets(PressFamily.Mainstream).ToList();
-					if (calamity && mainstream.Count > 0)
+					if (calamity && !star && mainstream.Count > 0)
 						lead.Outlets.Add(mainstream[(int)(MediaAtmosphere.Unit("calamity-desk|" + a.Id) * mainstream.Count) % mainstream.Count]);
 					else lead.Outlets.AddRange(mainstream);
 				}

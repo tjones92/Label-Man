@@ -137,6 +137,9 @@ public sealed class MediaSaveData {
 public static partial class MediaAtmosphereService {
 	private const int HistoryWeeks = 26;
 	private const int MaxNationalPerActPerWeek = 2;
+	/// <summary>Weeks before a name booked on standing returns to the same primetime variety hour. Of 823 Sullivan returns
+	/// 1959-70, 81% came more than 13 weeks later; the four in consecutive weeks were British Invasion package deals.</summary>
+	private const int StandingReturnWeeks = 13;
 	private const float RepeatNovelty = 0.55f;
 	/// <summary>Share of a returning program's audience that is new to the act (initial design value; regulars dominate).</summary>
 	private const double ReturnVisitNewShare = 0.25;
@@ -202,6 +205,7 @@ public static partial class MediaAtmosphereService {
 			$"[{string.Join(" ", queries.GroupBy(q => q.Resolution).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
 			$"controversies={state.Controversies.Count(c => FromDayIndex(c.StartDay).year == year)} " +
 			$"outcomes=[{string.Join(" ", mine.Where(a => a.Performance != null).GroupBy(a => a.Performance.Outcome).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
+			$"nationalLive=[{string.Join(" ", mine.Where(a => a.Performance != null && a.Broadcast == BroadcastMethod.Live && a.Method != PerformanceMethod.Mime && MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true).GroupBy(a => a.Performance.Outcome).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
 			$"bestNight=\"{bestNight?.ArtistName}\" {MediaOutletCatalog.Get(bestNight?.ProgramId ?? "")?.Name} {(bestNight?.Airings[0].Exposure.UniqueReach ?? 0) / 1e6:F1}M hype={bestNight?.Hype ?? 0:F2}");
 		// Phase 3: where the fans are, and what rival labels did with the envelopes they already had.
 		var fans = state.Fans.Values.ToList();
@@ -459,7 +463,7 @@ public static partial class MediaAtmosphereService {
 				List<Candidate> queue = queues[lane];
 				while (free[lane] > 0 && next[lane] < queue.Count) {
 					Candidate c = queue[next[lane]++];
-					if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date, lane == 0 ? MaxNationalPerActPerWeek : 1)) continue;
+					if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date, lane == 0 ? MaxNationalPerActPerWeek : 1, standing: lane == (int)BillLane.Standing)) continue;
 					if (!AiAccepts(c, program, date, episodeId, evidence)) continue;
 					c.Lane = (BillLane)lane;
 					chosen.Add(c); free[lane]--;
@@ -542,7 +546,8 @@ public static partial class MediaAtmosphereService {
 				if (c.Query.Resolution == StandardsResolution.Cut) appearance.Cut = true;
 			}
 			SimulatedArtist act = ArtistManager.Instance?.GetArtist(appearance.ArtistId);
-			if (!appearance.Cut) appearance.Performance = MediaPerformance.Resolve(appearance.Id, appearance.Method, appearance.Broadcast, act, appearance.Preparation);
+			if (!appearance.Cut) appearance.Performance = MediaPerformance.Resolve(appearance.Id, appearance.Method, appearance.Broadcast, act, appearance.Preparation,
+				program.ProductionReadiness);
 			// A taped breakdown nobody would retake is cut in the edit; a live one goes out as it happened.
 			if (appearance.Performance is { Outcome: PerformanceOutcome.Breakdown } && appearance.Broadcast == BroadcastMethod.Taped) appearance.Cut = true;
 			float guestDraw = i == order.Count - 1 && record.currentPosition > 0 && record.currentPosition <= 40 ? 0.10f * (1f - (record.currentPosition - 1) / 40f) : 0f;
@@ -811,10 +816,13 @@ public static partial class MediaAtmosphereService {
 	}
 
 	/// <summary>Finite calendars (§5.1): one booking per act per day, a rebooking gap per program, a cap on national dates a
-	/// week. A name booked for its standing gets one national date a week; an act with a current hit can take two.</summary>
-	private static bool Available(RecordRuntimeData record, TvProgram program, GameDate date, int maxNationalThisWeek = MaxNationalPerActPerWeek) {
+	/// week. A name booked for its standing gets one national date a week and waits a season before returning to the same
+	/// variety hour; an act with a current hit can take two and comes back sooner.</summary>
+	private static bool Available(RecordRuntimeData record, TvProgram program, GameDate date, int maxNationalThisWeek = MaxNationalPerActPerWeek,
+		bool standing = false) {
 		string artist = record.baseRecord.artistId;
 		int today = BroadcastExposure.DayIndex(date);
+		int rebookWeeks = standing && program.Kind == TvProgramKind.PrimetimeVariety ? Math.Max(program.RebookWeeks, StandingReturnWeeks) : program.RebookWeeks;
 		int nationalThisWeek = 0;
 		// A breached agreement shuts that program's door for a while (§7.3); the network's other shows only grow wary
 		// for a year, never an industry-wide blacklist (§2).
@@ -826,7 +834,7 @@ public static partial class MediaAtmosphereService {
 			if (a.RepeatOfId != null) continue;
 			int day = BroadcastExposure.DayIndex(a.Date);
 			if (day == today) return false;
-			if (a.ProgramId == program.Id && today - day < 7 * program.RebookWeeks) return false;
+			if (a.ProgramId == program.Id && today - day < 7 * rebookWeeks) return false;
 			if (Math.Abs(today - day) < 7 && MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true) nationalThisWeek++;
 		}
 		return !program.BooksNationally || nationalThisWeek < maxNationalThisWeek;
