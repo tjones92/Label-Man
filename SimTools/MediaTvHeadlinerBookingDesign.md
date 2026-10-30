@@ -259,9 +259,29 @@ whole year; appearance lists keep the last 26 weeks.
 
 - **Breakdowns**: about 300 live national segments a year at 0.2-0.5% should give one or two collapses a year; zero in
   52 seed-half-years is inside that. The remaining 21-25 breakdowns a half-year are on local, mimed or taped shows.
-- **Busiest guests** barely move. The 13-week gap holds per show, but a standing name rotates across some 20 variety
-  and talk shows. History suggests a top singer made roughly 10-20 national appearances a year; the sim gives 26-30.
-  An act-level limit (for example national standing dates per 13 weeks) would close it; not built.
+- **Busiest guests** barely moved under the per-show gap alone: a standing name rotates across some 20 variety and
+  talk shows. History suggests roughly 10-20 national appearances a year for a top singer; the sim gave 26-30.
+
+### Season limit
+
+A name booked on standing or as a comic can hold at most four national dates in any 13 weeks
+(`MaxNationalByNamePerSeason`), about 16 a year. Dates in any lane count toward it, including ones already booked
+ahead. A current hit still books through the chart lane without it.
+
+| Seed | Busiest acts, last 26 weeks | Standing slots empty | Comedy slots filled | Network slots filled |
+|---|---|---:|---:|---:|
+| 1001, gap only | 16, 15, 15, 15, 14, 13 | 25 of 640 | 147 | 1,567 |
+| 1001, with limit | 11 (10 chart), 9, 9, 9, 9, 8 | 121 of 640 | 81 | 1,405 |
+| 2002, gap only | 18, 18, 15, 15, 15, 14 | 70 of 640 | 25 | 1,401 |
+| 2002, with limit | 11, 9, 9, 9, 8, 8 | 225 of 640 | 14 | 1,235 |
+
+- The busiest names now get 16-22 dates a year, and the top of the list is mostly acts with current hits.
+- **The cost**: 1960's pool of recognized names is thin, so 19-35% of standing slots now go unfilled and comedy fills
+  halve. In history about a quarter of a Sullivan bill was not record-business guests at all (opera, Broadway,
+  dancers, variety), a share the game doesn't model; read an empty standing slot as one of those. Whether it holds
+  once the decade's standard-bearers build recognition needs a decade run.
+- Live national segments, last 26 weeks: 149 (seed 1001) and 133 (seed 2002), 0 breakdowns in either.
+- **Economy inertness**: 104 weeks, seeds 1001 and 2002: 106/106 economy CSVs byte-identical to `ref-f50b9a4` for each.
 
 **Economy inertness**: 104-week runs at seeds 1001 and 2002 against `SimLogs/ref-f50b9a4-<seed>-104`, same flags as
 above: 106/106 economy CSVs byte-identical for each seed.
@@ -272,7 +292,7 @@ above: 106/106 economy CSVs byte-identical for each seed.
   player's producer trust and letters. Nothing reaches recognition, sales or career state; media is observe-only until
   the Phase 4 adapter. A new act's poorly rehearsed national debut therefore costs it fan evidence and press, not
   fame or units.
-- **National appearance volume per act**: see the follow-up results.
+- **Empty standing slots** with the season limit: see the season-limit results; check on a decade run.
 - **AI planner pitches** still need a chart record. Standing acts get booked because producers call them directly, so a
   standing act's label never sends a disc.
 - **Recognition durability** for the 1960 standard-bearers through the decade is unmeasured. The 53-week run shows them

@@ -140,6 +140,11 @@ public static partial class MediaAtmosphereService {
 	/// <summary>Weeks before a name booked on standing returns to the same primetime variety hour. Of 823 Sullivan returns
 	/// 1959-70, 81% came more than 13 weeks later; the four in consecutive weeks were British Invasion package deals.</summary>
 	private const int StandingReturnWeeks = 13;
+	/// <summary>National dates a name booked without a current hit can hold in any 13 weeks (any lane counts toward it). Connie
+	/// Francis, Sullivan's most-booked music act, made about two Sullivans a year; a top singer's whole national year ran
+	/// roughly 10-20 appearances across variety and talk. Four a season is about 16 a year (initial design value).</summary>
+	private const int MaxNationalByNamePerSeason = 4;
+	private const int StandingSeasonWeeks = 13;
 	private const float RepeatNovelty = 0.55f;
 	/// <summary>Share of a returning program's audience that is new to the act (initial design value; regulars dominate).</summary>
 	private const double ReturnVisitNewShare = 0.25;
@@ -463,7 +468,7 @@ public static partial class MediaAtmosphereService {
 				List<Candidate> queue = queues[lane];
 				while (free[lane] > 0 && next[lane] < queue.Count) {
 					Candidate c = queue[next[lane]++];
-					if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date, lane == 0 ? MaxNationalPerActPerWeek : 1, standing: lane == (int)BillLane.Standing)) continue;
+					if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date, (BillLane)lane)) continue;
 					if (!AiAccepts(c, program, date, episodeId, evidence)) continue;
 					c.Lane = (BillLane)lane;
 					chosen.Add(c); free[lane]--;
@@ -816,14 +821,17 @@ public static partial class MediaAtmosphereService {
 	}
 
 	/// <summary>Finite calendars (§5.1): one booking per act per day, a rebooking gap per program, a cap on national dates a
-	/// week. A name booked for its standing gets one national date a week and waits a season before returning to the same
-	/// variety hour; an act with a current hit can take two and comes back sooner.</summary>
-	private static bool Available(RecordRuntimeData record, TvProgram program, GameDate date, int maxNationalThisWeek = MaxNationalPerActPerWeek,
-		bool standing = false) {
+	/// week. A name booked on standing or as a comic gets one national date a week and a few a season, and a standing name
+	/// waits a season before returning to the same variety hour; an act with a current hit can take two a week and comes
+	/// back sooner.</summary>
+	private static bool Available(RecordRuntimeData record, TvProgram program, GameDate date, BillLane lane = BillLane.Chart) {
 		string artist = record.baseRecord.artistId;
 		int today = BroadcastExposure.DayIndex(date);
-		int rebookWeeks = standing && program.Kind == TvProgramKind.PrimetimeVariety ? Math.Max(program.RebookWeeks, StandingReturnWeeks) : program.RebookWeeks;
-		int nationalThisWeek = 0;
+		bool byName = lane != BillLane.Chart;
+		int maxNationalThisWeek = byName ? 1 : MaxNationalPerActPerWeek;
+		int rebookWeeks = lane == BillLane.Standing && program.Kind == TvProgramKind.PrimetimeVariety
+			? Math.Max(program.RebookWeeks, StandingReturnWeeks) : program.RebookWeeks;
+		int nationalThisWeek = 0, nationalThisSeason = 0;
 		// A breached agreement shuts that program's door for a while (§7.3); the network's other shows only grow wary
 		// for a year, never an industry-wide blacklist (§2).
 		if (state.ProgramMemory.TryGetValue(program.Id + "|" + artist, out var memory) && memory.ExcludedUntilDay > today) return false;
@@ -835,9 +843,12 @@ public static partial class MediaAtmosphereService {
 			int day = BroadcastExposure.DayIndex(a.Date);
 			if (day == today) return false;
 			if (a.ProgramId == program.Id && today - day < 7 * rebookWeeks) return false;
-			if (Math.Abs(today - day) < 7 && MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true) nationalThisWeek++;
+			if (MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally != true) continue;
+			if (Math.Abs(today - day) < 7) nationalThisWeek++;
+			// Dates already on the books ahead count too: the booker sees the act's whole calendar.
+			if (today - day < 7 * StandingSeasonWeeks) nationalThisSeason++;
 		}
-		return !program.BooksNationally || nationalThisWeek < maxNationalThisWeek;
+		return !program.BooksNationally || nationalThisWeek < maxNationalThisWeek && (!byName || nationalThisSeason < MaxNationalByNamePerSeason);
 	}
 
 	// ---- tallies and history ---------------------------------------------------------------------------------------
