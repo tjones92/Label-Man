@@ -192,8 +192,9 @@ Read-out:
   indie Top-40 records), a wider regional stagger, and 60% more indie records reaching the Top 40.
   Seven wholly local feedback loops behave like seven independent MusicLab worlds, however. Regional
   overlap halves, cross-city station overlap falls well under history, and national hits lose shelf
-  in the regions that locked onto other records. The top flattens (million sellers 5.75 to 2.0),
-  which is the wrong direction for a model whose #1s already sell under history.
+  in the regions that locked onto other records. The top flattens (million sellers 5.75 to 2.0).
+  `NumberOneSalesInvestigation.md` later found the model's #1s inside the historical bracket, and that the
+  million-seller count mostly measures the warm-up cohort.
 - **Majors lose 4 points of units.** The static estimate was -1.1; feedback quadruples it. Their broad
   launches leaned on national-rank shelf everywhere. The Big-5 Top-10 share moves from the profile's
   +5 overshoot to history (34.9 vs 34.2). That is welcome on the chart, but it is not "untouched".
@@ -279,9 +280,68 @@ Read-out:
 - **The rank exposure weight carries both effects.** Keying it nationally as well removes the regional-first path
   (-0.7 against +3.9) and two thirds of the extra indie Top-40 records. The breakout and the flatter top come
   from the same term, so splitting λ by channel cannot keep one and drop the other.
-- **Plain λ is milder on five seeds than on four.** At λ = 0.4, the Major unit share is flat (+0.05) and the Big-5 Top-10 share
-  does not move. The million-seller, top-share and closure costs lean the wrong way but sit within 1-1.5 SE. λ = 0.3
-  keeps nearly all of the breakout gain (+28.8 indie Top-40 records, +3.5 points regional-first).
+- **Plain λ looks milder on five seeds than on four, mostly because of one seed.** Seeds 1001-1004 are the same runs in both
+  screens. At λ = 0.3, seed 1005 alone (+1 million seller: ctl 3, λ 0.3 4) moves the live million-seller delta from -1.25 to
+  -0.80. The completed seed-1006 pair (ctl 6, λ 0.3 5) gives -0.83 (SE 0.70) on six seeds. λ = 0.4 was not in the
+  four-seed screen. Its flat Major share (+0.05, SE 1.49) sits between λ = 0.3 (-1.09) and the four-seed λ = 0.5 (-2.85),
+  so it is probably noise, not a sweet spot.
+- **Live million sellers, top share and closures are within 1-1.5 SE. The 12-week cohort is not.** The cohort over 1M
+  is -1.00 at both λ = 0.3 and λ = 0.4 (SE 0.32 and 0.45), which takes 1.8 to 0.8 per seed. With fewer than two such
+  records per seed the SE is fragile, but this is the one significant cost in the table. Every arm in both screens
+  loses million sellers. λ = 0.3 keeps nearly all of the breakout gain (+28.8 indie Top-40 records, +3.5 points
+  regional-first).
+
+### Plain λ = 0.3 and 0.4: 8 seeds, 52 weeks, `SimLogs/lrt52-8s`
+
+`lrt52-8s` merges `lrt52-v1` (seeds 1001-1006; λ = 0.4 to 1005) with `lrt52-v2` (seeds 1006-1008) using
+`merge_screen_batches.py`. Both batches ran on the same assembly (`e02b0de9`). The `lrt52-v2` repeats of ctl and
+λ = 0.3 at seed 1006 are byte-identical to `lrt52-v1` (records, label finance, market clearing, station playlists,
+weeks and demand stages). The table shows seed-paired deltas against ctl (SE), n = 8. Top-end rows follow
+`NumberOneSalesInvestigation.md` §5. "Steady" means records released in weeks 11-32.
+
+| Metric | ctl | λ = 0.3 - ctl | λ = 0.4 - ctl |
+|---|---:|---:|---:|
+| Single units, M | 120.41 | +0.07 (0.06) | +0.08 (0.03) |
+| LP units, M | 37.83 | -0.14 (0.26) | -0.04 (0.19) |
+| Major unit share, % | 35.20 | -1.50 (0.85) | -0.79 (1.06) |
+| Small-label unit share, % | 4.85 | +0.76 (0.27) | +0.83 (0.27) |
+| Big-5 Top-10 slots, % (history 34.2) | 40.72 | -1.15 (1.61) | +0.55 (2.59) |
+| Big-5 share of the ten largest weekly sellers, % | 43.25 | -1.80 (1.84) | -0.91 (2.57) |
+| Airplay share of Top-40 chart points, % | 28.69 | -2.12 (0.33) | -2.53 (0.29) |
+| Closures | 37.50 | -1.38 (2.10) | +4.38 (1.67) |
+| ...of opening Independents | 23.63 | +0.25 (1.76) | +2.75 (1.44) |
+| ...of opening Boutiques | 6.88 | -0.50 (0.98) | +1.12 (0.93) |
+| Steady #1 lifetime, median | 768k | -29k (53k) | -26k (25k) |
+| #1 weekly units from week 14, median | 91k | -0.4k (5.8k) | +1.0k (2.9k) |
+| Steady releases at 750k or more | 7.50 | -2.75 (1.01) | -2.00 (1.04) |
+| ...of which #1s | 5.25 | -1.38 (0.82) | -1.12 (0.72) |
+| Top 1% of live singles, unit share, % | 27.36 | -1.60 (0.67) | -1.77 (0.43) |
+| Live singles over 1M (window, warm-up included) | 5.25 | -1.12 (0.58) | -0.88 (0.67) |
+| Distinct Top-10 artists | 78.75 | +8.62 (2.24) | +9.62 (1.39) |
+| Indie national Top-40 records (with a regional top 10) | 110.25 | +29.88 (3.27) | +33.50 (2.24) |
+| ...regional top 10 >= 2 wk before national Top 40, % | 3.27 | +3.49 (0.75) | +3.65 (1.29) |
+| ...region span >= 6 wk, % | 16.24 | +9.26 (1.33) | +9.84 (0.93) |
+| Station panel: indie Top-10 lead, % (history 18.5) | 20.89 | +2.43 (2.83) | +0.70 (3.21) |
+| Station panel: peak 41-100 lead, % (history 16) | 30.92 | +1.98 (1.17) | +2.75 (1.14) |
+| Station panel: Big-5 Top-10 lead, % (history 0) | 3.16 | +3.40 (1.88) | +1.09 (1.26) |
+| Regional top-11 overlap, % | 54.07 | -8.35 (0.99) | -9.33 (0.43) |
+
+Read-out:
+
+- **The breakout is confirmed and λ = 0.4 adds little to it.** Indie Top-40 records rise 27-30%, the regional-first
+  share doubles, and overlap falls 8-9 points, with volume neutral at both settings. λ = 0.4 gains +3.6 indie Top-40
+  records, +0.2 points regional-first and -1.0 point of overlap over λ = 0.3.
+- **The flatter top is the upper tail, not the #1.** The top 1%'s share falls 1.6-1.8 points (2.4 and 4.1 SE), and
+  steady releases at 750k or more fall 27-37%. The steady #1 median moves -3 to -4%, inside 1 SE, and the #1's
+  weekly units do not move.
+- **Closures separate the two settings.** λ = 0.3 changes closures by -1.4 (SE 2.1), with opening Independents +0.25.
+  λ = 0.4 adds 4.4 (SE 1.7), 2.75 of them opening Independents, about what the four-seed λ = 0.5 cost (+4.75).
+- **Majors lose 0.8-1.5 points of units (1-2 SE), and the Big-5 Top-10 share does not move.** Small labels gain 0.8
+  points (3 SE).
+- **Airplay's share of Top-40 chart points falls 2.1-2.5 points (6-9 SE).** Local shelf puts more of the chart on
+  units. The §9k airplay offset itself was not computed here.
+- **Station-panel leads do not improve.** The indie lead is already at history and does not move. The low-peak lead
+  (already 2x history) grows 2-2.75 points, and at λ = 0.3 Big-5 city leads rise 3.4 points (1.8 SE; history 0).
 
 ## 7. Conclusions
 
@@ -295,20 +355,23 @@ Read-out:
    path the model did not have. At λ = 0.3-0.5 it puts both station-sheet overlaps on the 1960
    surveys, which the control misses by 8 points cross-city. It also removes most of the Big-5 Top-10
    overshoot of this research profile.
-3. **It is not free.** Majors lose 1.8-2.9 points of units, and the top flattens (fewer million
-   sellers, on a model whose #1s already sell under history). Closures among opening Independents
-   rise 3-5 per year, because units move from median releases to local winners. The low-peak lead
-   excess, already about 2x history, grows. Four seeds give SEs of 1-3.5 points on these; adoption
-   needs 8. On five seeds (`lrt52-v1`), the λ = 0.3-0.4 costs fall within 1-1.5 SE, and Majors are flat at 0.4.
-   A per-channel λ that keeps the trade terms national does not recover the top. The rank exposure weight carries
-   both the breakout and the flattening.
+3. **It is not free, and λ = 0.3 is the cheapest setting that keeps the breakout.** On eight seeds (`lrt52-8s`),
+   λ = 0.3 keeps about 90% of λ = 0.4's breakout gain. It costs Majors 1.5 points of units (SE 0.85) and no
+   closures. λ = 0.4 costs 4.4 closures (SE 1.7), mostly opening Independents, as λ = 0.5 did on four seeds. Both
+   thin the upper tail: the top 1%'s share falls 1.6-1.8 points and steady releases at 750k or more fall by about a
+   third. The typical #1 holds (`NumberOneSalesInvestigation.md`). The low-peak lead excess, already about 2x
+   history, grows by 2 points. A per-channel λ that keeps the trade terms national does not recover the top. The rank
+   exposure weight carries both the breakout and the flattening.
 4. **Leads and local-only hits need a city layer, not more demand.** The macro-region arithmetic
    (section 3) makes every big-region top-10 a Hot 100 record. Section 6's city decomposition of
    settled units, which changes station lists and not regional totals, is the next build.
 
-Recommended next screen (partly run as `lrt52-v1`, 5 seeds): λ = 0.3 and 0.4 on eight seeds. Report the paired airplay offset, units-only
-Big-5 share, closures by opening tier and million sellers, alongside the regional metrics here.
-Then the city decomposition on top of the chosen λ.
+**Adopted (2026-10-30).** `run_local_consumption_screen.py` now adds `--local-retail-exposure=0.3` to every arm of the
+regional-fit research profile. An arm that names its own λ, the local shelf or a bounded audience replaces it, and the
+`nolre` arm is the earlier control. A 1-week check (`lre-adopt-chk`) gives the new `ctl` the exact arguments of
+`lrt52-v1-lre03`, and `nolre` those of `lrt52-v1-ctl`. The production default is unchanged. Next is the city
+decomposition (section 6) on this profile. For top-end metrics, use the steady-state measures in
+`NumberOneSalesInvestigation.md` §5, not fixed-1M counts over windows that include the warm-up.
 
 ## Reproduction
 
@@ -319,6 +382,10 @@ $py = 'C:/Users/grohl/AppData/Local/Programs/Python/Python314/python.exe'
 & $py SimTools/analyze_local_consumption.py NEW
 & $py SimTools/analyze_local_retail_exposure.py NEW
 & $py SimTools/analyze_station_playlist_overlap.py NEW-ctl-1001 NEW-lre05-1001
+# eight-seed screen: lrt52-v1 plus seeds 1006-1008, merged (the analyzers import from SimTools, so run them there)
+& $py SimTools/run_local_consumption_screen.py --tag lrt52-v2 --weeks 52 --seeds 1006,1007,1008 --arms ctl,lre03,lre04 --jobs 3 --observe
+& $py SimTools/merge_screen_batches.py lrt52-8s lrt52-v1 lrt52-v2 --arms ctl,lre03,lre04
+cd SimTools; & $py analyze_local_retail_exposure.py lrt52-8s; & $py analyze_local_consumption.py lrt52-8s
 ```
 
 Excluded batches: `lre12-v1` and the aborted `lre52-v1` ran before the first-week seed (week 1 cleared

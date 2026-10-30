@@ -9,8 +9,12 @@ BASE = '''--station-regional-support=standing --station-regional-support-rank-no
 --regional-fit-exposure --regional-fit-exposure-relive --regional-fit-exposure-relive-awareness'''.split()
 PICKS = '''--station-picks=2 --station-picks-score=fit --station-picks-age=2 --station-picks-fit-noise=0.5
 --station-picks-fit-bar=2.4 --station-picks-fit-unserviced'''.split()
+# Adopted 2026-10-30 (LocalRetailExposureInvestigation.md §5, lrt52-8s). An arm that names its own λ, the local shelf or
+# a bounded audience replaces it (the switch refuses duplicates and those probes); 'nolre' is the earlier control.
+LRE = ['--local-retail-exposure=0.3']
+LRE_REPLACED = ('--local-retail-exposure', '--local-consumption-shelf', '--bounded-audience')
 ARMS = {
-    'ctl': [], 'pp': [], 'nopicks': [],
+    'ctl': [], 'pp': [], 'nopicks': [], 'nolre': [],
     'contact1': ['--local-consumption-contact=1'],
     'contact3': ['--local-consumption-contact=3'],
     'familiar2': ['--local-consumption-familiarity=2'],
@@ -77,6 +81,7 @@ def main():
         for arm in a.arms.split(','):
             flags = common + ([] if arm == 'nopicks' else PICKS)
             if arm not in ('pp','nopicks'): flags += ['--station-picks-tastemaker-indie']
+            if arm != 'nolre' and not any(f.split('=')[0] in LRE_REPLACED for f in ARMS[arm] + a.extra): flags += LRE
             flags += ARMS[arm] + a.extra
             if a.observe: flags += ['--local-consumption-observe']
             name = f'{a.tag}-{arm}-{seed}'

@@ -7,6 +7,8 @@ Complements analyze_local_consumption.py (economy, leads). Per run, from the set
   path         weeks from a record's first regional top-10 week to its national Top-40 week; regions in a top 10 then
   lateMass     share of connected live singles' settled units sold in regions exposed after launch
   debut        indie Top-10 records at national debut: best region's share of units, per-capita max/mean
+  steady       top end without the warm-up cohort (NumberOneSalesInvestigation.md §5): lifetime units of records
+               released in weeks 11-32, #1 weekly units from week 14
 Equal-weight seed means and seed-paired deltas against the control arm.
 """
 import argparse, concurrent.futures, json, pathlib
@@ -29,7 +31,8 @@ def overlap(top):
 def analyze(name):
     pre = str(ROOT / 'SimLogs' / name) + '-'
     s = pd.read_csv(pre + 'single-demand-stages.csv', usecols=['week', 'recordId', 'region', 'age', 'clearedUnits', 'potentialAudience'])
-    r = pd.read_csv(pre + 'records.csv', usecols=['week', 'recordId', 'labelId', 'currentPosition', 'unitsThisWeek'])
+    r = pd.read_csv(pre + 'records.csv', usecols=['week', 'recordId', 'labelId', 'currentPosition', 'unitsThisWeek',
+                                                  'weeksSinceRelease', 'totalUnitsSold'])
     live = set(pd.read_csv(pre + 'single-launch-quality.csv').singleId)
     pop = s.groupby('region').potentialAudience.max()
     s['rank'] = s.groupby(['week', 'region']).clearedUnits.rank(ascending=False, method='first')
@@ -108,6 +111,18 @@ def analyze(name):
     out['liveOver1M'] = int(tot.ge(1_000_000).sum())
     out['liveUnder2kPct'] = 100 * tot.lt(2000).mean()
     out['liveTop1PctUnitShare'] = 100 * tot.sort_values(ascending=False).head(max(1, len(tot) // 100)).sum() / tot.sum()
+    # steady-state top end: releases in weeks 11-32 have sold 99% of lifetime by week 52 and miss the warm-up cohort
+    r['release'] = r.week - r.weeksSinceRelease
+    life = r.groupby('recordId').agg(total=('totalUnitsSold', 'max'), release=('release', 'min'))
+    wk = pd.read_csv(pre + 'weeks.csv', usecols=['week', 'numberOneRecordId', 'numberOneUnitsThisWeek'])
+    steady = life[life.release.between(11, 32)]
+    no1 = steady[steady.index.isin(set(wk.numberOneRecordId))]
+    out['steadyNo1Records'] = len(no1)
+    out['steadyNo1LifetimeMedian'] = no1.total.median()
+    out['steadyNo1WeeklyUnitsMedian'] = wk[wk.week.ge(14)].numberOneUnitsThisWeek.median()
+    out['steadyOver750k'] = int(steady.total.ge(750_000).sum())
+    out['steadyNo1Over750k'] = int(no1.total.ge(750_000).sum())
+    out['steadyOver1M'] = int(steady.total.ge(1_000_000).sum())
     return out
 
 
