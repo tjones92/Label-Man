@@ -651,6 +651,12 @@ public partial class RosterManager : Node {
 					lane = selected == null ? null : "ExperiencedProduction";
 				}
 			}
+			// --hit-history-signing-recovery: a free agent with a hit history competes with the fresh pick on score. Off: never read.
+			if (HitHistorySigning.RecoveryCompetes && LocalScenes.Recruitment && selected != null) {
+				SimulatedArtist hit = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores.Where(s => s.Artist?.top40Hits > 0).ToList(),
+					.3f, false, "HitHistoryRecovery");
+				if (hit != null && ScoreOf(experiencedEvaluation.CandidateScores, hit) > ScoreOf(freshEvaluation.CandidateScores, selected)) { selected = hit; lane = "ExperiencedProduction"; }
+			}
 			if (LocalScenes.Recruitment && selected == null) {
 				selected = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, false, "GeographicExperiencedRecovery");
 				lane = selected == null ? null : "ExperiencedProduction";
@@ -661,7 +667,7 @@ public partial class RosterManager : Node {
 			if (bestFresh != null && (bestExperienced == null || ScoreOf(freshEvaluation.CandidateScores, bestFresh) >= ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced))) { selected = bestFresh; lane = "FreshPotential"; }
 			else { selected = bestExperienced; lane = selected == null ? null : "ExperiencedProduction"; }
 		}
-		ObserveFreeAgentNomination(label, experienced, experiencedAccessible, experiencedEvaluation, freshEvaluation, selected, lane);
+		ObserveFreeAgentNomination(label, experienced, experiencedAccessible, experiencedEvaluation, freshEvaluation, selected, lane, service.Mode.ToString());
 		if (selected == null) { appointment.Outcome = snapshot.Count == 0 ? "NoCandidate" : "NoQualifyingCandidate"; observation.FailureReason = appointment.Outcome; return null; }
 		appointment.SelectedArtist = selected; appointment.SelectedLane = lane; appointment.Outcome = "Nominated";
 		observation.SelectedLane = lane; observation.SigningAttempted = true; observation.FailureReason = "Nominated";

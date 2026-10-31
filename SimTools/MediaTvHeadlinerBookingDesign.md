@@ -480,8 +480,8 @@ What happens when the labels look:
 - **They lose to the fresh lane.** In 97-99% of appointments, a never-signed prospect from the fresh slate outscores
   the hitmaker by about 0.25-0.3. Nominations fall from 15 to 5 a year.
 
-The causes, read from the scoring code (`AILabel.EvaluateSigning` against `EvaluateFreshPotential`); I haven't measured
-how much each one contributes:
+The score gap, read from the scoring code (`AILabel.EvaluateSigning` against `EvaluateFreshPotential`). The screen
+below shows the gap isn't what binds; Recovery mode's fresh-first rule is:
 - **A hit record adds little to the score.** The experienced score adds `momentum × 0.5 + reputation × 0.3` to the
   same quality and genre terms the fresh score uses. Open hitmakers carry momentum 0.07-0.11 and reputation 0.09-0.12,
   so the bonus is worth about +0.08. Lifetime `top40Hits` is not read at all.
@@ -502,6 +502,52 @@ Possible fixes, all economy changes for the author to decide:
 - Let a free agent's reputation stop decaying below a floor set by past hits.
 
 Each fix should be screened on the 1963 resume for signings of free agents with hits, Big-5 share and closures.
+
+### Screen: `--hit-history-signing` and `--hit-history-signing-recovery`
+
+Both are off by default and live in `Systems/HitHistorySigning.cs`.
+- `--hit-history-signing[=B]` exempts an act with a lifetime top 40 from the low-reputation penalty and adds B per
+  lifetime top 40, capped at two.
+- `--hit-history-signing-recovery` changes the Recovery branch of `NominateFromDailySnapshot`. The best-weighted free
+  agent with a hit history (keyed pick, no global draw) replaces the fresh pick when it scores higher.
+
+**The scoring fix alone does almost nothing** (`tvbook-n` exemption only, `tvbook-o` exemption + 0.1). At +0.1 the top
+hitmaker's mean score (1.11) passes the best fresh score (1.09), yet the fresh lane still wins 96% of appointments.
+Nominations go from 15 to 22 in 1963, and signings of hitmakers from 40 to 65-68.
+
+**The real gate is Recovery mode.** `tvbook-m2` repeats the control with service-mode counters (byte-identical to
+`tvbook-m`). 93-98% of appointments run in Recovery, which a label enters with two or more open slots, an empty roster,
+or a vacancy four weeks old. Recovery takes a qualifying fresh pick and looks at the experienced lane only when there is
+none, so a free agent's score is never compared. In Watch, 10-20% of appointments with a hitmaker nominate it; in
+Recovery, 0-4 a year do.
+
+| | Control (`m`) | Recovery (`q`) | Recovery + score 0.1 (`r`) |
+|---|---:|---:|---:|
+| Signings of acts with a hit history, 1963-66 | 40 | 1,128 | 1,375 |
+| All signings | 9,440 | 8,895 | 8,555 |
+| Exited hit acts signed again | 9 | 533 | 675 |
+| Exits of hit acts (hot) | 711 (389) | 997 (378) | 1,129 (370) |
+| 1963 top-40 acts: Hot 100 at Y+2 / top 40 at Y+2 | 29% / 24% | 35% / 24% | 34% / 25% |
+| 1963 top-40 acts: Hot 100 at Y+3 (history 31-32%) | 22% | 29% | 32% |
+| Unsigned active hitmakers, end 1966 | 1,185 | 504 | 415 |
+| Standing slots empty, 1966 | 420 | 105 | 55 |
+| Standing dates to acts last hit 4+ years back | 0 | 0 | 0 |
+| Insolvencies | 108 | 102 | 131 |
+| Major-family chart share 1964 / 1966 | .593 / .661 | .573 / .601 | .564 / .621 |
+| Major top-40 entries 1964 / 1966 | 86 / 107 | 72 / 110 | 71 / 99 |
+
+- **Recovery is the lever.** It closes most of the Y+3 persistence gap: 22% → 29%, and 32% with the score added, against
+  history's 31-32%. Unsigned hitmakers fall by more than half, and TV standing slots nearly fill.
+- **Exits rise**, 711 → 997-1,129, because signed-again acts can be dropped again. Hot exits don't rise.
+- **Nothing yet for the old names on TV.** 4y+ standing dates are still 0. Inside a 1963-66 resume, only an act whose
+  last hit was in 1962 can qualify, and only in 1966, so this window can't show that effect. A 1960 start or a later
+  window is needed.
+- **Economy readings are one seed.** Small changes reshuffle the stream. The exemption-only arm alone moved 1966 major
+  share by −.12. Read the major-share and insolvency moves as unresolved, not as costs.
+
+Candidate: `--hit-history-signing-recovery` alone (`q`) is the single mechanism change; the score term in `r` adds
+little beyond it. Before adoption it needs a multi-seed decade A/B in the game profile, which already carries
+`--hit-act-retention`, watching Big-5 share, closures and Top 10 concentration.
 
 ### Sullivan's bill
 
@@ -532,10 +578,10 @@ unsourced.
 - **Standing guests are recent hitmakers** (mid-decade check). Of the acts whose hit records have been culled, 76% are
   unsigned and the signed ones sit at about 0.05 recognition, so no old name is bookable. Fixing that needs either a
   booker's memory of a name that doesn't decay, or label-free bookings, or both. Author decision.
-- **Free agents with hits lose to fresh prospects** (`tvbook-m`). Labels see them in 70% of appointments, but the fresh
-  lane outscores them in 97-99%. The likely reasons are the low-reputation penalty only proven acts pay and a hit
-  record worth about +0.08. Options are in "Why free agents with hits are not signed again". This is an economy
-  change, so it needs an author decision and a screen.
+- **Free agents with hits lose to fresh prospects.** The cause is Recovery mode's fresh-first rule, not the score
+  (screen `tvbook-m2/n/o/q/r`). `--hit-history-signing-recovery` raises signings of hitmakers from 40 to 1,128 and
+  lifts Y+3 persistence from 22% to 29%. It is off by default and needs a multi-seed decade A/B in the game profile
+  before adoption.
 - **Talk shows starve Sullivan's standing slots** (hypothesis). Options: exempt talk dates from the season limit, or
   book primetime variety first each week.
 - **Career effect of a TV performance**: the outcome feeds fan attachment (`Spark`), press tone and outlets, the

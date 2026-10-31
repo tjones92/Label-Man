@@ -400,6 +400,7 @@ public partial class ChartManager : Node {
 		ArtistMomentumHalfLife.Configure(SimulationArguments.Get());
 		SeniorCooling.Configure(SimulationArguments.Get());
 		HitActCadence.Configure(SimulationArguments.Get());
+		HitHistorySigning.Configure(SimulationArguments.Get());
 		LabelReleaseProgramme.Configure(SimulationArguments.Get());
 		HitActRenewalFinance.Configure(SimulationArguments.Get());
 		AlbumScaleCareerMilestones.Configure(SimulationArguments.Get());

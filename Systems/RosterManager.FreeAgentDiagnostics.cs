@@ -18,13 +18,16 @@ public partial class RosterManager {
 		freeAgentMarket[key] = (freeAgentMarket.TryGetValue(key, out double value) ? value : 0) + amount;
 
 	private static void ObserveFreeAgentNomination(AILabel label, List<SimulatedArtist> experienced, int experiencedAccessible,
-		AILabel.SigningEvaluation experiencedEvaluation, AILabel.SigningEvaluation freshEvaluation, SimulatedArtist selected, string lane) {
+		AILabel.SigningEvaluation experiencedEvaluation, AILabel.SigningEvaluation freshEvaluation, SimulatedArtist selected, string lane, string mode) {
 		CountFreeAgent("appointments");
+		CountFreeAgent("mode" + mode);
 		CountFreeAgent("expAccessibleSum", experiencedAccessible);
 		CountFreeAgent("expSlateSum", experienced.Count);
 		List<AILabel.SigningCandidateScore> hits = experiencedEvaluation.CandidateScores?.Where(s => IsFormerHitmaker(s.Artist)).ToList();
 		if (hits == null || hits.Count == 0) return;
 		CountFreeAgent("apptsWithHit");
+		CountFreeAgent("withHit" + mode);
+		if (selected != null && IsFormerHitmaker(selected)) CountFreeAgent("nominated" + mode);
 		CountFreeAgent("hitsInSlate", hits.Count);
 		foreach (var hit in hits) {
 			freeAgentsSeenInSlate.Add(hit.Artist.artistId);
@@ -72,6 +75,8 @@ public partial class RosterManager {
 			$" hitBelowMinimum={V("hitBelowMinimum"):0} hitUnaffordable={V("hitUnaffordable"):0} hitQualified={V("hitQualified"):0}" +
 			$" hitTopOfExperienced={V("hitTopOfExperienced"):0} hitNominated={V("hitNominated"):0} lostToFresh={V("lostToFresh"):0}" +
 			$" lostToOtherExperienced={V("lostToOtherExperienced"):0} lostToNobody={V("lostToNobody"):0}" +
+			$" modes[watch/recovery]={V("modeWatch"):0}/{V("modeRecovery"):0} withHit[watch/recovery]={V("withHitWatch"):0}/{V("withHitRecovery"):0}" +
+			$" nominated[watch/recovery]={V("nominatedWatch"):0}/{V("nominatedRecovery"):0}" +
 			$" meanHitScore={V("hitScoreSum") / inSlate:0.000} meanTopHitScore={V("topHitScoreSum") / withHit:0.000} meanBestFresh={V("bestFreshScoreSum") / Math.Max(1, V("bestFreshScoreN")):0.000}");
 		GD.Print($"ROSTER_FREEAGENT_POOL year={year} unsignedActiveHitmakers={gates.Values.Sum()} gates={string.Join(",", gates.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + ":" + kv.Value))}" +
 			$" openReachByLabels={string.Join(",", reach.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Key + ":" + kv.Value))}" +

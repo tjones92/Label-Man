@@ -766,8 +766,9 @@ public partial class AILabel : Resource {
 			
 			score += artist.momentum * 0.5f;
 			score += artist.reputation * 0.3f;
-			if (artist.reputation < 0.1f) score *= 0.5f + (riskTolerance * 0.5f);
-			
+			if (artist.reputation < 0.1f && HitHistorySigning.AppliesLowReputationPenalty(artist)) score *= 0.5f + (riskTolerance * 0.5f);
+			score += HitHistorySigning.HistoryBonus(artist);
+
 			float estimatedCost = CalculateAdvanceOffer(artist);
 			float costRatio = estimatedCost / Mathf.Max(1f, cashReserves);
 			if (costRatio > 0.3f) score *= 0.7f;
