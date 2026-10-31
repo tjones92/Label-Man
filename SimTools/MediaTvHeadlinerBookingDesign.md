@@ -286,18 +286,99 @@ ahead. A current hit still books through the chart lane without it.
 **Economy inertness**: 104-week runs at seeds 1001 and 2002 against `SimLogs/ref-f50b9a4-<seed>-104`, same flags as
 above: 106/106 economy CSVs byte-identical for each seed.
 
+## Mid-decade check (1963-66, seed 1001)
+
+Resumed `SimLogs/worlds/media-p3-1001-1963.world.json.gz` (1/4/1963) for 209 weeks with
+`--enable-genre-market-v2 --enable-artist-population-lifecycle --aggregate-only`, 32 minutes. The world was saved under
+ConfigVersion 3 and loads cleanly. Logs: `SimLogs/tvbook/tvbook-{h,i,j}-1001-1963-209-console.log`. The three runs differ
+only in year-end diagnostics; their bookings are identical.
+
+Two new year-end lines:
+- `MEDIA_STANDING`: name-booked national dates, their acts, recognition quartiles, and how many dates went to acts signed
+  by 1960 or to opening careers.
+- `MEDIA_PROGRAMS`: chart/standing/comedy appearances per national program.
+
+`MEDIA_AI` also gains `standing-lasthit-*`, the years since the last hit as the booker reads them, counted at booking.
+The `weeklyStepMs` field on `MEDIA_YEAR` is cumulative across the process, not per year. Media's own step is about
+20-26 s per sim year, roughly 5% of the run.
+
+### Schedule transitions
+
+All of these happened on time:
+- American Bandstand: weekday to weekly in Sep 1963 (126 → 52-54 chart dates per half-year).
+- Hootenanny: 1963 to Sep 1964.
+- Hollywood Palace: from 1964.
+- Shindig: 1964-65, about 130 dates per half-year at two a week; off the air in 1966.
+- Hullabaloo: 1965.
+- Where the Action Is: 1965-66, two chart acts a weekday.
+- Dean Martin and Roger Miller: on their start dates.
+
+### Standing and comedy slots, whole year
+
+| Year | Standing filled | Standing empty | Comedy filled / slots | Last hit 0-1 y / 2-3 y / 4 y+ / never |
+|---|---:|---:|---:|---|
+| 1960 (53-week run) | 519 | 121 (19%) | 81 / 442 | – |
+| 1963 | 1,054 | 491 (32%) | 72 / 1,016 | 903 / 30 / 0 / 27 |
+| 1964 | 978 | 492 (33%) | 64 / 811 | 707 / 103 / 0 / 70 |
+| 1965 | 1,119 | 378 (25%) | 71 / 864 | 904 / 24 / 0 / 34 |
+| 1966 | 1,198 | 420 (26%) | 57 / 953 | 956 / 68 / 0 / 61 |
+
+- **Empty standing slots** run 25-33%. That is close to the non-record quarter of a real Sullivan bill, so the season
+  limit holds through the decade.
+- **Standing guests are recent hitmakers, not standard-bearers.** About 90% of name-booked dates go to an act with a
+  top-40 hit in the last year that isn't on this week's top 40. No act whose last hit was four or more years back got a
+  single date. History is the other way round: Sullivan's standing guests were mostly long-established names. Acts
+  signed by 1960 hold 73% of last-26-week standing dates in 1963, then 64%, 52% and 44% by 1966. The ones still booked
+  are the ones still charting. The cause is not yet separated:
+  - Recognition decays below the 0.20 floor without new hits.
+  - Acts are dropped after short careers (see the two-record careers note).
+  - The live-record requirement removes acts with nothing current to charge the date to.
+
+  Opening careers are off in this profile (`openingCareersEnabled = false`), so no seeded veteran was in the pool.
+- **What standing acts sang** (1963-66, 4,349 dates): standard 72%, current cover 14%, own earlier hit 9%, own record
+  5%. History for 1960-64 Sullivan is 80 / 14 / 1 / 6. Closer than 1960's 61% standards; the own-hit share is still high.
+- **Comedy** fills 6-8% of its slots, down from 18% in 1960. The comedy pool did not grow.
+- **Recognition of standing guests** rises over the decade: the median goes 0.23 → 0.31 → 0.32 → 0.33.
+
+### Sullivan's bill
+
+Last 26 weeks of each year; Sullivan reruns in July and August, so that window holds about 18 new episodes.
+
+| Year | Chart (filled / max) | Standing | Comedy |
+|---|---|---|---|
+| 1963 (1/2/1) | 19 / 18 | 24 / 36 | 6 / 18 |
+| 1964 (2/2/1) | 36 / 36 | 17 / 36 | 2 / 18 |
+| 1965 | 34 / 36 | 15 / 36 | 1 / 18 |
+| 1966 | 34 / 36 | 23 / 36 | 0 / 18 |
+
+Sullivan averages about three guests an episode against history's 4-4.6 musical acts plus one or two comedians. Its
+standing slots fill only 42-67% of the time. Over the same half-years the three daily talk shows (Tonight, Merv Griffin,
+Mike Douglas) booked 250-305 standing dates. Since every national date counts toward the four-per-13-weeks name limit,
+the likely cause is the weeknight couches using up the limited pool of names before Sunday. This is a hypothesis; no
+arm with talk dates exempted has been run.
+
+### Busiest national guests
+
+The top six had 14-23 dates in the last 26 weeks, almost all in the chart lane. 1965 peaks at 21-23, double 1960's 11.
+The season limit doesn't apply to the chart lane, and Where the Action Is, Shindig and the talk shows add five or more
+weekday chart slots. A hot 1965 act doing about 40 national spots a year is plausible with daily teen television, but
+unsourced.
+
 ## Open
 
+- **Standing guests are recent hitmakers** (mid-decade check). A name whose hits are four or more years old never gets
+  a standing date. The cause needs to be separated: recognition decay, short careers, or the live-record requirement.
+- **Talk shows starve Sullivan's standing slots** (hypothesis). Options: exempt talk dates from the season limit, or
+  book primetime variety first each week.
 - **Career effect of a TV performance**: the outcome feeds fan attachment (`Spark`), press tone and outlets, the
   player's producer trust and letters. Nothing reaches recognition, sales or career state; media is observe-only until
   the Phase 4 adapter. A new act's poorly rehearsed national debut therefore costs it fan evidence and press, not
   fame or units.
-- **Empty standing slots** with the season limit: see the season-limit results; check on a decade run.
+- **Empty standing slots** with the season limit: 25-33% through 1963-66 (mid-decade check). Checked only through
+  1966; 1967-69 is still unrun.
 - **AI planner pitches** still need a chart record. Standing acts get booked because producers call them directly, so a
   standing act's label never sends a disc.
-- **Recognition durability** for the 1960 standard-bearers through the decade is unmeasured. The 53-week run shows them
-  booked steadily in 1960; a decade run will show whether they fade off the bills by about 1963.
-- **The comedy pool** depends on how many comedy acts the world signs. If comedy records stay scarce, the comedy lane
-  mostly stays empty, which matches history only by accident.
+- **The comedy pool** stayed scarce: 6-8% of comedy slots filled in 1963-66. The lane mostly stays empty, which matches
+  history only by accident.
 - **The game profile**: these runs used bare audit flags. Local shows read regional best sellers, so local bills
   differ under `lp-retail-v2`.

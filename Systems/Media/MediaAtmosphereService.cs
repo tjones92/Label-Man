@@ -223,6 +223,19 @@ public static partial class MediaAtmosphereService {
 			.OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Take(6)
 			.Select(g => $"\"{g.First().ArtistName}\" {g.Count()} [{string.Join(" ", g.GroupBy(a => a.Lane).OrderBy(x => x.Key).Select(x => x.Key + ":" + x.Count()))}]");
 		Godot.GD.Print($"MEDIA_BUSIEST year={year} {string.Join(" ", busiest)}");
+		// Who fills the name-booked slots: how recognized, how long since a hit, and whether they are 1960 opening careers.
+		var named = mine.Where(a => a.Lane != BillLane.Chart && MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true).ToList();
+		var namedActs = named.GroupBy(a => a.ArtistId, StringComparer.Ordinal).Select(g => (Artist: ArtistManager.Instance?.GetArtist(g.Key), Dates: g.Count())).Where(x => x.Artist != null).ToList();
+		var recs = namedActs.Select(x => ArtistRecognitionService.EffectiveRecognition(x.Artist)).OrderBy(r => r).ToList();
+		float Quantile(double q) => recs.Count == 0 ? 0f : recs[(int)Math.Min(recs.Count - 1, Math.Floor(q * recs.Count))];
+		int DatesWhere(Func<SimulatedArtist, bool> test) => namedActs.Where(x => test(x.Artist)).Sum(x => x.Dates);
+		// Years since the last hit are counted at booking time (MEDIA_AI standing-lasthit-*), from the pool's own reading.
+		Godot.GD.Print($"MEDIA_STANDING year={year} dates={named.Count} acts={namedActs.Count} recog[p25/50/75]={Quantile(.25):F2}/{Quantile(.5):F2}/{Quantile(.75):F2} " +
+			$"datesByOpeningCareers={DatesWhere(a => a.publicHistory?.Count > 0)} datesSigned<=1960={DatesWhere(a => a.signedYear > 0 && a.signedYear <= 1960)}");
+		var byProgram = mine.Where(a => MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true).GroupBy(a => a.ProgramId)
+			.OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal)
+			.Select(g => $"\"{MediaOutletCatalog.Get(g.Key)?.Name}\" {string.Join("/", new[] { BillLane.Chart, BillLane.Standing, BillLane.Comedy }.Select(l => g.Count(a => a.Lane == l)))}");
+		Godot.GD.Print($"MEDIA_PROGRAMS year={year} chart/standing/comedy {string.Join(" ", byProgram)}");
 		var allocations = state.AiAllocations.Values.ToList();
 		Godot.GD.Print($"MEDIA_AI year={year} allocations={allocations.Count} balanced={allocations.All(a => a.Balanced)} " +
 			$"tvReserved=${allocations.Sum(a => a.TvReservedCents) / 100.0:N0} of ${allocations.Sum(a => a.TvCents) / 100.0:N0} " +
@@ -508,6 +521,10 @@ public static partial class MediaAtmosphereService {
 		if (bill.Standing > 0) { Ledger("slots-standing-filled", chosen.Count(c => c.Lane == BillLane.Standing)); Ledger("slots-standing-empty", free[1]); }
 		if (bill.Comedy > 0) { Ledger("slots-comedy-filled", chosen.Count(c => c.Lane == BillLane.Comedy)); Ledger("slots-comedy-empty", free[2]); }
 		foreach (Candidate c in chosen) Ledger("song-" + c.Lane + "-" + c.Song);
+		foreach (Candidate c in chosen.Where(c => c.Lane == BillLane.Standing && program.BooksNationally)) {
+			int hit = evidence.StandingActs().FirstOrDefault(s => s.Artist.artistId == c.Record.baseRecord.artistId)?.LastHitYear ?? 0;
+			Ledger("standing-lasthit-" + (hit <= 0 ? "never" : (date.year - hit) switch { <= 1 => "0-1y", <= 3 => "2-3y", _ => "4y+" }));
+		}
 		if (chosen.Count == 0) return;
 
 		// Running order: a variety bill closes on its biggest name; a dance show plays them as they come.
