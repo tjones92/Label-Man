@@ -191,7 +191,37 @@ public static partial class MediaAtmosphereService {
 		DecayAttitudes(weekEnd);
 		Prune(weekEnd);
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
-		if (weekEnd.month == 12 && weekEnd.day >= 25) PrintYear(weekEnd.year);
+		if (weekEnd.month == 12 && weekEnd.day >= 25) { PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); }
+	}
+
+	/// <summary>
+	/// Year-end census of every act with a lifetime top-40 hit, by the first standing-pool gate it fails: retired, unsigned,
+	/// no live record to charge a date to, recognition under the default floor, or eligible. Split by whether a hit record
+	/// is still live in the market or has been culled (then the pool cannot see the hit at all). Read-only.
+	/// </summary>
+	private static void PrintVeterans(int year, Evidence evidence) {
+		if (ArtistManager.Instance == null) return;
+		var live = new HashSet<string>(StringComparer.Ordinal);
+		var liveHit = new HashSet<string>(StringComparer.Ordinal);
+		foreach (RecordRuntimeData r in evidence.All) {
+			string id = r?.baseRecord?.artistId;
+			if (string.IsNullOrEmpty(id) || r.baseRecord.isPlayerOwned) continue;
+			live.Add(id);
+			if (r.peakPosition is > 0 and <= 40) liveHit.Add(id);
+		}
+		var booked = new HashSet<string>(state.Appearances.Where(a => a.Date.year == year && a.Lane == BillLane.Standing).Select(a => a.ArtistId), StringComparer.Ordinal);
+		string Gate(SimulatedArtist a) =>
+			!a.isActive ? "retired" : string.IsNullOrEmpty(a.labelId) ? "unsigned" : !live.Contains(a.artistId) ? "noLiveRecord"
+			: ArtistRecognitionService.EffectiveRecognition(a) < 0.20f ? "recog<.20" : "eligible";
+		var vets = ArtistManager.Instance.GetAllArtists().Where(a => a != null && !a.isPlayerOwned && a.top40Hits > 0).ToList();
+		string Row(string name, List<SimulatedArtist> group) {
+			var recs = group.Where(a => a.isActive && !string.IsNullOrEmpty(a.labelId)).Select(ArtistRecognitionService.EffectiveRecognition).OrderBy(r => r).ToList();
+			string median = recs.Count == 0 ? "-" : recs[recs.Count / 2].ToString("F2");
+			return $"{name}={group.Count} [{string.Join(" ", group.GroupBy(Gate).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => g.Key + ":" + g.Count()))}] " +
+				$"signedRecogMedian={median} bookedStanding={group.Count(a => booked.Contains(a.artistId))}";
+		}
+		Godot.GD.Print($"MEDIA_VETERANS year={year} {Row("hitLive", vets.Where(a => liveHit.Contains(a.artistId)).ToList())} " +
+			$"{Row("hitCulled", vets.Where(a => !liveHit.Contains(a.artistId)).ToList())}");
 	}
 
 	private static long elapsedTicks;
@@ -340,6 +370,7 @@ public static partial class MediaAtmosphereService {
 		public float Breadth(RecordRuntimeData r) => Regions.Count == 0 ? 0f : BrokeCount(r) / (float)Regions.Count;
 
 		private readonly List<RecordRuntimeData> all;
+		public IReadOnlyList<RecordRuntimeData> All => all;
 		private List<StandingAct> standing;
 		private HashSet<string> top40Artists;
 

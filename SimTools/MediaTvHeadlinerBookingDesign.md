@@ -329,12 +329,38 @@ All of these happened on time:
   top-40 hit in the last year that isn't on this week's top 40. No act whose last hit was four or more years back got a
   single date. History is the other way round: Sullivan's standing guests were mostly long-established names. Acts
   signed by 1960 hold 73% of last-26-week standing dates in 1963, then 64%, 52% and 44% by 1966. The ones still booked
-  are the ones still charting. The cause is not yet separated:
-  - Recognition decays below the 0.20 floor without new hits.
-  - Acts are dropped after short careers (see the two-record careers note).
-  - The live-record requirement removes acts with nothing current to charge the date to.
+  are the ones still charting. Opening careers are off in this profile (`openingCareersEnabled = false`), so no seeded
+  veteran was in the pool. The cause is in the census below.
 
-  Opening careers are off in this profile (`openingCareersEnabled = false`), so no seeded veteran was in the pool.
+### Where the old hitmakers went
+
+`MEDIA_VETERANS` (year end) takes every rival act with a lifetime top-40 hit. It splits them by whether a hit record
+is still live in the market or has been culled, then sorts each act by the first standing-pool gate it fails.
+
+| Year | Acts with culled hits | Unsigned | Retired | Signed, recognition < 0.20 | Signed, no live record | Eligible | Signed median recognition |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1963 | 860 | 625 (73%) | 84 | 121 | 22 | 8 | 0.04 |
+| 1964 | 1,066 | 815 (76%) | 122 | 112 | 15 | 2 | 0.06 |
+| 1965 | 1,268 | 977 (77%) | 161 | 110 | 16 | 4 | 0.06 |
+| 1966 | 1,458 | 1,103 (76%) | 234 | 103 | 15 | 3 | 0.06 |
+
+For comparison, the acts with a hit still live number 323-356, and 63-97 of them are eligible.
+
+- **Mostly they were dropped.** Three quarters of past hitmakers are off every roster, matching the two-record careers
+  finding. Media can't book an unsigned act, because the date has to be charged to a label's campaign.
+- **The few still signed have lost their fame.** Their median recognition is 0.04-0.06, so nearly all sit under the
+  0.20 floor. Canonical recognition decays without new hits, and nothing preserves a past star's name.
+- **The live-record gate barely matters**: 15-22 acts a year.
+- **The pool can't see their hits anyway.** `CullDeadRecords` removes old records from `GetAllRecords`, so the pool
+  reads a culled-hit act as "never had a hit" (6 years in the recency weight). That only matters for the handful who
+  pass the other gates.
+
+Both main causes sit upstream of media, in roster drops and recognition decay. A media-side fix would need two changes:
+- A booker's memory of a name that doesn't decay with canonical recognition, built from existing fields such as
+  lifetime `top40Hits`.
+- A way to book an act without a label: the agent books the nightclub name, and nothing is charged to an AI envelope.
+
+Both are design choices, not tuning.
 - **What standing acts sang** (1963-66, 4,349 dates): standard 72%, current cover 14%, own earlier hit 9%, own record
   5%. History for 1960-64 Sullivan is 80 / 14 / 1 / 6. Closer than 1960's 61% standards; the own-hit share is still high.
 - **Comedy** fills 6-8% of its slots, down from 18% in 1960. The comedy pool did not grow.
@@ -366,8 +392,9 @@ unsourced.
 
 ## Open
 
-- **Standing guests are recent hitmakers** (mid-decade check). A name whose hits are four or more years old never gets
-  a standing date. The cause needs to be separated: recognition decay, short careers, or the live-record requirement.
+- **Standing guests are recent hitmakers** (mid-decade check). Of the acts whose hit records have been culled, 76% are
+  unsigned and the signed ones sit at about 0.05 recognition, so no old name is bookable. Fixing that needs either a
+  booker's memory of a name that doesn't decay, or label-free bookings, or both. Author decision.
 - **Talk shows starve Sullivan's standing slots** (hypothesis). Options: exempt talk dates from the season limit, or
   book primetime variety first each week.
 - **Career effect of a TV performance**: the outcome feeds fan attachment (`Spark`), press tone and outlets, the
