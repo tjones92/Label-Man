@@ -626,7 +626,7 @@ public partial class RosterManager : Node {
 	private DailyNomination NominateFromDailySnapshot(AILabel label, int year, TalentServiceState service, List<SimulatedArtist> snapshot,
 		DailyTalentMarketAppointment appointment, LabelScoutingVacancyObservation observation, DailySupplyIndex supplyIndex) {
 		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, snapshot, out int discoveryPoolCount, supplyIndex);
-		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out _, supplyIndex);
+		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out int experiencedAccessible, supplyIndex);
 		// Fog the live read: same window GetEnabledSupplyCandidates uses, so a scout's perception is
 		// stable within the 4-week window and re-evaluation cannot launder it.
 		int discoveryWindow = Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) - 1) / DiscoveryRefreshWindowWeeks;
@@ -661,6 +661,7 @@ public partial class RosterManager : Node {
 			if (bestFresh != null && (bestExperienced == null || ScoreOf(freshEvaluation.CandidateScores, bestFresh) >= ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced))) { selected = bestFresh; lane = "FreshPotential"; }
 			else { selected = bestExperienced; lane = selected == null ? null : "ExperiencedProduction"; }
 		}
+		ObserveFreeAgentNomination(label, experienced, experiencedAccessible, experiencedEvaluation, freshEvaluation, selected, lane);
 		if (selected == null) { appointment.Outcome = snapshot.Count == 0 ? "NoCandidate" : "NoQualifyingCandidate"; observation.FailureReason = appointment.Outcome; return null; }
 		appointment.SelectedArtist = selected; appointment.SelectedLane = lane; appointment.Outcome = "Nominated";
 		observation.SelectedLane = lane; observation.SigningAttempted = true; observation.FailureReason = "Nominated";
@@ -1354,6 +1355,7 @@ public partial class RosterManager : Node {
 	private void OnMonthChanged(GameDate date) {
 		var labels = GetAllLabels();
 		if (labels == null) return;
+		if (date.month == 1) PrintFreeAgentYear(date.year - 1, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		if (IsLiveGenreMarket()) ReconcileEnabledRosterLifecycle(labels, date.year);
 		foreach (var label in labels) {
 			// Renewals and drops on the player's roster are the player's calls.

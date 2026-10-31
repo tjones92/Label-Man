@@ -446,6 +446,63 @@ Both are design choices, not tuning.
 - **Comedy** fills 6-8% of its slots, down from 18% in 1960. The comedy pool did not grow.
 - **Recognition of standing guests** rises over the decade: the median goes 0.23 → 0.31 → 0.32 → 0.33.
 
+### Why free agents with hits are not signed again
+
+`tvbook-m` repeats the control resume with print-only counters in the AI daily talent market
+(`Systems/RosterManager.FreeAgentDiagnostics.cs`, `ROSTER_FREEAGENTS` / `ROSTER_FREEAGENT_POOL`, printed each January
+for the year before). Its population-events and act-year files are byte-identical to `tvbook-k`, so the counters are
+inert. "Hitmaker" here means an act with a lifetime top-40 hit.
+
+Where the unsigned, active hitmakers sit at year end:
+
+| Year | Unsigned hitmakers | Open to signing | Latent (reservoir) | Performance-drop cooldown | Genre closed |
+|---|---:|---:|---:|---:|---:|
+| 1963 | 751 | 289 | 265 | 197 | 0 |
+| 1964 | 946 | 561 | 250 | 135 | 0 |
+| 1965 | 1,075 | 550 | 421 | 104 | 0 |
+| 1966 | 1,185 | 671 | 357 | 134 | 23 |
+
+Almost every open one (95-97%) is reachable by ten or more AI labels under scene recruitment. Reach is not the gate.
+
+What happens when the labels look:
+
+| Year | Appointments | With a hitmaker in the slate | Distinct hitmakers seen | Nominated | Lost to a fresh prospect | Top hitmaker score | Best fresh score |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1963 | 1,926 | 1,366 (71%) | 587 | 15 | 1,327 | 0.83 | 1.09 |
+| 1964 | 2,303 | 1,687 (73%) | 744 | 11 | 1,660 | 0.81 | 1.09 |
+| 1965 | 2,505 | 1,771 (71%) | 814 | 9 | 1,750 | 0.79 | 1.06 |
+| 1966 | 2,635 | 1,739 (66%) | 843 | 5 | 1,718 | 0.74 | 1.03 |
+
+- **Labels see the hitmakers.** Seven appointments in ten have one in the experienced slate, and most open hitmakers
+  are seen at least once a year.
+- **Most of them qualify.** About 90% clear the 0.3 floor, under 1% are unaffordable, and the hitmaker tops its slate
+  in about 40% of those appointments.
+- **They lose to the fresh lane.** In 97-99% of appointments, a never-signed prospect from the fresh slate outscores
+  the hitmaker by about 0.25-0.3. Nominations fall from 15 to 5 a year.
+
+The causes, read from the scoring code (`AILabel.EvaluateSigning` against `EvaluateFreshPotential`); I haven't measured
+how much each one contributes:
+- **A hit record adds little to the score.** The experienced score adds `momentum × 0.5 + reputation × 0.3` to the
+  same quality and genre terms the fresh score uses. Open hitmakers carry momentum 0.07-0.11 and reputation 0.09-0.12,
+  so the bonus is worth about +0.08. Lifetime `top40Hits` is not read at all.
+- **Only proven acts pay the low-reputation penalty.** The experienced score is multiplied by `0.5 + riskTolerance × 0.5`
+  when reputation is below 0.1, and with a mean of about 0.1 roughly half the hitmakers fall under it. The fresh score
+  has no such term, so an unknown with zero reputation is never penalized.
+- **A proven act costs more.** `ContractPricing` moves proven acts to the legacy tier price, which makes the 0.7 cost
+  penalty more likely. Hard unaffordability is rare; the soft penalty was not counted.
+
+By contrast, labels in history regularly picked up proven names after their old deals ended. Fats Domino went from
+Imperial to ABC-Paramount in 1963, Ricky Nelson from Imperial to Decca in 1963, and Del Shannon from Big Top to Amy in
+1964. Here a name with a hit history scores below an anonymous newcomer. That is the open ahistorical cause behind the
+unsigned old stars.
+
+Possible fixes, all economy changes for the author to decide:
+- Exempt hitmakers from the low-reputation penalty, or apply the same penalty to fresh prospects.
+- Score a hit history directly, for example a bounded term on lifetime `top40Hits` or on the best peak.
+- Let a free agent's reputation stop decaying below a floor set by past hits.
+
+Each fix should be screened on the 1963 resume for signings of free agents with hits, Big-5 share and closures.
+
 ### Sullivan's bill
 
 Last 26 weeks of each year; Sullivan reruns in July and August, so that window holds about 18 new episodes.
@@ -475,6 +532,10 @@ unsourced.
 - **Standing guests are recent hitmakers** (mid-decade check). Of the acts whose hit records have been culled, 76% are
   unsigned and the signed ones sit at about 0.05 recognition, so no old name is bookable. Fixing that needs either a
   booker's memory of a name that doesn't decay, or label-free bookings, or both. Author decision.
+- **Free agents with hits lose to fresh prospects** (`tvbook-m`). Labels see them in 70% of appointments, but the fresh
+  lane outscores them in 97-99%. The likely reasons are the low-reputation penalty only proven acts pay and a hit
+  record worth about +0.08. Options are in "Why free agents with hits are not signed again". This is an economy
+  change, so it needs an author decision and a screen.
 - **Talk shows starve Sullivan's standing slots** (hypothesis). Options: exempt talk dates from the season limit, or
   book primetime variety first each week.
 - **Career effect of a TV performance**: the outcome feeds fan attachment (`Spark`), press tone and outlets, the
