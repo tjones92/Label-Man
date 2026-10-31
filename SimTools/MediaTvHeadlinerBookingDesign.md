@@ -355,6 +355,51 @@ For comparison, the acts with a hit still live number 323-356, and 63-97 of them
   reads a culled-hit act as "never had a hit" (6 years in the recency weight). That only matters for the handful who
   pass the other gates.
 
+### Why hit acts leave rosters
+
+The run is `tvbook-k`, using its `artist-population-events.csv` and `act-release-years.csv`. The script was a one-off in
+the session scratchpad.
+
+**Exits.** 711 roster exits in 1963-66 were by acts with a lifetime top-40 hit. Only 9 of them were signed again
+before the run ended. "Within a year of a hit" means a hit this calendar year or last.
+
+| Exit | All | Within a year of a hit | Hit two or more years back, or pre-1963 |
+|---|---:|---:|---:|
+| Performance drop (Declining, flops) | 396 | 169 | 227 |
+| Contract expired, not renewed | 286 | 212 | 74 |
+| Exhaustion, reconciliation, label closure | 29 | 8 | 21 |
+
+- **Hot exits.** 389 exits (55%) came within a year of a hit. Nearly all were one-hit acts (contract top-40 = 1).
+  Most were Rising (205) or had already slid to Declining (174).
+- **Contracts.** Contracts run 1-3 years, and 182 of the 286 expiries matured by delivery (releases = obligation). At
+  expiry a Rising act is renewed only with momentum > 0.2, otherwise on a loyalty coin flip. A top-40 hit adds just
+  0.02 momentum (top 10 adds 0.10), and each flop takes 0.05-0.15 away.
+- **Flops.** Any record peaking below 60 or not charting counts as a flop. Two in a row turn Rising into Declining. A
+  Declining act is never renewed and is dropped at 50% per review after two more flops.
+
+**Persistence against history.** Acts with a top-40 hit in year Y, against the 1960-64 weekly Hot 100:
+
+| | Any Hot 100 entry, Y+2 | Top 40, Y+2 | Any Hot 100 entry, Y+3 |
+|---|---:|---:|---:|
+| History (Y = 1960-62) | 38-42% | 22-29% | 31-32% |
+| Sim (Y = 1963-64) | 29-33% | 24% | 22% |
+
+Most of the attrition is historical. In history too, about 60% of a year's top-40 acts had no Hot 100 entry two years
+later, and repeat top-40 careers in the sim last about as long. The sim falls short only on lower-chart presence,
+which fits the known shortfall in hit acts' release volume.
+
+**What looks ahistorical:**
+1. **A free agent with a hit is almost never signed again** (9 of 711). Labels did sign proven names in the 1960s:
+   the Everly Brothers to Warner (1960), Sam Cooke to RCA, Ray Charles to ABC. Two things block it here:
+   - The signing score (`AILabel.EvaluateSigning`) reads a past hit only through momentum and reputation, which a
+     top-40 moves by 0.02 and 0.01.
+   - Discovery slates are a keyed random sample of the regional pool, so no label goes looking for a known name.
+2. **Not renewing a Rising act right after its first hit** (212 expiries). With a single top-40 the momentum test
+   almost never passes, so renewal comes down to the loyalty coin.
+3. **Not checked: album-selling acts dropped for singles flops.** Albums count toward the flop streak. An adult-pop
+   act that stopped making hit singles but sold LPs, the kind of name variety TV booked on, would go Declining and
+   then be dropped like anyone else. That needs a look at the dropped acts' LP net before calling it a cause.
+
 Both main causes sit upstream of media, in roster drops and recognition decay. A media-side fix would need two changes:
 - A booker's memory of a name that doesn't decay with canonical recognition, built from existing fields such as
   lifetime `top40Hits`.
