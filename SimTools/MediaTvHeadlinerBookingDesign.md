@@ -400,6 +400,41 @@ which fits the known shortfall in hit acts' release volume.
    act that stopped making hit singles but sold LPs, the kind of name variety TV booked on, would go Declining and
    then be dropped like anyone else. That needs a look at the dropped acts' LP net before calling it a cause.
 
+### With `--album-scale-career-milestones --hit-act-retention`
+
+The same resume was rerun with both off-by-default switches (`tvbook-l`). The saved 1963 world was built without them,
+so the runner prints `RESUME_FLAG_MISMATCH`. Only 1963-66 runs under the new rules. This is one seed, and the switches
+reshuffle the stream, so read the small counts as noisy.
+
+| | Control (`tvbook-k`) | Both switches (`tvbook-l`) |
+|---|---:|---:|
+| Exits of acts with a lifetime top-40 | 711 | 568 |
+| Of which within a year of a hit | 389 | 222 |
+| Performance drops (hot) | 396 (169) | 493 (195) |
+| Contract expiries (hot) | 286 (212) | 35 (8) |
+| Signed again after the exit | 9 | 8 |
+| 1963 top-40 acts: any Hot 100 entry Y+2 / top 40 Y+2 | 29% / 24% (of 219) | 32% / 29% (of 251) |
+| 1964 top-40 acts: any Hot 100 entry Y+2 | 33% | 35% |
+| 1963 top-40 acts: any Hot 100 entry Y+3 | 22% | 23% |
+| Name-booked national dates, last 26 weeks of 1966 | 569 | 685 |
+| Standing slots empty, 1966 | 420 of 1,618 | 213 of 1,618 |
+| Culled-hit acts unsigned, end of 1966 | 1,103 | 1,034 |
+| Standing dates to acts with last hit 4+ years back | 0 | 0 |
+
+- **Retention closes the hot contract expiries.** They fall from 212 to 8. The 254 renewals by the end of 1965 and
+  407 by the end of 1966 are the retention rule at work.
+- **Performance drops rise** from 396 to 493. The retained acts are dropped on flops later, once the 52-week
+  protection runs out. Some still count as hot here because "within a year" means a hit this calendar year or last.
+- **Free agents are still almost never signed again** (8). Neither switch touches the signing score or discovery, so
+  that is still the open ahistorical cause.
+- **Persistence moves a little toward history.** Top 40 at Y+2 rises from 24% to 29%, at the top of history's 22-29%.
+  The Y+3 Hot 100 gap (23% against 31-32%) stays.
+  - Caveat: under B1 a charting LP in the album chart's top 40% counts as a top-40 hit. More acts qualify (251
+    against 219), and the history comparison is singles-only.
+- **For TV**, the bills fill better: empty standing slots in 1966 halve and name-booked dates rise 20%. But the extra
+  dates still go to recent hitmakers, and no act whose last hit was four or more years back gets a date. Past
+  hitmakers are still mostly unsigned (1,034 against 1,103), because the re-signing route didn't change.
+
 Both main causes sit upstream of media, in roster drops and recognition decay. A media-side fix would need two changes:
 - A booker's memory of a name that doesn't decay with canonical recognition, built from existing fields such as
   lifetime `top40Hits`.
