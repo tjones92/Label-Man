@@ -612,7 +612,7 @@ No single “media score” can substitute for this provenance. The audit must b
 
 **Phase 3 — AI characterization and fan episodes, observe-only.** Bounded AI planner, existing-budget allocation estimates, distinct editorial decisions, fan-mag member attention, and emergent frenzies. Prove rivals use the same slots and dates. No extra spending, production, release, canonical traits, or economic readers.
 
-**Phase 4 — player costs and the singles demand adapter.** Activate actual authorized costs and rights/accounting, preserve old trade behavior, then introduce §12's single constrained writer. Validate each writer separately before the combined adapter. Recognition, albums, supply bans, and AI fixed costs remain outside this activation.
+**Phase 4 — player costs and the singles demand adapter.** Activate actual authorized costs and rights/accounting, preserve old trade behavior, then introduce §12's single constrained writer. Validate each writer separately before the combined adapter. Recognition, albums, supply bans, and AI fixed costs remain outside this activation. *Amendment (2026-10-31, author): a media → act recognition writer is approved as its own bounded adapter. It is shadow-validated first and kept off the §12.3 ledger; see `MediaRecognitionAdapterDesign.md`.*
 
 **Phase 5 — long-run acceptance and presentation.** Run paired controls and causal worlds through the complete decade, inspect tails and indirect effects, then polish summaries, scene variation, contact history, and scrapbook pacing. Record measured results in a separate implementation/acceptance handoff; do not rewrite provisional targets as if they were measurements.
 
