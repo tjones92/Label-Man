@@ -61,9 +61,9 @@ gain      = min(gain_raw, AnnualCap − depositedThisYear)    // per act, calend
 
 ### Starting values (to be checked by the shadow pass, not tuned to pass)
 
-`population` is the same denominator `TallyAiredThrough` already uses (the sum of region populations). The values
-below assume about 180M, the US figure; confirm the model's sum in the shadow pass. The model's Sullivan spots reach
-20-27M unique viewers, about 0.14 of that. A talk-show spot reaches roughly 5-8M; also confirm that in the shadow pass.
+`population` is the same denominator `TallyAiredThrough` already uses: the sum of region populations, 158M in the model
+(Phase 2 notes). The model's Sullivan spots reach 20-27M unique viewers, about 0.14 of that; a talk-show spot reaches
+roughly 5-8M.
 
 | Parameter | Value | Meaning |
 |---|---|---|
@@ -110,8 +110,10 @@ out of airtime alone.
 - **`--media-recognition`** (causal): deposits go through `AddPublicRecognition`. It requires `ArtistRecognition.Enabled`.
   Kept independent of the §12.3 adapter switch.
 
-Save data: `RecognitionReach`, `ShadowRecognitionGain`, `RecognitionDepositedYear` and its year key on `MediaActTally`
-need a `ConfigVersion` bump. Old saves start with `seen = 0`, so no fame is invented for past airings (§15.2).
+Save data: `RecognitionReach`, `ShadowRecognition`, `RecognitionDepositedYear` and `RecognitionYear` on
+`MediaActTally`, saved as JSON fields. Old saves load them as zero, so no fame is invented for past airings (§15.2). No
+`ConfigVersion` bump: the version keys every media draw, and bumping it would reshuffle all bookings for a change that
+books nothing differently.
 
 ## Telemetry (`MEDIA_RECOGNITION`, yearly)
 
@@ -143,6 +145,53 @@ need a `ConfigVersion` bump. Old saves start with `seen = 0`, so no fame is inve
    catastrophe.
 4. **End-of-branch decade A/B,** batched with the hit-history-signing A/B and the §12.3 adapter. Paired seeds 1001 and
    1002 plus two preregistered holdouts, game profile, all §12.5 limits per seed and year.
+
+## Shadow pass (built 2026-10-31)
+
+- **Built:**
+  - `Systems/Media/MediaRecognition.cs`, with the `--observe-media-recognition` switch and the pure `Deposit` arithmetic;
+  - four `MediaActTally` fields;
+  - the weekly decay and per-airing deposit in `MediaAtmosphereService`;
+  - the yearly `MEDIA_RECOGNITION` line;
+  - `ArtistRecognitionService.RealizedGainTotal`, a print-only counter of chart-earned gains.
+
+  `--media-recognition` (causal) is rejected until it is built.
+- **Fixtures** (`MediaAtmosphereChecks.RecognitionShadow`, 146 checks pass at `--seed=1001`):
+  - a first Sullivan spot is 0.0210 against a top-40's 0.022, and a talk spot 0.0057 against a chart entry's 0.007;
+  - a regular earns 0.0021, and the same act five years later 0.0144;
+  - a breakdown earns exactly half, an electrifying night 0.0284;
+  - the cap clips;
+  - the new fields survive a save round trip.
+- **Inertness, with the shadow on:**
+  - 104-week seeds 1001 and 2002: 106/106 economy CSVs byte-identical to `ref-f50b9a4`;
+  - the 1963-66 resume (`tvbook-s`): population events and records byte-identical to `tvbook-m`.
+
+1963-66 resume, seed 1001. The 1963 "chart-earned" figure also counts credits made at world load, so read 1964-66:
+
+| Year | TV deposits | Applied (after diminishing returns) | Chart-earned | TV share | Acts at cap | Would cross 0.05 / 0.20 | TV-active hitmakers: recognition real → with TV |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 1964 | 7,991 | 4.77 | 40.8 | 10.5% | 18 | 30 / 23 | 363 acts: 0.157 → 0.177 |
+| 1965 | 11,266 | 5.91 | 39.7 | 12.9% | 25 | 37 / 32 | 345 acts: 0.177 → 0.204 |
+| 1966 | 10,945 | 5.09 | 39.1 | 11.5% | 17 | 49 / 34 | 344 acts: 0.192 → 0.221 |
+
+- **Size:** TV would add about an eighth of the fame the chart earns in a year. Hitmakers who are on TV would be about
+  13-15% better known than they are now. That's a visible effect, not a takeover, so K = 0.15 and the 0.06 cap stand
+  for the causal screen.
+- **Where it lands:**
+  - the chart lane takes 65-77% of deposits, so most TV fame goes to acts already charting (the concentration risk to
+    watch);
+  - the standing lane takes 20-30%;
+  - local shows take about 3%;
+  - primetime variety takes about half.
+- **The cap binds for 17-25 acts a year,** the busiest chart-lane guests on daily teen TV and talk shows. They are
+  the top-five lists every year.
+- **The bookings loop's entry point:** 23-34 acts a year would cross the 0.20 program floor through TV. The shadow
+  does not feed back, so in causal mode they would then get standing dates and deposit again. The causal screen has
+  to read that loop.
+- **Past hitmakers off TV are untouched.** About 1,000-1,200 of them sit at about 0.05 recognition, and the shadow
+  never reaches them, because the standing pool needs a label and recognition first. Keeping old names known also
+  needs `--hit-history-signing-recovery` to get them signed and onto bills. The causal screen should run with that
+  switch both off and on.
 
 ## Open
 

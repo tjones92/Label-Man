@@ -412,6 +412,7 @@ public partial class ChartManager : Node {
 		ArtistEvolution.Configure(artistEvolutionEnabled, SimulationArguments.Get());
 		ArtistRecognition.Configure(artistRecognitionEnabled, SimulationArguments.Get());
 		MediaAtmosphere.Configure(mediaAtmosphereObserve, SimulationArguments.Get());
+		MediaRecognition.Configure(SimulationArguments.Get());
 		ManagerSystem.Configure(managersEnabled, SimulationArguments.Get());
 		StarCanopy.Configure(seedStarCanopyEnabled, SimulationArguments.Get());
 		OpeningCareers.Configure(openingCareersEnabled, SimulationArguments.Get());

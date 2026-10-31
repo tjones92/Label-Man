@@ -73,10 +73,14 @@ public static class ArtistRecognitionService {
 	// ---- gains, with diminishing returns on every deposit --------------------------------------
 	// The anti-monopoly core: a #1 does not mint a permanent franchise. Each gain buys less the
 	// higher the stock already is, so recognition saturates rather than compounds.
+	/// <summary>Every realized act gain since the process started (print-only, for media telemetry's TV share). Not saved.</summary>
+	public static double RealizedGainTotal { get; private set; }
+
 	public static void AddPublicRecognition(SimulatedArtist artist, float rawGain) {
 		if (!ArtistRecognition.Observing || artist == null || rawGain <= 0f) return;
 		float before = artist.publicRecognition;
 		artist.publicRecognition = Mathf.Clamp(before + rawGain * (1f - before), 0f, 1f);
+		RealizedGainTotal += artist.publicRecognition - before;
 		// Phase E-lite: the act's realized gain reads down to the current lineup.
 		MusicianRecognitionService.ShareArtistRecognitionGain(artist, artist.publicRecognition - before);
 	}

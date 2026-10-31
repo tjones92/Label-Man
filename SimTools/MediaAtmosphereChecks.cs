@@ -37,6 +37,7 @@ public partial class MediaAtmosphereChecks : Node {
 			FansInTheWorld();
 			AiPlanner();
 			PhaseThreeSave();
+			RecognitionShadow();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -687,6 +688,47 @@ public partial class MediaAtmosphereChecks : Node {
 				&& p.Value.Attachment.All(x => Math.Abs(now.Fans[p.Key].Attachment[x.Key] - x.Value) < 1e-6) && p.Value.Spotlight.Count == now.Fans[p.Key].Spotlight.Count)
 			&& back.AiAllocations.All(p => now.AiAllocations[p.Key].TvReservedCents == p.Value.TvReservedCents && p.Value.Receipts.Count == now.AiAllocations[p.Key].Receipts.Count && p.Value.Balanced),
 			$"Phase 3 state survives a save round trip ({json.Length / 1024} KB: {now.Fans.Count} fan records, {now.AiAllocations.Count} allocations, {now.AiPitches.Count} AI pitches)");
+	}
+
+	// Media → recognition, shadow (SimTools/MediaRecognitionAdapterDesign.md): the deposit's shape, then the live pass.
+	private void RecognitionShadow() {
+		const double P = 158e6;
+		var ordinary = new MediaPerformanceResult { Outcome = PerformanceOutcome.FlatAdequate };
+		float First(double fresh, MediaPerformanceResult perf = null) => MediaRecognition.Deposit(0, fresh, P, perf ?? ordinary, 0f).Gain;
+		float sullivan = First(0.14 * P), talk = First(6e6);
+		Check(Math.Abs(sullivan - ArtistRecognitionService.Top40Gain) < 0.003f && Math.Abs(talk - ArtistRecognitionService.ChartEntryGain) < 0.002f,
+			$"A first Sullivan spot is about a Top 40 milestone ({sullivan:F4} vs {ArtistRecognitionService.Top40Gain}); a talk spot about a chart entry ({talk:F4})");
+		float regular = MediaRecognition.Deposit(0.6 * P, 0.25 * 0.14 * P, P, ordinary, 0f).Gain;
+		double faded = 0.6 * P * Math.Pow(ArtistRecognitionService.PublicRecognitionDecay, 52 * 5);
+		float back = MediaRecognition.Deposit(faded, 0.14 * P, P, ordinary, 0f).Gain;
+		Check(regular < 0.15f * sullivan && back > 5f * regular,
+			$"A weekly regular stops earning ({regular:F4}); five years away and the audience has forgotten ({back:F4})");
+		float bad = First(0.14 * P, new MediaPerformanceResult { Outcome = PerformanceOutcome.Breakdown });
+		float great = First(0.14 * P, new MediaPerformanceResult { Outcome = PerformanceOutcome.Electrifying });
+		Check(bad > 0f && Math.Abs(bad - 0.5f * sullivan) < 1e-5f && great > sullivan,
+			$"A disaster still makes a face known, at half ({bad:F4}); an electrifying night more ({great:F4})");
+		var clip = MediaRecognition.Deposit(0, 0.14 * P, P, ordinary, MediaRecognition.AnnualCap - 0.005f);
+		Check(Math.Abs(clip.Gain - 0.005f) < 1e-6f && Math.Abs(clip.Gain + clip.Clipped - sullivan) < 1e-6f && MediaRecognition.Deposit(0, 0, P, ordinary, 0f).Gain == 0f,
+			$"The year's cap clips the deposit ({clip.Gain:F4} paid, {clip.Clipped:F4} clipped); no audience, no deposit");
+
+		MediaRecognition.SetForChecks(true);
+		try {
+			var clock = TimeManager.Instance;
+			GameRandom.Seed(4242);
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			var tallies = MediaAtmosphereService.Tallies.Values.ToList();
+			Check(tallies.Any(t => t.ShadowRecognition > 0f && t.RecognitionReach > 0) && tallies.All(t => t.ShadowRecognition is >= 0f and <= 1f
+					&& t.RecognitionDepositedYear <= MediaRecognition.AnnualCap + 1e-6f),
+				$"Two weeks of airings build shadow familiarity within [0,1] and the cap ({tallies.Count(t => t.ShadowRecognition > 0f)} acts, top " +
+				$"{tallies.Max(t => t.ShadowRecognition):F4})");
+			var opts = new JsonSerializerOptions { IncludeFields = true };
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var round = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			Check(round.Tallies.All(p => world.Media.Tallies[p.Key].RecognitionReach == p.Value.RecognitionReach && world.Media.Tallies[p.Key].ShadowRecognition == p.Value.ShadowRecognition
+					&& world.Media.Tallies[p.Key].RecognitionDepositedYear == p.Value.RecognitionDepositedYear && world.Media.Tallies[p.Key].RecognitionYear == p.Value.RecognitionYear),
+				"The reach stock, shadow and year's deposit survive a save round trip");
+		} finally { MediaRecognition.SetForChecks(false); }
 	}
 
 	private void PhaseTwoSave() {

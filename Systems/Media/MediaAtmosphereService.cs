@@ -84,6 +84,13 @@ public sealed class MediaActTally {
 	public int PressItems;
 	public double PeakEpisodeAudience;
 	public string BestNight;
+	/// <summary>Media → recognition (MediaRecognition): people who have seen the act recently, decaying on recognition's clock.</summary>
+	public double RecognitionReach;
+	/// <summary>Shadow mode: the familiarity television would have added, decaying like recognition. Never canonical.</summary>
+	public float ShadowRecognition;
+	/// <summary>Raw deposit (before diminishing returns) charged against the year's cap, and the year it belongs to.</summary>
+	public float RecognitionDepositedYear;
+	public int RecognitionYear;
 }
 
 public sealed class MediaSaveData {
@@ -177,6 +184,7 @@ public static partial class MediaAtmosphereService {
 		if (!MediaAtmosphere.Observing || charts == null) return;
 		long started = System.Diagnostics.Stopwatch.GetTimestamp();
 		labelIndex = null;
+		if (MediaRecognition.Shadow) DecayRecognitionReach();
 		TallyAiredThrough(weekEnd);
 		var evidence = new Evidence(charts);
 		// The order is the contract (§15.1): what aired is tallied, the frozen chart is read, the fans respond to the
@@ -191,7 +199,7 @@ public static partial class MediaAtmosphereService {
 		DecayAttitudes(weekEnd);
 		Prune(weekEnd);
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
-		if (weekEnd.month == 12 && weekEnd.day >= 25) { PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); }
+		if (weekEnd.month == 12 && weekEnd.day >= 25) { PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); }
 	}
 
 	/// <summary>
@@ -932,8 +940,92 @@ public static partial class MediaAtmosphereService {
 				if (!returning) t.ProgramsSeen.Add(a.ProgramId);
 				double fresh = airing.Exposure.UniqueReach * (returning ? ReturnVisitNewShare : 1.0);
 				t.EstimatedReach = BroadcastExposure.CombineReach(t.EstimatedReach, fresh, population);
+				if (MediaRecognition.Shadow && !a.Cut) ShadowRecognitionDeposit(a, airing, t, fresh, population);
 			}
 		}
+	}
+
+	// ---- media → recognition, shadow (MediaRecognition; SimTools/MediaRecognitionAdapterDesign.md) --------------------
+
+	/// <summary>Year ledger for MEDIA_RECOGNITION (print-only, cleared each year end).</summary>
+	private static readonly Dictionary<string, double> recognitionLedger = new(StringComparer.Ordinal);
+	private static double recognitionChartGainAtYearStart;
+
+	private static void RecognitionLedger(string key, double amount) =>
+		recognitionLedger[key] = recognitionLedger.GetValueOrDefault(key) + amount;
+
+	/// <summary>Once a week, before the tally: the recently-seen stock and the shadow familiarity fade on recognition's clock.</summary>
+	private static void DecayRecognitionReach() {
+		foreach (MediaActTally t in state.Tallies.Values) {
+			if (t.RecognitionReach > 0) t.RecognitionReach *= ArtistRecognitionService.PublicRecognitionDecay;
+			if (t.ShadowRecognition > 0f) t.ShadowRecognition *= ArtistRecognitionService.PublicRecognitionDecay;
+		}
+	}
+
+	/// <summary>
+	/// What this airing would add to the act's recognition: the raw deposit against the year's cap, then the same
+	/// diminishing returns <see cref="ArtistRecognitionService.AddPublicRecognition"/> applies, read against the act's real
+	/// recognition plus the shadow already built. Written only to the media tally; the canonical stock is never touched.
+	/// </summary>
+	private static void ShadowRecognitionDeposit(MediaAppearance a, MediaAiring airing, MediaActTally t, double fresh, double population) {
+		if (t.RecognitionYear != airing.Date.year) { t.RecognitionYear = airing.Date.year; t.RecognitionDepositedYear = 0f; }
+		var (gain, clipped, seen) = MediaRecognition.Deposit(t.RecognitionReach, fresh, population, a.Performance, t.RecognitionDepositedYear);
+		t.RecognitionReach = seen;
+		t.RecognitionDepositedYear += gain;
+		float canonical = ArtistManager.Instance?.GetArtist(a.ArtistId)?.publicRecognition ?? 0f;
+		float applied = gain * (1f - Math.Clamp(canonical + t.ShadowRecognition, 0f, 1f));
+		t.ShadowRecognition = Math.Clamp(t.ShadowRecognition + applied, 0f, 1f);
+		if (gain <= 0f && clipped <= 0f) return;
+		bool national = MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local;
+		RecognitionLedger("deposits", 1);
+		RecognitionLedger("raw", gain);
+		RecognitionLedger("applied", applied);
+		RecognitionLedger("clipped", clipped);
+		RecognitionLedger(national ? "appliedNational" : "appliedLocal", applied);
+		RecognitionLedger("applied" + a.Lane, applied);
+		if (MediaOutletCatalog.Get(a.ProgramId)?.Kind == TvProgramKind.PrimetimeVariety) RecognitionLedger("appliedPrimetime", applied);
+	}
+
+	/// <summary>
+	/// Year end: the shadow deposits beside the chart-earned recognition gained in the same year, the acts TV would carry
+	/// over the standing floors, and the past hitmakers it would keep known. Read-only.
+	/// </summary>
+	private static void PrintRecognition(int year) {
+		if (!MediaRecognition.Shadow || ArtistManager.Instance == null) return;
+		double V(string key) => recognitionLedger.GetValueOrDefault(key);
+		double chartGain = ArtistRecognitionService.RealizedGainTotal - recognitionChartGainAtYearStart;
+		recognitionChartGainAtYearStart = ArtistRecognitionService.RealizedGainTotal;
+		int over05 = 0, over20 = 0, capped = 0;
+		var tvVets = new List<(float Real, float Shadowed)>();
+		var quietVets = new List<float>();
+		foreach (MediaActTally t in state.Tallies.Values) {
+			SimulatedArtist artist = ArtistManager.Instance.GetArtist(t.ArtistId);
+			if (artist == null) continue;
+			float real = ArtistRecognitionService.EffectiveRecognition(artist);
+			float shadowed = Math.Clamp(real + t.ShadowRecognition, 0f, 1f);
+			if (real < 0.05f && shadowed >= 0.05f) over05++;
+			if (real < 0.20f && shadowed >= 0.20f) over20++;
+			if (t.RecognitionYear == year && t.RecognitionDepositedYear >= MediaRecognition.AnnualCap - 1e-6f) capped++;
+		}
+		foreach (SimulatedArtist artist in ArtistManager.Instance.GetAllArtists()) {
+			if (artist == null || artist.isPlayerOwned || artist.top40Hits <= 0 || !artist.isActive) continue;
+			MediaActTally t = TallyFor(artist.artistId);
+			float real = ArtistRecognitionService.EffectiveRecognition(artist);
+			if (t != null && t.RecognitionYear == year && t.RecognitionDepositedYear > 0f) tvVets.Add((real, Math.Clamp(real + t.ShadowRecognition, 0f, 1f)));
+			else quietVets.Add(real);
+		}
+		var top = state.Tallies.Values.Where(t => t.RecognitionYear == year && t.RecognitionDepositedYear > 0f)
+			.OrderByDescending(t => t.RecognitionDepositedYear).ThenBy(t => t.ArtistId, StringComparer.Ordinal).Take(5)
+			.Select(t => $"\"{t.ArtistName}\" {t.RecognitionDepositedYear:F3}");
+		Godot.GD.Print($"MEDIA_RECOGNITION year={year} deposits={V("deposits"):0} raw={V("raw"):F3} applied={V("applied"):F3} clipped={V("clipped"):F3}" +
+			$" national={V("appliedNational"):F3} local={V("appliedLocal"):F3} primetime={V("appliedPrimetime"):F3}" +
+			$" lanes[chart/standing/comedy]={V("appliedChart"):F3}/{V("appliedStanding"):F3}/{V("appliedComedy"):F3}" +
+			$" chartEarned={chartGain:F3} tvShare={(V("applied") + chartGain > 0 ? V("applied") / (V("applied") + chartGain) : 0):P1}" +
+			$" actsAtCap={capped} over05={over05} over20={over20}" +
+			$" hitmakersTvActive={tvVets.Count} recog[real/withTv]={(tvVets.Count > 0 ? tvVets.Average(x => x.Real) : 0):F3}/{(tvVets.Count > 0 ? tvVets.Average(x => x.Shadowed) : 0):F3}" +
+			$" hitmakersQuiet={quietVets.Count} recog={(quietVets.Count > 0 ? quietVets.Average() : 0):F3}" +
+			$" top=[{string.Join(" ", top)}]");
+		recognitionLedger.Clear();
 	}
 
 	private static void Prune(GameDate weekEnd) {
