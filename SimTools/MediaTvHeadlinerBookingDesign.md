@@ -545,6 +545,11 @@ Recovery, 0-4 a year do.
 - **Economy readings are one seed.** Small changes reshuffle the stream. The exemption-only arm alone moved 1966 major
   share by −.12. Read the major-share and insolvency moves as unresolved, not as costs.
 
+**Inertness gate at `7149803`** (switches off, counters on): `MediaAtmosphereChecks` passes 140 checks at `--seed=1001`,
+the same on two runs. Without `--seed` the check world is unseeded and two checks flake: the performance tail and the
+Sullivan decline. The 104-week runs at seeds 1001 and 2002, with the ref flags, are 106/106 economy CSVs byte-identical
+to `ref-f50b9a4` for each seed.
+
 Candidate: `--hit-history-signing-recovery` alone (`q`) is the single mechanism change; the score term in `r` adds
 little beyond it. Before adoption it needs a multi-seed decade A/B in the game profile, which already carries
 `--hit-act-retention`, watching Big-5 share, closures and Top 10 concentration.
@@ -582,8 +587,11 @@ unsourced.
   (screen `tvbook-m2/n/o/q/r`). `--hit-history-signing-recovery` raises signings of hitmakers from 40 to 1,128 and
   lifts Y+3 persistence from 22% to 29%. It is off by default and needs a multi-seed decade A/B in the game profile
   before adoption.
-- **Talk shows starve Sullivan's standing slots** (hypothesis). Options: exempt talk dates from the season limit, or
-  book primetime variety first each week.
+- **Sullivan's empty standing slots are mostly a pool-size problem, not a talk-show drain.** With
+  `--hit-history-signing-recovery` (`tvbook-q`), Sullivan's standing bookings rise from 17 to 32 of 36 in the 1964 half-year
+  and from 23 to 33 in 1966, while the three talk shows also book more (84-120 → 120-129 each). Once more signed names
+  exist, the season limit no longer starves Sunday. If the switch is not adopted, the remaining options are to exempt
+  talk dates from the limit or to book primetime variety first each week.
 - **Career effect of a TV performance**: the outcome feeds fan attachment (`Spark`), press tone and outlets, the
   player's producer trust and letters. Nothing reaches recognition, sales or career state; media is observe-only until
   the Phase 4 adapter. A new act's poorly rehearsed national debut therefore costs it fan evidence and press, not

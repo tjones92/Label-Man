@@ -451,7 +451,8 @@ public partial class MediaAtmosphereChecks : Node {
 		var national = MediaAtmosphereService.Pitches.Where(p => p.ProgramId == "ed_sullivan").ToList();
 		Check(local.Count(p => p.Status == PitchStatus.Offered) >= 2 && local.All(p => p.Status != PitchStatus.Sent),
 			$"Records the town is buying get local dates: {local.Count(p => p.Status == PitchStatus.Offered)} offers, {local.Count(p => p.Status == PitchStatus.Declined)} declined");
-		Check(national.Count > 0 && national.All(p => p.Status == PitchStatus.Declined), $"The Ed Sullivan Show declines {national.Count} uncharted records");
+		Check(national.Count > 0 && national.All(p => p.Status == PitchStatus.Declined), $"The Ed Sullivan Show declines {national.Count} uncharted records" +
+			string.Concat(national.Where(p => p.Status != PitchStatus.Declined).Select(p => $"; not declined: {p.ArtistName} {p.Status} {p.Reason}")));
 		foreach (var p in local.Take(3)) GD.Print($"  pitch: {p.ArtistName} -> {p.Status} {p.Reason} {(p.Status == PitchStatus.Offered ? MediaAtmosphereService.FromDayIndex(p.AirDay).ToShortString() + " reach " + MediaText.Audience(p.ReachHigh) : "")}");
 		var offer = local.First(p => p.Status == PitchStatus.Offered);
 		Check(offer.AirDay > MediaAtmosphereService.State.BookedThroughDay && offer.ReachHigh > 0 && offer.CostNote.Contains("estimate"),
