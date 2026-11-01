@@ -41,6 +41,8 @@ public partial class MediaAtmosphereChecks : Node {
 			DemandAllocation();
 			CausalPlayerCosts();
 			DemandShadow();
+			FollowingArithmetic();
+			FollowingInTheWorld();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -903,6 +905,108 @@ public partial class MediaAtmosphereChecks : Node {
 			for (int i = 0; i < 7; i++) clock.EndDay();
 			Check(MediaAtmosphereService.State.DemandLift.Count == before.Count, "With the adapter off the requests are neither written nor decayed");
 		} finally { MediaDemand.SetForChecks(false, false); }
+	}
+
+	// Celebrity fanbase Phase 0 (SimTools/CelebrityFanbaseDesign.md §2, §7): the stock's arithmetic, then a live observe pass.
+	private void FollowingArithmetic() {
+		MediaFollowing.ResetBars();
+		float f = 0f;
+		for (int i = 0; i < 500; i++) f = MediaFollowing.Join(f, 50_000f, 1_000_000);
+		Check(f <= 1_000_000f && f > 990_000f && MediaFollowing.Join(900_000f, 10_000f, 1_000_000) - 900_000f < 1_001f
+			&& MediaFollowing.Join(0f, 10_000f, 1_000_000) == 10_000f, "A following saturates at the people who fit the act, with joiners scaled by the room left");
+		Check(Math.Abs(MediaFollowing.HeatFactor(0f) * 1_000_000 * MediaFollowing.CBuy - 60_000) < 1 && Math.Abs(MediaFollowing.HeatFactor(1f) * 1_000_000 * MediaFollowing.CBuy - 300_000) < 1,
+			"A million units sold cold leave 60k followers; the same million in a frenzy leave 300k");
+		float drift = 1f;
+		for (int w = 0; w < 52; w++) drift *= 1f - MediaFollowing.Weekly(MediaFollowing.YoungDriftYear);
+		Check(Math.Abs(drift - (1f - MediaFollowing.YoungDriftYear)) < 1e-3f, $"Young drift takes its yearly rate, applied weekly ({1 - drift:P1})");
+
+		// Ageing: nobody leaves the young pool in the first three years, everyone has left by year nine, evenly between.
+		double SurviveTo(double years) {
+			double c = 1;
+			for (int w = 0; w < (int)Math.Round(years * 52); w++) c *= 1 - MediaFollowing.AgeOutThisWeek(w / 52.0);
+			return c;
+		}
+		double three = SurviveTo(3), six = SurviveTo(6), gone = SurviveTo(9.1);
+		Check(three > 0.98 && Math.Abs(six - 0.5) < 0.03 && gone < 1e-6, $"A young cohort ages out between years 3 and 9 (left at 3/6/9: {three:F3}/{six:F3}/{gone:F6})");
+
+		Check(MediaFollowing.Disappointment(new List<float>(), 0.2f) == 0f && MediaFollowing.Disappointment(new List<float> { 0.70f, 0.72f }, 0.63f) == 0f && MediaFollowing.Disappointment(new List<float> { 0.80f }, 0.30f) == 0f
+			&& Math.Abs(MediaFollowing.Disappointment(new List<float> { 0.70f, 0.70f }, 0.55f) - 0.10f) < 1e-5f
+			&& MediaFollowing.Disappointment(new List<float> { 0.80f, 0.80f }, 0.30f) == MediaFollowing.DisappointmentMax,
+			"A record clearly below the act's recent average loses 5-20% of the following; under two records to compare, or a small dip, loses nothing");
+		Check(MediaFollowing.Novelty(0) == 1f && MediaFollowing.Novelty(30) < 0.41f && MediaFollowing.Attention(0f) == 1f
+			&& Math.Abs(MediaFollowing.Attention(MediaFollowing.PhenomenonShare) - 0.5f) < 1e-6f,
+			"A first national date is fully novel and wears toward 0.4; a phenomenon's worth of others' attention halves registration");
+		var (sy, sa) = MediaFollowing.AdvancePerFollower(ReleaseFormat.Single);
+		var (ly, la) = MediaFollowing.AdvancePerFollower(ReleaseFormat.Album);
+		Check(sy > ly && la > sa && MediaFollowing.YoungBuyerShare(Genre.TeenPop, ReleaseFormat.Single) > MediaFollowing.YoungBuyerShare(Genre.TeenPop, ReleaseFormat.Album)
+			&& MediaFollowing.YoungBuyerShare(Genre.TeenPop, ReleaseFormat.Single) > MediaFollowing.YoungBuyerShare(Genre.Jazz, ReleaseFormat.Single),
+			"Young followers buy singles, adult followers LPs; teen genres and singles sell young");
+
+		// Salience states (§7.2), on synthetic smoothed shares.
+		MediaFollowingState Act(float sales, float tv, float press, float young, float adult, float youngSales, float youngTv) =>
+			new() { ArtistId = "a", Family = new[] { sales, tv, press }, Audience = new[] { young, adult }, YoungFamily = new[] { youngSales, youngTv } };
+		var idol = Act(0.035f, 0.04f, 0.01f, 0.05f, 0.005f, 0.05f, 0.05f);
+		Check(MediaFollowing.Advance(idol, 0.01f, 1) && idol.State == SalienceState.NationalSensation && MediaFollowing.YoungBreadth(idol) == 2,
+			$"A teen idol with sales and television is a national sensation (young salience {MediaFollowing.YoungSalience(idol):F3}, young breadth {MediaFollowing.YoungBreadth(idol)})");
+		for (int w = 0; w < 30; w++) MediaFollowing.Advance(idol, 0.002f, 2 + w);
+		Check(idol.State == SalienceState.NationalSensation, "A pure teen craze tops out at sensation however long it lasts: no adult crossover, no phenomenon");
+		var daydreams = Act(0.012f, 0.012f, 0.002f, 0.04f, 0.004f, 0.04f, 0.04f);
+		Check(daydreams.Salience() < MediaFollowing.SensationShare && MediaFollowing.Advance(daydreams, 0.02f, 1) && daydreams.State == SalienceState.NationalSensation,
+			$"A teen idol below θs in total attention (adults weigh most of it) is a sensation on young attention (total {daydreams.Salience():F3})");
+		var crooner = Act(0.035f, 0.04f, 0.01f, 0.005f, 0.05f, 0.005f, 0.005f);
+		for (int w = 0; w < 30; w++) MediaFollowing.Advance(crooner, 0.01f, w);
+		Check(crooner.State == SalienceState.None && MediaFollowing.Breadth(crooner) == 2,
+			"An adult act with the same sales and television but no young lead is not a sensation: the sensation is the teen state");
+		var bigAdult = Act(0.06f, 0.06f, 0.04f, 0.035f, 0.07f, 0.035f, 0.035f);
+		for (int w = 0; w < 30; w++) MediaFollowing.Advance(bigAdult, 0.01f, w);
+		Check(bigAdult.State == SalienceState.None,
+			"A big adult act that clears the young bars on volume, but holds more of the adults' attention than the young's, is not a sensation");
+		var beatles = Act(0.14f, 0.12f, 0.10f, 0.15f, 0.06f, 0.15f, 0.15f);
+		bool early = false;
+		for (int w = 0; w < MediaFollowing.PhenomenonHoldWeeks - 1; w++) { MediaFollowing.Advance(beatles, 0.03f, w); early |= beatles.State == SalienceState.CulturalPhenomenon; }
+		MediaFollowing.Advance(beatles, 0.03f, 99);
+		Check(!early && beatles.State == SalienceState.CulturalPhenomenon, $"Dominance in every family and both audiences for eight weeks makes a phenomenon (salience {beatles.Salience():F3})");
+		var crowded = Act(0.14f, 0.12f, 0.10f, 0.15f, 0.06f, 0.15f, 0.15f);
+		for (int w = 0; w < 20; w++) MediaFollowing.Advance(crowded, 0.06f, w);
+		Check(crowded.State == SalienceState.NationalSensation, "The same act in a busy field, with a rival at half its salience, stays a sensation");
+		MediaFollowing.Advance(beatles, 0.20f, 100);
+		Check(beatles.State == SalienceState.CulturalPhenomenon, "One week out-shone does not end a phenomenon");
+		for (int w = 0; w < MediaFollowing.PhenomenonHoldWeeks; w++) MediaFollowing.Advance(beatles, 0.20f, 101 + w);
+		Check(beatles.State == SalienceState.NationalSensation, "Eight weeks failing the test settles a phenomenon back to a sensation");
+		beatles.Family = new[] { 0.005f, 0.002f, 0f };
+		beatles.Audience = new[] { 0.01f, 0.003f };
+		MediaFollowing.Advance(beatles, 0f, 200);
+		Check(beatles.State == SalienceState.None && beatles.Peak == SalienceState.CulturalPhenomenon, "Below 0.6 of the sensation bar in young attention the act leaves; its peak is remembered");
+	}
+
+	private void FollowingInTheWorld() {
+		MediaFollowing.SetForChecks(true);
+		try {
+			var clock = TimeManager.Instance;
+			for (int i = 0; i < 28; i++) clock.EndDay();
+			var following = MediaAtmosphereService.State.Following;
+			var sizes = following.Values.Select(s => s.YoungTotal() + s.AdultTotal()).OrderByDescending(x => x).ToList();
+			bool sane = following.Values.All(s => s.Regions.Values.All(r => r.Adult >= 0f && r.Young.Values.All(v => v >= 0f && float.IsFinite(v)))
+				&& s.Family.All(v => v >= 0f && v <= 1f) && s.Salience() <= 1f);
+			Check(following.Count > 0 && sane && sizes[0] < 5e6f,
+				$"Four observe weeks build followings for {following.Count} acts, every stock finite and non-negative (largest {sizes[0]:F0}, tenth {(sizes.Count > 9 ? sizes[9] : 0):F0})");
+			float sum = following.Values.Sum(s => s.Salience());
+			Check(sum > 0f && sum <= 1.0001f, $"Salience is a share of national attention: summed over acts it stays within 1 ({sum:F3})");
+			var opts = new JsonSerializerOptions { IncludeFields = true };
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var back = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			Check(back.Following.Count == following.Count && back.Following.All(p => Math.Abs(p.Value.YoungTotal() - following[p.Key].YoungTotal()) < 1e-2f
+				&& Math.Abs(p.Value.AdultTotal() - following[p.Key].AdultTotal()) < 1e-2f && p.Value.State == following[p.Key].State
+				&& p.Value.Family.SequenceEqual(following[p.Key].Family) && p.Value.ReleasesSeen.SetEquals(following[p.Key].ReleasesSeen)
+				&& p.Value.Regions.Values.All(r => r.Young.Keys.All(y => y >= 1950 && y <= 1970))),
+				$"Followings survive a save round trip with their cohorts ({following.Count} acts)");
+			var before = following.ToDictionary(p => p.Key, p => p.Value.YoungTotal() + p.Value.AdultTotal());
+			MediaFollowing.SetForChecks(false);
+			for (int i = 0; i < 7; i++) clock.EndDay();
+			Check(following.Count == before.Count && following.All(p => p.Value.YoungTotal() + p.Value.AdultTotal() == before[p.Key]),
+				"With the switch off, followings are neither written nor decayed");
+		} finally { MediaFollowing.SetForChecks(false); MediaFollowing.ResetBars(); }
 	}
 
 	private void PhaseTwoSave() {

@@ -414,6 +414,7 @@ public partial class ChartManager : Node {
 		MediaAtmosphere.Configure(mediaAtmosphereObserve, SimulationArguments.Get());
 		MediaRecognition.Configure(SimulationArguments.Get());
 		MediaDemand.Configure(SimulationArguments.Get());
+		MediaFollowing.Configure(SimulationArguments.Get());
 		ManagerSystem.Configure(managersEnabled, SimulationArguments.Get());
 		StarCanopy.Configure(seedStarCanopyEnabled, SimulationArguments.Get());
 		OpeningCareers.Configure(openingCareersEnabled, SimulationArguments.Get());

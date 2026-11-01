@@ -342,7 +342,7 @@ ahead of everyone else, not just a high share:
 | State | Rule (enter / leave) | Initial values |
 |---|---|---|
 | Regional favorite | Hot attachment in one region (existing) | unchanged |
-| National sensation | salience ≥ θs and breadth ≥ 2 / leave below 0.6 θs | θs = 1.5% of national attention |
+| National sensation | measured on **young** attention: young salience ≥ θs, young breadth ≥ 2 (young sales, young TV, press), young share ≥ adult share / leave below 0.6 θs | θs = 3% of young attention (Phase 0 calibration) |
 | Cultural phenomenon | salience ≥ θp, **and** ≥ D × the next act's salience, **and** breadth 5 (all four families plus both audiences), held for 8+ weeks / leave when any test fails for 8 weeks | θp = 8%, D = 3 |
 
 - **Persistence comes from the integrator, not from consecutive weeks.** One huge week counts, a run of strong weeks
@@ -350,6 +350,9 @@ ahead of everyone else, not just a high share:
 - **The fixed 56-day cooldown is replaced by hysteresis.** A new record can relaunch an act straight away.
 - **Crossover to parents is required.** Beatles coverage in Life and adult viewers on Sullivan are part of the
   history. A pure teen craze tops out at sensation, however big it gets.
+- **A sensation leads in the young audience** (author's decision, 2026-11-01). The 1960s sensation is a youth craze, not
+  a Sinatra-style adult following. An adult act with broad sales and television is a star, not a sensation; it reaches
+  the top only as a phenomenon, through crossover to the young.
 - **Dominance makes it rare by construction.** Only one act can be 3× everyone else at a time, and a busy field (the
   1965-66 British wave) produces several sensations and no phenomenon.
 - **Calibrate on dominance, not on a count.** A 0-1 target can't be tuned by counting occurrences. Tune D and θp on

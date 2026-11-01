@@ -141,6 +141,9 @@ public sealed class MediaSaveData {
 	public Dictionary<string, float> PerformerFees { get; set; } = new();
 	/// <summary>The §12.3 request on each single by region (recordId, then regionId), signed, carried and decayed weekly.</summary>
 	public Dictionary<string, Dictionary<string, float>> DemandLift { get; set; } = new();
+	// Celebrity fanbase Phase 0 (observe-only, --observe-following; nothing the economy reads).
+	/// <summary>Followings, adult regard and national salience by act (SimTools/CelebrityFanbaseDesign.md §2, §4.1, §7).</summary>
+	public Dictionary<string, MediaFollowingState> Following { get; set; } = new();
 }
 
 /// <summary>
@@ -186,6 +189,7 @@ public static partial class MediaAtmosphereService {
 		if (state.BookedThroughDay >= 0) return;
 		var evidence = new Evidence(charts);
 		SeedOpeningAttachment(evidence, start);
+		SeedOpeningFollowing(evidence, start);
 		BookThrough(start.AddDays(start.DaysUntilFriday), start, evidence);
 	}
 
@@ -205,6 +209,7 @@ public static partial class MediaAtmosphereService {
 		// is next week booked, so a booking's hype counts only items already scheduled to run before its air date.
 		UpdateChartMemory(evidence);
 		FansWeek(evidence, weekEnd);
+		FollowingWeek(evidence, weekEnd);
 		AiPlanWeek(evidence, weekEnd);
 		PlaceHolds(evidence, weekEnd);
 		PressWeek(evidence, weekEnd);
@@ -214,6 +219,7 @@ public static partial class MediaAtmosphereService {
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
 		if (weekEnd.month == 12 && weekEnd.day >= 25) {
 			PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); MediaDemand.PrintYear(weekEnd.year);
+			PrintFollowing(weekEnd.year);
 		}
 	}
 
@@ -1015,6 +1021,7 @@ public static partial class MediaAtmosphereService {
 				t.EstimatedReach = BroadcastExposure.CombineReach(t.EstimatedReach, fresh, population);
 				if (MediaRecognition.Active && !a.Cut) RecognitionDeposit(a, airing, t, fresh, population);
 				if (MediaDemand.Active && !a.Cut) DemandDeposit(a, airing, fresh);
+				FollowingAiring(a, airing, fresh);
 			}
 		}
 	}
