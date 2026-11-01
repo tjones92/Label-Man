@@ -123,7 +123,7 @@ public static partial class MediaAtmosphereService {
 			.GroupBy(r => r.baseRecord.labelId, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal);
 
 		// Programs on the air in the coming two weeks, once for the pass.
-		var airing = MediaOutletCatalog.Programs.Where(p => Enumerable.Range(1, 14).Any(d => p.Runs(weekEnd.AddDays(d)))).ToList();
+		var airing = MediaOutletCatalog.Programs.Where(p => !p.Vehicle && Enumerable.Range(1, 14).Any(d => p.Runs(weekEnd.AddDays(d)))).ToList();
 		GameDate soon = weekEnd.AddDays(7);
 		foreach (var group in byLabel) {
 			foreach (RecordRuntimeData r in group.OrderByDescending(x => x.unitsThisWeek).ThenBy(x => x.baseRecord.recordId, StringComparer.Ordinal).Take(AiMediaPlanner.FocusRecordsPerLabel)) {

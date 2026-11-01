@@ -1,7 +1,8 @@
 # Celebrity, fanbase and media fame: design note
 
 Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`CelebrityFanbasePhase0Notes.md`), Phase 1
-is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and screened (`CelebrityFanbasePhase2Notes.md`), and Phase 2b is built and screened; adopted with a neutral floor, off by default (`CelebrityFanbasePhase2bNotes.md`). The note answers six points the author raised after the
+is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and screened (`CelebrityFanbasePhase2Notes.md`), and Phase 2b is built and screened; adopted with a neutral floor, off by default (`CelebrityFanbasePhase2bNotes.md`). Phase 3a (residencies for rival acts) is built and
+screened; adoptable, off by default (`CelebrityFanbasePhase3Notes.md`). The note answers six points the author raised after the
 media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
 
@@ -240,6 +241,73 @@ image, or the label pitches its act for a regular slot. The terms to settle:
 - scale fees to the performers (through member wealth, as now);
 - whether the act must play the show's material;
 - how much of the act's diary it takes. A weekly taping limits touring, which trades live draw for TV reach.
+
+#### 3.3.1 Phase 3 build (2026-11-01): what a residency is in the model
+
+Phase 3 is split. **3a** (this build) gives rival acts residencies and measures what they do to followings. **3b**
+opens them to the player as the negotiation above and adds the diary cost. Phase 2's screen showed why the
+residency is the route: registration counts fresh viewers only, and a series is made of returning ones.
+
+**Two kinds.**
+
+| Kind | Where | Chairs | History |
+|---|---|---|---|
+| Regular | Shindig! (Sep 1964 – Jan 1966) | 1 | The Shindogs, Bobby Sherman, the Righteous Brothers in 1964 |
+| Regular | Where the Action Is (Jun 1965 – Mar 1967) | 2 | Paul Revere & the Raiders, Steve Alaimo, Keith Allison, the Robbs |
+| Regular | Happening '68 (Jan 1968 – Sep 1969) | 1 | Hosted by the Raiders |
+| Regular | The Jimmy Dean Show (Sep 1963 – Apr 1966) | 1 | Country-pop regulars |
+| Vehicle | A new network half hour built around the act, from fall 1966 | ≤ 1 a season | The Monkees (1966), Bobby Sherman on *Here Come the Brides* (1968) |
+
+- A **regular** appears on every original episode of an existing program, in a resident spot that takes no guest
+  slot. A chair is cast for one season (to the program's next summer break, or its end), then recast; the act can be
+  kept on.
+- A **vehicle** is a fictional program the network makes for the act: a primetime half hour, 7:30 Eastern on a
+  keyed weeknight, mid-September to April, summer reruns. It has no guests. It is renewed for a second season only if
+  the act's following grew and it had a Top 40 single during the first; two seasons at most.
+
+**Casting (rival acts only in 3a).** At each chair's season start the producer ranks acts signed to rival labels:
+- genre fit to the program ≥ 0.8;
+- evidence: a Top 40 single in the last two years, or a record broken in a region, or recognition ≥ 0.10;
+- not a Superstar (a star doesn't take a daily afternoon chair) and not already resident anywhere;
+- score = fit × (0.5 + recognition + young following ÷ 500k) × a keyed spread.
+
+A vehicle is offered at most once a season, from 1966, to the highest-scoring act with teen fit ≥ 0.9 that is a
+Regional Favorite or better in the August week the network decides, or has a young following ≥ 100k. A season with no such act has no
+vehicle. The label says yes: the producer pays the performers, not the label's campaign envelope. (AI acts' TV fees
+aren't modelled today, so none are charged here either.)
+
+**What the resident airs.** Its current single (released in the last 12 weeks, or on the chart) when it has one, which
+is the only case that asks the demand ledger for anything; otherwise a number from its set. On a vehicle the act fills
+the whole half hour (one segment of one).
+
+**Fresh audience.** A resident's later episodes reach mostly the same viewers. Its fresh share is 10% of the airing's
+reach per week of episodes (a daily show 2% an episode), against the 25% a returning guest gets. So recognition,
+member fame and the demand ledger see a residency's first night at full size and each later one as a small top-up.
+
+**Following: the series term.** This is what a residency adds. Each week, for each residency:
+
+```text
+seriesJoiners = cSeries × viewers this week (unique reach of the week's best episode, not only fresh)
+              × young or adult share × audience fit × performance
+cSeries = 0.008
+```
+
+*Calibrated 2026-11-01 (`CelebrityFanbasePhase3Notes.md`):* adults join at a quarter of the young rate, and a week's
+viewers are the best episode × √episodes, at most 2×. At the full adult rate a Jimmy Dean regular built the largest
+following in the world (4M in three seasons), while the daily Action chair trailed.
+
+Sizing: a vehicle with about 12M viewers, 60% young, fit 0.8, converts about 45k young followers a week, so 1-1.5M after
+a 30-week season, the §9 top-teen-act size. A daily afternoon chair reaching 3M converts about 15k a week, 0.5-1M over
+Action's 21 months. A regular on Jimmy Dean's adult audience builds an adult following the same way. Saturation and
+churn apply as to every joiner.
+
+**What 3a can and can't show.** Followings have no economic reader until Phase 4. In causal mode a residency moves the
+economy only through recognition (its first nights), member fame and the demand ledger (its current single), so 3a
+should be close to inert. "TV-made stars" (§9) becomes measurable after Phase 4. 3a's evidence is the residents'
+following growth against §9 and their Top 40 record during and after the chair.
+
+**Switch.** `--media-residencies`. In observe mode residencies book in the media world only, so the economy CSVs stay
+byte-identical to the ref; the series term needs `--observe-following`.
 
 ### 3.4 Breakouts: event audiences and registration fit (Phase 2c)
 
@@ -626,7 +694,8 @@ Each phase is short-screened, then decade-checked at the end of the branch ([[de
 | 2 | Press, fan-magazine and controversy writers; registration model replacing the 0.06 cap | Causal | Recognition distribution, TV share of recognition, breakouts per decade |
 | 2b | Critics: reviews gate and season acclaim (§4.3) | Causal; adopted with a neutral floor (coverage ÷ trades floor), off by default (`CelebrityFanbasePhase2bNotes.md`) | Landmarks a decade and their genre mix, acclaim by genre, units and Major share |
 | 2c | Breakouts: fan episodes raise hype, bookers chase sensations and rising acts, constant registration fit (§3.4) | Screened, not adopted; kept behind `--event-hype` | Breakouts scoped to phenomena instead (§3.4.6) |
-| 3 | Residencies | Causal | TV-made stars; following growth on series |
+| 3a | Residencies for rival acts: regulars and vehicles, the series term (§3.3.1) | Observe-safe; causal through existing writers | Residents' following growth; their Top 40 record |
+| 3b | Residencies for the player: negotiation and diary cost (§3.3) | Causal | Player playtest |
 | 4 | **Follower demand at launch, advance orders, live draw** | Causal; the big one | Repeat-hit share, runs, concentration, genre, album units |
 | 5 | Stature for AI readers | Causal | Budgets, contract terms, Major share, closures |
 

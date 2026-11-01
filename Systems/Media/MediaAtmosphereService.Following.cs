@@ -71,7 +71,7 @@ public static partial class MediaAtmosphereService {
 	private static void FollowingWeek(Evidence evidence, GameDate weekEnd) {
 		var regions = evidence.Regions;
 		int r = regions.Count;
-		if (!MediaFollowing.Active || r == 0) { followingAirings.Clear(); return; }
+		if (!MediaFollowing.Active || r == 0) { followingAirings.Clear(); residentAirings.Clear(); return; }
 		int today = BroadcastExposure.DayIndex(weekEnd);
 		int year = weekEnd.year;
 		var index = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -157,6 +157,37 @@ public static partial class MediaAtmosphereService {
 		}
 		followingAirings.Clear();
 
+		// Series (Phase 3a, §3.3.1): a resident's regulars join every week, from the week's best episode and all its
+		// viewers, not only the fresh ones registration counts.
+		var serYoung = new Dictionary<string, float[]>(StringComparer.Ordinal);
+		var serAdult = new Dictionary<string, float[]>(StringComparer.Ordinal);
+		foreach (var week in residentAirings.GroupBy(x => x.Appearance.ArtistId + "|" + x.Appearance.ProgramId, StringComparer.Ordinal)) {
+			var (a, airing) = week.OrderByDescending(x => x.Airing.Exposure?.UniqueReach ?? 0).ThenBy(x => x.Appearance.Id, StringComparer.Ordinal).First();
+			// A daily show's week reaches more people than its best night: scale each region's reach by √episodes, at most 2x.
+			double spread = MediaResidencies.WeekViewers(1.0, week.Count());
+			ExposureEstimate x = airing.Exposure;
+			if (x?.ReachByRegion == null || x.UniqueReach <= 0) continue;
+			double groups = x.AverageByGroup.Sum();
+			if (groups <= 0) continue;
+			double y = (x.AverageByGroup[(int)ViewerGroup.Teen] + x.AverageByGroup[(int)ViewerGroup.YoungAdult]) / groups;
+			double ad = x.AverageByGroup[(int)ViewerGroup.Adult] / groups;
+			float perf = MediaFollowing.RegistrationPerformance(a.Performance);
+			Genre genre = ArtistManager.Instance?.GetArtist(a.ArtistId)?.primaryGenre ?? a.Genre;
+			float fy = MediaFollowing.AudienceFit(genre, young: true), fa = MediaFollowing.AudienceFit(genre, young: false);
+			float[] sy = Row(serYoung, a.ArtistId), sa = Row(serAdult, a.ArtistId);
+			double offered = 0;
+			foreach (var (regionId, reach) in x.ReachByRegion) {
+				if (reach <= 0 || !index.TryGetValue(regionId, out int i)) continue;
+				double seen = reach * spread;
+				float jy = MediaResidencies.SeriesJoiners(seen, y, fy, perf, young: true), ja = MediaResidencies.SeriesJoiners(seen, ad, fa, perf, young: false);
+				sy[i] += jy; sa[i] += ja; offered += jy + ja;
+			}
+			MediaResidency residency = state.Residencies.LastOrDefault(z => z.ArtistId == a.ArtistId && z.ProgramId == a.ProgramId);
+			if (residency != null) residency.SeriesJoiners += offered;
+			ResidencyLedger("seriesJoiners", offered);
+		}
+		residentAirings.Clear();
+
 		// Press: this week's items about an act, one per root at the widest outlet that ran it; mainstream and local
 		// dailies also warm adult regard where they are read.
 		var coverage = new Dictionary<string, Dictionary<string, double>>(StringComparer.Ordinal);
@@ -220,7 +251,7 @@ public static partial class MediaAtmosphereService {
 		double totalCoverage = coverage.Values.Sum(v => v.Values.Sum());
 
 		var acts = new SortedSet<string>(state.Following.Keys, StringComparer.Ordinal);
-		acts.UnionWith(buyYoung.Keys); acts.UnionWith(regYoung.Keys); acts.UnionWith(coverage.Keys); acts.UnionWith(readYoung.Keys);
+		acts.UnionWith(buyYoung.Keys); acts.UnionWith(regYoung.Keys); acts.UnionWith(coverage.Keys); acts.UnionWith(readYoung.Keys); acts.UnionWith(serYoung.Keys);
 		var releasesByAct = releases.GroupBy(x => x.baseRecord.artistId, StringComparer.Ordinal)
 			.ToDictionary(g => g.Key, g => g.OrderBy(x => BroadcastExposure.DayIndex(x.baseRecord.releaseDate)).ThenBy(x => x.baseRecord.recordId, StringComparer.Ordinal).ToList(), StringComparer.Ordinal);
 		float driftYoung = MediaFollowing.Weekly(MediaFollowing.YoungDriftYear), driftAdult = MediaFollowing.Weekly(MediaFollowing.AdultDriftYear);
@@ -231,6 +262,7 @@ public static partial class MediaAtmosphereService {
 			buyYoung.TryGetValue(id, out float[] by); buyAdult.TryGetValue(id, out float[] ba);
 			regYoung.TryGetValue(id, out float[] gy); regAdult.TryGetValue(id, out float[] ga);
 			readYoung.TryGetValue(id, out float[] py); readAdult.TryGetValue(id, out float[] pa);
+			serYoung.TryGetValue(id, out float[] seriesY); serAdult.TryGetValue(id, out float[] seriesA);
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(id);
 			Genre genre = artist?.primaryGenre ?? Genre.TraditionalPop;
 			float fitY = MediaFollowing.AudienceFit(genre, young: true), fitA = MediaFollowing.AudienceFit(genre, young: false);
@@ -241,7 +273,7 @@ public static partial class MediaAtmosphereService {
 				double would = 0;
 				for (int i = 0; i < r; i++)
 					would += ((by?[i] ?? 0f) + (ba?[i] ?? 0f)) * MediaFollowing.CBuy * MediaFollowing.HeatFactor(0f) + (gy?[i] ?? 0f) * MediaFollowing.CView + (ga?[i] ?? 0f) * MediaFollowing.CView
-						+ (py?[i] ?? 0f) + (pa?[i] ?? 0f);
+						+ (py?[i] ?? 0f) + (pa?[i] ?? 0f) + (seriesY?[i] ?? 0f) + (seriesA?[i] ?? 0f);
 				if (would < FollowingPruneFloor) continue;
 				fs = new MediaFollowingState { ArtistId = id, ArtistName = artist?.stageName, LastActiveDay = today };
 				state.Following[id] = fs;
@@ -295,7 +327,7 @@ public static partial class MediaAtmosphereService {
 			bool silent = fs.LastReleaseDay < 0 || today - fs.LastReleaseDay > MediaFollowing.SilenceDays;
 			float switching = MediaFollowing.Weekly(MediaFollowing.SwitchingPerSalienceYear * (switchingSalience - sensations.GetValueOrDefault(id)));
 			float youngLoss = driftYoung + (silent ? silenceYoung : 0f) + switching, adultLoss = driftAdult + (silent ? silenceAdult : 0f);
-			double joinBuy = 0, joinTv = 0, joinPress = 0;
+			double joinBuy = 0, joinTv = 0, joinPress = 0, joinSeries = 0;
 			for (int i = 0; i < r; i++) {
 				string region = regions[i].regionId;
 				if (!fs.Regions.TryGetValue(region, out FollowingRegion fr)) fr = new FollowingRegion();
@@ -323,22 +355,25 @@ public static partial class MediaAtmosphereService {
 				float buyJoinY = (by?[i] ?? 0f) * MediaFollowing.CBuy * heatY, tvJoinY = (gy?[i] ?? 0f) * MediaFollowing.CView;
 				float buyJoinA = (ba?[i] ?? 0f) * MediaFollowing.CBuy * heatA, tvJoinA = (ga?[i] ?? 0f) * MediaFollowing.CView;
 				float readJoinY = py?[i] ?? 0f, readJoinA = pa?[i] ?? 0f;
+				float seriesJoinY = seriesY?[i] ?? 0f, seriesJoinA = seriesA?[i] ?? 0f;
 				float youngNow = fr.YoungTotal();
-				float youngAfter = MediaFollowing.Join(youngNow, buyJoinY + tvJoinY + readJoinY, fitPopY);
+				float youngAfter = MediaFollowing.Join(youngNow, buyJoinY + tvJoinY + readJoinY + seriesJoinY, fitPopY);
 				if (youngAfter > youngNow) fr.Young[year] = fr.Young.GetValueOrDefault(year) + (youngAfter - youngNow);
-				float adultAfter = MediaFollowing.Join(fr.Adult, buyJoinA + tvJoinA + readJoinA, fitPopA);
+				float adultAfter = MediaFollowing.Join(fr.Adult, buyJoinA + tvJoinA + readJoinA + seriesJoinA, fitPopA);
 				// Joiners are booked by source in proportion to what each offered; saturation scales them all alike.
 				double Room(float before, float after, float offered) => offered > 0f ? (after - before) / offered : 0.0;
-				double ry = Room(youngNow, youngAfter, buyJoinY + tvJoinY + readJoinY), ra = Room(fr.Adult, adultAfter, buyJoinA + tvJoinA + readJoinA);
+				double ry = Room(youngNow, youngAfter, buyJoinY + tvJoinY + readJoinY + seriesJoinY), ra = Room(fr.Adult, adultAfter, buyJoinA + tvJoinA + readJoinA + seriesJoinA);
 				joinBuy += buyJoinY * ry + buyJoinA * ra;
 				joinTv += tvJoinY * ry + tvJoinA * ra;
 				joinPress += readJoinY * ry + readJoinA * ra;
+				joinSeries += seriesJoinY * ry + seriesJoinA * ra;
 				fr.Adult = adultAfter;
 				if (fr.Young.Count == 0 && fr.Adult < 1f) fs.Regions.Remove(region); else fs.Regions[region] = fr;
 			}
 			FollowingLedger("joinBuy", joinBuy);
 			FollowingLedger("joinTv", joinTv);
 			FollowingLedger("joinPress", joinPress);
+			FollowingLedger("joinSeries", joinSeries);
 			var since = followingSinceRow.GetValueOrDefault(id);
 			followingSinceRow[id] = (since.Buy + joinBuy, since.Tv + joinTv);
 
@@ -360,7 +395,7 @@ public static partial class MediaAtmosphereService {
 
 			float total = fs.YoungTotal() + fs.AdultTotal();
 			if (total > fs.PeakFollowing) { fs.PeakFollowing = total; fs.PeakFollowingDay = today; }
-			if (by != null || gy != null || roots != null) fs.LastActiveDay = today;
+			if (by != null || gy != null || roots != null || seriesY != null) fs.LastActiveDay = today;
 			if (monthRow && total >= FollowingLogFloor) {
 				var j = followingSinceRow.GetValueOrDefault(id);
 				FollowingRow("act", weekEnd, fs, genre, $"{j.Buy:F0}|{j.Tv:F0}", artist?.labelId ?? "");
@@ -433,7 +468,7 @@ public static partial class MediaAtmosphereService {
 		double people = sizes.Sum(x => x.Young + x.Adult);
 		double losses = V("drift") + V("ageOut") - V("ageToAdult") + V("silence") + V("disappointment") + V("switching") + V("controversy");
 		Godot.GD.Print($"MEDIA_FOLLOWING year={year} acts={sizes.Count} over10k={Over(1e4f)} over100k={Over(1e5f)} over1M={Over(1e6f)} people={people / 1e6:F2}M" +
-			$" young={sizes.Sum(x => x.Young) / 1e6:F2}M joinBuy={V("joinBuy") / 1e6:F2}M joinTv={V("joinTv") / 1e6:F2}M joinPress={V("joinPress") / 1e6:F2}M [offered teen/specialist={V("readOfferedTeenFan") / 1e6:F2}/{V("readOfferedSpecialist") / 1e6:F2}]" +
+			$" young={sizes.Sum(x => x.Young) / 1e6:F2}M joinBuy={V("joinBuy") / 1e6:F2}M joinTv={V("joinTv") / 1e6:F2}M joinPress={V("joinPress") / 1e6:F2}M joinSeries={V("joinSeries") / 1e6:F2}M [offered teen/specialist={V("readOfferedTeenFan") / 1e6:F2}/{V("readOfferedSpecialist") / 1e6:F2}]" +
 			$" losses={losses / 1e6:F2}M [drift={V("drift") / 1e6:F2} ageOut={V("ageOut") / 1e6:F2} toAdult={V("ageToAdult") / 1e6:F2} silence={V("silence") / 1e6:F2}" +
 			$" disappointment={V("disappointment") / 1e6:F2} switching={V("switching") / 1e6:F2} controversy={V("controversy") / 1e6:F2}]" +
 			$" advance[singles/LPs]={V("advanceSingles") / Math.Max(1, V("releasesSingles")) / 1e3:F1}k/{V("advanceAlbums") / Math.Max(1, V("releasesAlbums")) / 1e3:F1}k per release" +

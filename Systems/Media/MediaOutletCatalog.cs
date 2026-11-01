@@ -19,6 +19,8 @@ public enum BillLane {
 	Standing,
 	/// <summary>A comedian who makes records.</summary>
 	Comedy,
+	/// <summary>A series regular or a vehicle's star (CelebrityFanbaseDesign.md §3.3.1): on every episode, outside the bill.</summary>
+	Resident,
 }
 
 /// <summary>
@@ -121,6 +123,8 @@ public sealed class TvProgram {
 	};
 	/// <summary>Announces a headliner weeks ahead and builds an event night around it (§4.5 advertised guest).</summary>
 	public bool AnnouncesHeadliners;
+	/// <summary>A network series built around one simulated act (CelebrityFanbaseDesign.md §3.3.1): no guests, not pitched.</summary>
+	public bool Vehicle;
 
 	public BillPlan BillOn(GameDate date) => Bills.LastOrDefault(b => b.From <= date) ?? new BillPlan { From = date, Chart = GuestSlots };
 	public int SlotsOn(GameDate date) => BillOn(date).Total;
@@ -204,6 +208,8 @@ public static partial class MediaOutletCatalog {
 	private static List<TvProgram> programs;
 	private static List<PressOutlet> press;
 	private static ulong builtForSeed;
+	/// <summary>Residency vehicles (§3.3.1), rebuilt from the media save and appended after the historical catalog.</summary>
+	private static List<TvProgram> vehicles = new();
 
 	public static IReadOnlyList<TvProgram> Programs { get { Ensure(); return programs; } }
 	public static IReadOnlyList<PressOutlet> Press { get { Ensure(); return press; } }
@@ -225,6 +231,17 @@ public static partial class MediaOutletCatalog {
 		AddSpecialistAndLocalMusic();
 		AddFictionalLocals();
 		press = BuildPress();
+		programs.AddRange(vehicles);
+	}
+
+	/// <summary>Replaces the residency vehicles on the dial (MediaResidencies.Vehicles), keeping the historical catalog.</summary>
+	public static void SetVehicles(IEnumerable<TvProgram> list) {
+		var next = list?.ToList() ?? new List<TvProgram>();
+		if (next.Count == 0 && vehicles.Count == 0) return;
+		Ensure();
+		programs.RemoveAll(p => p.Vehicle);
+		vehicles = next;
+		programs.AddRange(vehicles);
 	}
 
 	private static GameDate D(int y, int m, int d) => new(y, m, d);

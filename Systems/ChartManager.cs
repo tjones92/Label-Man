@@ -417,6 +417,7 @@ public partial class ChartManager : Node {
 		MediaFollowing.Configure(SimulationArguments.Get());
 		MediaMemberFame.Configure(SimulationArguments.Get());
 		MediaCritics.Configure(SimulationArguments.Get());
+		MediaResidencies.Configure(SimulationArguments.Get());
 		if (MediaMemberFame.Active) MediaAtmosphereService.HookMemberFameEvents();
 		ManagerSystem.Configure(managersEnabled, SimulationArguments.Get());
 		StarCanopy.Configure(seedStarCanopyEnabled, SimulationArguments.Get());

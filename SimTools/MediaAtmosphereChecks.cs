@@ -50,6 +50,8 @@ public partial class MediaAtmosphereChecks : Node {
 			EventHypeArithmetic();
 			CriticsArithmetic();
 			CriticsInTheWorld();
+			ResidenciesArithmetic();
+			ResidenciesInTheWorld();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -1360,6 +1362,112 @@ public partial class MediaAtmosphereChecks : Node {
 		} finally {
 			MediaCritics.SetForChecks(false);
 			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
+		}
+	}
+
+	// Celebrity fanbase Phase 3a (SimTools/CelebrityFanbaseDesign.md §3.3.1): series regulars and vehicles.
+	private void ResidenciesArithmetic() {
+		float low = MediaResidencies.Score(0.9f, 0.1f, 0f, 0.5f);
+		Check(MediaResidencies.Score(0.9f, 0.3f, 0f, 0.5f) > low && MediaResidencies.Score(0.9f, 0.1f, 200_000f, 0.5f) > low
+			&& Math.Abs(MediaResidencies.Score(0.9f, 0.1f, 0f, 0f) / MediaResidencies.Score(0.9f, 0.1f, 0f, 1f) - 0.55f / 1.45f) < 1e-5f,
+			"A producer ranks residents on recognition and young following, with a keyed spread of 0.55-1.45");
+		var daily = MediaOutletCatalog.Get("where_the_action_is").VersionOn(D(1965, 10, 4));
+		var weekly = MediaOutletCatalog.Get("shindig").VersionOn(D(1965, 2, 3));
+		Check(Math.Abs(MediaResidencies.ReturningNewShare(daily) - 0.02) < 1e-9 && Math.Abs(MediaResidencies.ReturningNewShare(weekly) - 0.10) < 1e-9,
+			"A resident's later episodes are a tenth new per week: 2% an episode on a daily show, 10% on a weekly one");
+		float week = MediaResidencies.SeriesJoiners(12e6, 0.6, 0.8f, 1f, young: true);
+		Check(week is > 40_000f and < 50_000f && MediaResidencies.SeriesJoiners(12e6, 0.6, 0.8f, 0f, young: true) == 0f
+			&& Math.Abs(MediaResidencies.SeriesJoiners(12e6, 0.6, 0.8f, 1f, young: false) - MediaResidencies.AdultSeriesShare * week) < 1f
+			&& MediaResidencies.WeekViewers(1e6, 1) == 1e6 && Math.Abs(MediaResidencies.WeekViewers(1e6, 2) - Math.Sqrt(2) * 1e6) < 1 && MediaResidencies.WeekViewers(1e6, 5) == 2e6,
+			$"A 12M-viewer vehicle converts {week / 1e3:F0}k young followers a week, {30 * week / 1e6:F2}M over a season; a cut segment nothing; adults a quarter as fast; a daily week reaches √episodes × its best night, at most 2x");
+		var shindig = MediaOutletCatalog.Get("shindig");
+		var action = MediaOutletCatalog.Get("where_the_action_is");
+		Check(MediaResidencies.SeasonEndDay(shindig, D(1964, 9, 16)) == BroadcastExposure.DayIndex(D(1965, 8, 31))
+			&& MediaResidencies.SeasonEndDay(shindig, D(1965, 9, 16)) == BroadcastExposure.DayIndex(D(1966, 1, 8))
+			&& MediaResidencies.SeasonEndDay(action, D(1965, 6, 28)) == BroadcastExposure.DayIndex(D(1966, 8, 31))
+			&& MediaResidencies.SeasonEndDay(action, D(1966, 9, 5)) == BroadcastExposure.DayIndex(D(1967, 3, 31)),
+			"A chair runs to the end of August, at least 13 weeks on, or to the program's last episode");
+		Check(MediaResidencies.Chairs.All(c => MediaOutletCatalog.Get(c.ProgramId) != null), "Every resident chair sits on a catalog program");
+		GameDate premiere = MediaResidencies.VehiclePremiere(1966, DayOfWeek.Monday);
+		var seasons = new List<MediaResidency> {
+			new() { ProgramId = "vehicle_fixture", ArtistName = "The Fixtures", ShowName = MediaResidencies.VehicleTitle("The Fixtures"), Kind = ResidencyKind.Vehicle,
+				Network = TvNetwork.NBC, Night = DayOfWeek.Monday, SeasonYear = 1966 },
+		};
+		TvProgram v = MediaResidencies.BuildVehicle(seasons);
+		Check(premiere.DayOfWeek == DayOfWeek.Monday && premiere >= D(1966, 9, 12) && premiere < D(1966, 9, 19) && v.Runs(premiere) && !v.OnAir(premiere.AddDays(-1))
+			&& v.VersionOn(D(1967, 6, 5)).RepeatMonths.Contains(6) && !v.OnAir(D(1967, 9, 1)) && v.Vehicle && v.SlotsOn(premiere) == 0
+			&& v.Name == "The Fixtures" && MediaResidencies.VehicleTitle("Johnny Fixture") == "The Johnny Fixture Show",
+			$"A vehicle is a guest-less primetime half hour: premiere {premiere.ToShortString()}, reruns from May, off the air after August");
+	}
+
+	private void ResidenciesInTheWorld() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var clock = TimeManager.Instance;
+		var media = MediaAtmosphereService.State;
+		MediaResidencies.SetForChecks(true);
+		MediaFollowing.SetForChecks(true);
+		try {
+			var bandstand = MediaOutletCatalog.Get("american_bandstand");
+			int today = BroadcastExposure.DayIndex(clock.CurrentDate);
+			MediaResidency chair = MediaAtmosphereService.CastForChecks(bandstand, 0, clock.CurrentDate, today + 1, today + 28);
+			SimulatedArtist act = chair == null ? null : ArtistManager.Instance.GetArtist(chair.ArtistId);
+			Check(act != null && act.isActive && !act.isPlayerOwned && act.careerState != CareerState.Superstar && bandstand.GenreFit(act.primaryGenre) >= MediaResidencies.ChairFit,
+				$"A producer casts a fitting rival act in the chair ({chair?.ArtistName}, {act?.primaryGenre}, score {chair?.Score:F2})");
+			// A vehicle on the dial: the Monday series whose season is on now (its original episodes run September to April).
+			GameDate now = clock.CurrentDate;
+			int season = now.month >= 9 ? now.year : now.year - 1;
+			RecordRuntimeData star = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord != null && !r.baseRecord.isPlayerOwned && r.baseRecord.artistId != chair.ArtistId
+				&& ArtistManager.Instance.GetArtist(r.baseRecord.artistId) is { isActive: true } a && !string.IsNullOrEmpty(a.labelId))
+				.OrderByDescending(r => r.unitsThisWeek).ThenBy(r => r.baseRecord.recordId, StringComparer.Ordinal).First();
+			var vehicle = new MediaResidency {
+				Id = "residency|vehicle_fixture", ProgramId = "vehicle_" + star.baseRecord.artistId, ArtistId = star.baseRecord.artistId, ArtistName = star.baseRecord.artistName,
+				Kind = ResidencyKind.Vehicle, Network = TvNetwork.NBC, Night = DayOfWeek.Monday, SeasonYear = season, ShowName = MediaResidencies.VehicleTitle(star.baseRecord.artistName),
+				FromDay = BroadcastExposure.DayIndex(MediaResidencies.VehiclePremiere(season, DayOfWeek.Monday)), ToDay = BroadcastExposure.DayIndex(D(season + 1, 8, 31)),
+			};
+			media.Residencies.Add(vehicle);
+			MediaAtmosphereService.RestoreVehiclesForChecks();
+			Check(MediaOutletCatalog.Get(vehicle.ProgramId) is { Vehicle: true } && MediaAtmosphereService.PitchablePrograms("new_york", "new_york", clock.CurrentDate).All(p => !p.Vehicle),
+				$"A vehicle goes on the dial (\"{vehicle.ShowName}\") and is never offered for pitching");
+
+			// Days already booked before the chair was cast keep their bills.
+			int start = media.BookedThroughDay;
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			var episodes = media.Episodes.Where(e => e.ProgramId == bandstand.Id && !e.Repeat && BroadcastExposure.DayIndex(e.Date) > start && BroadcastExposure.DayIndex(e.Date) <= chair.ToDay).ToList();
+			var mine = media.Appearances.Where(a => a.ArtistId == chair.ArtistId && a.ProgramId == bandstand.Id && a.RepeatOfId == null && BroadcastExposure.DayIndex(a.Date) > start).ToList();
+			var booked = episodes;
+			Check(booked.Count > 0 && booked.All(e => mine.Count(a => a.EpisodeId == e.Id) == 1)
+				&& mine.All(a => a.Lane == BillLane.Resident && a.SlotIndex == 0) && chair.Episodes == mine.Count,
+				$"The regular opens every Bandstand episode it was booked for, in the resident lane and never also as a guest ({mine.Count} of {booked.Count} episodes)");
+			var vEpisodes = media.Episodes.Where(e => e.ProgramId == vehicle.ProgramId && !e.Repeat).ToList();
+			Check(vEpisodes.Count > 0 && vEpisodes.All(e => e.AppearanceIds.Count == 1 && media.Appearances.First(a => a.Id == e.AppearanceIds[0]).ArtistId == vehicle.ArtistId),
+				$"A vehicle's episodes carry only its star ({vEpisodes.Count} Monday nights from {now.ToShortString()})");
+			MediaFollowingState f = MediaAtmosphereService.FollowingFor(chair.ArtistId);
+			Check(chair.SeriesJoiners > 0 && vehicle.SeriesJoiners > 0 && f != null,
+				$"The regulars join the followings: {chair.SeriesJoiners:F0} for the Bandstand regular, {vehicle.SeriesJoiners:F0} for the vehicle's star");
+
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var back = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			Check(back.Residencies.Count == media.Residencies.Count && back.Residencies.Zip(media.Residencies).All(z => z.First.Id == z.Second.Id && z.First.ArtistId == z.Second.ArtistId
+					&& z.First.Kind == z.Second.Kind && z.First.FromDay == z.Second.FromDay && z.First.ToDay == z.Second.ToDay && z.First.Night == z.Second.Night
+					&& z.First.Episodes == z.Second.Episodes && Math.Abs(z.First.SeriesJoiners - z.Second.SeriesJoiners) < 1e-6)
+				&& back.Appearances.Count(a => a.Lane == BillLane.Resident) == media.Appearances.Count(a => a.Lane == BillLane.Resident),
+				$"Residencies and resident appearances survive a save round trip ({media.Residencies.Count} engagements)");
+			MediaAtmosphereService.RehydrateWorld(new WorldSaveData { Media = back });
+			bool restored = MediaOutletCatalog.Get(vehicle.ProgramId) != null;
+			MediaAtmosphereService.RehydrateWorld(world);
+			Check(restored, "A loaded save puts its vehicles back on the dial");
+
+			int before = media.Appearances.Count(a => a.Lane == BillLane.Resident);
+			MediaResidencies.SetForChecks(false);
+			for (int i = 0; i < 7; i++) clock.EndDay();
+			Check(media.Appearances.Count(a => a.Lane == BillLane.Resident) == before, "With the switch off, no resident is booked");
+		} finally {
+			MediaResidencies.SetForChecks(false);
+			MediaFollowing.SetForChecks(false);
+			MediaFollowing.ResetBars();
+			media.Residencies.Clear();
+			MediaAtmosphereService.RestoreVehiclesForChecks();
 		}
 	}
 

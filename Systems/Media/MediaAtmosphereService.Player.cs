@@ -119,7 +119,7 @@ public static partial class MediaAtmosphereService {
 	public static List<TvProgram> PitchablePrograms(string homeCity, string currentCity, GameDate today) {
 		var list = new List<TvProgram>();
 		foreach (TvProgram p in MediaOutletCatalog.Programs) {
-			bool onSoon = Enumerable.Range(0, 42).Any(d => p.Runs(today.AddDays(d)));
+			bool onSoon = !p.Vehicle && Enumerable.Range(0, 42).Any(d => p.Runs(today.AddDays(d)));
 			if (!onSoon) continue;
 			if (p.Network == TvNetwork.Local) {
 				if (p.HomeCityId == homeCity || p.HomeCityId == currentCity || p.Syndication.Any(m => (m.CityId == homeCity || m.CityId == currentCity) && today >= m.From))

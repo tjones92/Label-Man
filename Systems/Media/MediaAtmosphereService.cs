@@ -159,6 +159,11 @@ public sealed class MediaSaveData {
 	public Dictionary<string, int> ReviewColumn { get; set; } = new();
 	/// <summary>Shadow mode: each act's acclaim as the coverage-scaled delta would have left it. Never read by the economy.</summary>
 	public Dictionary<string, float> ShadowAcclaim { get; set; } = new();
+	// Celebrity fanbase Phase 3a (--media-residencies).
+	/// <summary>Series regulars and vehicles, current and past (CelebrityFanbaseDesign.md §3.3.1). Vehicle programs are rebuilt from these.</summary>
+	public List<MediaResidency> Residencies { get; set; } = new();
+	/// <summary>September seasons a vehicle was already considered for, so each season gets one look.</summary>
+	public HashSet<int> VehicleSeasons { get; set; } = new();
 }
 
 /// <summary>
@@ -232,13 +237,14 @@ public static partial class MediaAtmosphereService {
 		PressWeek(evidence, weekEnd);
 		RecognitionPressWeek(weekEnd);
 		CriticsWeek(evidence, weekEnd);
+		ResidenciesWeek(evidence, weekEnd);
 		BookThrough(weekEnd.AddDays(7), weekEnd.AddDays(1), evidence);
 		DecayAttitudes(weekEnd);
 		Prune(weekEnd);
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
 		if (weekEnd.month == 12 && weekEnd.day >= 25) {
 			PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); MediaDemand.PrintYear(weekEnd.year);
-			PrintFollowing(weekEnd.year); PrintMemberFame(weekEnd.year); PrintCritics(weekEnd.year);
+			PrintFollowing(weekEnd.year); PrintMemberFame(weekEnd.year); PrintCritics(weekEnd.year); PrintResidencies(weekEnd.year);
 		}
 	}
 
@@ -360,7 +366,7 @@ public static partial class MediaAtmosphereService {
 			.Select(g => $"\"{g.First().ArtistName}\" {g.Count()} [{string.Join(" ", g.GroupBy(a => a.Lane).OrderBy(x => x.Key).Select(x => x.Key + ":" + x.Count()))}]");
 		Godot.GD.Print($"MEDIA_BUSIEST year={year} {string.Join(" ", busiest)}");
 		// Who fills the name-booked slots: how recognized, how long since a hit, and whether they are 1960 opening careers.
-		var named = mine.Where(a => a.Lane != BillLane.Chart && MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true).ToList();
+		var named = mine.Where(a => a.Lane is BillLane.Standing or BillLane.Comedy && MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally == true).ToList();
 		var namedActs = named.GroupBy(a => a.ArtistId, StringComparer.Ordinal).Select(g => (Artist: ArtistManager.Instance?.GetArtist(g.Key), Dates: g.Count())).Where(x => x.Artist != null).ToList();
 		var recs = namedActs.Select(x => ArtistRecognitionService.EffectiveRecognition(x.Artist)).OrderBy(r => r).ToList();
 		float Quantile(double q) => recs.Count == 0 ? 0f : recs[(int)Math.Min(recs.Count - 1, Math.Floor(q * recs.Count))];
@@ -566,6 +572,8 @@ public static partial class MediaAtmosphereService {
 		public PerformedSong Song;
 		/// <summary>What the act sings when it isn't the booked record (null: the record's own title).</summary>
 		public string SongTitle;
+		/// <summary>The series engagement a resident appears under (Phase 3a); null for the guest bill.</summary>
+		public MediaResidency Residency;
 	}
 
 	private static void BookEpisode(TvProgram program, BroadcastScheduleVersion version, GameDate date, Evidence evidence) {
@@ -662,12 +670,15 @@ public static partial class MediaAtmosphereService {
 			int hit = evidence.StandingActs().FirstOrDefault(s => s.Artist.artistId == c.Record.baseRecord.artistId)?.LastHitYear ?? 0;
 			Ledger("standing-lasthit-" + (hit <= 0 ? "never" : (date.year - hit) switch { <= 1 => "0-1y", <= 3 => "2-3y", _ => "4y+" }));
 		}
-		if (chosen.Count == 0) return;
+		// Phase 3a: the series regulars, outside the bill.
+		List<Candidate> residents = ResidentCandidates(program, date, episodeId, evidence);
+		if (chosen.Count == 0 && residents.Count == 0) return;
 
-		// Running order: a variety bill closes on its biggest name; a dance show plays them as they come.
+		// Running order: a variety bill closes on its biggest name; a dance show plays them as they come. Residents open it.
 		List<Candidate> order = program.Kind == TvProgramKind.PrimetimeVariety
 			? chosen.OrderBy(c => c.Score).ToList()
 			: chosen.OrderByDescending(c => c.Headliner ? 99f : Rank(c, program, date, "order")).ToList();
+		order.InsertRange(0, residents);
 
 		// The advertised headliner's hype lifts the whole episode: viewers come for the event and stay for the bill.
 		Candidate top = order.FirstOrDefault(c => c.Headliner);
@@ -713,6 +724,7 @@ public static partial class MediaAtmosphereService {
 			AddAirings(appearance, program, version, guestDraw, 1f, evidence.Regions);
 			Store(appearance);
 			episode.AppearanceIds.Add(appearance.Id);
+			if (c.Residency != null) { c.Residency.Episodes++; ResidencyLedger("episodes"); }
 		}
 		if (hold != null) state.Holds.Remove(hold);
 		MediaAppearance headline = top == null ? null : state.Appearances.LastOrDefault(a => a.EpisodeId == episodeId && a.Headliner);
@@ -997,11 +1009,15 @@ public static partial class MediaAtmosphereService {
 			&& state.Holds.Any(h => h.Rising && h.ArtistId == artist && h.Day >= today && !(h.ProgramId == program.Id && h.Day == today))) return false;
 		if (program.BooksNationally && state.ProgramMemory.TryGetValue("network:" + program.Network + "|" + artist, out var review)
 			&& review.ExcludedUntilDay > today && MediaAtmosphere.Unit("network-review|" + program.Id + "|" + artist + "|" + today) < 0.5f) return false;
+		// Phase 3a: a program's own regular isn't also booked as its guest.
+		if (ResidentOn(program.Id, artist, today)) return false;
 		if (!byArtist.TryGetValue(artist, out var mine)) return true;
 		foreach (MediaAppearance a in mine) {
 			if (a.RepeatOfId != null) continue;
 			int day = BroadcastExposure.DayIndex(a.Date);
 			if (day == today) return false;
+			// A resident's series dates hold its taping days but don't use up its guest calendar.
+			if (a.Lane == BillLane.Resident) continue;
 			if (a.ProgramId == program.Id && today - day < 7 * rebookWeeks) return false;
 			if (MediaOutletCatalog.Get(a.ProgramId)?.BooksNationally != true) continue;
 			if (Math.Abs(today - day) < 7) nationalThisWeek++;
@@ -1042,11 +1058,15 @@ public static partial class MediaAtmosphereService {
 				// first visit to a program reaches its audience as new; later ones add the share who weren't there before.
 				bool returning = t.ProgramsSeen.Contains(a.ProgramId);
 				if (!returning) t.ProgramsSeen.Add(a.ProgramId);
-				double fresh = airing.Exposure.UniqueReach * (returning ? ReturnVisitNewShare : 1.0);
+				// A resident's next episode reaches the same regulars again (Phase 3a): a tenth of them new per week of episodes.
+				double newShare = a.Lane == BillLane.Resident
+					? MediaResidencies.ReturningNewShare(MediaOutletCatalog.Get(a.ProgramId)?.VersionOn(a.Date)) : ReturnVisitNewShare;
+				double fresh = airing.Exposure.UniqueReach * (returning ? newShare : 1.0);
 				t.EstimatedReach = BroadcastExposure.CombineReach(t.EstimatedReach, fresh, population);
 				if (MediaRecognition.Active && !a.Cut) RecognitionDeposit(a, airing, t, fresh, population);
 				if (MediaDemand.Active && !a.Cut) DemandDeposit(a, airing, fresh);
 				FollowingAiring(a, airing, fresh);
+				ResidentAiring(a, airing);
 				if (MediaMemberFame.Active && !a.Cut) MemberFameAiring(a, airing, t, fresh, population);
 			}
 		}
@@ -1314,8 +1334,8 @@ public static partial class MediaAtmosphereService {
 	// ---- persistence ------------------------------------------------------------------------------------------------
 
 	public static void CaptureWorld(WorldSaveData world) { if (world != null) world.Media = state; }
-	public static void RehydrateWorld(WorldSaveData world) => state = world?.Media ?? new MediaSaveData();
-	internal static void ResetForProbe() => state = new MediaSaveData();
+	public static void RehydrateWorld(WorldSaveData world) { state = world?.Media ?? new MediaSaveData(); RestoreVehicles(); }
+	internal static void ResetForProbe() { state = new MediaSaveData(); RestoreVehicles(); }
 
 	public static GameDate FromDayIndex(int day) {
 		DateTime d = new DateTime(1960, 1, 1).AddDays(day);
