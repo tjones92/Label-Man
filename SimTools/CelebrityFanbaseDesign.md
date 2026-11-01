@@ -1,7 +1,7 @@
 # Celebrity, fanbase and media fame: design note
 
 Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`CelebrityFanbasePhase0Notes.md`), Phase 1
-is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and being screened (`CelebrityFanbasePhase2Notes.md`). The note answers six points the author raised after the
+is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and screened (`CelebrityFanbasePhase2Notes.md`), and Phase 2b is built and screened; adopted with a neutral floor, off by default (`CelebrityFanbasePhase2bNotes.md`). The note answers six points the author raised after the
 media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
 
@@ -449,6 +449,12 @@ Much of the 1960s canon was built after the decade. A model that lets critics mi
    - the craft term reads the authority-weighted verdict in place of raw craft.
 
    Erosion (the negative delta for anonymous product) is not scaled: nobody has to review a record for it to be forgotten.
+
+   *Screened 2026-11-01:* scaling by coverage itself halved every climb (the trades' floor is 0.5 and few records are
+   reviewed) and cost the underrated landmarks. Adopted instead: coverage **relative to the floor** (coverage ÷ 0.5,
+   capped at the per-release ceiling), so an unreviewed record keeps today's climb and a review adds up to 2×
+   (`CelebrityFanbasePhase2bNotes.md`).
+
 4. **Authority, not circulation.** Each critical outlet carries an authority for its own audience, rising through the
    decade. Initial values to calibrate:
 
@@ -618,7 +624,7 @@ Each phase is short-screened, then decade-checked at the end of the branch ([[de
 | 0 | Following stock (inflows from today's sales, attachment and TV only), adult regard, salience; telemetry | Observe-only, byte-identical economy | Following sizes, half-lives and salience states against §9 targets; calibrate `c*` and θ |
 | 1 | Spotlight → `personalRecognition`; office fame-minting fix | Causal (small) | Solo spinouts and band strain by spotlight share |
 | 2 | Press, fan-magazine and controversy writers; registration model replacing the 0.06 cap | Causal | Recognition distribution, TV share of recognition, breakouts per decade |
-| 2b | Critics: reviews gate and season acclaim (§4.3) | Causal | Landmarks a decade and their genre mix, acclaim by genre, units and Major share |
+| 2b | Critics: reviews gate and season acclaim (§4.3) | Causal; adopted with a neutral floor (coverage ÷ trades floor), off by default (`CelebrityFanbasePhase2bNotes.md`) | Landmarks a decade and their genre mix, acclaim by genre, units and Major share |
 | 2c | Breakouts: fan episodes raise hype, bookers chase sensations and rising acts, constant registration fit (§3.4) | Screened, not adopted; kept behind `--event-hype` | Breakouts scoped to phenomena instead (§3.4.6) |
 | 3 | Residencies | Causal | TV-made stars; following growth on series |
 | 4 | **Follower demand at launch, advance orders, live draw** | Causal; the big one | Repeat-hit share, runs, concentration, genre, album units |

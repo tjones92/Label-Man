@@ -242,7 +242,8 @@ public static class MediaPress {
 	private static StoryTone CriticTone(MediaStory t, PressOutlet outlet) {
 		float craft = t.Evidence.Where(e => e.Source == EvidenceSource.RecordItself).Select(e => e.Confidence).DefaultIfEmpty(0.5f).First();
 		float taste = MediaAtmosphere.Unit("critic|" + outlet.Id + "|" + t.RecordId);
-		float verdict = 0.65f * craft + 0.35f * taste;
+		// Phase 2b: the verdict acclaim reads, merit craft plus this critic's taste centred, so the printed tone agrees with it.
+		float verdict = MediaCritics.Active ? craft + MediaCritics.Taste(outlet.Id, t.RecordId) : 0.65f * craft + 0.35f * taste;
 		return verdict > 0.62f ? StoryTone.Admiring : verdict < 0.38f ? StoryTone.Skeptical : StoryTone.Curious;
 	}
 

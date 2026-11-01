@@ -48,6 +48,8 @@ public partial class MediaAtmosphereChecks : Node {
 			FameWritersArithmetic();
 			FameWritersInTheWorld();
 			EventHypeArithmetic();
+			CriticsArithmetic();
+			CriticsInTheWorld();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -1260,6 +1262,104 @@ public partial class MediaAtmosphereChecks : Node {
 			MediaFollowing.ResetBars();
 			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
 			ArtistRecognition.RestoreSwitches(recognitionSwitches);
+		}
+	}
+
+	// Celebrity fanbase Phase 2b (CelebrityFanbaseDesign.md §4.3): reviews decide how much of a record's craft is heard.
+	private void CriticsArithmetic() {
+		PressOutlet Press(string id) => MediaOutletCatalog.GetPress(id);
+		float bar = ArtistCriticalAcclaimService.CraftBar, good = 0.80f, weak = 0.45f;
+		var none = new List<CriticReview>();
+		(float floorCoverage, float floorVerdict) = MediaCritics.Heard(good, none);
+		Check(floorCoverage == MediaCritics.TradeFloor && floorVerdict == good
+			&& Math.Abs(MediaCritics.Delta(good, 0f, none) - ArtistCriticalAcclaimService.GetAcclaimDelta(good, 0f)) < 1e-6f,
+			"An unreviewed record is heard only through the trades' picks (coverage 0.5, verdict = craft) and keeps today's climb: the neutral floor");
+		Check(MediaCritics.Delta(weak, 0f, none) == ArtistCriticalAcclaimService.GetAcclaimDelta(weak, 0f)
+			&& MediaCritics.Delta(weak, 0f, new List<CriticReview> { new() { Authority = 0.6f, Taste = 0f } }) == ArtistCriticalAcclaimService.GetAcclaimDelta(weak, 0f),
+			$"Erosion below the craft bar ({bar:F2}) is not scaled: nobody has to review a record for it to be forgotten");
+
+		float jazz = MediaCritics.Authority(Press("down_beat"), Genre.Jazz, 1962), teen = MediaCritics.Authority(Press("down_beat"), Genre.TeenPop, 1962);
+		var downBeat = new List<CriticReview> { new() { Authority = jazz, Taste = 0f } };
+		Check(Math.Abs(jazz - 0.6f) < 1e-6f && teen < 0.06f && Math.Abs(MediaCritics.Heard(good, downBeat).Coverage - 0.8f) < 1e-6f,
+			$"Down Beat speaks for jazz (authority {jazz:F2}, coverage with the trades 0.80), hardly for a teen record ({teen:F3})");
+		Check(MediaCritics.BaseAuthority(Press("village_voice"), 1960) == 0.15f && Math.Abs(MediaCritics.BaseAuthority(Press("village_voice"), 1967) - 0.35f) < 1e-6f
+			&& MediaCritics.BaseAuthority(Press("rolling_stone"), 1967) == 0.3f && Math.Abs(MediaCritics.BaseAuthority(Press("rolling_stone"), 1969) - 0.6f) < 1e-6f
+			&& MediaCritics.BaseAuthority(Press("jet"), 1963) == 0.3f && MediaCritics.BaseAuthority(Press("life"), 1963) == 0f && MediaCritics.BaseAuthority(Press("billboard"), 1963) == 0f,
+			"Authority rises through the decade (the Voice 0.15 → 0.35 by 1967, Rolling Stone 0.3 → 0.6 by 1969); Life and the trades' news desks review nothing");
+
+		var tastes = Enumerable.Range(0, 4000).Select(i => MediaCritics.Taste("down_beat", "fixture-" + i)).ToList();
+		Check(Math.Abs(tastes.Average()) < 0.01f && tastes.All(t => Math.Abs(t) <= MediaCritics.TasteSpread / 2f),
+			$"Critics disagree without drift: taste is centred (mean {tastes.Average():+0.0000;-0.0000}) and moves a verdict at most ±{MediaCritics.TasteSpread / 2f:F3}");
+
+		var harsh = new List<CriticReview> { new() { Authority = 0.6f, Taste = -0.15f } };
+		var warm = new List<CriticReview> { new() { Authority = 0.6f, Taste = 0.15f } };
+		float edge = bar + 0.03f;
+		Check(MediaCritics.Heard(edge, harsh).Verdict < bar && MediaCritics.Delta(edge, 0f, harsh) < 0f
+			&& MediaCritics.Heard(edge, warm).Verdict > edge && MediaCritics.Delta(edge, 0f, warm) > MediaCritics.Delta(edge, 0f, none),
+			"A harsh review can sink a record just over the bar; a warm one lifts it past what the trades alone gave");
+
+		var acclaimed = new List<CriticReview> { new() { Authority = 0.6f, Taste = 0f }, new() { Authority = 0.5f, Taste = 0f } };
+		float reviewed = MediaCritics.Delta(good, 0f, acclaimed), unreviewed = MediaCritics.Delta(good, 0f, none);
+		Check(Math.Abs(reviewed - 1.8f * unreviewed) < 1e-5f && reviewed <= ArtistCriticalAcclaimService.MaxTotalGainPerRelease
+			&& MediaCritics.Delta(1f, 0f, acclaimed) == ArtistCriticalAcclaimService.MaxTotalGainPerRelease,
+			$"The underrated LP Down Beat and Sing Out! reviewed earns {reviewed:F3}, 1.8× its unreviewed {unreviewed:F3}; a perfect one stops at the per-release ceiling");
+	}
+
+	private void CriticsInTheWorld() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var clock = TimeManager.Instance;
+		var media = MediaAtmosphereService.State;
+		MediaCritics.SetForChecks(true);
+		try {
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			var reviews = media.Reviews.SelectMany(p => p.Value.Reviews.Select(r => (Record: p.Key, Review: r))).ToList();
+			var column = reviews.Where(x => x.Review.Column).ToList();
+			var byId = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord?.recordId != null).ToDictionary(r => r.baseRecord.recordId);
+			Check(column.Count > 0 && column.All(x => byId.TryGetValue(x.Record, out var r) && r.baseRecord.format == ReleaseFormat.Album)
+				&& reviews.All(x => x.Review.Authority is >= 0f and <= 1f)
+				&& media.Reviews.Values.All(e => e.Reviews.Select(r => r.OutletId).Distinct().Count() == e.Reviews.Count)
+				&& column.All(x => MediaOutletCatalog.GetPress(x.Review.OutletId).Fit(byId[x.Record].baseRecord.primaryGenre) >= MediaCritics.ColumnFit),
+				$"Two shadow weeks: the columns review {column.Select(x => x.Record).Distinct().Count()} new LPs ({column.Count} reviews, {reviews.Count - column.Count} of chart entries), each in its readers' music, one per outlet");
+			Check(media.Stories.All(s => s.Angle != StoryAngle.Review || !column.Any(x => x.Record == s.RecordId && x.Review.OutletId == s.OutletId)),
+				"The review column is its own ledger: no LP review enters the news items other media readers see");
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var back = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			Check(back.Reviews.Count == media.Reviews.Count && back.ReviewColumn.Count == media.ReviewColumn.Count
+				&& back.Reviews.All(p => p.Value.Reviews.Count == media.Reviews[p.Key].Reviews.Count && p.Value.LastDay == media.Reviews[p.Key].LastDay
+					&& p.Value.Reviews.Zip(media.Reviews[p.Key].Reviews).All(z => z.First.OutletId == z.Second.OutletId && z.First.Authority == z.Second.Authority && z.First.Taste == z.Second.Taste)),
+				$"Review ledgers and column counts survive a save round trip ({media.Reviews.Count} records)");
+
+			// Consumption: a record's published reviews are read once, then its ledger is gone.
+			int today = BroadcastExposure.DayIndex(clock.CurrentDate);
+			var (recordId, entry) = media.Reviews.Where(p => p.Value.Reviews.Any(r => r.IssueDay <= today) && byId.ContainsKey(p.Key)
+				&& ArtistManager.Instance.GetArtist(byId[p.Key].baseRecord.artistId) != null).OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => (p.Key, p.Value)).First();
+			Record rec = byId[recordId].baseRecord;
+			SimulatedArtist act = ArtistManager.Instance.GetArtist(rec.artistId);
+			float craft = 0.80f, before = act.criticalAcclaim;
+			var published = entry.Reviews.Where(r => r.IssueDay <= today).ToList();
+			Check(MediaAtmosphereService.CriticAcclaimDelta(act, rec, craft, 0f) == null && !media.Reviews.ContainsKey(recordId) && act.criticalAcclaim == before
+				&& Math.Abs(media.ShadowAcclaim[act.artistId] - Math.Clamp(before * ArtistCriticalAcclaimService.RetentionPerRelease + MediaCritics.Delta(craft, 0f, published), 0f, 1f)) < 1e-6f,
+				$"Shadow: a completed run reads its {published.Count} published review(s) once into the act's shadow acclaim; the real acclaim is untouched");
+
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Causal);
+			MediaCritics.SetForChecks(true, writeCausal: true);
+			for (int i = 0; i < 7; i++) clock.EndDay();
+			today = BroadcastExposure.DayIndex(clock.CurrentDate);
+			var next = media.Reviews.Where(p => p.Value.Reviews.Any(r => r.IssueDay <= today) && byId.ContainsKey(p.Key)
+				&& ArtistManager.Instance.GetArtist(byId[p.Key].baseRecord.artistId) != null).OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => (p.Key, p.Value)).FirstOrDefault();
+			if (next.Key != null) {
+				Record r2 = byId[next.Key].baseRecord;
+				SimulatedArtist a2 = ArtistManager.Instance.GetArtist(r2.artistId);
+				var heard = next.Value.Reviews.Where(r => r.IssueDay <= today).ToList();
+				float? delta = MediaAtmosphereService.CriticAcclaimDelta(a2, r2, craft, 0f);
+				Check(delta.HasValue && Math.Abs(delta.Value - MediaCritics.Delta(craft, 0f, heard)) < 1e-6f
+					&& MediaAtmosphereService.CriticAcclaimDelta(a2, r2, craft, 0f) == MediaCritics.Delta(craft, 0f, new List<CriticReview>()),
+					$"Causal: the delta carries the record's {heard.Count} review(s) ({delta:F3}); asked again, the record is unreviewed (the same review never counts twice)");
+			}
+		} finally {
+			MediaCritics.SetForChecks(false);
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
 		}
 	}
 

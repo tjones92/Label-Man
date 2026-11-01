@@ -42,11 +42,13 @@ public static class ArtistCriticalAcclaimService {
 
 	/// <summary>
 	/// Craft as the trade press would have heard it. Delegates to the merit layer so the
-	/// critics and the landmark rule are demonstrably reading the same record.
+	/// critics and the landmark rule are demonstrably reading the same record: an album's coherence
+	/// is its body of work, as merit reads it (before Phase 2b this passed none, so every pre-1966
+	/// LP read the 0.08 cohesion floor and could not clear the bar).
 	/// </summary>
 	public static float GetCraftScore(float originality, float productionQuality, float thematicCohesion,
-		bool isAlbum, float labelProductionQuality) =>
-		ArtisticMeritService.GetCraft(originality, productionQuality, thematicCohesion, isAlbum, labelProductionQuality);
+		bool isAlbum, float labelProductionQuality, float bodyOfWork = 0f) =>
+		ArtisticMeritService.GetCraft(originality, productionQuality, thematicCohesion, isAlbum, labelProductionQuality, bodyOfWork);
 
 	/// <summary>How loudly the public answered. 0 for a record that never charted.</summary>
 	public static float GetCommercialScore(int peakPosition) =>
@@ -75,11 +77,22 @@ public static class ArtistCriticalAcclaimService {
 	public static void OnChartRunComplete(SimulatedArtist artist, RecordRuntimeData record, AILabel label) {
 		if (!ArtistEvolution.Observing || artist == null || record?.baseRecord == null) return;
 		Record baseRecord = record.baseRecord;
-		bool isAlbum = baseRecord.format == ReleaseFormat.Album;
-		float craft = GetCraftScore(baseRecord.originality, baseRecord.productionQuality,
-			baseRecord.album?.thematicCohesion ?? 0f, isAlbum && baseRecord.album != null,
-			label?.productionQuality ?? .5f);
-		artist.criticalAcclaim = Apply(artist.criticalAcclaim, PolarSongBehavior.CriticCraft(craft, baseRecord),
-			GetCommercialScore(AlbumScaleCareerMilestones.CareerPeak(record)));   // raw peak unless the album-scale switch is on
+		float craft = RecordCraft(baseRecord, label);
+		float commercial = GetCommercialScore(AlbumScaleCareerMilestones.CareerPeak(record));   // raw peak unless the album-scale switch is on
+		// Celebrity fanbase Phase 2b (--critic-acclaim): the reviews it got stand in for raw craft, and the climb is earned
+		// only as far as the record was heard. Shadow mode and the switch off fall through to the unreviewed delta.
+		if (MediaAtmosphereService.CriticAcclaimDelta(artist, baseRecord, craft, commercial) is float reviewed) {
+			artist.criticalAcclaim = Mathf.Clamp(artist.criticalAcclaim * RetentionPerRelease + reviewed, 0f, 1f);
+			return;
+		}
+		artist.criticalAcclaim = Apply(artist.criticalAcclaim, craft, commercial);
+	}
+
+	/// <summary>The record's craft as critics hear it: merit craft, less the committed-fit identity penalty.</summary>
+	public static float RecordCraft(Record record, AILabel label) {
+		bool isAlbum = record.format == ReleaseFormat.Album && record.album != null;
+		float craft = GetCraftScore(record.originality, record.productionQuality, record.album?.thematicCohesion ?? 0f, isAlbum,
+			label?.productionQuality ?? .5f, record.album?.bodyOfWork ?? 0f);
+		return PolarSongBehavior.CriticCraft(craft, record);
 	}
 }

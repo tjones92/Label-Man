@@ -152,6 +152,13 @@ public sealed class MediaSaveData {
 	// Celebrity fanbase Phase 2 (--fame-registration with either media-recognition mode).
 	/// <summary>People already credited to each root event's recognition (§4 root-event budget), by root id.</summary>
 	public Dictionary<string, FameRoot> FameRoots { get; set; } = new();
+	// Celebrity fanbase Phase 2b (--observe-critic-acclaim shadow, --critic-acclaim causal).
+	/// <summary>Each record's reviews until its run completes (CelebrityFanbaseDesign.md §4.3), by recordId.</summary>
+	public Dictionary<string, CriticRecordReviews> Reviews { get; set; } = new();
+	/// <summary>LP reviews already placed in each outlet's issue, by "outletId|issue day".</summary>
+	public Dictionary<string, int> ReviewColumn { get; set; } = new();
+	/// <summary>Shadow mode: each act's acclaim as the coverage-scaled delta would have left it. Never read by the economy.</summary>
+	public Dictionary<string, float> ShadowAcclaim { get; set; } = new();
 }
 
 /// <summary>
@@ -224,13 +231,14 @@ public static partial class MediaAtmosphereService {
 		PlaceHolds(evidence, weekEnd);
 		PressWeek(evidence, weekEnd);
 		RecognitionPressWeek(weekEnd);
+		CriticsWeek(evidence, weekEnd);
 		BookThrough(weekEnd.AddDays(7), weekEnd.AddDays(1), evidence);
 		DecayAttitudes(weekEnd);
 		Prune(weekEnd);
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
 		if (weekEnd.month == 12 && weekEnd.day >= 25) {
 			PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); MediaDemand.PrintYear(weekEnd.year);
-			PrintFollowing(weekEnd.year); PrintMemberFame(weekEnd.year);
+			PrintFollowing(weekEnd.year); PrintMemberFame(weekEnd.year); PrintCritics(weekEnd.year);
 		}
 	}
 

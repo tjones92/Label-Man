@@ -513,7 +513,7 @@ public static partial class MediaAtmosphereService {
 		// Reviews: critics respond to the record itself (§8.4). The Voice's music coverage grows through the decade.
 		foreach (RecordRuntimeData r in evidence.FullChart) {
 			if (r.lastWeekPosition > 0 || MediaOutletCatalog.CriticFit(r.baseRecord.primaryGenre) < 0.7f) continue;
-			float craft = (r.baseRecord.hookStrength + r.baseRecord.productionQuality) * 0.5f;
+			float craft = ReviewCraft(r);
 			var lead = NewLead("review|" + r.baseRecord.recordId, StoryAngle.Review, r, today, 0.35f + 0.1f * Math.Clamp(year - 1964, 0, 4), evidence);
 			Fact(lead, EvidenceSource.RecordItself, "the record", today, confidence: craft);
 			lead.Outlets.AddRange(Outlets(PressFamily.RockCriticism).Where(id => criticsActive(MediaOutletCatalog.GetPress(id))));

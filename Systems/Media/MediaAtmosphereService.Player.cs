@@ -421,7 +421,7 @@ public static partial class MediaAtmosphereService {
 			Fact(lead, EvidenceSource.LabelStatement, $"the label's press sheet on \"{r.baseRecord.title}\"", pitch.SentDay, firsthand: true, confidence: 0.6f);
 			if (broke > 0) Fact(lead, EvidenceSource.RegionalSales, $"selling in {broke} regional market(s) on dealers' reports", today);
 			if (r.currentPosition > 0) Fact(lead, EvidenceSource.NationalChart, $"No. {r.currentPosition} on the national chart", today);
-			if (outlet.Family == PressFamily.RockCriticism) Fact(lead, EvidenceSource.RecordItself, "the record", today, confidence: (r.baseRecord.hookStrength + r.baseRecord.productionQuality) * 0.5f);
+			if (outlet.Family == PressFamily.RockCriticism) Fact(lead, EvidenceSource.RecordItself, "the record", today, confidence: ReviewCraft(r));
 			lead.Outlets.Add(outlet.Id);
 			leads.Add(lead);
 			pitch.Status = PitchStatus.Passed; // until the editor's decision says otherwise (AfterDecide)

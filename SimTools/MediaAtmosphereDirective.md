@@ -491,6 +491,11 @@ Initial live scope is **singles only**. Album purchases, LP penetration, soundtr
     `--media-recognition` only:* television, mainstream, specialist and local-daily items, and a public controversy, deposit
     the people they registered into canonical recognition, with no yearly cap. Each root event is credited once, at its
     widest outlet. Cultural standing stays closed: critics write nothing.
+  - *Amended for celebrity fanbase Phase 2b (`CelebrityFanbaseDesign.md` §4.3, §8.4 here), behind `--critic-acclaim` with
+    `--causal-media-atmosphere` only:* reviews replace raw craft as the input to critical acclaim. At a completed run the
+    record's published reviews are read once; the authority-weighted verdict stands in for craft, and the climb is scaled
+    by coverage, with the trades' picks as every release's floor. Erosion is unchanged. Nothing writes cultural standing
+    directly: critics reach it only through acclaim → landmarks and influence.
 - Canonical recognition can still grow from actual chart outcomes through its existing milestone latches. That is the existing earned path, not another exposure deposit.
 - Media-only member spotlight is stored separately from canonical personal recognition until a validated attribution replacement exists.
   - *Amended for celebrity fanbase Phase 1 (`CelebrityFanbaseDesign.md` §0.3, §5), behind `--media-member-fame` only:*

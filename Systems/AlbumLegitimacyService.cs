@@ -298,6 +298,9 @@ public static class AlbumLegitimacyService {
 		CulturalMemoryService.Publish(artist.artistId, artist.labelId,
 			GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year), year,
 			CulturalEventType.LandmarkAlbum, merit, recognition, strength);
+		// Print-only: the landmark count, genre mix and chart reach are Phase 2b's measures (CelebrityFanbaseDesign.md §4.3).
+		GD.Print($"LANDMARK year={year} genre={record.baseRecord.primaryGenre} peak={AlbumScaleCareerMilestones.CareerPeak(record)}" +
+			$" acclaim={artist.criticalAcclaim:F3} reputation={artist.reputation:F3} recognition={recognition:F3} merit={merit:F3} act=\"{artist.stageName}\"");
 	}
 
 	internal static void ResetForProbe() {
