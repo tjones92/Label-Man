@@ -45,6 +45,8 @@ public sealed class MediaFollowingState {
 	/// <summary>Releases already counted for disappointment and would-be advance orders.</summary>
 	public HashSet<string> ReleasesSeen = new(StringComparer.Ordinal);
 	public int LastActiveDay;
+	/// <summary>Phase 2 (§4.2): until this day a controversy has hardened the core, and disappointment churn is halved.</summary>
+	public int HardenedUntilDay = -1;
 
 	public float Salience() {
 		float s = 0f;
@@ -93,6 +95,32 @@ public static class MediaFollowing {
 	public const float CView = 0.005f;
 	/// <summary>Registration (§3.1): the share of a fresh audience that remembers the act afterwards.</summary>
 	public const float R0 = 0.25f;
+	/// <summary>
+	/// Phase 2 (§2.2, §4): fan-magazine and specialist readers who become followers, per reader × the outlet's fit. A
+	/// 1.5M-reader feature in 16 is about 45k joiners, a tenth of a Top 10's buyers at full heat.
+	/// </summary>
+	public const float CRead = 0.03f;
+	/// <summary>
+	/// A news item (chart news, a notice, a review, a pitch) converts at a fifth of a feature. The first 104-week shadow read
+	/// had the specialist papers' ~1,570 items a year, mostly chart news, outjoining record buying (16.5M against 14.4M).
+	/// </summary>
+	public const float NewsReadShare = 0.2f;
+
+	/// <summary>Readers who join per reader: a feature about the act itself at <see cref="CRead"/>, news at a fifth of it.</summary>
+	public static float ReadConversion(StoryAngle angle) => angle switch {
+		StoryAngle.TeenFeature or StoryAngle.FanScene or StoryAngle.CulturalPhenomenon or StoryAngle.Hometown or StoryAngle.CommunityNews => CRead,
+		_ => CRead * NewsReadShare,
+	};
+
+	// ---- controversy (§4.2, Phase 2) ---------------------------------------------------------------------------------
+
+	/// <summary>Adult followers and adult regard lost per unit of severity: a national defiance (0.6) costs 30%.</summary>
+	public const float ControversyAdultLoss = 0.5f;
+	/// <summary>The young following's marginal members lost per unit of severity: 9% at a national defiance.</summary>
+	public const float ControversyYoungLoss = 0.15f;
+	/// <summary>The core hardens: disappointment churn is halved for a year after a controversy.</summary>
+	public const int HardenedDays = 365;
+	public const float HardenedDisappointment = 0.5f;
 
 	/// <summary>Heat is the converter: a cold hit leaves few followers, the same units sold in a frenzy leave many.</summary>
 	public static float HeatFactor(float heat) => 0.2f + 0.8f * Math.Clamp(heat, 0f, 1f);

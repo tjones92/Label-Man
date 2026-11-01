@@ -45,6 +45,9 @@ public partial class MediaAtmosphereChecks : Node {
 			FollowingInTheWorld();
 			MemberFameArithmetic();
 			MemberFameInTheWorld();
+			FameWritersArithmetic();
+			FameWritersInTheWorld();
+			EventHypeArithmetic();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -1102,6 +1105,159 @@ public partial class MediaAtmosphereChecks : Node {
 			Check(lapsed, "A billing promise lapses once the act is no longer billed under that name");
 		} finally {
 			MediaMemberFame.SetForChecks(false);
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
+			ArtistRecognition.RestoreSwitches(recognitionSwitches);
+		}
+	}
+
+	// Celebrity fanbase Phase 2 (SimTools/CelebrityFanbaseDesign.md §3-§4): registration replaces the cap; press and
+	// controversy write the act's name, once per root event.
+	private void FameWritersArithmetic() {
+		const double P = 158e6;
+		var ordinary = new MediaPerformanceResult { Outcome = PerformanceOutcome.FlatAdequate };
+		var electric = new MediaPerformanceResult { Outcome = PerformanceOutcome.Electrifying };
+		double Reg(double seen, double fresh, MediaPerformanceResult perf, int dates = 0, Genre genre = Genre.TraditionalPop, double young = 0.3, double adult = 0.6) =>
+			MediaRecognition.Registered(seen, fresh, P, young, adult, genre, perf, dates, 1f).Registered / P;
+		double sullivan = Reg(0, 0.14 * P, ordinary);
+		Check(sullivan is > 0.01 and < 0.04, $"A routine first Sullivan spot registers {sullivan:F4} of the country, close to the design's 0.035: upkeep, not a breakout");
+		double night = Reg(0, 0.38 * P, electric, genre: Genre.TeenPop, young: 0.55, adult: 0.4);
+		Check(night > MediaRecognition.AnnualCap && night >= MediaRecognition.BreakoutGain,
+			$"One electrifying night before 38% of the country registers {night:F3}, past the old yearly cap ({MediaRecognition.AnnualCap}): a breakout");
+		// The tally passes a return to the same program as its new quarter (ReturnVisitNewShare); the reach stock then removes
+		// the part of even that quarter who saw the act elsewhere.
+		double again = Reg(0.38 * P, 0.25 * 0.38 * P, electric, dates: 1, genre: Genre.TeenPop, young: 0.55, adult: 0.4);
+		Check(again < 0.2 * night, $"The same show the next week registers {again:F3}: people who already know the act can't learn it again");
+		Check(Reg(0, 0.14 * P, ordinary, dates: 20) < 0.45 * sullivan && Reg(0, 0, ordinary) == 0,
+			"A twentieth national date registers less than half a first; no audience, nobody");
+
+		PressOutlet Press(string id) => MediaOutletCatalog.GetPress(id);
+		double life = MediaRecognition.RegisteredReaders(Press("life"), Genre.TeenPop), look = MediaRecognition.RegisteredReaders(Press("look"), Genre.TeenPop);
+		Check(Math.Abs(life - 20e6 * MediaRecognition.MainstreamRegistration) < 1 && life / P is > 0.02 and < 0.03,
+			$"A Life story registers a fifth of its 20M readers, {life / P:F3} of the country, about a Top 40 hit");
+		Check(MediaRecognition.RegisteredReaders(Press("billboard"), Genre.TeenPop) == 0 && MediaRecognition.RegisteredReaders(Press("sixteen"), Genre.TeenPop) == 0
+			&& MediaRecognition.RegisteredReaders(Press("village_voice"), Genre.Folk) == 0 && MediaRecognition.RegisteredReaders(Press("ebony"), Genre.Soul) > 0,
+			"Trades, teen magazines and critics register no act's name; the Black press does, among its readers");
+		var (lookExtra, credit) = MediaRecognition.RootBudget(0, look);
+		var (lifeExtra, credit2) = MediaRecognition.RootBudget(credit, life);
+		var (lookAgain, _) = MediaRecognition.RootBudget(credit2, look);
+		Check(lookExtra == look && Math.Abs(lifeExtra - (life - look)) < 1 && lookAgain == 0 && credit2 == life,
+			"One story in Look and Life counts once, at the wider outlet: Life adds only its readers beyond Look's, and a retelling adds nothing");
+	}
+
+	// Celebrity fanbase Phase 2c (SimTools/CelebrityFanbaseDesign.md §3.4): fan episodes raise an event night's hype, and
+	// registration reads one constant fit, so only an event night can break an act out.
+	private void EventHypeArithmetic() {
+		bool was = MediaFans.EventHype;
+		MediaFans.EventHype = true;
+		try { EventHypeArithmeticOn(); } finally { MediaFans.EventHype = was; }
+	}
+
+	private void EventHypeArithmeticOn() {
+		var s = new MediaFanState { ArtistId = "x" };
+		s.State = FanEpisodeState.NationalSensation; MediaFans.NoteRecentHigh(s, 100);
+		s.State = FanEpisodeState.Cooldown; MediaFans.NoteRecentHigh(s, 114);
+		Check(MediaFans.RecentHighOf(s, 128) == FanEpisodeState.NationalSensation && MediaFans.RecentHighOf(s, 100 + MediaFans.EventMemoryDays + 7) == FanEpisodeState.None,
+			"A sensation that cooled two weeks ago still lifts a date booked in the frenzy; eight weeks on it doesn't");
+
+		var sullivan = MediaOutletCatalog.Get("ed_sullivan");
+		GameDate night = D(1964, 2, 9);
+		var regions = ChartManager.Instance.GetAllRegions();
+		var markets = BroadcastExposure.Markets(sullivan, sullivan.VersionOn(night), night, regions);
+		double P = regions.Sum(r => r.population) * 1e6;
+		double Fresh(float hype) {
+			var (lift, tune) = MediaAtmosphereService.EventDraw(Math.Min(hype, 1f), sullivan);
+			return BroadcastExposure.Estimate(sullivan, 60, 1, 2, 0f, markets, 1f, lift, tune).UniqueReach / P;
+		}
+		// Hype = max(precursor, episode) × novelty × (0.3 + 0.7 × coverage), first primetime date, coverage 0.6.
+		float ordinaryHype = 0.2f * 0.85f * 1f, sensationHype = MediaFans.EpisodeHype(FanEpisodeState.NationalSensation) * 0.72f,
+			phenomenonHype = MediaFans.EpisodeHype(FanEpisodeState.CulturalPhenomenon);
+		double routine = Fresh(0f), ordinary = Fresh(ordinaryHype), sensation = Fresh(sensationHype), phenomenon = Fresh(phenomenonHype);
+		Check(ordinary == routine && sensation > 1.15 * routine && phenomenon > 1.8 * routine,
+			$"An ordinary No. 1 draws Sullivan's usual {routine:F3}; a sensation's first event night {sensation:F3}; a phenomenon's {phenomenon:F3}");
+		Check(Fresh(sensationHype * 0.4f) == routine, "A second event night on the same program is damped back to routine");
+
+		// The exposure model sets the ratios; the base is the largest fresh Sullivan audience the 1963-66 worlds drew
+		// (0.166, CelebrityFanbasePhase2Notes.md), above this bare fixture night's.
+		double world = 0.166 / routine;
+		routine *= world; sensation *= world; phenomenon *= world;
+		var flat = new MediaPerformanceResult { Outcome = PerformanceOutcome.FlatAdequate };
+		var electric = new MediaPerformanceResult { Outcome = PerformanceOutcome.Electrifying };
+		double Reg(double fresh, MediaPerformanceResult perf, Genre genre) =>
+			MediaRecognition.Registered(0, fresh * P, P, 0.3, 0.6, genre, perf, 0, 1f).Registered / P;
+		float bar = MediaRecognition.BreakoutGain;
+		Check(Reg(routine, electric, Genre.TeenPop) < bar && Reg(routine, flat, Genre.TeenPop) is > 0.015 and < 0.035,
+			$"No routine date breaks out, however it goes: a first Sullivan spot registers {Reg(routine, flat, Genre.TeenPop):F3}, an electrifying one {Reg(routine, electric, Genre.TeenPop):F3}");
+		Check(Reg(routine, flat, Genre.TeenPop) == Reg(routine, flat, Genre.Comedy),
+			"Familiarity ignores taste: a teen act on a family show registers as well as the show's own kind of act");
+		Check(Reg(sensation, flat, Genre.TeenPop) < bar && Reg(sensation, electric, Genre.TeenPop) >= bar && Reg(phenomenon, flat, Genre.TeenPop) >= bar,
+			$"A sensation breaks out only on an electrifying event night ({Reg(sensation, electric, Genre.TeenPop):F3}); a phenomenon on any decent one ({Reg(phenomenon, flat, Genre.TeenPop):F3})");
+
+		// §3.4.5: a rising act's announced first network date, novelty intact, advance coverage 0.8, capped as a sensation.
+		float risingHype = Math.Min(MediaFans.RisingHype * 1f * (0.3f + 0.7f * 0.8f), MediaFans.HypeCap(MediaFans.RisingCapState));
+		double rising = Fresh(risingHype) * world;
+		var engaging = new MediaPerformanceResult { Outcome = PerformanceOutcome.Engaging };
+		Check(Reg(rising, flat, Genre.TeenPop) < bar && Reg(rising, engaging, Genre.TeenPop) >= bar,
+			$"A rising act's first network date (hype {risingHype:F2}, {rising:F3} of the country) breaks out on an engaging night ({Reg(rising, engaging, Genre.TeenPop):F3}), not a routine one ({Reg(rising, flat, Genre.TeenPop):F3})");
+	}
+
+	private void FameWritersInTheWorld() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var clock = TimeManager.Instance;
+		MediaRecognition.SetForChecks(true, withRegistration: true);
+		MediaFollowing.SetForChecks(true);
+		try {
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			var roots = MediaAtmosphereService.State.FameRoots;
+			var tallies = MediaAtmosphereService.Tallies.Values.ToList();
+			Check(roots.Count > 0 && roots.Values.All(r => r.People >= 0 && double.IsFinite(r.People)) && roots.Keys.Any(k => k.StartsWith("tv|"))
+				&& tallies.All(t => t.ShadowRecognition is >= 0f and <= 1f),
+				$"Two shadow weeks credit {roots.Count} root events ({roots.Keys.Count(k => !k.StartsWith("tv|"))} from the papers); every act's media familiarity stays in [0,1]");
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var back = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			Check(back.FameRoots.Count == roots.Count && back.FameRoots.All(p => roots[p.Key].People == p.Value.People && roots[p.Key].Day == p.Value.Day),
+				"Root credits survive a save round trip");
+		} finally { MediaRecognition.SetForChecks(false); }
+
+		// Causal: deposits reach the act's real stock, and a controversy makes the act more known while its adults leave.
+		var recognitionSwitches = ArtistRecognition.CaptureSwitches();
+		ArtistRecognition.ConfigureForProbe(enable: true, observe: false);
+		MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Causal);
+		MediaRecognition.SetForChecks(true, writeCausal: true, withRegistration: true);
+		try {
+			foreach (MediaActTally t in MediaAtmosphereService.Tallies.Values) t.ShadowRecognition = 0f;
+			var opening = ArtistManager.Instance.GetAllArtists().Where(x => x != null).ToDictionary(x => x.artistId, x => x.publicRecognition);
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			float floorDecay = (float)Math.Pow(ArtistRecognitionService.PublicRecognitionDecay, 3);
+			var earned = MediaAtmosphereService.Tallies.Values.Where(t => t.ShadowRecognition > 0f).ToList();
+			var missing = earned.Where(t => {
+				SimulatedArtist x = ArtistManager.Instance.GetArtist(t.ArtistId);
+				return x == null || x.publicRecognition + 1e-4f < opening.GetValueOrDefault(t.ArtistId) * floorDecay + t.ShadowRecognition
+					|| t.ShadowRecognition > x.publicRecognition + 1e-6f;
+			}).ToList();
+			Check(earned.Count > 0 && missing.Count == 0,
+				$"Causal: registration and the papers reach the act's real recognition ({earned.Count} acts, {earned.Sum(t => t.ShadowRecognition):F4} earned; {missing.Count} short)");
+
+			MediaFollowingState fs = MediaAtmosphereService.State.Following.Values
+				.Where(s => s.AdultTotal() > 0f && s.YoungTotal() > 0f && ArtistManager.Instance.GetArtist(s.ArtistId) != null)
+				.OrderByDescending(s => s.AdultTotal()).ThenBy(s => s.ArtistId).First();
+			SimulatedArtist act = ArtistManager.Instance.GetArtist(fs.ArtistId);
+			float recog = act.publicRecognition, adult = fs.AdultTotal(), young = fs.YoungTotal();
+			int today = BroadcastExposure.DayIndex(clock.CurrentDate);
+			var c = new MediaControversy { Id = "controversy|fixture", RootId = "controversy|fixture", ArtistId = act.artistId, ArtistName = act.stageName,
+				StartDay = today, ExpiresDay = today + 84, Severity = 0.6f, National = true, Verified = true };
+			MediaAtmosphereService.ControversyFame(c);
+			float expected = recog + 0.6f * MediaRecognition.NotorietyGain * (1f - recog);
+			Check(Math.Abs(act.publicRecognition - expected) < 1e-4f && Math.Abs(fs.AdultTotal() - 0.7f * adult) < 1e-2f * adult
+				&& Math.Abs(fs.YoungTotal() - 0.91f * young) < 1e-2f * young && fs.HardenedUntilDay == today + MediaFollowing.HardenedDays,
+				$"A national defiance makes the act more known ({recog:F3} → {act.publicRecognition:F3}); 30% of its adults and 9% of its young fans leave; the core hardens for a year");
+			float after = act.publicRecognition;
+			MediaAtmosphereService.ControversyFame(c);
+			Check(act.publicRecognition == after, "The same controversy retold adds no recognition: its root is already credited");
+		} finally {
+			MediaRecognition.SetForChecks(false);
+			MediaFollowing.SetForChecks(false);
+			MediaFollowing.ResetBars();
 			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
 			ArtistRecognition.RestoreSwitches(recognitionSwitches);
 		}

@@ -278,6 +278,7 @@ public static partial class MediaAtmosphereService {
 					Godot.GD.Print($"MEDIA_FANS date={FromDayIndex(today).ToShortString()} act=\"{fs.ArtistName}\" {fs.TransitionFrom}->{fs.State} hot={week.HotRegions}/{r} " +
 						$"families={week.Families} letters={fs.Letters} face=\"{MediaFans.Face(fs)}\"");
 			}
+			if (MediaFans.EventHype) MediaFans.NoteRecentHigh(fs, today);
 			if (record != null && record.baseRecord.recordId != fs.BestRecordId) { fs.BestRecordId = record.baseRecord.recordId; fs.BestRecordSinceDay = today; fs.Plateau = false; }
 			if (IsNational(fs.State) && !fs.Plateau && today - Math.Max(fs.StateSinceDay, fs.BestRecordSinceDay) >= MediaFans.PlateauDays) {
 				fs.Plateau = true;

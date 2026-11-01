@@ -487,6 +487,10 @@ Initial live scope is **singles only**. Album purchases, LP penetration, soundtr
 ### 12.4 Close the indirect routes
 
 - No direct media writes to canonical recognition, cultural standing, critical acclaim, momentum, record quality, genre acceptance, launch stock, chart points, market capacity, royalty rates, or mechanical accounting.
+  - *Amended for celebrity fanbase Phase 2 (`CelebrityFanbaseDesign.md` §0.3, §3-§4), behind `--fame-registration` with
+    `--media-recognition` only:* television, mainstream, specialist and local-daily items, and a public controversy, deposit
+    the people they registered into canonical recognition, with no yearly cap. Each root event is credited once, at its
+    widest outlet. Cultural standing stays closed: critics write nothing.
 - Canonical recognition can still grow from actual chart outcomes through its existing milestone latches. That is the existing earned path, not another exposure deposit.
 - Media-only member spotlight is stored separately from canonical personal recognition until a validated attribution replacement exists.
   - *Amended for celebrity fanbase Phase 1 (`CelebrityFanbaseDesign.md` §0.3, §5), behind `--media-member-fame` only:*

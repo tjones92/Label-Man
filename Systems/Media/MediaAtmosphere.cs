@@ -46,6 +46,7 @@ public static class MediaAtmosphere {
 				MediaFans.HotAt = float.Parse(argument["--media-fan-hot=".Length..], CultureInfo.InvariantCulture);
 			if (argument == "--media-fan-diagnostics") MediaFans.Diagnostics = true;
 			if (argument == "--media-hard-sales-rank") MediaFans.SoftSalesStanding = false;
+			if (argument == MediaFans.EventHypeSwitch) MediaFans.EventHype = true;
 		}
 		if (disable && (observe || causal))
 			throw new ArgumentException("--disable-media-atmosphere cannot be combined with another media mode.");

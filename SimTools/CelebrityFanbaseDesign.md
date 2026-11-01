@@ -1,7 +1,7 @@
 # Celebrity, fanbase and media fame: design note
 
-Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`CelebrityFanbasePhase0Notes.md`), and Phase 1
-is built and being screened (`CelebrityFanbasePhase1Notes.md`). The note answers six points the author raised after the
+Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`CelebrityFanbasePhase0Notes.md`), Phase 1
+is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and being screened (`CelebrityFanbasePhase2Notes.md`). The note answers six points the author raised after the
 media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
 
@@ -241,6 +241,143 @@ image, or the label pitches its act for a regular slot. The terms to settle:
 - whether the act must play the show's material;
 - how much of the act's diary it takes. A weekly taping limits touring, which trades live draw for TV reach.
 
+### 3.4 Breakouts: event audiences and registration fit (Phase 2c)
+
+> **Outcome:** screened and not adopted. Breakouts are scoped to phenomena (§3.4.6). §3.4.1-§3.4.5 record what was built
+> behind `--event-hype`.
+
+Phase 2's screen (`CelebrityFanbasePhase2Notes.md`, *What keeps the biggest airings small*) found no breakout in eight
+world-years. The causes:
+- no airing's fresh audience passed 0.17 of the country;
+- registration fit ranks a teen act lowest on a family show (0.35 on Sullivan).
+
+Residencies (§3.3) change neither, so they come first, as their own phase.
+
+**Two limits, two fixes:**
+- **The night's audience is fixed.** The exposure model already enlarges an event night: hype → `eventLift` (share
+  taken from rival programs, up to 0.90) and `tuneIn` (people who weren't watching, up to 0.35 of them). But hype
+  never passes 0.25, the point where lift begins. Across 51 headline events in 1963-66 the maximum was 0.25. Hype is
+  `Precursor × novelty × (0.3 + 0.7 × advance coverage)`, and the precursor needs six weeks at No. 1, twice an
+  ordinary No. 1's sales and other hits on the chart. An ordinary No. 1 gives about 0.2 × 0.85 × 1 ≈ 0.19 at most. Fan
+  episodes only cap hype (`MediaFans.HypeCap`) and never add to it, although the code marks them as meant to join it
+  here. The one act that became a National Sensation, three times in 1964-65 on seed 1001, had 2-4 week spells and was
+  never on Sullivan during one.
+- **Registration fit is following fit.** Registration reuses `MediaFollowing.AudienceFit`, the share of an audience
+  who could *become fans*. But recognition is familiarity, not esteem (`MediaRecognition`'s own rule: a disaster makes a
+  face known too). Whether a family audience remembers a teen act is not whether it would join its fan club.
+
+#### 3.4.1 Event audiences: the public's frenzy draws the audience
+
+The exposure model, its ceilings (0.90 lift, 0.35 tune-in) and the hype cap by episode state all stay. Three changes
+feed them:
+
+1. **Fan episodes raise hype.** Precursor′ = max(Precursor, EpisodeHype), where EpisodeHype reads the strongest state in
+   the 8 weeks before the air date:
+   - Regional Favorite 0.35;
+   - National Sensation 0.70;
+   - Cultural Phenomenon 1.0.
+
+   Taking the strongest state over 8 weeks means a booking made in the frenzy still counts after a short spell cools.
+   Novelty and the coverage term apply as now, and `HypeCap` still bounds the result. A sensation can't reach the
+   phenomenon ceiling.
+2. **Bookers chase a sensation.** On entering National Sensation (or Phenomenon), the act is offered a headline hold
+   (`PlaceHolds`) on the largest primetime variety program with a free hold in the next 3-6 weeks. History: the Beatles'
+   Sullivan date was agreed before their US No. 1 (§1). The hold's announcement is what lets the press build advance
+   coverage, so it also raises the coverage term. This applies to rival acts. The player's act gets the same approach
+   as an offer.
+3. **Novelty stays strict.** A return to the same program (0.4) or to primetime at all (0.85) still damps hype, so an
+   act gets about one event night per program.
+
+**Expected sizes** (Sullivan's base fresh audience 0.166; estimates to be confirmed by the screen):
+
+| Act at air date | Hype (coverage 0.6) | Lift / tune-in | Fresh audience |
+|---|---:|---:|---:|
+| Ordinary No. 1 | ≤ 0.19 | 0 / 0 | 0.166, as now |
+| National Sensation, first primetime date | 0.50 | 0.30 / 0 | about 0.22 |
+| Cultural Phenomenon, full coverage | 1.0 → capped 1.0 | 0.90 / 0.34 | about 0.35-0.40, the Beatles' 38% |
+
+#### 3.4.2 Registration fit: familiarity ignores taste
+
+Registration fit becomes a constant, **`RegistrationFit` = 0.6** for every genre and audience. Taste stays where it
+belongs, in who joins the following (`AudienceFit`, §2.2). Performance and novelty still vary by night.
+
+- A routine first Sullivan spot registers 0.166 × 0.25 × 0.6 ≈ **0.025**, back to the design's original upkeep size
+  (§3.1, "close to today's 0.022"). Today it is 0.012-0.020.
+- TV's yearly total rises by about 0.6 ÷ 0.46 ≈ 1.3×, to roughly 3-4 a year. That is still below the old capped writer's
+  4.9-6.4.
+- The biggest change by genre is Soul and TeenPop acts on family shows, which roughly gain 60-70%. Watch genre share:
+  Phase 2 already showed Soul +1.3 on one seed.
+
+#### 3.4.3 What makes a breakout
+
+Breakout bar 0.045 raw (a Top 10's worth), r0 0.25, fit 0.6, novelty 1 for a first national date:
+
+| Night | Fresh | Routine (1.0) | Engaging (1.15) | Electrifying (1.6) |
+|---|---:|---:|---:|---:|
+| Any routine Sullivan date | 0.166 | 0.025 | 0.029 | 0.040, **no** |
+| Sensation's first event night | 0.22 | 0.033 | 0.038 | **0.053** |
+| Phenomenon's event night | 0.35-0.40 | **0.053-0.060** | **0.060-0.069** | **0.084-0.096** |
+
+- No routine booking breaks out, however well it goes. The cap's job is kept without the cap.
+- A sensation breaks out only on an electrifying first event night. That puts the rate in the §9 band ("a handful a
+  decade") if electrifying nights among event headliners run at a few tens of percent. The screen measures that rate
+  first. The calibration knob is the sensation's EpisodeHype (0.70), not r0, so routine spots stay put.
+- A phenomenon breaks out on any decent night: the Beatles case. The design's 0.15 for that night (§3.1) assumed fit 1.
+  At fit 0.6 it is 0.08-0.10 before diminishing returns, still a household name in one night.
+- The feedback loop (event → recognition and followers → a longer sensation → the next event) is bounded by:
+  - novelty: one event night per program;
+  - `HypeCap` by state;
+  - attention (§7.3), which binds once two acts are hot at once.
+
+#### 3.4.4 Switches, telemetry and screens
+
+- **`--event-hype`**, off unless named. It changes audiences, so it changes the demand ledger and followings in causal
+  mode, and it must be its own switch, A/B'd separately. Shadow (`--observe-media-atmosphere`) stays byte-identical to
+  the ref.
+- **`RegistrationFit`** applies under `--fame-registration`. Phase 2 is still uncommitted, so it replaces the reused
+  `AudienceFit` there rather than adding another switch.
+- **Telemetry:**
+  - `MEDIA_EVENT` gains precursor, EpisodeHype, the state read, novelty and coverage. That settles whether coverage
+    is ever nonzero for a hot act.
+  - New `MEDIA_EVENT_HOLD` per chased booking.
+  - `MEDIA_TV_REG_DECOMP` stays, for fresh-audience and fit distributions.
+  - **TV-made stars** (§9): an act's first Top 40 within a year of a breakout.
+- **Screens:**
+  1. Fixtures: the three table rows above; a cooled sensation still lifts within 8 weeks; a second event night on the
+     same program is damped.
+  2. Shadow inertness, 104 weeks against `ref-f50b9a4` (with `--lean-probe`).
+  3. Causal 1963-66 resumes, both seeds, against `fr2-t`. Measure breakouts, sensation spells and how many got an event
+     night, electrifying rate among event headliners, TV share of recognition, and the Phase 2 economy table. Kill rule
+     as before (top-10% slot-weeks +3 pt).
+
+#### 3.4.5 Book the rising act (added after the first screen)
+
+Sensations had always played Sullivan as chart guests before they were chased, so return-visit novelty kept every
+chased night routine. A second route books an act the public is warming to (a Regional Favorite or more in the last
+8 weeks) that has never played a primetime variety show:
+- its first network date is announced as the event, at hype 0.75;
+- it plays no other primetime variety show until then (Sullivan's exclusivity).
+
+#### 3.4.6 Outcome: breakouts are scoped to phenomena (author, 2026-11-01)
+
+Both routes were built and screened (`CelebrityFanbasePhase2cNotes.md`):
+- **The sensation chase** never lifted an audience.
+- **The rising-act route** produced real event nights, including two 41.5M Sullivan nights against the usual 20-27M.
+  Neither route produced a breakout:
+  - no rising night was Engaging;
+  - daytime network shows had already shown the headliner to much of the audience;
+  - the lift goes to the whole bill.
+- **Economy:**
+  - Soul gained on both seeds from the constant fit;
+  - 1966 albums fell on both seeds (−3.7%, −4.8%).
+
+**Decision:** single-night TV breakouts are a phenomenon's event, 0-1 a decade and none on most seeds, like
+phenomena themselves (§11, decision 1). TV-made stars come through followings and residencies (§3.3, Phase 3), not
+single nights.
+- The Phase 2c code stays behind `--event-hype`, off, as a screened experiment, and the constant registration fit
+  moves behind the same switch.
+- Without it, registration reads `AudienceFit` exactly as Phase 2 was screened.
+
 ## 4. Press, fan magazines and controversy as fame writers
 
 Every item writes through one **root-event budget**, which already exists in the press model. A story and its
@@ -271,6 +408,80 @@ directive §7.4 already defines its stages. Its fame effects:
 - **Booking access falls.** Program floors rise for the act until a review date (the Doors after Sullivan).
 
 Supply effects such as station bans and retailer refusals stay out until their own adapter exists (directive §12.4).
+
+### 4.3 Critics: reviews become the channel acclaim runs through (Phase 2b)
+
+Author's decision, 2026-11-01: critics should raise standing, but through the existing acclaim pipeline rather than as a
+new writer.
+
+**Today.**
+- `culturalStanding` has three writers:
+  - landmark albums (`AlbumLegitimacyService`, 0.12 × strength);
+  - influence: another act converting on the record (`CulturalMemoryService`, 0.008 × strength);
+  - the 1960 opening seed.
+- `criticalAcclaim` is the sim's internal critics. Each completed chart run moves it by the record's craft
+  (`ArtistCriticalAcclaimService`), more for a high-craft record that didn't sell. The landmark test reads it, so acclaim
+  already reaches standing.
+- The media critics are separate and write nothing:
+  - they review only records entering the chart, in critic-fit genres;
+  - their verdict is 0.65 × craft + 0.35 × the critic's own taste;
+  - their "craft" is hook and production, not the merit craft that acclaim and landmarks read.
+
+**History.** Critical regard was real but specialist and late:
+- jazz reputations were made in *Down Beat*;
+- folk reputations in *Sing Out!* and a few newspaper critics (Shelton on Dylan, 1961);
+- pop and rock had no critics of their own until *Crawdaddy!* (1966) and *Rolling Stone* (late 1967). Their readerships
+  were tiny, but the readers were musicians, FM DJs and A&R staff;
+- the trades reviewed nearly everything, briefly. Billboard and Cash Box picks were the baseline every release met.
+
+Much of the 1960s canon was built after the decade. A model that lets critics mint big reputations inside it overshoots.
+
+**Design.** The same craft, the same pipeline; reviews decide how much of it is heard.
+
+1. **Reviews read the merit craft.** A critic's verdict is `ArtisticMeritService.GetCraft` for the record + τ × (taste −
+   0.5). Centering taste on zero keeps the mean verdict on craft, so critics add disagreement, not drift.
+2. **Reviews reach non-charting records.** At release, LPs in critic-fit and specialist genres become review leads for
+   critics and specialist papers whether or not they chart. Without this the underrated case can't be reviewed.
+3. **Acclaim is earned only as far as the record was heard.** At a completed run, the positive acclaim delta is scaled
+   by coverage:
+   - coverage = 1 − ∏(1 − authority) over the outlets that reviewed the record;
+   - the trades' picks give every release a floor;
+   - the craft term reads the authority-weighted verdict in place of raw craft.
+
+   Erosion (the negative delta for anonymous product) is not scaled: nobody has to review a record for it to be forgotten.
+4. **Authority, not circulation.** Each critical outlet carries an authority for its own audience, rising through the
+   decade. Initial values to calibrate:
+
+   | Outlet | Authority | Audience |
+   |---|---|---|
+   | Trades' picks (floor) | 0.5 | All |
+   | *Down Beat* | 0.6 | Jazz |
+   | *Sing Out!*, *Broadside* | 0.5, 0.2 | Folk |
+   | Black press (*Jet*, *Ebony*, *Defender*) | 0.3 | Soul and R&B |
+   | *Village Voice* | 0.15 → 0.35 by 1967 | Critic-fit genres |
+   | *Crawdaddy!* | 0.3 from 1966 | Critic-fit genres |
+   | *Rolling Stone* | 0.3 → 0.6 by 1969 | Critic-fit genres |
+
+5. **Standing still has its three writers.** Critics reach it only through acclaim → landmarks and influence. Nothing is
+   counted twice, and §12.4 needs no new amendment for standing. Acclaim's own write changes source, so it gets its own
+   switch and causal test (directive §8.4).
+
+**Readers to watch.** Acclaim feeds:
+- the landmark test (standing, plus a small recognition deposit);
+- `ArtistEvolutionPressureService`, so artists' choices.
+
+Landmarks feed launch through `EffectiveRecognition` (standing × 0.20). So this is causal and economic.
+
+**Measures.**
+- Landmarks: 25-40 a decade, unchanged in total ([[landmark-album-is-body-of-work]]). The genre mix may move toward jazz
+  and folk before 1966 and toward critic-fit rock after.
+- A few landmarks a decade from records that never reached the Top 40.
+- Acclaim by genre and year: pop acclaim falls before 1966.
+- The causal pair's units, Major share and genre.
+
+**Author's answers (2026-11-01).**
+- The trades' picks (Billboard, Cash Box) count as reviewers and give every release the coverage floor.
+- Erosion stays unscaled: a forgotten record loses acclaim whether or not anyone reviewed it.
 
 ## 5. Member fame: spotlight writes personal recognition
 
@@ -393,7 +604,8 @@ ahead of everyone else, not just a high share:
 | Following size | Top teen act 1-3M; fan clubs (a slice of it) 50-80k | New |
 | Following half-life after the last hit | 2-3 years young, 5-7 adult | New |
 | Phenomena / sensations per decade | 0-1 (most seeds none) / 10-25 | Salience states |
-| TV-made stars (first Top 40 within a year of a residency or breakout) | A handful a decade | Media telemetry |
+| TV single-night breakouts (an airing worth a Top 10 on its own) | 0-1 a decade, a phenomenon's event; most seeds none (§3.4.6) | `MEDIA_TV_BREAKOUT` |
+| TV-made stars (first Top 40 within a year of a residency's start) | A handful a decade | Media telemetry |
 | Solo spinouts from camera-loved members | Rises; keep within band-life bounds | Band life |
 | Top-10% slot-weeks, CR4, Major share, genre | Kill and report as now. Genre moves are allowed where followings explain them. | Existing |
 
@@ -406,6 +618,8 @@ Each phase is short-screened, then decade-checked at the end of the branch ([[de
 | 0 | Following stock (inflows from today's sales, attachment and TV only), adult regard, salience; telemetry | Observe-only, byte-identical economy | Following sizes, half-lives and salience states against §9 targets; calibrate `c*` and θ |
 | 1 | Spotlight → `personalRecognition`; office fame-minting fix | Causal (small) | Solo spinouts and band strain by spotlight share |
 | 2 | Press, fan-magazine and controversy writers; registration model replacing the 0.06 cap | Causal | Recognition distribution, TV share of recognition, breakouts per decade |
+| 2b | Critics: reviews gate and season acclaim (§4.3) | Causal | Landmarks a decade and their genre mix, acclaim by genre, units and Major share |
+| 2c | Breakouts: fan episodes raise hype, bookers chase sensations and rising acts, constant registration fit (§3.4) | Screened, not adopted; kept behind `--event-hype` | Breakouts scoped to phenomena instead (§3.4.6) |
 | 3 | Residencies | Causal | TV-made stars; following growth on series |
 | 4 | **Follower demand at launch, advance orders, live draw** | Causal; the big one | Repeat-hit share, runs, concentration, genre, album units |
 | 5 | Stature for AI readers | Causal | Budgets, contract terms, Major share, closures |
@@ -424,3 +638,7 @@ and who would have them?
    unchanged, but the recognition writer is replaced. The open question, how targeted demand cuts Major share, gets a
    log diagnosis on the existing 1963 resume arms. The paired decade A/B runs once, at the end of the branch, on the
    final writers.
+7. **Critics count, through acclaim** (2026-11-01). Reviews become the channel through which a record's craft earns
+   acclaim, and standing follows through landmarks and influence as before (§4.3, Phase 2b). No direct standing write.
+8. **TV breakouts are a phenomenon's event** (2026-11-01). Single-night breakouts are 0-1 a decade. TV-made stars
+   come through residencies and followings (Phase 3). Phase 2c's routes stay off (§3.4.6).

@@ -12,11 +12,14 @@ public partial class ChartAuditRunner {
         if (!LabelCorporateModel.Ledger) return;
         companyStatementWriter = CreateWriter(Path.Combine(directory, $"{runName}-company-monthly.csv"));
         companyStatementWriter.WriteLine("week,year,month,labelName,ownership,ownerLabelId," + string.Join(",", companyStatementFields.Select(f => f.Name)));
+        LabelCompanyAccounts.MonthClosed += WriteCompanyMonth;
+        // Per-cash-event and per-department dumps (~15 GB of SimLogs, read only by analyze_corporate_economy.py):
+        // suppressed under --lean-probe like the settlement dumps. The monthly statement stays.
+        if (leanProbe) return;
         companyDepartmentWriter = CreateWriter(Path.Combine(directory, $"{runName}-company-departments.csv"));
         companyDepartmentWriter.WriteLine("week,period,labelId,tier,department,employees,requiredEmployees,founderEquivalent,monthlyBaseWage,payrollQuote,premisesQuote,retainerQuote,coverage");
         companyCashWriter = CreateWriter(Path.Combine(directory, $"{runName}-company-cash.csv"));
         companyCashWriter.WriteLine("week,year,month,labelId,kind,amount,rounding,cashAfter");
-        LabelCompanyAccounts.MonthClosed += WriteCompanyMonth;
         LabelCompanyAccounts.CashChanged += WriteCompanyCash;
     }
 

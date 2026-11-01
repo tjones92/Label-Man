@@ -12,8 +12,8 @@ public static partial class MediaAtmosphereService {
 	private static readonly Dictionary<string, double> memberFameLedger = new(StringComparer.Ordinal);
 	private static void MemberFameLedger(string key, double amount) => memberFameLedger[key] = memberFameLedger.GetValueOrDefault(key) + amount;
 	/// <summary>Others' attention excess for this week's registration, computed once at the tally (never saved).</summary>
-	private static Dictionary<string, float> memberFameExcess;
-	private static float memberFameTotalExcess;
+	private static Dictionary<string, float> attentionExcess;
+	private static float attentionTotalExcess;
 	private static bool memberFameEventsHooked;
 
 	public static IReadOnlyDictionary<string, MemberFameEntry> MemberFame => state.MemberFame;
@@ -42,9 +42,24 @@ public static partial class MediaAtmosphereService {
 		return (excess, total);
 	}
 
+	/// <summary>
+	/// What registration reads from an airing (§3.1): its young and adult shares of viewers, the act's national dates before
+	/// this one, and the attention left after other acts' excess this week.
+	/// </summary>
+	private static (double Young, double Adult, int DatesBefore, float Attention) AiringAudience(MediaAppearance a, MediaAiring airing, MediaActTally t) {
+		ExposureEstimate x = airing.Exposure;
+		double groups = x?.AverageByGroup?.Sum() ?? 0;
+		if (groups <= 0) return (0, 0, 0, 1f);
+		double young = (x.AverageByGroup[(int)ViewerGroup.Teen] + x.AverageByGroup[(int)ViewerGroup.YoungAdult]) / groups;
+		double adult = x.AverageByGroup[(int)ViewerGroup.Adult] / groups;
+		bool national = MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local;
+		int datesBefore = Math.Max(0, t.NationalAppearances - (national ? 1 : 0));
+		float attention = MediaFollowing.Attention(attentionTotalExcess - (attentionExcess?.GetValueOrDefault(a.ArtistId) ?? 0f));
+		return (young, adult, datesBefore, attention);
+	}
+
 	/// <summary>Once a week, before the tally: the media-earned part fades on recognition's clock; lapsed promises go.</summary>
 	private static void MemberFameWeekStart(GameDate weekEnd) {
-		(memberFameExcess, memberFameTotalExcess) = AttentionExcess();
 		foreach (MemberFameEntry e in state.MemberFame.Values) if (e.Earned > 0f) e.Earned *= ArtistRecognitionService.PublicRecognitionDecay;
 		foreach (string key in state.MemberFame.Where(p => p.Value.Earned < 1e-4f && p.Value.Year < weekEnd.year).Select(p => p.Key).ToList())
 			state.MemberFame.Remove(key);
@@ -90,13 +105,8 @@ public static partial class MediaAtmosphereService {
 		if (artist?.members == null || artist.members.Count(m => m != null && m.isActive) < 2) return;
 		int day = BroadcastExposure.DayIndex(airing.Date);
 		if (MediaMemberFame.Causal && !InCausalWindow(day)) return;
-		double groups = x.AverageByGroup.Sum();
-		if (groups <= 0) return;
-		double young = (x.AverageByGroup[(int)ViewerGroup.Teen] + x.AverageByGroup[(int)ViewerGroup.YoungAdult]) / groups;
-		double adult = x.AverageByGroup[(int)ViewerGroup.Adult] / groups;
-		bool national = MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local;
-		int datesBefore = Math.Max(0, t.NationalAppearances - (national ? 1 : 0));
-		float attention = MediaFollowing.Attention(memberFameTotalExcess - (memberFameExcess?.GetValueOrDefault(a.ArtistId) ?? 0f));
+		var (young, adult, datesBefore, attention) = AiringAudience(a, airing, t);
+		if (young + adult <= 0) return;
 		double registered = MediaMemberFame.RegisteredViewers(fresh, young, adult, artist.primaryGenre, a.Performance, datesBefore, attention);
 		float raw = (float)(registered / population);
 		if (raw <= 0f) return;

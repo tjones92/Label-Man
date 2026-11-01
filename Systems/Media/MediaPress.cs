@@ -97,6 +97,8 @@ public sealed class MediaHold {
 	public string ProgramId, ArtistId, ArtistName, RecordId, LabelId;
 	public int Day, PlacedDay;
 	public float Precursor;
+	/// <summary>Phase 2c: a rising act's first network date, booked as the event before routine booking finds it (design §3.4.5).</summary>
+	public bool Rising;
 }
 
 /// <summary>

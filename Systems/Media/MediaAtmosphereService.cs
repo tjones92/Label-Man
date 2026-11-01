@@ -149,6 +149,9 @@ public sealed class MediaSaveData {
 	public Dictionary<string, MemberFameEntry> MemberFame { get; set; } = new();
 	/// <summary>Band-room promises of the camera, by personId. Written only in causal member-fame mode.</summary>
 	public Dictionary<string, CameraPromise> CameraPromises { get; set; } = new();
+	// Celebrity fanbase Phase 2 (--fame-registration with either media-recognition mode).
+	/// <summary>People already credited to each root event's recognition (§4 root-event budget), by root id.</summary>
+	public Dictionary<string, FameRoot> FameRoots { get; set; } = new();
 }
 
 /// <summary>
@@ -207,6 +210,7 @@ public static partial class MediaAtmosphereService {
 		MarkCausalBoundary(weekEnd);
 		if (MediaRecognition.Active) DecayRecognitionReach();
 		if (MediaDemand.Active) DecayDemandLift();
+		if (MediaMemberFame.Active || MediaRecognition.Registration) (attentionExcess, attentionTotalExcess) = AttentionExcess();
 		if (MediaMemberFame.Active) MemberFameWeekStart(weekEnd);
 		TallyAiredThrough(weekEnd);
 		var evidence = new Evidence(charts);
@@ -219,6 +223,7 @@ public static partial class MediaAtmosphereService {
 		AiPlanWeek(evidence, weekEnd);
 		PlaceHolds(evidence, weekEnd);
 		PressWeek(evidence, weekEnd);
+		RecognitionPressWeek(weekEnd);
 		BookThrough(weekEnd.AddDays(7), weekEnd.AddDays(1), evidence);
 		DecayAttitudes(weekEnd);
 		Prune(weekEnd);
@@ -705,7 +710,9 @@ public static partial class MediaAtmosphereService {
 		MediaAppearance headline = top == null ? null : state.Appearances.LastOrDefault(a => a.EpisodeId == episodeId && a.Headliner);
 		if (headline != null && headline.Airings.Count > 0)
 			Godot.GD.Print($"MEDIA_EVENT date={date.ToShortString()} program={program.Id} act=\"{headline.ArtistName}\" hype={hype:F2} lift={eventLift:F2} tuneIn={tuneIn:F2} " +
-				$"reachM={headline.Airings[0].Exposure.UniqueReach / 1e6:F1} cut={headline.Cut}");
+				$"reachM={headline.Airings[0].Exposure.UniqueReach / 1e6:F1} cut={headline.Cut}" +
+				$" precursor={lastHype.Precursor:F2} episode={lastHype.Episode:F2} state={lastHype.State} novelty={lastHype.Novelty:F2} coverage={lastHype.Coverage:F2}" +
+				$" outcome={headline.Performance?.Outcome}");
 	}
 
 	private static string RegionOf(TvProgram program) =>
@@ -976,6 +983,10 @@ public static partial class MediaAtmosphereService {
 		// A breached agreement shuts that program's door for a while (§7.3); the network's other shows only grow wary
 		// for a year, never an industry-wide blacklist (§2).
 		if (state.ProgramMemory.TryGetValue(program.Id + "|" + artist, out var memory) && memory.ExcludedUntilDay > today) return false;
+		// Phase 2c §3.4.5: a rising act held for its first network date plays no primetime variety show before it (Sullivan's
+		// exclusivity), so the announced night stays its first.
+		if (MediaFans.EventHype && program.Kind == TvProgramKind.PrimetimeVariety
+			&& state.Holds.Any(h => h.Rising && h.ArtistId == artist && h.Day >= today && !(h.ProgramId == program.Id && h.Day == today))) return false;
 		if (program.BooksNationally && state.ProgramMemory.TryGetValue("network:" + program.Network + "|" + artist, out var review)
 			&& review.ExcludedUntilDay > today && MediaAtmosphere.Unit("network-review|" + program.Id + "|" + artist + "|" + today) < 0.5f) return false;
 		if (!byArtist.TryGetValue(artist, out var mine)) return true;
@@ -1060,13 +1071,52 @@ public static partial class MediaAtmosphereService {
 	/// </summary>
 	private static void RecognitionDeposit(MediaAppearance a, MediaAiring airing, MediaActTally t, double fresh, double population) {
 		if (t.RecognitionYear != airing.Date.year) { t.RecognitionYear = airing.Date.year; t.RecognitionDepositedYear = 0f; }
-		var (gain, clipped, seen) = MediaRecognition.Deposit(t.RecognitionReach, fresh, population, a.Performance, t.RecognitionDepositedYear);
-		t.RecognitionReach = seen;
-		t.RecognitionDepositedYear += gain;
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(a.ArtistId);
-		float applied;
+		float gain, clipped = 0f;
+		if (MediaRecognition.Registration) {
+			// Phase 2: the people who saw the act fresh and registered it, no yearly cap (design §3). The appearance's root is
+			// credited, so a notice of the same night in the papers adds only readers beyond its viewers.
+			var (young, adult, datesBefore, attention) = AiringAudience(a, airing, t);
+			double seenBefore = t.RecognitionReach;
+			Genre genre = artist?.primaryGenre ?? a.Genre;
+			var (registered, seen) = MediaRecognition.Registered(t.RecognitionReach, fresh, population, young, adult,
+				genre, a.Performance, datesBefore, attention);
+			t.RecognitionReach = seen;
+			gain = (float)(registered / population);
+			RegistrationDecompose(a, airing, genre, fresh / population, (seen - seenBefore) / population, young, adult, datesBefore, attention, gain,
+				artist?.publicRecognition ?? 0f);
+			CreditRoot("tv|" + a.Id, registered, BroadcastExposure.DayIndex(airing.Date));
+			if (gain >= MediaRecognition.BreakoutGain) {
+				RecognitionLedger("breakouts", 1);
+				Godot.GD.Print($"MEDIA_TV_BREAKOUT date={airing.Date.ToShortString()} artist=\"{a.ArtistName}\" program={a.ProgramId} raw={gain:F4}" +
+					$" fresh={fresh / population:F3} outcome={a.Performance?.Outcome} recog={artist?.publicRecognition ?? 0f:F3} national={t.NationalAppearances}");
+			}
+		} else {
+			(gain, clipped, t.RecognitionReach) = MediaRecognition.Deposit(t.RecognitionReach, fresh, population, a.Performance, t.RecognitionDepositedYear);
+		}
+		t.RecognitionDepositedYear += gain;
+		if (!RecognitionApply(artist, t, gain, BroadcastExposure.DayIndex(airing.Date), out float applied)) return;
+		if (gain <= 0f && clipped <= 0f) return;
+		bool national = MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local;
+		RecognitionLedger("deposits", 1);
+		RecognitionLedger("raw", gain);
+		RecognitionLedger("applied", applied);
+		RecognitionLedger("clipped", clipped);
+		RecognitionLedger(national ? "appliedNational" : "appliedLocal", applied);
+		RecognitionLedger("applied" + a.Lane, applied);
+		if (MediaOutletCatalog.Get(a.ProgramId)?.Kind == TvProgramKind.PrimetimeVariety) RecognitionLedger("appliedPrimetime", applied);
+	}
+
+	/// <summary>
+	/// One media deposit to an act's recognition. Shadow: read against the real stock plus the shadow already built, written
+	/// only to the tally. Causal: through <see cref="ArtistRecognitionService.AddPublicRecognition"/> (members get their
+	/// share), with the realized gain booked as the media-earned part. False when causal mode can't write it (no act, or a
+	/// day before the causal boundary).
+	/// </summary>
+	private static bool RecognitionApply(SimulatedArtist artist, MediaActTally t, float gain, int day, out float applied) {
+		applied = 0f;
 		if (MediaRecognition.Causal) {
-			if (artist == null || !InCausalWindow(BroadcastExposure.DayIndex(airing.Date))) return;
+			if (artist == null || !InCausalWindow(day)) return false;
 			float before = artist.publicRecognition;
 			ArtistRecognitionService.AddPublicRecognition(artist, gain);
 			applied = artist.publicRecognition - before;
@@ -1077,15 +1127,16 @@ public static partial class MediaAtmosphereService {
 			applied = gain * (1f - Math.Clamp(canonical + t.ShadowRecognition, 0f, 1f));
 			t.ShadowRecognition = Math.Clamp(t.ShadowRecognition + applied, 0f, 1f);
 		}
-		if (gain <= 0f && clipped <= 0f) return;
-		bool national = MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local;
-		RecognitionLedger("deposits", 1);
-		RecognitionLedger("raw", gain);
-		RecognitionLedger("applied", applied);
-		RecognitionLedger("clipped", clipped);
-		RecognitionLedger(national ? "appliedNational" : "appliedLocal", applied);
-		RecognitionLedger("applied" + a.Lane, applied);
-		if (MediaOutletCatalog.Get(a.ProgramId)?.Kind == TvProgramKind.PrimetimeVariety) RecognitionLedger("appliedPrimetime", applied);
+		return true;
+	}
+
+	/// <summary>Credits a root event with the people it registered; later retellings add only beyond the widest so far.</summary>
+	private static double CreditRoot(string root, double registered, int day) {
+		if (!state.FameRoots.TryGetValue(root, out FameRoot r)) state.FameRoots[root] = r = new FameRoot { Day = day };
+		var (extra, credit) = MediaRecognition.RootBudget(r.People, registered);
+		r.People = credit;
+		r.Day = Math.Max(r.Day, day);
+		return extra;
 	}
 
 	/// <summary>
@@ -1118,6 +1169,7 @@ public static partial class MediaAtmosphereService {
 			var (noTv, withTv) = RecognitionWithAndWithoutTv(artist, t);
 			if (noTv < 0.05f && withTv >= 0.05f) over05++;
 			if (noTv < 0.20f && withTv >= 0.20f) over20++;
+			// Under registration there is no cap: this counts the acts TV gave more than the old cap would have allowed.
 			if (t.RecognitionYear == year && t.RecognitionDepositedYear >= MediaRecognition.AnnualCap - 1e-6f) capped++;
 		}
 		foreach (SimulatedArtist artist in ArtistManager.Instance.GetAllArtists()) {
@@ -1137,7 +1189,66 @@ public static partial class MediaAtmosphereService {
 			$" hitmakersTvActive={tvVets.Count} recog[noTv/withTv]={(tvVets.Count > 0 ? tvVets.Average(x => x.NoTv) : 0):F3}/{(tvVets.Count > 0 ? tvVets.Average(x => x.WithTv) : 0):F3}" +
 			$" hitmakersQuiet={quietVets.Count} recog={(quietVets.Count > 0 ? quietVets.Average() : 0):F3}" +
 			$" top=[{string.Join(" ", top)}]");
+		if (MediaRecognition.Registration) {
+			// Phase 2: what the papers and controversies added beside television, and the shape of the whole stock.
+			var stock = ArtistManager.Instance.GetAllArtists().Where(x => x != null && x.isActive && !x.isPlayerOwned)
+				.Select(x => x.publicRecognition).OrderBy(x => x).ToList();
+			float Q(double q) => stock.Count == 0 ? 0f : stock[Math.Min(stock.Count - 1, (int)(q * stock.Count))];
+			double tvApplied = V("applied"), media = tvApplied + V("pressApplied") + V("controversyApplied");
+			Godot.GD.Print($"MEDIA_FAME_WRITERS year={year} mode={(MediaRecognition.Causal ? "causal" : "shadow")} breakouts={V("breakouts"):0}" +
+				$" press[items mainstream/specialist/local]={V("pressItemsMainstream"):0}/{V("pressItemsSpecialist"):0}/{V("pressItemsLocalDaily"):0}" +
+				$" absorbed={V("pressAbsorbed"):0} raw={V("pressRaw"):F4}" +
+				$" applied[mainstream/specialist/local]={V("pressAppliedMainstream"):F4}/{V("pressAppliedSpecialist"):F4}/{V("pressAppliedLocalDaily"):F4}" +
+				$" controversies={V("controversies"):0} controversyApplied={V("controversyApplied"):F4} criticItems={V("criticItems"):0}" +
+				$" mediaShare={(media + chartGain > 0 ? media / (media + chartGain) : 0):P1} tvOfMedia={(media > 0 ? tvApplied / media : 0):P1}" +
+				$" recog[p50/p90/p99/max]={Q(0.5):F3}/{Q(0.9):F3}/{Q(0.99):F3}/{(stock.Count > 0 ? stock[^1] : 0f):F3}" +
+				$" over[.2/.4/.6]={stock.Count(x => x >= 0.2f)}/{stock.Count(x => x >= 0.4f)}/{stock.Count(x => x >= 0.6f)} acts={stock.Count}");
+		}
+		PrintRegistrationDecomposition(year);
 		recognitionLedger.Clear();
+	}
+
+	// ---- registration factor screen (Phase 2 follow-up: what keeps the biggest airings small). Print-only. ----------------
+
+	private readonly record struct RegistrationAiring(string Date, string Artist, string Program, Genre Genre, double Offered, double Fresh,
+		double Young, double Fit, float Performance, float Novelty, float Attention, float Gain, float Recognition, int DatesBefore);
+
+	private static readonly List<RegistrationAiring> registrationAirings = new();
+
+	private static void RegistrationDecompose(MediaAppearance a, MediaAiring airing, Genre genre, double offered, double freshShare,
+		double young, double adult, int datesBefore, float attention, float gain, float recognition) {
+		if (MediaOutletCatalog.Get(a.ProgramId)?.Network == TvNetwork.Local) return;
+		double fit = MediaFans.EventHype ? MediaRecognition.RegistrationFit
+			: young * MediaFollowing.AudienceFit(genre, young: true) + adult * MediaFollowing.AudienceFit(genre, young: false);
+		registrationAirings.Add(new RegistrationAiring(airing.Date.ToShortString(), a.ArtistName, a.ProgramId, genre, offered, freshShare,
+			young, fit, MediaFollowing.RegistrationPerformance(a.Performance), MediaFollowing.Novelty(datesBefore), attention, gain, recognition, datesBefore));
+	}
+
+	/// <summary>
+	/// Year end: national airings' registration broken into its factors, and how many would break out if one factor were at
+	/// its ceiling (fit 0.75, the best a perfectly fitting audience gives; performance 1.6; novelty 1).
+	/// </summary>
+	private static void PrintRegistrationDecomposition(int year) {
+		if (!MediaRecognition.Registration || registrationAirings.Count == 0) { registrationAirings.Clear(); return; }
+		var xs = registrationAirings;
+		float bar = MediaRecognition.BreakoutGain;
+		int Would(Func<RegistrationAiring, double> g) => xs.Count(x => g(x) >= bar);
+		double Base(RegistrationAiring x) => x.Fresh * MediaFollowing.R0 * x.Attention;
+		string Row(RegistrationAiring x) => $"{{{x.Date} \"{x.Artist}\" {x.Program} {x.Genre} offered={x.Offered:F3} fresh={x.Fresh:F3} young={x.Young:F2}" +
+			$" fit={x.Fit:F2} perf={x.Performance:F2} nov={x.Novelty:F2} dates={x.DatesBefore} att={x.Attention:F2} gain={x.Gain:F4} recog={x.Recognition:F3}}}";
+		Godot.GD.Print($"MEDIA_TV_REG_DECOMP year={year} airings={xs.Count}" +
+			$" fresh[>=.05/.10/.20/.30]={xs.Count(x => x.Fresh >= 0.05)}/{xs.Count(x => x.Fresh >= 0.10)}/{xs.Count(x => x.Fresh >= 0.20)}/{xs.Count(x => x.Fresh >= 0.30)}" +
+			$" maxFresh={xs.Max(x => x.Fresh):F3} maxOffered={xs.Max(x => x.Offered):F3}" +
+			$" electrifying={xs.Count(x => x.Performance >= 1.6f)} elecFresh>=.10={xs.Count(x => x.Performance >= 1.6f && x.Fresh >= 0.10)}" +
+			$" firstNational={xs.Count(x => x.DatesBefore == 0)} firstFresh>=.10={xs.Count(x => x.DatesBefore == 0 && x.Fresh >= 0.10)}" +
+			$" fit[mean/p90/max]={xs.Average(x => x.Fit):F2}/{xs.Select(x => x.Fit).OrderBy(v => v).ElementAt((int)(0.9 * (xs.Count - 1))):F2}/{xs.Max(x => x.Fit):F2}" +
+			$" att[min]={xs.Min(x => x.Attention):F2} maxGain={xs.Max(x => x.Gain):F4}" +
+			$" wouldBreak[base/fit.75/perf1.6/nov1/fit+perf/fit+nov/perf+nov/all]={Would(x => x.Gain)}" +
+			$"/{Would(x => Base(x) * 0.75 * x.Performance * x.Novelty)}/{Would(x => Base(x) * x.Fit * 1.6 * x.Novelty)}/{Would(x => Base(x) * x.Fit * x.Performance)}" +
+			$"/{Would(x => Base(x) * 0.75 * 1.6 * x.Novelty)}/{Would(x => Base(x) * 0.75 * x.Performance)}/{Would(x => Base(x) * x.Fit * 1.6)}/{Would(x => Base(x) * 0.75 * 1.6)}");
+		foreach (RegistrationAiring x in xs.OrderByDescending(x => x.Gain).Take(6)) Godot.GD.Print($"MEDIA_TV_REG_TOP year={year} by=gain {Row(x)}");
+		foreach (RegistrationAiring x in xs.OrderByDescending(x => x.Fresh).Take(6)) Godot.GD.Print($"MEDIA_TV_REG_TOP year={year} by=fresh {Row(x)}");
+		registrationAirings.Clear();
 	}
 
 	private static void Prune(GameDate weekEnd) {

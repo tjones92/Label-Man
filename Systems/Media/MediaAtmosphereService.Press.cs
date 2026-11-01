@@ -34,11 +34,13 @@ public static partial class MediaAtmosphereService {
 					q.Public = true;
 					// The same act can win the artistic audience and lose the family one at once (§0.2).
 					Attitude(a.ArtistId, 0.15f, -0.25f, 0.02f);
-					state.Controversies.Add(new MediaControversy {
+					var controversy = new MediaControversy {
 						Id = "controversy|" + q.Id, RootId = "controversy|" + q.Id, ArtistId = a.ArtistId, ArtistName = a.ArtistName, StartDay = day, ExpiresDay = day + 84,
 						Severity = national ? 0.6f : 0.25f, National = national, Verified = true,
 						Summary = $"sang the original line of \"{a.OriginalTitle ?? a.Title}\" on {program.Name} after agreeing to change it",
-					});
+					};
+					state.Controversies.Add(controversy);
+					ControversyFame(controversy);
 					break;
 				case StandardsResolution.Cut:
 					Remember(program.Id, a.ArtistId, m => { m.Breaches++; m.ExcludedUntilDay = day + 3 * 365; m.LastNote = "broke the agreement at the taping; segment cut"; });
@@ -161,14 +163,63 @@ public static partial class MediaAtmosphereService {
 	/// repeating the booking announcement are one family's worth, not ten (§9.4). Phase 3's fan episodes join it there.
 	/// </summary>
 	private static float Hype(RecordRuntimeData record, TvProgram program, int airDay, Evidence evidence) {
+		string artist = record.baseRecord.artistId;
 		float precursor = Precursor(record, evidence);
-		MediaActTally t = TallyFor(record.baseRecord.artistId);
+		FanEpisodeState fans = EpisodeOf(artist);
+		float episode = 0f;
+		if (MediaFans.EventHype) {
+			// Phase 2c (design §3.4.1): the public's frenzy is itself a precursor, read over the last eight weeks so a
+			// booking made in the frenzy still counts when the spell has cooled by the air date.
+			fans = MediaFans.RecentHighOf(FanStateFor(artist), airDay);
+			episode = MediaFans.EpisodeHype(fans);
+			// §3.4.5: the rising act's announced first network date is the event.
+			if (state.Holds.Any(h => h.Rising && h.ArtistId == artist && h.ProgramId == program.Id && h.Day == airDay)) {
+				episode = Math.Max(episode, MediaFans.RisingHype);
+				if (fans < MediaFans.RisingCapState) fans = MediaFans.RisingCapState;
+			}
+		}
+		MediaActTally t = TallyFor(artist);
 		bool seenHere = t?.ProgramsSeen.Contains(program.Id) == true;
 		bool seenPrimetime = t?.ProgramsSeen.Any(p => MediaOutletCatalog.Get(p)?.Kind == TvProgramKind.PrimetimeVariety) == true;
 		float novelty = (seenHere ? 0.4f : 1f) * (seenPrimetime ? 0.85f : 1f);
-		float hype = precursor * novelty * (0.3f + 0.7f * Coverage(record.baseRecord.artistId, airDay));
+		float coverage = Coverage(artist, airDay);
+		float hype = Math.Max(precursor, episode) * novelty * (0.3f + 0.7f * coverage);
 		// Phase 3 gate: tune-in and the ceiling belong to acts the public already behaves toward as a sensation or a phenomenon.
-		return Math.Min(hype, MediaFans.HypeCap(EpisodeOf(record.baseRecord.artistId)));
+		hype = Math.Min(hype, MediaFans.HypeCap(fans));
+		lastHype = (precursor, episode, fans, novelty, coverage);
+		return hype;
+	}
+
+	/// <summary>The parts of the last <see cref="Hype"/> computed, for MEDIA_EVENT (print-only).</summary>
+	private static (float Precursor, float Episode, FanEpisodeState State, float Novelty, float Coverage) lastHype;
+
+	/// <summary>
+	/// A record's standing for a headline date (Phase 2c): its precursor, or, under `--event-hype`, what a national
+	/// episode in the last eight weeks says about the act. Regional favorites raise an event's hype but don't earn a date.
+	/// </summary>
+	private static float HoldPrecursor(RecordRuntimeData record, Evidence evidence, int day) {
+		float precursor = Precursor(record, evidence);
+		if (!MediaFans.EventHype) return precursor;
+		FanEpisodeState fans = MediaFans.RecentHighOf(FanStateFor(record.baseRecord.artistId), day);
+		return IsNational(fans) ? Math.Max(precursor, MediaFans.EpisodeHype(fans)) : precursor;
+	}
+
+	/// <summary>
+	/// Phase 2c §3.4.5: an act the public is already warming to (a Regional Favorite or more in the last eight weeks) that no
+	/// primetime variety show has had yet. Its first network date can still be the event.
+	/// </summary>
+	private static bool RisingAct(string artistId, int day) {
+		if (!MediaFans.EventHype || MediaFans.RecentHighOf(FanStateFor(artistId), day) < FanEpisodeState.RegionalFavorite) return false;
+		MediaActTally t = TallyFor(artistId);
+		return t == null || !t.ProgramsSeen.Any(p => MediaOutletCatalog.Get(p)?.Kind == TvProgramKind.PrimetimeVariety);
+	}
+
+	/// <summary>The largest audience a program has drawn among the appearances kept (Phase 2c: bookers of the biggest show move first).</summary>
+	private static double ProgramReach(string programId) {
+		double best = 0;
+		foreach (MediaAppearance a in state.Appearances)
+			if (a.ProgramId == programId && a.RepeatOfId == null && a.Airings.Count > 0) best = Math.Max(best, a.Airings[0].Exposure?.UniqueReach ?? 0);
+		return best;
 	}
 
 	/// <summary>Advance coverage in [0,1]: distinct press families running an item about the act in the six weeks before
@@ -203,7 +254,10 @@ public static partial class MediaAtmosphereService {
 	/// </summary>
 	private static void PlaceHolds(Evidence evidence, GameDate weekEnd) {
 		int today = BroadcastExposure.DayIndex(weekEnd);
-		foreach (TvProgram program in MediaOutletCatalog.Programs) {
+		IEnumerable<TvProgram> programs = MediaOutletCatalog.Programs;
+		// Phase 2c: the biggest show's booker moves first, so a sensation's date goes to the largest audience that fits it.
+		if (MediaFans.EventHype) programs = programs.OrderByDescending(p => ProgramReach(p.Id)).ThenBy(p => p.Id, StringComparer.Ordinal).ToList();
+		foreach (TvProgram program in programs) {
 			if (!program.AnnouncesHeadliners || program.BillOn(FromDayIndex(today)).Chart == 0) continue;
 			if (state.Holds.Any(h => h.ProgramId == program.Id && h.Day > today)) continue;
 			int target = -1;
@@ -219,15 +273,19 @@ public static partial class MediaAtmosphereService {
 			RecordRuntimeData best = null;
 			float bestScore = 0f;
 			foreach (RecordRuntimeData r in evidence.Chart) {
-				if (r.currentPosition <= 0 || r.currentPosition > 10) continue;
 				string artist = r.baseRecord.artistId;
+				// A national episode is chased while its record is anywhere in the Top 40; otherwise the Top 10, as before.
+				bool chased = MediaFans.EventHype && IsNational(MediaFans.RecentHighOf(FanStateFor(artist), today));
+				bool rising = RisingAct(artist, today);
+				if (r.currentPosition <= 0 || r.currentPosition > (chased ? 40 : rising ? MediaFans.RisingChartDepth : 10)) continue;
 				if (state.Holds.Any(h => h.ArtistId == artist && h.Day > today)) continue;
 				if (state.ProgramMemory.TryGetValue(program.Id + "|" + artist, out var m) && m.ExcludedUntilDay > target) continue;
 				if (state.Appearances.Any(a => a.ArtistId == artist && a.ProgramId == program.Id && a.RepeatOfId == null
 					&& target - BroadcastExposure.DayIndex(a.Date) < 7 * program.RebookWeeks)) continue;
 				float fit = program.GenreFit(r.baseRecord.primaryGenre);
 				if (fit < 0.6f) continue;
-				float precursor = Precursor(r, evidence);
+				float precursor = HoldPrecursor(r, evidence, today);
+				if (rising) precursor = Math.Max(precursor, MediaFans.RisingHype);
 				if (precursor < HoldPrecursorBar) continue;
 				// Announce only a date the label would take (§13): a specialist or artistic house can turn a booker down.
 				MediaPolicy? policy = PolicyOf(r.baseRecord.labelId, artist, today);
@@ -236,10 +294,16 @@ public static partial class MediaAtmosphereService {
 				if (score > bestScore) { bestScore = score; best = r; }
 			}
 			if (best == null) continue;
+			bool risingHold = RisingAct(best.baseRecord.artistId, today);
+			float held = HoldPrecursor(best, evidence, today), chart = Precursor(best, evidence);
+			if (risingHold) held = Math.Max(held, MediaFans.RisingHype);
 			state.Holds.Add(new MediaHold {
 				ProgramId = program.Id, ArtistId = best.baseRecord.artistId, ArtistName = best.baseRecord.artistName, RecordId = best.baseRecord.recordId,
-				LabelId = best.baseRecord.labelId, Day = target, PlacedDay = today, Precursor = Precursor(best, evidence),
+				LabelId = best.baseRecord.labelId, Day = target, PlacedDay = today, Precursor = held, Rising = risingHold,
 			});
+			if (MediaFans.EventHype && held > chart)
+				Godot.GD.Print($"MEDIA_EVENT_HOLD date={FromDayIndex(today).ToShortString()} program={program.Id} act=\"{best.baseRecord.artistName}\" air={FromDayIndex(target).ToShortString()}" +
+					$" state={MediaFans.RecentHighOf(FanStateFor(best.baseRecord.artistId), today)} rising={risingHold} pos={best.currentPosition} precursor={chart:F2} held={held:F2} reach={ProgramReach(program.Id) / 1e6:F1}M");
 		}
 	}
 
@@ -370,7 +434,8 @@ public static partial class MediaAtmosphereService {
 		foreach (MediaHold hold in state.Holds.Where(h => h.Day > today)) {
 			TvProgram program = MediaOutletCatalog.Get(hold.ProgramId);
 			if (program == null || !evidence.ById.TryGetValue(hold.RecordId, out RecordRuntimeData r)) continue;
-			float precursor = Precursor(r, evidence);
+			float precursor = HoldPrecursor(r, evidence, today);
+			if (hold.Rising) precursor = Math.Max(precursor, hold.Precursor);
 			var lead = NewLead("hold|" + hold.ProgramId + "|" + hold.ArtistId + "|" + hold.Day, StoryAngle.TvAdvance, r, today, 0.45f + 0.5f * precursor, evidence);
 			lead.Story.ProgramId = hold.ProgramId;
 			Fact(lead, EvidenceSource.LabelStatement, $"booked to headline {program.Name} on {FromDayIndex(hold.Day).ToShortString()} (network announcement)", hold.PlacedDay, firsthand: false);

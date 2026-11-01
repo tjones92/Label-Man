@@ -59,6 +59,9 @@ public sealed class MediaFanState {
 	public int LastTopSellerRegions;
 	public List<string> History = new();
 	public int LastActiveDay;
+	/// <summary>Phase 2c (`--event-hype`): the strongest state in the last <see cref="MediaFans.EventMemoryDays"/>, and when it was last held.</summary>
+	public FanEpisodeState RecentHigh;
+	public int RecentHighDay = -1;
 }
 
 /// <summary>
@@ -171,6 +174,47 @@ public static class MediaFans {
 		FanEpisodeState.RegionalFavorite => 0.55f,
 		_ => 0.5f,
 	};
+
+	/// <summary>
+	/// Celebrity fanbase Phase 2c experiment (SimTools/CelebrityFanbaseDesign.md §3.4), off unless named; screened and not
+	/// adopted (CelebrityFanbasePhase2cNotes.md). A fan episode raises an event night's hype instead of only capping it,
+	/// bookers chase a national episode or a rising act with a headline date, and act registration reads a constant fit.
+	/// Breakouts were scoped to phenomena instead (design §3.4.6).
+	/// </summary>
+	public const string EventHypeSwitch = "--event-hype";
+	public static bool EventHype;
+	/// <summary>A booking made in the frenzy still counts after a short spell cools: the strongest state of the last eight weeks.</summary>
+	public const int EventMemoryDays = 56;
+
+	/// <summary>What the public's behavior alone says about a night (§3.4.1), in the precursor's units.</summary>
+	public static float EpisodeHype(FanEpisodeState state) => state switch {
+		FanEpisodeState.CulturalPhenomenon => 1f,
+		FanEpisodeState.NationalSensation => 0.70f,
+		FanEpisodeState.RegionalFavorite => 0.35f,
+		_ => 0f,
+	};
+
+	/// <summary>
+	/// A rising act's first network date, announced as an event (§3.4.5, the Beatles' Sullivan route): its hype, in the
+	/// precursor's units, and the state whose cap bounds it. Calibrated so an Engaging first night before a full lift breaks
+	/// out and a routine one doesn't. The calibration knob for the breakout rate.
+	/// </summary>
+	public const float RisingHype = 0.75f;
+	public const FanEpisodeState RisingCapState = FanEpisodeState.NationalSensation;
+	public const int RisingChartDepth = 20;
+
+	/// <summary>Once a week after the episode moves: keep the strongest state held within the memory window. Cooldown counts as none.</summary>
+	public static void NoteRecentHigh(MediaFanState s, int day) {
+		FanEpisodeState now = s.State == FanEpisodeState.Cooldown ? FanEpisodeState.None : s.State;
+		if (now >= s.RecentHigh || s.RecentHighDay < 0 || day - s.RecentHighDay > EventMemoryDays) { s.RecentHigh = now; s.RecentHighDay = day; }
+	}
+
+	/// <summary>The strongest state within the memory window as of <paramref name="day"/> (the current state if the window lapsed).</summary>
+	public static FanEpisodeState RecentHighOf(MediaFanState s, int day) {
+		if (s == null) return FanEpisodeState.None;
+		FanEpisodeState now = s.State == FanEpisodeState.Cooldown ? FanEpisodeState.None : s.State;
+		return s.RecentHighDay >= 0 && day - s.RecentHighDay <= EventMemoryDays && s.RecentHigh > now ? s.RecentHigh : now;
+	}
 
 	public static string Describe(FanEpisodeState state) => state switch {
 		FanEpisodeState.LocalExcitement => "local excitement",
