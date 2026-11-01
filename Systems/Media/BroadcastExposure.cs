@@ -14,6 +14,8 @@ public sealed class ExposureEstimate {
 	public double[] AverageByGroup = new double[4];
 	public int MarketsCleared;          // markets where the airing actually ran
 	public int MarketsPreempted;
+	/// <summary>Unique reach by market region (the §12.3 adapter's regional unit). Null on estimates saved before Phase 4.</summary>
+	public Dictionary<string, double> ReachByRegion;
 	/// <summary>Plain-language range for the player, never a precise rating (§4.5).</summary>
 	public (double Low, double High) ReachRange() => (UniqueReach * 0.7, UniqueReach * 1.3);
 }
@@ -264,7 +266,12 @@ public static class BroadcastExposure {
 			}
 			// Viewers switch in and out during even a short segment; cap at the market's whole viewing population.
 			double ceiling = market.Population * TvAccess(market.Date.year, market.RegionId) * market.Clearance;
-			result.UniqueReach += Math.Min(ceiling, marketUnique * (1.0 + 0.04 * segmentMinutes / (double)BucketMinutes));
+			double reached = Math.Min(ceiling, marketUnique * (1.0 + 0.04 * segmentMinutes / (double)BucketMinutes));
+			result.UniqueReach += reached;
+			if (market.RegionId != null) {
+				result.ReachByRegion ??= new Dictionary<string, double>(StringComparer.Ordinal);
+				result.ReachByRegion[market.RegionId] = result.ReachByRegion.GetValueOrDefault(market.RegionId) + reached;
+			}
 		}
 		result.PeakViewers = peakByBucket.Count == 0 ? 0 : peakByBucket.Values.Max();
 		result.AverageViewers = result.ViewerMinutes / segmentMinutes;

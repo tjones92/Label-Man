@@ -20,6 +20,9 @@ public sealed class MediaPitch {
 	public MediaPreparation Preparation = MediaPreparation.Standard;
 	public double ReachLow, ReachHigh, TeenShare;
 	public int SlotIndex, SlotCount;
+	/// <summary>Confirmed inside the causal window: the date's preparation and travel are billed, and performers paid,
+	/// once it is produced. A date confirmed in observe mode stays free when the world later turns causal (§15.2).</summary>
+	public bool CausalTerms;
 }
 
 public enum InquiryKind { OrdersQuestion, PhotoRequest }
@@ -48,12 +51,42 @@ public sealed class MediaExclusive {
 }
 
 /// <summary>
-/// The label's side of the media world (Phase 2, observe mode). The verbs are real (pitches are considered, offers carry
-/// terms, standards ask, reporters call, editors decide) but while media is observe-only the costs they would carry are
-/// shown as estimates and never charged: no diary hours, no promo copies, no cash (§12.1). Every outcome is keyed.
+/// The label's side of the media world (Phase 2). The verbs are real (pitches are considered, offers carry terms,
+/// standards ask, reporters call, editors decide). In observe mode the costs they would carry are shown as estimates and
+/// never charged: no diary hours, no promo copies, no cash (§12.1). In causal mode (Phase 4) they are charged once each,
+/// against a receipt: a pitch when it is sent, a date's preparation and local travel when it is produced, and a network
+/// date pays its performers union scale through member wealth, never label cash (§5.4). Every outcome is keyed.
 /// </summary>
 public static partial class MediaAtmosphereService {
 	private const int OfferAnswerDays = 4;
+
+	// Causal costs (§5.4). Simplified simulation assumptions in 1960s dollars, matching the estimates the offers show.
+	private const int PitchHours = 1;
+	private const float PitchPostage = 0.15f;
+	/// <summary>An 8x10 glossy for the editor.</summary>
+	private const float PressPhotoCost = 1.00f;
+	/// <summary>Per performer for a network date, paid by the production (AFTRA-style scale; simplified assumption). Local
+	/// dance and music shows commonly paid nothing.</summary>
+	public const float NetworkScaleFee = 150f;
+
+	public static float PreparationCost(MediaPreparation prep) => prep switch {
+		MediaPreparation.Extra => 40f,
+		MediaPreparation.Minimal => 0f,
+		_ => 15f,
+	};
+
+	/// <summary>The label's travel for a date: a local show away from home costs the label; a network production pays guests' fares.</summary>
+	public static float TravelCost(string homeCity, TvProgram program, int performers) {
+		if (program == null || program.Network != TvNetwork.Local || homeCity == null || program.HomeCityId == homeCity) return 0f;
+		return AiMediaPlanner.TravelCents(DistanceModel.GetRoadMilesBetween(homeCity, program.HomeCityId), Math.Max(1, performers)) / 100f;
+	}
+
+	private static List<Musician> Performers(string artistId) =>
+		ArtistManager.Instance?.GetArtist(artistId)?.members?.Where(m => m != null && m.isActive).ToList() ?? new List<Musician>();
+
+	/// <summary>Television fees paid to a performer in a year (§5.4), for the member-wealth pass. Zero outside causal play.</summary>
+	public static float PerformerFeesPaid(string personId, int year) =>
+		personId != null && state.PerformerFees.TryGetValue(personId + "|" + year, out float fee) ? fee : 0f;
 
 	private static string NextId(string prefix) => prefix + "|" + (++state.PlayerSequence);
 
@@ -135,13 +168,17 @@ public static partial class MediaAtmosphereService {
 			message = $"{program.Name} already has this act in hand."; return false;
 		}
 		int day = BroadcastExposure.DayIndex(today);
+		MarkCausalBoundary(today);
+		bool charged = desk != null && InCausalWindow(day);
+		if (charged && !desk.CanPayMedia(PitchHours, PitchPostage, 1, record.baseRecord.recordId, out message)) return false;
 		var pitch = new MediaPitch {
 			Id = NextId("pitch"), Kind = PitchKind.Television, ProgramId = programId, RecordId = record.baseRecord.recordId, ArtistId = record.baseRecord.artistId,
 			ArtistName = record.baseRecord.artistName, Title = record.baseRecord.title, ContactKey = ProducerKey(program), SentDay = day, Status = PitchStatus.Sent,
-			CostNote = "1 promo copy, $0.15 postage, 1h at the desk (" + ObserveCostNote + ")",
+			CostNote = "1 promo copy, $0.15 postage, 1h at the desk" + (charged ? "" : " (" + ObserveCostNote + ")"),
 		};
 		pitch.AnswerDay = day + 2 + (int)(MediaAtmosphere.Unit("pitch-answer|" + pitch.Id) * 3);
 		state.Pitches.Add(pitch);
+		if (charged && TakeReceipt("pitch|" + pitch.Id)) desk.PayMedia(PitchHours, PitchPostage, 1, pitch.RecordId);
 		ProducerContact(program).Remember(today, $"Sent \"{pitch.Title}\" with a press sheet.");
 		message = $"\"{pitch.Title}\" is on its way to {ProducerName(program)} at {MediaOutletCatalog.DisplayName(program, today)}. Expect an answer in a few days.";
 		return true;
@@ -226,7 +263,8 @@ public static partial class MediaAtmosphereService {
 		ExposureEstimate e = BroadcastExposure.Estimate(program, version.DurationMinutes, pitch.SlotIndex, pitch.SlotCount, 0f, markets);
 		(pitch.ReachLow, pitch.ReachHigh) = e.ReachRange();
 		pitch.TeenShare = e.AverageByGroup.Sum() > 0 ? e.AverageByGroup[(int)ViewerGroup.Teen] / e.AverageByGroup.Sum() : 0;
-		pitch.CostNote = TravelNote(desk?.Label?.homeCityId, program) + "; " + PreparationNote(MediaPreparation.Standard) + " (" + ObserveCostNote + ")";
+		pitch.CostNote = TravelNote(desk?.Label?.homeCityId, program) + "; " + PreparationNote(MediaPreparation.Standard)
+			+ (InCausalWindow(day) ? "; billed when the date is produced" : " (" + ObserveCostNote + ")");
 		StandardsQuery q = MediaStandards.Review(program, airDate, pitch.Id, record, region, today);
 		if (q != null) {
 			q.PlayerQuery = true;
@@ -261,11 +299,17 @@ public static partial class MediaAtmosphereService {
 			message = "Too late: the producer filled the date while it sat on your desk.";
 			return false;
 		}
+		MarkCausalBoundary(today);
+		bool causal = desk != null && InCausalWindow(BroadcastExposure.DayIndex(today));
+		float bill = PreparationCost(prep) + TravelCost(desk?.Label?.homeCityId, program, Performers(pitch.ArtistId).Count);
+		// The label must be able to cover what it is agreeing to fund; the bill itself comes when the date is produced.
+		if (causal && !desk.CanPayMedia(0, bill, 0, null, out message)) return false;
 		pitch.Status = PitchStatus.Confirmed;
 		pitch.Preparation = prep;
+		pitch.CausalTerms = causal;
 		contact.Remember(today, $"Confirmed {FromDayIndex(pitch.AirDay).ToShortString()}.");
 		message = $"Confirmed: {pitch.ArtistName} on {MediaOutletCatalog.DisplayName(program, today)}, {FromDayIndex(pitch.AirDay).ToShortString()}. " +
-			$"Preparation: {PreparationNote(prep)}.";
+			$"Preparation: {PreparationNote(prep)}." + (causal && bill > 0f ? $" About ${bill:N0} is billed when the date is produced." : "");
 		return true;
 	}
 
@@ -337,12 +381,17 @@ public static partial class MediaAtmosphereService {
 			message = $"{outlet.Name} already has your sheet on \"{record.baseRecord.title}\"."; return false;
 		}
 		PressRole role = MediaPress.RoleFor(outlet, StoryAngle.LabelPitch);
+		MarkCausalBoundary(today);
+		bool charged = desk != null && InCausalWindow(BroadcastExposure.DayIndex(today));
+		if (charged && !desk.CanPayMedia(PitchHours, PitchPostage + PressPhotoCost, 1, record.baseRecord.recordId, out message)) return false;
 		var pitch = new MediaPitch {
 			Id = NextId("press"), Kind = PitchKind.Press, OutletId = outletId, RecordId = record.baseRecord.recordId, ArtistId = record.baseRecord.artistId,
 			ArtistName = record.baseRecord.artistName, Title = record.baseRecord.title, ContactKey = MediaPress.ContactKey(outlet, role), Angle = angle,
-			SentDay = BroadcastExposure.DayIndex(today), Status = PitchStatus.Sent, CostNote = "1 promo copy, a photo, postage, 1h (" + ObserveCostNote + ")",
+			SentDay = BroadcastExposure.DayIndex(today), Status = PitchStatus.Sent,
+			CostNote = "1 promo copy, a photo, postage, 1h" + (charged ? "" : " (" + ObserveCostNote + ")"),
 		};
 		state.Pitches.Add(pitch);
+		if (charged && TakeReceipt("pitch|" + pitch.Id)) desk.PayMedia(PitchHours, PitchPostage + PressPhotoCost, 1, pitch.RecordId);
 		DeskContact(outlet, role).Remember(today, $"Sent a press sheet on \"{pitch.Title}\" ({AngleLabel(angle).ToLowerInvariant()}).");
 		message = $"Sent to {MediaPress.ContactName(outlet, role)} at {outlet.Name}. The editor decides at the next issue.";
 		return true;
@@ -553,6 +602,29 @@ public static partial class MediaAtmosphereService {
 
 	/// <summary>Daily, from PlayerDesk.OnDayStarted, only with a player label: producers answer, offers lapse, aired dates
 	/// are reported, inquiries pass their deadlines, inflated figures and planted stories meet the facts.</summary>
+	/// <summary>
+	/// A date confirmed on causal terms has been produced (taped or aired, cut or not): the label pays the preparation and
+	/// any local travel it agreed to fund, and a network production pays each performer scale. Once each, by receipt;
+	/// a preempted date that never ran is never billed. The fee is the performers' income, not the label's (§5.4).
+	/// </summary>
+	internal static void BillProduction(PlayerDesk desk, MediaAppearance a, TvProgram program) {
+		if (desk?.Label == null || a == null) return;
+		List<Musician> performers = Performers(a.ArtistId);
+		if (TakeReceipt("produced|" + a.Id)) {
+			float bill = PreparationCost(a.Preparation) + TravelCost(desk.Label.homeCityId, program, performers.Count);
+			if (bill > 0f) {
+				desk.PayMedia(0, bill, 0, null);
+				desk.MediaNote($"Paid ${bill:N2} for {a.ArtistName}'s {program?.Name} date (rehearsal and travel).");
+			}
+		}
+		if (program == null || program.Network == TvNetwork.Local || performers.Count == 0 || !TakeReceipt("fee|" + a.Id)) return;
+		foreach (Musician m in performers) {
+			string key = m.personId + "|" + a.Date.year;
+			state.PerformerFees[key] = state.PerformerFees.GetValueOrDefault(key) + NetworkScaleFee;
+		}
+		desk.MediaNote($"{program.Name} paid {a.ArtistName} scale: ${NetworkScaleFee:N0} a performer, {performers.Count} on the date.");
+	}
+
 	public static void PlayerDay(PlayerDesk desk, GameDate today) {
 		if (!MediaAtmosphere.Observing || desk?.Label == null) return;
 		int day = BroadcastExposure.DayIndex(today);
@@ -570,6 +642,7 @@ public static partial class MediaAtmosphereService {
 			TvProgram program = MediaOutletCatalog.Get(a.ProgramId);
 			MediaPitch pitch = state.Pitches.FirstOrDefault(p => p.AppearanceId == a.Id);
 			if (pitch != null) pitch.Status = PitchStatus.Aired;
+			if (pitch?.CausalTerms == true) BillProduction(desk, a, program);
 			MediaContactMemory contact = ProducerContact(program);
 			StandardsQuery q = a.StandardsQueryId == null ? null : state.StandardsQueries.FirstOrDefault(x => x.Id == a.StandardsQueryId);
 			if (a.Cut) {

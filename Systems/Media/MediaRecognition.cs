@@ -14,11 +14,17 @@ using System.Collections.Generic;
 /// <item><c>--observe-media-recognition</c> (shadow): the reach stock and the would-be gain are media-owned telemetry
 /// (<see cref="MediaActTally.ShadowRecognition"/>); <see cref="SimulatedArtist.publicRecognition"/> is never touched,
 /// so every economy CSV must match the control.</item>
+/// <item><c>--media-recognition</c> (causal): the same deposit goes through
+/// <see cref="ArtistRecognitionService.AddPublicRecognition"/>, with its diminishing returns and member share, so it reaches
+/// the launch caps and the standing pool. <see cref="MediaActTally.ShadowRecognition"/> then holds the decaying part of the
+/// real stock that television earned, for telemetry. Requires artist recognition and the causal media mode
+/// (<see cref="MediaAtmosphere.CausalSwitch"/>), since observe mode promises no economic write (§12.1).</item>
 /// </list>
-/// A causal switch does not exist yet; it waits on the shadow pass. Draws no RNG.
+/// Draws no RNG.
 /// </summary>
 public static class MediaRecognition {
 	public const string ShadowSwitch = "--observe-media-recognition";
+	public const string CausalSwitch = "--media-recognition";
 
 	/// <summary>A first ordinary Sullivan spot (≈0.14 of the population) deposits about one Top 40 milestone (0.022).</summary>
 	public const float K = 0.15f;
@@ -27,19 +33,30 @@ public static class MediaRecognition {
 
 	private static bool configured;
 	private static bool shadow;
-	public static bool Shadow => shadow && MediaAtmosphere.Observing;
+	private static bool causal;
+	/// <summary>The would-be gain is telemetry only.</summary>
+	public static bool Shadow => shadow && !causal && MediaAtmosphere.Observing;
+	/// <summary>Deposits are written to the act's recognition.</summary>
+	public static bool Causal => causal && MediaAtmosphere.Causal && ArtistRecognition.Enabled;
+	/// <summary>Either mode: the reach stock is kept and MEDIA_RECOGNITION is printed.</summary>
+	public static bool Active => Shadow || Causal;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		foreach (string argument in arguments ?? Array.Empty<string>()) {
 			if (argument == ShadowSwitch) shadow = true;
-			if (argument == "--media-recognition")
-				throw new ArgumentException("--media-recognition: the causal writer waits on the shadow pass (MediaRecognitionAdapterDesign.md).");
+			if (argument == CausalSwitch) causal = true;
 		}
+		if (causal && shadow)
+			throw new ArgumentException($"{CausalSwitch} and {ShadowSwitch} cannot be used together; the causal run prints the same telemetry.");
+		if (causal && !ArtistRecognition.Enabled)
+			throw new ArgumentException($"{CausalSwitch} requires artist recognition to be enabled.");
+		if (causal && !MediaAtmosphere.Causal)
+			throw new ArgumentException($"{CausalSwitch} is an economic writer; it requires {MediaAtmosphere.CausalSwitch}.");
 		configured = true;
 	}
 
-	internal static void SetForChecks(bool on) { shadow = on; configured = true; }
+	internal static void SetForChecks(bool on, bool writeCausal = false) { shadow = on && !writeCausal; causal = on && writeCausal; configured = true; }
 
 	/// <summary>The performance factor: a bad night still makes the name known, just less of it.</summary>
 	public static float PerformanceFactor(MediaPerformanceResult result) => result?.Outcome switch {

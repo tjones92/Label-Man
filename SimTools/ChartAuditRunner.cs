@@ -131,6 +131,8 @@ public partial class ChartAuditRunner : Node {
 	private readonly HashSet<string> songMaterialSeen = new(StringComparer.Ordinal);
 	private StreamWriter weekWriter;
 	private StreamWriter lifecycleWriter;
+	/// <summary>The act, tier and genre of each lifecycle row that charted: lets screens attribute slot-weeks to acts in calibration runs.</summary>
+	private StreamWriter recordActWriter;
 	private StreamWriter breakoutWriter;
 	private StreamWriter retirementWriter;
 	private StreamWriter tierVolumeWriter;
@@ -1126,12 +1128,14 @@ public partial class ChartAuditRunner : Node {
 		OpenEconomyAuditBOutputs(outputDirectory);
 		OpenGenreHookOutputs(outputDirectory);
 		OpenAlbumPracticeOutputs(outputDirectory);
+		OpenMediaDemandOutputs(outputDirectory);
 		OpenReleaseProgrammeOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
 		songMaterialWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-song-material.csv"));
 		if (OS.GetCmdlineUserArgs().Contains("--polar-song-shadow")) polarSongShadow = new PolarSongShadowTelemetry(outputDirectory, runName);
 		weekWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-weeks.csv"));
 		lifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-lifecycles.csv"));
+		recordActWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-record-acts.csv"));
 		breakoutWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-breakout-funnel.csv"));
 		retirementWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retirement.csv"));
 		tierVolumeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-tier-volume.csv"));
@@ -1260,6 +1264,7 @@ public partial class ChartAuditRunner : Node {
 		// cover-standard share by year, #1s by source).
 		songMaterialWriter.WriteLine("week,year,recordId,artistId,labelId,labelTier,genre,songId,songSource,isCover,publisherId,publishingControl,compositionQuality,compositionHook,lyricQuality,songFamiliarityAtRelease,arrangementOriginality,professionalPolish,originalityAtRelease,hookStrengthAtRelease");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
+		recordActWriter.WriteLine("recordId,artistId,labelId,labelTier,genre");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
 		retirementWriter.WriteLine("week,status,recordId,labelTier,weeksSinceRelease,weeksOnChart,weeksSinceLastTop100,weeksSinceSalesAboveFloor,floorBreachAge,unitsThisWeek,totalRadioPlay");
@@ -3951,6 +3956,9 @@ public partial class ChartAuditRunner : Node {
 
 	private void WriteLifecycleRow(int week, LifecycleState state) {
 		RecordRuntimeData record = state.Record;
+		if (record.weeksOnChart > 0)
+			recordActWriter.WriteLine(string.Join(",", Csv(record.baseRecord.recordId), Csv(record.baseRecord.artistId), Csv(record.baseRecord.labelId),
+				Csv(ChartManager.Instance.GetLabelById(record.baseRecord.labelId)?.tier.ToString()), Csv(record.baseRecord.primaryGenre.ToString())));
 		lifecycleWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture),
 			Csv(record.baseRecord.recordId),
@@ -4041,6 +4049,7 @@ public partial class ChartAuditRunner : Node {
 		CloseEconomyAuditBOutputs();
 		CloseGenreHookOutputs();
 		CloseAlbumPracticeOutputs();
+		CloseMediaDemandOutputs();
 		CloseReleaseProgrammeOutputs();
 		ClosePolarFinalAudit();
 		if (ChartManager.Instance != null) {
@@ -4085,6 +4094,7 @@ public partial class ChartAuditRunner : Node {
 		polarSongShadow?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
+		recordActWriter?.Dispose();
 		breakoutWriter?.Dispose();
 		retirementWriter?.Dispose();
 		tierVolumeWriter?.Dispose();
@@ -4176,6 +4186,7 @@ public partial class ChartAuditRunner : Node {
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
+		recordActWriter = null;
 		breakoutWriter = null;
 		retirementWriter = null;
 		tierVolumeWriter = null;

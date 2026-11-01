@@ -86,7 +86,8 @@ public sealed class MediaActTally {
 	public string BestNight;
 	/// <summary>Media → recognition (MediaRecognition): people who have seen the act recently, decaying on recognition's clock.</summary>
 	public double RecognitionReach;
-	/// <summary>Shadow mode: the familiarity television would have added, decaying like recognition. Never canonical.</summary>
+	/// <summary>The familiarity television added, decaying like recognition. Shadow mode: what it would have added (never
+	/// canonical). Causal mode: the TV-earned part of the act's real recognition, kept for telemetry only.</summary>
 	public float ShadowRecognition;
 	/// <summary>Raw deposit (before diminishing returns) charged against the year's cap, and the year it belongs to.</summary>
 	public float RecognitionDepositedYear;
@@ -130,6 +131,16 @@ public sealed class MediaSaveData {
 	public List<AiMediaPitch> AiPitches { get; set; } = new();
 	/// <summary>This year's AI planner counters (policies, pitches, acceptances, declines by reason), printed and cleared at year end.</summary>
 	public Dictionary<string, int> AiLedger { get; set; } = new();
+	// Phase 4 (causal mode). Old saves load these empty: no cost, fee or demand is invented for past events (§15.2).
+	/// <summary>Day index of the first causal week (§15.2 activation boundary); −1 until the world first runs causal.
+	/// Only actions and airings on or after it can be charged or request effects.</summary>
+	public int CausalFromDay { get; set; } = -1;
+	/// <summary>Once-only receipts for every causal debit and payment (§15.2): "pitch|id", "produced|id", "fee|id".</summary>
+	public HashSet<string> Receipts { get; set; } = new();
+	/// <summary>Television appearance fees owed to performers, by "personId|year" (§5.4). Paid through member wealth, never label cash.</summary>
+	public Dictionary<string, float> PerformerFees { get; set; } = new();
+	/// <summary>The §12.3 request on each single by region (recordId, then regionId), signed, carried and decayed weekly.</summary>
+	public Dictionary<string, Dictionary<string, float>> DemandLift { get; set; } = new();
 }
 
 /// <summary>
@@ -184,7 +195,9 @@ public static partial class MediaAtmosphereService {
 		if (!MediaAtmosphere.Observing || charts == null) return;
 		long started = System.Diagnostics.Stopwatch.GetTimestamp();
 		labelIndex = null;
-		if (MediaRecognition.Shadow) DecayRecognitionReach();
+		MarkCausalBoundary(weekEnd);
+		if (MediaRecognition.Active) DecayRecognitionReach();
+		if (MediaDemand.Active) DecayDemandLift();
 		TallyAiredThrough(weekEnd);
 		var evidence = new Evidence(charts);
 		// The order is the contract (§15.1): what aired is tallied, the frozen chart is read, the fans respond to the
@@ -199,8 +212,68 @@ public static partial class MediaAtmosphereService {
 		DecayAttitudes(weekEnd);
 		Prune(weekEnd);
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
-		if (weekEnd.month == 12 && weekEnd.day >= 25) { PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); }
+		if (weekEnd.month == 12 && weekEnd.day >= 25) {
+			PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); MediaDemand.PrintYear(weekEnd.year);
+		}
 	}
+
+	// ---- causal mode (Phase 4) ---------------------------------------------------------------------------------------
+
+	/// <summary>The first causal day is stored once (§15.2): nothing before it is charged or asks for an effect.</summary>
+	private static void MarkCausalBoundary(GameDate today) {
+		if (MediaAtmosphere.Causal && state.CausalFromDay < 0) state.CausalFromDay = BroadcastExposure.DayIndex(today);
+	}
+
+	/// <summary>Is this day inside the live causal window?</summary>
+	private static bool InCausalWindow(int day) => MediaAtmosphere.Causal && state.CausalFromDay >= 0 && day >= state.CausalFromDay;
+
+	/// <summary>Takes a once-only receipt; false if this debit or payment was already made.</summary>
+	private static bool TakeReceipt(string key) => state.Receipts.Add(key);
+
+	// ---- §12.3 demand requests (MediaDemand) --------------------------------------------------------------------------
+
+	/// <summary>Once a week, before the tally: last week's requests carry at half strength.</summary>
+	private static void DecayDemandLift() {
+		var emptyRecords = new List<string>();
+		foreach (var (recordId, byRegion) in state.DemandLift) {
+			foreach (string region in byRegion.Keys.ToList()) {
+				float q = byRegion[region] * MediaDemand.WeeklyCarry;
+				if (Math.Abs(q) < MediaDemand.RequestFloor) byRegion.Remove(region); else byRegion[region] = q;
+			}
+			if (byRegion.Count == 0) emptyRecords.Add(recordId);
+		}
+		foreach (string id in emptyRecords) state.DemandLift.Remove(id);
+	}
+
+	/// <summary>
+	/// One airing's request on the record it played, in each region it reached: Gain × the region's newly reached share ×
+	/// performance. Only the booked record sung on the air counts; a standard or another act's hit asks for nothing. Causal:
+	/// only airings inside the causal window. Repeats and syndicated tapes add only their fresh share.
+	/// </summary>
+	private static void DemandDeposit(MediaAppearance a, MediaAiring airing, double fresh) {
+		if (a.Song != PerformedSong.Record || a.RecordId == null || airing.Exposure?.ReachByRegion == null || airing.Exposure.UniqueReach <= 0) return;
+		if (MediaDemand.Causal && !InCausalWindow(BroadcastExposure.DayIndex(airing.Date))) return;
+		float perf = MediaDemand.PerformanceFactor(a.Performance);
+		double freshShare = Math.Clamp(fresh / airing.Exposure.UniqueReach, 0, 1);
+		if (perf == 0f || freshShare <= 0) return;
+		if (!state.DemandLift.TryGetValue(a.RecordId, out var byRegion)) state.DemandLift[a.RecordId] = byRegion = new Dictionary<string, float>(StringComparer.Ordinal);
+		foreach (var (regionId, reach) in airing.Exposure.ReachByRegion) {
+			double population = (ChartManager.Instance?.GetRegionById(regionId)?.population ?? 0) * 1e6;
+			if (population <= 0 || reach <= 0) continue;
+			float q = (float)(MediaDemand.Gain * perf * freshShare * reach / population);
+			byRegion[regionId] = byRegion.GetValueOrDefault(regionId) + q;
+		}
+	}
+
+	/// <summary>The net request on a single in a region this week, uncapped (the allocator applies the caps).</summary>
+	public static float DemandRequest(string recordId, string regionId) =>
+		recordId != null && state.DemandLift.TryGetValue(recordId, out var byRegion) ? byRegion.GetValueOrDefault(regionId) : 0f;
+
+	public static bool HasDemandRequests => state.DemandLift.Count > 0;
+
+	/// <summary>A rare qualified frenzy (§12.3): the act is in a national fan sensation or a cultural phenomenon.</summary>
+	public static bool DemandFrenzy(string artistId) =>
+		artistId != null && state.Fans.TryGetValue(artistId, out var f) && f.State is FanEpisodeState.NationalSensation or FanEpisodeState.CulturalPhenomenon;
 
 	/// <summary>
 	/// Year-end census of every act with a lifetime top-40 hit, by the first standing-pool gate it fails: retired, unsigned,
@@ -940,7 +1013,8 @@ public static partial class MediaAtmosphereService {
 				if (!returning) t.ProgramsSeen.Add(a.ProgramId);
 				double fresh = airing.Exposure.UniqueReach * (returning ? ReturnVisitNewShare : 1.0);
 				t.EstimatedReach = BroadcastExposure.CombineReach(t.EstimatedReach, fresh, population);
-				if (MediaRecognition.Shadow && !a.Cut) ShadowRecognitionDeposit(a, airing, t, fresh, population);
+				if (MediaRecognition.Active && !a.Cut) RecognitionDeposit(a, airing, t, fresh, population);
+				if (MediaDemand.Active && !a.Cut) DemandDeposit(a, airing, fresh);
 			}
 		}
 	}
@@ -950,6 +1024,8 @@ public static partial class MediaAtmosphereService {
 	/// <summary>Year ledger for MEDIA_RECOGNITION (print-only, cleared each year end).</summary>
 	private static readonly Dictionary<string, double> recognitionLedger = new(StringComparer.Ordinal);
 	private static double recognitionChartGainAtYearStart;
+	/// <summary>Causal mode: this year's realized TV gains, which the realized-gain counter also holds.</summary>
+	private static double recognitionTvRealized;
 
 	private static void RecognitionLedger(string key, double amount) =>
 		recognitionLedger[key] = recognitionLedger.GetValueOrDefault(key) + amount;
@@ -963,18 +1039,30 @@ public static partial class MediaAtmosphereService {
 	}
 
 	/// <summary>
-	/// What this airing would add to the act's recognition: the raw deposit against the year's cap, then the same
-	/// diminishing returns <see cref="ArtistRecognitionService.AddPublicRecognition"/> applies, read against the act's real
-	/// recognition plus the shadow already built. Written only to the media tally; the canonical stock is never touched.
+	/// What this airing adds to the act's recognition: the raw deposit against the year's cap, then the diminishing returns
+	/// of <see cref="ArtistRecognitionService.AddPublicRecognition"/>. Shadow: read against the act's real recognition plus
+	/// the shadow already built, written only to the media tally. Causal: deposited through that call itself (members get
+	/// their share), and the realized gain is booked to the tally as the TV-earned part of the stock.
 	/// </summary>
-	private static void ShadowRecognitionDeposit(MediaAppearance a, MediaAiring airing, MediaActTally t, double fresh, double population) {
+	private static void RecognitionDeposit(MediaAppearance a, MediaAiring airing, MediaActTally t, double fresh, double population) {
 		if (t.RecognitionYear != airing.Date.year) { t.RecognitionYear = airing.Date.year; t.RecognitionDepositedYear = 0f; }
 		var (gain, clipped, seen) = MediaRecognition.Deposit(t.RecognitionReach, fresh, population, a.Performance, t.RecognitionDepositedYear);
 		t.RecognitionReach = seen;
 		t.RecognitionDepositedYear += gain;
-		float canonical = ArtistManager.Instance?.GetArtist(a.ArtistId)?.publicRecognition ?? 0f;
-		float applied = gain * (1f - Math.Clamp(canonical + t.ShadowRecognition, 0f, 1f));
-		t.ShadowRecognition = Math.Clamp(t.ShadowRecognition + applied, 0f, 1f);
+		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(a.ArtistId);
+		float applied;
+		if (MediaRecognition.Causal) {
+			if (artist == null || !InCausalWindow(BroadcastExposure.DayIndex(airing.Date))) return;
+			float before = artist.publicRecognition;
+			ArtistRecognitionService.AddPublicRecognition(artist, gain);
+			applied = artist.publicRecognition - before;
+			recognitionTvRealized += applied;
+			t.ShadowRecognition = Math.Clamp(t.ShadowRecognition + applied, 0f, artist.publicRecognition);
+		} else {
+			float canonical = artist?.publicRecognition ?? 0f;
+			applied = gain * (1f - Math.Clamp(canonical + t.ShadowRecognition, 0f, 1f));
+			t.ShadowRecognition = Math.Clamp(t.ShadowRecognition + applied, 0f, 1f);
+		}
 		if (gain <= 0f && clipped <= 0f) return;
 		bool national = MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local;
 		RecognitionLedger("deposits", 1);
@@ -987,42 +1075,52 @@ public static partial class MediaAtmosphereService {
 	}
 
 	/// <summary>
-	/// Year end: the shadow deposits beside the chart-earned recognition gained in the same year, the acts TV would carry
-	/// over the standing floors, and the past hitmakers it would keep known. Read-only.
+	/// The act's effective recognition without and with television. Shadow: the real stock, and that plus the shadow.
+	/// Causal: the real stock less its TV-earned part, and the real stock.
+	/// </summary>
+	private static (float NoTv, float WithTv) RecognitionWithAndWithoutTv(SimulatedArtist artist, MediaActTally t) {
+		float real = ArtistRecognitionService.EffectiveRecognition(artist);
+		float tv = t?.ShadowRecognition ?? 0f;
+		return MediaRecognition.Causal ? (Math.Max(0f, real - tv), real) : (real, Math.Clamp(real + tv, 0f, 1f));
+	}
+
+	/// <summary>
+	/// Year end: the TV deposits beside the chart-earned recognition gained in the same year, the acts TV carries over the
+	/// standing floors, and the past hitmakers it keeps known. Read-only.
 	/// </summary>
 	private static void PrintRecognition(int year) {
-		if (!MediaRecognition.Shadow || ArtistManager.Instance == null) return;
+		if (!MediaRecognition.Active || ArtistManager.Instance == null) return;
 		double V(string key) => recognitionLedger.GetValueOrDefault(key);
-		double chartGain = ArtistRecognitionService.RealizedGainTotal - recognitionChartGainAtYearStart;
+		// In causal mode the realized-gain counter includes television's own deposits; take them out.
+		double chartGain = ArtistRecognitionService.RealizedGainTotal - recognitionChartGainAtYearStart - recognitionTvRealized;
 		recognitionChartGainAtYearStart = ArtistRecognitionService.RealizedGainTotal;
+		recognitionTvRealized = 0;
 		int over05 = 0, over20 = 0, capped = 0;
-		var tvVets = new List<(float Real, float Shadowed)>();
+		var tvVets = new List<(float NoTv, float WithTv)>();
 		var quietVets = new List<float>();
 		foreach (MediaActTally t in state.Tallies.Values) {
 			SimulatedArtist artist = ArtistManager.Instance.GetArtist(t.ArtistId);
 			if (artist == null) continue;
-			float real = ArtistRecognitionService.EffectiveRecognition(artist);
-			float shadowed = Math.Clamp(real + t.ShadowRecognition, 0f, 1f);
-			if (real < 0.05f && shadowed >= 0.05f) over05++;
-			if (real < 0.20f && shadowed >= 0.20f) over20++;
+			var (noTv, withTv) = RecognitionWithAndWithoutTv(artist, t);
+			if (noTv < 0.05f && withTv >= 0.05f) over05++;
+			if (noTv < 0.20f && withTv >= 0.20f) over20++;
 			if (t.RecognitionYear == year && t.RecognitionDepositedYear >= MediaRecognition.AnnualCap - 1e-6f) capped++;
 		}
 		foreach (SimulatedArtist artist in ArtistManager.Instance.GetAllArtists()) {
 			if (artist == null || artist.isPlayerOwned || artist.top40Hits <= 0 || !artist.isActive) continue;
 			MediaActTally t = TallyFor(artist.artistId);
-			float real = ArtistRecognitionService.EffectiveRecognition(artist);
-			if (t != null && t.RecognitionYear == year && t.RecognitionDepositedYear > 0f) tvVets.Add((real, Math.Clamp(real + t.ShadowRecognition, 0f, 1f)));
-			else quietVets.Add(real);
+			if (t != null && t.RecognitionYear == year && t.RecognitionDepositedYear > 0f) tvVets.Add(RecognitionWithAndWithoutTv(artist, t));
+			else quietVets.Add(ArtistRecognitionService.EffectiveRecognition(artist));
 		}
 		var top = state.Tallies.Values.Where(t => t.RecognitionYear == year && t.RecognitionDepositedYear > 0f)
 			.OrderByDescending(t => t.RecognitionDepositedYear).ThenBy(t => t.ArtistId, StringComparer.Ordinal).Take(5)
 			.Select(t => $"\"{t.ArtistName}\" {t.RecognitionDepositedYear:F3}");
-		Godot.GD.Print($"MEDIA_RECOGNITION year={year} deposits={V("deposits"):0} raw={V("raw"):F3} applied={V("applied"):F3} clipped={V("clipped"):F3}" +
+		Godot.GD.Print($"MEDIA_RECOGNITION year={year} mode={(MediaRecognition.Causal ? "causal" : "shadow")} deposits={V("deposits"):0} raw={V("raw"):F3} applied={V("applied"):F3} clipped={V("clipped"):F3}" +
 			$" national={V("appliedNational"):F3} local={V("appliedLocal"):F3} primetime={V("appliedPrimetime"):F3}" +
 			$" lanes[chart/standing/comedy]={V("appliedChart"):F3}/{V("appliedStanding"):F3}/{V("appliedComedy"):F3}" +
 			$" chartEarned={chartGain:F3} tvShare={(V("applied") + chartGain > 0 ? V("applied") / (V("applied") + chartGain) : 0):P1}" +
 			$" actsAtCap={capped} over05={over05} over20={over20}" +
-			$" hitmakersTvActive={tvVets.Count} recog[real/withTv]={(tvVets.Count > 0 ? tvVets.Average(x => x.Real) : 0):F3}/{(tvVets.Count > 0 ? tvVets.Average(x => x.Shadowed) : 0):F3}" +
+			$" hitmakersTvActive={tvVets.Count} recog[noTv/withTv]={(tvVets.Count > 0 ? tvVets.Average(x => x.NoTv) : 0):F3}/{(tvVets.Count > 0 ? tvVets.Average(x => x.WithTv) : 0):F3}" +
 			$" hitmakersQuiet={quietVets.Count} recog={(quietVets.Count > 0 ? quietVets.Average() : 0):F3}" +
 			$" top=[{string.Join(" ", top)}]");
 		recognitionLedger.Clear();

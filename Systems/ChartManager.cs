@@ -413,6 +413,7 @@ public partial class ChartManager : Node {
 		ArtistRecognition.Configure(artistRecognitionEnabled, SimulationArguments.Get());
 		MediaAtmosphere.Configure(mediaAtmosphereObserve, SimulationArguments.Get());
 		MediaRecognition.Configure(SimulationArguments.Get());
+		MediaDemand.Configure(SimulationArguments.Get());
 		ManagerSystem.Configure(managersEnabled, SimulationArguments.Get());
 		StarCanopy.Configure(seedStarCanopyEnabled, SimulationArguments.Get());
 		OpeningCareers.Configure(openingCareersEnabled, SimulationArguments.Get());
@@ -1386,6 +1387,8 @@ public partial class ChartManager : Node {
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalDemand, demandProfileStart);
 		// Drop unused tails immediately so a shrinking market cannot pin retired records.
 		if (marketIntentScratch.Count > intentCount) marketIntentScratch.RemoveRange(intentCount, marketIntentScratch.Count - intentCount);
+		// Media's one demand writer (§12.3): after serviceable intent and physical limits, before format budgets.
+		if (MediaDemand.Active && MediaAtmosphereService.HasDemandRequests) ApplyMediaDemand(intentsByRegion, year);
 		var clearingProfileStart = SimulationPerformanceProfiler.Begin();
 		var summariesByRegion = new Dictionary<string, MarketClearingRegionalSummary>(StringComparer.Ordinal);
 		// Stage A: retain the accepted common local clearing unchanged.
@@ -1645,6 +1648,37 @@ public partial class ChartManager : Node {
 			int single = intentsByRegion[group.Key].Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Single).Sum(intent => intent.SpilloverCleared);
 			single = Mathf.Clamp(single, 0, group.Sum(row => row.TransferredCapacity));
 			AllocateTransferFormats(group.OrderBy(row => row.DonorRegionId, StringComparer.Ordinal).ToList(), single);
+		}
+	}
+
+	/// <summary>
+	/// The media singles adapter (MediaDemand, directive §12.3): each region's singles intent is reallocated between titles
+	/// under conserved, capped transfers. Shadow mode logs the allocation and clears on the control intent; causal mode
+	/// writes the adjusted intent, which is then the authoritative serviceable intent. Albums are never touched.
+	/// </summary>
+	private void ApplyMediaDemand(Dictionary<string, List<MarketIntent>> intentsByRegion, int year) {
+		foreach (MarketRegion region in allRegions) {
+			List<MarketIntent> singles = intentsByRegion[region.regionId].Where(i => i.Record.baseRecord.format == ReleaseFormat.Single).ToList();
+			var titles = new List<MediaDemand.Title>(singles.Count);
+			bool asked = false;
+			foreach (MarketIntent intent in singles) {
+				float request = MediaAtmosphereService.DemandRequest(intent.Record.baseRecord.recordId, region.regionId);
+				asked |= request != 0f;
+				titles.Add(new MediaDemand.Title {
+					Key = intent.Record.baseRecord.recordId, Baseline = intent.Serviceable, Request = request,
+					PhysicalLimit = Mathf.Max(0, Mathf.Min(intent.Data.unitsInStores, intent.Data.storeCapacityThisWeek)),
+					Frenzy = request != 0f && MediaAtmosphereService.DemandFrenzy(intent.Record.baseRecord.artistId),
+				});
+			}
+			if (!asked) continue;
+			if (MediaDemand.Permute) MediaDemand.PermuteRequests(titles, currentChartWeek, region.regionId);
+			MediaDemand.RegionResult result = MediaDemand.Allocate(titles);
+			MediaDemand.Record(currentChartWeek, year, region.regionId, titles, result);
+			if (!MediaDemand.Causal) continue;
+			for (int k = 0; k < singles.Count; k++) {
+				singles[k].Serviceable = titles[k].Adjusted;
+				singles[k].Data.serviceableIntentThisWeek = titles[k].Adjusted;
+			}
 		}
 	}
 

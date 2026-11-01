@@ -6,10 +6,36 @@ using System.Linq;
 /// The office's PRESS & TELEVISION verbs (media directive Phase 2, §9.2 and §14). Thin wrappers over
 /// <see cref="MediaAtmosphereService"/>: the desk supplies the label and the log, the media service owns every outcome.
 /// While media runs in observe mode no hours, copies or cash change hands; the offer cards say what they would cost.
+/// In causal mode the same verbs are charged through <see cref="CanPayMedia"/> and <see cref="PayMedia"/>.
 /// </summary>
 public partial class PlayerDesk {
 	/// <summary>A media line in the office log (and so in the morning paper).</summary>
 	internal void MediaNote(string entry) => Note(entry);
+
+	/// <summary>
+	/// Causal media (§5.4, §12.1): can the office pay for this now? Desk hours, cash, and promo copies of a record the
+	/// label holds stock of. Nothing is spent here.
+	/// </summary>
+	internal bool CanPayMedia(int hours, float cash, int promoCopies, string recordId, out string message) {
+		if (!Require(hours, out message)) return false;
+		if (Label.cashReserves < cash) { message = $"You're ${cash - Label.cashReserves:N2} short of the ${cash:N2} it costs."; return false; }
+		PressStock stock = StockFor(recordId);
+		if (promoCopies > 0 && stock != null && stock.PromoRemaining < promoCopies) {
+			message = "No promo copies on hand -- press some, or strike a repress all-promo."; return false;
+		}
+		message = string.Empty;
+		return true;
+	}
+
+	/// <summary>Spends what <see cref="CanPayMedia"/> checked. A bill for a date already produced is paid even if it overdraws.</summary>
+	internal void PayMedia(int hours, float cash, int promoCopies, string recordId) {
+		if (Label == null) return;
+		if (hours > 0) Spend(hours);
+		if (cash > 0f) { Label.cashReserves -= cash; Label.monthlyExpenses += cash; }
+		PressStock stock = StockFor(recordId);
+		if (promoCopies > 0 && stock != null) stock.PromoRemaining -= Math.Min(promoCopies, stock.PromoRemaining);
+		Changed?.Invoke();
+	}
 
 	private RecordRuntimeData ReleasedSingle(string recordId) =>
 		ReleasedRecords.FirstOrDefault(r => r?.baseRecord?.recordId == recordId);

@@ -38,6 +38,9 @@ public partial class MediaAtmosphereChecks : Node {
 			AiPlanner();
 			PhaseThreeSave();
 			RecognitionShadow();
+			DemandAllocation();
+			CausalPlayerCosts();
+			DemandShadow();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -729,6 +732,177 @@ public partial class MediaAtmosphereChecks : Node {
 					&& world.Media.Tallies[p.Key].RecognitionDepositedYear == p.Value.RecognitionDepositedYear && world.Media.Tallies[p.Key].RecognitionYear == p.Value.RecognitionYear),
 				"The reach stock, shadow and year's deposit survive a save round trip");
 		} finally { MediaRecognition.SetForChecks(false); }
+
+		// Causal: the same deposits land in the act's real stock. Chart milestones only add, so after two more weeks each
+		// act's stock is at least its decayed opening stock plus what television earned it.
+		var recognitionSwitches = ArtistRecognition.CaptureSwitches();
+		ArtistRecognition.ConfigureForProbe(enable: true, observe: false);
+		MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Causal);
+		MediaRecognition.SetForChecks(true, writeCausal: true);
+		try {
+			foreach (MediaActTally t in MediaAtmosphereService.Tallies.Values) t.ShadowRecognition = 0f;
+			var opening = ArtistManager.Instance.GetAllArtists().Where(x => x != null).ToDictionary(x => x.artistId, x => x.publicRecognition);
+			var clock = TimeManager.Instance;
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			float floorDecay = (float)Math.Pow(ArtistRecognitionService.PublicRecognitionDecay, 3);
+			var earned = MediaAtmosphereService.Tallies.Values.Where(t => t.ShadowRecognition > 0f).ToList();
+			var missing = earned.Where(t => {
+				SimulatedArtist x = ArtistManager.Instance.GetArtist(t.ArtistId);
+				return x == null || x.publicRecognition + 1e-4f < opening.GetValueOrDefault(t.ArtistId) * floorDecay + t.ShadowRecognition
+					|| t.ShadowRecognition > x.publicRecognition + 1e-6f;
+			}).ToList();
+			Check(earned.Count > 0 && missing.Count == 0,
+				$"Causal: TV deposits reach the act's real recognition ({earned.Count} acts, {earned.Sum(t => t.ShadowRecognition):F4} earned; " +
+				$"{missing.Count} below opening stock + TV share)");
+		} finally {
+			MediaRecognition.SetForChecks(false);
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
+			ArtistRecognition.RestoreSwitches(recognitionSwitches);
+		}
+	}
+
+	// Fixtures 12 and 13 (§12.3): the singles adapter's limits, in integers, after rounding, on edge cases and a sweep.
+	private void DemandAllocation() {
+		MediaDemand.Title T(string key, int b, int phys, float q = 0f, bool frenzy = false) =>
+			new() { Key = key, Baseline = b, PhysicalLimit = phys, Request = q, Frenzy = frenzy };
+		List<MediaDemand.Title> Field(int n, int b, int phys) => Enumerable.Range(0, n).Select(i => T("n" + i, b, phys)).ToList();
+		int Sum(List<MediaDemand.Title> ts) => ts.Sum(t => t.Adjusted);
+
+		var routine = Field(9, 1000, 2000); routine.Insert(0, T("hit", 1000, 2000, 0.08f));
+		var r = MediaDemand.Allocate(routine);
+		Check(routine[0].Adjusted == 1050 && Sum(routine) == 10000 && routine.Skip(1).All(t => t.Adjusted is >= 950 and <= 1000) && r.Moved == 50,
+			$"A routine request is clipped to 5% of the title ({routine[0].Adjusted}), drawn from neutral titles, and the region keeps its total");
+		var frenzy = Field(9, 1000, 2000); frenzy.Insert(0, T("hit", 1000, 2000, 0.08f, frenzy: true));
+		MediaDemand.Allocate(frenzy);
+		Check(frenzy[0].Adjusted == 1080 && Sum(frenzy) == 10000, $"A national sensation's 10% ceiling replaces the 5% one ({frenzy[0].Adjusted})");
+		var crowded = Field(7, 1000, 2000); crowded.InsertRange(0, new[] { T("a", 1000, 2000, 0.05f), T("b", 1000, 2000, 0.05f), T("c", 1000, 2000, 0.05f) });
+		r = MediaDemand.Allocate(crowded);
+		Check(r.Moved == 100 && crowded.Take(3).Sum(t => t.Granted) == 100 && Sum(crowded) == 10000 && r.WantedUp == 150,
+			$"At most 1% of a region's intent moves: three titles ask {r.WantedUp}, {r.Moved} move");
+		var zero = Field(9, 1000, 2000); zero.Insert(0, T("unserved", 0, 0, 0.05f));
+		r = MediaDemand.Allocate(zero);
+		Check(zero[0].Adjusted == 0 && r.NoBaseline == 1 && r.Moved == 0, "A title with no serviceable intent stays at zero, however hot");
+		var full = Field(9, 1000, 2000); full.Insert(0, T("stockbound", 1000, 1010, 0.05f));
+		MediaDemand.Allocate(full);
+		Check(full[0].Adjusted == 1010, $"A stock-bound title gets only what it can serve ({full[0].Adjusted})");
+		var allUp = new List<MediaDemand.Title> { T("a", 1000, 2000, 0.05f), T("b", 1000, 2000, 0.03f) };
+		r = MediaDemand.Allocate(allUp);
+		Check(r.Moved == 0 && allUp.All(t => t.Adjusted == t.Baseline), "All titles asking up and no donor: nothing moves (the unmatched request is cancelled)");
+		var allDown = Field(9, 1000, 1000); allDown.Insert(0, T("flop", 1000, 1000, -0.05f));
+		r = MediaDemand.Allocate(allDown);
+		Check(r.Moved == 0 && Sum(allDown) == 10000, "A title asking down with no recipient headroom keeps its intent");
+		var down = Field(9, 1000, 2000); down.Insert(0, T("flop", 1000, 1000, -0.05f));
+		r = MediaDemand.Allocate(down);
+		Check(down[0].Adjusted == 950 && Sum(down) == 10000 && down.Skip(1).All(t => t.Adjusted >= 1000), "A bad night's request sends units to neutral titles with headroom");
+		var tiny = new List<MediaDemand.Title> { T("a", 3, 10, 0.05f), T("b", 2, 10), T("c", 1, 10) };
+		r = MediaDemand.Allocate(tiny);
+		Check(r.TransferCap == 0 && tiny.All(t => t.Adjusted == t.Baseline), "With six units in a region nothing can move");
+
+		var rng = new Random(1001);
+		int cases = 0, units = 0;
+		for (int c = 0; c < 600; c++) {
+			int n = 1 + rng.Next(30);
+			var ts = Enumerable.Range(0, n).Select(i => {
+				int b = rng.Next(5) == 0 ? 0 : rng.Next(1, 4000);
+				int phys = b + (rng.Next(3) == 0 ? 0 : rng.Next(0, 400));
+				float q = rng.Next(3) == 0 ? 0f : (float)(rng.NextDouble() * 0.3 - 0.12);
+				return T("t" + i.ToString("D2"), b, phys, q, rng.Next(10) == 0);
+			}).ToList();
+			int total = ts.Sum(t => t.Baseline);
+			r = MediaDemand.Allocate(ts);
+			int moved = ts.Sum(t => Math.Abs(t.Adjusted - t.Baseline));
+			bool ok = Sum(ts) == total && moved % 2 == 0 && moved / 2 <= Math.Floor(0.01 * total) && moved / 2 == r.Moved;
+			foreach (var t in ts) {
+				int d = t.Adjusted - t.Baseline;
+				float cap = t.Frenzy && t.Request != 0f ? MediaDemand.FrenzyCap : MediaDemand.RoutineCap;
+				ok &= t.Adjusted >= 0 && (t.Baseline > 0 || t.Adjusted == 0) && Math.Abs(d) <= Math.Floor(cap * t.Baseline)
+					&& (d <= 0 || t.Adjusted <= t.PhysicalLimit)
+					&& !(t.Request > 0f && d < 0) && !(t.Request < 0f && d > 0);
+			}
+			if (!ok) throw new InvalidOperationException($"MediaDemand sweep case {c} broke an invariant: " +
+				string.Join(" ", ts.Select(t => $"{t.Key}:{t.Baseline}/{t.PhysicalLimit}/{t.Request:F3}/{t.Frenzy}->{t.Adjusted}")));
+			cases++; units += r.Moved;
+		}
+		Check(cases == 600, $"600 random regions keep every limit after rounding: totals, 1% region share, per-title caps, physical limits, " +
+			$"zero baselines, one direction per title ({units:N0} units moved)");
+	}
+
+	// Phase 4 player costs (§5.4, fixtures 14-15): charged once, by receipt, through save/reload; fees are performer income.
+	private void CausalPlayerCosts() {
+		var desk = PlayerDesk.Instance;
+		var clock = TimeManager.Instance;
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Causal);
+		try {
+			string home = desk.Label.homeCityId;
+			TvProgram local = MediaAtmosphereService.PitchablePrograms(home, home, clock.CurrentDate).First(p => p.Network == TvNetwork.Local && p.HomeCityId == home);
+			var record = ChartManager.Instance.GetAllRecords().First(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single
+				&& !MediaAtmosphereService.Pitches.Any(p => p.RecordId == r.baseRecord.recordId && p.ProgramId == local.Id));
+			if (clock.CurrentHour > 15) clock.EndDay();
+			float cash = desk.Label.cashReserves;
+			int hour = clock.CurrentHour;
+			Check(MediaAtmosphereService.PitchTelevision(desk, record, local.Id, out string msg), "Causal pitch: " + msg);
+			MediaPitch pitch = MediaAtmosphereService.Pitches.Last();
+			Check(Math.Abs(desk.Label.cashReserves - (cash - 0.15f)) < 1e-3f && clock.CurrentHour == hour + 1 && !pitch.CostNote.Contains("estimate")
+					&& MediaAtmosphereService.State.CausalFromDay >= 0 && MediaAtmosphereService.State.Receipts.Contains("pitch|" + pitch.Id),
+				$"Causal mode charges the pitch once: postage and an hour at the desk, with a receipt (\"{pitch.CostNote}\")");
+
+			SimulatedArtist act = ArtistManager.Instance.GetAllArtists().First(a => a != null && a.members?.Count(m => m != null && m.isActive) >= 2);
+			int performers = act.members.Count(m => m != null && m.isActive);
+			TvProgram sullivan = MediaOutletCatalog.Get("ed_sullivan");
+			var date = new MediaAppearance { Id = "check-causal-app", ProgramId = sullivan.Id, ArtistId = act.artistId, ArtistName = act.stageName,
+				Date = clock.CurrentDate, Preparation = MediaPreparation.Extra };
+			int year = clock.CurrentDate.year;
+			float feesBefore = act.members.Where(m => m != null && m.isActive).Sum(m => MediaAtmosphereService.PerformerFeesPaid(m.personId, year));
+			cash = desk.Label.cashReserves;
+			MediaAtmosphereService.BillProduction(desk, date, sullivan);
+			MediaAtmosphereService.BillProduction(desk, date, sullivan);
+			float fees = act.members.Where(m => m != null && m.isActive).Sum(m => MediaAtmosphereService.PerformerFeesPaid(m.personId, year)) - feesBefore;
+			Check(Math.Abs(desk.Label.cashReserves - (cash - MediaAtmosphereService.PreparationCost(MediaPreparation.Extra))) < 1e-3f
+					&& Math.Abs(fees - performers * MediaAtmosphereService.NetworkScaleFee) < 1e-3f,
+				$"A produced network date bills the label its rehearsal once (${cash - desk.Label.cashReserves:N2}; the network pays fares) and pays " +
+				$"{performers} performers scale once (${fees:N0}), none of it to the label");
+
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var round = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			MediaAtmosphereService.RehydrateWorld(new WorldSaveData { Media = round });
+			cash = desk.Label.cashReserves;
+			MediaAtmosphereService.BillProduction(desk, date, sullivan);
+			float feesAfter = act.members.Where(m => m != null && m.isActive).Sum(m => MediaAtmosphereService.PerformerFeesPaid(m.personId, year)) - feesBefore;
+			Check(desk.Label.cashReserves == cash && Math.Abs(feesAfter - fees) < 1e-3f && round.CausalFromDay == world.Media.CausalFromDay,
+				"After save and reload the receipts hold: the produced date is not billed or paid again");
+
+			var localDate = new MediaAppearance { Id = "check-causal-local", ProgramId = local.Id, ArtistId = act.artistId, ArtistName = act.stageName,
+				Date = clock.CurrentDate, Preparation = MediaPreparation.Minimal };
+			cash = desk.Label.cashReserves;
+			MediaAtmosphereService.BillProduction(desk, localDate, local);
+			float localFees = act.members.Where(m => m != null && m.isActive).Sum(m => MediaAtmosphereService.PerformerFeesPaid(m.personId, year)) - feesBefore;
+			Check(desk.Label.cashReserves == cash && Math.Abs(localFees - fees) < 1e-3f,
+				"A hometown dance show with no rehearsal costs the label nothing and pays no scale");
+			Check(MediaAtmosphereService.Pitches.Where(p => p.Status is PitchStatus.Confirmed or PitchStatus.Aired && p.Id != pitch.Id).All(p => !p.CausalTerms),
+				"Dates confirmed in observe mode stay free after the world turns causal (activation boundary)");
+		} finally {
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
+		}
+	}
+
+	// §12.3 live, shadow: airings of the record itself leave a signed regional request that decays; nothing else asks.
+	private void DemandShadow() {
+		MediaDemand.SetForChecks(shadowOn: true, causalOn: false);
+		try {
+			var clock = TimeManager.Instance;
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			var lift = MediaAtmosphereService.State.DemandLift;
+			var recordSongs = new HashSet<string>(MediaAtmosphereService.Appearances.Where(a => a.Song == PerformedSong.Record && !a.Cut).Select(a => a.RecordId));
+			float maxRequest = lift.Values.SelectMany(x => x.Values).DefaultIfEmpty(0f).Max(Math.Abs);
+			Check(lift.Count > 0 && lift.Keys.All(recordSongs.Contains) && maxRequest < 0.5f,
+				$"Two weeks of airings leave regional requests on {lift.Count} records, all of them sung on the air (largest {maxRequest:F4})");
+			var before = lift.ToDictionary(p => p.Key, p => p.Value.ToDictionary(x => x.Key, x => x.Value));
+			MediaDemand.SetForChecks(false, false);
+			for (int i = 0; i < 7; i++) clock.EndDay();
+			Check(MediaAtmosphereService.State.DemandLift.Count == before.Count, "With the adapter off the requests are neither written nor decayed");
+		} finally { MediaDemand.SetForChecks(false, false); }
 	}
 
 	private void PhaseTwoSave() {

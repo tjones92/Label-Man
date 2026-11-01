@@ -4,7 +4,8 @@ Status: design, 2026-10-31. The author approved adding a media writer to the act
 (`SimulatedArtist.publicRecognition`). As written, the directive keeps recognition out of Phase 4
 (`MediaAtmosphereDirective.md` §12.4 and the Phase 4 line in §16), and §12.4 asks that any "future recognition
 writer" get its own adapter inside an accepted combined envelope. This document is that adapter. It is built and
-validated separately from the §12.3 singles demand adapter, then they are run together. Nothing here is implemented.
+validated separately from the §12.3 singles demand adapter, then they are run together. The shadow pass and the
+causal writer are built (both off by default); the causal screen is below.
 
 ## Why
 
@@ -155,7 +156,7 @@ books nothing differently.
   - the yearly `MEDIA_RECOGNITION` line;
   - `ArtistRecognitionService.RealizedGainTotal`, a print-only counter of chart-earned gains.
 
-  `--media-recognition` (causal) is rejected until it is built.
+  `--media-recognition` (causal) was rejected until it was built (see "Causal screen" below).
 - **Fixtures** (`MediaAtmosphereChecks.RecognitionShadow`, 146 checks pass at `--seed=1001`):
   - a first Sullivan spot is 0.0210 against a top-40's 0.022, and a talk spot 0.0057 against a chart entry's 0.007;
   - a regular earns 0.0021, and the same act five years later 0.0144;
@@ -192,6 +193,62 @@ books nothing differently.
   never reaches them, because the standing pool needs a label and recognition first. Keeping old names known also
   needs `--hit-history-signing-recovery` to get them signed and onto bills. The causal screen should run with that
   switch both off and on.
+
+## Causal screen (built 2026-10-31)
+
+- **Built:** `--media-recognition` in `MediaRecognition.cs`. The same deposit as the shadow goes through
+  `ArtistRecognitionService.AddPublicRecognition`, so the diminishing returns and the member share are the existing
+  ones. `MediaActTally.ShadowRecognition` then holds the decaying TV-earned part of the real stock, for telemetry only.
+  The switch requires artist recognition to be enabled and can't be combined with `--observe-media-recognition`. The
+  `MEDIA_RECOGNITION` line gains `mode=`, takes TV's own gains out of `chartEarned`, and reads
+  `recog[noTv/withTv]` (shadow: real / real + shadow; causal: real − TV part / real).
+- **Fixture** (`MediaAtmosphereChecks`, 147 checks pass at `--seed=1001`): after two causal weeks, 90 acts earned 0.164
+  from TV, and every one has a real stock of at least its decayed opening stock plus its TV share.
+- **Runs:** 1963-66 resume of `media-p3-1001-1963`, seed 1001, 209 weeks. `mrec-c` (causal) against `tvbook-s` (shadow,
+  byte-identical to the control `tvbook-m`); `mrec-rc` (causal + `--hit-history-signing-recovery`) against `tvbook-q`.
+  Read with `SimTools/analyze_media_recognition_screen.py`. These resumes keep no per-week chart rows, so concentration
+  is whole-run act slot-weeks from `lifecycles` joined to `single-release-lanes` (every slot-week attributed).
+
+| | Recovery off: `s` → `mrec-c` | Recovery on: `q` → `mrec-rc` | Noise reference: `s` → `q` |
+|---|---|---|---|
+| Top 1 / 5 / 10% of acts' slot-weeks | +0.06 / +0.33 / +0.40 pt | +0.02 / +0.88 / +1.33 pt | +0.21 / −0.27 / +0.58 pt |
+| Kill rule (top 10% > +3 pt) | pass | pass | — |
+| Major-family share, 1963-66 | −3.0 / +3.8 / −0.5 / +2.5 pt | −2.2 / 0.0 / −2.2 / +5.8 pt | +4.8 / −2.0 / −1.8 / −6.0 pt |
+| Genres beyond ±1 pt | Soul +2.1, Country −1.3 | none | Soul +2.8, Country −1.2 |
+| Singles / album units, worst year | −0.23% / +0.57% | −0.48% / +0.91% | −0.36% / +0.91% |
+| Closures (all bankruptcies) | 108 → 127 | 102 → 109 | 108 → 102 |
+| Standing dates, 1964 / 1966 | 463 → 543 / 569 → 630 | 569 → 597 / 726 → 720 | |
+| Standing dates to acts with no hit, 1964 / 1966 | 70 → 121 / 61 → 128 | 95 → 128 / 166 → 132 | |
+| Standing dates to acts last hit 4+ years back | 0 → 0 | 0 → 0 | |
+| Sullivan standing filled of 36, 1964 / 1965 / 1966 | 17→27 / 15→19 / 23→21 | 32→36 / 24→34 / 33→34 | |
+| TV share of recognition gained, 1964-66 | 11.0-13.9% | 11.6-13.4% | |
+| TV-active hitmakers' recognition, 1966 (no TV → with) | 0.184 → 0.214 | 0.176 → 0.202 | |
+| Acts over the 0.20 floor because of TV, 1964-66 | 36 / 44 / 39 | 23 / 44 / 52 | |
+
+- **No catastrophe.** Concentration stays far inside the kill rule. Units move less than 1% in every year. The Big-5
+  and genre moves are the same size as the noise reference, where Recovery alone moved 1966 major share by 6 points
+  and Soul by 2.8.
+- **The causal size matches the shadow.** TV earns 11-14% of the year's recognition, and TV-active hitmakers are about
+  0.03 better known, the same as the shadow's prediction. So the feedback through bookings and sales doesn't run away
+  inside four years.
+- **The bookings loop is visible.** 23-52 acts a year sit over the 0.20 program floor only because of TV. Standing
+  dates rise by 60-80 a year without Recovery, and most of the rise goes to acts with no hit (they doubled). That is
+  TV making a name on airtime, and the 0.06 cap keeps it to minor-act scale. Watch for it in the decade A/B: a standing
+  pool filled by never-charted acts would be the wrong history.
+- **Sullivan fills with both switches.** With Recovery and TV fame together, Sullivan's standing slots are 34-36 of 36
+  in 1964-66, against history's full bill. Each switch alone leaves 1965 short (19 and 24).
+- **Old names still get no dates.** 4y+ standing dates stay 0 in every arm. As the hit-history screen found, a 1963-66
+  window can't show this: only a 1962 hitmaker can qualify, and only in 1966. That read needs a 1960 start or a later
+  window.
+- **Closures are the one reading to watch.** +19 without Recovery, +7 with it, spread over all four years and mostly
+  runtime-born small labels. The noise reference moves by −6, and the hit-history arm `r` by +23, so this is inside
+  single-seed noise. A plausible route is the launch stock cap (× 1 + 0.30 × recognition) pressing more for acts
+  whose TV fame outruns their sales. Read closures by tier in the decade A/B.
+
+Next for this writer: nothing until the Phase 5 decade A/B (evidence step 4), batched with
+`--hit-history-signing-recovery` and the §12.3 adapter, which is still unbuilt. Its reads are closures, standing dates
+by years since the last hit, and the 4y+ count in 1967-69. Before then the Phase 4 work (player costs, the causal mode,
+the §12.3 adapter) is screened with short runs only.
 
 ## Open
 
