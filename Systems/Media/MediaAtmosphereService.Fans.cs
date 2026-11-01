@@ -250,7 +250,7 @@ public static partial class MediaAtmosphereService {
 				if (s < 0.01f) fs.Spotlight.Remove(key); else fs.Spotlight[key] = s;
 			}
 			if (camera.TryGetValue(id, out var shotList) && artist != null && artist.members.Count(m => m.isActive) > 1)
-				foreach (var (key, teens, spark) in shotList) SpotlightDeposit(fs, artist, "tv|" + key, (float)(0.12 * Math.Min(1.0, teens / 3e6) * spark / 1.2), year);
+				foreach (var (key, teens, spark) in shotList) SpotlightDeposit(fs, artist, "tv|" + key, (float)(0.12 * Math.Min(1.0, teens / 3e6) * spark / 1.2), year, today);
 			if (letters.TryGetValue(id, out long mail)) fs.Letters += mail;
 
 			int topSellerRegions = topSeller.TryGetValue(id, out bool[] ts) ? ts.Count(x => x) : 0;
@@ -303,18 +303,22 @@ public static partial class MediaAtmosphereService {
 	}
 
 	/// <summary>One exposure's worth of spotlight split across the members the camera (or the photographer) found.</summary>
-	private static void SpotlightDeposit(MediaFanState fs, SimulatedArtist artist, string key, float gain, int year) {
+	private static void SpotlightDeposit(MediaFanState fs, SimulatedArtist artist, string key, float gain, int year, int day) {
 		if (gain <= 0f) return;
-		foreach (var (member, share) in MediaFans.CameraShares(artist, key, year)) {
+		foreach (var (member, share) in CameraSharesFor(artist, key, year, day)) {
 			float s = fs.Spotlight.GetValueOrDefault(member.personId);
 			fs.Spotlight[member.personId] = Math.Clamp(s + Math.Min(0.15f, gain * share * 2f) * (1f - s), 0f, 1f);
 			fs.Faces[member.personId] = member.FullName;
 		}
 	}
 
-	/// <summary>A photo session puts one member in front of the readers: weighted by the same camera shares, keyed per session.</summary>
-	private static string PhotographMember(MediaFanState fs, SimulatedArtist artist, string key, int year) {
-		var shares = MediaFans.CameraShares(artist, "photo|" + key, year);
+	/// <summary>
+	/// A photo session puts one member in front of the readers: weighted by the same camera shares, keyed per session. With
+	/// member fame on, the outlet's registered readers learn that face (§5); an exclusive session is the cover.
+	/// </summary>
+	private static string PhotographMember(MediaFanState fs, SimulatedArtist artist, string key, PressOutlet outlet, Genre genre, bool cover, GameDate today) {
+		int year = today.year;
+		var shares = CameraSharesFor(artist, "photo|" + key, year, BroadcastExposure.DayIndex(today));
 		if (shares.Count < 2) return null;
 		float u = MediaAtmosphere.Unit("photo-pick|" + key), acc = 0f;
 		foreach (var (member, share) in shares) {
@@ -323,6 +327,7 @@ public static partial class MediaAtmosphereService {
 			float s = fs.Spotlight.GetValueOrDefault(member.personId);
 			fs.Spotlight[member.personId] = Math.Clamp(s + 0.06f * (1f - s), 0f, 1f);
 			fs.Faces[member.personId] = member.FullName;
+			MemberFamePhoto(artist, member, outlet, genre, cover, today);
 			return member.FullName;
 		}
 		return null;

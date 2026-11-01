@@ -1,7 +1,8 @@
 # Celebrity, fanbase and media fame: design note
 
-Status: draft 2026-10-31, branch `media-atmosphere`. Nothing here is built. It answers six points the author raised after
-the media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
+Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`CelebrityFanbasePhase0Notes.md`), and Phase 1
+is built and being screened (`CelebrityFanbasePhase1Notes.md`). The note answers six points the author raised after the
+media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
 
 | Store | Today |

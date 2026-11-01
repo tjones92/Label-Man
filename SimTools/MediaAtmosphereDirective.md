@@ -489,6 +489,10 @@ Initial live scope is **singles only**. Album purchases, LP penetration, soundtr
 - No direct media writes to canonical recognition, cultural standing, critical acclaim, momentum, record quality, genre acceptance, launch stock, chart points, market capacity, royalty rates, or mechanical accounting.
 - Canonical recognition can still grow from actual chart outcomes through its existing milestone latches. That is the existing earned path, not another exposure deposit.
 - Media-only member spotlight is stored separately from canonical personal recognition until a validated attribution replacement exists.
+  - *Amended for celebrity fanbase Phase 1 (`CelebrityFanbaseDesign.md` §0.3, §5), behind `--media-member-fame` only:*
+    airings and photo sessions deposit registered viewers and readers into members' personal recognition by camera share.
+    Solo spinouts and spotlight strain that this fame causes are the intended effect, so the member-departure clause
+    below is amended for this one route. The spotlight itself stays media-only.
 - All correlated follow-ups share a root event and remaining effect budget. A TV performance, its trade item, and a syndicated retelling do not provide three full causal grants.
 - Existing player trade benefits remain under their existing cap. New named desks can replace presentation and attribution, but cannot multiply those benefits. New AI B2B benefits are observational until a substitution is proven.
 - No new AI roster growth, member departure, death/bust hazard, touring yield, performance income, contract valuation, retirement protection, or automatic distribution expansion from media-owned state.

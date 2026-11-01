@@ -556,8 +556,10 @@ public static partial class MediaAtmosphereService {
 					FromDay = day, UntilDay = day + (exclusive ? 28 : 0), Romance = romance ?? "private", PlantedClaim = plant,
 					ContradictionDay = plant ? day + 28 + (int)(MediaAtmosphere.Unit("romance-check|" + inquiry.Id) * 56) : -1,
 				});
-				// The photographs put a face in front of the readers: media spotlight only, never canonical recognition (§12.4).
-				string face = artist == null ? null : PhotographMember(EnsureFanState(inquiry.ArtistId, inquiry.ArtistName), artist, inquiry.Id, today.year);
+				// The photographs put a face in front of the readers: media spotlight, and with member fame on, the readers learn
+				// that face's name (CelebrityFanbaseDesign.md §5, amending §12.4).
+				string face = artist == null ? null : PhotographMember(EnsureFanState(inquiry.ArtistId, inquiry.ArtistName), artist, inquiry.Id, outlet,
+					artist.primaryGenre, exclusive, today);
 				if (story != null) {
 					story.PhotoNote = exclusive ? (face != null ? $"exclusive new photographs, {face} on the cover" : "exclusive new photographs") : "photographs supplied by the label";
 					story.Face ??= face;

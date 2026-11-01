@@ -224,7 +224,7 @@ public static partial class MediaAtmosphereService {
 			Ledger("photo-" + answer);
 			if (answer == "declined") { s.PhotoNote = "the act declined a photo session; the magazine ran an old publicity still"; continue; }
 			MediaFanState fs = EnsureFanState(s.ArtistId, s.ArtistName);
-			string face = artist == null ? null : PhotographMember(fs, artist, s.Id, year);
+			string face = artist == null ? null : PhotographMember(fs, artist, s.Id, MediaOutletCatalog.GetPress(s.OutletId), s.Genre, answer == "exclusive", FromDayIndex(today));
 			s.PhotoNote = answer == "exclusive" ? (face != null ? $"exclusive new photographs, {face} on the cover" : "exclusive new photographs") : "photographs supplied by the label";
 			if (face != null && s.Face == null) s.Face = face;
 		}

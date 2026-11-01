@@ -144,6 +144,11 @@ public sealed class MediaSaveData {
 	// Celebrity fanbase Phase 0 (observe-only, --observe-following; nothing the economy reads).
 	/// <summary>Followings, adult regard and national salience by act (SimTools/CelebrityFanbaseDesign.md §2, §4.1, §7).</summary>
 	public Dictionary<string, MediaFollowingState> Following { get; set; } = new();
+	// Celebrity fanbase Phase 1 (--observe-member-fame shadow, --media-member-fame causal).
+	/// <summary>The media-earned part of members' personal recognition, by personId (CelebrityFanbaseDesign.md §5).</summary>
+	public Dictionary<string, MemberFameEntry> MemberFame { get; set; } = new();
+	/// <summary>Band-room promises of the camera, by personId. Written only in causal member-fame mode.</summary>
+	public Dictionary<string, CameraPromise> CameraPromises { get; set; } = new();
 }
 
 /// <summary>
@@ -202,6 +207,7 @@ public static partial class MediaAtmosphereService {
 		MarkCausalBoundary(weekEnd);
 		if (MediaRecognition.Active) DecayRecognitionReach();
 		if (MediaDemand.Active) DecayDemandLift();
+		if (MediaMemberFame.Active) MemberFameWeekStart(weekEnd);
 		TallyAiredThrough(weekEnd);
 		var evidence = new Evidence(charts);
 		// The order is the contract (§15.1): what aired is tallied, the frozen chart is read, the fans respond to the
@@ -219,7 +225,7 @@ public static partial class MediaAtmosphereService {
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
 		if (weekEnd.month == 12 && weekEnd.day >= 25) {
 			PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); MediaDemand.PrintYear(weekEnd.year);
-			PrintFollowing(weekEnd.year);
+			PrintFollowing(weekEnd.year); PrintMemberFame(weekEnd.year);
 		}
 	}
 
@@ -1022,6 +1028,7 @@ public static partial class MediaAtmosphereService {
 				if (MediaRecognition.Active && !a.Cut) RecognitionDeposit(a, airing, t, fresh, population);
 				if (MediaDemand.Active && !a.Cut) DemandDeposit(a, airing, fresh);
 				FollowingAiring(a, airing, fresh);
+				if (MediaMemberFame.Active && !a.Cut) MemberFameAiring(a, airing, t, fresh, population);
 			}
 		}
 	}

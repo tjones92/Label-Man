@@ -43,6 +43,8 @@ public partial class MediaAtmosphereChecks : Node {
 			DemandShadow();
 			FollowingArithmetic();
 			FollowingInTheWorld();
+			MemberFameArithmetic();
+			MemberFameInTheWorld();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -1007,6 +1009,102 @@ public partial class MediaAtmosphereChecks : Node {
 			Check(following.Count == before.Count && following.All(p => p.Value.YoungTotal() + p.Value.AdultTotal() == before[p.Key]),
 				"With the switch off, followings are neither written nor decayed");
 		} finally { MediaFollowing.SetForChecks(false); MediaFollowing.ResetBars(); }
+	}
+
+	// Celebrity fanbase Phase 1 (SimTools/CelebrityFanbaseDesign.md §5): spotlight writes personal recognition.
+	private void MemberFameArithmetic() {
+		const double P = 180e6;
+		var ordinary = new MediaPerformanceResult { Outcome = PerformanceOutcome.FlatAdequate };
+		var electric = new MediaPerformanceResult { Outcome = PerformanceOutcome.Electrifying };
+		double sullivan = MediaMemberFame.RegisteredViewers(0.14 * P, 0.35, 0.55, Genre.TeenPop, ordinary, 0, 1f);
+		Check(sullivan / P is > 0.008 and < 0.035, $"A first ordinary Sullivan spot registers {sullivan / P:F4} of the country, split among the faces the camera found");
+		Check(MediaMemberFame.RegisteredViewers(0.14 * P, 0.35, 0.55, Genre.TeenPop, electric, 0, 1f) > sullivan
+			&& MediaMemberFame.RegisteredViewers(0.14 * P, 0.35, 0.55, Genre.TeenPop, ordinary, 20, 1f) < 0.45 * sullivan
+			&& MediaMemberFame.RegisteredViewers(0.14 * P, 0.35, 0.55, Genre.TeenPop, ordinary, 0, 0.5f) < 0.51 * sullivan
+			&& MediaMemberFame.RegisteredViewers(0, 0.35, 0.55, Genre.TeenPop, ordinary, 0, 1f) == 0,
+			"An electrifying night registers more; a twentieth date or a week another act holds the country registers less; no fresh viewers, nothing");
+		double feature = MediaMemberFame.RegisteredReaders(1e6, 0.8f, cover: false), cover = MediaMemberFame.RegisteredReaders(1e6, 0.8f, cover: true);
+		Check(Math.Abs(cover - MediaMemberFame.CoverWeight * feature) < 1e-6 && feature / P < 0.002,
+			$"A cover registers three times a feature's readers; a million-reader pin-up is a small national deposit ({feature / P:F5})");
+		Check(MediaMemberFame.Gain(0f, 0.02f) == 0.02f && Math.Abs(MediaMemberFame.Gain(0.5f, 0.02f) - 0.51f) < 1e-6f && MediaMemberFame.Gain(1f, 0.5f) == 1f,
+			"A member's deposit has the act's diminishing returns");
+
+		var group = new SimulatedArtist { artistId = "promise-act", stageName = "The Fixtures" };
+		for (int i = 0; i < 4; i++)
+			group.members.Add(new Musician { personId = "pm" + i, firstName = "P" + i, lastName = "M", isActive = true, stagePresence = 0.4f, isLeadVocalist = i == 0, birthYear = 1940 });
+		var without = MediaFans.CameraShares(group, "tv|fixture", 1964);
+		var with = MediaFans.CameraShares(group, "tv|fixture", 1964, m => m.personId == "pm3");
+		Check(with.First(x => x.Member.personId == "pm3").Weight > without.First(x => x.Member.personId == "pm3").Weight + 0.1f
+			&& Math.Abs(with.Sum(x => x.Weight) - 1f) < 1e-5f,
+			$"A promised drummer pulls the camera ({without.First(x => x.Member.personId == "pm3").Weight:P0} → {with.First(x => x.Member.personId == "pm3").Weight:P0}); shares still sum to one");
+
+		// Fame follows the camera's favorite more than the frame does: a typical lead (stage presence 0.6, sidemen 0.4)
+		// takes 0.81 / 1.83 = 44% of chart-earned member fame, so television must not hand them less (Phase 1 notes).
+		group.members[0].stagePresence = 0.6f;
+		var frames = Enumerable.Range(0, 400).Select(k => MediaFans.CameraShares(group, "tv|lead" + k, 1964)).ToList();
+		float frame = frames.Average(s => s.First(x => x.Member.personId == "pm0").Weight);
+		float fame = frames.Average(s => MediaMemberFame.FameShares(s).First(x => x.Member.personId == "pm0").Weight);
+		Check(fame > 0.44f && fame > frame && frames.All(s => Math.Abs(MediaMemberFame.FameShares(s).Sum(x => x.Weight) - 1f) < 1e-5f),
+			$"The lead holds {frame:P0} of the frame but takes {fame:P0} of the fame, above the chart's 44%; fame shares sum to one");
+	}
+
+	private void MemberFameInTheWorld() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var clock = TimeManager.Instance;
+		bool Group(SimulatedArtist a) => a?.members != null && a.members.Count(m => m != null && m.isActive) > 1;
+		MediaMemberFame.SetForChecks(true);
+		try {
+			for (int i = 0; i < 28; i++) clock.EndDay();
+			var fame = MediaAtmosphereService.MemberFame;
+			Check(fame.Count > 0 && fame.Values.All(e => e.Earned is >= 0f and <= 1f && float.IsFinite(e.Earned)),
+				$"Four shadow weeks put {fame.Count} group members' faces in front of viewers and readers (top earned {(fame.Count > 0 ? fame.Values.Max(e => e.Earned) : 0):F4})");
+			Check(fame.Keys.All(id => ArtistManager.Instance.GetArtist(fame[id].ArtistId)?.members.Any(m => m.personId == id) == true),
+				"Every member credited is a real member of the act named");
+			Check(!MediaAtmosphereService.PromiseCamera(ArtistManager.Instance.GetAllArtists().First(Group), ArtistManager.Instance.GetAllArtists().First(Group).members[0], true, clock.CurrentDate)
+				&& MediaAtmosphereService.CameraPromises.Count == 0, "Shadow mode makes no camera promise: the band room keeps minting as before");
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var back = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			Check(back.MemberFame.Count == fame.Count && back.MemberFame.All(p => fame[p.Key].Earned == p.Value.Earned && fame[p.Key].ArtistId == p.Value.ArtistId),
+				"The media-earned ledger survives a save round trip");
+		} finally { MediaMemberFame.SetForChecks(false); }
+
+		// Causal: the same deposits land in the members' real stock. Chart milestones only add, so each credited member ends at
+		// least at the decayed opening stock plus what the camera earned; and the band room now promises the camera.
+		var recognitionSwitches = ArtistRecognition.CaptureSwitches();
+		ArtistRecognition.ConfigureForProbe(enable: true, observe: false);
+		MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Causal);
+		MediaMemberFame.SetForChecks(true, writeCausal: true);
+		try {
+			foreach (MemberFameEntry e in MediaAtmosphereService.MemberFame.Values) e.Earned = 0f;
+			var people = ArtistManager.Instance.GetAllArtists().Where(Group).SelectMany(a => a.members.Where(m => m.isActive && m.personId != null))
+				.GroupBy(m => m.personId).ToDictionary(g => g.Key, g => g.First());
+			var opening = people.ToDictionary(p => p.Key, p => p.Value.personalRecognition);
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			float floorDecay = (float)Math.Pow(ArtistRecognitionService.PublicRecognitionDecay, 3);
+			var earned = MediaAtmosphereService.MemberFame.Where(p => p.Value.Earned > 0f && people.ContainsKey(p.Key)).ToList();
+			var missing = earned.Where(p => people[p.Key].personalRecognition + 1e-4f < opening[p.Key] * floorDecay + p.Value.Earned
+				|| p.Value.Earned > people[p.Key].personalRecognition + 1e-6f).ToList();
+			Check(earned.Count > 0 && missing.Count == 0,
+				$"Causal: camera deposits reach members' personal recognition ({earned.Count} members, {earned.Sum(p => p.Value.Earned):F4} earned; {missing.Count} below opening + earned)");
+
+			SimulatedArtist act = ArtistManager.Instance.GetAllArtists().First(a => Group(a) && a.isActive);
+			Musician drummer = act.members.Where(m => m.isActive).OrderBy(m => m.stagePresence).First();
+			float stock = drummer.personalRecognition;
+			Check(MediaAtmosphereService.PromiseCamera(act, drummer, billing: true, clock.CurrentDate) && drummer.personalRecognition == stock
+				&& MediaAtmosphereService.CameraPromises.TryGetValue(drummer.personId, out CameraPromise p) && p.Billing && p.StageName == act.stageName,
+				"Causal: billing a member promises the camera and mints no fame in the office");
+			string name = act.stageName;
+			act.stageName = name + " (renamed)";
+			for (int i = 0; i < 7; i++) clock.EndDay();
+			bool lapsed = !MediaAtmosphereService.CameraPromises.ContainsKey(drummer.personId);
+			act.stageName = name;
+			Check(lapsed, "A billing promise lapses once the act is no longer billed under that name");
+		} finally {
+			MediaMemberFame.SetForChecks(false);
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
+			ArtistRecognition.RestoreSwitches(recognitionSwitches);
+		}
 	}
 
 	private void PhaseTwoSave() {

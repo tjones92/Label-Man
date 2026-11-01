@@ -805,7 +805,10 @@ public partial class PlayerDesk {
 			case BandVerb.SpotlightThem: {
 				string old = a.stageName;
 				a.stageName = $"{m.firstName} {m.lastName} & {AndThe(a)}";
-				m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.01f, 0f, 1f);
+				// With media member fame on, the billing promises the camera and the fame arrives when an audience sees it
+				// (SimTools/CelebrityFanbaseDesign.md §5); otherwise the office mints it, as before.
+				if (!MediaAtmosphereService.PromiseCamera(a, m, billing: true, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate))
+					m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.01f, 0f, 1f);
 				AddTrust(m, 0.12f);
 				OthersSpotlight(m, 0.10f);
 				a.careerEvents.Add($"{year}: Billed as {a.stageName} (was {old})");
@@ -955,7 +958,8 @@ public partial class PlayerDesk {
 				after.Add("You hold them. The band notice.");
 				break;
 			case BandVerb.SoloSingleYes:
-				m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.008f, 0f, 1f);
+				if (!MediaAtmosphereService.PromiseCamera(a, m, billing: false, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate))
+					m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.008f, 0f, 1f);
 				AddTrust(m, 0.12f);
 				OthersSpotlight(m, 0.06f);
 				after.Add($"{m.firstName} gets {(m.isMale ? "his" : "her")} side. The others get a reason to watch {(m.isMale ? "him" : "her")}.");

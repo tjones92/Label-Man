@@ -184,8 +184,9 @@ public static class MediaFans {
 	/// <summary>
 	/// Where the camera went in one appearance (§10.2 member spotlight): the singer usually, but stage presence and youth
 	/// pull the lens, and a keyed per-appearance draw lets the quiet drummer catch it. No beauty score; nothing private.
+	/// A member the label has promised the camera (<paramref name="promised"/>, CelebrityFanbaseDesign.md §5) pulls it harder.
 	/// </summary>
-	public static List<(Musician Member, float Weight)> CameraShares(SimulatedArtist artist, string key, int year) {
+	public static List<(Musician Member, float Weight)> CameraShares(SimulatedArtist artist, string key, int year, Func<Musician, bool> promised = null) {
 		var list = new List<(Musician, float)>();
 		var active = artist?.members?.Where(m => m != null && m.isActive && !string.IsNullOrEmpty(m.personId)).ToList();
 		if (active == null || active.Count == 0) return list;
@@ -193,7 +194,8 @@ public static class MediaFans {
 		foreach (Musician m in active) {
 			int age = m.birthYear > 0 ? year - m.birthYear : 25;
 			float w = 0.4f + m.stagePresence + (m.isLeadVocalist ? 0.7f : 0f) + (age <= 24 ? 0.25f : age >= 32 ? -0.2f : 0f)
-				+ 0.9f * MediaAtmosphere.Unit("camera|" + key + "|" + m.personId);
+				+ 0.9f * MediaAtmosphere.Unit("camera|" + key + "|" + m.personId)
+				+ (promised?.Invoke(m) == true ? MediaMemberFame.PromiseCameraWeight : 0f);
 			w = Math.Max(0.05f, w);
 			list.Add((m, w));
 			total += w;

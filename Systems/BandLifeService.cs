@@ -1058,15 +1058,19 @@ public static class BandLifeService {
 	/// learned their name rather than the band's (spotlight share), and that name can carry a record (an absolute
 	/// bar on their own recognition). The old gate compared member to act recognition and opened with time.
 	/// </summary>
-	public static bool IsSoloViable(Musician m, SimulatedArtist a, int year) {
+	public static bool IsSoloViable(Musician m, SimulatedArtist a, int year) => IsSoloViable(m, a, year, x => x.personalRecognition);
+
+	/// <summary>The same gate read on another recognition (media telemetry's with and without television; read-only).</summary>
+	public static bool IsSoloViable(Musician m, SimulatedArtist a, int year, Func<Musician, float> recognition) {
 		if (m == null || a == null) return false;
 		var active = a.members.Where(x => x.isActive && x.observedGoneYear == 0).ToList();
-		float total = active.Sum(x => x.personalRecognition);
-		float spot = total > 0.005f ? m.personalRecognition / total : 0f;
+		float total = active.Sum(recognition);
+		float own = recognition(m);
+		float spot = total > 0.005f ? own / total : 0f;
 		int yearsInGroup = Mathf.Max(0, year - m.joinedYear);
 		int hits = a.top40Hits;
 		return m.WouldConsiderSoloCareer(yearsInGroup, hits, MemberWealthService.SoloIndependence(m)) &&
-			spot >= SoloSpotlightShare && m.personalRecognition >= SoloLaunchBar;
+			spot >= SoloSpotlightShare && own >= SoloLaunchBar;
 	}
 
 	/// <summary>
