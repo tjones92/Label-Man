@@ -29,6 +29,55 @@ public sealed class MediaResidency {
 	public bool HadTop40Before, Top40During;
 	public int FirstTop40Day = -1, Episodes;
 	public double SeriesJoiners;
+	// Phase 3b: the player's engagement and the terms it was signed on (§3.3.2). Rival residencies keep the defaults.
+	public bool Player, ShowSongs, Blocks, Daily;
+	public float FeeMultiple = 1f;
+	/// <summary>Share of each engaged week the taping takes from the act's diary (0 for rival acts).</summary>
+	public float DiaryShare;
+	/// <summary>Signed inside the causal window: the performers' fees are paid per episode (§15.2).</summary>
+	public bool CausalTerms;
+	/// <summary>Last day whose episodes were paid, and the last month the office was told about.</summary>
+	public int PaidThroughDay = -1, ReportedMonth = -1;
+}
+
+/// <summary>What the label answers a residency offer with (§3.3.2). The producer's own terms are <see cref="Producer"/>.</summary>
+public struct ResidencyTerms {
+	public bool Trial, ShowSongs, Blocks;
+	public float FeeMultiple;
+	public static ResidencyTerms Producer(ResidencyKind kind) => new() { FeeMultiple = 1f, ShowSongs = kind == ResidencyKind.Vehicle };
+	public bool Same(ResidencyTerms o) => Trial == o.Trial && ShowSongs == o.ShowSongs && Blocks == o.Blocks && Math.Abs(FeeMultiple - o.FeeMultiple) < 1e-4f;
+}
+
+public enum ResidencyOfferStatus { Open, Accepted, Declined, Lapsed }
+
+/// <summary>A producer's or network's offer of a residency to one of the label's acts (§3.3.2). The chair waits for the answer.</summary>
+public sealed class MediaResidencyOffer {
+	public string Id, ProgramId, ArtistId, ArtistName, ShowName;
+	public ResidencyKind Kind;
+	public int Chair, OfferedDay, ExpiresDay, SeasonEndDay;
+	public ResidencyOfferStatus Status;
+	/// <summary>The producer already turned down one counter; only the original terms stand.</summary>
+	public bool Countered;
+	/// <summary>A declined or lapsed vehicle offer whose season was since offered elsewhere.</summary>
+	public bool Recast;
+	public float Score, Leverage;
+	public bool Daily;
+	// A vehicle's network, night and season.
+	public TvNetwork Network;
+	public DayOfWeek Night;
+	public int SeasonYear;
+	// The estimate shown on the card.
+	public double ReachLow, ReachHigh, TeenShare;
+	public bool Open => Status == ResidencyOfferStatus.Open;
+}
+
+public enum ResidencyPitchStatus { Sent, Listed, Declined, Used, Lapsed }
+
+/// <summary>The label putting an act up for a chair, or for a series of its own (§3.3.2). Listed acts score 1.25× at the next casting.</summary>
+public sealed class MediaResidencyPitch {
+	public string Id, ProgramId, ArtistId, ArtistName, Reason;
+	public int SentDay, AnswerDay, ExpiresDay;
+	public ResidencyPitchStatus Status;
 }
 
 /// <summary>
@@ -145,6 +194,55 @@ public static class MediaResidencies {
 			});
 		}
 		return p;
+	}
+
+	// ---- Phase 3b: the player's residency (§3.3.2) ----------------------------------------------------------------
+
+	/// <summary>The program id a label pitches for "a series of their own".</summary>
+	public const string VehiclePitch = "vehicle";
+	/// <summary>A listed pitch's weight at casting, and how long the producer keeps the act on the list.</summary>
+	public const float PitchBonus = 1.25f;
+	public const int PitchListDays = 182, OfferDays = 7, TrialWeeks = 13;
+	/// <summary>Scale per performer per episode (simplified assumption, matching a network guest date).</summary>
+	public const float WeeklyScale = 150f, DailyScale = 60f;
+	/// <summary>A label's road weeks in a year, which the diary weeks come out of.</summary>
+	public const int RoadWeeksPerYear = 48;
+	/// <summary>Band-life road load per diary week: the rate of a club week.</summary>
+	public const float DiaryLoadPerWeek = 0.015f;
+	public static readonly float[] FeeMultiples = { 1f, 1.5f, 2f };
+
+	/// <summary>A program that airs three or more days a week books its regulars as a daily chair.</summary>
+	public static bool IsDaily(BroadcastScheduleVersion version) =>
+		version?.Days != null && version.Days.Length / (double)Math.Max(1, version.IntervalWeeks) >= 3;
+
+	public static float ScalePerEpisode(bool daily) => daily ? DailyScale : WeeklyScale;
+
+	/// <summary>Share of each engaged week the taping takes (§3.3.2 diary table).</summary>
+	public static float DiaryShare(ResidencyKind kind, bool daily, bool blocks) =>
+		kind == ResidencyKind.Vehicle ? (blocks ? 0.50f : 0.80f) : daily ? (blocks ? 0.30f : 0.60f) : (blocks ? 0.15f : 0.35f);
+
+	/// <summary>The producer's yes to a counter: the product of each term's factor × leverage (1-1.5), at most 0.95.
+	/// The producer's own terms are always accepted.</summary>
+	public static float AcceptanceChance(ResidencyKind kind, bool daily, ResidencyTerms terms, float leverage) {
+		if (terms.Same(ResidencyTerms.Producer(kind))) return 1f;
+		float p = 1f;
+		if (terms.Trial && kind == ResidencyKind.Regular) p *= 0.9f;
+		p *= terms.FeeMultiple >= 1.99f ? 0.35f : terms.FeeMultiple >= 1.49f ? 0.65f : 1f;
+		if (kind == ResidencyKind.Vehicle && !terms.ShowSongs) p *= 0.6f;
+		if (kind == ResidencyKind.Regular && terms.ShowSongs) p *= 1.15f;
+		if (terms.Blocks) p *= kind == ResidencyKind.Regular && !daily ? 0.75f : 0.5f;
+		return Math.Min(0.95f, p * Math.Clamp(leverage, 1f, 1.5f));
+	}
+
+	/// <summary>Leverage: the act's casting score over the runner-up's, 1 to 1.5 (1.5 when nobody else qualified).</summary>
+	public static float Leverage(float best, float runnerUp) => runnerUp <= 0f ? 1.5f : Math.Clamp(best / runnerUp, 1f, 1.5f);
+
+	/// <summary>The engagement's days in a calendar year, as weeks × its diary share.</summary>
+	public static float DiaryWeeks(MediaResidency r, int year) {
+		if (r == null || r.DiaryShare <= 0f) return 0f;
+		int from = Math.Max(r.FromDay, BroadcastExposure.DayIndex(new GameDate(year, 1, 1)));
+		int to = Math.Min(r.ToDay, BroadcastExposure.DayIndex(new GameDate(year, 12, 31)));
+		return to < from ? 0f : (to - from + 1) / 7f * r.DiaryShare;
 	}
 
 	/// <summary>Vehicles for every saved vehicle residency, one program per act's series.</summary>

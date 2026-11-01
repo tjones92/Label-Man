@@ -18,8 +18,9 @@ public partial class PlayerDeskPanel {
 		var offers = MediaAtmosphereService.Pitches.Where(p => p.Kind == PitchKind.Television && p.Status == PitchStatus.Offered).ToList();
 		var inquiries = MediaAtmosphereService.Inquiries.Where(i => i.Open).ToList();
 		var clippings = MediaAtmosphereService.PlayerClippings(day).Take(6).ToList();
-		bool waiting = queries.Count + offers.Count + inquiries.Count > 0;
-		if (singles.Count == 0 && !waiting && clippings.Count == 0) return;
+		var seriesOffers = MediaAtmosphereService.ResidencyOffers.Where(o => o.Open).ToList();
+		bool waiting = queries.Count + offers.Count + inquiries.Count + seriesOffers.Count > 0;
+		if (singles.Count == 0 && !waiting && clippings.Count == 0 && !MediaResidencies.Active) return;
 
 		SectionHeading("media", "PRESS & TELEVISION", waiting,
 			"Send a disc to a television producer or a press sheet to an editor. Producers offer real dates with real conditions; " +
@@ -70,6 +71,8 @@ public partial class PlayerDeskPanel {
 			row.AddChild(decline);
 			content.AddChild(row);
 		}
+
+		ResidencyOffers(desk, seriesOffers, today);
 
 		foreach (MediaInquiry inquiry in inquiries) {
 			PressOutlet outlet = MediaOutletCatalog.GetPress(inquiry.OutletId);
@@ -175,6 +178,8 @@ public partial class PlayerDeskPanel {
 			}
 		}
 
+		ResidencyDesk(desk, today);
+
 		var fans = desk.FanLines();
 		if (fans.Count > 0) {
 			Body("The fans (what the mail, the shops and the teen papers say; the act's standing in the business is a separate thing):");
@@ -196,6 +201,107 @@ public partial class PlayerDeskPanel {
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// A producer's or network's residency offer (CelebrityFanbaseDesign.md §3.3.2): the series, its dates and audience, and
+	/// the four terms. Take the producer's terms, counter once, or say no.
+	/// </summary>
+	private void ResidencyOffers(PlayerDesk desk, List<MediaResidencyOffer> offers, GameDate today) {
+		foreach (MediaResidencyOffer o in offers) {
+			bool vehicle = o.Kind == ResidencyKind.Vehicle;
+			float scale = MediaResidencies.ScalePerEpisode(o.Daily);
+			string what = vehicle
+				? $"{o.Network} wants a half-hour series built around {o.ArtistName}: \"{o.ShowName}\", {o.Night}s at 7:30 from " +
+				  $"{MediaResidencies.VehiclePremiere(o.SeasonYear, o.Night).ToShortString()} to the end of next August, reruns from May."
+				: $"{o.ShowName} wants {o.ArtistName} as a regular on every original episode to {MediaAtmosphereService.FromDayIndex(o.SeasonEndDay).ToShortString()}" +
+				  (o.Daily ? ", five afternoons a week." : ".");
+			Body($"SERIES OFFER — {what} Expected audience per episode {MediaText.Audience(o.ReachLow)} to {MediaText.Audience(o.ReachHigh)}, " +
+				$"about {o.TeenShare:P0} teenagers. Their terms: scale (${scale:N0} a performer an episode, paid to the band), " +
+				$"{(vehicle ? "the show's songs" : "the act's own records")}, and a full call ({MediaAtmosphereService.DiaryNote(o, false)}, weeks the act can't spend on the road). " +
+				(o.Countered ? "They've refused one counter; only these terms stand. " : "You can counter once. ") +
+				$"Answer by {MediaAtmosphereService.FromDayIndex(o.ExpiresDay).ToShortString()}.");
+			var row = new HBoxContainer();
+			row.AddThemeConstantOverride("separation", 8);
+			OptionButton length = null;
+			if (!vehicle) {
+				length = Option();
+				length.AddItem("The season");
+				length.AddItem($"{MediaResidencies.TrialWeeks} weeks, then talk");
+				row.AddChild(length);
+			}
+			var fee = Option();
+			foreach (float f in MediaResidencies.FeeMultiples) fee.AddItem(f == 1f ? "Scale" : $"{f:0.#}× scale");
+			row.AddChild(fee);
+			var material = Option();
+			material.AddItem(vehicle ? "The show's songs" : "Their own records");
+			material.AddItem(vehicle ? "Their own records" : "The show's songs");
+			row.AddChild(material);
+			var diary = Option();
+			diary.CustomMinimumSize = new Vector2(260, 34);
+			diary.AddItem($"Full call ({MediaAtmosphereService.DiaryNote(o, false)})");
+			diary.AddItem($"Tape in blocks ({MediaAtmosphereService.DiaryNote(o, true)})");
+			row.AddChild(diary);
+			string id = o.Id;
+			ResidencyTerms Terms() => new() {
+				Trial = length?.Selected == 1, FeeMultiple = MediaResidencies.FeeMultiples[Mathf.Clamp(fee.Selected, 0, MediaResidencies.FeeMultiples.Length - 1)],
+				ShowSongs = vehicle ? material.Selected == 0 : material.Selected == 1, Blocks = diary.Selected == 1,
+			};
+			var take = Primary("TAKE THEIR TERMS");
+			take.Pressed += () => Act(() => { bool ok = desk.AnswerResidencyOffer(id, true, ResidencyTerms.Producer(o.Kind), out string m); Say(m, ok); return true; });
+			row.AddChild(take);
+			if (!o.Countered) {
+				var counter = Btn("PROPOSE THESE TERMS");
+				counter.Pressed += () => Act(() => { bool ok = desk.AnswerResidencyOffer(id, true, Terms(), out string m); Say(m, ok); return true; });
+				row.AddChild(counter);
+			}
+			var decline = Btn("TURN IT DOWN");
+			decline.Pressed += () => Act(() => { bool ok = desk.AnswerResidencyOffer(id, false, default, out string m); Say(m, ok); return true; });
+			row.AddChild(decline);
+			content.AddChild(row);
+		}
+	}
+
+	/// <summary>The label's series in hand, pitches waiting, and the approach: an act put up for a chair or a series of its own.</summary>
+	private void ResidencyDesk(PlayerDesk desk, GameDate today) {
+		if (!MediaResidencies.Active) return;
+		int day = BroadcastExposure.DayIndex(today);
+		foreach (MediaResidency r in MediaAtmosphereService.PlayerResidencies.Where(r => r.ToDay >= day).OrderBy(r => r.FromDay)) {
+			string show = r.ShowName ?? MediaOutletCatalog.Get(r.ProgramId)?.Name;
+			Body($"    Series: {r.ArtistName} on {show}, {MediaAtmosphereService.FromDayIndex(r.FromDay).ToShortString()} to " +
+				$"{MediaAtmosphereService.FromDayIndex(r.ToDay).ToShortString()}; {r.Episodes} episodes so far; {(r.ShowSongs ? "the show's songs" : "their own records")}, " +
+				$"{r.FeeMultiple:0.#}× scale, {r.DiaryShare:P0} of each week taping.");
+		}
+		foreach (MediaResidencyPitch p in MediaAtmosphereService.ResidencyPitches.Where(p => p.Status is ResidencyPitchStatus.Sent or ResidencyPitchStatus.Listed && day <= p.ExpiresDay)) {
+			string to = p.ProgramId == MediaResidencies.VehiclePitch ? "the networks, for a series of their own" : MediaOutletCatalog.Get(p.ProgramId)?.Name;
+			Body(p.Status == ResidencyPitchStatus.Sent ? $"    With {to}: {p.ArtistName}, answer in a few days."
+				: $"    On the list at {to}: {p.ArtistName}, until {MediaAtmosphereService.FromDayIndex(p.ExpiresDay).ToShortString()}.");
+		}
+		var acts = desk.Roster.Where(a => a != null && a.isActive).ToList();
+		if (acts.Count == 0 || !desk.AtHome) return;
+		var programs = MediaAtmosphereService.ResidencyPrograms(today);
+		var targets = programs.Select(p => (Id: p.Id, Label: $"A regular spot on {MediaOutletCatalog.DisplayName(p, today)}")).ToList();
+		if (today.year >= MediaResidencies.FirstVehicleYear) targets.Add((MediaResidencies.VehiclePitch, "A series of their own"));
+		if (targets.Count == 0) return;
+		Body("Put an act up for a television series (estimated: postage and 1h). Producers cast on fit and evidence; a pitch counts at the next casting.");
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 8);
+		var actPick = Option();
+		actPick.CustomMinimumSize = new Vector2(240, 34);
+		foreach (SimulatedArtist a in acts) actPick.AddItem(a.stageName);
+		row.AddChild(actPick);
+		var targetPick = Option();
+		targetPick.CustomMinimumSize = new Vector2(360, 34);
+		foreach (var t in targets) targetPick.AddItem(t.Label);
+		row.AddChild(targetPick);
+		var send = Btn("PUT THEM UP");
+		send.Pressed += () => Act(() => {
+			string artistId = acts[Mathf.Clamp(actPick.Selected, 0, acts.Count - 1)].artistId;
+			string target = targets[Mathf.Clamp(targetPick.Selected, 0, targets.Count - 1)].Id;
+			bool ok = desk.PitchResidency(artistId, target, out string m); Say(m, ok); return true;
+		});
+		row.AddChild(send);
+		content.AddChild(row);
 	}
 
 	/// <summary>The contact's own recent memory of the label, so a call reads as a person with a history (§14).</summary>

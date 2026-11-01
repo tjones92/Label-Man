@@ -2,7 +2,7 @@
 
 Status: built and screened 2026-11-01, off unless named (`--media-residencies`). Shadow-inert; causal economy within
 reshuffle noise; residents' followings inside §9 after one calibration.
-Design: `CelebrityFanbaseDesign.md` §3.3.1. Phase 3b (the player's negotiation and the diary cost) is not built.
+Design: `CelebrityFanbaseDesign.md` §3.3.1. Phase 3b (the player's negotiation and the diary cost, §3.3.2) is built: see the end.
 
 ## What is built
 
@@ -99,4 +99,49 @@ first-rank following: Action and Shindig! regulars reach 1-1.7M, and adult regul
 waits for Phase 4, when followers buy. Open:
 - the vehicle's full season and renewal (1967);
 - the Major-share watch item;
-- Phase 3b, the player's negotiation and the touring cost.
+- Phase 3b, the player's negotiation and the touring cost (built below).
+
+## Phase 3b: the player's residency (built 2026-11-01)
+
+Design: `CelebrityFanbaseDesign.md` §3.3.2. Same switch, `--media-residencies`. Every path needs a player label, and the
+audit runner never founds one, so audit worlds cast exactly as 3a.
+
+| Piece | Where | What it does |
+|---|---|---|
+| Offers | `MediaAtmosphereService.PlayerResidencies.cs`, `OfferChair` / `OfferVehicle` | The player's acts are prospects (`Prospects`, only while a player label exists). When one tops a chair's or a vehicle season's ranking, the producer or network offers it and the chair waits a week. If the offer is declined or lapses, the act is skipped for that program's season (`TurnedDown`). A vehicle is recast the next week if the premiere is more than a week off. |
+| Terms | `MediaResidencies.AcceptanceChance`, `AnswerResidencyOffer` | The producer's terms are always accepted. The label may counter once on four terms: length (13-week trial), fee (1.5× / 2× scale), material (own records or the show's songs) and diary (blocks). The counter is accepted on a keyed draw: the product of the term factors × leverage (best ÷ runner-up score, 1-1.5), capped at 0.95. A refused counter costs 0.05 trust and leaves the original terms. |
+| Pitch | `PitchResidency`, `AnswerResidencyPitch` | Put an act up for a chair program or "a series of their own" (1h, postage). The answer comes in 2-4 days: declined on fit, an existing residency or no evidence, else listed. A listed act scores 1.25× at the next casting; the list lasts 26 weeks, or to August for a vehicle. |
+| On the air | `ResidentCandidates` | Same as 3a. On the show's songs the act sings "the show's song this week" (a standard), which makes no demand-ledger request for its single. |
+| Fees | `ResidencyPlayerDay` | Scale per performer per episode, $150 weekly and $60 daily, × the fee multiple. Paid through `PerformerFees` once per appearance (receipt `resident-fee\|id`), only on causal terms. Never label cash. |
+| Diary | `PlayerDesk.BookRoad`, `TrimRoadForTelevision`, `PlayerRoadLoadFor` | Diary weeks = engaged weeks in the calendar year × the share (weekly 0.35 / 0.15 in blocks, daily 0.60 / 0.30, vehicle 0.80 / 0.50). Road weeks are capped at 48 − diary. Accepting cancels tour weeks past the cap; club runs stand. Road load gains 0.015 a diary week. |
+| Office | `UI/PlayerDeskPanel.Media.cs` | SERIES OFFER card with the four term pickers (take their terms, propose, turn down), the series in hand, pitches waiting, and the PUT THEM UP row. A monthly line reports episodes, the best audience and the fees. |
+| Telemetry | console | `MEDIA_RESIDENCY_OFFER` (made, declined, lapsed, counter-refused, accepted, counter-accepted), `MEDIA_RESIDENCY_PITCH`, and `MEDIA_RESIDENCY player=`. |
+
+**Fixtures** (`MediaAtmosphereChecks`, 268 pass at `--seed=1001`, 24 new):
+- **Arithmetic:**
+  - the producer's terms are always accepted;
+  - each counter factor;
+  - offering the show's songs sweetens a fee counter;
+  - leverage raises the yes, and nothing passes 0.95;
+  - the diary shares;
+  - diary weeks split by calendar year;
+  - which chairs are daily.
+- **In the world** (two rival acts lent to the label):
+  - Bandstand offers the chair with a week to answer;
+  - a 2×-scale, taped-in-blocks counter was refused at chance 0.17, a second counter was blocked, and taking the producer's terms signed the act;
+  - the series took 5 diary weeks of 1960;
+  - a further road booking is refused;
+  - a whole-year vehicle diary cuts a 40-week tour to 2, once;
+  - the act opens 10 episodes as the regular;
+  - the performers were paid $1,920 for 8 episodes × 4 performers, once, with no label cash;
+  - a declined chair went to a rival;
+  - a pitch to a program without a chair is refused, and a Jimmy Dean pitch was declined on fit;
+  - offers, pitches and the player's terms survive a save round trip.
+
+**Screen.** `res3p-t` re-runs the `res3b-t` causal 1963-66 resume of seed 1001 (same flags) on the 3b code:
+**94/94 CSVs byte-identical.** So the shared-casting refactor (the vehicle split and the leaving rule) moves nothing
+in a world without a player label.
+
+**Not verified:**
+- The office UI compiles, but nobody has seen it in a running game.
+- The design's evidence for 3b is a player playtest, which needs a 1963+ save with `--media-residencies`.

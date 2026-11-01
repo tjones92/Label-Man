@@ -2,7 +2,8 @@
 
 Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`CelebrityFanbasePhase0Notes.md`), Phase 1
 is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and screened (`CelebrityFanbasePhase2Notes.md`), and Phase 2b is built and screened; adopted with a neutral floor, off by default (`CelebrityFanbasePhase2bNotes.md`). Phase 3a (residencies for rival acts) is built and
-screened; adoptable, off by default (`CelebrityFanbasePhase3Notes.md`). The note answers six points the author raised after the
+screened; adoptable, off by default, and Phase 3b (the player's residency: offers, terms, diary) is built and awaits a
+playtest (`CelebrityFanbasePhase3Notes.md`). The note answers six points the author raised after the
 media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
 
@@ -308,6 +309,69 @@ following growth against §9 and their Top 40 record during and after the chair.
 
 **Switch.** `--media-residencies`. In observe mode residencies book in the media world only, so the economy CSVs stay
 byte-identical to the ref; the series term needs `--observe-following`.
+
+#### 3.3.2 Phase 3b build (2026-11-01): the player's residency
+
+The player's acts enter the same casting as rival acts. Nothing changes for a world with no player label, so the
+audit runs stay as 3a left them.
+
+**Two ways in.**
+- **The producer calls.** When the label's act is the producer's first choice for a chair (or the network's for a
+  vehicle), the producer makes an offer instead of casting. The chair waits a week for the answer. If the label says no
+  or lets it lapse, the next casting pass goes to the rivals and the act isn't asked again that season.
+- **The label pitches.** From the office, the label puts an act up for a chair program or for "a series of their own".
+  It costs what a TV pitch costs (an hour, postage, a disc). The producer answers in a few days:
+  - no, if the act doesn't fit the show (fit < 0.8) or has no evidence (§3.3.1's gate);
+  - otherwise the act is on the producer's list. At the program's next casting (or the next August, for a vehicle), the
+    act's score counts 1.25×. The list lapses after 26 weeks.
+
+  A pitch never skips casting: the act still has to come out on top.
+
+**The terms.** An offer arrives on the producer's terms. The label can take them, turn the offer down, or counter once.
+
+| Term | Producer's terms | The counter | Effect on the producer's yes |
+|---|---|---|---|
+| Length | The season, to the program's summer break or end | 13 weeks, then talk again (regulars only) | ×0.9 |
+| Fee to performers | Scale: $150 a performer per weekly episode, $60 per daily episode | 1.5× / 2× scale | ×0.65 / ×0.35 |
+| Material | Regulars: the act's own current single. Vehicles: the show's songs. | A regular offering the show's songs; a vehicle asking for its own records | ×1.15 / ×0.6 |
+| Diary | Full call | Tape in blocks | ×0.75 for a weekly regular, ×0.5 for a daily chair or a vehicle |
+
+- The chance of a yes is the product of the factors above × leverage, capped at 0.95. Leverage is the act's casting
+  score over the runner-up's, from 1 to 1.5.
+- Leaving every term at the producer's own is not a counter, so it is always accepted.
+- If the producer turns the counter down, the original terms stand until the answer date, and the contact's trust falls
+  by 0.05.
+- The fee is the performers' income, paid per episode through member wealth (`PerformerFees`), as for any network date.
+  The label pays nothing: the production pays fares. Like other media costs, the fee is paid only in the causal window.
+- On the show's songs, the act sings the show's number each week. Its own single gets no demand-ledger request, but the
+  series term still builds its following.
+
+**The diary.** A taped series takes the act's weeks, which are the weeks it would otherwise spend on the road.
+
+| | Full call | In blocks |
+|---|---|---|
+| Weekly regular | 0.35 of each week | 0.15 |
+| Daily chair (Where the Action Is) | 0.60 | 0.30 |
+| Vehicle | 0.80 | 0.50 |
+
+- **Diary weeks** are the engagement's weeks in a calendar year × that share.
+- `BookRoad` won't book road weeks (club residency plus tour) past 48 − diary weeks in the year.
+- Accepting an offer cancels any tour weeks already booked past that cap and says so. Club runs already on a room's bill
+  stand, and the act carries both.
+- Taping counts as work: the band-life road load adds 0.015 for each diary week, the rate of a club week. So a residency
+  trades live draw (fewer road weeks, fewer live joiners) for TV reach, and it still wears on the band.
+
+**What the office sees.**
+- The offer card shows:
+  - the program, the chair and the dates;
+  - the audience per episode (estimated) and its teen share;
+  - each term and what it costs the act's diary.
+- A booked residency appears under PRESS & TELEVISION.
+- Each month the office gets a line: episodes aired, the act's best audience, and fees paid.
+- Telemetry:
+  - `MEDIA_RESIDENCY_OFFER` (made, answered, countered);
+  - `MEDIA_RESIDENCY_PITCH`;
+  - `MEDIA_RESIDENCY` with `player=true`.
 
 ### 3.4 Breakouts: event audiences and registration fit (Phase 2c)
 
@@ -695,7 +759,7 @@ Each phase is short-screened, then decade-checked at the end of the branch ([[de
 | 2b | Critics: reviews gate and season acclaim (§4.3) | Causal; adopted with a neutral floor (coverage ÷ trades floor), off by default (`CelebrityFanbasePhase2bNotes.md`) | Landmarks a decade and their genre mix, acclaim by genre, units and Major share |
 | 2c | Breakouts: fan episodes raise hype, bookers chase sensations and rising acts, constant registration fit (§3.4) | Screened, not adopted; kept behind `--event-hype` | Breakouts scoped to phenomena instead (§3.4.6) |
 | 3a | Residencies for rival acts: regulars and vehicles, the series term (§3.3.1) | Observe-safe; causal through existing writers | Residents' following growth; their Top 40 record |
-| 3b | Residencies for the player: negotiation and diary cost (§3.3) | Causal | Player playtest |
+| 3b | Residencies for the player: offers, pitches, terms and diary cost (§3.3.2) | Causal; built, inert without a player label | Player playtest |
 | 4 | **Follower demand at launch, advance orders, live draw** | Causal; the big one | Repeat-hit share, runs, concentration, genre, album units |
 | 5 | Stature for AI readers | Causal | Budgets, contract terms, Major share, closures |
 

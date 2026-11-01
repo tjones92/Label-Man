@@ -1023,6 +1023,13 @@ public partial class PlayerDesk {
 			message = "The act already has a relocation arranged."; return false;
 		}
 		RoadBooking b = BookingFor(a);
+		// A taped series takes its diary weeks out of the road year (CelebrityFanbaseDesign.md §3.3.2).
+		int diary = MediaAtmosphereService.PlayerDiaryWeeks(a.artistId, YearNow);
+		if (diary > 0 && b.ResidencyWeeks + b.TourWeeks + residencyWeeks + tourWeeks > MediaResidencies.RoadWeeksPerYear - diary) {
+			int left = Math.Max(0, MediaResidencies.RoadWeeksPerYear - diary - b.ResidencyWeeks - b.TourWeeks);
+			message = $"The television series takes {diary} weeks of {a.stageName}'s year. There's room for {left} more on the road.";
+			return false;
+		}
 		SceneRoomProfile room = null;
 		if (residencyWeeks > 0 && b.ResidencyRoomId == null) {
 			if (!ResidencyRoom(a, b, out room, out message)) return false;
@@ -1098,10 +1105,29 @@ public partial class PlayerDesk {
 	/// <summary>The road load BandLifeService reads for a player act: what the player actually booked.</summary>
 	private float PlayerRoadLoadFor(SimulatedArtist a) {
 		if (a == null || Label == null || a.labelId != Label.labelId) return -1f;
-		if (!roadBookings.TryGetValue(a.artistId, out RoadBooking b) || b.Year != BandLifeService.LastAnnualYear + 1) return 0.10f;
+		int year = BandLifeService.LastAnnualYear + 1;
+		// Taping a series is work too, at a club week's rate (§3.3.2).
+		float tv = MediaResidencies.DiaryLoadPerWeek * MediaAtmosphereService.PlayerDiaryWeeks(a.artistId, year);
+		if (!roadBookings.TryGetValue(a.artistId, out RoadBooking b) || b.Year != year) return Mathf.Clamp(0.10f + tv, 0f, 0.95f);
 		float load = 0.10f + 0.015f * b.ResidencyWeeks + 0.022f * b.TourWeeks;
 		if (b.TimeOffUntilWeek >= 0) load *= 0.6f;
-		return Mathf.Clamp(load, 0f, 0.95f);
+		return Mathf.Clamp(load + tv, 0f, 0.95f);
+	}
+
+	/// <summary>
+	/// A series signed for this act (§3.3.2): cancel this year's tour weeks past what its diary leaves, and say how many.
+	/// Club runs already on a room's bill stand; the act carries both.
+	/// </summary>
+	internal int TrimRoadForTelevision(SimulatedArtist a) {
+		if (a == null || !roadBookings.TryGetValue(a.artistId, out RoadBooking b) || b.Year != YearNow) return 0;
+		int over = b.ResidencyWeeks + b.TourWeeks - (MediaResidencies.RoadWeeksPerYear - MediaAtmosphereService.PlayerDiaryWeeks(a.artistId, YearNow));
+		int cut = Mathf.Clamp(over, 0, b.TourWeeks);
+		if (cut == 0) return 0;
+		b.TourWeeks -= cut;
+		b.WeeksRemaining = Math.Max(0, b.WeeksRemaining - cut);
+		Note($"Cancelled {cut} weeks of {a.stageName}'s touring to make room for the television series.");
+		Changed?.Invoke();
+		return cut;
 	}
 
 	private void RunRoadBookings(GameDate date, int week) {

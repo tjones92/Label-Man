@@ -52,6 +52,8 @@ public partial class MediaAtmosphereChecks : Node {
 			CriticsInTheWorld();
 			ResidenciesArithmetic();
 			ResidenciesInTheWorld();
+			PlayerResidencyArithmetic();
+			PlayerResidenciesInTheWorld();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -1467,6 +1469,148 @@ public partial class MediaAtmosphereChecks : Node {
 			MediaFollowing.SetForChecks(false);
 			MediaFollowing.ResetBars();
 			media.Residencies.Clear();
+			MediaAtmosphereService.RestoreVehiclesForChecks();
+		}
+	}
+
+	// Phase 3b (CelebrityFanbaseDesign.md §3.3.2): the producer's terms always stand, counters cost the yes, and the diary
+	// takes its share of the engaged weeks.
+	private void PlayerResidencyArithmetic() {
+		var producer = ResidencyTerms.Producer(ResidencyKind.Regular);
+		var vehicleTerms = ResidencyTerms.Producer(ResidencyKind.Vehicle);
+		Check(MediaResidencies.AcceptanceChance(ResidencyKind.Regular, false, producer, 1f) == 1f && MediaResidencies.AcceptanceChance(ResidencyKind.Vehicle, false, vehicleTerms, 1f) == 1f
+				&& !producer.ShowSongs && vehicleTerms.ShowSongs,
+			"The producer's own terms are always accepted: own records for a regular, the show's songs for a vehicle");
+		float Fee(float f) => MediaResidencies.AcceptanceChance(ResidencyKind.Regular, false, new ResidencyTerms { FeeMultiple = f }, 1f);
+		float ownVehicle = MediaResidencies.AcceptanceChance(ResidencyKind.Vehicle, false, new ResidencyTerms { FeeMultiple = 1f }, 1f);
+		float blocksWeekly = MediaResidencies.AcceptanceChance(ResidencyKind.Regular, false, new ResidencyTerms { FeeMultiple = 1f, Blocks = true }, 1f);
+		float blocksDaily = MediaResidencies.AcceptanceChance(ResidencyKind.Regular, true, new ResidencyTerms { FeeMultiple = 1f, Blocks = true }, 1f);
+		Check(Math.Abs(Fee(1.5f) - 0.65f) < 1e-5f && Math.Abs(Fee(2f) - 0.35f) < 1e-5f && Math.Abs(ownVehicle - 0.6f) < 1e-5f
+				&& Math.Abs(blocksWeekly - 0.75f) < 1e-5f && Math.Abs(blocksDaily - 0.5f) < 1e-5f,
+			$"Counters cost the yes: 1.5x scale {Fee(1.5f):F2}, 2x {Fee(2f):F2}, a vehicle on its own records {ownVehicle:F2}, blocks {blocksWeekly:F2} weekly / {blocksDaily:F2} daily");
+		var sweetened = new ResidencyTerms { FeeMultiple = 1.5f, ShowSongs = true };
+		Check(MediaResidencies.AcceptanceChance(ResidencyKind.Regular, false, sweetened, 1f) > Fee(1.5f)
+				&& MediaResidencies.AcceptanceChance(ResidencyKind.Regular, false, new ResidencyTerms { FeeMultiple = 2f }, 1.5f) > Fee(2f)
+				&& MediaResidencies.AcceptanceChance(ResidencyKind.Regular, false, new ResidencyTerms { FeeMultiple = 1f, ShowSongs = true }, 1.5f) == 0.95f
+				&& MediaResidencies.Leverage(2f, 1f) == 1.5f && MediaResidencies.Leverage(1f, 1f) == 1f && MediaResidencies.Leverage(1f, 0f) == 1.5f,
+			"Offering the show's songs sweetens a fee counter, leverage (1-1.5) raises the yes, and nothing passes 0.95");
+		Check(MediaResidencies.DiaryShare(ResidencyKind.Regular, false, false) == 0.35f && MediaResidencies.DiaryShare(ResidencyKind.Regular, true, false) == 0.60f
+				&& MediaResidencies.DiaryShare(ResidencyKind.Vehicle, false, false) == 0.80f && MediaResidencies.DiaryShare(ResidencyKind.Regular, false, true) == 0.15f,
+			"Diary shares: weekly 0.35, daily 0.60, vehicle 0.80; blocks less");
+		var year = new MediaResidency { FromDay = BroadcastExposure.DayIndex(D(1965, 9, 1)), ToDay = BroadcastExposure.DayIndex(D(1966, 3, 31)), DiaryShare = 0.6f };
+		float w65 = MediaResidencies.DiaryWeeks(year, 1965), w66 = MediaResidencies.DiaryWeeks(year, 1966);
+		Check(Math.Abs(w65 - 122 / 7f * 0.6f) < 1e-3f && Math.Abs(w66 - 90 / 7f * 0.6f) < 1e-3f && MediaResidencies.DiaryWeeks(year, 1967) == 0f,
+			$"Diary weeks split by calendar year: {w65:F1} in 1965, {w66:F1} in 1966");
+		Check(MediaResidencies.IsDaily(MediaOutletCatalog.Get("where_the_action_is").Schedule.First()) && !MediaResidencies.IsDaily(MediaOutletCatalog.Get("jimmy_dean").Schedule.First()),
+			"Where the Action Is is a daily chair; The Jimmy Dean Show is weekly");
+	}
+
+	private void PlayerResidenciesInTheWorld() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var desk = PlayerDesk.Instance;
+		var clock = TimeManager.Instance;
+		var media = MediaAtmosphereService.State;
+		var bandstand = MediaOutletCatalog.Get("american_bandstand");
+		// Two rival acts with released records that fit the show join the label for the fixture (prospects always have records).
+		var released = new HashSet<string>(ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord != null && r.baseRecord.releaseDate <= clock.CurrentDate)
+			.Select(r => r.baseRecord.artistId), StringComparer.Ordinal);
+		var acts = ArtistManager.Instance.GetAllArtists().Where(a => a != null && a.isActive && !a.isPlayerOwned && !string.IsNullOrEmpty(a.labelId) && released.Contains(a.artistId)
+				&& bandstand.GenreFit(a.primaryGenre) >= MediaResidencies.ChairFit && a.members?.Count(m => m != null && m.isActive) >= 2)
+			.OrderBy(a => a.artistId, StringComparer.Ordinal).Take(2).ToList();
+		var saved = acts.Select(a => (Act: a, a.labelId)).ToList();
+		int offersBefore = media.ResidencyOffers.Count, pitchesBefore = media.ResidencyPitches.Count, residenciesBefore = media.Residencies.Count;
+		MediaResidencies.SetForChecks(true);
+		MediaFollowing.SetForChecks(true);
+		try {
+			Check(acts.Count == 2, "Two fitting acts for the label");
+			foreach (var a in acts) { a.labelId = desk.Label.labelId; a.isPlayerOwned = true; desk.Label.roster.Add(a); }
+			SimulatedArtist act = acts[0], other = acts[1];
+			int today = BroadcastExposure.DayIndex(clock.CurrentDate);
+			int end = Math.Min(today + 200, BroadcastExposure.DayIndex(D(clock.CurrentDate.year, 12, 31)));
+
+			// The road was booked before the offer came.
+			if (clock.CurrentHour > 15) clock.EndDay();
+			Check(desk.BookRoad(act, 0, 40, out string road), "Forty weeks on the road: " + road);
+			MediaResidencyOffer offer = MediaAtmosphereService.OfferForChecks(bandstand, 0, act, clock.CurrentDate, today + 1, end, 1f);
+			Check(offer.Open && offer.ArtistId == act.artistId && offer.ReachHigh > 0 && offer.ExpiresDay == today + MediaResidencies.OfferDays,
+				$"The producer offers the label's act the chair with a week to answer ({MediaText.Audience(offer.ReachLow)}-{MediaText.Audience(offer.ReachHigh)} an episode)");
+
+			var counter = new ResidencyTerms { FeeMultiple = 2f, Blocks = true };
+			Check(desk.AnswerResidencyOffer(offer.Id, true, counter, out string first), "A counter for twice scale, taped in blocks: " + first);
+			if (offer.Countered) {
+				Check(!desk.AnswerResidencyOffer(offer.Id, true, counter, out string again) && offer.Open,
+					"A refused counter leaves only the producer's terms: " + again);
+				Check(desk.AnswerResidencyOffer(offer.Id, true, ResidencyTerms.Producer(ResidencyKind.Regular), out string took), "Taking their terms: " + took);
+			}
+			MediaResidency r = media.Residencies.Last(x => x.ArtistId == act.artistId);
+			bool countered = Math.Abs(r.FeeMultiple - 2f) < 1e-4f;
+			Check(offer.Status == ResidencyOfferStatus.Accepted && r.Player && r.ProgramId == bandstand.Id && r.FromDay > media.BookedThroughDay - 7
+					&& Math.Abs(r.DiaryShare - MediaResidencies.DiaryShare(ResidencyKind.Regular, offer.Daily, countered)) < 1e-6f,
+				$"Signed {(countered ? "on the counter" : "on the producer's terms")}: from {MediaAtmosphereService.FromDayIndex(r.FromDay).ToShortString()}, {r.DiaryShare:P0} of each week");
+
+			int diary = MediaAtmosphereService.PlayerDiaryWeeks(act.artistId, clock.CurrentDate.year);
+			var booking = desk.RoadBookingFor(act.artistId);
+			Check(diary > 0 && booking.TourWeeks == Math.Min(40, MediaResidencies.RoadWeeksPerYear - diary),
+				$"The series takes {diary} diary weeks this year; tour weeks past the cap are cancelled ({booking.TourWeeks} left)");
+			Check(!desk.BookRoad(act, 0, 10, out string refused) && refused.Contains("television"), "No more road weeks than the diary leaves: " + refused);
+			// A whole-year vehicle diary (0.8 × 52 weeks) leaves almost no road: the tour is cut to what's left.
+			int y = clock.CurrentDate.year;
+			var wholeYear = new MediaResidency { Id = "check-diary", ArtistId = act.artistId, Player = true, DiaryShare = 0.8f, Ended = true,
+				FromDay = BroadcastExposure.DayIndex(D(y, 1, 1)), ToDay = BroadcastExposure.DayIndex(D(y, 12, 31)) };
+			media.Residencies.Add(wholeYear);
+			int cut = desk.TrimRoadForTelevision(act);
+			int fullDiary = MediaAtmosphereService.PlayerDiaryWeeks(act.artistId, y);
+			Check(cut > 0 && booking.TourWeeks == Math.Max(0, MediaResidencies.RoadWeeksPerYear - fullDiary) && desk.TrimRoadForTelevision(act) == 0,
+				$"A {fullDiary}-week diary cancels {cut} tour weeks once ({booking.TourWeeks} left)");
+			media.Residencies.Remove(wholeYear);
+
+			r.CausalTerms = true;
+			int performers = act.members.Count(m => m != null && m.isActive);
+			int yr = clock.CurrentDate.year;
+			float FeesNow() => act.members.Where(m => m != null && m.isActive).Sum(m => MediaAtmosphereService.PerformerFeesPaid(m.personId, yr));
+			float feesBefore = FeesNow();
+			int startDay = BroadcastExposure.DayIndex(clock.CurrentDate);
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			var mine = media.Appearances.Where(a => a.ArtistId == act.artistId && a.ProgramId == bandstand.Id && a.Lane == BillLane.Resident && a.RepeatOfId == null).ToList();
+			Check(mine.Count > 0 && mine.All(a => a.SlotIndex == 0) && r.Episodes == mine.Count,
+				$"The label's act opens {mine.Count} Bandstand episodes as the regular");
+			int paidEpisodes = mine.Count(a => !a.Cut && BroadcastExposure.DayIndex(a.Date) < BroadcastExposure.DayIndex(clock.CurrentDate) && BroadcastExposure.DayIndex(a.Date) >= startDay);
+			float paid = FeesNow() - feesBefore;
+			float cash = desk.Label.cashReserves;
+			MediaAtmosphereService.ResidencyPlayerDayForChecks(desk, clock.CurrentDate);
+			Check(paidEpisodes > 0 && Math.Abs(paid - paidEpisodes * performers * MediaResidencies.ScalePerEpisode(offer.Daily) * r.FeeMultiple) < 1e-2f
+					&& Math.Abs(FeesNow() - feesBefore - paid) < 1e-3f && desk.Label.cashReserves == cash,
+				$"Scale is paid to the performers once an episode (${paid:N0} for {paidEpisodes} episodes × {performers}), never from the label");
+
+			// The second act turns its offer down: the chair goes to a rival, never back to the act that said no.
+			MediaResidencyOffer no = MediaAtmosphereService.OfferForChecks(bandstand, 1, other, clock.CurrentDate, today + 15, end, 1f);
+			Check(desk.AnswerResidencyOffer(no.Id, false, default, out _) && no.Status == ResidencyOfferStatus.Declined, "Turning the second offer down");
+			int now = BroadcastExposure.DayIndex(clock.CurrentDate);
+			MediaResidency recast = MediaAtmosphereService.CastForChecks(bandstand, 1, clock.CurrentDate, now + 1, end);
+			Check(recast != null && recast.ArtistId != other.artistId && !recast.Player, $"The declined chair goes to a rival ({recast?.ArtistName})");
+
+			Check(!desk.PitchResidency(other.artistId, bandstand.Id, out string noChair), $"A pitch needs a chair program ({noChair})");
+			Check(desk.PitchResidency(other.artistId, "jimmy_dean", out string pitched), "A pitch for The Jimmy Dean Show's chair is sent: " + pitched);
+			MediaResidencyPitch pitch = media.ResidencyPitches.Last();
+			for (int i = 0; i < 6; i++) clock.EndDay();
+			Check(pitch.Status is ResidencyPitchStatus.Listed or ResidencyPitchStatus.Declined, $"The producer answers the pitch: {pitch.Status} {pitch.Reason}");
+
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var back = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			MediaResidency br = back.Residencies.First(x => x.Id == r.Id);
+			Check(back.ResidencyOffers.Count == media.ResidencyOffers.Count && back.ResidencyPitches.Count == media.ResidencyPitches.Count
+					&& br.Player && br.CausalTerms && br.DiaryShare == r.DiaryShare && br.FeeMultiple == r.FeeMultiple && br.PaidThroughDay == r.PaidThroughDay
+					&& back.ResidencyOffers.Any(o => o.Id == no.Id && o.Status == ResidencyOfferStatus.Declined),
+				"Offers, pitches and the player's terms survive a save round trip");
+		} finally {
+			MediaResidencies.SetForChecks(false);
+			MediaFollowing.SetForChecks(false);
+			MediaFollowing.ResetBars();
+			foreach (var (a, label) in saved) { a.labelId = label; a.isPlayerOwned = false; desk.Label.roster.Remove(a); }
+			media.ResidencyOffers.RemoveRange(offersBefore, media.ResidencyOffers.Count - offersBefore);
+			media.ResidencyPitches.RemoveRange(pitchesBefore, media.ResidencyPitches.Count - pitchesBefore);
+			media.Residencies.RemoveRange(residenciesBefore, media.Residencies.Count - residenciesBefore);
 			MediaAtmosphereService.RestoreVehiclesForChecks();
 		}
 	}

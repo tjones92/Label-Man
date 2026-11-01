@@ -164,6 +164,9 @@ public sealed class MediaSaveData {
 	public List<MediaResidency> Residencies { get; set; } = new();
 	/// <summary>September seasons a vehicle was already considered for, so each season gets one look.</summary>
 	public HashSet<int> VehicleSeasons { get; set; } = new();
+	// Celebrity fanbase Phase 3b: the label's residency offers and pitches (CelebrityFanbaseDesign.md §3.3.2).
+	public List<MediaResidencyOffer> ResidencyOffers { get; set; } = new();
+	public List<MediaResidencyPitch> ResidencyPitches { get; set; } = new();
 }
 
 /// <summary>

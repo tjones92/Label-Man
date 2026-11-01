@@ -63,6 +63,20 @@ public partial class PlayerDesk {
 		return ok;
 	}
 
+	public bool AnswerResidencyOffer(string offerId, bool accept, ResidencyTerms terms, out string message) {
+		bool ok = MediaAtmosphereService.AnswerResidencyOffer(this, offerId, accept, terms, out message);
+		if (ok) { Note(message); Changed?.Invoke(); }
+		return ok;
+	}
+
+	/// <summary>Put an act up for a regulars' chair, or for a series of its own (programId <see cref="MediaResidencies.VehiclePitch"/>).</summary>
+	public bool PitchResidency(string artistId, string programId, out string message) {
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		bool ok = MediaAtmosphereService.PitchResidency(this, artistId, programId, out message);
+		if (ok) { Note(message); Changed?.Invoke(); }
+		return ok;
+	}
+
 	public bool AnswerStandardsQuery(string queryId, StandardsResponse response, out string message) {
 		bool ok = MediaAtmosphereService.AnswerStandards(this, queryId, response, out message);
 		if (ok) { Note("Standards: " + message); Changed?.Invoke(); }

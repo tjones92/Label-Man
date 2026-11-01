@@ -630,6 +630,7 @@ public static partial class MediaAtmosphereService {
 	public static void PlayerDay(PlayerDesk desk, GameDate today) {
 		if (!MediaAtmosphere.Observing || desk?.Label == null) return;
 		int day = BroadcastExposure.DayIndex(today);
+		ResidencyPlayerDay(desk, today);
 		foreach (MediaPitch pitch in state.Pitches.Where(p => p.Kind == PitchKind.Television).ToList()) {
 			if (pitch.Status == PitchStatus.Sent && day >= pitch.AnswerDay) ConsiderTelevision(desk, pitch, today);
 			else if (pitch.Status == PitchStatus.Offered && day > pitch.OfferExpiresDay) {

@@ -42,20 +42,24 @@ public static partial class MediaAtmosphereService {
 		public SimulatedArtist Artist;
 		public float Recognition, Young;
 		public bool HadTop40;
+		/// <summary>On the player's label (Phase 3b): the producer offers rather than casts.</summary>
+		public bool Player;
 	}
 
 	/// <summary>
-	/// Acts a producer could cast this week (§3.3.1): active, signed to a rival label, not a Superstar, and with evidence
-	/// (a Top 40 single in two years, a record broken in a region in the last year, or recognition ≥ 0.10). Built once per
-	/// pass in artist-id order; reads records, recognition and the following, writes nothing.
+	/// Acts a producer could cast this week (§3.3.1): active, signed to a label, not a Superstar, and with evidence
+	/// (a Top 40 single in two years, a record broken in a region in the last year, or recognition ≥ 0.10). The player's
+	/// acts are prospects only while a player label exists (§3.3.2), so a world without one casts exactly as 3a. Built once
+	/// per pass in artist-id order; reads records, recognition and the following, writes nothing.
 	/// </summary>
 	private static List<Prospect> Prospects(Evidence evidence, int today) {
+		string player = PlayerLabelId;
 		var hit = new HashSet<string>(StringComparer.Ordinal);
 		var recent = new HashSet<string>(StringComparer.Ordinal);
 		var ids = new SortedSet<string>(StringComparer.Ordinal);
 		foreach (RecordRuntimeData r in evidence.All) {
 			Record b = r?.baseRecord;
-			if (b == null || b.isPlayerOwned || string.IsNullOrEmpty(b.artistId)) continue;
+			if (b == null || b.isPlayerOwned && player == null || string.IsNullOrEmpty(b.artistId)) continue;
 			ids.Add(b.artistId);
 			int released = BroadcastExposure.DayIndex(b.releaseDate);
 			if (released > today) continue;
@@ -69,14 +73,15 @@ public static partial class MediaAtmosphereService {
 		var list = new List<Prospect>();
 		foreach (string id in ids) {
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(id);
-			if (artist == null || !artist.isActive || artist.isPlayerOwned || string.IsNullOrEmpty(artist.labelId) || artist.careerState == CareerState.Superstar) continue;
+			if (artist == null || !artist.isActive || string.IsNullOrEmpty(artist.labelId) || artist.careerState == CareerState.Superstar) continue;
+			if (artist.isPlayerOwned && (player == null || artist.labelId != player)) continue;
 			if (CompetitorManager.Instance?.GetLabel(artist.labelId) == null) continue;
 			bool hadHit = hit.Contains(id) || artist.publicHistory?.Any(e => e.peakPosition is > 0 and <= 40) == true;
 			bool evidenced = recent.Contains(id) || artist.publicHistory?.Any(e => e.peakPosition is > 0 and <= 40 && e.year >= year - 2) == true;
 			float recognition = ArtistRecognitionService.EffectiveRecognition(artist);
 			if (!evidenced && recognition < MediaResidencies.RecognitionEvidence) continue;
 			if (state.Residencies.Any(r => r.ArtistId == id && r.ToDay > today)) continue;
-			list.Add(new Prospect { Artist = artist, Recognition = recognition, Young = FollowingFor(id)?.YoungTotal() ?? 0f, HadTop40 = hadHit });
+			list.Add(new Prospect { Artist = artist, Recognition = recognition, Young = FollowingFor(id)?.YoungTotal() ?? 0f, HadTop40 = hadHit, Player = artist.isPlayerOwned });
 		}
 		return list;
 	}
@@ -96,8 +101,10 @@ public static partial class MediaAtmosphereService {
 			}
 			if (r.Ended) continue;
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(r.ArtistId);
-			// An act that broke up or lost its deal leaves the show.
-			if (r.ToDay > today && (artist == null || !artist.isActive || string.IsNullOrEmpty(artist.labelId) || artist.isPlayerOwned)) {
+			// An act that broke up or lost its deal leaves the show; the label's act leaves with the label (§3.3.2).
+			bool gone = artist == null || !artist.isActive || string.IsNullOrEmpty(artist.labelId)
+				|| (r.Player ? artist.labelId != PlayerLabelId : artist.isPlayerOwned);
+			if (r.ToDay > today && gone) {
 				r.ToDay = today;
 				ResidencyLedger("leftEarly");
 			}
@@ -110,6 +117,7 @@ public static partial class MediaAtmosphereService {
 			if (program == null) continue;
 			for (int chair = 0; chair < chairs; chair++) {
 				if (state.Residencies.Any(r => r.ProgramId == programId && r.Chair == chair && r.ToDay > today)) continue;
+				if (state.ResidencyOffers.Any(o => o.Open && o.ProgramId == programId && o.Chair == chair)) continue;
 				int first = -1;
 				for (int d = today + 1; d <= today + 7 && first < 0; d++) if (program.Runs(FromDayIndex(d))) first = d;
 				if (first < 0) continue;
@@ -127,6 +135,13 @@ public static partial class MediaAtmosphereService {
 			prospects ??= Prospects(evidence, today);
 			VehicleSeason(weekEnd, prospects);
 		}
+		// The label turned the network down (§3.3.2): the season goes to the next act, if there's time to make it.
+		foreach (MediaResidencyOffer o in state.ResidencyOffers.Where(o => o.Kind == ResidencyKind.Vehicle && !o.Open && o.Status != ResidencyOfferStatus.Accepted && !o.Recast).ToList()) {
+			o.Recast = true;
+			if (today >= BroadcastExposure.DayIndex(MediaResidencies.VehiclePremiere(o.SeasonYear, o.Night)) - 7) continue;
+			prospects ??= Prospects(evidence, today);
+			if (CommissionVehicle(weekEnd, o.SeasonYear, prospects)) RestoreVehicles();
+		}
 	}
 
 	private static float RecognitionOf(string artistId) {
@@ -136,18 +151,21 @@ public static partial class MediaAtmosphereService {
 
 	private static void CastChair(TvProgram program, int chair, int first, int end, List<Prospect> prospects, MediaResidency incumbent, GameDate weekEnd) {
 		Prospect best = null;
-		float bestScore = 0f;
+		float bestScore = 0f, runnerUp = 0f;
 		foreach (Prospect p in prospects) {
 			string id = p.Artist.artistId;
 			if (state.Residencies.Any(r => r.ArtistId == id && r.ToDay >= first)) continue;
 			if (state.ProgramMemory.TryGetValue(program.Id + "|" + id, out var memory) && memory.ExcludedUntilDay > first) continue;
+			if (p.Player && TurnedDown(program.Id, id, first)) continue;
 			float fit = program.GenreFit(p.Artist.primaryGenre);
 			if (fit < MediaResidencies.ChairFit) continue;
 			float score = MediaResidencies.Score(fit, p.Recognition, p.Young, MediaAtmosphere.Unit("residency|" + program.Id + "|" + chair + "|" + first + "|" + id));
 			if (incumbent != null && incumbent.ArtistId == id) score *= MediaResidencies.IncumbentBonus;
-			if (score > bestScore) { best = p; bestScore = score; }
+			if (p.Player && ListedPitch(program.Id, id, first) != null) score *= MediaResidencies.PitchBonus;
+			if (score > bestScore) { runnerUp = bestScore; best = p; bestScore = score; } else if (score > runnerUp) runnerUp = score;
 		}
 		if (best == null) { ResidencyLedger("noProspect"); return; }
+		if (best.Player) { OfferChair(program, chair, first, end, best, bestScore, runnerUp, weekEnd); return; }
 		bool kept = incumbent != null && incumbent.ArtistId == best.Artist.artistId;
 		var r = NewResidency(best, program.Id, ResidencyKind.Regular, chair, first, end, bestScore);
 		if (kept) r.Season = incumbent.Season + 1;
@@ -167,7 +185,7 @@ public static partial class MediaAtmosphereService {
 
 	private static void PrintCast(MediaResidency r, string programName, Prospect p, GameDate weekEnd) =>
 		Godot.GD.Print($"MEDIA_RESIDENCY date={weekEnd.ToShortString()} kind={r.Kind} program={r.ProgramId} show=\"{programName}\" chair={r.Chair} season={r.Season}" +
-			$" act=\"{r.ArtistName}\" genre={p.Artist.primaryGenre} label={r.LabelId} career={p.Artist.careerState} recognition={p.Recognition:F3}" +
+			$" act=\"{r.ArtistName}\" player={r.Player} genre={p.Artist.primaryGenre} label={r.LabelId} career={p.Artist.careerState} recognition={p.Recognition:F3}" +
 			$" young={p.Young:F0} hadTop40={p.HadTop40} score={r.Score:F3} from={FromDayIndex(r.FromDay).ToShortString()} to={FromDayIndex(r.ToDay).ToShortString()}");
 
 	/// <summary>
@@ -182,7 +200,8 @@ public static partial class MediaAtmosphereService {
 			if (v.Season >= MediaResidencies.MaxVehicleSeasons) continue;
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(v.ArtistId);
 			bool grew = MediaFollowing.Active ? FollowingSize(v.ArtistId) > v.FollowingAtStart : RecognitionOf(v.ArtistId) > v.RecognitionAtStart;
-			bool renew = grew && v.Top40During && artist != null && artist.isActive && !artist.isPlayerOwned && !string.IsNullOrEmpty(artist.labelId);
+			bool renew = grew && v.Top40During && artist != null && artist.isActive && !string.IsNullOrEmpty(artist.labelId)
+				&& (v.Player ? artist.labelId == PlayerLabelId : !artist.isPlayerOwned);
 			Godot.GD.Print($"MEDIA_RESIDENCY_RENEWAL date={weekEnd.ToShortString()} act=\"{v.ArtistName}\" show=\"{v.ShowName}\" renewed={renew} grew={grew} top40={v.Top40During}");
 			if (!renew) continue;
 			GameDate premiere = MediaResidencies.VehiclePremiere(year, v.Night);
@@ -192,41 +211,54 @@ public static partial class MediaAtmosphereService {
 				ToDay = BroadcastExposure.DayIndex(new GameDate(year + 1, 8, 31)), Season = v.Season + 1, Network = v.Network, Night = v.Night,
 				SeasonYear = year, ShowName = v.ShowName, Score = v.Score, RecognitionAtStart = RecognitionOf(v.ArtistId),
 				FollowingAtStart = FollowingSize(v.ArtistId), HadTop40Before = true,
+				Player = v.Player, ShowSongs = v.ShowSongs, Blocks = v.Blocks, FeeMultiple = v.FeeMultiple, DiaryShare = v.DiaryShare, CausalTerms = v.CausalTerms,
 			};
 			state.Residencies.Add(next);
 			ResidencyLedger("renewed");
 			changed = true;
 		}
 
+		if (CommissionVehicle(weekEnd, year, prospects)) changed = true;
+		if (changed) RestoreVehicles();
+	}
+
+	/// <summary>
+	/// The season's one new vehicle (§3.3.1): the best teen act that is a Regional Favorite or better, or already has 100k
+	/// young followers. When that act is the label's, the network offers instead (§3.3.2) and the season waits for the
+	/// answer. True when a vehicle was cast.
+	/// </summary>
+	private static bool CommissionVehicle(GameDate weekEnd, int year, List<Prospect> prospects) {
 		Prospect best = null;
-		float bestScore = 0f;
+		float bestScore = 0f, runnerUp = 0f;
 		int premiereDay = BroadcastExposure.DayIndex(new GameDate(year, 9, 12));
 		foreach (Prospect p in prospects) {
 			string id = p.Artist.artistId;
 			float fit = MediaOutletCatalog.TeenFit(p.Artist.primaryGenre);
 			if (fit < MediaResidencies.VehicleTeenFit || state.Residencies.Any(r => r.ArtistId == id && r.ToDay >= premiereDay)) continue;
+			if (p.Player && state.ResidencyOffers.Any(o => o.Kind == ResidencyKind.Vehicle && o.SeasonYear == year && o.ArtistId == id)) continue;
 			bool hot = EpisodeOf(id) is FanEpisodeState.RegionalFavorite or FanEpisodeState.NationalSensation or FanEpisodeState.CulturalPhenomenon;
 			if (!hot && p.Young < MediaResidencies.VehicleFollowing) continue;
 			float score = MediaResidencies.Score(fit, p.Recognition, p.Young, MediaAtmosphere.Unit("vehicle|" + year + "|" + id));
-			if (score > bestScore) { best = p; bestScore = score; }
+			if (p.Player && ListedPitch(MediaResidencies.VehiclePitch, id, premiereDay) != null) score *= MediaResidencies.PitchBonus;
+			if (score > bestScore) { runnerUp = bestScore; best = p; bestScore = score; } else if (score > runnerUp) runnerUp = score;
 		}
 		if (best == null) {
 			ResidencyLedger("noVehicle");
 			Godot.GD.Print($"MEDIA_RESIDENCY_VEHICLE year={year} none: no teen act is a Regional Favorite or has {MediaResidencies.VehicleFollowing:F0} young followers");
-		} else {
-			var networks = new[] { TvNetwork.ABC, TvNetwork.CBS, TvNetwork.NBC };
-			var nights = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
-			TvNetwork network = networks[(int)(MediaAtmosphere.Unit("vehicle-network|" + year + "|" + best.Artist.artistId) * 3) % 3];
-			DayOfWeek night = nights[(int)(MediaAtmosphere.Unit("vehicle-night|" + year + "|" + best.Artist.artistId) * 5) % 5];
-			GameDate premiere = MediaResidencies.VehiclePremiere(year, night);
-			var r = NewResidency(best, "vehicle_" + best.Artist.artistId, ResidencyKind.Vehicle, 0, BroadcastExposure.DayIndex(premiere),
-				BroadcastExposure.DayIndex(new GameDate(year + 1, 8, 31)), bestScore);
-			r.Network = network; r.Night = night; r.SeasonYear = year; r.ShowName = MediaResidencies.VehicleTitle(best.Artist.stageName);
-			ResidencyLedger("castVehicle");
-			PrintCast(r, r.ShowName, best, weekEnd);
-			changed = true;
+			return false;
 		}
-		if (changed) RestoreVehicles();
+		var networks = new[] { TvNetwork.ABC, TvNetwork.CBS, TvNetwork.NBC };
+		var nights = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
+		TvNetwork network = networks[(int)(MediaAtmosphere.Unit("vehicle-network|" + year + "|" + best.Artist.artistId) * 3) % 3];
+		DayOfWeek night = nights[(int)(MediaAtmosphere.Unit("vehicle-night|" + year + "|" + best.Artist.artistId) * 5) % 5];
+		if (best.Player) { OfferVehicle(year, network, night, best, bestScore, runnerUp, weekEnd); return false; }
+		GameDate premiere = MediaResidencies.VehiclePremiere(year, night);
+		var r = NewResidency(best, "vehicle_" + best.Artist.artistId, ResidencyKind.Vehicle, 0, BroadcastExposure.DayIndex(premiere),
+			BroadcastExposure.DayIndex(new GameDate(year + 1, 8, 31)), bestScore);
+		r.Network = network; r.Night = night; r.SeasonYear = year; r.ShowName = MediaResidencies.VehicleTitle(best.Artist.stageName);
+		ResidencyLedger("castVehicle");
+		PrintCast(r, r.ShowName, best, weekEnd);
+		return true;
 	}
 
 	private static void EndResidency(MediaResidency r, GameDate weekEnd) {
@@ -273,7 +305,9 @@ public static partial class MediaAtmosphereService {
 			}
 			if (latest == null) continue;
 			var c = new Candidate { Record = single ?? latest, Lane = BillLane.Resident, Residency = r, Prep = MediaPreparation.Standard };
-			if (single != null) c.Song = PerformedSong.Record;
+			// On the show's songs (§3.3.2) the act sings the series' number, never its own single.
+			if (r.ShowSongs) { c.Song = PerformedSong.Standard; c.SongTitle = "the show's song this week"; }
+			else if (single != null) c.Song = PerformedSong.Record;
 			else {
 				string hit = evidence.BestKnownHit(artist);
 				c.Song = hit != null ? PerformedSong.OwnHit : PerformedSong.Standard;
