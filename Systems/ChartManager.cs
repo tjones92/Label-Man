@@ -304,7 +304,7 @@ public partial class ChartManager : Node {
 		public RecordRuntimeData Record;
 		public RegionalRecordData Data;
 		public int Serviceable, SpilloverCleared;
-		public int Cleared, FanGranted;
+		public int Cleared, FanGranted, FanDisplaced;
 		public float Fraction;
 	}
 	// These private scratch objects never leave a clearing pass. Reuse them rather
@@ -1402,7 +1402,7 @@ public partial class ChartManager : Node {
 				else marketIntentScratch.Add(intent = new MarketIntent());
 				intentCount++;
 				intent.Record = record; intent.Data = data; intent.Serviceable = serviceable;
-				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f; intent.FanGranted = fanGranted;
+				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f; intent.FanGranted = fanGranted; intent.FanDisplaced = 0;
 				intentsByRegion[region.regionId].Add(intent);
 			}
 		}
@@ -1564,6 +1564,7 @@ public partial class ChartManager : Node {
 				intent.Data.unitsSoldTotal += intent.Cleared;
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
+			if (MediaFollowerDemand.Causal) BookFanDisplacedBuyers(intents, summary);
 			if (LpCapacityScreen.Audit && summary.ClearedSingleUnits != summary.SingleBeforeLpAddition)
 				throw new InvalidOperationException("LP-only purchasing changed same-state single allocation.");
 			if (summary.LocalClearedUnits > summary.PurchaseCapacity || summary.ExportedCapacity > summary.ExportBudget ||
@@ -1678,7 +1679,8 @@ public partial class ChartManager : Node {
 	/// <summary>
 	/// Follower LP demand (CelebrityFanbaseDesign.md §2.4) moves LP buyers rather than adding them: each region's LP intent
 	/// keeps its pre-fan total and the fans' grants displace every title's intent in proportion
-	/// (<see cref="MediaFollowerDemand.ConserveAlbumIntent"/>). Singles need no step: their purse binds.
+	/// (<see cref="MediaFollowerDemand.ConserveAlbumIntent"/>). Singles need no step: their purse binds. Each title's lost
+	/// buyers are kept on the intent and booked against its buyer cohort after clearing (<see cref="BookFanDisplacedBuyers"/>).
 	/// </summary>
 	private void ApplyFollowerAlbumIntent(Dictionary<string, List<MarketIntent>> intentsByRegion) {
 		foreach (List<MarketIntent> intents in intentsByRegion.Values) {
@@ -1690,14 +1692,33 @@ public partial class ChartManager : Node {
 				anyFans |= intent.FanGranted > 0;
 			}
 			if (!anyFans) continue;
-			var (serviceable, displaced) = MediaFollowerDemand.ConserveAlbumIntent(
+			var (serviceable, kept, displaced) = MediaFollowerDemand.ConserveAlbumIntent(
 				albums.Select(intent => intent.Serviceable).ToList(), albums.Select(intent => intent.FanGranted).ToList());
 			for (int i = 0; i < albums.Count; i++) {
+				albums[i].FanDisplaced = Math.Max(0, albums[i].Serviceable - kept[i]);
 				albums[i].Serviceable = serviceable[i];
 				albums[i].Data.serviceableIntentThisWeek = serviceable[i];
 			}
 			MediaAtmosphereService.RecordFollowerAlbumDisplacement(displaced);
 		}
+	}
+
+	/// <summary>
+	/// A buyer who spent their LP purchase on a fan title is gone for the title they would have bought: the displaced
+	/// intent exhausts that title's buyer cohort like a sale, at the share of the region's LP intent that actually cleared
+	/// (where the LP purse binds, part of it was never going to sell).
+	/// </summary>
+	private static void BookFanDisplacedBuyers(List<MarketIntent> intents, MarketClearingRegionalSummary summary) {
+		if (summary.ServiceableAlbumIntent <= 0) return;
+		double cleared = Math.Clamp(summary.ClearedAlbumUnits / (double)summary.ServiceableAlbumIntent, 0d, 1d);
+		long booked = 0;
+		foreach (MarketIntent intent in intents) {
+			if (intent.FanDisplaced <= 0) continue;
+			int spent = (int)Math.Round(intent.FanDisplaced * cleared);
+			intent.Data.fanDisplacedBuyerUnitsTotal += spent;
+			booked += spent;
+		}
+		MediaAtmosphereService.RecordFollowerAlbumSpent(booked);
 	}
 
 	/// <summary>

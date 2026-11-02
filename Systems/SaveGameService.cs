@@ -1108,6 +1108,9 @@ public sealed class RegionalRecordSaveData {
 	public int? rackTier { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? rackStoreBuyers { get; set; }
+	// Follower demand: LP buyers spent on a fan title; absent unless fans displaced this LP.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? fanDisplacedBuyers { get; set; }
 	// Regional sync §9s exposure age; absent (exposed from launch) in older saves and switched-off runs.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? fitExposureAge { get; set; }
@@ -1124,6 +1127,7 @@ public sealed class RegionalRecordSaveData {
 		dealEvidenceAge = d.dealEvidenceAge,
 		rackUnits = d.rackUnitsTotal != 0 ? d.rackUnitsTotal : null, rackTier = d.rackTier != 0 ? d.rackTier : null,
 		rackStoreBuyers = d.rackStoreBuyerUnitsTotal != 0 ? d.rackStoreBuyerUnitsTotal : null,
+		fanDisplacedBuyers = d.fanDisplacedBuyerUnitsTotal != 0 ? d.fanDisplacedBuyerUnitsTotal : null,
 		fitExposureAge = d.fitExposureAge != 0 ? d.fitExposureAge : null,
 		fitExposureCause = d.fitExposureCause,
 		arrival = d.awaitingArrival || d.pendingLaunchStock != 0 || d.arrivalAge >= 0
@@ -1143,7 +1147,8 @@ public sealed class RegionalRecordSaveData {
 			// release, which is what every region's clock was before local clocks existed.
 			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
 			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge,
-			fitExposureAge = fitExposureAge ?? 0, fitExposureCause = fitExposureCause
+			fitExposureAge = fitExposureAge ?? 0, fitExposureCause = fitExposureCause,
+			fanDisplacedBuyerUnitsTotal = fanDisplacedBuyers ?? 0
 		};
 		if (rackUnits != null || rackTier != null) {
 			RackJobberChannel.RequireForResume();

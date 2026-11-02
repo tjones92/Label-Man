@@ -110,6 +110,9 @@ public class RegionalRecordData {
 	public int rackUnitsTotal;
 	// Accounting stays in racks; these purchases still exhaust the original store buyer cohort.
 	public int rackStoreBuyerUnitsTotal;
+	// Follower demand (CelebrityFanbaseDesign.md §2.4): this LP's buyers who spent their purchase on a fan title instead.
+	// They exhaust the title's buyer cohort like a sale, so a displaced purchase is lost rather than deferred. Causal only.
+	public int fanDisplacedBuyerUnitsTotal;
 	public int rackTier;
 	public float salesVelocity;
 	public int sustainedGrowthWeeks;

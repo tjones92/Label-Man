@@ -185,3 +185,45 @@ before adoption.
    `rackStoreBuyerUnitsTotal`), so a displaced purchase is gone, not deferred.
 2. Stock only the fans' copies for LPs (advance stock that ordinary demand can't draw).
 3. Accept +2-4% albums against the §9 measures and move to the concentration and Major-share checks.
+
+## Fix 2: a buyer lost to a fan title is gone, not deferred (2026-11-01)
+
+**Change.** `RegionalRecordData.fanDisplacedBuyerUnitsTotal`, beside `rackStoreBuyerUnitsTotal`. After clearing,
+`ChartManager.BookFanDisplacedBuyers` books each LP's displaced intent (Fix 1) against its own buyer cohort, at the
+share of the region's LP intent that cleared that week. Where the LP purse binds, part of the intent was never going to
+sell. `AlbumSimulator.CalculateEffectiveRegionalPenetration` and the budget-LP path add it to penetration, so the
+exhaustion curve treats a lost purchase like a sale. It's saved only when nonzero, and written only under
+`--follower-demand`. `MEDIA_FOLLOWER_DEMAND` gains `spentLPs`. One new fixture (281 pass at `--seed=1001`).
+
+**Screen.** `fd4sp-t` / `fd4sp-t2002`, the same resumes and flags, against `res3b-t` / `res3b-t2002`. `spentLPs` is
+95-99% of `displacedLPs` (9.1M / 9.8M in 1966).
+
+| t − c | Seed 1001: fd4 → fd4lp → **fd4sp** | Seed 2002: fd4 → fd4lp → **fd4sp** |
+|---|---|---|
+| Albums 1963 / 64 / 65 / 66 | +0.9 / +3.5 / +9.7 / +5.5% → −0.1 / +1.1 / +4.3 / +3.2% → **−1.4 / +0.1 / +3.1 / +1.9%** | +0.6 / +6.5 / +11.2 / +9.7% → −0.3 / +6.4 / +2.2 / +1.6% → **+2.5 / +2.5 / −0.1 / +0.6%** |
+| Singles 1964 / 65 / 66 | −1.4 / −4.1 / −2.7% → −0.5 / −1.8 / −1.6% → **−0.0 / −1.3 / −0.9%** | −2.3 / −4.2 / −4.0% → −2.3 / −0.8 / −0.7% → **−0.9 / −0.0 / −0.2%** |
+| Top 10% slot-weeks (kill +3 pt) | +3.53 → +2.30 → **+3.03, KILL** | +2.48 → +0.36 → **+1.79** |
+| Repeat-hit share 1966 (control 32.7 / 36.3%) | 52.3 → 49.5 → **50.5%** | 49.2 → 48.6 → **47.4%** |
+| Acts with 5+ straight Top 40 | 13 → 12 → **16** | 17 → 15 → **20** |
+| Top 5% of hit acts' share of Top 40 entries (history 24%) | 18.6 → 16.9 → **19.0%** | 22.1 → 21.8 → **21.2%** |
+| Major-family share 1963 / 64 / 65 / 66 | **+0.8 / +9.0 / +2.5 / +4.9** | **+6.0 / +3.7 / +1.7 / +1.7** |
+| Genre beyond ±1 pt | Soul −1.7, TeenPop +1.4, RockAndRoll −1.2, RnB −1.0 | Soul +2.5, TraditionalPop −2.3 |
+| Closures | 113 → 117 → 111 → **146** | 115 → 97 → 117 → **93** |
+
+- **Albums are inside the noise.** Seed 2002 moves +2.5% in 1963, when fans' LP copies are only 1.5M, and seed 1001
+  moves −1.4%. The four-year mean of the treatment is +0.9% albums and −0.4% singles. The 1965 +3.1% on seed 1001
+  remains the largest cell. Raw LP demand no longer climbs year on year (1966: +1.0M and −1.6M, against +6.2M in fd4lp).
+- **Repeat hits hold.** About half the gap to history's 63-65% still closes by 1966, and consecutive runs are up on
+  both seeds.
+- **The kill rule is at the edge on seed 1001.** It is +3.03 pt here and +2.30 pt in fd4lp. Between those runs the only
+  change is LP exhaustion, which barely touches singles. So the 0.7 pt swing is reshuffle, and one paired seed can't
+  place the effect on either side of +3 pt.
+- **Closures and genre move by reshuffle-sized amounts in opposite directions.** Closures are +33 on seed 1001 and −22 on
+  seed 2002; Soul is −1.7 and +2.5. None of these is a consistent direction.
+- **Major share is now positive on both seeds** (+0.8 to +9.0 pt), smaller on 2002. Across the three variants seed 1001
+  has gone mixed → +4-8 → +1-9. This is the open economy question.
+
+**Verdict.** The LP defect is fixed. Fans now move LP buyers the way the purse makes them move singles, and a lost sale
+stays lost. Adoption now turns on two questions for the author:
+- concentration at the kill line on seed 1001, against a §9 historical target the treatment is still under;
+- the Major-share rise, which needs more seeds or a mechanism trace before it can be called real.
