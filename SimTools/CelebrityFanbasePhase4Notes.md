@@ -227,3 +227,55 @@ exhaustion curve treats a lost purchase like a sale. It's saved only when nonzer
 stays lost. Adoption now turns on two questions for the author:
 - concentration at the kill line on seed 1001, against a §9 historical target the treatment is still under;
 - the Major-share rise, which needs more seeds or a mechanism trace before it can be called real.
+
+## Trace: where seed 1001's Major-share rise comes from (2026-11-01)
+
+`majorFamilyChartShare` is the Major + MidTier share of charted single units, by each label's year-end tier (after
+acquisitions). So it moves when units move and when labels change tier. `SimTools/analyze_family_share_trace.py` rebuilds
+it from `label-sales-weekly.csv` and `label-finance.csv`; the rebuild matches `concentration.csv` to the third decimal.
+Pairs `fd4sp-t` / `fd4sp-t2002` against `res3b-t` / `res3b-t2002`.
+
+**1. The rise is tier changes, not Majors selling more.** Scoring the treatment's sales on the control's year-end tiers
+removes all of it:
+
+| Family share, t − c | 1963 | 1964 | 1965 | 1966 |
+|---|---|---|---|---|
+| Seed 1001, own tiers | +0.8 | +9.0 | +2.5 | +4.8 |
+| Seed 1001, treatment sales on control tiers | −2.3 | −6.2 | −4.1 | −3.0 |
+| Seed 2002, own tiers | +6.0 | +3.7 | +1.7 | +1.8 |
+| Seed 2002, treatment sales on control tiers | +0.2 | +0.5 | −0.8 | −3.8 |
+
+The units that move in are all Independent → MidTier promotions that happened only in the treatment (seed 1001: 6-17 pt
+a year; seed 2002: 3-6 pt). The reverse, MidTier → Independent only in the treatment, takes back 0.2-3.5 pt. The fixed-tier
+row overstates the fall: a promoted label sells more because it is MidTier, so its units are scored as Independent here.
+Its sign isn't evidence that fans move units to independents.
+
+**2. The Major tier itself doesn't move consistently.** Major-only share is +1.6 to +4.9 pt on seed 1001 and −1.8 to
+−3.7 pt on seed 2002. What both seeds share is more MidTier firms at year end (seed 1001: 26-39 → 29-51; seed 2002:
+22-32 → 29-37) and MidTier share up on seed 2002 every year (+3.6 to +9.7).
+
+**3. Promotions rise, and demotions too.** Independent → MidTier over 1963-66: 55 → 72 (seed 1001), 35 → 50 (seed 2002).
+MidTier → Independent: 41 → 48 and 27 → 40. Of the labels promoted in only one run, 30 vs 20 (seed 1001) and 15 vs 8
+(seed 2002) are on the treatment side.
+
+**4. Fans don't carry the promoted labels.** Labels promoted only in the treatment hold 3.0% (seed 1001) and 1.3%
+(seed 2002) of all fan units. The largest carriers were promoted at the gate's edge: `recentChartingRecords` 5-7
+against the 5-record bar on the dependent route. Once promoted, their chart share jumps (Diamonds 0.0 → 1.6%, Arms
+0.3 → 1.5%, Rhinestones 0.3 → 1.7%), because MidTier status brings the label more resources. Seed 2002's biggest year
+(+6.0 pt) is 1963, when fans asked for the fewest copies, and is carried by labels with 0-7k fan units.
+
+**5. No systematic route into the gate was found.**
+- *Charting records:* fans add 35-77 a year from 1964 on (seed 1001), but they land at Majors (+25 to +52 a year) and
+  MidTiers. Independents' charting records are flat or down on both seeds, so the gate's chart count isn't raised
+  where it binds.
+- *Profit:* the share of Independent label-months in profit is within 1 pt of the control on both seeds.
+- *Advance copies:* not free margin; pressing is charged on copies sold (`LabelPressingEconomics.Press`).
+
+**Reading.** The Major-share rise is MidTier headcount. It comes from a knife-edge promotion gate whose effect on the
+measure is amplified after promotion, and it doesn't follow fan demand: the promoted labels have few fans, and the
+largest year comes with the least fan demand. The one part common to both seeds is more Independent ↔ MidTier churn.
+With two seeds that is suggestive, not shown. Fixed-tier sales show no Major gain from fans. Taken alone, the measure
+can't screen this phase, because it swings several points with label reclassification.
+
+**What would settle it.** A third and fourth seed pair, read on fixed-tier shares and promotion counts rather than
+`majorFamilyChartShare`; or the same pairs with tier changes frozen at the resume, if a switch for that exists.
