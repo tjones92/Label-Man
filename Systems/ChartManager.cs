@@ -415,6 +415,7 @@ public partial class ChartManager : Node {
 		MediaRecognition.Configure(SimulationArguments.Get());
 		MediaDemand.Configure(SimulationArguments.Get());
 		MediaFollowing.Configure(SimulationArguments.Get());
+		MediaFollowerDemand.Configure(SimulationArguments.Get());
 		MediaMemberFame.Configure(SimulationArguments.Get());
 		MediaCritics.Configure(SimulationArguments.Get());
 		MediaResidencies.Configure(SimulationArguments.Get());
@@ -1345,6 +1346,8 @@ public partial class ChartManager : Node {
 		lastMarketSpilloverTransfers.Clear();
 		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(allRecords.Count), StringComparer.Ordinal);
 		BudgetLpChannel.Prepare(allRecords, GetLabelById, currentChartWeek);
+		if (MediaFollowerDemand.Active)
+			MediaAtmosphereService.PrepareFollowerDemand(allRecords, currentChartWeek, TimeManager.Instance?.CurrentDate ?? new GameDate(year, month, 1));
 		int intentCount = 0;
 		// Demand evaluation deliberately retains record-major / region-minor order so
 		// the existing sales jitter consumes precisely the same RNG sequence.
@@ -1376,6 +1379,16 @@ public partial class ChartManager : Node {
 					record.cohortOpportunityColdStartFallback ? singleOpportunityNormalization : record.cohortOpportunityNormalizer);
 				int physicalLimit = Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek);
 				serviceable = Mathf.Clamp(serviceable, 0, Mathf.Max(0, physicalLimit));
+				// Followers buy on sight (CelebrityFanbaseDesign.md §2.4): their launch intent joins the title's, inside
+				// its physical limit, before the format budgets clear. Shadow only books what they asked for.
+				if (MediaFollowerDemand.Active) {
+					float fans = MediaAtmosphereService.FollowerIntent(record.baseRecord.recordId, region.regionId);
+					if (fans > 0f) {
+						int granted = MediaFollowerDemand.Grant(serviceable, physicalLimit, fans);
+						MediaAtmosphereService.RecordFollowerGrant(record.baseRecord.recordId, fans, granted);
+						if (MediaFollowerDemand.Causal) serviceable += granted;
+					}
+				}
 				serviceable = BoundedAudienceProbe.CapServiceable(data, serviceable);
 				data.serviceableIntentThisWeek = serviceable;
 				data.marketDisplacedDemandThisWeek = 0;

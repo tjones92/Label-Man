@@ -3,7 +3,8 @@
 Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`CelebrityFanbasePhase0Notes.md`), Phase 1
 is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and screened (`CelebrityFanbasePhase2Notes.md`), and Phase 2b is built and screened; adopted with a neutral floor, off by default (`CelebrityFanbasePhase2bNotes.md`). Phase 3a (residencies for rival acts) is built and
 screened; adoptable, off by default, and Phase 3b (the player's residency: offers, terms, diary) is built and awaits a
-playtest (`CelebrityFanbasePhase3Notes.md`). The note answers six points the author raised after the
+playtest (`CelebrityFanbasePhase3Notes.md`). Phase 4 (follower demand, advance orders, live draw) is built and
+screened; not yet adoptable: the kill rule trips on one seed and LP fan demand adds album units (`CelebrityFanbasePhase4Notes.md`). The note answers six points the author raised after the
 media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
 
@@ -760,7 +761,7 @@ Each phase is short-screened, then decade-checked at the end of the branch ([[de
 | 2c | Breakouts: fan episodes raise hype, bookers chase sensations and rising acts, constant registration fit (§3.4) | Screened, not adopted; kept behind `--event-hype` | Breakouts scoped to phenomena instead (§3.4.6) |
 | 3a | Residencies for rival acts: regulars and vehicles, the series term (§3.3.1) | Observe-safe; causal through existing writers | Residents' following growth; their Top 40 record |
 | 3b | Residencies for the player: offers, pitches, terms and diary cost (§3.3.2) | Causal; built, inert without a player label | Player playtest |
-| 4 | **Follower demand at launch, advance orders, live draw** | Causal; the big one | Repeat-hit share, runs, concentration, genre, album units |
+| 4 | **Follower demand at launch, advance orders, live draw** | Causal; built, not adopted (kill rule on one seed, LP units +4-11%; `CelebrityFanbasePhase4Notes.md`) | Repeat-hit share, runs, concentration, genre, album units |
 | 5 | Stature for AI readers | Causal | Budgets, contract terms, Major share, closures |
 
 Phase 0 is cheap and answers the main calibration question first: given today's sales, how big would followings be,

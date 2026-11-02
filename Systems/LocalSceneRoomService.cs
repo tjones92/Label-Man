@@ -221,8 +221,12 @@ public static partial class LocalSceneRoomService {
                 // live-cal-v1 fill), and the acts' standing counts as their average, scaled to two acts.
                 int drawing = rotation ? Math.Min(2, bill.Appearances.Count) : bill.Appearances.Count;
                 double standingDraw = rotation && bill.Appearances.Count > 0 ? .01 * prior * drawing / bill.Appearances.Count : .01 * prior;
+                // Followers in the room's region come to see their act (CelebrityFanbaseDesign.md §2.4; causal only, else 0).
+                int followers = 0;
+                if (MediaFollowerDemand.Causal && ScenePlaceRegistry.Get(room.PlaceId)?.MarketRegionId is string fanRegion)
+                    foreach (var slot in bill.Appearances) followers += MediaAtmosphereService.FollowerLiveHeads(slot.ArtistId, fanRegion);
                 bill.ExpectedAudience = bill.Appearances.Count == 0 ? 0 : Math.Min(bill.Capacity,
-                    (int)(bill.Capacity * (.30 + .15 * drawing + standingDraw)));
+                    (int)(bill.Capacity * (.30 + .15 * drawing + standingDraw)) + followers);
                 if (HasBookings) PlaceBookings(bill, room);
                 State.Bills.Add(bill);
                 billed?.Add((room.Id, day));
@@ -404,6 +408,10 @@ public static partial class LocalSceneRoomService {
             bill.Attendance = performed.Length == 0 ? 0 : Math.Min(capacity,
                 (int)(bill.ExpectedAudience * performed.Length / Math.Max(1f, bill.Appearances.Count) * (.8 + .35 * Draw("attendance|" + bill.Id))));
             bill.GrossReceipts = room.IsPerformance ? bill.Attendance * SceneLiveEconomics.Admission(room, bill.Year) : 0;
+            // The room is where die-hards are made (CelebrityFanbaseDesign.md §2.2): each act's share of the crowd.
+            if (MediaFollowerDemand.Active && room.IsPerformance && bill.Attendance > 0
+                && ScenePlaceRegistry.Get(room.PlaceId)?.MarketRegionId is string crowdRegion)
+                foreach (var slot in performed) MediaAtmosphereService.NoteLiveCrowd(slot.ArtistId, crowdRegion, bill.Attendance / (float)performed.Length);
             bill.Response = performed.Length == 0 ? "No set went ahead." : bill.Attendance >= capacity * .6
                 ? "A busy room stayed for the sets." : "A small audience stayed for the sets.";
             foreach (var slot in performed) {

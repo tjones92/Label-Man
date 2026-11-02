@@ -167,6 +167,11 @@ public sealed class MediaSaveData {
 	// Celebrity fanbase Phase 3b: the label's residency offers and pitches (CelebrityFanbaseDesign.md §3.3.2).
 	public List<MediaResidencyOffer> ResidencyOffers { get; set; } = new();
 	public List<MediaResidencyPitch> ResidencyPitches { get; set; } = new();
+	// Celebrity fanbase Phase 4 (--observe-follower-demand shadow, --follower-demand causal).
+	/// <summary>Open launch books by recordId: each release's follower intent for its first three clearing weeks (§2.4).</summary>
+	public Dictionary<string, FollowerLaunch> FollowerLaunches { get; set; } = new();
+	/// <summary>Releases already looked at for a book, by recordId, with the day of the look; pruned after eight weeks.</summary>
+	public Dictionary<string, int> FollowerLaunchSeen { get; set; } = new();
 }
 
 /// <summary>
@@ -248,6 +253,7 @@ public static partial class MediaAtmosphereService {
 		if (weekEnd.month == 12 && weekEnd.day >= 25) {
 			PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); MediaDemand.PrintYear(weekEnd.year);
 			PrintFollowing(weekEnd.year); PrintMemberFame(weekEnd.year); PrintCritics(weekEnd.year); PrintResidencies(weekEnd.year);
+			PrintFollowerDemand(weekEnd.year);
 		}
 	}
 

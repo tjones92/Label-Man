@@ -4267,6 +4267,7 @@ public partial class CompetitorManager : Node {
 			if (runtime.regionalData.TryGetValue(region.regionId, out RegionalRecordData data))
 				data.unitsInStores = allocatedStock.GetValueOrDefault(region.regionId);
 		}
+		if (MediaFollowerDemand.Active) MediaAtmosphereService.StockAdvanceOrders(runtime);
 		runtime.initialLaunchAwareness = runtime.awareness;
 		runtime.initialLaunchStock = runtime.regionalData.Values.Sum(data => data.unitsInStores);
 		runtime.launchCareerState = snapshot.careerState;
@@ -4451,6 +4452,8 @@ public partial class CompetitorManager : Node {
 
 		if (LaunchStocking.AppliesToLaunch(record))
 			foreach (RegionalRecordData data in runtimeData.regionalData.Values) data.unitsInStores = LaunchStocking.ScaleLaunch(data.unitsInStores);
+		// Dealers' advance orders (CelebrityFanbaseDesign.md §2.4): a followed act ships with its fans' copies on the shelves.
+		if (MediaFollowerDemand.Active) MediaAtmosphereService.StockAdvanceOrders(runtimeData);
 
 		runtimeData.initialLaunchAwareness = runtimeData.awareness;
 		runtimeData.initialLaunchStock =runtimeData.regionalData.Values.Sum(data => data.unitsInStores);

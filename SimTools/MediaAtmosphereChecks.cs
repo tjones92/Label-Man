@@ -54,6 +54,8 @@ public partial class MediaAtmosphereChecks : Node {
 			ResidenciesInTheWorld();
 			PlayerResidencyArithmetic();
 			PlayerResidenciesInTheWorld();
+			FollowerDemandArithmetic();
+			FollowerDemandInTheWorld();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -1629,5 +1631,79 @@ public partial class MediaAtmosphereChecks : Node {
 			&& back.Appearances.Zip(now.Appearances).All(p => p.First.Performance?.Outcome == p.Second.Performance?.Outcome && p.First.Cut == p.Second.Cut && p.First.Reported == p.Second.Reported)
 			&& back.Stories.Zip(now.Stories).All(p => p.First.Id == p.Second.Id && p.First.Evidence.Count == p.Second.Evidence.Count && p.First.IssueDay == p.Second.IssueDay),
 			$"Phase 2 media state survives a save round trip ({json.Length / 1024} KB: {now.Stories.Count} items, {now.Contacts.Count} contacts, {now.Pitches.Count} pitches)");
+	}
+
+	// Celebrity fanbase Phase 4 (SimTools/CelebrityFanbaseDesign.md §2.4): followers buy on sight, dealers stock it, rooms fill.
+	private void FollowerDemandArithmetic() {
+		Check(Math.Abs(MediaFollowerDemand.RegionIntent(100_000f, 20_000f, ReleaseFormat.Single) - 37_000f) < 1e-2f
+			&& Math.Abs(MediaFollowerDemand.RegionIntent(100_000f, 20_000f, ReleaseFormat.Album) - 18_000f) < 1e-2f
+			&& MediaFollowerDemand.RegionIntent(-5f, 0f, ReleaseFormat.Single) == 0f,
+			"100k young and 20k adult followers ask for 37k copies of a single (0.35 / 0.10) and 18k of an LP (0.12 / 0.30)");
+		float whole = Enumerable.Range(0, MediaFollowerDemand.Weeks).Sum(w => MediaFollowerDemand.WeekFactor(w, 0f));
+		float hurt = Enumerable.Range(0, MediaFollowerDemand.Weeks).Sum(w => MediaFollowerDemand.WeekFactor(w, 0.2f));
+		Check(Math.Abs(whole - 1f) < 1e-6f && MediaFollowerDemand.WeekFactor(0, 0.2f) == MediaFollowerDemand.WeekShare[0]
+			&& Math.Abs(hurt - (MediaFollowerDemand.WeekShare[0] + 0.8f * (1f - MediaFollowerDemand.WeekShare[0]))) < 1e-6f
+			&& MediaFollowerDemand.WeekFactor(-1, 0f) == 0f && MediaFollowerDemand.WeekFactor(MediaFollowerDemand.Weeks, 0f) == 0f,
+			$"The book is spent over three clearing weeks (sum {whole:F2}); a disappointment cuts weeks two and three, never the advance ({hurt:F2})");
+		Check(MediaFollowerDemand.Grant(900, 1_000, 500.7f) == 100 && MediaFollowerDemand.Grant(200, 1_000, 500.7f) == 500
+			&& MediaFollowerDemand.Grant(1_000, 1_000, 500f) == 0 && MediaFollowerDemand.Grant(0, 1_000, 0f) == 0,
+			"Fans never take a title past its physical limit: 100 of 500 with 100 copies left, all 500 with room, none on an empty shelf");
+		Check(MediaFollowerDemand.LiveHeads(150_000f) == 75 && MediaFollowerDemand.LiveHeads(1_000f) == 0,
+			"A 150k regional following brings 75 people to a bill; a thousand followers bring nobody");
+	}
+
+	private void FollowerDemandInTheWorld() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var clock = TimeManager.Instance;
+		var media = MediaAtmosphereService.State;
+		MediaFollowing.SetForChecks(true);
+		MediaFollowerDemand.SetForChecks(true);
+		try {
+			for (int i = 0; i < 35; i++) clock.EndDay();
+			var closed = MediaAtmosphereService.ClosedFollowerLaunches;
+			var open = media.FollowerLaunches.Values.ToList();
+			var all = open.Select(b => (b.Asked, b.Granted)).Concat(closed.Select(b => (b.Asked, b.Granted))).ToList();
+			Check(all.Count > 0 && all.All(b => b.Granted >= 0 && b.Granted <= b.Asked + 1e-6)
+				&& open.All(b => b.Intent.Values.Sum() >= MediaFollowerDemand.BookFloor && b.Intent.Values.All(v => v >= 1f && float.IsFinite(v))),
+				$"Five shadow weeks open {all.Count} launch books ({closed.Count} closed since the year end); fans asked {all.Sum(b => b.Asked) / 1e3:F0}k, stock would let {all.Sum(b => b.Granted) / 1e3:F0}k through");
+			int week = ChartManager.Instance.GetCurrentChartWeek();
+			Check(open.All(b => b.LaunchWeek < 0 || week - b.LaunchWeek < MediaFollowerDemand.Weeks),
+				"No book outlives its third clearing week");
+			var byId = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord?.recordId != null).ToDictionary(r => r.baseRecord.recordId);
+			Check(open.All(b => !byId.TryGetValue(b.RecordId, out var r) || r.baseRecord.artistId == b.ArtistId && r.baseRecord.format == b.Format),
+				"Every book belongs to its record's act and format");
+			double stocked = open.Sum(b => b.StockedUnits);
+			GD.Print($"follower demand (shadow): stocked would-be {stocked / 1e3:F0}k advance copies on {open.Count(b => b.Stocked)} open books;" +
+				$" live crowd {MediaAtmosphereService.FollowerDemandLedgerValue("liveCrowd") / 1e3:F0}k, joiners {MediaAtmosphereService.FollowerDemandLedgerValue("joinLive"):F0}");
+			string big = media.Following.Values.OrderByDescending(s => s.YoungTotal() + s.AdultTotal()).ThenBy(s => s.ArtistId, StringComparer.Ordinal).First().ArtistId;
+			string bigRegion = media.Following[big].Regions.OrderByDescending(p => p.Value.YoungTotal() + p.Value.Adult).First().Key;
+			Check(MediaAtmosphereService.FollowerLiveHeads(big, bigRegion) == 0, "Shadow: followers add nobody to a room");
+
+			var world = new WorldSaveData();
+			MediaAtmosphereService.CaptureWorld(world);
+			var back = JsonSerializer.Deserialize<MediaSaveData>(JsonSerializer.Serialize(world.Media, opts), opts);
+			Check(back.FollowerLaunches.Count == media.FollowerLaunches.Count && back.FollowerLaunchSeen.Count == media.FollowerLaunchSeen.Count
+				&& back.FollowerLaunches.All(p => media.FollowerLaunches[p.Key].LaunchWeek == p.Value.LaunchWeek && media.FollowerLaunches[p.Key].Loss == p.Value.Loss
+					&& media.FollowerLaunches[p.Key].Stocked == p.Value.Stocked && p.Value.Intent.Count == media.FollowerLaunches[p.Key].Intent.Count
+					&& p.Value.Intent.All(x => media.FollowerLaunches[p.Key].Intent[x.Key] == x.Value)),
+				$"Launch books survive a save round trip ({back.FollowerLaunches.Count} open, {back.FollowerLaunchSeen.Count} releases looked at)");
+
+			// Causal: the same books clear, and a followed act's region sends people to its bills.
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Causal);
+			MediaFollowerDemand.SetForChecks(true, writeCausal: true);
+			int heads = MediaAtmosphereService.FollowerLiveHeads(big, bigRegion);
+			float regional = media.Following[big].Regions[bigRegion].YoungTotal() + media.Following[big].Regions[bigRegion].Adult;
+			Check(heads == MediaFollowerDemand.LiveHeads(regional), $"Causal: the largest following ({regional / 1e3:F0}k in its best region) brings {heads} people to a bill there");
+			double grantedBefore = all.Sum(b => b.Granted);
+			for (int i = 0; i < 14; i++) clock.EndDay();
+			var after = media.FollowerLaunches.Values.Select(b => (b.Asked, b.Granted)).Concat(MediaAtmosphereService.ClosedFollowerLaunches.Select(b => (b.Asked, b.Granted))).ToList();
+			Check(after.All(b => b.Granted >= 0 && b.Granted <= b.Asked + 1e-6) && after.Sum(b => b.Granted) > grantedBefore,
+				$"Two causal weeks: fans' copies enter clearing ({(after.Sum(b => b.Granted) - grantedBefore) / 1e3:F0}k granted), never past the stock");
+		} finally {
+			MediaFollowerDemand.SetForChecks(false);
+			MediaFollowing.SetForChecks(false);
+			MediaFollowing.ResetBars();
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
+		}
 	}
 }
