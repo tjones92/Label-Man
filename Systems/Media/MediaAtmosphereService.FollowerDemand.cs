@@ -112,6 +112,9 @@ public static partial class MediaAtmosphereService {
 		FollowerDemandLedger(single ? "grantedSingles" : "grantedAlbums", granted);
 	}
 
+	/// <summary>LP buyers the fans took from other titles' intent in a region-week (causal only).</summary>
+	public static void RecordFollowerAlbumDisplacement(int units) => FollowerDemandLedger("displacedAlbums", units);
+
 	private static void CloseFollowerLaunch(FollowerLaunch book, GameDate today) {
 		state.FollowerLaunches.Remove(book.RecordId);
 		followerDemandBooks.Add((book.ArtistId, book.Format, book.Asked, book.Granted));
@@ -180,7 +183,7 @@ public static partial class MediaAtmosphereService {
 			.Select(b => $"\"{ArtistManager.Instance?.GetArtist(b.Artist)?.stageName ?? b.Artist}\" {b.Format} {b.Asked / 1e3:F0}k/{b.Granted / 1e3:F0}k");
 		Godot.GD.Print($"MEDIA_FOLLOWER_DEMAND year={year} mode={(MediaFollowerDemand.Causal ? "causal" : "shadow")}" +
 			$" books[singles/LPs]={V("booksSingles"):0}/{V("booksAlbums"):0}" +
-			$" asked[singles/LPs]={V("askedSingles") / 1e6:F2}M/{V("askedAlbums") / 1e6:F2}M granted={V("grantedSingles") / 1e6:F2}M/{V("grantedAlbums") / 1e6:F2}M" +
+			$" asked[singles/LPs]={V("askedSingles") / 1e6:F2}M/{V("askedAlbums") / 1e6:F2}M granted={V("grantedSingles") / 1e6:F2}M/{V("grantedAlbums") / 1e6:F2}M displacedLPs={V("displacedAlbums") / 1e6:F2}M" +
 			$" stocked={V("stocked") / 1e6:F2}M singles[{Sizes(ReleaseFormat.Single)}] LPs[{Sizes(ReleaseFormat.Album)}]" +
 			$" live[crowd={V("liveCrowd") / 1e6:F2}M joiners={V("joinLive") / 1e6:F3}M] top=[{string.Join(" ", top)}]");
 		followerDemandLedger.Clear();

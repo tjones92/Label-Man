@@ -134,3 +134,54 @@ for the author:
    single rate, or a following-size saturation in the book (the largest books growing past 450k), would hold the top 10%
    inside +3 pt. Alternatively the author amends the kill rule to the §9 historical target (§0.4), by which the
    treatment is still under history.
+
+## Fix 1: fan LP demand moves LP buyers (2026-11-01)
+
+**Change.** `ChartManager.ApplyFollowerAlbumIntent` → `MediaFollowerDemand.ConserveAlbumIntent`. In causal mode an LP's fan
+grant no longer adds to the region's LP intent. After every title's intent is known, each region's LP intent is held at
+its pre-fan total: the fans' grants (scaled down if they exceed it) are taken from every LP's own intent in proportion,
+including the fan title's. This makes the singles rule ("fans move units, the purse binds") explicit for LPs, whose
+purse rarely binds. Singles are unchanged. `MEDIA_FOLLOWER_DEMAND` gains `displacedLPs`. Shadow is untouched. One new
+fixture (280 pass at `--seed=1001`).
+
+**Screen.** `fd4lp-t` / `fd4lp-t2002`, the same resumes and flags as `fd4-t`, against `res3b-t` / `res3b-t2002`.
+
+| t − c | Seed 1001: fd4 → fd4lp | Seed 2002: fd4 → fd4lp |
+|---|---|---|
+| Albums 1964 / 65 / 66 | +3.5 / +9.7 / +5.5% → **+1.1 / +4.3 / +3.2%** | +6.5 / +11.2 / +9.7% → **+6.4 / +2.2 / +1.6%** |
+| Singles 1964 / 65 / 66 | −1.4 / −4.1 / −2.7% → −0.5 / −1.8 / −1.6% | −2.3 / −4.2 / −4.0% → −2.3 / −0.8 / −0.7% |
+| Top 10% acts' slot-weeks (kill +3 pt) | +3.53 KILL → **+2.30** | +2.48 → +0.36 |
+| Repeat-hit share 1966 (control 32.7 / 36.3%) | 52.3 → 49.5% | 49.2 → 48.6% |
+| Acts with 5+ straight Top 40 / longest | 13 / 12 → 12 / 8 | 17 / 12 → 15 / 12 |
+| Top 5% of hit acts' share of Top 40 entries | 18.6 → 16.9% | 22.1 → 21.8% |
+| Major-family share 1963 / 64 / 65 / 66 | −3.2 / −0.5 / +4.5 / −2.1 → **+5.8 / +7.7 / +7.4 / +3.8** | +1.3 / +7.7 / −0.4 / +0.3 → +0.1 / −1.5 / +1.6 / +1.5 |
+| Genre beyond ±1 pt (fd4lp) | TeenPop +1.5, RockAndRoll −1.5, Soul −1.0 | RnB −1.0 |
+| Closures | 113 → 111 | 115 → 117 |
+
+- The repeat-hit gain survives: about half the gap to history still closes by 1966 on both seeds.
+- The kill rule now passes on both seeds.
+- Album units fall by half or more but are not neutral. Fan LP copies are fully displaced in-week (`displacedLPs` =
+  LP granted, 9-11M in 1966), yet raw LP demand still rises 4-6M a year (seed 1001; seed 2002 1964), with LP releases flat:
+
+  | Seed 1001, control → treatment | Raw LP demand | Serviceable LP | Cleared LP |
+  |---|---|---|---|
+  | 1964 | 100.3 → 104.4M | 88.4 → 94.0M | 83.8 → 84.7M |
+  | 1965 | 107.9 → 112.0M | 95.3 → 100.5M | 92.2 → 96.1M |
+  | 1966 | 128.8 → 135.0M | 114.3 → 122.2M | 108.8 → 112.3M |
+
+**Why albums still rise.** LP demand is a buyer pool that exhausts with each title's own regional sales
+(`AlbumSimulator.CalculateRegionalSales`, penetration → exhaustion). A displaced LP keeps its unexhausted pool and sells
+to it later, so in-week conservation defers other LPs' sales rather than removing them. A second, smaller route: the
+dealers' advance copies relieve stock-outs on the fan LP's ordinary demand (the raw-to-serviceable gap narrows 1-2M a
+year). Per-record album units aren't written under `--aggregate-only`, so the split between deferral, chart awareness
+(a Top 10 LP's awareness floor) and stock relief is from the arithmetic, not measured per title.
+
+**Major share on seed 1001** rises 4-8 pt every year, from 1963, where `fd4-t` was mixed. Seed 2002 doesn't move. One
+paired seed can't tell a mechanism from reshuffle ([[three-seed-paired-se-understates-reshuffle]]); it needs a look
+before adoption.
+
+**Candidate next steps.**
+1. Book displaced LP buyers against the displaced titles' exhaustion (a spent-buyer counter beside
+   `rackStoreBuyerUnitsTotal`), so a displaced purchase is gone, not deferred.
+2. Stock only the fans' copies for LPs (advance stock that ordinary demand can't draw).
+3. Accept +2-4% albums against the §9 measures and move to the concentration and Major-share checks.

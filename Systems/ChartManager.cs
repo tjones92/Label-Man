@@ -304,7 +304,7 @@ public partial class ChartManager : Node {
 		public RecordRuntimeData Record;
 		public RegionalRecordData Data;
 		public int Serviceable, SpilloverCleared;
-		public int Cleared;
+		public int Cleared, FanGranted;
 		public float Fraction;
 	}
 	// These private scratch objects never leave a clearing pass. Reuse them rather
@@ -1380,13 +1380,18 @@ public partial class ChartManager : Node {
 				int physicalLimit = Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek);
 				serviceable = Mathf.Clamp(serviceable, 0, Mathf.Max(0, physicalLimit));
 				// Followers buy on sight (CelebrityFanbaseDesign.md §2.4): their launch intent joins the title's, inside
-				// its physical limit, before the format budgets clear. Shadow only books what they asked for.
+				// its physical limit, before the format budgets clear. Shadow only books what they asked for. An LP's
+				// grant waits for the region's LP intent to be known, then displaces other LP buyers (below).
+				int fanGranted = 0;
 				if (MediaFollowerDemand.Active) {
 					float fans = MediaAtmosphereService.FollowerIntent(record.baseRecord.recordId, region.regionId);
 					if (fans > 0f) {
 						int granted = MediaFollowerDemand.Grant(serviceable, physicalLimit, fans);
 						MediaAtmosphereService.RecordFollowerGrant(record.baseRecord.recordId, fans, granted);
-						if (MediaFollowerDemand.Causal) serviceable += granted;
+						if (MediaFollowerDemand.Causal) {
+							if (isAlbum) fanGranted = granted;
+							else serviceable += granted;
+						}
 					}
 				}
 				serviceable = BoundedAudienceProbe.CapServiceable(data, serviceable);
@@ -1397,7 +1402,7 @@ public partial class ChartManager : Node {
 				else marketIntentScratch.Add(intent = new MarketIntent());
 				intentCount++;
 				intent.Record = record; intent.Data = data; intent.Serviceable = serviceable;
-				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f;
+				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f; intent.FanGranted = fanGranted;
 				intentsByRegion[region.regionId].Add(intent);
 			}
 		}
@@ -1405,6 +1410,7 @@ public partial class ChartManager : Node {
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalDemand, demandProfileStart);
 		// Drop unused tails immediately so a shrinking market cannot pin retired records.
 		if (marketIntentScratch.Count > intentCount) marketIntentScratch.RemoveRange(intentCount, marketIntentScratch.Count - intentCount);
+		if (MediaFollowerDemand.Causal) ApplyFollowerAlbumIntent(intentsByRegion);
 		// Media's one demand writer (§12.3): after serviceable intent and physical limits, before format budgets.
 		if (MediaDemand.Active && MediaAtmosphereService.HasDemandRequests) ApplyMediaDemand(intentsByRegion, year);
 		var clearingProfileStart = SimulationPerformanceProfiler.Begin();
@@ -1666,6 +1672,31 @@ public partial class ChartManager : Node {
 			int single = intentsByRegion[group.Key].Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Single).Sum(intent => intent.SpilloverCleared);
 			single = Mathf.Clamp(single, 0, group.Sum(row => row.TransferredCapacity));
 			AllocateTransferFormats(group.OrderBy(row => row.DonorRegionId, StringComparer.Ordinal).ToList(), single);
+		}
+	}
+
+	/// <summary>
+	/// Follower LP demand (CelebrityFanbaseDesign.md §2.4) moves LP buyers rather than adding them: each region's LP intent
+	/// keeps its pre-fan total and the fans' grants displace every title's intent in proportion
+	/// (<see cref="MediaFollowerDemand.ConserveAlbumIntent"/>). Singles need no step: their purse binds.
+	/// </summary>
+	private void ApplyFollowerAlbumIntent(Dictionary<string, List<MarketIntent>> intentsByRegion) {
+		foreach (List<MarketIntent> intents in intentsByRegion.Values) {
+			List<MarketIntent> albums = null;
+			bool anyFans = false;
+			foreach (MarketIntent intent in intents) {
+				if (intent.Record.baseRecord.format != ReleaseFormat.Album) continue;
+				(albums ??= new List<MarketIntent>()).Add(intent);
+				anyFans |= intent.FanGranted > 0;
+			}
+			if (!anyFans) continue;
+			var (serviceable, displaced) = MediaFollowerDemand.ConserveAlbumIntent(
+				albums.Select(intent => intent.Serviceable).ToList(), albums.Select(intent => intent.FanGranted).ToList());
+			for (int i = 0; i < albums.Count; i++) {
+				albums[i].Serviceable = serviceable[i];
+				albums[i].Data.serviceableIntentThisWeek = serviceable[i];
+			}
+			MediaAtmosphereService.RecordFollowerAlbumDisplacement(displaced);
 		}
 	}
 

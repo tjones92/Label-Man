@@ -1650,6 +1650,11 @@ public partial class MediaAtmosphereChecks : Node {
 			"Fans never take a title past its physical limit: 100 of 500 with 100 copies left, all 500 with room, none on an empty shelf");
 		Check(MediaFollowerDemand.LiveHeads(150_000f) == 75 && MediaFollowerDemand.LiveHeads(1_000f) == 0,
 			"A 150k regional following brings 75 people to a bill; a thousand followers bring nobody");
+		var (lps, moved) = MediaFollowerDemand.ConserveAlbumIntent(new[] { 1_000, 3_000, 6_000 }, new[] { 500, 0, 0 });
+		var (flood, capped) = MediaFollowerDemand.ConserveAlbumIntent(new[] { 100, 200 }, new[] { 400, 0 });
+		Check(lps.Sum() == 10_000 && moved == 500 && lps[0] == 1_450 && lps[1] == 2_850 && lps[2] == 5_700
+			&& flood.Sum() == 300 && capped == 300 && flood[0] == 300 && flood[1] == 0,
+			$"Fans move LP buyers, not add them: 500 fan copies keep the region's 10,000 LP intent ({string.Join("/", lps)}); fans asking past the region's whole LP intent take all of it ({string.Join("/", flood)})");
 	}
 
 	private void FollowerDemandInTheWorld() {

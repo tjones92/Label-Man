@@ -97,6 +97,30 @@ public static class MediaFollowerDemand {
 		return Math.Min(headroom, (int)MathF.Floor(fanIntent));
 	}
 
+	/// <summary>
+	/// Fans move LP buyers, they don't add them. The singles purse binds almost every region-week, so a single's fan
+	/// intent displaces other singles inside it; the LP purse rarely binds, so fan LP intent would mostly be extra albums.
+	/// Here a region's LP intent is held at its pre-fan total: the fans' grants (scaled down if they exceed it) are taken
+	/// from every title's own intent in proportion, including the fan title's. Returns each title's new serviceable intent
+	/// and the units displaced; each new intent stays within base + grant, so within the physical limit.
+	/// </summary>
+	public static (int[] Serviceable, int Displaced) ConserveAlbumIntent(IReadOnlyList<int> baseIntent, IReadOnlyList<int> fanGrant) {
+		int n = baseIntent.Count;
+		var result = new int[n];
+		long total = 0, fans = 0;
+		for (int i = 0; i < n; i++) { total += Math.Max(0, baseIntent[i]); fans += Math.Max(0, fanGrant[i]); }
+		int pool = (int)Math.Min(int.MaxValue, total);
+		var grants = new double[n];
+		var bases = new double[n];
+		for (int i = 0; i < n; i++) { grants[i] = Math.Max(0, fanGrant[i]); bases[i] = Math.Max(0, baseIntent[i]); }
+		int[] fanUnits = fans > pool ? RetailPurchaseEnvelope.Allocate(grants, pool) : Array.ConvertAll(grants, g => (int)g);
+		int granted = 0;
+		foreach (int g in fanUnits) granted += g;
+		int[] kept = RetailPurchaseEnvelope.Allocate(bases, pool - granted);
+		for (int i = 0; i < n; i++) result[i] = kept[i] + fanUnits[i];
+		return (result, granted);
+	}
+
 	/// <summary>Followers who come to a bill: <see cref="LiveNightShare"/> of the act's followers in the room's region.</summary>
 	public static int LiveHeads(float regionalFollowers) => (int)MathF.Floor(Math.Max(0f, regionalFollowers) * LiveNightShare);
 }
