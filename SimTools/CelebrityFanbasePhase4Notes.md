@@ -279,3 +279,50 @@ can't screen this phase, because it swings several points with label reclassific
 
 **What would settle it.** A third and fourth seed pair, read on fixed-tier shares and promotion counts rather than
 `majorFamilyChartShare`; or the same pairs with tier changes frozen at the resume, if a switch for that exists.
+
+## Four seeds (2026-11-01)
+
+New 1963 worlds `fdw-3003-1963` and `fdw-4004-1963`, saved with the same flags as `asc-2002-1963` (the two decade flags,
+157 weeks). Pairs `res3b-t<seed>` / `fd4sp-t<seed>`, same flags as the seed 1001 and 2002 pairs. Seed 4004 is a
+concentrated world ([[seeds-4004-5005-are-concentrated-worlds]]); the pairing absorbs that.
+
+| t − c | 1001 | 2002 | 3003 | 4004 | Mean |
+|---|---|---|---|---|---|
+| **Top 10% slot-weeks (kill +3 pt)** | +3.03 KILL | +1.79 | +3.15 KILL | +4.17 KILL | **+3.04** |
+| Repeat-hit share 1966 (pt) | +17.8 | +11.1 | +15.7 | +10.9 | +13.9 |
+| Repeat-hit share 1966, treatment | 50.5% | 47.4% | 50.8% | 50.2% | 49.7% (history 63-65%) |
+| Acts with 5+ straight Top 40 (control → t) | 5 → 16 | 4 → 20 | 6 → 20 | 8 → 21 | |
+| Top 5% of hit acts' share of entries, treatment | 19.0% | 21.2% | 20.4% | 18.9% | 19.9% (history 24%) |
+| Albums 1963 / 64 / 65 / 66 (%) | −1.4 / +0.1 / +3.1 / +1.9 | +2.5 / +2.5 / −0.1 / +0.6 | +2.1 / +3.1 / −4.3 / +1.7 | −5.1 / −0.8 / −2.6 / −2.1 | −0.5 / +1.2 / −1.0 / +0.5 |
+| Singles 1964 / 65 / 66 (%) | −0.0 / −1.3 / −0.9 | −0.9 / −0.0 / −0.2 | −0.7 / +1.2 / −0.6 | +0.2 / +0.7 / +0.5 | −0.4 / +0.2 / −0.3 |
+| Family share, own tiers 1963 / 64 / 65 / 66 (pt) | +0.8 / +9.0 / +2.5 / +4.8 | +6.0 / +3.7 / +1.7 / +1.8 | +1.6 / +5.1 / −1.2 / +6.0 | +0.5 / +4.6 / +2.5 / +0.7 | +2.2 / +5.6 / +1.4 / +3.3 |
+| Family share, control tiers (pt) | −2.3 / −6.2 / −4.1 / −3.0 | +0.2 / +0.5 / −0.8 / −3.8 | +4.4 / +1.1 / −2.0 / −1.9 | +1.1 / +1.5 / −0.6 / −1.4 | +0.9 / −0.8 / −1.9 / −2.5 |
+| Major tier alone (pt) | +1.6 / +4.8 / +1.9 / +4.9 | −3.7 / −1.9 / −3.0 / −1.8 | +6.4 / +5.3 / +4.4 / +1.3 | −0.8 / +0.7 / +2.1 / +1.5 | +0.9 / +2.2 / +1.4 / +1.5 |
+| Indie → MidTier promotions, 1963-66 | 55 → 72 | 35 → 50 | 57 → 76 | 62 → 56 | |
+| MidTier → Indie demotions | 41 → 48 | 27 → 40 | 35 → 48 | 38 → 35 | |
+| Fan units at labels promoted only in t | 3.0% | 1.3% | 2.8% | 0.8% | |
+| TeenPop / RnB slot-week share (pt) | +1.4 / −1.0 | +0.7 / −0.5 | +1.5 / −2.0 | +1.1 / −1.0 | +1.2 / −1.1 |
+| Closures | 113 → 146 | 115 → 93 | 215 → 208 | 208 → 250 | +11 |
+
+**What is now settled.**
+- **Albums and singles are neutral.** The four-seed means are within ±1.2% every year, and each seed's cells straddle
+  zero. The LP fixes hold.
+- **Repeat hits are the phase's real effect.** They are up on every seed, closing about half the gap to history by
+  1966. Consecutive runs triple or more.
+- **Concentration is real and trips the kill rule.** It trips on three seeds of four, mean +3.04 pt. It isn't
+  reshuffle. Yet the top 5%'s share of Top 40 entries stays below history on every seed (18.9-21.2% against 24%). The
+  rule and §9's historical target now disagree. That is the §0.4 decision the design left to the author.
+- **TeenPop gains and RnB loses on all four seeds** (about 1 pt each). That's consistent with followings being young.
+
+**Major share, on four seeds.**
+- The headline family share rises on every seed in 1964 and 1966 (mean +1.4 to +5.6 pt).
+- Promotions are up on three seeds of four, and so are demotions, so more Independent ↔ MidTier churn is now the likelier
+  reading.
+- The labels promoted only in the treatment still hold 1-3% of fan units. So it's the churn, not fans buying from those
+  labels.
+- The Major tier alone rises modestly on three seeds (mean +0.9 to +2.2 pt; seed 2002 falls). That matches fans'
+  extra charting records landing mostly at Majors, whose rosters hold more followed acts.
+- On control tiers, family share is down on every seed in 1966. That row is biased low by promotion amplification
+  (see the trace above).
+
+Net: fans give the Majors a small real gain, about 1-2 pt. The rest of the headline rise comes from MidTier churn.

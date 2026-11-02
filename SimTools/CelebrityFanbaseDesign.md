@@ -5,8 +5,9 @@ is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and screened (
 screened; adoptable, off by default, and Phase 3b (the player's residency: offers, terms, diary) is built and awaits a
 playtest (`CelebrityFanbasePhase3Notes.md`). Phase 4 (follower demand, advance orders, live draw) is built and
 screened; not yet adoptable. Two fixes make fan LP demand displace other LPs and make a displaced sale stay lost, so
-album units are back inside the noise. What remains is the kill rule at its edge on one seed (+3.03 pt) and a Major-share
-rise (`CelebrityFanbasePhase4Notes.md`). The note answers six points the author raised after the
+album units are neutral on four seeds. Repeat hits close half the gap to history. The kill rule trips on three seeds of
+four (mean +3.04 pt) while concentration stays below history, which is the §0.4 call (`CelebrityFanbasePhase4Notes.md`).
+The note answers six points the author raised after the
 media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
 
@@ -763,7 +764,7 @@ Each phase is short-screened, then decade-checked at the end of the branch ([[de
 | 2c | Breakouts: fan episodes raise hype, bookers chase sensations and rising acts, constant registration fit (§3.4) | Screened, not adopted; kept behind `--event-hype` | Breakouts scoped to phenomena instead (§3.4.6) |
 | 3a | Residencies for rival acts: regulars and vehicles, the series term (§3.3.1) | Observe-safe; causal through existing writers | Residents' following growth; their Top 40 record |
 | 3b | Residencies for the player: offers, pitches, terms and diary cost (§3.3.2) | Causal; built, inert without a player label | Player playtest |
-| 4 | **Follower demand at launch, advance orders, live draw** | Causal; built, not adopted (after Fix 2: LP units within noise; kill rule +3.03 pt on one seed, Major share up; `CelebrityFanbasePhase4Notes.md`) | Repeat-hit share, runs, concentration, genre, album units |
+| 4 | **Follower demand at launch, advance orders, live draw** | Causal; built, not adopted (four seeds: units neutral, repeat hits +11..+18 pt, kill rule trips 3 of 4 at mean +3.04 pt; `CelebrityFanbasePhase4Notes.md`) | Repeat-hit share, runs, concentration, genre, album units |
 | 5 | Stature for AI readers | Causal | Budgets, contract terms, Major share, closures |
 
 Phase 0 is cheap and answers the main calibration question first: given today's sales, how big would followings be,
