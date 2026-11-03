@@ -1243,6 +1243,10 @@ public partial class PlayerDesk {
 	/// Repeated sessions are what make a pair eligible for a pact (the co-credits accrue when the song is cut).
 	/// </summary>
 	public bool BookWritingSession(SimulatedArtist a, Musician first, Musician second, bool withStaffWriter, out string message) {
+		if (ProfessionalWritingMarket.Enabled && withStaffWriter) {
+			if (first == null) { message = "Pick a member to write with the professional supplier."; return false; }
+			return CommissionProfessionalSong(a, null, out message, first.personId);
+		}
 		message = "";
 		if (a == null || first == null || a.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		if (!RequireHome(out message)) return false;

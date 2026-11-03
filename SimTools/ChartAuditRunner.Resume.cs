@@ -68,7 +68,7 @@ public partial class ChartAuditRunner {
 		.Where(a => !a.StartsWith("--run=", StringComparison.Ordinal) && !a.StartsWith("--weeks=", StringComparison.Ordinal) &&
 			!a.StartsWith("--save-world", StringComparison.Ordinal) && !a.StartsWith("--resume-world=", StringComparison.Ordinal) &&
 			!a.StartsWith("--checkpoint-world=", StringComparison.Ordinal) && a != "--continue-checkpoint" &&
-			a != "--calibration" && a != "--lean-probe" && a != "--aggregate-only" && a != "--profile-performance")
+			a != "--calibration" && a != "--lean-probe" && a != "--aggregate-only" && a != "--chart-history" && a != "--profile-performance")
 		.OrderBy(a => a, StringComparer.Ordinal).ToArray();
 
 	/// <summary>

@@ -815,6 +815,7 @@ public partial class CompetitorManager : Node {
 		// state, spillover, or responsive-memory observations.
 		if (!GenreMarketV2.Enabled) ProcessWeeklyRevenue(CreateLegacyRevenueSettlement(date));
 		pipelineWeek++;
+		ProfessionalWritingMarket.Advance(pipelineWeek, date);
 		ResetWeeklyReleaseCounters();
 		ProcessDueAlbumProjects(date);
 		ProcessWeeklyReleases(date);

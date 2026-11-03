@@ -5,6 +5,7 @@ public partial class ChartAuditRunner {
 	private StreamWriter releaseSlateWriter;
 	private StreamWriter programmeResourceWriter;
 	private StreamWriter programmeMaterialWriter;
+	private StreamWriter materialFunnelWriter;
 	private StreamWriter lpAssemblyWriter;
 	private StreamWriter programmeCashShortfallWriter;
 	private StreamWriter programmeChoiceWriter;
@@ -14,12 +15,12 @@ public partial class ChartAuditRunner {
 		if (!LabelReleaseProgramme.Enabled) return;
 		if (LabelReleaseProgramme.ProjectJudgementEnabled) {
 			programmeProjectWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-projects.csv"));
-			programmeProjectWriter.WriteLine("week,slotId,labelId,artistId,source,candidateId,action,perceived,routineRead,useSearchedMaterial,uncertainty");
+			programmeProjectWriter.WriteLine("week,slotId,labelId,artistId,source,candidateId,action,perceived,routineRead,useSearchedMaterial,uncertainty,ownSessionTiming");
 			CompetitorManager.Instance.OnProgrammeProjectReview += WriteProgrammeProject;
 		}
 		if (System.Linq.Enumerable.Contains(Godot.OS.GetCmdlineUserArgs(), "--label-decision-audit")) {
 			programmeChoiceWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-choices.csv"));
-			programmeChoiceWriter.WriteLine("week,year,labelId,tier,status,slotId,format,intendedWeek,intendedYear,financed,artistId,careerState,eligible,reason,rank,selected,score,hot,due,gap,expectedNet,contribution,qualityEstimate,careerPriority,momentum,obligations,attachedAudienceAtAudit");
+			programmeChoiceWriter.WriteLine("week,year,labelId,tier,status,slotId,format,intendedWeek,intendedYear,financed,artistId,careerState,eligible,reason,rank,selected,score,hot,due,gap,expectedNet,contribution,qualityEstimate,careerPriority,momentum,obligations,attachedAudienceAtAudit,followUpScheduling,waitingPriority,audienceOrders,nationalAudienceOrders");
 			CompetitorManager.Instance.OnProgrammeChoiceReview += WriteProgrammeChoice;
 		}
 		releaseSlateWriter = CreateWriter(Path.Combine(directory, $"{runName}-release-slate.csv"));
@@ -35,6 +36,11 @@ public partial class ChartAuditRunner {
 			programmeMaterialWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-material-search.csv"));
 			programmeMaterialWriter.WriteLine("week,slotId,labelId,artistId,state,reason,professional,songId,supplierId,startedWeek,deliveryWeek,holdUntilWeek,paidFee,proposalRead,baselineRead,expectedBenefit,referenceMasterId,recordId");
 			CompetitorManager.Instance.OnProgrammeMaterialSearch += WriteProgrammeMaterial;
+			if (System.Linq.Enumerable.Contains(SimulationArguments.Get(), "--material-funnel-audit")) {
+				materialFunnelWriter = CreateWriter(Path.Combine(directory, $"{runName}-material-funnel.csv"));
+				materialFunnelWriter.WriteLine("week,slotId,labelId,artistId,career,genre,ability,craft,pool,draws,unique,accessible,owned,future,held,placement,license,fitRefused,positiveProfessional,positiveCover,baseline,bestProfessionalNet,bestCoverNet,selected,started,startBlock,selectedSongId,blockingSlots");
+				CompetitorManager.Instance.OnMaterialFunnelAudit += WriteMaterialFunnel;
+			}
 		}
 		if (LabelReleaseProgramme.WorkBudgetSingles > 0) {
 			programmeCashShortfallWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-cash-shortfalls.csv"));
@@ -46,6 +52,13 @@ public partial class ChartAuditRunner {
 			lpAssemblyWriter.WriteLine("week,year,slotId,labelId,tier,artistId,careerState,kind,albumFormat,recordId,trackCount,releasedMasters,shelvedMasters,newSessions,relevantHits,controlledSingles,productionMultiplier,paidProduction,projectedNet,ordinaryNet,hitLedFeasible,hitLedNet,greatestHitsFeasible,greatestHitsNet,reason,appealScale,openingMasters,packageSpacingBlocked");
 			CompetitorManager.Instance.OnLpAssembly += WriteLpAssembly;
 		}
+	}
+	private void WriteMaterialFunnel(MaterialFunnelAudit a) {
+		string R(float n) => float.IsFinite(n) ? n.ToString("R", CultureInfo.InvariantCulture) : "";
+		materialFunnelWriter.WriteLine(string.Join(",", a.Week, Csv(a.Item.Id), Csv(a.Item.LabelId), Csv(a.Item.ArtistId), a.Artist.careerState,
+			Csv(a.Genre), R(a.Artist.songwritingAbility), R(SongMaterialSelectionService.ArtistWriterCraft(a.Artist)), a.Pool, a.Draws, a.Unique,
+			a.Accessible, a.Owned, a.Future, a.Held, a.Placement, a.License, a.FitRefused, a.PositiveProfessional, a.PositiveCover,
+			R(a.Baseline), R(a.BestProfessionalNet), R(a.BestCoverNet), a.Selected, a.Started ? 1 : 0, Csv(a.StartBlock), Csv(a.SelectedSongId), Csv(a.BlockingSlots)));
 	}
 	private void WriteLpAssembly(ReleaseSlateItem item, AILabel label, int week) {
 		var p = item.LpAssembly;
@@ -69,7 +82,8 @@ public partial class ChartAuditRunner {
 		programmeProjectWriter.WriteLine(string.Join(",", week, Csv(item.Id), Csv(item.LabelId), Csv(item.ArtistId), Csv(item.Source),
 			Csv(p.CandidateId), Csv(p.Action), p.Perceived.ToString("R", CultureInfo.InvariantCulture),
 			p.RoutineRead.ToString("R", CultureInfo.InvariantCulture), p.UseSearchedMaterial ? 1 : 0,
-			p.Uncertainty.ToString("R", CultureInfo.InvariantCulture)));
+			p.Uncertainty.ToString("R", CultureInfo.InvariantCulture),
+			p.Action == CompetitorManager.OwnSessionAction ? (p.Week < item.IntendedWeek + LabelReleaseProgramme.Horizon - LabelReleaseProgramme.PreparationWeeks ? "follow-up-due" : "window-close") : ""));
 	}
 	private void WriteProgrammeResources(ProgrammeResourceTelemetry r) => programmeResourceWriter.WriteLine(string.Join(",", r.Week, r.Year,
 		Csv(r.LabelId), Csv(r.Tier), r.Attempts, r.Successes, r.OpenItems, F(r.CashReserved), F(r.PromotionPool), F(r.PromotionBooked), F(r.SingleWeeklyRate), F(r.AlbumWeeklyRate), r.DueFollowUps, r.UnplannedFollowUps, F(r.PromotionCommittedPeak),
@@ -88,7 +102,9 @@ public partial class ChartAuditRunner {
 				a?.Eligible == true ? (a.Hot ? "1" : "0") : "", a?.Eligible == true ? (a.Due ? "1" : "0") : "",
 				a?.Eligible == true ? N(a.Gap) : "", Read(a?.ExpectedNet ?? 0), Read(a?.Contribution ?? 0),
 				Read(a?.QualityEstimate ?? 0), Read(a?.Priority ?? 0), Read(a?.Momentum ?? 0), Read(a?.Obligations ?? 0),
-				a?.Eligible == true ? a.AttachedAudienceAtAudit.ToString("R", CultureInfo.InvariantCulture) : ""));
+				a?.Eligible == true ? a.AttachedAudienceAtAudit.ToString("R", CultureInfo.InvariantCulture) : "",
+				a?.Eligible == true ? (a.FollowUpScheduling ? "1" : "0") : "", Read(a?.WaitingPriority ?? 0),
+				Read(a?.AudienceOrders ?? 0), Read(a?.NationalAudienceOrders ?? 0)));
 		}
 		if (r.Candidates.Count == 0) Row(null);
 		else foreach (var candidate in r.Candidates) Row(candidate);
@@ -105,6 +121,8 @@ public partial class ChartAuditRunner {
 		programmeIssueRefusalWriter.WriteLine(string.Join(",", week, Csv(item.Id), Csv(item.LabelId), Csv(item.ArtistId), item.Format,
 			Csv(item.Source), item.IntendedWeek, item.PaidProduction.ToString("R", CultureInfo.InvariantCulture), Csv(gate)));
 	private void CloseReleaseProgrammeOutputs() {
+		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnMaterialFunnelAudit -= WriteMaterialFunnel;
+		materialFunnelWriter?.Dispose(); materialFunnelWriter = null;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeIssueRefused -= WriteProgrammeIssueRefusal;
 		programmeIssueRefusalWriter?.Dispose(); programmeIssueRefusalWriter = null;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeProjectReview -= WriteProgrammeProject;

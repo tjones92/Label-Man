@@ -281,6 +281,8 @@ public partial class ChartAuditRunner : Node {
 	private ulong? requestedSeed;
 	private bool aggregateOnly;
 	private bool leanProbe;
+	// Read-only chart history, including opening carryovers, in aggregate/calibration runs.
+	private bool chartHistory;
 	// Read-only follow-up diagnosis: keep off-chart observations for recent non-opening hit acts.
 	private bool followupChartTrace;
 	private readonly Dictionary<string, int> followupTraceFirstHits = new(StringComparer.Ordinal);
@@ -550,6 +552,8 @@ public partial class ChartAuditRunner : Node {
 				requestedSeed = ulong.Parse(argument[7..], CultureInfo.InvariantCulture);
 			} else if (argument == "--aggregate-only") {
 				aggregateOnly = true;
+			} else if (argument == "--chart-history") {
+				chartHistory = true;
 			} else if (argument == "--lean-probe") {
 				leanProbe = true;
 				aggregateOnly = true;
@@ -1114,6 +1118,7 @@ public partial class ChartAuditRunner : Node {
 	private void OpenOutputs() {
 		string outputDirectory = ProjectSettings.GlobalizePath("res://SimLogs");
 		Directory.CreateDirectory(outputDirectory);
+		OpenProfessionalWritingOutputs(outputDirectory);
 		ArtistHeatAttribution.Open(Path.Combine(outputDirectory, runName));
 		OpenReleaseJudgementOutputs(outputDirectory);
 		OpenCareerLadderOutputs(outputDirectory);
@@ -2235,6 +2240,8 @@ public partial class ChartAuditRunner : Node {
 			observedReleaseIds.Add(record.baseRecord.recordId);
 		}
 		List<RecordRuntimeData> initialChart = ChartManager.Instance.GetCurrentChart();
+		if (chartHistory) foreach (var record in initialChart)
+			WriteRecordRow(0, TimeManager.Instance.CurrentDate.year, record, 0f);
 		// A decade audit begins with an already-live chart. Seed those observed
 		// identities before week one so a left-censored prewarm record that falls
 		// off on the first live tick is not silently omitted from decade breadth.
@@ -2248,6 +2255,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void CaptureWeek(int week) {
+		CaptureProfessionalWritingWeek(week);
 		GameDate date = TimeManager.Instance.CurrentDate;
 		GameDate salesDate = date.IsFriday ? date : date.AddDays(-1);
 		EnsureDecadeAnnualYear(date.year);
@@ -2308,7 +2316,7 @@ public partial class ChartAuditRunner : Node {
 				state.DebutPosition = record.currentPosition;
 			}
 			if (record.currentPosition == 1) state.WeeksAtNumberOne++;
-			if (!aggregateOnly || calibrationMode && smallLabelFinance && record.currentPosition > 0 || traceFollowup)
+			if (!aggregateOnly || (calibrationMode && smallLabelFinance || chartHistory) && record.currentPosition > 0 || traceFollowup)
 				WriteRecordRow(week, date.year, record, chartCutoff);
 			if (!aggregateOnly) MaybeWriteSongMaterialRow(week, date.year, record);
 			if (!leanProbe) WriteBreakoutRows(week, record);
@@ -4035,6 +4043,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void FlushAndClose() {
+		CloseProfessionalWritingOutputs();
 		CloseDemandObservationOutputs();
 		ArtistHeatAttribution.Close();
 		CloseReleaseJudgementOutputs();

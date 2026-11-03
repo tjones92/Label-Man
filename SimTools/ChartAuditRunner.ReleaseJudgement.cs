@@ -56,6 +56,7 @@ public partial class ChartAuditRunner {
 		RecordRuntimeData runtime = string.IsNullOrEmpty(id) ? null : ChartManager.Instance?.GetRecordRuntimeData(id);
 		if (runtime?.baseRecord == null) return;
 		Record record = runtime.baseRecord;
+		CaptureWritingLaunch(currentAuditWeek, runtime);
 		CaptureGenreHookLaunch(strategy, record, year);
 		int gap = lastSingleAuditWeek.TryGetValue(strategy.artistId, out int last) ? currentAuditWeek - last : -1;
 		lastSingleAuditWeek[strategy.artistId] = currentAuditWeek;

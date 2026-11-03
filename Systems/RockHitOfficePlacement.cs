@@ -109,7 +109,7 @@ public static class RockHitOfficePlacement {
 
 	// The first live week's releases run at chart week 0 (the chart week advances after them), so the opening gate holds
 	// from seeding on rather than reading the week.
-	private static bool Applies(AILabel label) => Enabled && label != null && !label.isPlayerOwned &&
+	private static bool Applies(AILabel label) => Enabled && !ProfessionalWritingMarket.Enabled && label != null && !label.isPlayerOwned &&
 		(opening || openingSeeded || (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) > 0);
 
 	/// <summary>The professional pool this label is pitched: the pool itself when off.</summary>
@@ -150,7 +150,7 @@ public static class RockHitOfficePlacement {
 
 	/// <summary>The office's writing for one live week: floor(W × week) − floor(W × (week − 1)) new songs.</summary>
 	public static void WriteWeek(int week, int year) {
-		if (!Enabled || week <= 0) return;
+		if (!Enabled || week <= 0 || ProfessionalWritingMarket.Enabled) return;
 		int due = Mathf.FloorToInt(SongsPerWeek * week) - Mathf.FloorToInt(SongsPerWeek * (week - 1));
 		for (int i = 0; i < due; i++) CompositionCatalogService.WriteOfficeSong(OfficeId, RockHitWriters.OfficeFocus, year);
 	}

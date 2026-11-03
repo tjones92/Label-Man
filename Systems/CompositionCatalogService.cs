@@ -64,6 +64,7 @@ public static class CompositionCatalogService {
 	public static int SongCount => songs.Count;
 	/// <summary>The publisher houses, for the Rolodex's directory of who plugs what.</summary>
 	public static IReadOnlyList<MusicPublisher> Publishers => publishers;
+	public static IReadOnlyList<ProfessionalSongwriter> ProfessionalWriters => professionalWriters;
 	public static int StandardCount { get { int n = 0; foreach (var kv in standardsByGenre) n += kv.Value.Count; return n; } }
 
 	public static void Initialize(int startYear, IEnumerable<AILabel> labels, ulong seed) {
@@ -101,10 +102,12 @@ public static class CompositionCatalogService {
 		GenerateProfessionalPool(labels, startYear);
 		GenerateInitialProfessionalCatalog(startYear);
 		proTeamsBuilt = false;
-		if (BandLife.TeamWritingEnabled) {
+		if (BandLife.TeamWritingEnabled || ProfessionalWritingMarket.Enabled) {
 			TeamWritingService.BuildProfessionalTeams(professionalWriters, songs.Values, BandLife.WorldSeed);
 			proTeamsBuilt = true;
 		}
+		if (ProfessionalWriting.Enabled) ProfessionalWriting.ConditionOpening(songs.Values, professionalWriters);
+		ProfessionalWritingMarket.Initialize(startYear);
 		if(LiveRepertoire.AuditPhase>=5) {
 			GenerateNativeRepertoire(startYear);
 			foreach(var song in professionalByGenre.Values.SelectMany(p=>p)) AdmitRepertoire(song,"unpublished",startYear);
@@ -336,6 +339,7 @@ public static class CompositionCatalogService {
 					writerName = "Staff Writer",
 					share = 1f
 				});
+				if (ProfessionalWriting.Enabled) ResolveProfessionalCreditNames(song);
 				CompositionShapeVariation.AuthorContext(song,pub.scene==PublishingScene.ChurchGospel?SongContentContext.Sacred:SongContentContext.Secular,
 					"procedural-publishing-office:"+pub.publisherId+":"+pub.scene);
 				Register(song);
@@ -350,7 +354,7 @@ public static class CompositionCatalogService {
 	/// own namespace, so the trait, title and song-id streams the rest of the world reads are unchanged. The serial is
 	/// recovered from the saved catalogue, so nothing new is saved.
 	/// </summary>
-	internal static SongComposition WriteOfficeSong(string publisherId, Genre[] focus, int year) {
+	internal static SongComposition WriteOfficeSong(string publisherId, Genre[] focus, int year, string writerId = null, bool standingTeam = false, float familiarity = 0, Musician coWriter = null) {
 		MusicPublisher pub = publishers.FirstOrDefault(p => p.publisherId == publisherId);
 		if (pub == null || focus == null || focus.Length == 0) return null;
 		string prefix = $"song_{publisherId}_";
@@ -364,6 +368,7 @@ public static class CompositionCatalogService {
 		var bank = primary is Genre.RnB or Genre.DooWop or Genre.Soul ? SoulTitles : RockTitles;
 		var song = new SongComposition {
 			songId = $"{prefix}{serial:D5}",
+			writingAssignmentFamiliarity = familiarity,
 			title = $"{bank.Openers[r.RandiRange(0, bank.Openers.Length - 1)]} {bank.Closers[r.RandiRange(0, bank.Closers.Length - 1)]}",
 			primaryGenre = primary,
 			secondaryGenre = focus.Length > 1 ? focus[1] : primary,
@@ -379,14 +384,42 @@ public static class CompositionCatalogService {
 		song.rights.publisherName = pub.publisherName;
 		song.credits.Add(new SongwriterCredit {
 			writerType = WriterEntityType.ProfessionalSongwriter,
-			writerId = pub.staffWriterIds.Count > 0 ? pub.staffWriterIds[r.RandiRange(0, pub.staffWriterIds.Count - 1)] : null,
+			writerId = writerId ?? (pub.staffWriterIds.Count > 0 ? pub.staffWriterIds[r.RandiRange(0, pub.staffWriterIds.Count - 1)] : null),
 			writerName = "Staff Writer", share = 1f
 		});
+		if (ProfessionalWriting.Enabled) {
+			ResolveProfessionalCreditNames(song);
+			if (standingTeam) {
+				var lead = professionalWriters.First(w => w.writerId == writerId);
+				var partner = professionalWriters.FirstOrDefault(w => w.writerId == lead.teamPartnerId && w.teamPartnerId == lead.writerId);
+				if (partner != null) {
+					song.credits[0].share = .5f;
+					song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.ProfessionalSongwriter, writerId = partner.writerId, writerName = partner.name, share = .5f });
+				}
+			} else TeamWritingService.BuildProfessionalTeams(professionalWriters, new[] { song }, BandLife.WorldSeed);
+			ProfessionalSongwriter collaborator = null;
+			if (coWriter != null) {
+				var craft = TeamWritingService.Of(coWriter);
+				collaborator = new ProfessionalSongwriter { writerId = coWriter.personId, melodyCraft = craft.Melody, lyricCraft = craft.Lyric,
+					hookCraft = craft.Hook, primaryGenre = primary, secondaryGenre = primary };
+				foreach (var credit in song.credits) credit.share *= .5f;
+				song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.Musician, writerId = coWriter.personId,
+					writerName = coWriter.FullName, share = .5f, isArtistMember = true });
+			}
+			ProfessionalWriting.ConditionNewSong(song, professionalWriters, collaborator);
+		}
 		CompositionShapeVariation.AuthorContext(song, SongContentContext.Secular, "procedural-publishing-office:" + pub.publisherId + ":" + pub.scene);
 		Register(song);
 		pub.catalogSongIds.Add(song.songId);
 		if (LiveRepertoire.AuditPhase >= 5) AdmitRepertoire(song, "unpublished", year);
 		return song;
+	}
+
+	private static void ResolveProfessionalCreditNames(SongComposition song) {
+		foreach (var credit in song.credits) {
+			var writer = professionalWriters.FirstOrDefault(w => w.writerId == credit.writerId);
+			if (writer != null) credit.writerName = writer.name;
+		}
 	}
 
 	// ---- Per-release attachment (Phase 0: artist-original stub, ZERO randomness) --------------
@@ -863,6 +896,10 @@ public static class CompositionCatalogService {
 			AdmitRepertoire(song,"unpublished",year,masterId);
 	}
 	public static void OnRecordReleased(Record record) {
+		if (ProfessionalWritingMarket.Enabled && record != null) {
+			ProfessionalWritingMarket.MarkReleased(record.songId);
+			if (record.album != null) foreach (var track in record.album.GetAllTracks()) ProfessionalWritingMarket.MarkReleased(track?.songId);
+		}
 		if(LiveRepertoire.AuditPhase<5||record==null)return;
 		int year=record.releaseDate.year>0?record.releaseDate.year:TimeManager.Instance?.CurrentDate.year??0;
 		if(record.format==ReleaseFormat.Album && record.album!=null) {
@@ -982,7 +1019,8 @@ public static class CompositionCatalogService {
 			WriterLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerLedger),
 			WriterStintLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerStintLedger),
 			SongCounter = songCounter,
-			ProTeamsBuilt = proTeamsBuilt
+			ProTeamsBuilt = proTeamsBuilt,
+			WritingMarket = ProfessionalWritingMarket.State
 		};
 		if (rng != null && titleRng != null) {
 			c.HasRng = true;
@@ -1033,6 +1071,7 @@ public static class CompositionCatalogService {
 
 		professionalWriters.Clear(); professionalWriters.AddRange(c.ProfessionalWriters ?? new List<ProfessionalSongwriter>());
 		publishers.Clear(); publishers.AddRange(c.Publishers ?? new List<MusicPublisher>());
+		ProfessionalWritingMarket.Restore(c.WritingMarket);
 		writerLedger.Clear();
 		foreach (var kv in c.WriterLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerLedger[kv.Key] = kv.Value;
 		writerStintLedger.Clear();

@@ -95,6 +95,8 @@ public sealed class ShadowRepertoireHealth {
 /// Called as an explicit step of <c>ChartManager.OnWeekEnded</c> and at the two AI single release sites.
 /// </summary>
 public static class AiRepertoireService {
+	// Optional audit of actual professional arrival decisions; not saved or used for selection.
+	public static event Action<int, AILabel, SimulatedArtist, string, int, string> OnProfessionalArrivalAudit;
 	private static readonly SongMaterialSource[] ArrivalSources = {
 		SongMaterialSource.ArtistWritten, SongMaterialSource.ExternalProfessional, SongMaterialSource.CoverStandard,
 		SongMaterialSource.CoverRecentHit, SongMaterialSource.TraditionalPublicDomain
@@ -130,17 +132,23 @@ public static class AiRepertoireService {
 		pendingPicks.Clear();
 		state.ConfigVersion = ReleaseJudgement.ConfigVersion;
 		var seen = new HashSet<string>(StringComparer.Ordinal);
-		foreach (AILabel label in ChartManager.Instance.GetAllLabels().Where(Trackable).OrderBy(l => l.labelId, StringComparer.Ordinal)) {
-			foreach (SimulatedArtist artist in label.roster.Where(a => a != null && a.members != null && a.members.Count > 0)
-					.OrderBy(a => a.artistId, StringComparer.Ordinal)) {
-				if (!seen.Add(artist.artistId)) continue;
-				ShadowActRepertoire act = Ensure(label, artist, week, date.year);
-				act.LabelId = label.labelId;
-				act.LastSignedWeek = week;
-				AdvanceReadiness(act, label, artist, week, date.year);
-				Arrive(act, label, artist, week, date.year);
-				EnforceCap(act, label, artist, week);
-			}
+		// Scarce writing capacity and first-recording demos must not always reach the
+		// earliest label/roster IDs first. Rotate acts across labels with a keyed weekly
+		// order; outside the finite market, stable OrderBy preserves the legacy traversal.
+		var clients = ChartManager.Instance.GetAllLabels().Where(Trackable).OrderBy(l => l.labelId, StringComparer.Ordinal)
+			.SelectMany(l => l.roster.Where(a => a != null && a.members != null && a.members.Count > 0)
+				.OrderBy(a => a.artistId, StringComparer.Ordinal).Select(a => (Label: l, Artist: a)))
+			.OrderBy(p => ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.AccessOrder(p.Artist.artistId, week) : 0f);
+		foreach (var client in clients) {
+			AILabel label = client.Label;
+			SimulatedArtist artist = client.Artist;
+			if (!seen.Add(artist.artistId)) continue;
+			ShadowActRepertoire act = Ensure(label, artist, week, date.year);
+			act.LabelId = label.labelId;
+			act.LastSignedWeek = week;
+			AdvanceReadiness(act, label, artist, week, date.year);
+			Arrive(act, label, artist, week, date.year);
+			EnforceCap(act, label, artist, week);
 		}
 		Prune(week, seen);
 		current.Week = week; current.Year = date.year;
@@ -152,6 +160,36 @@ public static class AiRepertoireService {
 
 	private static bool Trackable(AILabel label) => label != null && !label.isPlayerOwned && label.roster != null &&
 		label.status != LabelStatus.Defunct && label.status != LabelStatus.Bankrupt;
+
+	// A completed paid assignment is a dated offer, not another lottery for a plugger
+	// to bring it in. Ordinary imperfect reads, fit refusals and shortlist limits apply.
+	internal static bool OfferWritingDelivery(AILabel label, SimulatedArtist artist, WritingOrder order, GameDate date) {
+		if (!ProfessionalWritingMarket.DeliveryOffersEnabled || !ReleaseJudgement.Selecting || !Trackable(label) ||
+			artist?.labelId != label.labelId || order == null || order.ArtistId != artist.artistId || order.LabelId != label.labelId ||
+			order.Status != WritingOrderStatus.Delivered || order.DeliveryOffered || string.IsNullOrEmpty(order.SongId) ||
+			!ProfessionalWritingMarket.State.Demos.TryGetValue(order.SongId, out var demo) || demo.Status != WritingDemoStatus.Licensed ||
+			demo.ArtistId != artist.artistId || demo.LabelId != label.labelId || demo.AvailableWeek > ProfessionalWritingMarket.Week ||
+			demo.HoldUntilWeek < ProfessionalWritingMarket.Week) return false;
+		var song = CompositionCatalogService.GetSong(order.SongId);
+		if (song == null) return false;
+		int week = ProfessionalWritingMarket.Week;
+		state.ConfigVersion = ReleaseJudgement.ConfigVersion;
+		var act = Ensure(label, artist, week, date.year);
+		order.DeliveryOffered = true;
+		if (act.Candidates.Any(c => c.SongId == song.songId)) return true;
+		var candidate = new ShadowCandidate { Id = "writing-delivery:" + order.Id, ArtistId = artist.artistId, SongId = song.songId,
+			Source = SongMaterialSource.ExternalProfessional, Provenance = "commission-delivery", ArrivalWeek = week, ReadyWeek = week,
+			Readiness = ShadowReadiness.Offered, Disposition = ShadowDisposition.Active,
+			Craft = song.compositionQuality, Hook = song.commercialHook, Lyric = song.lyricQuality, Originality = song.originality };
+		act.Candidates.Add(candidate);
+		RockHitOfficePlacement.Reserve(song);
+		Count("arrival:" + candidate.Source);
+		current.Arrivals[candidate.Source] = current.Arrivals.GetValueOrDefault(candidate.Source) + 1;
+		Emit("arrival", candidate, label.labelId, week, candidate.Provenance);
+		MakeRecordable(candidate, label, artist, week, date.year);
+		EnforceCap(act, label, artist, week);
+		return true;
+	}
 
 	private static ShadowActRepertoire Ensure(AILabel label, SimulatedArtist artist, int week, int year) {
 		if (state.Acts.TryGetValue(artist.artistId, out var act)) return act;
@@ -351,7 +389,28 @@ public static class AiRepertoireService {
 				$"|release-judgement|title|{artist.artistId}|{key}");
 		} else {
 			SongComposition song = PickSong(act, label, source, artist, year, key);
-			if (song == null) { Count("empty-pool:" + source); return null; }
+			if (song == null) {
+				int active = source == SongMaterialSource.ExternalProfessional ? act.Candidates.Count(c => c.Disposition == ShadowDisposition.Active) : 0;
+				string auditReason = ProfessionalWritingMarket.Enabled ? "empty-count-blocked" : "market-disabled";
+				if (source == SongMaterialSource.ExternalProfessional && ProfessionalWritingMarket.Enabled &&
+					active < 2) {
+					var offer = ProfessionalWritingMarket.Offers(label, artist).FirstOrDefault(o => o.Available);
+					if (offer != null) {
+						bool ordered = ProfessionalWritingMarket.TryAiCommission(label, artist, offer.WriterId, TimeManager.Instance.CurrentDate, out string refusal);
+						if (!ordered && refusal == "no-plan-minimum-delivery" && provenance == "arrival")
+							ProfessionalWritingMarket.RememberPlanlessArrival(label, artist, week);
+						auditReason = ordered ? "commission-ordered" : "commission-refused:" + refusal;
+					} else auditReason = "empty-no-available-writer";
+				}
+				if (source == SongMaterialSource.ExternalProfessional) OnProfessionalArrivalAudit?.Invoke(week, label, artist, provenance, active, auditReason);
+				Count("empty-pool:" + source); return null;
+			}
+			if (source == SongMaterialSource.ExternalProfessional) {
+				bool licensed = ProfessionalWritingMarket.TryLicense(song, label, artist, out _);
+				if (OnProfessionalArrivalAudit != null)
+					OnProfessionalArrivalAudit.Invoke(week, label, artist, provenance, act.Candidates.Count(c => c.Disposition == ShadowDisposition.Active), licensed ? "licensed" : "license-refused");
+				if (!licensed) return null;
+			}
 			c.SongId = song.songId;
 			if (source == SongMaterialSource.ExternalProfessional) RockHitOfficePlacement.Reserve(song);
 			c.Craft = song.compositionQuality; c.Hook = song.commercialHook; c.Lyric = song.lyricQuality; c.Originality = song.originality;
@@ -368,13 +427,19 @@ public static class AiRepertoireService {
 	}
 
 	private static SongComposition PickSong(ShadowActRepertoire act, AILabel label, SongMaterialSource source, SimulatedArtist artist, int year, string key) {
+		if (source == SongMaterialSource.ExternalProfessional && ProfessionalWritingMarket.OwnedDelivery(label, artist) is SongComposition delivery &&
+			!ProfessionalWritingMarket.WasDeliveryOffered(delivery.songId, artist.artistId) &&
+			!act.Candidates.Any(c => c.Disposition == ShadowDisposition.Active && c.SongId == delivery.songId)) return delivery;
 		IReadOnlyList<SongComposition> pool = PoolFor(source, ProjectGenre(artist, year));
 		if (source == SongMaterialSource.ExternalProfessional) pool = RockHitOfficePlacement.Visible(pool, label);
+		if (source == SongMaterialSource.ExternalProfessional) pool = ProfessionalWritingMarket.Visible(pool, label, artist);
 		if (pool.Count == 0) return null;
 		for (int attempt = 0; attempt < 4; attempt++) {
 			int index = Math.Min(pool.Count - 1, (int)(ReleaseJudgement.Unit($"pick|{artist.artistId}|{key}|{attempt}") * pool.Count));
 			SongComposition song = pool[index];
 			if (song == null || song.originYear > year) continue;
+			if (source != SongMaterialSource.ExternalProfessional && ProfessionalWritingMarket.NeedsFirstRecordingLicense(song)) continue;
+			if (source == SongMaterialSource.ExternalProfessional && ProfessionalWritingMarket.WasDeliveryOffered(song.songId, artist.artistId)) continue;
 			if (source == SongMaterialSource.CoverRecentHit && song.originYear < year - 3) continue;
 			if (act.Candidates.Any(c => c.Disposition == ShadowDisposition.Active && c.SongId == song.songId)) continue;
 			return song;

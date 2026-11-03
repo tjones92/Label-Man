@@ -4,9 +4,13 @@ Status: draft 2026-10-31, branch `media-atmosphere`. Phase 0 is built (`Celebrit
 is built (`CelebrityFanbasePhase1Notes.md`), and Phase 2 is built and screened (`CelebrityFanbasePhase2Notes.md`), and Phase 2b is built and screened; adopted with a neutral floor, off by default (`CelebrityFanbasePhase2bNotes.md`). Phase 3a (residencies for rival acts) is built and
 screened; adoptable, off by default, and Phase 3b (the player's residency: offers, terms, diary) is built and awaits a
 playtest (`CelebrityFanbasePhase3Notes.md`). Phase 4 (follower demand, advance orders, live draw) is built and
-screened; not yet adoptable. Two fixes make fan LP demand displace other LPs and make a displaced sale stay lost, so
+screened; accepted for the next stage by the author (2026-11-01). A subsequent complete-chart audit and two calibration
+experiments retain the accepted rates: stronger demand does not raise leading acts' entry share and moves LP units;
+blanket hit-act cadence replaces too many LPs. Phase 5 should address release allocation within format plans.
+Two fixes make fan LP demand displace other LPs and make a displaced sale stay lost, so
 album units are neutral on four seeds. Repeat hits close half the gap to history. The kill rule trips on three seeds of
-four (mean +3.04 pt) while concentration stays below history, which is the §0.4 call (`CelebrityFanbasePhase4Notes.md`).
+four (mean +3.04 pt). The author amended the adoption criterion to historical calibration; the original rule failed,
+and slot-week concentration remains a diagnostic rather than an automatic veto (`CelebrityFanbasePhase4Notes.md`).
 The note answers six points the author raised after the
 media-fame review. The terms used throughout are recognition, attachment, member spotlight and the career ladder,
 as they stand today:
@@ -664,6 +668,18 @@ stature = max(chart form (last two years' peak units, as now),
   `max` lets each route to stature count on its own: the chart act, the TV-made idol with a following, and the adult
   LP star.
 - Map stature back to the existing budget and leverage tables so the control's money is unchanged at the same rung.
+- **Phase 4 calibration diagnosis (2026-11-01):** screen stature-aware release selection and timing within the existing
+  format programme, preserving LP plans and label capacity. A simple increase in fan singles demand improves repeat
+  share without raising leading acts' entry share; the legacy hit-act cadence bundle raises concentration but forces
+  singles in place of LPs. Observe eligible acts' selection delays, not just minimum cooldowns. See the completed
+  candidate screens in `CelebrityFanbasePhase4Notes.md`.
+- **Scheduling slice (author scope, 2026-11-01):** give established acts more timely follow-ups inside the release
+  programme while preserving LP plans. The opt-in `--programme-follow-up-scheduling` screen adds overdue pressure
+  only within single slots; demand rates stay unchanged. Implementation and validation limits are recorded in
+  `CelebrityFanbasePhase5SchedulingNotes.md`. This is not adoption of the other stature readers below.
+  The corrected full-profile screen targets material holds with `--programme-follow-up-material`; the author selected
+  fresh 1960–63 worlds after the old snapshots proved incompatible with the current LP policy. Earlier bare-programme
+  trials are diagnostic and do not stand for the calibrated LP programme.
 - **Link to the Phase 5 decade problem:** stature is how Majors historically bought stars from smaller labels (Decca
   and Nelson). Bidding on stature, not on trophies, is a plausible route to the 1968-69 consolidation goal. It is also
   the riskiest piece here economically ([[big5-entry-edge-is-campaign-impact]]).
@@ -728,7 +744,7 @@ ahead of everyone else, not just a high share:
 
 | Risk | Guard |
 |---|---|
-| One act owns the chart | The fixed singles purse: fans redistribute units, they don't create them. The kill rule (top-10% acts' slot-weeks ≤ +3 pt). |
+| One act owns the chart | The fixed singles purse: fans redistribute units, they don't create them. Historical entry concentration and repeat-hit calibration, with slot-week concentration retained as a separate diagnostic; the old +3 pt automatic veto was amended by the author (2026-11-01). |
 | A franchise that never ends | Drift, silence and disappointment churn (§2.3). Young followings age out. |
 | TV fame snowballs | Registration counts people, novelty decays, and the attention share is finite (§3, §7) |
 | The same event counted three times | Root-event budget across TV, press and syndication (§4) |
@@ -740,7 +756,7 @@ ahead of everyone else, not just a high share:
 
 | Measure | Target | Source in the sim |
 |---|---|---|
-| Repeat-hit share: Top 40 entries by acts with a Top 40 in the prior two years | From the recovered 1960-64 Hot 100 ([[historical-hot100-1960-64-recovered]]) | records + lifecycles |
+| Repeat-hit share: Top 40 entries by acts with another title actually in the Top 40 in the prior 104 weeks | Recovered history: 62.9-64.7% in 1962-64 ([[historical-hot100-1960-64-recovered]]). Use complete lookback windows. | Complete weekly singles chart history; first observed Top 40 week |
 | Consecutive-hit runs: acts with 5+ straight Top 40 singles | History, same source | records |
 | Advance orders | Top act 1-2M in a phenomenon year; a solid fanbase act 100-300k | New: launch follower intent |
 | Following size | Top teen act 1-3M; fan clubs (a slice of it) 50-80k | New |
@@ -749,7 +765,9 @@ ahead of everyone else, not just a high share:
 | TV single-night breakouts (an airing worth a Top 10 on its own) | 0-1 a decade, a phenomenon's event; most seeds none (§3.4.6) | `MEDIA_TV_BREAKOUT` |
 | TV-made stars (first Top 40 within a year of a residency's start) | A handful a decade | Media telemetry |
 | Solo spinouts from camera-loved members | Rises; keep within band-life bounds | Band life |
-| Top-10% slot-weeks, CR4, Major share, genre | Kill and report as now. Genre moves are allowed where followings explain them. | Existing |
+| Top 5% of hit acts' share of distinct Top 40 entries | Historical reference: about 24% over 1962-64; compare equal three-year windows and matching entry definitions. This is not a slot-week ceiling. | Complete weekly singles chart history |
+| Top 10% of charting acts' share of Top 100 slot-weeks | Recovered history: 42.9% over 1962-64, an absolute reference on the same metric, not the top-5% entry benchmark and not a per-seed hard ceiling. The former +3 pt change-from-control veto failed in Phase 4 and was explicitly replaced by the author (2026-11-01). Check persistence and turnover in the final branch decade. | Complete weekly singles chart history, equal three-year calendar windows |
+| CR4, Major share, genre | Report economic drift separately. Genre moves are allowed where followings explain them. | Existing |
 
 ## 10. Phases
 
@@ -764,8 +782,8 @@ Each phase is short-screened, then decade-checked at the end of the branch ([[de
 | 2c | Breakouts: fan episodes raise hype, bookers chase sensations and rising acts, constant registration fit (§3.4) | Screened, not adopted; kept behind `--event-hype` | Breakouts scoped to phenomena instead (§3.4.6) |
 | 3a | Residencies for rival acts: regulars and vehicles, the series term (§3.3.1) | Observe-safe; causal through existing writers | Residents' following growth; their Top 40 record |
 | 3b | Residencies for the player: offers, pitches, terms and diary cost (§3.3.2) | Causal; built, inert without a player label | Player playtest |
-| 4 | **Follower demand at launch, advance orders, live draw** | Causal; built, not adopted (four seeds: units neutral, repeat hits +11..+18 pt, kill rule trips 3 of 4 at mean +3.04 pt; `CelebrityFanbasePhase4Notes.md`) | Repeat-hit share, runs, concentration, genre, album units |
-| 5 | Stature for AI readers | Causal | Budgets, contract terms, Major share, closures |
+| 4 | **Follower demand at launch, advance orders, live draw** | Causal; current calibration accepted for the next stage (author, 2026-11-01). Complete chart audit and stronger-demand/cadence trials retain the accepted rates; remaining allocation work is scoped into Phase 5. Original kill rule failed on 3 of 4 seeds at mean +3.04 pt; replaced explicitly rather than recorded as passing (`CelebrityFanbasePhase4Notes.md`). | Repeat-hit share, runs, concentration, genre, album units; final decade still pending |
+| 5 | Stature for AI readers, including release selection within format plans | Causal | Budgets, contract terms, Major share, closures, repeat hits, entry concentration, preserved LP programme |
 
 Phase 0 is cheap and answers the main calibration question first: given today's sales, how big would followings be,
 and who would have them?
@@ -785,3 +803,8 @@ and who would have them?
    acclaim, and standing follows through landmarks and influence as before (§4.3, Phase 2b). No direct standing write.
 8. **TV breakouts are a phenomenon's event** (2026-11-01). Single-night breakouts are 0-1 a decade. TV-made stars
    come through residencies and followings (Phase 3). Phase 2c's routes stay off (§3.4.6).
+9. **Phase 4 is accepted for the next stage under historical calibration** (2026-11-01). The original +3 pt
+   top-10% slot-week veto failed, and the author explicitly replaced it. Entry concentration and slot-week
+   concentration are different measures; both remain reported. The subsequent repeat-hit/entry-share investigation
+   is complete: retain the accepted fan rates and target release selection within format plans in Phase 5. The player
+   residency playtest precedes the final branch decade, which remains required.

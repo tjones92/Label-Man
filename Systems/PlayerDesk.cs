@@ -2339,7 +2339,8 @@ public partial class PlayerDesk : Node {
 	public bool IsRehearsing(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && !r.IsCommission);
 
 	/// <summary>Whether this act already has a commission out with a writer (only one at a time).</summary>
-	public bool IsCommissioning(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && r.IsCommission);
+	public bool IsCommissioning(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && r.IsCommission) ||
+		ProfessionalWritingMarket.State?.Orders.Any(o => o.ArtistId == artistId && o.Status == WritingOrderStatus.Pending) == true;
 
 	/// <summary>Covers and commissions this act is currently working up / awaiting (not yet in the set).</summary>
 	public IEnumerable<CoverRehearsal> RehearsalsFor(string artistId) =>
@@ -2352,6 +2353,7 @@ public partial class PlayerDesk : Node {
 	/// what they are cutting before the studio. One commission out at a time per act.
 	/// </summary>
 	public bool CommissionSong(SimulatedArtist artist, out string message) {
+		if (ProfessionalWritingMarket.Enabled) return CommissionProfessionalSong(artist, null, out message);
 		message = "";
 		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		if (!RequireHome(out message)) return false;
@@ -2435,6 +2437,7 @@ public partial class PlayerDesk : Node {
 	/// <summary>Lands any cover whose rehearsal has come due into the act's set. Runs daily, so a cover finishes
 	/// on its own even while the player is away.</summary>
 	private void ProcessCoverRehearsals(GameDate date) {
+		ProcessProfessionalWritingDeliveries(date);
 		foreach (CoverRehearsal r in rehearsals.Where(entry => entry.ReadyDate <= date).ToList()) {
 			rehearsals.Remove(r);
 			// If the act already picked it up somehow, don't double-add.
@@ -2707,6 +2710,9 @@ public partial class PlayerDesk : Node {
 		SelectedSongMaterial material;
 		try { material = ResolveMaterial(choice, artist, record, year, week); }
 		finally { pendingTeamForCut = null; }
+		if (ProfessionalWritingMarket.Enabled && material == null && choice.Kind is MaterialKind.Commission or MaterialKind.LiveCover) {
+			Note($"Could not print \"{choice.Title}\": recording access is no longer available."); return false;
+		}
 		if (material?.Song != null) {
 			PolarSongBehavior.Prepare(material, artist, record, record.primaryGenre, year, Label,
 				new PolarSessionContext { producerCraft = Label.productionQuality, studioCraft = take.Production });

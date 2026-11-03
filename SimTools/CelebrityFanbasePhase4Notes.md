@@ -305,10 +305,10 @@ concentrated world ([[seeds-4004-5005-are-concentrated-worlds]]); the pairing ab
 | Closures | 113 → 146 | 115 → 93 | 215 → 208 | 208 → 250 | +11 |
 
 **What is now settled.**
-- **Albums and singles are neutral.** The four-seed means are within ±1.2% every year, and each seed's cells straddle
-  zero. The LP fixes hold.
+- **Albums and singles are neutral in the four-seed mean.** The means are within ±1.2% every year, with positive and
+  negative effects across seeds. Seed 4004's album cells are all negative; neutrality is a mean result. The LP fixes hold.
 - **Repeat hits are the phase's real effect.** They are up on every seed, closing about half the gap to history by
-  1966. Consecutive runs triple or more.
+  1966. Consecutive runs rise on every seed (roughly 2.6-5 times as many acts with 5+ straight hits).
 - **Concentration is real and trips the kill rule.** It trips on three seeds of four, mean +3.04 pt. It isn't
   reshuffle. Yet the top 5%'s share of Top 40 entries stays below history on every seed (18.9-21.2% against 24%). The
   rule and §9's historical target now disagree. That is the §0.4 decision the design left to the author.
@@ -326,3 +326,129 @@ concentrated world ([[seeds-4004-5005-are-concentrated-worlds]]); the pairing ab
   (see the trace above).
 
 Net: fans give the Majors a small real gain, about 1-2 pt. The rest of the headline rise comes from MidTier churn.
+
+## Author decision and follow-up investigation (2026-11-01)
+
+The author accepted the current Phase 4 calibration for the next stage and explicitly amended adoption to historical
+calibration. **The original +3 pt top-10% slot-week kill rule failed** (three seeds of four, mean +3.04 pt); it has not
+been passed or dismissed as noise. Slot-week concentration remains a separate diagnostic, because a low share of
+distinct hit entries does not establish that chart occupancy is healthy.
+
+Before Phase 5, investigate whether repeat hits and leading acts' entry share can move closer to history. First audit
+the measurement: the original report dates entries from closed lifecycles, omits records still active at the endpoint,
+and compares a four-year simulated entry concentration with a three-year historical concentration. The optional
+`--chart-history` audit switch retains the opening chart and every weekly Top 100 in `records.csv`, including under
+`--calibration`; it changes telemetry only. `analyze_follower_calibration.py` uses first actual Top 40 observations,
+an actual prior-104-week Top 40 lookback, and equal three-year concentration windows. Opening carryovers seed the
+lookback but do not count as new entries. Historical artist credits remain as printed, without A/B-side merging.
+
+Recomputing the recovered history with that definition gives repeat shares of 62.9%, 64.1%, and 64.7% in 1962-64,
+and top-5% entry concentration of 23.8% across those years. Model replay and any candidate screen must use complete
+weekly chart observations before selecting a new calibration. The author will do the player-residency playtest
+before the final branch decade; that validation is still pending.
+
+### Measurement audit and sensitivity test
+
+The first two complete chart replays (`fd4audit-base1001`, `fd4audit-base2002`) reproduce the original annual singles
+and LP units and label concentration. Calibration telemetry omits some diagnostic aggregates (for example compilation
+freshness); those omissions are not economic changes. The corrected 1966 repeat shares are 58.8% and 47.8%, rather
+than the original lifecycle report's 50.5% and 47.4%. Equal three-year entry concentration (1964-66) is 19.0% and 21.4%,
+against history's 23.8%. Actual top-10% Top 100 slot-week shares are 43.0% and 41.2%, against history's 42.9%.
+Mean observed Top 40 occupancy per title in that window is 8.1 and 7.8 weeks, against history's 6.8. There is room in
+entry concentration, but indiscriminately lengthening hits would move another measure away from history.
+
+The retrospective leading 5% of hit acts have 6.4 and 6.9 Top 40 entries each over three years, against history's 10.5.
+Their mature 1966 follow-up launches already reach the Top 40 within 13 weeks about 95% of the time (only launches
+with a full 13-week outcome window are counted). Stronger demand has little direct room to create more hits for these
+leaders. Release frequency and audience warm-up therefore need to be distinguished from failed chart conversion.
+Leader selection is descriptive and uses the whole window, not a matched causal cohort.
+
+The resume worlds' saved flags contain no `--observe-following`: following starts at zero in 1963. A final branch run
+with the stock active from 1960 will have a different warm-up. Do not force these cold resumes to the historical
+benchmark by assuming the 1966 state is an equilibrium.
+
+An experimental `--follower-single-scale=1.5` tests the demand hypothesis without changing LP rates, follower growth
+constants, or AI scheduling. It changes the singles rates from 0.35 / 0.10 to 0.525 / 0.15 and scales launch stock with
+the book. The parameter accepts finite values from 0 to 2, requires follower demand or its shadow, and defaults to 1:
+**the accepted calibration is unchanged**. Shadow release telemetry uses the same rate. The fixture suite passes
+282 checks, including singles scaling with invariant LP intent; the Python measurement regressions pass 4 checks.
+
+Use `analyze_follower_calibration.py RUN... --pair BASE TREATMENT` for complete run comparisons. Outputs are in
+`SimLogs/follower-calibration`: annual entry shares, three-year concentration, fixed follow-up windows, mature launch
+book outcomes, retrospective leader releases, and paired annual economics. `granted` in the original follower ledger
+means admitted through the physical limit **before purse clearing**; it is not an attribution of settled fan purchases.
+
+### Complete chart audit: four seeds
+
+All four `fd4audit-base<seed>` replays complete 209 weeks and reproduce the corresponding `fd4sp-t<seed>` annual
+sales (units and gross, both formats) and all label-concentration columns exactly. Seed 1001's original tag is
+`fd4sp-t`, without the suffix. Each new history contains the opening 100 records and exactly 100 unique chart positions
+and titles per completed week. The three-year comparison is 1964-66 in the model and 1962-64 in the recovered history;
+it is a period reference, not a claim to have observed 1966 history.
+
+| Complete weekly chart measure | 1001 | 2002 | 3003 | 4004 | Seed mean | History |
+|---|---:|---:|---:|---:|---:|---:|
+| Repeat-hit share, 1966 | 58.8% | 47.8% | 49.2% | 54.5% | 52.6% | 62.9-64.7% |
+| Top 5% of hit acts' share of entries, three years | 19.0% | 21.4% | 20.5% | 19.5% | 20.1% | 23.8% |
+| Top 10% of charting acts' Top 100 slot-weeks, three years | 43.0% | 41.2% | 41.8% | 41.3% | 41.8% | 42.9% |
+| Observed Top 40 weeks per title in the three-year window | 8.11 | 7.80 | 8.22 | 8.13 | 8.07 | 6.81 |
+
+The remaining gap is distinct hits by established acts, with only about one point of mean headroom in top-10% slot-week
+concentration relative to this historical period. The model averages 743.5 new Top 40 titles across 457.5 hit acts in
+the window; history has 879 titles across 391 acts. More acts share fewer hits. These absolute measures do not
+recompute the original Phase 4 versus no-follower treatment effects: the old no-follower controls have no complete
+weekly trace. The old kill failure remains recorded on its original method.
+
+The existing `--hit-act-cadence` mechanism is a separate scheduling sensitivity: due recent hit acts take the label's
+release opportunity ahead of the general lottery, and a lane release is a single. It also applies the existing
+same-act radio-sharing/predecessor-cut behavior. Capacity is unchanged, but the format mix can change, so LP sales
+must be checked. This is not a Phase 5 stature implementation and does not enable `--hit-act-retention`.
+
+### Completed candidate screens and disposition
+
+Ten 209-week worlds completed: four baseline replays, four `fd4audit-high<seed>` runs at singles scale 1.5, and two
+`fd4audit-cad<seed>` runs (1001/2002) at the accepted scale 1 plus `--hit-act-cadence`. All processes exit 0, with empty
+error logs. No decade run or player playtest was performed. These use the original media-screen flag bundle, not the
+ordinary-game `--default-simulation-profile` (which already includes other release and audience mechanisms).
+
+| Measure | Baseline, four seeds | Singles scale 1.5, four seeds | Baseline, seeds 1001/2002 | Cadence, seeds 1001/2002 | History |
+|---|---:|---:|---:|---:|---:|
+| Repeat-hit share 1966 | 52.6% | 57.4% | 53.3% | 61.4% | 62.9-64.7% |
+| Top 5% share of distinct entries, three years | 20.1% | 19.9% | 20.2% | 26.1% | 23.8% |
+| Top 10% Top 100 slot-weeks, three years | 41.8% | 42.7% | 42.1% | 47.2% | 42.9% |
+| Observed Top 40 weeks per title, three-year window | 8.07 | 7.67 | 7.96 | 7.33 | 6.81 |
+
+**Stronger singles demand is not adopted.** The repeat-share changes by seed are −1.5, +11.0, +5.9, +4.1 pt. Mean
+repeat hits and turnover improve, but top-5% entry concentration does not. Against the original no-follower controls,
+four-seed album-unit changes in 1963/64/65/66 are +0.7/+1.0/+1.0/+3.3%, and singles −0.2/−0.4/−0.4/−1.3%. In 1966
+LPs are +2.8% against the accepted Phase 4 baseline itself. LP rates were unchanged; this screen does not isolate the
+feedback/stock route responsible for that drift. It does establish that increasing the singles rate fails to retain
+the accepted unit neutrality and does not solve the leading-acts entry-share gap. The new parameter remains opt-in
+at its screened experimental value; the default is still 1.
+
+**The blanket cadence bundle is not adopted for this media screen.** It raises distinct hit concentration beyond the
+historical reference and raises slot-week concentration to 46.0-48.4%. Against the matched Phase 4 baselines, mean
+LP-unit changes in 1963/64/65/66 are −3.2/−20.1/−22.9/−23.5%; singles +1.1/+7.6/+8.5/+10.0%. The single-for-LP
+override is a direct format-mix change, so the chart gains are economically expensive. This verdict concerns adding
+the flag to these resumes, not its use in the separately calibrated ordinary-game release bundle.
+
+**Next implementation target.** Keep the accepted Phase 4 demand calibration. The evidence supports investigating
+release selection and timing within a format programme: followed acts should get timely singles without taking away
+their planned LPs or creating extra label capacity. Phase 5's stature-to-AI work is the natural place to implement and
+screen that allocation, with explicit observations of eligible acts waiting for a release opportunity. Mapping stature
+only to budgets or minimum cooldowns would leave the selection lottery unresolved. A broad fan-rate increase should
+not be used to compensate for missing AI readers or the resumes' zero-following warm-up.
+
+The adoption amendment stands: historical calibration governs; the original kill rule failed. The Phase 4 default
+and the ordinary-game profile have not been changed by these trials. Final branch decade validation and the author's
+player-residency playtest remain pending.
+
+**Reproduction.** The common audit flags are `--enable-genre-market-v2 --enable-artist-population-lifecycle
+--causal-media-atmosphere --media-recognition --fame-registration --observe-following --media-residencies
+--follower-demand --calibration --chart-history`, `--weeks=209`, and the corresponding seed. Resumes are
+`media-p3-1001-1963`, `asc-2002-1963`, `fdw-3003-1963`, and `fdw-4004-1963`. Add
+`--follower-single-scale=1.5` for `high` runs, or `--hit-act-cadence` for the two `cad` runs. Baselines use scale 1.
+The four baseline sales/concentration replays exactly match commit `4e2338a`'s original Phase 4 artifacts. The later
+screen assembly SHA256 is `FA8AE651151AF2E558A7AB16994D3B79E163658D834A0E3898EF5410A9AC630A`.
+`SimLogs/follower-calibration/final-report.txt`, `chart-pairs.csv`, `economic-pairs.csv`, and
+`no-follower-economics.csv` hold the results; `sources.json` records the analyzed inputs and their SHA256 hashes.

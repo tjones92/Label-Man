@@ -49,6 +49,54 @@ public static class LabelReleaseProgrammeChecks {
 			Check(expected == GameRandom.Randf(), "keyed decisions do not advance global RNG");
 			Check(roll == LabelReleaseProgramme.Roll("label", "act", "1960-02-01:single:0", 5, 1), "same semantic identity replays");
 			Check(roll != LabelReleaseProgramme.Roll("label", "other-act", "1960-02-01:single:0", 5, 1), "act identity separates decisions");
+			Check(ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 13, true, 0) == 0 &&
+				ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 26, true, 0) == 1,
+				"a recent hit earns waiting priority only after its quarterly follow-up is due");
+			Check(ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 104, true, 0) >
+				ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 52, true, 0),
+				"overdue priority keeps growing after the old age score caps");
+			Check(ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Album, 104, true, 1) == 0 &&
+				ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 26, false, 0) == 0,
+				"LPs and acts without current draw receive no follow-up priority");
+			Check(ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 26, false, .5f) == .5f,
+				"following supplies continuous evidence without a new hit gate");
+			var ordinary = new ReleaseSlateItem { Id = "ordinary", Format = ReleaseFormat.Single, ReadyWeek = 9 };
+			var workLp = new ReleaseSlateItem { Id = "workLp", Format = ReleaseFormat.Album, ReadyWeek = 9 };
+			var followUp = new ReleaseSlateItem { Id = "follow-up", Format = ReleaseFormat.Single, ReadyWeek = 9 };
+			var futureWork = new ReleaseSlateItem { Id = "futureWork", Format = ReleaseFormat.Single, ReadyWeek = 20 };
+			var work = ProgrammeFollowUpScheduling.OrderWork(new[] { ordinary, workLp, followUp, futureWork }, 10,
+				i => i == futureWork ? 100 : i == followUp ? 2 : 0);
+			Check(work.SequenceEqual(new[] { followUp, workLp, ordinary, futureWork }),
+				"due single work gains precedence while LP positions and future work remain protected");
+			Check(ProgrammeFollowUpScheduling.OrderWork(new[] { ordinary, workLp, followUp }, 10, _ => 0)
+				.SequenceEqual(new[] { ordinary, workLp, followUp }), "zero urgency preserves dated work order");
+			Check(ProgrammeFollowUpScheduling.WorkPriority(12, true, 0) == 0 &&
+				ProgrammeFollowUpScheduling.WorkPriority(13, true, 0) == 1,
+				"work precedence begins at the quarterly due date, never before it");
+			var materialDue = new ReleaseSlateItem { Format = ReleaseFormat.Single, IntendedWeek = 13, ReadyWeek = 12 };
+			Check(ProgrammeFollowUpScheduling.RoutineFollowUpDue(materialDue, 12, 12, true, false, 0) &&
+				!ProgrammeFollowUpScheduling.RoutineFollowUpDue(materialDue, 11, 11, true, false, 0),
+				"a due hit can choose its own session with ordinary master lead, but cannot record before preparation");
+			Check(!ProgrammeFollowUpScheduling.RoutineFollowUpDue(materialDue, 12, 12, false, false, 1000) &&
+				ProgrammeFollowUpScheduling.RoutineFollowUpDue(materialDue, 12, 12, false, true, MediaFollowerDemand.BookFloor),
+				"audience-backed own sessions require established standing and an observable order book scale");
+			materialDue.MaterialSearch = new ProgrammeMaterialSearch { State = ProgrammeMaterialState.Pending };
+			Check(!ProgrammeFollowUpScheduling.RoutineFollowUpDue(materialDue, 12, 12, true, true, 1000),
+				"a due follow-up waits for an already ordered commission");
+			materialDue.MaterialSearch = null; materialDue.Format = ReleaseFormat.Album;
+			Check(!ProgrammeFollowUpScheduling.RoutineFollowUpDue(materialDue, 12, 12, true, true, 1000),
+				"follow-up material timing leaves LP projects untouched");
+			followUp.PreparedRecord = new Record(); followUp.DueWeek = 20;
+			Check(ProgrammeFollowUpScheduling.OrderWork(new[] { ordinary, followUp }, 10, _ => 2)
+				.SequenceEqual(new[] { ordinary, followUp }), "a prepared future launch cannot preempt due work");
+			float waiting = ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 39, true, 0);
+			Check(.7f + waiting > 1f + ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 13, true, 0),
+				"an overdue established act can overtake a newly due star within the same single slot");
+			var following = new MediaFollowingState();
+			following.Regions["test"] = new FollowingRegion { Adult = 1000 };
+			Check(ProgrammeFollowUpScheduling.AudienceOrders(following) == MediaFollowerDemand.RegionIntent(0, 1000, ReleaseFormat.Single) &&
+				ProgrammeFollowUpScheduling.AudienceStrength(1, 0) == .01f,
+				"the scheduling proxy uses current single audience rates and a floor for an empty national reference");
 			var namedA = new AILabel { labelName = "Hickory Records", isHistorical = true, homeCityId = "nashville", foundedYear = 1955 };
 			var namedB = new AILabel { labelName = "Hickory Records", isHistorical = false, homeCityId = "nashville", foundedYear = 1955 };
 			Check(LabelReleaseProgramme.LabelIdentity(namedA) != LabelReleaseProgramme.LabelIdentity(namedB), "a procedural namesake must not share the historical firm's dated slot");
@@ -99,7 +147,11 @@ public static class LabelReleaseProgrammeChecks {
 			var restored = JsonSerializer.Deserialize<ReleaseProgrammeState>(json, SaveGameService.TestJsonOptions);
 			Check(JsonSerializer.Serialize(restored, SaveGameService.TestJsonOptions) == json, "dates, reservations, clocks and bounded ledger round-trip");
 			Check(restored.Items.Single().MissedFollowUp && restored.PlannedThrough[label.labelId] == 22, "misses and planning cursor persist");
-			Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 28), "programme state requires save v28 (v30 with LP assembly)");
+			Check(SaveGameService.WritingVersion >= (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 28),
+				"programme state requires at least save v28 (v30 with LP assembly); later active systems may require a newer version");
+			if (OS.GetCmdlineUserArgs().Contains(SimulationArguments.DefaultSwitch))
+				Check(LabelReleaseProgramme.WorkBudgetSingles > 0 && LabelReleaseProgramme.ProjectJudgementEnabled && RetailPurchaseEnvelope.Enabled,
+					"ordinary LP programme profile includes work budgets, material judgement and the shared retail envelope");
 			var timing = new ReleaseSlateItem { ProposedWeek = 5, IntendedWeek = 8, ReadyWeek = 7, PreparedWeek = 10 };
 			Check(LabelReleaseProgramme.EarliestIssueWeek(timing) == 11, "overdue recording cannot issue in the session week");
 			timing.PreparedWeek = 6;

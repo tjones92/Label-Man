@@ -126,6 +126,8 @@ public sealed class SongRecordingMemory {
 /// </summary>
 [Serializable]
 public sealed class SongComposition {
+	/// <summary>Assignment understanding from previous recordings with this team; reduces mismatch only.</summary>
+	public float writingAssignmentFamiliarity;
 	// Composition subject; only explicit author/import evidence may establish it.
 	public SongContentContext contentContext = SongContentContext.Unknown;
 	public string contextAuthorshipEvidence;
@@ -211,8 +213,9 @@ public sealed class SongComposition {
 }
 
 /// <summary>
-/// A professional (office/staff) songwriter who is not an artist. Rights-metadata only in this phase:
-/// the credited counterparty on a professional song's rights, with no P&L or agency yet.
+/// A persistent professional (office/staff) songwriter who is not an artist. With
+/// --professional-writing, craft and genre suitability condition professional song output.
+/// Publisher affiliation and standing team links persist; contracts and workload are future stages.
 /// </summary>
 [Serializable]
 public sealed class ProfessionalSongwriter {

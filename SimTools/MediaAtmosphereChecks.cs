@@ -1650,6 +1650,9 @@ public partial class MediaAtmosphereChecks : Node {
 			"Fans never take a title past its physical limit: 100 of 500 with 100 copies left, all 500 with room, none on an empty shelf");
 		Check(MediaFollowerDemand.LiveHeads(150_000f) == 75 && MediaFollowerDemand.LiveHeads(1_000f) == 0,
 			"A 150k regional following brings 75 people to a bill; a thousand followers bring nobody");
+		Check(Math.Abs(MediaFollowerDemand.RegionIntent(100_000f, 20_000f, ReleaseFormat.Single, 1.5f) - 55_500f) < 1e-2f
+			&& Math.Abs(MediaFollowerDemand.RegionIntent(100_000f, 20_000f, ReleaseFormat.Album, 1.5f) - 18_000f) < 1e-2f,
+			"Singles calibration changes the advance book without changing LP rates");
 		var (lps, own, moved) = MediaFollowerDemand.ConserveAlbumIntent(new[] { 1_000, 3_000, 6_000 }, new[] { 500, 0, 0 });
 		var (flood, _, capped) = MediaFollowerDemand.ConserveAlbumIntent(new[] { 100, 200 }, new[] { 400, 0 });
 		Check(lps.Sum() == 10_000 && moved == 500 && lps[0] == 1_450 && lps[1] == 2_850 && lps[2] == 5_700

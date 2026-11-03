@@ -1,4 +1,7 @@
-"""Celebrity fanbase Phase 4 screen (CelebrityFanbaseDesign.md §9, §10): what follower demand did to repeat hits.
+"""Legacy lifecycle-based Phase 4 screen, retained to reproduce the original reports.
+
+For historical calibration use --chart-history and analyze_follower_calibration.py:
+this proxy infers dates from retirement and excludes titles still active at the endpoint.
 
 Usage:  py SimTools/analyze_follower_demand.py <control-run> <treatment-run> [<control-run> <treatment-run> ...]
 
@@ -104,6 +107,7 @@ def main():
     args = sys.argv[1:]
     if len(args) < 2 or len(args) % 2:
         sys.exit(__doc__)
+    print('Legacy lifecycle proxy: use analyze_follower_calibration.py with complete --chart-history runs for historical targets.')
     for i in range(0, len(args), 2):
         pair(args[i], args[i + 1])
 

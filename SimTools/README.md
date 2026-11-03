@@ -1,5 +1,28 @@
 # Headless chart realism audit
 
+Professional writer-conditioned output is opt-in with `--professional-writing`;
+add `--enable-team-writing` for standing pairs. See
+[ProfessionalWriting.md](ProfessionalWriting.md) for stage-one scope, distribution
+preservation, native checks and the remaining career/concentration validation.
+`--professional-writing-market` adds finite capacity, delivery, recurring
+partnerships, contracts and differentiated fees; it implies the writing model.
+See [ProfessionalWritingMarket.md](ProfessionalWritingMarket.md) for v37 saves,
+player/AI paths, limits, fees, checks and audit CSVs.
+
+`WritingSupplyAllocationAndFlagAudit.md` follows the full-profile access test
+with matched rock supply, album/single joins and an activation audit.
+`WritingCombinedIntegrationScreen.md` records the broad combined-feature screen;
+its exact configuration is `writing_combined_integration_flags.txt`, run through
+`RunWritingCombinedIntegration.ps1`. The latter is a many-feature scenario and
+documents incompatible alternatives and the physical-inventory integration failure.
+
+`--writing-market-plan-reminders` is an opt-in research pilot for the combined
+planned-assignment and delivery-offer workflow with anticipatory material search.
+It records short-lived planless-arrival reminders and rechecks the existing
+commission guards before material review. Pilot saves require the same switch on
+resume. See [CommissionReminderPilot.md](CommissionReminderPilot.md) for the
+experiment and its measured results.
+
 Ordinary gameplay now uses the `lp-retail-v2` economic baseline in
 `Systems/SimulationArguments.cs`, including the full release/audience bundle,
 LP demand scale .98, rack/budget shopper scales .02652/.0816, wider assortment,

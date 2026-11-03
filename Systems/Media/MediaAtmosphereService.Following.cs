@@ -298,7 +298,6 @@ public static partial class MediaAtmosphereService {
 					if (fresh) {
 						float loss = MediaFollowing.Disappointment(recent, q) * (fs.HardenedUntilDay >= today ? MediaFollowing.HardenedDisappointment : 1f);
 						FollowerLaunchLoss(rec.baseRecord.recordId, loss);
-						var (perY, perA) = MediaFollowing.AdvancePerFollower(rec.baseRecord.format);
 						float young = fs.YoungTotal(), adult = fs.AdultTotal();
 						if (loss > 0f) {
 							FollowingLedger("disappointment", (young + adult) * loss);
@@ -307,7 +306,7 @@ public static partial class MediaAtmosphereService {
 								fr.Adult *= 1f - loss;
 							}
 						}
-						float advance = (young * perY + adult * perA) * (1f - loss);
+						float advance = MediaFollowerDemand.RegionIntent(young, adult, rec.baseRecord.format) * (1f - loss);
 						FollowingLedger(single ? "advanceSingles" : "advanceAlbums", advance);
 						FollowingLedger(single ? "releasesSingles" : "releasesAlbums", 1);
 						FollowingRow("release", weekEnd, fs, genre, $"{advance:F0}", $"{rec.baseRecord.format}|q={q:F3}|avg={(recent.Count > 0 ? recent.Average() : 0):F3}|loss={loss:F3}|{Csv(rec.baseRecord.title)}");

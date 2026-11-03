@@ -12,8 +12,24 @@ public sealed class ProgrammeMaterialSearch {
     public ProgrammeMaterialState State;
 }
 
+// Ephemeral, opt-in audit data. It never participates in a decision or save.
+public sealed class MaterialFunnelAudit {
+    public ReleaseSlateItem Item;
+    public SimulatedArtist Artist;
+    public string Genre;
+    public int Week, Pool, Draws, Unique, Accessible, Owned, FitRefused, PositiveProfessional, PositiveCover;
+    public int Future, Held, Placement, License;
+    public float Baseline, BestProfessionalNet = float.NegativeInfinity, BestCoverNet = float.NegativeInfinity;
+    public string Selected, StartBlock, SelectedSongId, BlockingSlots;
+    public bool Started;
+}
+
 public partial class CompetitorManager {
+    // Experimental, opt-in: keep the same bounded draw but sample from the entries
+    // that pass the existing label-level access check. No rights rule is relaxed.
+    private static readonly bool AccessibleProfessionalSampling = SimulationArguments.Get().Contains("--material-accessible-sampling");
     public event Action<ReleaseSlateItem, int> OnProgrammeMaterialSearch;
+    public event Action<MaterialFunnelAudit> OnMaterialFunnelAudit;
     internal bool HasMaterialSearchState => LabelReleaseProgramme.MaterialSearchEnabled ||
         ProgrammeState?.Items.Any(i => i.MaterialSearch != null) == true;
 
@@ -26,11 +42,26 @@ public partial class CompetitorManager {
         song != null && song.originYear <= year &&
         (!song.rights.exclusiveHold || song.rights.exclusiveHoldUntilWeek < week || song.rights.controllerLabelId == label.labelId) &&
         (professional || song.isPublicDomain || song.rights.compulsoryMechanicalAvailable) &&
-        (!professional || RockHitOfficePlacement.CanPlace(song, label));
+		(!professional || RockHitOfficePlacement.CanPlace(song, label) && ProfessionalWritingMarket.CanLicense(song, label));
 
     private static string MaterialSupplier(SongComposition song) => song.credits
         .FirstOrDefault(c => c.writerType == WriterEntityType.ProfessionalSongwriter && !string.IsNullOrEmpty(c.writerId))?.writerId
         ?? song.rights.publisherId ?? song.songId;
+
+    // Called only after a failed start, for the observer. This mirrors the guards
+    // without changing the decision or making a second licensing attempt.
+    private string AuditMaterialStartBlock(ReleaseSlateItem item, AILabel label, SimulatedArtist artist, SongComposition song, bool professional, GameDate date, int week) {
+        if (!CanObtainProgrammeSong(song, label, professional, date.year, week)) return "access";
+        int delay = professional ? (MaterialPreparationService.CommissionDeliveryDays + 6) / 7 : (MaterialPreparationService.CoverLearnDays(artist) + 6) / 7;
+        float fee = professional ? (ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.LicenseFee(song, label, artist) : MaterialPreparationService.CommissionFee) : 0;
+        if (week + delay > item.ReadyWeek) return "timing";
+        if (label.cashReserves - EconomicLabelLifecycle.CommitmentReserve(label, false) < fee) return "cash";
+        var pending = ProgrammeState.Items.Where(i => i.MaterialSearch?.State == ProgrammeMaterialState.Pending).ToList();
+        if (pending.Any(i => i.ArtistId == artist.artistId)) return "artist-capacity";
+        if (pending.Count(i => i.LabelId == label.labelId) >= 2) return "label-capacity";
+        if (professional && pending.Any(i => i.MaterialSearch.Professional && i.MaterialSearch.SupplierId == MaterialSupplier(song))) return "supplier-capacity";
+        return "other-or-artist-license";
+    }
 
     // Expected recorded quality of this act cutting this song at this label (ExpectedRecording's scale); -1 when refused.
     internal static float ProgrammeMaterialExpectation(AILabel label, SimulatedArtist artist, SongComposition song, bool professional, int year, out float selection) {
@@ -88,20 +119,21 @@ public partial class CompetitorManager {
             !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist) ||
             !CanObtainProgrammeSong(song, label, professional, date.year, week)) return false;
         int delay = professional ? (MaterialPreparationService.CommissionDeliveryDays + 6) / 7 : (MaterialPreparationService.CoverLearnDays(artist) + 6) / 7;
-        float fee = professional ? MaterialPreparationService.CommissionFee : 0;
+        float fee = professional ? (ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.LicenseFee(song, label, artist) : MaterialPreparationService.CommissionFee) : 0;
         if (!float.IsFinite(baseline) || baseline < 0 || baseline > 1 || !float.IsFinite(benefit) || benefit <= fee || week + delay > item.ReadyWeek ||
             label.cashReserves - EconomicLabelLifecycle.CommitmentReserve(label, false) < fee) return false;
         string supplier = professional ? MaterialSupplier(song) : null;
         var pending = ProgrammeState.Items.Where(i => i.MaterialSearch?.State == ProgrammeMaterialState.Pending).ToList();
         if (pending.Any(i => i.ArtistId == artist.artistId) || pending.Count(i => i.LabelId == label.labelId) >= 2 ||
             (professional && pending.Any(i => i.MaterialSearch.Professional && i.MaterialSearch.SupplierId == supplier))) return false;
+        if (professional && !ProfessionalWritingMarket.TryLicense(song, label, artist, out _)) return false;
         item.MaterialSearch = new ProgrammeMaterialSearch { SongId = song.songId, SupplierId = supplier, Professional = professional,
             StartedWeek = week, DeliveryWeek = week + delay, HoldUntilWeek = item.IntendedWeek + LabelReleaseProgramme.Horizon,
             PaidFee = fee, BaselineRead = baseline, ExpectedBenefit = benefit,
             ProposalRead = ProgrammeMaterialRead(label, artist, song, professional, date.year, false),
             ReferenceMasterId = professional ? null : PolarSongBehavior.Reference(song, date.year)?.masterId ?? "demo:" + song.songId };
         // Supply expense is paid once now, not capitalized, refunded, or silently added to a later session bill.
-        if (fee > 0) RecordExpense(label, fee, LabelCashKind.OtherOperating);
+        if (fee > 0 && (!professional || !ProfessionalWritingMarket.Enabled)) RecordExpense(label, fee, LabelCashKind.OtherOperating);
         MaterialReview(item, week, ProgrammeMaterialState.Pending, professional ? "professional-supply-ordered" : "cover-rehearsal-started");
         return true;
     }
@@ -130,22 +162,42 @@ public partial class CompetitorManager {
         if (!LabelReleaseProgramme.MaterialSearchEnabled) return;
         foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && i.Format == ReleaseFormat.Single &&
             LabelReleaseProgramme.IsOpen(i) && i.PreparedRecord == null).OrderBy(i => i.IntendedWeek).ThenBy(i => i.Id, StringComparer.Ordinal)) {
+            // A reminder has already bought work for this intention. Do not start a competing search while it is pending.
+            if (ProfessionalWritingMarket.AwaitingReminderCommission(item)) continue;
             var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
             AdvanceProgrammeMaterial(item, label, artist, date, pipelineWeek);
             if (item.MaterialSearch != null || artist == null || artist.contractSequence != item.ContractSequence ||
                 !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist) || item.ReadyWeek <= pipelineWeek) continue;
+            if (ProfessionalWritingMarket.PlanRemindersEnabled) item.WritingReminderMaterialReviewed = true;
             var decision = BuildDecisionContext(label, artist, date.year, date.month);
             float exposureValue = Math.Max(0, SinglePriorNetAtBookedPrice(decision)) + decision.singleProductionCost;
             Genre genre = GenreCatalog.MapLegacy(artist.primaryGenre, date.year);
+            var audit = OnMaterialFunnelAudit == null ? null : new MaterialFunnelAudit { Item = item, Artist = artist, Genre = genre.ToString(), Week = pipelineWeek };
             var sample = new List<(SongComposition Song, bool Professional)>();
+            if (ProfessionalWritingMarket.OwnedDelivery(label, artist) is SongComposition delivery) { sample.Add((delivery, true)); if (audit != null) audit.Owned = 1; }
             foreach (bool professional in new[] { true, false }) {
                 var pool = professional ? CompositionCatalogService.GetProfessionalForGenre(genre) : CompositionCatalogService.GetStandardsForGenre(genre);
+                if (professional && AccessibleProfessionalSampling)
+                    pool = pool.Where(s => CanObtainProgrammeSong(s, label, true, date.year, pipelineWeek)).ToArray();
+                if (professional && audit != null) audit.Pool = pool.Count;
                 if (pool.Count == 0) continue;
                 var seen = new HashSet<string>(StringComparer.Ordinal);
                 // A fixed bounded sample, keyed to the original intention. A declined offer is never redrawn next week.
                 for (int n = 0; n < 4; n++) {
                     var song = pool[Math.Min(pool.Count - 1, (int)(ProgrammeRoll(label, artist, item.Id + "|material-offer", item.ProposedWeek, (uint)(30 + n + (professional ? 0 : 4))) * pool.Count))];
-                    if (seen.Add(song.songId) && CanObtainProgrammeSong(song, label, professional, date.year, pipelineWeek)) sample.Add((song, professional));
+                    bool unique = seen.Add(song.songId);
+                    if (professional && audit != null) {
+                        audit.Draws++;
+                        if (unique) {
+                            audit.Unique++;
+                            if (song.originYear > date.year) audit.Future++;
+                            else if (song.rights.exclusiveHold && song.rights.exclusiveHoldUntilWeek >= pipelineWeek && song.rights.controllerLabelId != label.labelId) audit.Held++;
+                            else if (!RockHitOfficePlacement.CanPlace(song, label)) audit.Placement++;
+                            else if (!ProfessionalWritingMarket.CanLicense(song, label)) audit.License++;
+                            else audit.Accessible++;
+                        }
+                    }
+                    if (unique && CanObtainProgrammeSong(song, label, professional, date.year, pipelineWeek)) sample.Add((song, professional));
                 }
             }
             float baseline = DefaultSessionExpectation(label, artist, genre, date.year, sample);
@@ -155,16 +207,32 @@ public partial class CompetitorManager {
             foreach (var (song, professional) in sample) {
                 float read = ProgrammeMaterialRead(label, artist, song, professional, date.year, false);
                 float benefit = Math.Max(0, read - baseline) * exposureValue;
-                proposals.Add((song, professional, benefit, benefit - (professional ? MaterialPreparationService.CommissionFee : 0)));
+                float fee = professional ? (ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.LicenseFee(song, label, artist) : MaterialPreparationService.CommissionFee) : 0;
+                proposals.Add((song, professional, benefit, benefit - fee));
+                if (audit != null) {
+                    if (professional) { if (read < 0) audit.FitRefused++; audit.BestProfessionalNet = Math.Max(audit.BestProfessionalNet, benefit - fee); if (benefit > fee) audit.PositiveProfessional++; }
+                    else { audit.BestCoverNet = Math.Max(audit.BestCoverNet, benefit - fee); if (benefit > fee) audit.PositiveCover++; }
+                }
             }
             var best = proposals.OrderByDescending(p => p.Net).ThenBy(p => p.Song.songId, StringComparer.Ordinal).FirstOrDefault();
+            if (audit != null) { audit.Baseline = baseline; audit.Selected = best.Song == null || best.Net <= 0 ? "none" : best.Professional ? "professional" : "cover"; }
             if (best.Song != null && best.Net > 0) {
                 // Capacity or cash can defer this same fixed proposal, without a new sample or a payment.
-                TryStartProgrammeMaterial(item, label, artist, best.Song, best.Professional, date, pipelineWeek, baseline, best.Benefit);
+                bool started = TryStartProgrammeMaterial(item, label, artist, best.Song, best.Professional, date, pipelineWeek, baseline, best.Benefit);
+                if (audit != null) {
+                    audit.Started = started; audit.SelectedSongId = best.Song.songId;
+                    if (!started) {
+                        audit.StartBlock = AuditMaterialStartBlock(item, label, artist, best.Song, best.Professional, date, pipelineWeek);
+                        if (audit.StartBlock == "label-capacity")
+                            audit.BlockingSlots = string.Join(";", ProgrammeState.Items.Where(i => i.LabelId == label.labelId && i.MaterialSearch?.State == ProgrammeMaterialState.Pending)
+                                .OrderBy(i => i.Id, StringComparer.Ordinal).Select(i => i.Id));
+                    }
+                }
             } else {
                 item.MaterialSearch = new ProgrammeMaterialSearch { StartedWeek = pipelineWeek, BaselineRead = baseline };
                 MaterialReview(item, pipelineWeek, ProgrammeMaterialState.Declined, "wait-existing-session-policy-no-worthwhile-offer");
             }
+            if (audit != null) OnMaterialFunnelAudit?.Invoke(audit);
         }
     }
 

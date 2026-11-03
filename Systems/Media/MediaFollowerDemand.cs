@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 /// <summary>
 /// One release's follower demand (CelebrityFanbaseDesign.md §2.4): the act's followers by region at launch, turned into
@@ -42,6 +43,8 @@ public sealed class FollowerLaunch {
 public static class MediaFollowerDemand {
 	public const string ShadowSwitch = "--observe-follower-demand";
 	public const string CausalSwitch = "--follower-demand";
+	/// <summary>Experimental singles-only calibration; 1 retains the screened 0.35 / 0.10 rates.</summary>
+	public static float SingleScale { get; private set; } = 1f;
 
 	/// <summary>Launch intent by clearing week: most fans buy in the first week, the rest as the record reaches them.</summary>
 	public static readonly float[] WeekShare = { 0.5f, 0.3f, 0.2f };
@@ -65,7 +68,15 @@ public static class MediaFollowerDemand {
 		foreach (string argument in arguments ?? Array.Empty<string>()) {
 			if (argument == ShadowSwitch) shadow = true;
 			if (argument == CausalSwitch) causal = true;
+			if (argument.StartsWith("--follower-single-scale=", StringComparison.Ordinal)) {
+				if (!float.TryParse(argument["--follower-single-scale=".Length..], NumberStyles.Float,
+					CultureInfo.InvariantCulture, out float scale) || !float.IsFinite(scale) || scale < 0f || scale > 2f)
+					throw new ArgumentException("--follower-single-scale must be finite and between 0 and 2.");
+				SingleScale = scale;
+			}
 		}
+		if (SingleScale != 1f && !causal && !shadow)
+			throw new ArgumentException("--follower-single-scale requires follower demand or its shadow.");
 		if (causal && shadow)
 			throw new ArgumentException($"{CausalSwitch} and {ShadowSwitch} cannot be used together; the causal run prints the same telemetry.");
 		if (causal && !MediaAtmosphere.Causal)
@@ -78,9 +89,12 @@ public static class MediaFollowerDemand {
 	internal static void SetForChecks(bool on, bool writeCausal = false) { shadow = on && !writeCausal; causal = on && writeCausal; configured = true; }
 
 	/// <summary>A region's three-week intent from its followers: young × the young rate + adult × the adult rate (§2.4).</summary>
-	public static float RegionIntent(float young, float adult, ReleaseFormat format) {
+	public static float RegionIntent(float young, float adult, ReleaseFormat format) => RegionIntent(young, adult, format, SingleScale);
+
+	internal static float RegionIntent(float young, float adult, ReleaseFormat format, float singleScale) {
 		var (perY, perA) = MediaFollowing.AdvancePerFollower(format);
-		return Math.Max(0f, young) * perY + Math.Max(0f, adult) * perA;
+		float intent = Math.Max(0f, young) * perY + Math.Max(0f, adult) * perA;
+		return format == ReleaseFormat.Single ? intent * singleScale : intent;
 	}
 
 	/// <summary>

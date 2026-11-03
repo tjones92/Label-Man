@@ -8,6 +8,8 @@ public sealed class ProgrammeCandidateAudit {
 	public int Rank, Gap;
 	public float Score, ExpectedNet, Contribution, QualityEstimate, Priority, Momentum, Obligations;
 	public double AttachedAudienceAtAudit;
+	public bool FollowUpScheduling;
+	public float WaitingPriority, AudienceOrders, NationalAudienceOrders;
 }
 
 public sealed class ProgrammeChoiceAudit {

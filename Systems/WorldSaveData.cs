@@ -136,6 +136,7 @@ public sealed class BandLifeSaveData {
 /// (the pools share SongComposition objects with <see cref="Songs"/> and are not a pure function of it, so they
 /// are relinked rather than rebuilt). The catalogue's own RNG state is preserved.</summary>
 public sealed class CompositionSaveData {
+	public ProfessionalWritingMarketState WritingMarket { get; set; }
 	public int ShapeVariationVersion {get;set;}
 	public ulong? ShapeVariationWorldSeed {get;set;}
 	public int RepertoireSchemaVersion {get;set;}
@@ -319,6 +320,7 @@ public static class WorldStateService {
 	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
 		LpDemandCalibration.RequireSaved(world?.LpDemandScale);
 		RetailPurchaseEnvelope.RequireSaved(world?.RetailPurchasePolicy);
+		ProfessionalWritingMarket.RequireSaved(world?.Composition?.WritingMarket);
         SceneAttentionFeedback.Reset(); // derived prior-week cache must not survive a load/rollback
 		if (world == null) {
 			if (deferSceneRelink) {

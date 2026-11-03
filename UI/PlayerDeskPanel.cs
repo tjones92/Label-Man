@@ -1844,7 +1844,9 @@ public partial class PlayerDeskPanel : Control {
 
 		// Commissioning is now its own step: a writer delivers a specific song into the set, by name and
 		// with a read, before the studio -- no more blind "cut a professional song" at the console.
-		if (desk.IsCommissioning(artist.artistId)) {
+		if (ProfessionalWritingMarket.Enabled) {
+			// Market choices, quotes and pending work are shown below the ordinary writing actions.
+		} else if (desk.IsCommissioning(artist.artistId)) {
 			var pending = Btn("WRITER AT WORK…");
 			pending.CustomMinimumSize = new Vector2(240, 40);
 			pending.Disabled = true;
@@ -1856,6 +1858,7 @@ public partial class PlayerDeskPanel : Control {
 			actions.AddChild(commission);
 		}
 		content.AddChild(actions);
+		if (ProfessionalWritingMarket.Enabled) ProfessionalWritingSection(desk, artist);
 
 		// The act's set: their own numbers and taught covers, plus anything you wrote, plus covers still in
 		// rehearsal. A number they've already cut shows as recorded (linked to its record once it's out) and

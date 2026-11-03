@@ -802,6 +802,7 @@ public partial class ChartManager : Node {
 
 		SimulateWeek(triggerEvents: true);
 		PolarSongBehavior.ObserveCompletedWeek(currentChart, currentChartWeek);
+		ProfessionalWritingMarket.ObserveChart(currentChart);
 		if (GenreMarketV2.Enabled) {
 			var freezeProfileStart = SimulationPerformanceProfiler.Begin();
 			FreezeCompletedWeekSettlement(date);

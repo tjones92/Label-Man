@@ -21,7 +21,7 @@ public static class PublisherPitchOrder {
 
 	/// <summary>The slice of a professional pool this label is pitched; the pool itself when off.</summary>
 	public static IReadOnlyList<SongComposition> Visible(IReadOnlyList<SongComposition> pool, AILabel label) {
-		if (!Enabled || pool == null || pool.Count < 5 || label == null || label.isPlayerOwned) return pool;
+		if (!Enabled || ProfessionalWritingMarket.Enabled || pool == null || pool.Count < 5 || label == null || label.isPlayerOwned) return pool;
 		int band = label.tier switch { LabelTier.Major => 0, LabelTier.MidTier => 1, _ => 2 };
 		var key = (pool, pool.Count, band);
 		if (slices.TryGetValue(key, out var slice)) return slice;

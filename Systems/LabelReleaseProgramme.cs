@@ -24,6 +24,7 @@ public static class LabelReleaseProgramme {
 		var args = arguments.ToArray();
 		AllocationEnabled = args.Contains(AllocationSwitch);
 		CapacityEnabled = args.Contains(CapacitySwitch);
+		ProgrammeFollowUpScheduling.Configure(args);
 		ProjectJudgementEnabled = args.Contains(ProjectJudgementSwitch);
 		if (ProjectJudgementEnabled && !AllocationEnabled)
 			throw new ArgumentException(ProjectJudgementSwitch + " requires " + AllocationSwitch);
@@ -188,6 +189,10 @@ public static class LabelReleaseProgramme {
 
 public enum ReleaseSlateState { Proposed, InPreparation, Ready, Scheduled, Postponed, Issued, Cancelled, AwaitingDelivery }
 public sealed class ReleaseSlateItem {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public bool WritingReminderAttempted;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public bool WritingReminderMaterialReviewed;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public ProgrammeProjectReview ProjectReview;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

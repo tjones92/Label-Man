@@ -183,7 +183,7 @@ public static partial class MediaAtmosphereService {
 		}
 		var top = followerDemandBooks.OrderByDescending(b => b.Asked).Take(3)
 			.Select(b => $"\"{ArtistManager.Instance?.GetArtist(b.Artist)?.stageName ?? b.Artist}\" {b.Format} {b.Asked / 1e3:F0}k/{b.Granted / 1e3:F0}k");
-		Godot.GD.Print($"MEDIA_FOLLOWER_DEMAND year={year} mode={(MediaFollowerDemand.Causal ? "causal" : "shadow")}" +
+		Godot.GD.Print($"MEDIA_FOLLOWER_DEMAND year={year} mode={(MediaFollowerDemand.Causal ? "causal" : "shadow")} singleScale={MediaFollowerDemand.SingleScale:F2}" +
 			$" books[singles/LPs]={V("booksSingles"):0}/{V("booksAlbums"):0}" +
 			$" asked[singles/LPs]={V("askedSingles") / 1e6:F2}M/{V("askedAlbums") / 1e6:F2}M granted={V("grantedSingles") / 1e6:F2}M/{V("grantedAlbums") / 1e6:F2}M displacedLPs={V("displacedAlbums") / 1e6:F2}M spentLPs={V("spentAlbums") / 1e6:F2}M" +
 			$" stocked={V("stocked") / 1e6:F2}M singles[{Sizes(ReleaseFormat.Single)}] LPs[{Sizes(ReleaseFormat.Album)}]" +

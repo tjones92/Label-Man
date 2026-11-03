@@ -5,10 +5,15 @@ using System.Linq;
 public partial class CompetitorManager {
 	internal ReleaseProgrammeState ProgrammeState { get; private set; }
 	private ReleaseSlateItem issuingSlateItem;
+	private ReleaseSlateItem preparingSlateItem;
+	internal bool IsPreparingProgrammeItem(ReleaseSlateItem item) => preparingSlateItem == item;
 	private float? programmeCampaignBudget;
 	private bool programmeAdvanceSlot;
 	private string programmeAdvanceSingleId;
 	private readonly Dictionary<string, ProgrammeCampaign> programmeCampaignByRecord = new(StringComparer.Ordinal);
+	private ReleaseProgrammeState followingSnapshotProgramme;
+	private int followingSnapshotWeek = int.MinValue;
+	private float followingSnapshotOrders;
 	public event Action<ReleaseSlateItem, int> OnReleaseSlateReview;
 	public event Action<ProgrammeResourceTelemetry> OnProgrammeResources;
 	public event Action<ProgrammeCashShortfall> OnProgrammeCashShortfall;
@@ -85,6 +90,12 @@ public partial class CompetitorManager {
 	}
 
 	private bool PrepareSlateMaster(AILabel label, SimulatedArtist artist, GameDate date, ReleaseSlateItem item) {
+		if (ProfessionalWritingMarket.AwaitingCommission(item)) return false;
+		preparingSlateItem = item;
+		try { return PrepareSlateMasterCore(label, artist, date, item); }
+		finally { preparingSlateItem = null; }
+	}
+	private bool PrepareSlateMasterCore(AILabel label, SimulatedArtist artist, GameDate date, ReleaseSlateItem item) {
 		if (LabelReleaseProgramme.MaterialSearchEnabled) {
 			AdvanceProgrammeMaterial(item, label, artist, date, pipelineWeek);
 			if (item.MaterialSearch?.State == ProgrammeMaterialState.Pending && !LabelReleaseProgramme.ProjectJudgementEnabled) return false;
@@ -239,6 +250,8 @@ public partial class CompetitorManager {
 			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleFloor));
 
 	private void PlanProgramme(AILabel label, GameDate date, int? from = null) {
+		// Snapshot today's national following once; future intentions must not read future audiences.
+		float nationalSingleOrders = ProgrammeFollowUpScheduling.Enabled ? ProgrammeNationalAudienceOrders() : 0f;
 		int start = from ?? Math.Max(pipelineWeek + LabelReleaseProgramme.PreparationWeeks, ProgrammeState.PlannedThrough.GetValueOrDefault(label.labelId) + 1);
 		for (int week = start; week <= pipelineWeek + LabelReleaseProgramme.Horizon; week++) {
 			GameDate intended = date.AddDays((week - pipelineWeek) * 7);
@@ -290,15 +303,22 @@ public partial class CompetitorManager {
 							float attention = due ? 10 : 0;
 							// Hit urgency remains useful, but cannot swamp material and all other business evidence.
 							if (materialReads != null) attention = (due ? .75f : 0) + MaterialAttention(materialReads[a.artistId], materialMean);
-							float score = attention + a.GetCareerPriority() + a.momentum + a.contractRegionalBreakouts * .1f + contribution +
+							bool followUpScheduling = ProgrammeFollowUpScheduling.Enabled && format == ReleaseFormat.Single;
+							float audienceOrders = followUpScheduling && MediaFollowerDemand.Causal ? ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(a.artistId)) : 0f;
+							float audienceStrength = ProgrammeFollowUpScheduling.AudienceStrength(audienceOrders, nationalSingleOrders);
+							float waitingPriority = followUpScheduling ? ProgrammeFollowUpScheduling.WaitingPriority(format, age, hot, audienceStrength) : 0f;
+							float score = attention + waitingPriority + a.GetCareerPriority() + a.momentum + a.contractRegionalBreakouts * .1f + contribution +
 								Math.Min(1f, age / 52f) + obligations * .1f + (float)ProgrammeRoll(label, a, id, week, 1) * (.5f - label.scoutingAbility * .25f);
 							var read = audit == null ? null : new ProgrammeCandidateAudit {
 								ArtistId = a.artistId, CareerState = a.careerState.ToString(), Eligible = true, Reason = "scored",
 								Score = score, Hot = hot, Due = due, Gap = age, ExpectedNet = net, Contribution = contribution,
 								QualityEstimate = context.qualityEstimate, Priority = a.GetCareerPriority(), Momentum = a.momentum,
-								Obligations = obligations, AttachedAudienceAtAudit = ArtistFanbase.Heads(a.fanbase)
+								Obligations = obligations, AttachedAudienceAtAudit = ArtistFanbase.Heads(a.fanbase),
+								FollowUpScheduling = followUpScheduling, WaitingPriority = waitingPriority, AudienceOrders = audienceOrders,
+								NationalAudienceOrders = followUpScheduling ? nationalSingleOrders : 0f
 							};
-							return (Artist: a, Score: score, Due: due, Age: age, Obligations: obligations, Net: net, Audit: read);
+							return (Artist: a, Score: score, Due: due, Age: age, Obligations: obligations, Net: net, Audit: read,
+								WaitingPriority: waitingPriority, AudienceOrders: audienceOrders);
 						}).OrderByDescending(c => c.Score).ThenBy(c => c.Artist.artistId, StringComparer.Ordinal).ToList();
 					if (audit != null) {
 						for (int rank = 0; rank < candidates.Count; rank++) {
@@ -318,7 +338,8 @@ public partial class CompetitorManager {
 					// a label funds its next few weeks of work, not eight weeks of launches at once.
 					var item = new ReleaseSlateItem { Id = id, LabelId = label.labelId, ArtistId = chosen.Artist.artistId, Format = format,
 						Source = chosen.Due ? "hit-follow-up" : chosen.Obligations > 0 ? "contract-delivery" : "roster-programme",
-						Evidence = $"career={chosen.Artist.careerState};momentum={chosen.Artist.momentum:R};gap={chosen.Age};owed={chosen.Obligations};estimate={decision.qualityEstimate:R};priorNet={chosen.Net:R}" + (financed ? ";financedSlot=1" : ""),
+						Evidence = $"career={chosen.Artist.careerState};momentum={chosen.Artist.momentum:R};gap={chosen.Age};owed={chosen.Obligations};estimate={decision.qualityEstimate:R};priorNet={chosen.Net:R}" + (financed ? ";financedSlot=1" : "") +
+							(ProgrammeFollowUpScheduling.Enabled && format == ReleaseFormat.Single ? $";waitingPriority={chosen.WaitingPriority:R};audienceOrders={chosen.AudienceOrders:R}" : ""),
 						Score = chosen.Score, ProposedWeek = pipelineWeek, IntendedWeek = week, DueWeek = week, ReadyWeek = week - 1,
 						IntendedDate = intended, ContractSequence = chosen.Artist.contractSequence };
 					ProgrammeState.Items.Add(item);
@@ -332,6 +353,33 @@ public partial class CompetitorManager {
 	private float CalculateAlbumPriorCost(AILabel label, SimulatedArtist artist, int year, DecisionContext decision) {
 		CalculateAlbumPriorNet(label, artist, year, decision, CalculateCompilationCostWeight(artist.primaryGenre, year), ResolveHitInventory(artist), out var diagnostics);
 		return diagnostics.productionCost;
+	}
+
+	private List<ReleaseSlateItem> ProgrammeWorkQueue(AILabel label, IEnumerable<ReleaseSlateItem> dated, bool idle = false) {
+		if (!ProgrammeFollowUpScheduling.DeliveryEnabled) return dated.ToList();
+		float national = ProgrammeNationalAudienceOrders();
+		return ProgrammeFollowUpScheduling.OrderWork(dated, pipelineWeek, item => {
+			var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
+			if (artist == null || artist.contractSequence != item.ContractSequence ||
+				!CanProgrammeArtist(label, artist, ReleaseFormat.Single, pipelineWeek)) return 0f;
+			int gap = pipelineWeek - ProgrammeClockFor(artist).SingleWeek;
+			bool hot = HitActCadence.WeeksSinceTop40(artist, pipelineWeek) <= HitActCadence.HotWindowWeeks;
+			float audience = MediaFollowerDemand.Causal ? ProgrammeFollowUpScheduling.AudienceStrength(
+				ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(artist.artistId)), national) : 0f;
+			return ProgrammeFollowUpScheduling.WorkPriority(gap, hot, audience);
+		}, idle);
+	}
+
+	private float ProgrammeNationalAudienceOrders() {
+		if (!MediaFollowerDemand.Causal) return 0f;
+		// Following updates after the weekly label pass. All labels and both work queues share this snapshot.
+		// A restored/new programme has a different state identity, even when it resumes in the same week.
+		if (followingSnapshotWeek != pipelineWeek || followingSnapshotProgramme != ProgrammeState) {
+			followingSnapshotOrders = ArtistManager.Instance.GetAllArtists()
+				.Select(a => ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(a.artistId))).DefaultIfEmpty(0f).Max();
+			followingSnapshotWeek = pipelineWeek; followingSnapshotProgramme = ProgrammeState;
+		}
+		return followingSnapshotOrders;
 	}
 
 	private void ProcessReleaseProgramme(AILabel label, GameDate date) {
@@ -351,6 +399,7 @@ public partial class CompetitorManager {
 		if (!ProgrammeState.PlannedThrough.ContainsKey(label.labelId)) PlanProgramme(label, date, pipelineWeek);
 		SeedOpeningCatalogue();
 		PlanBreakoutFollowUps(label);
+		ProfessionalWritingMarket.ReconsiderPlanReminders(label, date, pipelineWeek);
 		ReviewProgrammeMaterialSearches(label, date);
 		var remainingSlots = new Dictionary<ReleaseFormat, int>();
 		var preparationSlots = new Dictionary<ReleaseFormat, int>();
@@ -368,7 +417,7 @@ public partial class CompetitorManager {
 			remainingSlots[format] += HitFollowUpSlots(label, pipelineWeek);
 			preparationSlots[format] += HitFollowUpSlots(label, pipelineWeek + 1);
 		}
-		foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) && i.State != ReleaseSlateState.AwaitingDelivery).OrderBy(i => i.IntendedWeek).ThenByDescending(i => i.Score).ToList()) {
+		foreach (var item in ProgrammeWorkQueue(label, ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) && i.State != ReleaseSlateState.AwaitingDelivery).OrderBy(i => i.IntendedWeek).ThenByDescending(i => i.Score))) {
 			var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
 			if (artist == null || artist.contractSequence != item.ContractSequence || !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist)) {
 				ReviewSlate(item, ReleaseSlateState.Cancelled, "rights-or-artist-unavailable"); continue;
@@ -423,8 +472,8 @@ public partial class CompetitorManager {
 		// issues ones prepared in an earlier week, so one failure does not push every later intention back a week.
 		// Unused work is still not banked. Only intentions dated after this week qualify: a failure is not retried,
 		// and a master is never recorded and issued in the same week. A work-budget label has no idle dated work.
-		if (!budget) foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.CanUseIdleSlot(i, pipelineWeek) && !preparedNow.Contains(i))
-			.OrderBy(i => i.DueWeek).ThenByDescending(i => i.Score).ToList()) {
+		if (!budget) foreach (var item in ProgrammeWorkQueue(label, ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.CanUseIdleSlot(i, pipelineWeek) && !preparedNow.Contains(i))
+			.OrderBy(i => i.DueWeek).ThenByDescending(i => i.Score), idle: true)) {
 			if (preparationSlots[item.Format] <= 0 && remainingSlots[item.Format] <= 0) continue;
 			var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
 			if (artist == null || artist.contractSequence != item.ContractSequence || !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist)) continue;

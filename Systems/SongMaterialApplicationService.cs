@@ -9,6 +9,7 @@ using Godot;
 public static class SongMaterialApplicationService {
 	public static void Apply(Record record, SelectedSongMaterial material, AILabel label, SimulatedArtist artist) {
 		if (record == null || material?.Song == null) return;
+		if (!material.IsCover) ProfessionalWritingMarket.MarkRecorded(material.Song, artist.artistId);
 
 		// Identity + credit snapshot + seasonal-tag inheritance (shared with the Phase 0 path).
 		CompositionCatalogService.ApplyToRecord(
@@ -19,7 +20,8 @@ public static class SongMaterialApplicationService {
 
 		// Phase 3b support: a label may capture publishing on commissioned professional material through
 		// its own arm (majors most). Deterministic, gated; only rewrites the record's publishing control.
-		PublishingCaptureService.MaybeCapture(record, material, label);
+		if (!ProfessionalWritingMarket.Enabled || material.Song.originKind != SongOriginKind.ProfessionalOffice)
+			PublishingCaptureService.MaybeCapture(record, material, label);
 		if (PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyRealization && material.PolarProposal != null) {
 			// Composition hook remains raw material, independent of performer capability.
 			float execution = PolarSongBehavior.ExecutionFactor(material.PolarProposal.fit.Capability);
@@ -78,6 +80,7 @@ public static class SongMaterialApplicationService {
 	/// </summary>
 	public static void ApplyIdentityToAlbumTrack(AlbumTrack track, SelectedSongMaterial material) {
 		if (track == null || material?.Song == null) return;
+		if (!material.IsCover) ProfessionalWritingMarket.MarkRecorded(material.Song, null);
 		SongComposition song = material.Song;
 		CompositionCatalogService.AdmitUnpublished(song,song.originYear,material.PolarProposal?.plannedMasterId??track.masterId);
 		track.songId = song.songId;

@@ -55,7 +55,12 @@ public partial class CompetitorManager {
 			// A searched song's read has no shared act bias, so the whole of both bands is in play.
 			if (heard > perceived) { perceived = heard; searched = true; uncertainty = ComparisonUncertainty(searchedBand, routineBand); }
 		}
-		bool last = LastProjectReview(item, pipelineWeek);
+		bool followUpDue = ProgrammeFollowUpScheduling.MaterialEnabled && ProgrammeFollowUpScheduling.RoutineFollowUpDue(
+			item, pipelineWeek, pipelineWeek - ProgrammeClockFor(artist).SingleWeek,
+			HitActCadence.WeeksSinceTop40(artist, pipelineWeek) <= HitActCadence.HotWindowWeeks,
+			artist.GetCareerPriority() >= .7f,
+			MediaFollowerDemand.Causal ? ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(artist.artistId)) : 0f);
+		bool last = LastProjectReview(item, pipelineWeek) || followUpDue;
 		bool pending = !last && item.MaterialSearch?.State == ProgrammeMaterialState.Pending;
 		bool closed = pipelineWeek >= item.IntendedWeek + LabelReleaseProgramme.Horizon;
 		bool record = !pending && !closed && WorthRecording(perceived, routine, uncertainty);

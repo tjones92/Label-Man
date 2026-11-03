@@ -67,7 +67,7 @@ public static class SongMaterialSelectionService {
 		// re-roll the source). Empty pool -> fall through to the normal mix so a slot is never starved.
 		if (forcedSource.HasValue) {
 			MaterialCandidate forced = BuildForSource(forcedSource.Value, label, artist, record, genre, year, chartWeek);
-			if (forced?.Material?.Song != null && !Rejected(forced.Material, artist, record, genre, year, label)) {
+			if (forced?.Material?.Song != null && !Rejected(forced.Material, artist, record, genre, year, label) && AcquireProfessional(forced.Material, label, artist)) {
 				Observe(artist, record, forced.Material.Song, genre, year, "forced", forced.Material.Source.ToString(), forced.Material.OriginalRecordId);
 				var prepared = PolarSongBehavior.Prepare(forced.Material, artist, record, genre, year, label);
 				RepertoireInfluenceService.OnSelected(prepared, artist, record, year);
@@ -101,6 +101,7 @@ public static class SongMaterialSelectionService {
 			Observe(artist, record, candidate.Material.Song, genre, year, "source", candidate.Material.Source.ToString(), candidate.Material.OriginalRecordId);
 		}
 		var selected = WeightedPick(candidates, artist, record, year);
+		if (!AcquireProfessional(selected, label, artist)) selected = artistWritten.Material;
 		Observe(artist, record, selected.Song, genre, year, "selected", selected.Source.ToString(), selected.OriginalRecordId);
 		RepertoireInfluenceService.OnSelected(selected, artist, record, year);
 		return selected;
@@ -121,6 +122,10 @@ public static class SongMaterialSelectionService {
 		SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year, string referenceId = null
 	) {
 		if (song == null) return null;
+		if (ProfessionalWritingMarket.NeedsFirstRecordingLicense(song)) {
+			var owner = ChartManager.Instance?.GetLabelById(artist.labelId);
+			return owner == null ? null : BuildProfessionalForSong(owner.tier, artist, record, song, genre, year);
+		}
 		float familiarity = song.GetFamiliarityForYear(year);
 		float artistFit = InterpretationFit(artist, song, genre);
 		SongMaterialSource source =
@@ -152,6 +157,8 @@ public static class SongMaterialSelectionService {
 		LabelTier tier, SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year
 	) {
 		if (song == null) return null;
+		if (ProfessionalWritingMarket.Enabled && !ProfessionalWritingMarket.TryLicense(song,
+			ChartManager.Instance?.GetLabelById(artist.labelId), artist, out _)) return null;
 		float labelAccess = tier switch {
 			LabelTier.Major => 0.90f, LabelTier.MidTier => 0.65f, LabelTier.Boutique => 0.50f,
 			LabelTier.Independent => 0.38f, LabelTier.Small => 0.25f, _ => 0.35f
@@ -211,6 +218,15 @@ public static class SongMaterialSelectionService {
 	}
 
 	// ---- Candidate builders ------------------------------------------------------------------
+	private static bool AcquireProfessional(SelectedSongMaterial material, AILabel label, SimulatedArtist artist) {
+		if (material?.Song == null || material.Song.originKind != SongOriginKind.ProfessionalOffice ||
+			material.IsCover && !ProfessionalWritingMarket.NeedsFirstRecordingLicense(material.Song)) return true;
+		if (!ProfessionalWritingMarket.TryLicense(material.Song, label, artist, out _)) return false;
+		if (ProfessionalWritingMarket.Enabled && material.IsCover) {
+			material.IsCover = false; material.Source = SongMaterialSource.ExternalProfessional;
+		}
+		return true;
+	}
 
 	private static MaterialCandidate BuildArtistWritten(
 		AILabel label, SimulatedArtist artist, Record record, Genre genre, int year
@@ -247,8 +263,8 @@ public static class SongMaterialSelectionService {
 	) {
 		float availability = GetProfessionalMaterialAvailability(genre, year);
 		if (availability <= 0.01f) return null;
-		SongComposition song = SampleBest(RockHitOfficePlacement.Visible(
-				PublisherPitchOrder.Visible(CompositionCatalogService.GetProfessionalForGenre(genre), label), label),
+		SongComposition song = ProfessionalWritingMarket.OwnedDelivery(label, artist) ?? SampleBest(ProfessionalWritingMarket.Visible(RockHitOfficePlacement.Visible(
+				PublisherPitchOrder.Visible(CompositionCatalogService.GetProfessionalForGenre(genre), label), label), label, artist),
 			artist, record, year, "pro", null);
 		if (song == null) return null;
 
@@ -262,7 +278,9 @@ public static class SongMaterialSelectionService {
 		float hook = Mathf.Clamp(song.commercialHook * 0.85f + polish * 0.10f, 0f, 1f);
 
 		// Better labels/needier acts get slightly more of the professional share; ambitious acts less.
-		float q = Mathf.Clamp(song.commercialHook * 0.5f + song.compositionQuality * 0.2f + labelAccess * 0.15f
+		float readHook = ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.DemoRead(song, label, "hook") : song.commercialHook;
+		float readCraft = ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.DemoRead(song, label) : song.compositionQuality;
+		float q = Mathf.Clamp(readHook * 0.5f + readCraft * 0.2f + labelAccess * 0.15f
 			+ artistNeedsSong * 0.1f + commercialNeed * 0.05f, 0f, 1f);
 		float score = SourceMix(SongMaterialSource.ExternalProfessional, genre, year)
 			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist));
@@ -965,7 +983,7 @@ public static class SongMaterialSelectionService {
 			float u = StableUnit(artist.artistId, record.recordId, year, $"{salt}{i}");
 			int gidx = (int)(u * total) % total;
 			SongComposition s = ResolveGlobal(pools, gidx);
-			if (s == null) continue;
+			if (s == null || ProfessionalWritingMarket.NeedsFirstRecordingLicense(s)) continue;
 			if (RejectedSample(s, artist, record, year)) continue;
 			Observe(artist, record, s, record.primaryGenre, year, "pool", salt);
 			float score = SampleScore(s, artist, record, year, applyFatigue);
@@ -992,7 +1010,7 @@ public static class SongMaterialSelectionService {
 		var families = CoverSourceFamilies(genre);
 		var rule = RepertoireProvenance.CurrentEstablishmentRule();
 		bool Eligible(SongComposition s) =>
-			s.originYear <= year && System.Array.IndexOf(families, CompositionCatalogService.PoolFamilyOf(s)) >= 0 &&
+			!ProfessionalWritingMarket.NeedsFirstRecordingLicense(s) && s.originYear <= year && System.Array.IndexOf(families, CompositionCatalogService.PoolFamilyOf(s)) >= 0 &&
 			(hit ? CompositionCatalogService.IsCoverableHit(s) && (genre == Genre.EasyListening || MediaCutRecordingAccess(s, genre))
 				: (s.isStandard || LiveRepertoire.AuditPhase >= 5 && CompositionCatalogService.IsCoverableHit(s)) &&
 				  RepertoireProvenance.GameplayStandard(s, year, rule) && MediaCutRecordingAccess(s, genre)) &&
@@ -1030,6 +1048,8 @@ public static class SongMaterialSelectionService {
 #pragma warning disable CS0618
 			float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
 #pragma warning restore CS0618 // legacy path, reached only when polar selection is off
+			if (salt == "pro" && ProfessionalWritingMarket.Enabled && ChartManager.Instance?.GetLabelById(artist.labelId) is AILabel reader)
+				score = ProfessionalWritingMarket.DemoRead(s, reader) * (PolarSongBehavior.UsePolarFitSelection ? score : 1);
 			if (score > bestScore || (PolarSongBehavior.UsePolarFitSelection && score == bestScore && (best == null || GenreFit(s, record.primaryGenre) > GenreFit(best, record.primaryGenre)))) { bestScore = score; best = s; }
 		}
 		return best;

@@ -22,6 +22,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--simulation-arguments-check")) { SimulationArgumentsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--regional-sales-rng-check")) { RegionalSalesRandomChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--simulation-optimization-check")) { SimulationOptimizationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-check")) { ProfessionalWritingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-market-check")) { ProfessionalWritingMarketChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--writing-workflow-check")) { WritingWorkflowChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--writing-reminder-check")) { WritingReminderChecks.Run(); GetTree().Quit(0); return; }
 			int weeks = 26;
 			bool integration = false;
 			bool mechanicalCheck = false;
@@ -176,7 +180,9 @@ public partial class SaveLoadRoundTripRunner : Node {
 				PolarSongMetadataService.WarmCommittedProfiles(PolarSongTable.Current);
 			}
 
+			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-market-roundtrip")) ProfessionalWritingMarketChecks.StageRoundTrip();
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
+			ProfessionalWritingMarketChecks.CheckLiveState();
 
 			if (integration) { RunIntegration(weeks); return; }
 
@@ -192,6 +198,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			WorldStateService.Apply(restored, TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
 
 			WorldSaveData cap2 = WorldStateService.Capture();
+			ProfessionalWritingMarketChecks.CheckLiveState();
 			HitActFitSupportChecks.CheckLiveState();
 			ArtistFanbaseChecks.CheckLiveState();
 			string b = JsonSerializer.Serialize(cap2, opts);
@@ -200,6 +207,11 @@ public partial class SaveLoadRoundTripRunner : Node {
 				// Also exercise the real gzip + Godot FileAccess buffer IO path end-to-end, and report the
 				// compressed size (the actual on-disk save size for this world).
 				string gzipStatus = VerifyGzipFileIo(cap1, opts, out long compressedBytes);
+				if (ProfessionalWritingMarket.Enabled && !LabelReleaseProgramme.Enabled) {
+					AdvanceOneChartWeek();
+					ProfessionalWritingMarketChecks.CheckLiveState();
+					GD.Print("PROFESSIONAL_WRITING_MARKET_RESUME passed");
+				}
 				if (LabelReleaseProgramme.Enabled) {
 					AdvanceOneChartWeek();
 					LabelReleaseProgrammeChecks.CheckLiveState();
