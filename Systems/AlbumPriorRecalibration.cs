@@ -13,8 +13,14 @@ using System.Linq;
 /// </summary>
 public static class AlbumPriorRecalibration {
 	public const string Switch = "--album-prior-recalibration";
+	// Opt-in probe (SimTools/LpProfitGateFunnelInvestigation.md): finalized NewSigning ordinary LPs realized ~2.9x
+	// their forecast contribution in the combined profile. Scales NewSigning affinity only, capped at Rising's so
+	// the career order cannot invert. 1 leaves the fit unchanged.
+	public const string DebutScaleSwitch = "--album-prior-debut-scale=";
 	private static bool enabled, configured;
 	public static bool Enabled => enabled;
+	public static float DebutScale { get; private set; } = 1f;
+	internal static float MaximumDebutScale => Affinity[1] / Affinity[0];
 	public static bool IsLive => enabled && GenreMarketV2.Enabled &&
 		(ChartManager.Instance?.IsGenreMarketV2Live == true || CompetitorManager.Instance?.AlbumPracticeLiveTick == true);
 	internal const float HitCoefficient = 1.062010614f;
@@ -25,13 +31,23 @@ public static class AlbumPriorRecalibration {
 		enabled = (arguments ?? Array.Empty<string>()).Contains(Switch);
 		if (enabled && (!GenreMarketV2.Enabled || !LabelPressingEconomics.Enabled || !LabelPressingEconomics.PeriodAlbumCosts))
 			throw new ArgumentException(Switch + " requires the live genre market, dealer pricing and period LP costs.");
+		string debut = (arguments ?? Array.Empty<string>()).SingleOrDefault(a => a.StartsWith(DebutScaleSwitch, StringComparison.Ordinal));
+		if (debut != null) {
+			if (!enabled) throw new ArgumentException(DebutScaleSwitch + " requires " + Switch + ".");
+			if (!float.TryParse(debut[DebutScaleSwitch.Length..], System.Globalization.NumberStyles.Float,
+					System.Globalization.CultureInfo.InvariantCulture, out float scale) || !float.IsFinite(scale) ||
+					scale < 1f || scale > MaximumDebutScale + .0001f)
+				throw new ArgumentException(DebutScaleSwitch + $" requires a scale between 1 and {MaximumDebutScale:0.###}.");
+			DebutScale = Math.Min(scale, MaximumDebutScale);
+		}
 		configured = true;
 	}
 
-	internal static void SetForChecks(bool value) { configured = true; enabled = value; }
+	internal static void SetForChecks(bool value, float debutScale = 1f) { configured = true; enabled = value; DebutScale = debutScale; }
 	internal static float CareerAffinity(CareerState state) => state switch {
 		CareerState.Rising => Affinity[1], CareerState.Established => Affinity[2],
 		CareerState.Star => Affinity[3], CareerState.Superstar => Affinity[3] * 1.25f,
+		CareerState.NewSigning => Affinity[0] * DebutScale,
 		_ => Affinity[0]
 	};
 }
