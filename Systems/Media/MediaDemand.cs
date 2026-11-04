@@ -45,6 +45,25 @@ public static class MediaDemand {
 	public const string PermuteSwitch = "--media-demand-permute";
 	public static bool Permute { get; private set; }
 
+	/// <summary>Request source (requires shadow or causal demand): teen fan and national mainstream magazine items ask for
+	/// the record they are about (<c>MediaAtmosphereService.DemandPressWeek</c>).</summary>
+	public const string PressSwitch = "--media-demand-press";
+	/// <summary>Request source (requires shadow or causal demand): a public controversy asks for less of the act's booked
+	/// record, and a major one qualifies the title for the 10% ceiling (<c>MediaAtmosphereService.DemandControversy</c>).</summary>
+	public const string ControversySwitch = "--media-demand-controversy";
+	public static bool PressSource { get; private set; }
+	public static bool ControversySource { get; private set; }
+
+	/// <summary>Request per national reader of a feature, a fraction of the television <see cref="Gain"/>: readers see no
+	/// performance. A Life feature (20M readers) asks for about 1.3%; a teen magazine feature (1.5M) about 0.1%; news items a
+	/// fifth of that. Initial design value, sized against the caps, not fitted.</summary>
+	public const float PressGain = 0.10f;
+	/// <summary>A controversy's request per unit of severity, negative: a national on-air defiance (severity 0.6) asks for
+	/// about −7%, bound by the 10% major-controversy ceiling. Initial design value, not fitted.</summary>
+	public const float ControversyGain = 0.12f;
+	/// <summary>A national controversy at this severity or more is the directive's "major controversy" (§12.3).</summary>
+	public const float MajorControversySeverity = 0.5f;
+
 	private static bool configured, shadow, causal;
 	public static bool Shadow => shadow && !causal && MediaAtmosphere.Observing;
 	public static bool Causal => causal && MediaAtmosphere.Causal;
@@ -59,7 +78,11 @@ public static class MediaDemand {
 			if (argument == ShadowSwitch) shadow = true;
 			if (argument == CausalSwitch) causal = true;
 			if (argument == PermuteSwitch) Permute = true;
+			if (argument == PressSwitch) PressSource = true;
+			if (argument == ControversySwitch) ControversySource = true;
 		}
+		if ((PressSource || ControversySource) && !shadow && !causal)
+			throw new ArgumentException($"{PressSwitch} and {ControversySwitch} are request sources of {CausalSwitch} or {ShadowSwitch}.");
 		if (Permute && !causal) throw new ArgumentException($"{PermuteSwitch} is a diagnostic of {CausalSwitch}.");
 		if (shadow && causal)
 			throw new ArgumentException($"{CausalSwitch} and {ShadowSwitch} cannot be used together; the causal run logs the same rows.");
@@ -69,6 +92,7 @@ public static class MediaDemand {
 	}
 
 	internal static void SetForChecks(bool shadowOn, bool causalOn) { shadow = shadowOn; causal = causalOn; configured = true; }
+	internal static void SetSourcesForChecks(bool press, bool controversy) { PressSource = press; ControversySource = controversy; }
 
 	/// <summary>A strong night sells the record a little; a breakdown asks the region to buy a little less of it.</summary>
 	public static float PerformanceFactor(MediaPerformanceResult result) => result?.Outcome switch {
@@ -189,6 +213,8 @@ public static class MediaDemand {
 	private static readonly Dictionary<string, double> ledger = new(StringComparer.Ordinal);
 	private static double Ledger(string key) => ledger.GetValueOrDefault(key);
 	private static void Add(string key, double amount) => ledger[key] = ledger.GetValueOrDefault(key) + amount;
+	/// <summary>A request source's own counters for the yearly line (print-only).</summary>
+	internal static void Count(string key, double amount) => Add(key, amount);
 	private static bool logHeader;
 
 	/// <summary>Books one region's pass: totals for the yearly line, and a row per title that asked or moved.</summary>
@@ -229,7 +255,9 @@ public static class MediaDemand {
 			$" wanted[up/down]={Ledger("wantedUp"):0}/{Ledger("wantedDown"):0} moved={moved:0} ({(intent > 0 ? moved / intent : 0):P3})" +
 			$" granted[up/down]={Ledger("grantedUp"):0}/{Ledger("grantedDown"):0} neutral[in/out]={Ledger("neutralIn"):0}/{Ledger("neutralOut"):0}" +
 			$" unmatched={Ledger("unmatched"):0} requestTitleWeeks={Ledger("requestTitles"):0} frenzy={Ledger("frenzyTitles"):0}" +
-			$" noBaseline={Ledger("noBaseline"):0} regionCapBinding={Ledger("regionCapBinding"):0} physicalBinding={Ledger("physicalBinding"):0}");
+			$" noBaseline={Ledger("noBaseline"):0} regionCapBinding={Ledger("regionCapBinding"):0} physicalBinding={Ledger("physicalBinding"):0}" +
+			(PressSource ? $" press[items/absorbed/requests/sum]={Ledger("pressItems"):0}/{Ledger("pressAbsorbed"):0}/{Ledger("pressRequests"):0}/{Ledger("pressRequestSum"):0.####}" : "") +
+			(ControversySource ? $" controversy[count/sum]={Ledger("controversies"):0}/{Ledger("controversyRequestSum"):0.####}" : ""));
 		ledger.Clear();
 		Log?.Flush();
 	}

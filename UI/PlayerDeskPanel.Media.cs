@@ -24,8 +24,11 @@ public partial class PlayerDeskPanel {
 
 		SectionHeading("media", "PRESS & TELEVISION", waiting,
 			"Send a disc to a television producer or a press sheet to an editor. Producers offer real dates with real conditions; " +
-			"editors decide what runs. Audiences are estimates until the show airs. Media runs in observe mode: costs are shown as " +
-			"estimates and nothing is charged, and nothing here moves record sales.");
+			"editors decide what runs. Audiences are estimates until the show airs. " +
+			(MediaAtmosphere.Causal
+				? "Costs are real: the postage and photos when you send, the rehearsal and any travel when the date is produced. " +
+				  "A network production pays the performers scale; that is their money, not the label's."
+				: "Media runs in observe mode: costs are shown as estimates and nothing is charged, and nothing here moves record sales."));
 
 		foreach (StandardsQuery q in queries) {
 			TvProgram program = MediaOutletCatalog.Get(q.ProgramId);
@@ -114,17 +117,25 @@ public partial class PlayerDeskPanel {
 			if (p.Kind == PitchKind.Television) {
 				TvProgram program = MediaOutletCatalog.Get(p.ProgramId);
 				Body(p.Status == PitchStatus.Confirmed
-					? $"    Booked: {p.ArtistName} on {MediaOutletCatalog.DisplayName(program, today)}, {MediaAtmosphereService.FromDayIndex(p.AirDay).ToShortString()} ({p.Preparation} preparation)."
+					? $"    Booked: {p.ArtistName} on {MediaOutletCatalog.DisplayName(program, today)}, {MediaAtmosphereService.FromDayIndex(p.AirDay).ToShortString()} ({p.Preparation} preparation). {DateBillLine(desk, p)}"
 					: $"    With {MediaAtmosphereService.ProducerName(program)} at {program.Name}: \"{p.Title}\", answer in a few days.");
 			} else {
 				Body($"    With {MediaOutletCatalog.GetPress(p.OutletId)?.Name}: your sheet on \"{p.Title}\", decided at the next issue.");
 			}
 		}
+		if (MediaAtmosphere.Causal) {
+			var (spent, scale) = MediaAtmosphereService.PlayerMediaYear(desk, today.year);
+			if (spent > 0f || scale > 0f)
+				Body($"    This year: ${spent:N2} on media from the label's cash" +
+					(scale > 0f ? $"; productions have paid your acts' members ${scale:N0} in scale." : "."));
+		}
 
 		if (singles.Count > 0) {
 			if (!desk.AtHome) Body("You send discs and press sheets from the office. Answers reach you anywhere.");
 			else {
-				Body("Send a disc and a press sheet to a producer (estimated: 1 promo copy, $0.15 postage, 1h; not charged in observe mode).");
+				Body(MediaAtmosphere.Causal
+					? "Send a disc and a press sheet to a producer (costs 1 promo copy, $0.15 postage and 1h at the desk)."
+					: "Send a disc and a press sheet to a producer (estimated: 1 promo copy, $0.15 postage, 1h; not charged in observe mode).");
 				var programs = MediaAtmosphereService.PitchablePrograms(desk.Label.homeCityId, desk.CurrentCityId, today);
 				var row = new HBoxContainer();
 				row.AddThemeConstantOverride("separation", 8);
@@ -149,7 +160,9 @@ public partial class PlayerDeskPanel {
 				row.AddChild(send);
 				content.AddChild(row);
 
-				Body("Send a press sheet to an editor (estimated: 1 promo copy, a photo, postage, 1h; not charged in observe mode).");
+				Body(MediaAtmosphere.Causal
+					? "Send a press sheet to an editor (costs 1 promo copy, a $1 photo, $0.15 postage and 1h)."
+					: "Send a press sheet to an editor (estimated: 1 promo copy, a photo, postage, 1h; not charged in observe mode).");
 				var desks = MediaAtmosphereService.PitchableDesks(desk.Label.homeCityId, today);
 				var prow = new HBoxContainer();
 				prow.AddThemeConstantOverride("separation", 8);
@@ -302,6 +315,17 @@ public partial class PlayerDeskPanel {
 		});
 		row.AddChild(send);
 		content.AddChild(row);
+	}
+
+	/// <summary>A booked date's money (§5.4): what the label pays when it is produced, and the scale the production pays the
+	/// members. A date confirmed in observe mode stays free, so it says so.</summary>
+	private static string DateBillLine(PlayerDesk desk, MediaPitch p) {
+		var (prep, travel, scale, performers) = MediaAtmosphereService.DateBill(desk, p);
+		string fee = scale > 0f ? $" The production pays the band ${scale:N0} in scale (${MediaAtmosphereService.NetworkScaleFee:N0} each, {performers} on the date)." : "";
+		if (!p.CausalTerms) return $"Agreed before costs were real: nothing is billed.{(scale > 0f ? $" Scale would be about ${scale:N0}." : "")}";
+		float bill = prep + travel;
+		string parts = travel > 0f ? $" (rehearsal ${prep:N0}, travel ${travel:N2})" : prep > 0f ? " (rehearsal)" : "";
+		return (bill > 0f ? $"Bill when it is produced: ${bill:N2}{parts}." : "No bill to the label.") + fee;
 	}
 
 	/// <summary>The contact's own recent memory of the label, so a call reads as a person with a history (§14).</summary>

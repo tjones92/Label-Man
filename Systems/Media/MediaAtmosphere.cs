@@ -32,6 +32,11 @@ public static class MediaAtmosphere {
 
 	public const string CausalSwitch = "--causal-media-atmosphere";
 
+	/// <summary>Opt-in (requires causal): rival acts' network dates pay their members scale into member wealth, as player
+	/// dates do (§5.4). Never label cash. The accounting experiment the Phase 4 notes left open.</summary>
+	public const string AiPerformerFeesSwitch = "--media-ai-performer-fees";
+	public static bool AiPerformerFees { get; private set; }
+
 	/// <summary>Bumped whenever a catalog, curve or booking rule changes what a seeded world would show.</summary>
 	public const int ConfigVersion = 4;
 
@@ -47,7 +52,10 @@ public static class MediaAtmosphere {
 			if (argument == "--media-fan-diagnostics") MediaFans.Diagnostics = true;
 			if (argument == "--media-hard-sales-rank") MediaFans.SoftSalesStanding = false;
 			if (argument == MediaFans.EventHypeSwitch) MediaFans.EventHype = true;
+			if (argument == AiPerformerFeesSwitch) AiPerformerFees = true;
 		}
+		if (AiPerformerFees && !causal)
+			throw new ArgumentException($"{AiPerformerFeesSwitch} pays real performer income; it requires {CausalSwitch}.");
 		if (disable && (observe || causal))
 			throw new ArgumentException("--disable-media-atmosphere cannot be combined with another media mode.");
 		if (observe && causal)
@@ -60,6 +68,7 @@ public static class MediaAtmosphere {
 
 	/// <summary>Probe suites flip the switch and must be able to put it back.</summary>
 	internal static void SetForProbe(MediaAtmosphereMode value) { mode = value; configured = true; }
+	internal static void SetAiPerformerFeesForProbe(bool value) => AiPerformerFees = value;
 
 	/// <summary>
 	/// A uniform [0,1) draw keyed on the world seed, the media namespace and version, and a caller key built from

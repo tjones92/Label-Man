@@ -41,6 +41,7 @@ public partial class MediaAtmosphereChecks : Node {
 			DemandAllocation();
 			CausalPlayerCosts();
 			DemandShadow();
+			DemandSourcesAndAiFees();
 			FollowingArithmetic();
 			FollowingInTheWorld();
 			MemberFameArithmetic();
@@ -918,6 +919,123 @@ public partial class MediaAtmosphereChecks : Node {
 			for (int i = 0; i < 7; i++) clock.EndDay();
 			Check(MediaAtmosphereService.State.DemandLift.Count == before.Count, "With the adapter off the requests are neither written nor decayed");
 		} finally { MediaDemand.SetForChecks(false, false); }
+	}
+
+	// §12.3 request sources beyond television (press, controversy) and AI performer fees (§5.4). Each source writes the one
+	// ledger, credits a root event once, and is inert with its switch off; AI scale goes to members, never label cash.
+	private void DemandSourcesAndAiFees() {
+		var state = MediaAtmosphereService.State;
+		var clock = TimeManager.Instance;
+		var savedLift = state.DemandLift.ToDictionary(p => p.Key, p => p.Value.ToDictionary(x => x.Key, x => x.Value));
+		var savedRoots = state.DemandRoots.ToDictionary(p => p.Key, p => p.Value);
+		var savedFees = state.PerformerFees.ToDictionary(p => p.Key, p => p.Value);
+		var savedReceipts = new HashSet<string>(state.Receipts);
+		int savedCausalFrom = state.CausalFromDay;
+		MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Causal);
+		MediaDemand.SetForChecks(shadowOn: false, causalOn: true);
+		try {
+			MediaDemand.SetSourcesForChecks(true, true);
+			state.DemandLift.Clear(); state.DemandRoots.Clear();
+			int today = BroadcastExposure.DayIndex(clock.CurrentDate);
+			if (state.CausalFromDay < 0 || state.CausalFromDay > today) state.CausalFromDay = today;
+			var regions = ChartManager.Instance.GetAllRegions().ToList();
+			double population = regions.Sum(r => (double)r.population) * 1e6;
+			var singles = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single)
+				.Select(r => r.baseRecord).Take(4).ToList();
+			Check(singles.Count == 4, "Four singles in the world for the request-source fixtures");
+			MediaStory Item(string id, string root, string outlet, StoryAngle angle, StoryTone tone, int recordIndex) {
+				var s = new MediaStory { Id = "check-press-" + id, RootId = root, OutletId = outlet, Angle = angle, Tone = tone, Status = StoryStatus.Scheduled,
+					ArtistId = singles[recordIndex].artistId, ArtistName = singles[recordIndex].artistName, RecordId = singles[recordIndex].recordId, IssueDay = today };
+				state.Stories.Add(s); return s;
+			}
+			float Request(int recordIndex, string regionId) => MediaAtmosphereService.DemandRequest(singles[recordIndex].recordId, regionId);
+
+			Item("life", "check-root-a", "life", StoryAngle.CulturalPhenomenon, StoryTone.Neutral, 0);
+			MediaAtmosphereService.DemandPressWeek(clock.CurrentDate);
+			float expected = (float)(MediaDemand.PressGain * MediaOutletCatalog.GetPress("life").ReadersMillions * 1e6 / population);
+			Check(regions.All(r => Math.Abs(Request(0, r.regionId) - expected) < 1e-6f) && expected > 0.005f && expected < MediaDemand.RoutineCap,
+				$"A Life feature asks for its record in every region at {expected:P2} (PressGain × readers ÷ the nation)");
+			Item("time", "check-root-a", "time", StoryAngle.CulturalPhenomenon, StoryTone.Admiring, 0);
+			MediaAtmosphereService.DemandPressWeek(clock.CurrentDate);
+			Check(regions.All(r => Math.Abs(Request(0, r.regionId) - expected) < 1e-6f),
+				"A smaller magazine retelling the same root event, and a second weekly pass, add nothing (one credit per root)");
+			Item("trade", "check-root-b", MediaOutletCatalog.Press.First(o => o.Family == PressFamily.Trade).Id, StoryAngle.ChartNews, StoryTone.Neutral, 1);
+			Item("tv", "check-root-c", "life", StoryAngle.TvNotice, StoryTone.Admiring, 1);
+			Item("alarm", "check-root-d", "life", StoryAngle.CulturalPhenomenon, StoryTone.Alarmed, 1);
+			MediaAtmosphereService.DemandPressWeek(clock.CurrentDate);
+			Check(regions.All(r => Request(1, r.regionId) == 0f),
+				"Trades, notices of a TV date (the broadcast's own root) and moral alarm ask for nothing");
+			PressOutlet teen = MediaOutletCatalog.Press.First(o => o.Family == PressFamily.TeenFan && o.Publishing(clock.CurrentDate));
+			Item("teen-news", "check-root-e", teen.Id, StoryAngle.ChartNews, StoryTone.Neutral, 1);
+			MediaAtmosphereService.DemandPressWeek(clock.CurrentDate);
+			float teenNews = (float)(MediaDemand.PressGain * MediaFollowing.NewsReadShare * teen.ReadersMillions * 1e6 * Math.Clamp(teen.Fit(default(Genre)), 0f, 1f) / population);
+			Check(regions.All(r => Math.Abs(Request(1, r.regionId) - teenNews) < 1e-6f || teenNews < MediaDemand.RequestFloor),
+				$"A teen-magazine news item asks a fifth of a feature ({teenNews:P3})");
+
+			var national = new MediaControversy { Id = "check-contro-n", RootId = "check-contro-n", ArtistId = singles[2].artistId, ArtistName = singles[2].artistName,
+				RecordId = singles[2].recordId, StartDay = today, ExpiresDay = today + 84, Severity = 0.6f, National = true, Verified = true };
+			state.Controversies.Add(national);
+			MediaAtmosphereService.DemandControversy(national, null);
+			MediaAtmosphereService.DemandControversy(national, null);
+			float down = -MediaDemand.ControversyGain * 0.6f;
+			Check(regions.All(r => Math.Abs(Request(2, r.regionId) - down) < 1e-6f) && MediaAtmosphereService.DemandFrenzy(singles[2].artistId),
+				$"A national on-air defiance asks {down:P1} of its record everywhere, once, and is a major controversy (10% ceiling)");
+			string home = regions[0].regionId;
+			var local = new MediaControversy { Id = "check-contro-l", RootId = "check-contro-l", ArtistId = singles[3].artistId, RecordId = singles[3].recordId,
+				StartDay = today, ExpiresDay = today + 84, Severity = 0.25f, National = false, Verified = true };
+			state.Controversies.Add(local);
+			MediaAtmosphereService.DemandControversy(local, home);
+			Check(Math.Abs(Request(3, home) + MediaDemand.ControversyGain * 0.25f) < 1e-6f && regions.Skip(1).All(r => Request(3, r.regionId) == 0f)
+					&& (!MediaAtmosphereService.DemandFrenzy(singles[3].artistId) || state.Fans.ContainsKey(singles[3].artistId)),
+				"A local incident asks less, only in the program's own region, and keeps the routine 5% ceiling");
+
+			MediaDemand.SetSourcesForChecks(false, false);
+			var liftBefore = state.DemandLift.ToDictionary(p => p.Key, p => p.Value.ToDictionary(x => x.Key, x => x.Value));
+			Item("off", "check-root-f", "life", StoryAngle.CulturalPhenomenon, StoryTone.Admiring, 1);
+			MediaAtmosphereService.DemandPressWeek(clock.CurrentDate);
+			var offContro = new MediaControversy { Id = "check-contro-off", RootId = "check-contro-off", ArtistId = singles[1].artistId, RecordId = singles[1].recordId,
+				StartDay = today, ExpiresDay = today + 84, Severity = 0.6f, National = true };
+			MediaAtmosphereService.DemandControversy(offContro, null);
+			Check(state.DemandLift.Count == liftBefore.Count && state.DemandLift.All(p => p.Value.All(x => liftBefore[p.Key][x.Key] == x.Value)),
+				"With both source switches off, press items and controversies write no request");
+
+			SimulatedArtist act = ArtistManager.Instance.GetAllArtists().First(a => a != null && !a.isPlayerOwned && a.labelId != null
+				&& CompetitorManager.Instance.GetLabel(a.labelId)?.isPlayerOwned == false && a.members?.Count(m => m != null && m.isActive) >= 2);
+			AILabel aiLabel = CompetitorManager.Instance.GetLabel(act.labelId);
+			var active = act.members.Where(m => m != null && m.isActive).ToList();
+			int year = clock.CurrentDate.year;
+			float Fees() => active.Sum(m => MediaAtmosphereService.PerformerFeesPaid(m.personId, year));
+			TvProgram sullivan = MediaOutletCatalog.Get("ed_sullivan");
+			TvProgram localShow = MediaOutletCatalog.Programs.First(p => p.Network == TvNetwork.Local);
+			var aiDate = new MediaAppearance { Id = "check-ai-fee", ProgramId = sullivan.Id, ArtistId = act.artistId, ArtistName = act.stageName, LabelId = act.labelId, Date = clock.CurrentDate };
+			float before = Fees(), labelCash = aiLabel.cashReserves;
+			MediaAtmosphereService.AiPerformerFee(aiDate, sullivan, today);
+			Check(Fees() == before, "AI performer fees stay estimates without --media-ai-performer-fees");
+			MediaAtmosphere.SetAiPerformerFeesForProbe(true);
+			MediaAtmosphereService.AiPerformerFee(aiDate, sullivan, today);
+			MediaAtmosphereService.AiPerformerFee(aiDate, sullivan, today);
+			float paid = Fees() - before;
+			Check(Math.Abs(paid - active.Count * MediaAtmosphereService.NetworkScaleFee) < 1e-3f && aiLabel.cashReserves == labelCash
+					&& state.Receipts.Contains("fee|check-ai-fee"),
+				$"A rival act's network date pays its {active.Count} members scale once (${paid:N0}), by receipt; the AI label's cash is untouched");
+			MediaAtmosphereService.AiPerformerFee(new MediaAppearance { Id = "check-ai-local", ProgramId = localShow.Id, ArtistId = act.artistId, LabelId = act.labelId, Date = clock.CurrentDate }, localShow, today);
+			MediaAtmosphereService.AiPerformerFee(new MediaAppearance { Id = "check-ai-player", ProgramId = sullivan.Id, ArtistId = act.artistId, LabelId = act.labelId, Date = clock.CurrentDate, PlayerBooking = true }, sullivan, today);
+			MediaAtmosphereService.AiPerformerFee(new MediaAppearance { Id = "check-ai-early", ProgramId = sullivan.Id, ArtistId = act.artistId, LabelId = act.labelId, Date = clock.CurrentDate }, sullivan, state.CausalFromDay - 1);
+			Check(Math.Abs(Fees() - before - paid) < 1e-3f,
+				"Local shows, player bookings (billed by the desk) and dates before the causal boundary pay no AI scale");
+		} finally {
+			state.Stories.RemoveAll(s => s.Id.StartsWith("check-press-", StringComparison.Ordinal));
+			state.Controversies.RemoveAll(c => c.Id.StartsWith("check-contro", StringComparison.Ordinal));
+			state.DemandLift.Clear(); foreach (var p in savedLift) state.DemandLift[p.Key] = p.Value;
+			state.DemandRoots.Clear(); foreach (var p in savedRoots) state.DemandRoots[p.Key] = p.Value;
+			state.PerformerFees.Clear(); foreach (var p in savedFees) state.PerformerFees[p.Key] = p.Value;
+			state.Receipts.Clear(); state.Receipts.UnionWith(savedReceipts);
+			state.CausalFromDay = savedCausalFrom;
+			MediaAtmosphere.SetAiPerformerFeesForProbe(false);
+			MediaDemand.SetSourcesForChecks(false, false);
+			MediaDemand.SetForChecks(false, false);
+			MediaAtmosphere.SetForProbe(MediaAtmosphereMode.Observe);
+		}
 	}
 
 	// Celebrity fanbase Phase 0 (SimTools/CelebrityFanbaseDesign.md §2, §7): the stock's arithmetic, then a live observe pass.

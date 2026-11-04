@@ -25,6 +25,7 @@ public static partial class MediaAtmosphereService {
 		if (program == null) return;
 		int day = BroadcastExposure.DayIndex(a.Date);
 		bool national = program.Network != TvNetwork.Local;
+		AiPerformerFee(a, program, day);
 		StandardsQuery q = a.StandardsQueryId == null ? null : state.StandardsQueries.FirstOrDefault(x => x.Id == a.StandardsQueryId);
 		if (q != null) {
 			switch (q.Resolution) {
@@ -36,11 +37,12 @@ public static partial class MediaAtmosphereService {
 					Attitude(a.ArtistId, 0.15f, -0.25f, 0.02f);
 					var controversy = new MediaControversy {
 						Id = "controversy|" + q.Id, RootId = "controversy|" + q.Id, ArtistId = a.ArtistId, ArtistName = a.ArtistName, StartDay = day, ExpiresDay = day + 84,
-						Severity = national ? 0.6f : 0.25f, National = national, Verified = true,
+						Severity = national ? 0.6f : 0.25f, National = national, Verified = true, RecordId = a.RecordId,
 						Summary = $"sang the original line of \"{a.OriginalTitle ?? a.Title}\" on {program.Name} after agreeing to change it",
 					};
 					state.Controversies.Add(controversy);
 					ControversyFame(controversy);
+					DemandControversy(controversy, program.HomeCityId == null ? null : DistanceModel.GetCityById(program.HomeCityId)?.parentRegionId);
 					break;
 				case StandardsResolution.Cut:
 					Remember(program.Id, a.ArtistId, m => { m.Breaches++; m.ExcludedUntilDay = day + 3 * 365; m.LastNote = "broke the agreement at the taping; segment cut"; });

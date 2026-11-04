@@ -17,7 +17,7 @@ param(
     [switch]$ProTrims1960,
     [switch]$TradPopSinglesNewSongs,
     [switch]$ProgrammeSearchFollowsMix,
-    [switch]$LpAssemblyGateUncredited,
+    [switch]$WithoutLpAssemblyGateUncredited,
     [switch]$ProfilePerformance,
     [string]$ExpectedAssemblySha256 = '511E9709FE20879CE4636C7FFE39F9C62E9CE825DC8EB01A110041711D221AC5'
 )
@@ -26,15 +26,16 @@ $integrationFlags = @(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'writing
     ForEach-Object { $_.Trim() } | Where-Object { $_ -and !$_.StartsWith('#') })
 if ($WithoutLpAssembly) {
     if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the LP assembly ablation.' }
-    $integrationFlags = @($integrationFlags | Where-Object { $_ -ne '--lp-assembly' })
+    $integrationFlags = @($integrationFlags | Where-Object { $_ -ne '--lp-assembly' -and $_ -ne '--lp-assembly-gate-uncredited' })
 }
 if ($DebutLpPriorScale) {
     if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the debut LP prior treatment.' }
     $integrationFlags += "--album-prior-debut-scale=$DebutLpPriorScale"
 }
-if ($LpAssemblyGateUncredited) {
-    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the LP gate treatment.' }
-    $integrationFlags += '--lp-assembly-gate-uncredited'
+# --lp-assembly-gate-uncredited is in the flag file since 2026-11-04; this ablation restores the old double credit.
+if ($WithoutLpAssemblyGateUncredited) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the LP gate ablation.' }
+    $integrationFlags = @($integrationFlags | Where-Object { $_ -ne '--lp-assembly-gate-uncredited' })
 }
 if ($LpFillerSparesFreshDemos -or $WriterCapacity -or $ProfessionalFamilyPool -or $RegionalOffices -or $ExtraWriters -or $RoyaltyLicences -or $CanonicalOfficeGenres -or $SpecialistOffices -or $StandardsToRecentHits -or $ProTrims1960 -or $TradPopSinglesNewSongs -or $ProgrammeSearchFollowsMix) {
     if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for a professional song balance treatment.' }

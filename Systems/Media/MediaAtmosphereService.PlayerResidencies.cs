@@ -210,7 +210,7 @@ public static partial class MediaAtmosphereService {
 		pitch.AnswerDay = day + 2 + (int)(MediaAtmosphere.Unit("residency-pitch-answer|" + pitch.Id) * 3);
 		pitch.ExpiresDay = pitch.AnswerDay;
 		state.ResidencyPitches.Add(pitch);
-		if (charged && TakeReceipt("pitch|" + pitch.Id)) desk.PayMedia(PitchHours, PitchPostage, 0, null);
+		if (charged && TakeReceipt("pitch|" + pitch.Id)) PayPlayerMedia(desk, PitchHours, PitchPostage, 0, null);
 		string to = vehicle ? "the three networks' programming departments" : $"{ProducerName(program)} at {program.Name}";
 		message = $"Sent {artist.stageName}'s photographs, records and press to {to}. Expect an answer in a few days.";
 		return true;

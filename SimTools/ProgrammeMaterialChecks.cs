@@ -7,12 +7,23 @@ public static class ProgrammeMaterialChecks {
     public static void Run() {
         int checks = 0;
         void Check(bool ok, string reason) { if (!ok) throw new InvalidOperationException("Programme material: " + reason); checks++; }
+        if (ProfessionalWritingMarket.Enabled) {
+            // This suite fixes the legacy commission route ($150 fee, booked by the programme). Under the writing market the
+            // fee, booking and supplier holds belong to the market's demos and are tested by --professional-writing-market-check.
+            GD.Print("PROGRAMME_MATERIAL_CHECK skipped: legacy commission route only; run without --professional-writing-market");
+            return;
+        }
         var manager = CompetitorManager.Instance;
         var prior = manager.ProgrammeState;
         var flags = (LabelReleaseProgramme.AllocationEnabled, LabelReleaseProgramme.CapacityEnabled, LabelReleaseProgramme.MaterialSearchEnabled);
         var options = SaveGameService.TestJsonOptions;
         try {
-            LabelReleaseProgramme.SetForChecks(true, true); LabelReleaseProgramme.SetMaterialSearchForChecks(true);
+            LabelReleaseProgramme.SetForChecks(true, true);
+            // The save version without material work. Later features (LP assembly, budget LPs, the writing market...) raise
+            // it past 28, so the checks compare against this world's own baseline rather than fixed numbers.
+            manager.SetProgrammeForChecks(new ReleaseProgrammeState()); LabelReleaseProgramme.SetMaterialSearchForChecks(false);
+            int baseVersion = SaveGameService.WritingVersion, materialVersion = Math.Max(baseVersion, 29);
+            LabelReleaseProgramme.SetMaterialSearchForChecks(true);
             var state = new ReleaseProgrammeState(); manager.SetProgrammeForChecks(state);
             var template = manager.GetAllLabels().Where(l => l.IsActive && !l.isPlayerOwned)
                 .SelectMany(l => l.roster).First(a => GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(a) && a.members.Count > 0 &&
@@ -70,9 +81,9 @@ public static class ProgrammeMaterialChecks {
             var restored = JsonSerializer.Deserialize<ReleaseProgrammeState>(json, options);
             Check(JsonSerializer.Serialize(restored, options) == json && restored.Items[0].MaterialSearch.SupplierId == item.MaterialSearch.SupplierId,
                 "the supplier commitment and work timing roundtrip without a fresh quote");
-            Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 29), "active material work requires save v29 (v30 with LP assembly)");
+            Check(SaveGameService.WritingVersion == materialVersion, "active material work requires at least save v29");
             LabelReleaseProgramme.SetMaterialSearchForChecks(false);
-            Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 29), "retained work still requires v29 with the switch off");
+            Check(SaveGameService.WritingVersion == materialVersion, "retained work still requires v29 with the switch off");
             LabelReleaseProgramme.SetMaterialSearchForChecks(true);
             manager.AdvanceProgrammeMaterial(item, label, act, date, 11);
             Check(item.MaterialSearch.State == ProgrammeMaterialState.Ready && label.cashReserves == cash - 150,
@@ -111,8 +122,8 @@ public static class ProgrammeMaterialChecks {
             held.rights.exclusiveHold = false; held.rights.compulsoryMechanicalAvailable = false;
             Check(!CompetitorManager.CanObtainProgrammeSong(held, label, false, 1960, 10), "a cover requires the existing rights route");
             manager.SetProgrammeForChecks(new ReleaseProgrammeState()); LabelReleaseProgramme.SetMaterialSearchForChecks(false);
-            Check(SaveGameService.WritingVersion == (LabelReleaseProgramme.LpAssemblyEnabled ? 30 : 28) && !JsonSerializer.Serialize(new ReleaseSlateItem(), options).Contains("MaterialSearch"),
-                "old programme worlds keep v28 and omit the optional material field");
+            Check(SaveGameService.WritingVersion == baseVersion && !JsonSerializer.Serialize(new ReleaseSlateItem(), options).Contains("MaterialSearch"),
+                "old programme worlds keep their version (v28 alone) and omit the optional material field");
             GD.Print($"PROGRAMME_MATERIAL_CHECK passed checks={checks} studio={StudioParentLabels.Enabled}");
         } finally {
             manager.SetProgrammeForChecks(prior); LabelReleaseProgramme.SetForChecks(flags.Item1, flags.Item2);

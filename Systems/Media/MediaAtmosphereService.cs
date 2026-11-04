@@ -141,6 +141,10 @@ public sealed class MediaSaveData {
 	public Dictionary<string, float> PerformerFees { get; set; } = new();
 	/// <summary>The §12.3 request on each single by region (recordId, then regionId), signed, carried and decayed weekly.</summary>
 	public Dictionary<string, Dictionary<string, float>> DemandLift { get; set; } = new();
+	/// <summary>Readers already credited to each press or controversy root event's demand request (§12.4 root budget), by root id.</summary>
+	public Dictionary<string, FameRoot> DemandRoots { get; set; } = new();
+	/// <summary>The player label's own media cash by year (postage, photos, rehearsals, travel), for the office.</summary>
+	public Dictionary<int, float> PlayerMediaSpend { get; set; } = new();
 	// Celebrity fanbase Phase 0 (observe-only, --observe-following; nothing the economy reads).
 	/// <summary>Followings, adult regard and national salience by act (SimTools/CelebrityFanbaseDesign.md §2, §4.1, §7).</summary>
 	public Dictionary<string, MediaFollowingState> Following { get; set; } = new();
@@ -244,6 +248,7 @@ public static partial class MediaAtmosphereService {
 		PlaceHolds(evidence, weekEnd);
 		PressWeek(evidence, weekEnd);
 		RecognitionPressWeek(weekEnd);
+		DemandPressWeek(weekEnd);
 		CriticsWeek(evidence, weekEnd);
 		ResidenciesWeek(evidence, weekEnd);
 		BookThrough(weekEnd.AddDays(7), weekEnd.AddDays(1), evidence);
@@ -254,6 +259,7 @@ public static partial class MediaAtmosphereService {
 			PrintYear(weekEnd.year); PrintVeterans(weekEnd.year, evidence); PrintRecognition(weekEnd.year); MediaDemand.PrintYear(weekEnd.year);
 			PrintFollowing(weekEnd.year); PrintMemberFame(weekEnd.year); PrintCritics(weekEnd.year); PrintResidencies(weekEnd.year);
 			PrintFollowerDemand(weekEnd.year);
+			PrintAiPerformerFees(weekEnd.year);
 		}
 	}
 
@@ -313,7 +319,8 @@ public static partial class MediaAtmosphereService {
 
 	/// <summary>A rare qualified frenzy (§12.3): the act is in a national fan sensation or a cultural phenomenon.</summary>
 	public static bool DemandFrenzy(string artistId) =>
-		artistId != null && state.Fans.TryGetValue(artistId, out var f) && f.State is FanEpisodeState.NationalSensation or FanEpisodeState.CulturalPhenomenon;
+		artistId != null && (state.Fans.TryGetValue(artistId, out var f) && f.State is FanEpisodeState.NationalSensation or FanEpisodeState.CulturalPhenomenon
+		|| MajorControversy(artistId));
 
 	/// <summary>
 	/// Year-end census of every act with a lifetime top-40 hit, by the first standing-pool gate it fails: retired, unsigned,

@@ -296,10 +296,30 @@ survives, targeting within tier is the cause.
 Recovery needs its own look either way. It sends old hitmakers to Independents, which works against the 1968-69
 consolidation goal.
 
-## Open
+## Open → built 2026-11-04 (all opt-in, unscreened)
 
-- Request sources still to add under the same ledger: controversy sentiment (§7.4), fan-magazine attachment and
-  mainstream press. Each should be screened alone first.
-- The player-cost UI: offer cards now drop "estimate only" in causal mode, but nothing in the office yet shows the
-  bill on the date or a fee to the members.
-- AI performer fees remain estimates (§5.4). Activating them needs its own accounting experiment.
+The three leftovers are built in `MediaAtmosphereService.DemandSources.cs`. Each is off by default. None has been
+screened in a world yet; each should get its own short screen before it joins a bundle.
+
+| Piece | Switch | What it does |
+|---|---|---|
+| Press requests | `--media-demand-press` (with `--media-demand` or `--observe-media-demand`) | After the weekly press pass, an item in a teen fan magazine or a national mainstream magazine asks for its record in every region: `PressGain (0.10) × fit-weighted readers × angle (feature 1, news 0.2) × tone (Admiring 1.2, Neutral/Curious 1, Skeptical 0.5, Alarmed 0) ÷ national population`. A Life feature asks ~1.3%; a teen-magazine feature ~0.1%. One credit per root event, at the widest outlet (`MediaSaveData.DemandRoots`). Trades, critics, TV notices/advances (the broadcast's own root), standards/controversy items, corrections and label pitches ask nothing. |
+| Controversy requests | `--media-demand-controversy` (same requirement) | A public controversy (today: on-air defiance) asks `−0.12 × severity` of the act's booked record: national everywhere (−7.2% at severity 0.6), local only in the program's region. A national controversy at severity ≥ 0.5 is the §12.3 "major controversy": the title gets the 10% ceiling instead of 5%. No station or retailer refusal (that's a supply adapter). |
+| AI performer fees | `--media-ai-performer-fees` (requires causal) | A rival act's produced network date pays each active member $150 scale (a resident's episode pays the residency's per-episode scale) into `PerformerFees`, read by member wealth like a player date. By receipt, inside the causal window only; never label cash. `MEDIA_AI_FEES` yearly line. |
+| Player-cost UI | (causal mode) | The office's PRESS & TELEVISION header and pitch lines state real costs in causal mode. Each booked date shows its bill when produced (rehearsal, travel) and the scale the production pays the band. Dates confirmed in observe mode say they're free. A "This year" line totals the label's media cash and the scale paid to its acts' members. |
+
+All three sources write the one `DemandLift` ledger, so the allocator's caps hold across TV, press and controversy
+together. The yearly `MEDIA_DEMAND` line adds `press[...]` and `controversy[...]` counters when a source is on.
+
+Fixtures: `MediaAtmosphereChecks` 293 pass at `--seed=1001` (10 new): the Life feature's request size, root dedupe
+and repeated passes, the excluded items, teen news at a fifth, national and local controversy, the frenzy ceiling, both
+sources inert when off, and AI fees once by receipt, with none on local shows, player bookings or before the causal boundary.
+
+Inertness with the switches off: 104 weeks, seed 1001, `--enable-genre-market-v2 --enable-artist-population-lifecycle
+--aggregate-only --log-band-life-members --contact-network-audit --causal-media-atmosphere --media-demand`. The new build
+`mdsrc-new-1001-104` and the pre-change control `mdsrc-ctl-1001-104` match on 108/108 CSVs, byte for byte. Under
+`--default-simulation-profile` the media suite fails one existing check ("The Ed Sullivan Show declines 7 uncharted
+records") on the pre-change code too, so that failure predates this work.
+
+Still to do: a short screen of each source alone (singles and LPs within ±1%, Major top-10 counts), then the AI-fee
+accounting look (member wealth and departures by tier, with fees on and off).

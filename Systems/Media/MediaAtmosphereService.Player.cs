@@ -178,7 +178,7 @@ public static partial class MediaAtmosphereService {
 		};
 		pitch.AnswerDay = day + 2 + (int)(MediaAtmosphere.Unit("pitch-answer|" + pitch.Id) * 3);
 		state.Pitches.Add(pitch);
-		if (charged && TakeReceipt("pitch|" + pitch.Id)) desk.PayMedia(PitchHours, PitchPostage, 1, pitch.RecordId);
+		if (charged && TakeReceipt("pitch|" + pitch.Id)) PayPlayerMedia(desk, PitchHours, PitchPostage, 1, pitch.RecordId);
 		ProducerContact(program).Remember(today, $"Sent \"{pitch.Title}\" with a press sheet.");
 		message = $"\"{pitch.Title}\" is on its way to {ProducerName(program)} at {MediaOutletCatalog.DisplayName(program, today)}. Expect an answer in a few days.";
 		return true;
@@ -391,7 +391,7 @@ public static partial class MediaAtmosphereService {
 			CostNote = "1 promo copy, a photo, postage, 1h" + (charged ? "" : " (" + ObserveCostNote + ")"),
 		};
 		state.Pitches.Add(pitch);
-		if (charged && TakeReceipt("pitch|" + pitch.Id)) desk.PayMedia(PitchHours, PitchPostage + PressPhotoCost, 1, pitch.RecordId);
+		if (charged && TakeReceipt("pitch|" + pitch.Id)) PayPlayerMedia(desk, PitchHours, PitchPostage + PressPhotoCost, 1, pitch.RecordId);
 		DeskContact(outlet, role).Remember(today, $"Sent a press sheet on \"{pitch.Title}\" ({AngleLabel(angle).ToLowerInvariant()}).");
 		message = $"Sent to {MediaPress.ContactName(outlet, role)} at {outlet.Name}. The editor decides at the next issue.";
 		return true;
@@ -615,7 +615,7 @@ public static partial class MediaAtmosphereService {
 		if (TakeReceipt("produced|" + a.Id)) {
 			float bill = PreparationCost(a.Preparation) + TravelCost(desk.Label.homeCityId, program, performers.Count);
 			if (bill > 0f) {
-				desk.PayMedia(0, bill, 0, null);
+				PayPlayerMedia(desk, 0, bill, 0, null);
 				desk.MediaNote($"Paid ${bill:N2} for {a.ArtistName}'s {program?.Name} date (rehearsal and travel).");
 			}
 		}

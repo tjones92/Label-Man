@@ -55,6 +55,9 @@
 --studio-breakdowns=on
 --lp-assembly
 --album-release-practice
+# Adopted 2026-11-04 (BranchEndDecadeReview.md): with --lp-assembly the slate gate no longer removes a
+# portfolio credit the assembly prior never held. Pairs with --lp-assembly.
+--lp-assembly-gate-uncredited
 --album-practice-late-advance=1
 --album-session-production
 --format-memory-maturity-curve

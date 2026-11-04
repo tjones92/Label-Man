@@ -84,6 +84,8 @@ public sealed class MediaContactMemory {
 /// <summary>One attributed public controversy episode (§2): severity, reach, verification, expiry. Never a permanent stat.</summary>
 public sealed class MediaControversy {
 	public string Id, ArtistId, ArtistName, RootId, Summary;
+	/// <summary>The record the act was booked with; the controversy demand source asks against it.</summary>
+	public string RecordId;
 	public int StartDay, ExpiresDay;
 	public float Severity;
 	public bool National, Verified;

@@ -104,6 +104,10 @@ That's a separate design question, not an LP problem.
 
 Recommendation: add `--lp-assembly-gate-uncredited` to the working bundle wherever `--lp-assembly` is on.
 
+**Adopted 2026-11-04.** The switch is now in `writing_combined_integration_flags.txt`, next to `--lp-assembly`.
+`RunWritingCombinedIntegration.ps1 -WithoutLpAssemblyGateUncredited` is the ablation that restores the old double
+credit, and `-WithoutLpAssembly` drops both.
+
 ## Long-standing, not caused by this branch
 
 Year-end Hot 100 slots, 1965-69 total, seed 2002 (benchmark from `GenreCatalog.ChartSlotBenchmark`):
@@ -187,6 +191,15 @@ took 30.2 min, but it ran alongside other jobs, so the minutes overstate the spe
 measure. The programme check suites pass: label-release-programme, preparation headroom, work budget, breakout
 planning, release ownership, distribution funding and ownership, LP assembly, professional writing. The
 programme-material check also fails without flags on the pre-change code, so that failure isn't from this change.
+
+**Programme-material check, fixed 2026-11-04.** It passed bare, but failed under `--default-simulation-profile`: it
+expected save versions 28, 29 and 30 as fixed numbers. Later features (budget LPs, the retail envelope, the writing
+market) raise the version past 30. The suite now reads the world's own version before any material work and checks
+that work lifts it to at least 29, and that a world without material work keeps its version. It passes bare, under the
+game profile, and with the slate and LP assembly. Under `--professional-writing-market` it skips with a printed note,
+because it fixes the legacy commission route ($150 fee booked by the programme). Under the market, fees and supplier
+holds belong to the market's demos. No fixture yet covers the market route through programme material; that needs its
+own suite built on market demos.
 
 What's left in competitor week (about 47 s, against 10 s in October) is mostly new work: the professional writing
 market's weekly advance (office songs, returning clients), resource telemetry, and campaign booking. The `PlanProgramme`
