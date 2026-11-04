@@ -166,6 +166,9 @@ public static class AILabelFactory {
 		}
 
 		int remaining = targetCount - labels.Count;
+		// The historical labels just created keep their names to themselves: no procedural label may
+		// be a second Capitol or a "Chess Sound". Naming-stream only; no sim draw.
+		NameGenerator.Instance?.ReserveLabelNames(labels.Select(l => l.labelName));
 		for (int i = 0; i < remaining; i++) labels.Add(GenerateProceduralLabel(ref idCounter));
 		if (deferredBritish != null) labels.RemoveAll(deferredBritish.Contains);
 
@@ -216,7 +219,7 @@ public static class AILabelFactory {
 		string city = GetRandomCity(archetype);
 		
 		label.labelId = $"label_{idCounter:D4}";
-		label.labelName = GenerateLabelName(archetype);
+		label.labelName = GenerateLabelName(archetype, city);
 		label.headquartersCity = city;
 		label.homeRegion = CityToRegion(city);
 		label.archetype = archetype;
@@ -335,10 +338,10 @@ public static class AILabelFactory {
 		label.artistLoyalty = Mathf.Clamp(label.artistLoyalty + (float)GameRandom.RandRange(-0.1, 0.1), 0f, 1f);
 	}
 	
-	private static string GenerateLabelName(LabelArchetype archetype) {
+	private static string GenerateLabelName(LabelArchetype archetype, string city) {
 		// Require a loaded engine, not just a live singleton: an unready engine returns the literal
 		// "Records" fallback, so drop to the local prefix/suffix pool instead when it isn't ready yet.
-		if (NameGenerator.Instance != null && NameGenerator.Instance.IsReady()) return NameGenerator.Instance.GenerateLabelName(archetype);
+		if (NameGenerator.Instance != null && NameGenerator.Instance.IsReady()) return NameGenerator.Instance.GenerateLabelName(archetype, null, city, 1960);
 		string[] prefixes = { "Royal", "Golden", "Silver", "Crown", "Diamond", "Star", "Sun", "Moon", "Atlantic", "Pacific", "National", "American", "Imperial", "Liberty", "Freedom", "Victory", "Triumph", "Glory", "Ace", "Duke", "King", "Queen" };
 		string[] suffixes = { "Records", "Recording Co.", "Music", "Sound", "Productions", "Disc" };
 		return $"{prefixes[(int)GameRandom.RandRange(0, prefixes.Length - 1)]} {suffixes[(int)GameRandom.RandRange(0, suffixes.Length - 1)]}";

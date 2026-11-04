@@ -178,6 +178,11 @@ namespace LabelMan.Naming {
 		public List<Constraint> Constraints = new();
 		public List<string> Transforms = new();
 		public FailMode OnFail = FailMode.Reroll;
+		/// <summary>What this template's wording claims about the act's lineup (size, sex, kinship,
+		/// a backing band). Inferred at Compile from the literal text and the person slots; an explicit
+		/// "cast" object in templates.json merges on top. Checked only when ctx carries a Lineup.</summary>
+		public CastClaim Cast = new();
+		public CastClaim ExplicitCast;
 
 		private List<(string lit, string slotRef)> _parsed; // literal-before-slot pairs
 
@@ -200,7 +205,27 @@ namespace LabelMan.Naming {
 				} else { lit.Append(Pattern[i]); i++; }
 			}
 			if (lit.Length > 0) _parsed.Add((lit.ToString(), null));
+			InferCast();
 		}
+
+		private void InferCast() {
+			bool isAct = Type == "band" || Type == "solo";
+			var c = new CastClaim();
+			if (isAct) {
+				c.Merge(CastClaim.FromLiteral(string.Concat(_parsed.Select(p => p.lit)), Type == "band"));
+				// "%firstName#2%" names a second member, so the act needs at least two.
+				int persons = 0;
+				foreach (var kv in Slots)
+					if (TemplateEngine.IsPersonPos(kv.Value.Pos)) persons = Math.Max(persons, TemplateEngine.SlotIndex(kv.Key));
+				c.MinSize = Math.Max(c.MinSize, persons);
+				if (Type == "band" && persons >= 2 && CastClaim.IsPersonsOnly(string.Concat(_parsed.Select(p => p.lit))))
+					c.MaxSize = Math.Min(c.MaxSize, persons);
+			}
+			c.Merge(ExplicitCast);
+			Cast = c;
+		}
+
+		public bool PersonBound => Slots.Values.Any(s => TemplateEngine.IsPersonPos(s.Pos));
 
 		// "%verb#1:ger%" -> ref "verb#1", pos "verb", inflect ger
 		private static string NormalizeRef(string body, out string pos, out InflForm? infl) {
@@ -265,6 +290,16 @@ namespace LabelMan.Naming {
 			if (t.TryGetProperty("constraints", out var cs))
 				foreach (var c in cs.EnumerateArray()) { var parsed = ParseConstraint(c); if (parsed != null) ct.Constraints.Add(parsed); }
 			if (t.TryGetProperty("transform", out var xf)) ct.Transforms = xf.EnumerateArray().Select(x => x.GetString()).ToList();
+			if (t.TryGetProperty("cast", out var cast)) {
+				var cc = new CastClaim();
+				if (cast.TryGetProperty("size", out var sz) && sz.ValueKind == System.Text.Json.JsonValueKind.Array && sz.GetArrayLength() == 2) {
+					cc.MinSize = sz[0].GetInt32(); cc.MaxSize = sz[1].GetInt32();
+				}
+				cc.Family = Bool(cast, "family");
+				cc.AllGender = Str(cast, "gender");
+				cc.LeaderGender = Str(cast, "leader");
+				ct.ExplicitCast = cc;
+			}
 			ct.Compile();
 			return ct;
 		}
@@ -321,7 +356,63 @@ namespace LabelMan.Naming {
 		private static bool IsBoundPos(string pos) =>
 			string.Equals(pos, "selfTitle", StringComparison.OrdinalIgnoreCase) ||
 			string.Equals(pos, "leadSingle", StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(pos, "titleTrack", StringComparison.OrdinalIgnoreCase);
+			string.Equals(pos, "titleTrack", StringComparison.OrdinalIgnoreCase) ||
+			IsLineupPos(pos);
+
+		/// <summary>Slots that name a member of the act. With a Lineup they bind to the real person.</summary>
+		internal static bool IsPersonPos(string pos) =>
+			string.Equals(pos, "firstName", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(pos, "lastName", StringComparison.OrdinalIgnoreCase);
+
+		/// <summary>Pseudo-pos computed from the lineup: %ensemble% = Duo/Trio/Quartet..., %countWord% =
+		/// Two/Three/Four... Without a lineup (the tuner) they draw a plausible size.</summary>
+		private static bool IsLineupPos(string pos) =>
+			string.Equals(pos, "ensemble", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(pos, "countWord", StringComparison.OrdinalIgnoreCase);
+
+		/// <summary>"firstName#2" -> 2; a bare ref is #1.</summary>
+		internal static int SlotIndex(string slotRef) {
+			int h = slotRef.IndexOf('#');
+			return h >= 0 && int.TryParse(slotRef.Substring(h + 1), out var n) && n > 0 ? n : 1;
+		}
+
+		/// <summary>Bind a lineup-dependent slot. Returns null when the slot is not lineup-bound here
+		/// (draw normally), "" when it is bound but cannot be satisfied (template must fail).</summary>
+		private string BindFromLineup(SlotSpec spec, string slotRef, NamingContext ctx) {
+			var l = ctx.Lineup;
+			if (IsLineupPos(spec.Pos)) {
+				int size = l?.Size ?? ctx.Rng.Range(3, 5);
+				string w = string.Equals(spec.Pos, "ensemble", StringComparison.OrdinalIgnoreCase)
+					? Lineup.EnsembleWord(size) : Lineup.CountWord(size);
+				return w ?? "";
+			}
+			if (l == null) return null;
+			if (IsPersonPos(spec.Pos)) {
+				var p = l.At(SlotIndex(slotRef) - 1);
+				if (p == null) return "";
+				string w = string.Equals(spec.Pos, "firstName", StringComparison.OrdinalIgnoreCase) ? p.First : p.Last;
+				if (string.IsNullOrWhiteSpace(w)) return "";
+				if (spec.Groom != null && _dim != null && string.Equals(spec.Pos, "firstName", StringComparison.OrdinalIgnoreCase))
+					w = _dim.Groom(w, spec.Groom, ctx.Rng);
+				return w;
+			}
+			// "The Five Satins": a vocal-group head count is the lineup's head count.
+			if (string.Equals(spec.Pos, "number", StringComparison.OrdinalIgnoreCase) && spec.RawFilter != null
+				&& (spec.RawFilter.IndexOf("vocalGroup", StringComparison.OrdinalIgnoreCase) >= 0
+					|| spec.RawFilter.IndexOf("smallGroup", StringComparison.OrdinalIgnoreCase) >= 0))
+				return l.Size >= 2 ? Lineup.CountWord(l.Size) ?? "" : "";
+			// "The Hart Brothers / Sisters / Family / Singers": the kin word must be true of the lineup.
+			if (string.Equals(spec.Pos, "kinGroup", StringComparison.OrdinalIgnoreCase)) {
+				var ok = new List<string> { "Singers" };
+				if (l.Family) {
+					ok.Add("Family");
+					if (l.AllMale) ok.Add("Brothers");
+					if (l.AllFemale) ok.Add("Sisters");
+				}
+				return ok[ctx.Rng.Next(ok.Count)];
+			}
+			return null;
+		}
 
 		/// <summary>Resolve $-tokens in a dynamic slot filter against the context's demographic tag-sets:
 		/// $name -> ctx.TagSets["name"] (gender+ethnicity, AND-joined), $surname -> ["surname"],
@@ -383,6 +474,17 @@ namespace LabelMan.Naming {
 			if (spec.Markov && _coiner != null) {
 				string coined = _coiner.Coin(spec.Pos, null, ctx);
 				if (coined != null) { st.Lemma[slotRef] = coined; st.Surface[slotRef] = coined; st.Moods[slotRef] = null; st.Register[slotRef] = -1; return true; }
+			}
+
+			// Lineup-bound slots: a person slot is a real member, a head count is the real head count.
+			// Ethnicity/gender tags on a bound person slot are ignored -- the member is who they are;
+			// sex claims are carried by the template's wording and checked by the cast gate instead.
+			string fromLineup = BindFromLineup(spec, slotRef, ctx);
+			if (fromLineup != null) {
+				if (fromLineup.Length == 0) return false;
+				st.Lemma[slotRef] = fromLineup; st.Moods[slotRef] = null; st.Register[slotRef] = -1;
+				st.Surface[slotRef] = spec.Inflect.HasValue ? _infl.InflectContextual(fromLineup, spec.Inflect.Value, genre.Orthography, new List<string>()) : fromLineup;
+				return true;
 			}
 
 			// Adapter-bound slots (doc C): %selfTitle% (the act's own name) and %leadSingle% (the album's
@@ -547,6 +649,7 @@ namespace LabelMan.Naming {
 
 		public bool GatePasses(ConstraintTemplate t, NamingContext ctx, GenreProfile genre) {
 			if (ctx.Year > 0 && (ctx.Year < t.GateMinYear || ctx.Year > t.GateMaxYear)) return false;
+			if (ctx.Lineup != null && !t.Cast.Admits(ctx.Lineup)) return false;
 			if (t.GateOrthography.HasValue && genre.Orthography != t.GateOrthography.Value) return false;
 			if (t.GateVoiceDim != null) {
 				int di = VoiceVector.DimIndex(t.GateVoiceDim);
@@ -561,7 +664,8 @@ namespace LabelMan.Naming {
 		public static string Run(string s, GenreProfile genre, NamingContext ctx, FillState st, string outputType = null) {
 			if (string.IsNullOrEmpty(s)) return s;
 			var v = genre.Voice; var rng = ctx.Rng;
-			s = ApostropheDrop(s, v.ApostropheDropRate, rng);
+			bool actName = outputType == "band" || outputType == "solo";
+			s = ApostropheDrop(s, v.ApostropheDropRate, rng, actName);
 			s = Numerals(s, v.NumeralPreference, rng);
 			s = TitleCase(s);
 			// Act names (band/solo) don't take !/? punctuation — only titles do.
@@ -571,13 +675,17 @@ namespace LabelMan.Naming {
 		}
 
 		// contextual: only -ing gerunds and "and" -> "'n'" (doc 1 §5 rule 1)
-		private static string ApostropheDrop(string s, double rate, IRandom rng) {
+		private static string ApostropheDrop(string s, double rate, IRandom rng, bool actName = false) {
 			if (rate <= 0) return s;
 			var words = s.Split(' ');
 			for (int i = 0; i < words.Length; i++) {
 				string w = words[i];
 				if (w.Length > 4 && w.EndsWith("ing", StringComparison.OrdinalIgnoreCase) && rng.Chance(rate))
 					words[i] = w.Substring(0, w.Length - 1) + "'";                // running -> runnin'
+				// "Jerry Ellis 'n' His Orchestra" is not a billing anyone printed. Act names only: the song
+				// path keeps its exact draw sequence (titles are hashed into track traits).
+				else if (w.Equals("and", StringComparison.OrdinalIgnoreCase) && actName && i + 1 < words.Length
+						 && (words[i + 1].Equals("His", StringComparison.OrdinalIgnoreCase) || words[i + 1].Equals("Her", StringComparison.OrdinalIgnoreCase))) continue;
 				else if (w.Equals("and", StringComparison.OrdinalIgnoreCase) && rng.Chance(rate * 0.6))
 					words[i] = "'n'";
 			}

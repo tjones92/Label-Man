@@ -585,6 +585,20 @@
       "slots": { "groupNoun#1": { "pos": "groupNoun", "filter": "birds|musical" } } }
   ],
 
+  "//": "=== Two-person billing. Routed for any act whose lineup is two people (ActNaming.ChooseBandSymbol). Person slots bind to the real members; the cast gate keeps kin billing to sibling acts. ===",
+  "bandName.duo": [
+    { "id": "duo_first_amp_first", "type": "band", "pattern": "%firstName#1% & %firstName#2%", "weight": 5, "words": [3,4], "cast": { "size": [2,2] },
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "firstName#2": { "pos": "firstName", "filter": "$name" } } },
+    { "id": "duo_first_and_first", "type": "band", "pattern": "%firstName#1% and %firstName#2%", "weight": 3, "words": [3,4], "cast": { "size": [2,2] },
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "firstName#2": { "pos": "firstName", "filter": "$name" } } },
+    { "id": "duo_full_names", "type": "band", "pattern": "%firstName#1% %lastName#1% & %firstName#2% %lastName#2%", "weight": 1, "words": [5,7], "cast": { "size": [2,2] },
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" }, "firstName#2": { "pos": "firstName", "filter": "$name" }, "lastName#2": { "pos": "lastName", "filter": "$surname" } } },
+    { "id": "duo_surnames", "type": "band", "pattern": "%lastName#1% & %lastName#2%", "weight": 1, "words": [3,4], "cast": { "size": [2,2] }, "gate": { "minYear": 1963 },
+      "slots": { "lastName#1": { "pos": "lastName", "filter": "$surname" }, "lastName#2": { "pos": "lastName", "filter": "$surname" } } },
+    { "id": "duo_kin", "type": "band", "pattern": "The %lastName#1% %kinGroup#1%", "weight": 3, "words": [3,4], "cast": { "size": [2,2], "family": true },
+      "slots": { "lastName#1": { "pos": "lastName", "filter": "$surname" }, "kinGroup#1": { "pos": "kinGroup", "filter": "musical" } } }
+  ],
+
   "bandName.jazz": [
     { "id": "jazz_leader_trio", "type": "band", "pattern": "%firstName#1% %lastName#1% Trio", "weight": 4, "words": [3,4],
       "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "formal" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } },

@@ -22,6 +22,7 @@ public static class Program {
 		TestTemplates();
 		TestBlend();
 		TestNameEngineIntegration();
+		TestLineupBinding();
 		Console.WriteLine($"\n{total - fails}/{total} passed" + (fails == 0 ? "  ALL GREEN" : $"  ({fails} FAILED)"));
 		Environment.Exit(fails == 0 ? 0 : 1);
 	}
@@ -477,5 +478,65 @@ public static class Program {
 		True("loader parsed constraints", b1.Constraints.Count == 2 && b1.Constraints[1] is DistinctConstraint);
 		True("loader parsed gate", sets["song.bg"][0].GateMinYear == 1968);
 		True("loader parsed same constraint", sets["song.bg"][0].Constraints[0] is SameConstraint);
+	}
+
+	// Act names bound to a real lineup (Systems/Naming/Core/Lineup.cs).
+	static void TestLineupBinding() {
+		Console.WriteLine("== Lineup binding ==");
+		var lex = new Lexicon();
+		AddWords(lex, "firstName", new[]{"Sonny","Buck","Gary"}, "male","white");
+		AddWords(lex, "lastName", new[]{"Smith","Jones"}, "generic");
+		AddWords(lex, "groupNoun", new[]{"Rockets","Comets","Jets","Stars"}, "rocknroll");
+		AddWords(lex, "kinGroup", new[]{"Brothers","Sisters","Family","Singers"}, "musical");
+		string grammarJson = "{ \"g.duo\": [ \"{firstName:male,white} and {firstName:male,white}\" ], \"g.kin\": [ \"The {lastName:generic} (Brothers|Sisters)\", \"The {groupNoun:rocknroll}\" ] }";
+		var eng = new NameEngine(lex, GrammarEngine.ParseGrammar(grammarJson));
+		string tj = @"{ ""band.t"": [
+			{ ""id"":""lead"", ""type"":""band"", ""pattern"":""%firstName#1% and the %groupNoun#1%"", ""slots"":{ ""groupNoun#1"":{""pos"":""groupNoun"",""filter"":""rocknroll""} } },
+			{ ""id"":""pair"", ""type"":""band"", ""pattern"":""%firstName#1% & %firstName#2%"" },
+			{ ""id"":""trio"", ""type"":""band"", ""pattern"":""%firstName#1% %lastName#1% Trio"" },
+			{ ""id"":""bros"", ""type"":""band"", ""pattern"":""The %lastName#1% Brothers"" },
+			{ ""id"":""kin"", ""type"":""band"", ""pattern"":""The %lastName#1% %kinGroup#1%"" },
+			{ ""id"":""head"", ""type"":""band"", ""pattern"":""The %countWord#1% %groupNoun#1%"", ""slots"":{ ""groupNoun#1"":{""pos"":""groupNoun"",""filter"":""rocknroll""} } } ] }";
+		foreach (var kv in ConstraintTemplateLoader.Parse(tj)) eng.AddConstraintSet(kv.Key, kv.Value);
+		var set = ConstraintTemplateLoader.Parse(tj)["band.t"].ToDictionary(t => t.Id);
+		True("cast: 'and the' needs a backing band", set["lead"].Cast.MinSize == 3);
+		True("cast: two-name billing is exactly two", set["pair"].Cast.MinSize == 2 && set["pair"].Cast.MaxSize == 2);
+		True("cast: Trio is three", set["trio"].Cast.MinSize == 3 && set["trio"].Cast.MaxSize == 3);
+		True("cast: Brothers is an all-male family", set["bros"].Cast.Family && set["bros"].Cast.AllGender == "male");
+
+		Lineup Make(bool family, params (string f, string l, bool fem)[] ps) {
+			var l = new Lineup { Family = family };
+			foreach (var p in ps) l.People.Add(new LineupPerson(p.f, p.l, p.fem));
+			return l;
+		}
+		var four = Make(false, ("Dale","Hart",false), ("Ray","Pike",false), ("Lou","Bell",false), ("Tom","Cole",false));
+		var rng = new DeterministicRandom(7UL);
+		bool allBound = true, sizeOk = true;
+		for (int i = 0; i < 60; i++) {
+			var ctx = new NamingContext { Genre = "RockAndRoll", Year = 1962, Rng = rng, ArtistType = "Band", Lineup = four };
+			string n = eng.FillConstraint("band.t", ctx);
+			if (n.Contains("Sonny") || n.Contains("Buck") || n.Contains("Gary") || n.Contains("Smith") || n.Contains("Jones")) allBound = false;
+			if (n.Contains("Trio") || n.Contains("&") || n.Contains("Brothers") || (n.StartsWith("The ") && n.Split(' ').Length == 3 && n.Contains("Three"))) sizeOk = false;
+		}
+		True("person slots bind to members, never the lexicon", allBound);
+		True("size/kin claims never false of a four-piece", sizeOk);
+		var duo = Make(false, ("Inez","Hart",true), ("Charlie","Pike",false));
+		var dctx = new NamingContext { Genre = "Soul", Year = 1963, Rng = new DeterministicRandom(1UL), ArtistType = "Duo", Lineup = duo };
+		string g = eng.ExpandOnce("g.duo", dctx);
+		Eq("grammar binds successive members in order", g, "Inez and Charlie");
+		var sisters = Make(true, ("Ann","Hart",true), ("Joy","Hart",true), ("Kay","Hart",true));
+		bool kinOk = true;
+		for (int i = 0; i < 30; i++) {
+			var kctx = new NamingContext { Genre = "Country", Year = 1962, Rng = rng, ArtistType = "Band", Lineup = sisters };
+			string k = eng.ExpandOnce("g.kin", kctx);
+			if (k.Contains("Brothers")) kinOk = false;
+		}
+		True("grammar option filter: sisters are never Brothers", kinOk);
+		var hctx = new NamingContext { Genre = "DooWop", Year = 1960, Rng = rng, ArtistType = "VocalGroup", Lineup = sisters };
+		bool sawThree = false;
+		for (int i = 0; i < 40; i++) { string h = eng.FillConstraint("band.t", hctx); if (h.StartsWith("The Three ")) sawThree = true; if (h.StartsWith("The Two ") || h.StartsWith("The Four ")) sawThree = false; }
+		True("head count word is the lineup size", sawThree);
+		Eq("polish collapses a doubled article", ActNamePolish.Run("The the Ozarks Players"), "The Ozarks Players");
+		True("no lineup = legacy draw (unbound)", eng.FillConstraint("band.t", new NamingContext { Genre = "RockAndRoll", Year = 1962, Rng = new DeterministicRandom(2UL), ArtistType = "Band" }).Length > 0);
 	}
 }

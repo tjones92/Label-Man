@@ -80,14 +80,62 @@ namespace LabelMan.Naming {
 
 		public string Expand(string symbol, NamingContext ctx) {
 			var sb = new StringBuilder();
+			ctx.Lineup?.ResetCursor();
 			ExpandInto(sb, symbol, ctx, 0);
 			return CollapseWhitespace(sb.ToString());
 		}
 
 		private void ExpandInto(StringBuilder sb, string symbol, NamingContext ctx, int depth) {
 			if (depth > MaxDepth || !_symbols.TryGetValue(symbol, out var rules) || rules.Count == 0) return;
-			var rule = PickRule(rules, ctx.Rng);
+			var rule = PickRule(ctx.Lineup == null ? rules : AdmittedRules(rules, ctx), ctx.Rng);
 			Render(sb, rule.t, ctx, depth);
+		}
+
+		// ---- lineup binding (see Lineup.cs) -------------------------------------
+		// A grammar rule's claims about the act: the literal text outside "(a|b)" groups, plus how
+		// many distinct people its {firstName}/{lastName} tokens name. Options inside groups are
+		// filtered one by one at render time instead.
+		private readonly Dictionary<string, (CastClaim claim, int persons)> _ruleCast = new(StringComparer.Ordinal);
+
+		private (CastClaim claim, int persons) RuleCast(string t, bool isBand) {
+			string key = (isBand ? "b|" : "s|") + t;
+			if (_ruleCast.TryGetValue(key, out var hit)) return hit;
+			var outside = new StringBuilder(); int depth = 0;
+			foreach (char c in t) { if (c == '(') depth++; else if (c == ')') depth--; else if (depth == 0) outside.Append(c); }
+			int firsts = CountTokens(t, "firstName"), lasts = CountTokens(t, "lastName");
+			var claim = CastClaim.FromLiteral(StripTokens(outside.ToString()), isBand);
+			int persons = Math.Max(firsts, lasts);
+			claim.MinSize = Math.Max(claim.MinSize, persons);
+			if (isBand && persons >= 2 && t.IndexOf('(') < 0 && CastClaim.IsPersonsOnly(StripTokens(outside.ToString())))
+				claim.MaxSize = Math.Min(claim.MaxSize, persons);
+			return _ruleCast[key] = (claim, persons);
+		}
+
+		private static int CountTokens(string t, string pos) {
+			int n = 0;
+			for (int i = t.IndexOf('{'); i >= 0; i = t.IndexOf('{', i + 1)) {
+				int j = i + 1; if (j < t.Length && t[j] == '~') j++;
+				int k = j + pos.Length;
+				if (k < t.Length && string.CompareOrdinal(t, j, pos, 0, pos.Length) == 0 && (t[k] == ':' || t[k] == '}' || t[k] == '.')) n++;
+			}
+			return n;
+		}
+
+		private static string StripTokens(string s) {
+			var sb = new StringBuilder(); int depth = 0;
+			foreach (char c in s) { if (c == '{') depth++; else if (c == '}') depth--; else if (depth == 0) sb.Append(c); }
+			return sb.ToString();
+		}
+
+		private static bool IsBand(NamingContext ctx) => ctx.ArtistType == null || !ctx.ArtistType.StartsWith("Solo", StringComparison.Ordinal);
+
+		private List<Rule> AdmittedRules(List<Rule> rules, NamingContext ctx) {
+			bool band = IsBand(ctx);
+			var ok = rules.Where(r => RuleCast(r.t, band).claim.Admits(ctx.Lineup)).ToList();
+			if (ok.Count > 0) return ok;
+			// Nothing fits: anything that at least names nobody, before anything at all.
+			ok = rules.Where(r => RuleCast(r.t, band).persons == 0).ToList();
+			return ok.Count > 0 ? ok : rules;
 		}
 
 		private static Rule PickRule(List<Rule> rules, IRandom rng) {
@@ -120,6 +168,11 @@ namespace LabelMan.Naming {
 					if (end < 0) { sb.Append(ch); i++; continue; }
 					string body = template.Substring(i + 1, end - i - 1);
 					var options = SplitTop(body, '|');
+					if (ctx.Lineup != null && options.Count > 1) {
+						bool band = IsBand(ctx);
+						var fit = options.Where(o => CastClaim.OptionAdmits(StripTokens(o), ctx.Lineup, band)).ToList();
+						if (fit.Count > 0) options = fit;
+					}
 					string choice = options.Count == 0 ? "" : options[ctx.Rng.Next(options.Count)];
 					Render(sb, choice, ctx, depth); // options may contain tokens
 					i = end + 1;
@@ -152,6 +205,17 @@ namespace LabelMan.Naming {
 			if (string.IsNullOrEmpty(tagStr) && ctx.Slots != null && ctx.Slots.TryGetValue(pos, out var slot))
 				return ApplyMods(slot ?? "", mods);
 
+			// Lineup binding: {firstName} tokens name successive members in render order; a {lastName}
+			// right after a {firstName} is that same person's, otherwise it names the next member.
+			var l = ctx.Lineup;
+			if (l != null && !markov && (pos == "firstName" || pos == "lastName")) {
+				LineupPerson p;
+				if (pos == "firstName") { l.LastPerson = l.NextPerson++; l.LastSurnameUsed = false; p = l.At(l.LastPerson); }
+				else if (!l.LastSurnameUsed && l.LastPerson >= 0) { l.LastSurnameUsed = true; p = l.At(l.LastPerson); }
+				else { l.LastPerson = l.NextPerson++; l.LastSurnameUsed = true; p = l.At(l.LastPerson); }
+				p ??= l.Leader;
+				if (p != null) return ApplyMods(pos == "firstName" ? p.First : p.Last, mods);
+			}
 			var tags = ExpandTags(tagStr, ctx);
 			string word;
 			if (markov && _coiner != null)
@@ -189,6 +253,8 @@ namespace LabelMan.Naming {
 				}
 				case "writtennumber": {
 					var (a, b) = ParseRange(args, 1, 12);
+					// In an act name a written number is a head count ("The Five Keys").
+					if (ctx.Lineup != null && ctx.Lineup.Size >= 2) return Lineup.CountWord(ctx.Lineup.Size) ?? WrittenNumber(rng.Range(a, b));
 					return WrittenNumber(rng.Range(a, b));
 				}
 				case "ordinal": {

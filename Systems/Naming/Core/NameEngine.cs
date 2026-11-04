@@ -114,8 +114,10 @@ namespace LabelMan.Naming {
 			foreach (var t in all)
 				if (Templates.GatePasses(t, ctx, genre) && Templates.SatisfiableFor(t, genre)) cands.Add(t);
 			if (cands.Count == 0) return "";
-			// weighted pick, then fall through to progressively simpler candidates
-			var ordered = SortByWeight(cands, ctx.Rng);
+			// weighted pick, then fall through to progressively simpler candidates. A family act leans
+			// hard on its kin billing ("The Hart Brothers"); everything else keeps its authored weight.
+			bool family = ctx.Lineup?.Family == true;
+			var ordered = SortByWeight(cands, ctx.Rng, family ? t => t.Cast.Family ? 6.0 : 1.0 : null);
 			foreach (var t in ordered) {
 				string s = Templates.Fill(t, ctx, genre);
 				if (!string.IsNullOrEmpty(s)) return s;
@@ -123,14 +125,15 @@ namespace LabelMan.Naming {
 			return "";
 		}
 
-		private static List<ConstraintTemplate> SortByWeight(List<ConstraintTemplate> cands, IRandom rng) {
+		private static List<ConstraintTemplate> SortByWeight(List<ConstraintTemplate> cands, IRandom rng, Func<ConstraintTemplate, double> boost = null) {
 			// weighted shuffle: draw without replacement by weight, so the first pick honors weights
 			var pool = new List<ConstraintTemplate>(cands);
 			var outp = new List<ConstraintTemplate>(cands.Count);
+			double W(ConstraintTemplate t) => (t.Weight <= 0 ? 1 : t.Weight) * (boost?.Invoke(t) ?? 1.0);
 			while (pool.Count > 0) {
-				double total = 0; foreach (var t in pool) total += t.Weight <= 0 ? 1 : t.Weight;
+				double total = 0; foreach (var t in pool) total += W(t);
 				double roll = rng.NextDouble() * total; int idx = pool.Count - 1;
-				for (int i = 0; i < pool.Count; i++) { roll -= pool[i].Weight <= 0 ? 1 : pool[i].Weight; if (roll <= 0) { idx = i; break; } }
+				for (int i = 0; i < pool.Count; i++) { roll -= W(pool[i]); if (roll <= 0) { idx = i; break; } }
 				outp.Add(pool[idx]); pool.RemoveAt(idx);
 			}
 			return outp;
@@ -155,7 +158,25 @@ namespace LabelMan.Naming {
 		/// <summary>Expand with uniqueness. <paramref name="bucket"/> scopes uniqueness (e.g.
 		/// "artist", "label", or "song|Artist Name"). Near-duplicate guard applies when
 		/// <paramref name="nearDup"/> is set. Re-rolls a different pattern before giving up.</summary>
-		public string Generate(string symbol, NamingContext ctx, string bucket, bool nearDup, int attempts = 40) {
+		public string Generate(string symbol, NamingContext ctx, string bucket, bool nearDup, int attempts = 40) =>
+			Generate(symbol, ctx, bucket, nearDup, attempts, null);
+
+		/// <summary>
+		/// Options for act and label names only. Song and album titles never pass any of these: their
+		/// exact strings and draw counts are hashed into track traits, so their path stays byte-stable.
+		/// </summary>
+		public sealed class UniqueOptions {
+			/// <summary>Applied to every candidate before the uniqueness check (e.g. ActNamePolish).</summary>
+			public Func<string, string> Finalize;
+			/// <summary>Reject a candidate outright (e.g. its core word belongs to a historical label).</summary>
+			public Func<string, bool> Accept;
+			/// <summary>Exact-duplicate scope, when wider than <c>bucket</c> (which still scopes near-dups).</summary>
+			public string ExactBucket;
+			/// <summary>Ordered last-resort variants of an exhausted base name, tried before Roman numerals.</summary>
+			public Func<string, IEnumerable<string>> Variants;
+		}
+
+		public string Generate(string symbol, NamingContext ctx, string bucket, bool nearDup, int attempts, UniqueOptions opts) {
 			// A registered Layer-2 constraint set takes precedence over a grammar symbol of the same
 			// name; the grammar (if it also defines the symbol) remains a per-attempt safety net.
 			if (_constraintSets.ContainsKey(symbol)) {
@@ -163,22 +184,31 @@ namespace LabelMan.Naming {
 				return GenerateUnique(() => {
 					string s = FillConstraint(symbol, ctx);
 					return !string.IsNullOrEmpty(s) ? s : (hasGrammar ? Grammar.Expand(symbol, ctx) : s);
-				}, symbol, bucket, nearDup, attempts, ctx);
+				}, symbol, bucket, nearDup, attempts, ctx, opts);
 			}
 			if (!Grammar.HasSymbol(symbol)) return symbol; // authoring error surfaces visibly
-			return GenerateUnique(() => Grammar.Expand(symbol, ctx), symbol, bucket, nearDup, attempts, ctx);
+			return GenerateUnique(() => Grammar.Expand(symbol, ctx), symbol, bucket, nearDup, attempts, ctx, opts);
+		}
+
+		/// <summary>Mark names as taken in a bucket without generating them (historical labels, acts
+		/// loaded from a save), so generation can never mint a second "RCA Victor".</summary>
+		public void Reserve(string bucket, IEnumerable<string> names) {
+			var exact = Bucket(_used, bucket);
+			foreach (var n in names) { string k = Normalize(n ?? ""); if (k.Length > 0) exact.Add(k); }
 		}
 
 		/// <summary>Shared uniqueness loop: draw candidates from <paramref name="produce"/>, reject
 		/// exact (and optionally near-) duplicates within a bucket, disambiguate as a last resort.</summary>
-		private string GenerateUnique(Func<string> produce, string symbol, string bucket, bool nearDup, int attempts, NamingContext ctx) {
-			var exact = Bucket(_used, bucket);
+		private string GenerateUnique(Func<string> produce, string symbol, string bucket, bool nearDup, int attempts, NamingContext ctx, UniqueOptions opts = null) {
+			var exact = Bucket(_used, opts?.ExactBucket ?? bucket);
 			var fuzzy = nearDup ? Bucket(_usedFuzzy, bucket) : null;
+			if (opts?.Finalize != null) { var raw = produce; produce = () => { string s = raw(); return string.IsNullOrWhiteSpace(s) ? s : opts.Finalize(s); }; }
 
 			string last = null;
 			for (int i = 0; i < attempts; i++) {
 				string candidate = produce();
 				if (string.IsNullOrWhiteSpace(candidate)) continue;
+				if (opts?.Accept != null && !opts.Accept(candidate)) continue;
 				last = candidate;
 				string key = Normalize(candidate);
 				if (key.Length == 0 || exact.Contains(key)) continue;
@@ -196,6 +226,12 @@ namespace LabelMan.Naming {
 			// replacing the old " (City)" mutation with tribute-style suffixes.)
 			string basename = last ?? produce();
 			if (string.IsNullOrWhiteSpace(basename)) return symbol;
+			if (opts?.Variants != null)
+				foreach (var v in opts.Variants(basename)) {
+					if (string.IsNullOrWhiteSpace(v)) continue;
+					string vk = Normalize(v);
+					if (vk.Length > 0 && !exact.Contains(vk) && (opts.Accept == null || opts.Accept(v))) { exact.Add(vk); return v; }
+				}
 			for (int n = 2; n < 1000; n++) {
 				string cand = n <= 9 ? $"{basename} {Roman(n)}" : $"{basename} ({n})";
 				string k = Normalize(cand);

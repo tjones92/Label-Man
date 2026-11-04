@@ -1,0 +1,73 @@
+{
+  "//": "Record-label name words for the label.* grammar symbols. Period voice of the 1950s-60s independents: short, punchy, often a bird, a gem, a star, a place or a boast. Deliberately avoids the names of well-known real labels (Dot, Swan, Cadence, Coral, Jubilee, Savoy, Peacock, Bell, Smash, Fame, Era, Herald, Ember, Fury, Cobra, Parrot, Liberty, Imperial, Atlantic...) -- the historical labels are seeded separately and the generator reserves their names. labelSyl feeds founders'-blend names like 'Kay-Dee Records'.",
+
+  "groups": [
+    { "pos": "labelWord", "tags": ["general"], "words": [
+      "Comet", "Rocket", "Orbit", "Meteor", "Zephyr", "Starlite", "Moonglow", "Sunbeam", "Daybreak", "Twilight",
+      "Crest", "Summit", "Pinnacle", "Beacon", "Lantern", "Torch", "Spark", "Blaze", "Flash",
+      "Arrow", "Dart", "Javelin", "Rapid", "Express", "Streamline", "Jetstream", "Skyway", "Airway", "Clipper",
+      "Falcon", "Kestrel", "Hawk", "Oriole", "Cardinal", "Bluejay", "Meadowlark", "Robin", "Bobolink", "Swallow", "Kingfisher", "Pelican",
+      "Ruby", "Garnet", "Topaz", "Opal", "Onyx", "Sapphire", "Emerald", "Crystal", "Jewel",
+      "Lucky", "Fortune", "Jackpot", "Bonanza", "Ace High", "Domino", "Wildcard", "Shamrock", "Horseshoe",
+      "Keynote", "Encore", "Fanfare", "Overture", "Tempo", "Accent", "Downbeat", "Upbeat", "Platter", "Spindle",
+      "Marquee", "Spotlight", "Footlight", "Premiere", "Showcase", "Bandbox", "Jukebox", "Turntable",
+      "Crosstown", "Uptown", "Midtown", "Boulevard", "Avenue", "Main Line", "Junction", "Terminal", "Gateway",
+      "Harbor", "Anchor", "Bayside", "Lakeside", "Hilltop", "Highland", "Parkside", "Westwind", "Eastwind",
+      "Regal", "Monarch", "Sovereign", "Regent", "Viceroy", "Baron", "Squire", "Knight", "Crown Jewel",
+      "Velvet", "Satin", "Silk", "Lace", "Ribbon", "Tassel", "Cupid", "Valentine", "Sweetheart", "Starburst",
+      "Tiara", "Pennant", "Trophy", "Laurel", "Victory", "Triumph", "Banner", "Emblem", "Crestline"
+    ]},
+    { "pos": "labelWord", "tags": ["soul"], "words": [
+      "Groove", "Soulville", "Motor City", "Uptown", "Downbeat", "Backbeat", "Rhythm", "Shout", "Stomp",
+      "Velvet", "Satin", "Silk", "Gold Coast", "Golden Gate", "Jewel", "Topaz", "Ruby", "Onyx",
+      "Crown", "Regal", "Monarch", "Starlite", "Moonglow", "Lucky", "Ace High", "Heartbeat", "Fingerpop"
+    ]},
+    { "pos": "labelWord", "tags": ["gospel"], "words": [
+      "Zion", "Canaan", "Jordan", "Bethel", "Shiloh", "Galilee", "Jericho", "Gilead", "Glory", "Jubilation",
+      "Hosanna", "Hallelujah", "Redeemer", "Covenant", "Testament", "Gospel Light", "Morning Star", "Bright Star",
+      "Sweet Chariot", "Golden Harp", "Rock of Ages", "Mount Calvary", "Sanctified", "Heavenly", "Trumpet"
+    ]},
+    { "pos": "labelWord", "tags": ["blues"], "words": [
+      "Delta", "Bayou", "Levee", "Crossroads", "Juke", "Boogie", "Barrelhouse", "Southside", "Westside", "Maxwell",
+      "Hound Dog", "Mojo", "Black Cat", "Blue Moon", "Bluebird Star", "Ace of Spades", "Lucky Seven", "Midnight",
+      "Night Owl", "Whippoorwill", "Riverboat", "Freight", "Rail", "Junction", "Smokestack"
+    ]},
+    { "pos": "labelWord", "tags": ["rock"], "words": [
+      "Rocket", "Comet", "Atomic", "Jet", "Thunderbird", "Hot Rod", "Dragstrip", "Mustang", "Bronco", "Cyclone",
+      "Tornado", "Twister", "Lightning", "Thunder", "Wildcat", "Tiger Lily", "Rebel", "Outlaw", "Hepcat", "Bopcat",
+      "Rockabilly", "Dixie", "Delta", "Memphis Star", "Neon", "Chrome", "Wildfire", "Hi-Fi", "Dynamo", "Jukebox"
+    ]},
+    { "pos": "labelWord", "tags": ["country"], "words": [
+      "Prairie", "Frontier", "Pioneer", "Ranger", "Lariat", "Spur", "Saddle", "Palomino", "Pinto", "Stagecoach",
+      "Wagon Wheel", "Sagebrush", "Tumbleweed", "Mesa", "Canyon", "Bluegrass", "Hillbilly", "Holler", "Hayloft", "Barn Dance",
+      "Opry Star", "Cumberland Star", "Smoky Mountain", "Ozark", "Big D", "Lone Star", "Golden West", "Southland", "Magnolia", "Dogwood"
+    ]},
+    { "pos": "labelWord", "tags": ["teen"], "words": [
+      "Teen", "Sock Hop", "Bandstand", "Malt Shop", "Soda Pop", "Bubble", "Cupid", "Valentine", "Sweetheart", "Prom",
+      "Varsity", "Campus", "Pennant", "Hi-Fi", "Platter", "Spin", "Wow", "Twirl", "Starlet", "Dreamland",
+      "Lollipop", "Peppermint", "Candy", "Charm", "Locket", "Promise", "Daydream", "Moonbeam", "Hula", "Dixieland Star"
+    ]},
+    { "pos": "labelWord", "tags": ["folk"], "words": [
+      "Hearth", "Homespun", "Wayfarer", "Troubadour", "Ballad", "Greenwood", "Hickory Hollow", "Willow", "Sycamore",
+      "Elm Street", "Washington Square", "Bleecker", "Village", "Commons", "Heritage", "Folksong", "Minstrel", "Lark", "Bramble",
+      "Fieldstone", "Hearthstone", "Harvest", "Kindred", "Penny Whistle"
+    ]},
+    { "pos": "labelWord", "tags": ["jazz"], "words": [
+      "Blue Line", "Cool", "Bop", "Basin Street", "Fifty-Second Street", "Downtown",
+      "Nocturne", "Midnight Blue", "Cobalt", "Indigo", "Sepia", "Sapphire", "Onyx", "Ebony", "Ivory", "Keystone",
+      "Cornerstone", "Quintessence", "Lighthouse"
+    ]},
+    { "pos": "labelWord", "tags": ["corporate"], "words": [
+      "Consolidated", "Continental", "Allied", "Associated", "General", "Premier", "Majestic", "Empire", "Dominion",
+      "Metropolitan", "Commonwealth", "International", "Transworld", "Coast-to-Coast", "Amalgamated", "Standard", "Eagle"
+    ]},
+    { "pos": "labelWord", "tags": ["psych"], "eraStart": 1965, "words": [
+      "Prism", "Kaleidoscope", "Rainbow", "Aquarius", "Zodiac", "Lotus", "Mandala", "Karma", "Mantra", "Oracle",
+      "Pyramid", "Sphinx", "Odyssey", "Infinity", "Nova", "Electric Sky", "Strawberry", "Mushroom", "Paisley", "Sunflower"
+    ]},
+    { "pos": "labelSyl", "tags": [], "words": [
+      "Vee", "Kay", "Dee", "Jay", "Bee", "Cee", "Gee", "Tee", "Elle", "Em", "Jo", "Lu", "Ro", "Del", "Mar", "Ric",
+      "Tri", "Lo", "Ty", "Sue", "Bo", "Ray", "Ann", "Mel", "Ed", "Al", "Sal", "Bev"
+    ]}
+  ]
+}
