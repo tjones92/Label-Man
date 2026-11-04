@@ -52,6 +52,11 @@ public static class MediaDemand {
 	/// record, and a major one qualifies the title for the 10% ceiling (<c>MediaAtmosphereService.DemandControversy</c>).</summary>
 	public const string ControversySwitch = "--media-demand-controversy";
 	public static bool PressSource { get; private set; }
+	/// <summary>Diagnostic of <see cref="PressSwitch"/>: each press request lands on an unrelated single of about the same
+	/// national weekly sales (a keyed pick among its neighbours), so the same volume moves without the magazines choosing
+	/// who gets it. Separates press targeting from reshuffle; television requests are untouched.</summary>
+	public const string PressPermuteSwitch = "--media-demand-press-permute";
+	public static bool PressPermute { get; private set; }
 	public static bool ControversySource { get; private set; }
 
 	/// <summary>Request per national reader of a feature, a fraction of the television <see cref="Gain"/>: readers see no
@@ -79,8 +84,10 @@ public static class MediaDemand {
 			if (argument == CausalSwitch) causal = true;
 			if (argument == PermuteSwitch) Permute = true;
 			if (argument == PressSwitch) PressSource = true;
+			if (argument == PressPermuteSwitch) PressPermute = true;
 			if (argument == ControversySwitch) ControversySource = true;
 		}
+		if (PressPermute && !PressSource) throw new ArgumentException($"{PressPermuteSwitch} is a diagnostic of {PressSwitch}.");
 		if ((PressSource || ControversySource) && !shadow && !causal)
 			throw new ArgumentException($"{PressSwitch} and {ControversySwitch} are request sources of {CausalSwitch} or {ShadowSwitch}.");
 		if (Permute && !causal) throw new ArgumentException($"{PermuteSwitch} is a diagnostic of {CausalSwitch}.");
@@ -256,7 +263,7 @@ public static class MediaDemand {
 			$" granted[up/down]={Ledger("grantedUp"):0}/{Ledger("grantedDown"):0} neutral[in/out]={Ledger("neutralIn"):0}/{Ledger("neutralOut"):0}" +
 			$" unmatched={Ledger("unmatched"):0} requestTitleWeeks={Ledger("requestTitles"):0} frenzy={Ledger("frenzyTitles"):0}" +
 			$" noBaseline={Ledger("noBaseline"):0} regionCapBinding={Ledger("regionCapBinding"):0} physicalBinding={Ledger("physicalBinding"):0}" +
-			(PressSource ? $" press[items/absorbed/requests/sum]={Ledger("pressItems"):0}/{Ledger("pressAbsorbed"):0}/{Ledger("pressRequests"):0}/{Ledger("pressRequestSum"):0.####}" : "") +
+			(PressSource ? $" press[items/absorbed/requests/sum]={Ledger("pressItems"):0}/{Ledger("pressAbsorbed"):0}/{Ledger("pressRequests"):0}/{Ledger("pressRequestSum"):0.####}" + (PressPermute ? $" permuteUnmatched={Ledger("pressPermuteUnmatched"):0}" : "") : "") +
 			(ControversySource ? $" controversy[count/sum]={Ledger("controversies"):0}/{Ledger("controversyRequestSum"):0.####}" : ""));
 		ledger.Clear();
 		Log?.Flush();

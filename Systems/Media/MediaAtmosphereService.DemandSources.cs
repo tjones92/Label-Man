@@ -50,6 +50,7 @@ public static partial class MediaAtmosphereService {
 		var regions = ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>();
 		double population = regions.Sum(r => (double)r.population) * 1e6;
 		if (population <= 0) return;
+		List<string> ranked = null;
 		foreach (MediaStory s in state.Stories) {
 			if (s.Status != StoryStatus.Scheduled || s.IssueDay > today || s.IssueDay <= today - 7) continue;
 			PressOutlet outlet = MediaOutletCatalog.GetPress(s.OutletId);
@@ -64,11 +65,35 @@ public static partial class MediaAtmosphereService {
 			if (extra <= 0) { MediaDemand.Count("pressAbsorbed", 1); continue; }
 			float q = (float)(MediaDemand.PressGain * angle * tone * extra / population);
 			if (Math.Abs(q) < MediaDemand.RequestFloor) continue;
-			AddDemandRequest(s.RecordId, regions.Select(r => r.regionId), q);
+			string target = s.RecordId;
+			if (MediaDemand.PressPermute) {
+				ranked ??= PressPermuteRanking();
+				target = PressSubstitute(ranked, s.RecordId, s.Id);
+				if (target == null) { MediaDemand.Count("pressPermuteUnmatched", 1); continue; }
+			}
+			AddDemandRequest(target, regions.Select(r => r.regionId), q);
 			MediaDemand.Count("pressRequests", 1);
 			MediaDemand.Count("pressRequestSum", q);
 		}
 		PruneDemandRoots(today);
+	}
+
+	/// <summary>Live singles selling this week, by national weekly units then id (the permutation's size order).</summary>
+	private static List<string> PressPermuteRanking() =>
+		(ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>())
+			.Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && r.unitsThisWeek > 0)
+			.OrderByDescending(r => r.unitsThisWeek).ThenBy(r => r.baseRecord.recordId, StringComparer.Ordinal)
+			.Select(r => r.baseRecord.recordId).ToList();
+
+	/// <summary>A keyed pick among the record's ±2 size neighbours, never the record itself; null if it isn't selling.</summary>
+	private static string PressSubstitute(List<string> ranked, string recordId, string storyId) {
+		int i = ranked.IndexOf(recordId);
+		if (i < 0) return null;
+		var pool = Enumerable.Range(Math.Max(0, i - 2), Math.Min(ranked.Count, i + 3) - Math.Max(0, i - 2))
+			.Where(k => k != i).Select(k => ranked[k]).ToList();
+		if (pool.Count == 0) return null;
+		int pick = Math.Min(pool.Count - 1, (int)(MediaAtmosphere.Unit("press-permute|" + storyId) * pool.Count));
+		return pool[pick];
 	}
 
 	private static double CreditDemandRoot(string root, double people, int day) {

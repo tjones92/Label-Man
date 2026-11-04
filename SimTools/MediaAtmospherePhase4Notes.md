@@ -343,5 +343,47 @@ realized-unit forecasts behind release decisions. Two seeds with the same sign i
 
 Disposition: AI fees pass this screen. Press stays off. Controversy is unexercised.
 
+**Permuted press** (`--media-demand-press-permute`, runs `msrc3-pperm-<seed>`). Each press request moves to a keyed
+neighbour of about the same national weekly sales (±2 ranks), never the covered record. Requests on records not
+selling that week are dropped (about a third, 15-16 a year). Those would ask on a zero baseline in the targeted arm
+too, so they move nothing there either, and the moved volume is comparable.
+
+| Seed | Arm | Releases 1961, singles / LPs | LP units 1960 / 61 | Decisions 1961 |
+|---|---|---|---|---|
+| 1001 | targeted | −1.3% / −1.3% | +0.67% / −1.16% | −1.05% |
+| 1001 | permuted | −1.5% / −0.6% | +0.28% / −0.38% | −1.03% |
+| 2002 | targeted | −3.3% / −3.0% | −1.95% / −0.72% | −3.36% |
+| 2002 | permuted | −0.5% / +1.2% | −0.94% / +0.59% | +0.46% |
+
+The two seeds disagree. On 1001 the permuted arm matches the targeted one, so seed 1001's drop is within the
+reshuffle any small singles transfer produces (about ±1.5% on releases at one seed). On 2002 the targeted arm falls
+three times further than the permuted one. Two-seed means: targeted −2.3% singles / −2.2% LPs, permuted −1.0% / +0.3%.
+That leans toward targeting (concentrating sales on covered hits) costing about 1-2 points of releases beyond
+reshuffle, but two seeds can't settle it.
+
+**Four seeds** (3003 and 4004 added, same arms). Changes against the matched control, 1961:
+
+| Seed | Targeted singles / LPs released | Permuted singles / LPs released | LP units, targeted − permuted |
+|---|---|---|---|
+| 1001 | −1.3% / −1.3% | −1.5% / −0.6% | −0.78% |
+| 2002 | −3.3% / −3.0% | −0.5% / +1.2% | −1.31% |
+| 3003 | +1.4% / −0.6% | −1.0% / −2.9% | −0.30% |
+| 4004 | +2.1% / +1.3% | +2.0% / +0.8% | −0.68% |
+| mean | −0.30% / −0.89% | −0.26% / −0.37% | **−0.77% ± 0.21 (SE)** |
+
+- **The release drop was reshuffle.** Two of four seeds release *more* under targeted press, and targeted minus permuted
+  releases average −0.04% ± 1.03 for singles and −0.52% ± 1.36 for LPs. Seed 2002 was the outlier.
+- **Per-seed noise exceeds the limit.** Even the permuted arm swings releases by 1.5-1.8% (SD) from seed to seed at 104
+  weeks. A single-seed 104-week run can't test the ±1% per-seed release limit; use the four-seed mean.
+- **One real, small effect: LP units.** Targeted press costs LP units relative to the permuted arm on all four seeds
+  in 1961 (mean −0.77%). Against the control, targeted LP units average −1.05% (1960) and −0.87% (1961). The 1960 figure
+  is shared with the permuted arm (−1.47%), so it's reshuffle. The 1961 cost is the targeting. Singles units are
+  identical in every arm. The LP route isn't traced; a candidate is that covered hits pull singles intent from records
+  whose acts have LPs in the market.
+
+Disposition: press passes the four-seed means for units and releases, with a consistent targeting cost of about 0.8% of
+LP units in its second year. It stays opt-in and off the playtest configuration until a decade A/B shows whether
+the LP cost grows.
+
 Still to do: a short screen of each source alone (singles and LPs within ±1%, Major top-10 counts), then the AI-fee
 accounting look (member wealth and departures by tier, with fees on and off).
