@@ -176,6 +176,11 @@ public partial class CompetitorManager {
             var sample = new List<(SongComposition Song, bool Professional)>();
             if (ProfessionalWritingMarket.OwnedDelivery(label, artist) is SongComposition delivery) { sample.Add((delivery, true)); if (audit != null) audit.Owned = 1; }
             foreach (bool professional in new[] { true, false }) {
+                // --programme-search-follows-mix: a label hunts an outside professional song for this slot only as often as
+                // its genre's 1960s mix uses one (professional share / the 30% central share, capped at 1).
+                if (professional && ProfessionalSongBalance.ProgrammeSearchFollowsMix &&
+                    ProgrammeRoll(label, artist, item.Id + "|pro-search-gate", item.ProposedWeek, 90) >=
+                    Math.Min(1f, SongMaterialSelectionService.GetSourceMixShares(genre, date.year, artist.primaryGenre).Pro / 0.30f)) continue;
                 var pool = professional ? CompositionCatalogService.GetProfessionalForAct(genre) : CompositionCatalogService.GetStandardsForGenre(genre);
                 if (professional && AccessibleProfessionalSampling)
                     pool = pool.Where(s => CanObtainProgrammeSong(s, label, true, date.year, pipelineWeek)).ToArray();

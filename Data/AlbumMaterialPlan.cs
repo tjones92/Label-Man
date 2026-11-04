@@ -35,7 +35,7 @@ public static class AlbumMaterialPlanner {
 	/// source in proportion to the album's thematic cohesion, allocated across <paramref name="trackCount"/>
 	/// slots by largest-remainder (deterministic).</summary>
 	public static AlbumMaterialPlan Plan(Genre genre, int year, float thematicCohesion, int trackCount, string artistId = null, string albumKey = null) {
-		SourceShares s = SongMaterialSelectionService.GetSourceMixShares(genre, year);
+		SourceShares s = SongMaterialSelectionService.GetSourceMixShares(genre, year, album: true);
 		// Order: 0 originals, 1 professional, 2 standards, 3 covers(recent-hit), 4 traditional.
 		float[] share = { s.Aw, s.Pro, s.Std, s.Hit, s.Trad };
 		int dom = 0;

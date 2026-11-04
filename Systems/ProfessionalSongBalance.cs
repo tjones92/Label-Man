@@ -33,6 +33,13 @@ using System.Linq;
 /// <item><c>--source-mix-standards-to-recent-hits</c>: in <c>SongMaterialSelectionService.SourceMix</c>, the standards share
 /// a non-songbook genre gives up under <c>StandardShareFactor</c> is added to recent-hit covers instead of being spread over
 /// every source by normalization. The 1960 anchors match the working central mix (40% covers) only before that factor.</item>
+/// <item><c>--source-mix-1960-pro-trims</c> / <c>--tradpop-singles-new-songs</c>: per-genre revisions of the 1960 source-mix
+/// anchor (<c>SongMaterialSelectionService.Revised1960</c>): lower professional shares for DooWop, Folk, Blues, Jazz and
+/// Classical, and a new-song singles mix for TraditionalPop (its LPs keep the standards-heavy anchor).</item>
+/// <item><c>--programme-search-follows-mix</c>: the slate's material search (CompetitorManager.MaterialSearch) samples
+/// professional demos for a slot only with probability min(1, genre professional share / 0.30). It picks the best-valued
+/// offer regardless of source, and carried half to three-quarters of professional singles, so arrival-mix changes did not
+/// reach it.</item>
 /// </list>
 /// All are off unless named and consume no random draws. The pool extension draws from a private stream and
 /// takes its own writer and song ids after the opening catalogue, so the shared catalogue streams are untouched.
@@ -56,6 +63,12 @@ public static class ProfessionalSongBalance {
 	public static readonly bool SpecialistOffices = SimulationArguments.Get().Contains(SpecialistOfficesSwitch);
 	public const string StandardsToRecentHitsSwitch = "--source-mix-standards-to-recent-hits";
 	public static readonly bool StandardsToRecentHits = SimulationArguments.Get().Contains(StandardsToRecentHitsSwitch);
+	public const string ProTrims1960Switch = "--source-mix-1960-pro-trims";
+	public static readonly bool ProTrims1960 = SimulationArguments.Get().Contains(ProTrims1960Switch);
+	public const string TradPopSinglesNewSongsSwitch = "--tradpop-singles-new-songs";
+	public static readonly bool TradPopSinglesNewSongs = SimulationArguments.Get().Contains(TradPopSinglesNewSongsSwitch);
+	public const string ProgrammeSearchFollowsMixSwitch = "--programme-search-follows-mix";
+	public static readonly bool ProgrammeSearchFollowsMix = SimulationArguments.Get().Contains(ProgrammeSearchFollowsMixSwitch);
 	internal static bool ExtendsPool => RegionalOffices || ExtraWriters > 0 || SpecialistOffices;
 
 	/// <summary>The genre an office song is filed under; the legacy value itself when the canonical switch is off.</summary>

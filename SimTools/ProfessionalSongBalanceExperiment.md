@@ -427,6 +427,66 @@ standards to recent hits: 1.08, inside the 1–2 range but below the 1.33 centre
 the 1960 professional shares themselves to come down. TeenPop (56%), the R&B family (40%) and Country (36%) sit above
 the central 30%. That is a further, separate recalibration.
 
+## Follow-up: genre-specific 1960 revisions and the programme search gate
+
+TeenPop's high professional share is historical (manufactured hits), so it stays. Instead, the genres that lean on
+office songs more than their period did are revised, and TraditionalPop gets separate singles and LP mixes.
+
+| Flag | Change |
+|---|---|
+| `--source-mix-1960-pro-trims` | 1960 anchors (`SongMaterialSelectionService.Revised1960`): DooWop gets its own mix (self-written .32, professional .26) instead of the R&B family's (.18, .40); Folk professional .06 → .03; Blues .08 → .05; Jazz .14 → .08; Classical, which fell through to the generic default (professional .30), gets .03 with the canon carried as standards. |
+| `--tradpop-singles-new-songs` | TraditionalPop *singles* use a new-song mix (.08, .45, .25, .10, .12). LPs (the `album` argument to `GetSourceMixShares`, which `AlbumMaterialPlan` and album filler pass) keep the standards-heavy anchor. |
+| `--programme-search-follows-mix` | The slate's material search samples professional demos for a slot only with probability min(1, genre professional share / 0.30). |
+
+**Why the trims alone did nothing.** With trims on, DooWop, Folk, Blues and Jazz professional shares barely moved
+(DooWop 45 → 43%, Folk 22 → 22%, Blues 27 → 22%, Jazz 22 → 19%). Half to three-quarters of professional singles come
+through the slate's programme material search, not the arrival shortlist: Folk 76%, Blues 76%, rock & roll 69%,
+Jazz 65%, R&B 49%. The search samples professional demos and standards and takes the best-valued offer; the source mix
+enters only as the baseline, so a folk label hunted office songs as hard as a teen-pop label. Where the competing
+material is weak (traditional songs, self-written), a fresh office demo wins. Folk's professional singles were mostly
+Nashville songs filed as Folk, Blues' were Chicago songs filed as Blues, and Jazz's were Tin Pan songs filed as Jazz.
+
+**TradPop.** It was not writer-short (79% of professional arrivals licensed), and its standards pool is not too small:
+1,020 TradPop standards (plus 500 jazz standards with TradPop as second genre), of which singles used 190–257
+distinct songs per seed over two years, the most-covered 5–6 times. Selection did not favour standards either (issued
+hook .765 standard vs .763 professional). Its 43% standards share followed its anchor, which is the LP-shaped mix
+(standards .40) applied to singles as well. Period pop singers issued mostly new publisher songs as singles
+(Sinatra's "Nice 'n' Easy", "The Second Time Around", "Pocketful of Miracles"; Como's "Delaware") and recorded the
+standards on albums, with some standard revivals as singles ("Beyond the Sea", "Who's Sorry Now", "Granada").
+
+Builds `DD2740B4…` (trims, TradPop) and `A4083C700F817F0C979B26846983EC3FB1188463488A22A22E05250B77BFEE6F` (gate). All
+arms add to the full previous candidate (filler + family + regional + royalty + canonical + specialist with Country +
+standards to recent hits). Flag-off, the gate build reproduces `writing-balance6-off` byte for byte on seed 1001
+(145 of 145).
+
+| Arm | Pro | Covers | Covers/pro (by seed) | Closures (by seed) | Hit acts | Top 40 | LPs |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Previous candidate | 4,124 | 4,456 | 1.08 (1.02, 1.14) | 228 (124, 104) | 579 | 1,023 | 8,284 |
+| + trims | 4,089 | 4,352 | 1.06 (1.05, 1.08) | 242 (125, 117) | 570 | 1,032 | 8,051 |
+| + trims + TradPop singles | 4,196 | 4,243 | 1.01 (0.97, 1.06) | 246 (141, 105) | 603 | 1,017 | 8,031 |
+| **+ trims + TradPop singles + gate** | 4,072 | 4,332 | **1.06 (1.06, 1.07)** | 229 (116, 113) | 577 | 1,025 | 8,225 |
+
+| Genre (pro share of singles) | Previous candidate | Final | | Genre (covers/pro) | Previous | Final |
+|---|---:|---:|---|---|---:|---:|
+| Folk | 22% | 11% | | TraditionalPop | 2.79 | 1.84 |
+| Blues | 27% | 14% | | RnB | 1.16 | 1.23 |
+| Jazz | 22% | 13% | | Country | 0.68 | 0.67 |
+| Classical | 16% | 10% | | TeenPop | 0.61 | 0.53 |
+| DooWop | 45% | 43% | | EasyListening | 0.92 | 0.76 |
+| Gospel | 19% | 21% | | Soul | 0.62 | 0.59 |
+
+- Folk, Blues, Jazz and Classical now sit near their period mixes. DooWop does not move: its gate is 0.87 and its fresh
+  demos still win shortlist picks. Given how much 1960 doo-wop came from Brill and Leiber–Stoller writers, that is
+  left as is.
+- TraditionalPop's 1.84 includes LP promo singles, which follow the album mix.
+- Closures, hit acts, Top 40 entries and LP releases are within seed noise of the previous candidate.
+
+**Adopted candidate for the decade run:** filler + family + regional offices + royalty licences + canonical genres +
+specialist offices (with Country) + standards to recent hits + 1960 trims + TradPop singles + programme search gate.
+Pooled 1.06 (1.06, 1.07), inside the 1–2 range. The remaining gap to 1.33 comes from genre-grounded mixes, and the
+central figure is itself a judgment chosen for testing (`FreshMaterialHistoricalCalibration.md`); with every large
+genre near a defensible period mix, the pooled 1960–61 ratio lands nearer 1:1.
+
 ## Reproduction
 
 ```powershell
@@ -444,6 +504,10 @@ py SimTools/analyze_professional_song_balance.py --control-tag writing-balance3-
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance6-spec-country -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -SpecialistOffices -ExpectedAssemblySha256 <hash>
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance6-spec-country-mix -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -SpecialistOffices -StandardsToRecentHits -ExpectedAssemblySha256 <hash>
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001 -Tag writing-balance6-off -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance7-trims <previous candidate switches> -ProTrims1960 -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance7-trims-tps <previous candidate switches> -ProTrims1960 -TradPopSinglesNewSongs -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance8-gate <previous candidate switches> -ProTrims1960 -TradPopSinglesNewSongs -ProgrammeSearchFollowsMix -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001 -Tag writing-balance8-off -ExpectedAssemblySha256 <hash>
 ```
 
 Run one task per seed in parallel and pass an absolute script path from background

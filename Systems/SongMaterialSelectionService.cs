@@ -206,12 +206,12 @@ public static class SongMaterialSelectionService {
 
 	/// <summary>The calibrated source-mix shares for a genre/year (Anchor prior, normalized), exposed so
 	/// AlbumMaterialPlan builds an album's whole-LP plan from the same decade curve the singles follow.</summary>
-	public static SourceShares GetSourceMixShares(Genre genre, int year, Genre? actGenre = null) {
-		float aw = SourceMix(SongMaterialSource.ArtistWritten, genre, year, actGenre);
-		float pro = SourceMix(SongMaterialSource.ExternalProfessional, genre, year, actGenre);
-		float std = SourceMix(SongMaterialSource.CoverStandard, genre, year, actGenre);
-		float hit = SourceMix(SongMaterialSource.CoverRecentHit, genre, year, actGenre);
-		float trad = SourceMix(SongMaterialSource.TraditionalPublicDomain, genre, year, actGenre);
+	public static SourceShares GetSourceMixShares(Genre genre, int year, Genre? actGenre = null, bool album = false) {
+		float aw = SourceMix(SongMaterialSource.ArtistWritten, genre, year, actGenre, album);
+		float pro = SourceMix(SongMaterialSource.ExternalProfessional, genre, year, actGenre, album);
+		float std = SourceMix(SongMaterialSource.CoverStandard, genre, year, actGenre, album);
+		float hit = SourceMix(SongMaterialSource.CoverRecentHit, genre, year, actGenre, album);
+		float trad = SourceMix(SongMaterialSource.TraditionalPublicDomain, genre, year, actGenre, album);
 		float sum = aw + pro + std + hit + trad;
 		if (sum <= 0f) return new SourceShares { Aw = 1f };
 		return new SourceShares { Aw = aw / sum, Pro = pro / sum, Std = std / sum, Hit = hit / sum, Trad = trad / sum };
@@ -467,6 +467,24 @@ public static class SongMaterialSelectionService {
 		} : new Mix(.20f, .30f, .20f, .18f, .12f)
 	};
 
+	// Opt-in 1960 revisions (ProfessionalSongBalance). --source-mix-1960-pro-trims lowers the professional share where
+	// fresh office songs were rarer than the family default: doo-wop groups wrote much of their own material; folk, blues
+	// and jazz singles leaned on traditional, self-written and standard material; classical had no office songs and fell
+	// through to the generic default. --tradpop-singles-new-songs gives TraditionalPop singles (not LPs) a new-song mix:
+	// 1960 pop singers issued mostly new publisher songs as singles and recorded the standards on albums.
+	private static Mix Revised1960(Genre g, Mix anchor, bool album) {
+		if (ProfessionalSongBalance.TradPopSinglesNewSongs && !album && g == Genre.TraditionalPop) return new Mix(.08f, .45f, .25f, .10f, .12f);
+		if (!ProfessionalSongBalance.ProTrims1960) return anchor;
+		return g switch {
+			Genre.DooWop    => new Mix(.32f, .26f, .16f, .16f, .10f),
+			Genre.Folk      => new Mix(.34f, .03f, .18f, .10f, .35f),
+			Genre.Blues     => new Mix(.31f, .05f, .20f, .22f, .22f),
+			Genre.Jazz      => new Mix(.33f, .08f, .43f, .06f, .10f),
+			Genre.Classical => new Mix(.10f, .03f, .70f, .05f, .12f),
+			_ => anchor
+		};
+	}
+
 	private static Mix Anchor1969(Genre g) => g switch {
 		Genre.RockAndRoll when RockHitWriters.Enabled => new Mix(.62f, .15f * RockHitWriters.ProShareScale, .03f, .18f, .02f),
 		Genre.TeenPop        => new Mix(.20f, .55f, .04f, .16f, .05f),
@@ -534,8 +552,8 @@ public static class SongMaterialSelectionService {
 		return song == null ? -1 : PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(song, artist, projectGenre, year, track.masterId)) *
 			PolarSongBehavior.PromotionRealizationFactor(track) * SongbookExceptionFactor(track.songSource, projectGenre, artist.primaryGenre);
 	}
-	internal static float SourceMix(SongMaterialSource source, Genre genre, int year, Genre? actGenre = null) {
-		Mix a = Anchor1960(genre), b = Anchor1969(genre);
+	internal static float SourceMix(SongMaterialSource source, Genre genre, int year, Genre? actGenre = null, bool album = false) {
+		Mix a = Revised1960(genre, Anchor1960(genre), album || ProfessionalSongBalance.ChoosingAlbumFiller), b = Anchor1969(genre);
 		float t = SmoothYear(1962f, 1968f, year);
 		float Lerp(float x, float y) => Mathf.Lerp(x, y, t);
 		bool rareRock = RareRockSongbooks(genre, actGenre);
