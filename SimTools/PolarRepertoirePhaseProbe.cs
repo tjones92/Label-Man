@@ -29,7 +29,7 @@ public partial class PolarRepertoirePhaseProbe : Node {
    for(int phase=0;phase<=5;phase++) {
     if(phase>0)CompositionCatalogService.ApplyRepertoireAuditPhase(phase,1960);
     foreach(var artist in actors) {
-     using var random=new RandomNumberGenerator {Seed=CensusKey($"{seed}:1960:1:{artist.artistId}")};
+     using var random=new PcgRandom {Seed=CensusKey($"{seed}:1960:1:{artist.artistId}")};
      var prospect=new PlayerDesk.Prospect {Artist=artist};List<SongComposition> pool=null;
      PlayerDesk.Instance.BuildLiveSet(prospect,artist,1960,0,random,(_,p)=>pool=p);
      var eligible=pool.Where(s=>s!=null&&s.originYear<=1960).DistinctBy(s=>s.songId).Count();

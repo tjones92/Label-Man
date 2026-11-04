@@ -14,9 +14,9 @@
 /// external rights holders (pre-game Tin Pan Alley / Brill publishers, uncaptured office songs) leak out
 /// of the game. So owning a hit's publishing becomes an appreciating income stream.
 ///
-/// Sub-phase gating: <see cref="RoutingEnabled"/> is OFF by default. When off, the settlement still
-/// populates the counterparty telemetry but the money follows the legacy per-artist binary exactly, so
-/// the economy is byte-identical. No RNG here; a pure function of record fields.
+/// Sub-phase gating: <see cref="RoutingEnabled"/> is ON by default (Part II); --disable-publishing-routing
+/// turns it off, and then the settlement still populates the counterparty telemetry but the money follows
+/// the legacy per-artist binary exactly. No RNG here; a pure function of record fields.
 /// </summary>
 public static class PublishingRoutingService {
 	// Publishing & Cover-Song Directive Part II: live for real gameplay by default. Part I's own decade

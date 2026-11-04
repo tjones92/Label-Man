@@ -19,6 +19,13 @@ using Godot;
 public partial class SaveLoadRoundTripRunner : Node {
 	public override void _Ready() {
 		try {
+			if (OS.GetCmdlineUserArgs().Contains("--simulation-arguments-check")) { SimulationArgumentsChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--regional-sales-rng-check")) { RegionalSalesRandomChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--simulation-optimization-check")) { SimulationOptimizationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-check")) { ProfessionalWritingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-market-check")) { ProfessionalWritingMarketChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--writing-workflow-check")) { WritingWorkflowChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--writing-reminder-check")) { WritingReminderChecks.Run(); GetTree().Quit(0); return; }
 			int weeks = 26;
 			bool integration = false;
 			bool mechanicalCheck = false;
@@ -36,6 +43,73 @@ public partial class SaveLoadRoundTripRunner : Node {
 
 			if (TimeManager.Instance == null || ChartManager.Instance == null)
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
+			if (OS.GetCmdlineUserArgs().Contains("--regional-economy-check")) { RegionalEconomyChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--economic-label-check")) { EconomicLabelLifecycleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--founder-label-check")) { FounderLabelChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--founder-compensation-check")) { FounderCompensationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distress-master-sale-check")) { DistressMasterSaleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--tax-timing-check")) { TaxTimingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--studio-parent-labels-check")) { StudioParentLabelsChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-company-check")) { LabelCompanyChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--pressing-commitment-check")) { PressingCommitmentChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--album-volume-check")) { AlbumVolumeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-operator-pay-check")) { LabelOperatorPayChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-pressing-check")) { LabelPressingEconomicsChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--physical-inventory-check")) { PhysicalInventoryChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--demand-stocking-check")) { DemandStockingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--regional-hit-deal-check")) { RegionalHitDealGateChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--radio-push-spread-check")) { RadioPushSpreadChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--airplay-rotation-ceiling-check")) { AirplayRotationCeilingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--chart-inertia-base-check")) { ChartInertiaProbeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--chart-entry-feedback-check")) { ChartEntryFeedbackChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--chart-tail-check")) { ChartTailChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--hit-act-hype-check")) { HitActHypeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--hit-act-fit-support-check")) { HitActFitSupportChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--artist-fanbase-check")) { ArtistFanbaseChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-hold-capacity-check")) { LabelHoldCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--artist-heat-attribution-check")) { ArtistHeatAttributionChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--seed-head-templates-check")) { HeadScaleTemplatesChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--midtier-opening-realism-check")) { MidTierOpeningRealismChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--launch-push-saturation-check")) { LaunchPushSaturationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--artist-momentum-half-life-check")) { ArtistMomentumHalfLifeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--senior-cooling-check")) { SeniorCoolingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--hit-act-cadence-check")) { HitActCadenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-release-programme-check")) { LabelReleaseProgrammeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--hit-follow-up-finance-check")) { HitFollowUpFinanceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--slate-preparation-headroom-check")) { PreparationHeadroomChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--slate-work-budget-check")) { WorkBudgetChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--earned-roster-capacity-check")) { EarnedRosterCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--single-forecast-realization-check")) { SingleForecastRealizationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--single-capital-risk-check")) { SingleCapitalRiskChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--lp-capacity-check")) { LpCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--retail-purchase-envelope-check")) { RetailPurchaseEnvelopeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--lp-demand-check")) { LpDemandChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--lp-demand-calibration-check")) { LpDemandCalibrationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--record-club-check")) { RecordClubChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--rack-jobber-check")) { RackJobberChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--budget-lp-catalogue-check")) { BudgetLpCatalogueChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--budget-lp-check")) { BudgetLpChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--lp-channel-check")) { LpChannelChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--slate-breakout-planning-check")) { BreakoutPlanningChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-release-ownership-check")) { LabelReleaseOwnershipChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distribution-funding-check")) { DistributionFundingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distribution-ownership-check")) { DistributionOwnershipChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-material-check")) { ProgrammeMaterialChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-material-roundtrip")) { RunProgrammeMaterialRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-project-roundtrip")) { RunProgrammeProjectRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--lp-assembly-check")) { LpAssemblyChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--lp-assembly-roundtrip")) { RunLpAssemblyRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--distribution-funding-roundtrip")) { RunDistributionFundingRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-release-ownership-roundtrip")) { RunProgrammeOwnershipRoundTrip(weeks); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--album-scale-career-milestones-check")) { AlbumScaleCareerMilestonesChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--mid-tier-promotion-audit-check")) { MidTierPromotionAuditChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--single-prior-recalibration-check")) { SinglePriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--career-banded-format-memory-check")) { CareerBandedFormatMemoryChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--album-prior-recalibration-check")) { AlbumPriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--release-economics-check")) { ReleaseEconomicsChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--promo-synergy-feedback-check")) { PromoSynergyFeedbackChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--economy-audit-b-check")) { EconomyAuditBChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--known-act-airplay-check")) { KnownActAirplayChecks.Run(); GetTree().Quit(0); return; }
 
 			if (OS.GetCmdlineUserArgs().Contains("--scouting-business-check")) { ScoutingBusinessChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-check")) { ScoutingOpeningChecks.Run(); GetTree().Quit(0); return; }
@@ -106,25 +180,45 @@ public partial class SaveLoadRoundTripRunner : Node {
 				PolarSongMetadataService.WarmCommittedProfiles(PolarSongTable.Current);
 			}
 
+			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-market-roundtrip")) ProfessionalWritingMarketChecks.StageRoundTrip();
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
+			ProfessionalWritingMarketChecks.CheckLiveState();
 
 			if (integration) { RunIntegration(weeks); return; }
 
 			JsonSerializerOptions opts = SaveGameService.TestJsonOptions;
+			if (LabelReleaseProgramme.Enabled) LabelReleaseProgrammeChecks.CheckLiveState();
 
 			WorldSaveData cap1 = WorldStateService.Capture();
+			HitActFitSupportChecks.CheckLiveState();
+			ArtistFanbaseChecks.CheckLiveState();
 			string a = JsonSerializer.Serialize(cap1, opts);
 
 			WorldSaveData restored = JsonSerializer.Deserialize<WorldSaveData>(a, opts);
 			WorldStateService.Apply(restored, TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
 
 			WorldSaveData cap2 = WorldStateService.Capture();
+			ProfessionalWritingMarketChecks.CheckLiveState();
+			HitActFitSupportChecks.CheckLiveState();
+			ArtistFanbaseChecks.CheckLiveState();
 			string b = JsonSerializer.Serialize(cap2, opts);
 
 			if (a == b) {
 				// Also exercise the real gzip + Godot FileAccess buffer IO path end-to-end, and report the
 				// compressed size (the actual on-disk save size for this world).
 				string gzipStatus = VerifyGzipFileIo(cap1, opts, out long compressedBytes);
+				if (ProfessionalWritingMarket.Enabled && !LabelReleaseProgramme.Enabled) {
+					AdvanceOneChartWeek();
+					ProfessionalWritingMarketChecks.CheckLiveState();
+					GD.Print("PROFESSIONAL_WRITING_MARKET_RESUME passed");
+				}
+				if (LabelReleaseProgramme.Enabled) {
+					AdvanceOneChartWeek();
+					LabelReleaseProgrammeChecks.CheckLiveState();
+					GD.Print("LABEL_RELEASE_PROGRAMME_RESUME passed");
+					HitActFitSupportChecks.CheckLiveState();
+					ArtistFanbaseChecks.CheckLiveState();
+				}
 				GD.Print($"SAVELOAD_ROUNDTRIP_PASS weeks={weeks} bytes={a.Length} gzipBytes={compressedBytes} " +
 					$"ratio={(a.Length / (double)Math.Max(1, compressedBytes)):F1}x gzipIo={gzipStatus} " +
 					$"labels={cap1.Labels.Count} artists={cap1.Artists.Count} unsigned={cap1.UnsignedArtistIds.Count} " +
@@ -314,11 +408,13 @@ public partial class SaveLoadRoundTripRunner : Node {
 			PlayerDesk.Instance.DebugSetPendingDistributionOffer(pendingOfferStage);
 
 			var signedDealStage = new DistributionDeal {
-				distributorId = "probe_distributor_2", reachGranted = 0.6f, grantedRegions = new[] { "probe_region_2" },
+				distributorId = LabelReleaseProgramme.Enabled ? CompetitorManager.Instance.GetAllLabels().First(l => l.IsActive && l.tier == LabelTier.Major && !l.isPlayerOwned).labelId
+					: "probe_distributor_2", reachGranted = 0.6f, grantedRegions = new[] { "probe_region_2" },
 				marginSkim = 0.35f, ownsMasters = true, advance = 800f, unrecoupedAdvance = 800f,
 				signedWeek = ChartManager.Instance.GetCurrentChartWeek(), termWeeks = 104, origin = DealOrigin.DistributorCourted
 			};
-			CompetitorManager.Instance.SignDistributionDeal(PlayerDesk.Instance.Label, signedDealStage);
+			if (!CompetitorManager.Instance.SignDistributionDeal(PlayerDesk.Instance.Label, signedDealStage))
+				throw new InvalidOperationException("The staged integration distribution offer could not be funded.");
 
 			// Promo mechanic directive §14 verification 2: stage every piece of persisted promo state --
 			// a split press run (§3.1), servicing rows at real reporter stations (§3.2), a resolved trade

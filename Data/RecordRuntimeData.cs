@@ -21,6 +21,13 @@ public class RecordRuntimeData {
 	public int lastChartedAge = -1;
 	public int lastSalesAboveRetirementFloorAge = -1;
 	public int weeksInTopTen;
+	// Regional sync §9u (--regional-fit-exposure-relive): the chart position demand read at each age (index = weeks since
+	// release), so a region exposed late can relive the record's rise. Null when off.
+	public List<int> fitRelivePositions;
+	// §9u awareness relive (--regional-fit-exposure-relive-awareness): national awareness at each age. Null when off.
+	public List<float> fitReliveAwareness;
+	// --album-scale-career-milestones: the album run's best singles-equivalent position (0 = unset). Written only on.
+	public int albumCareerPeak;
 	public bool artistChartEntryCredited;
 	public bool artistTop40Credited;
 	public bool artistTop10Credited;
@@ -47,6 +54,8 @@ public class RecordRuntimeData {
 	
 	// === SALES TRACKING ===
 	public int unitsThisWeek;
+	// Rack-jobber LP units this week (RackJobberChannel): booked as sales, never chart points. Week-local.
+	public int rackUnitsThisWeek;
 	public int unitsPreviousWeek;
 	public int totalUnitsSold;
 	// Running maximum, not the eventual peak: it equals unitsThisWeek all the way up the climb and
@@ -71,6 +80,22 @@ public class RecordRuntimeData {
 	public float radioPanelShare = 1f;
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
+	// Only attributed for new A4 releases. Cash is charged by the existing launch path;
+	// this field makes the SAME charge visible to outcome memory without charging again.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? sunkMarketingCost;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskExpectedContribution;
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float SunkReleaseCost => sunkProductionCost + (sunkMarketingCost ?? 0f);
+	// LabelPressingEconomics pressing book: copies pressed and copies booked sold. Pressed minus sold at
+	// retirement is the non-sold quantity the label paid for. In the physical arm this includes
+	// promo withdrawals and destroyed copies; use physicalInventory for remaining saleable stock.
+	public bool pressingBookOpened;
+	public int unitsPressed;
+	public int pressingBookSold;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public PhysicalInventoryState physicalInventory;
 	public bool revenueMemoryEligible;
 	// Immutable-at-launch context for normalized, opportunity-relative memory.
 	public float releaseTimeExpectedNet;
@@ -97,12 +122,26 @@ public class RecordRuntimeData {
 	public double albumDemandWeightedSingleHeat;
 	public double albumDemandWeightedSubstitutionPropensity;
 	public double albumDemandWeightedSuppression;
-	
+	// B5 (--record-campaign-spend): this single's own campaign multiplier on label push, and its
+	// follow-up tranches (-1 once cut). Null on every record launched without the switch.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? campaignPushFactor;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? campaignTranches;
+	// A5 counterfactual for a linked LP: awareness without the promo's launch bonus, and
+	// the raw demand that path would have drawn with no cannibalization. Null otherwise.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? promoShadowAwareness;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public double? promoShadowDemand;
+
 	// === SIMULATION FORCES ===
 	public float awareness;           // 0-1: Do people know this song exists?
 	public float momentum;            // -1 to +1: Is it trending up or down?
 	public float saturation;          // 0-1: What % of potential buyers already own it?
 	public float radioHeat;           // 0-1: How much are stations playing it?
+	// Week-local: radioHeat's record-wide target before chart bonus and fatigue, reused by each region's own heat.
+	public float radioHeatBaseTargetThisWeek;
 	// This week's survey draw. Billboard did not count units before 1973 -- it polled about 110
 	// outlets by hand, so the published chart was a small, coarsely graded SAMPLE of popularity and
 	// not a census of it. Drawn once per record per week in ChartManager and stored here rather than
@@ -118,6 +157,15 @@ public class RecordRuntimeData {
 	// === LABEL PUSH ===
 	public float currentLabelPush;    // 0-1: How hard is the label pushing THIS WEEK
 	public float totalLabelInvestment;// Running total of label push
+	// Known-act airplay probe (Systems/KnownActAirplay.cs), written only while --known-act-airplay is named:
+	// whether the act was hot at launch (-1 undecided), and this week's radio push in place of currentLabelPush (-1 none).
+	public sbyte knownActHotAtLaunch = -1;
+	public float knownActRadioPush = -1f;
+	// Optional launch-time state for --hit-act-fit-floor. Null on old saves/off; 0 is a captured cold launch.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? hitActFitFloorAtLaunch;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public FanReleaseAudience fanAudience;
 
 	// === AUDIT TELEMETRY (write-only from launch paths) ===
 	public float initialLaunchAwareness;
@@ -193,6 +241,9 @@ public class RecordRuntimeData {
 		radioPanelShare = 1f;
 		lifetimeLabelNet = 0f;
 		sunkProductionCost = 0f;
+		pressingBookOpened = false;
+		unitsPressed = 0;
+		pressingBookSold = 0;
 		revenueMemoryEligible = false;
 		
 		// Simulation forces - all start at zero

@@ -4,10 +4,18 @@
     <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>LabelMan</RootNamespace>
+    <!-- Headless audits load Debug just like the editor. Keep symbols, but allow
+         the JIT to optimize the simulation; use -p:Optimize=false for full stepping. -->
+    <Optimize>true</Optimize>
   </PropertyGroup>
   <!-- Standalone naming-Core regression harness: its own project + Main, excluded from the game build. -->
   <ItemGroup>
+    <!-- Research source snapshots are evidence, not game compilation inputs. -->
+    <Compile Remove="SimLogs\**\*.cs" />
     <Compile Remove="SimTools\NamingCoreTests\**\*.cs" />
+    <Compile Remove="SimTools\CounterRngTests\**\*.cs" />
+    <Compile Remove="SimTools\PlaylistMeetingTests\**\*.cs" />
+    <Compile Remove="SimTools\HeapScan\**\*.cs" />
     <!-- A checkout of another branch can be nested under tmp\; its sources are not this build's. -->
     <Compile Remove="tmp\playtest-ui-ux-fixes\**\*.cs" />
     <Compile Remove="tmp\scouting-unsigned\**\*.cs" />

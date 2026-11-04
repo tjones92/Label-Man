@@ -66,10 +66,10 @@ public static class SceneSourceChecks {
         PersonPool.Take(usPerson.personId);
         var pool=Enumerable.Range(0,20).Select(i=>new SimulatedArtist {artistId="submission-"+i,geography=new GeographicIdentity {basePlaceId="gb_london"}}).ToArray();
         var world=WorldStateService.Capture(); uint draw;
-        GD.Seed(456); draw=GD.Randi(); GD.Seed(456);
+        GameRandom.Seed(456); draw=GameRandom.Randi(); GameRandom.Seed(456);
         var slate=SceneRecruitmentService.Slate(major,pool,0,0,4,out int accessible);
         Check(slate.Count==4 && accessible==20 && slate.Select(a=>a.artistId).SequenceEqual(SceneRecruitmentService.Slate(major,pool.Reverse(),0,0,4,out _).Select(a=>a.artistId)), "finite stable demo attention");
-        Check(GD.Randi()==draw && WorldStateService.Capture().PopulationRngState==world.PopulationRngState, "queries preserve random streams");
+        Check(GameRandom.Randi()==draw && WorldStateService.Capture().PopulationRngState==world.PopulationRngState, "queries preserve random streams");
         var desk=PlayerDesk.Instance;
         Check(desk.FoundLabel("Source Checks","new_york",out string message), "player US fixture: " + message);
         TimeManager.Instance.RestoreClock(GameDate.StartDate,9);
@@ -91,10 +91,10 @@ public static class SceneSourceChecks {
             LocalSceneIdentityService.EnsureArtist(candidate);
         }
         var before=WorldStateService.Capture(); count=ArtistManager.Instance.GetAllArtists().Count();
-        GD.Seed(918); draw=GD.Randi(); GD.Seed(918);
+        GameRandom.Seed(918); draw=GameRandom.Randi(); GameRandom.Seed(918);
         Check(desk.ReviewSourceDemos("gb_london",out message), "actual owner-budgeted demos: " + message);
         Check(desk.Slate.Count<=4 && desk.Slate.All(p=>p.SourceConnectionId!=null && p.SceneBillId==null), "demo provenance without invented live bill");
-        Check(GD.Randi()==draw && before.PopulationRngState==WorldStateService.Capture().PopulationRngState && count==ArtistManager.Instance.GetAllArtists().Count(), "demo review no RNG/births");
+        Check(GameRandom.Randi()==draw && before.PopulationRngState==WorldStateService.Capture().PopulationRngState && count==ArtistManager.Instance.GetAllArtists().Count(), "demo review no RNG/births");
         var prospect=desk.Slate.First(); string connectionId=prospect.SourceConnectionId;
         Check(desk.AddToNotebook(prospect,out message), "notebook source provenance");
         saved=desk.CaptureState();

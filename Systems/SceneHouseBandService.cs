@@ -13,6 +13,7 @@ public static class SceneHouseBandService {
 	public const float SkillBar = 0.55f;
 	public const float RegularBonus = 1f, ContactBonus = 0.5f;
 	public const int RegularSaturation = 20;
+	private static readonly IComparer<float> descendingScore = Comparer<float>.Create((a, b) => b.CompareTo(a));
 
 	private static readonly Dictionary<string, List<Musician>> players = new(StringComparer.Ordinal);
 	private static int playersWeek = int.MinValue;
@@ -23,17 +24,24 @@ public static class SceneHouseBandService {
 
 	/// <summary>Backers for one set, chosen at scheduling. Nobody already working another room that day or this hour.</summary>
 	public static List<string> Pick(SceneRoomProfile room, SimulatedArtist act, int day, int hour, string[] people,
-		Dictionary<string, string> personPlaces, HashSet<string> reservations, Func<string, string, int> regularShows) {
+		Dictionary<(int Day, string Person), string> personPlaces, HashSet<(int Day, int Hour, string Person)> reservations,
+		Func<string, string, int> regularShows) {
 		var pool = Players(room.PlaceId, day / 7);
-		return pool
+		var eligible = pool
 			.Where(m => m.lifeState == MemberLifeState.Active && !people.Contains(m.personId) &&
-				!reservations.Contains($"{day}|{hour}|{m.personId}") &&
-				!(personPlaces.TryGetValue($"{day}|{m.personId}", out var place) && place != room.Id))
-			.Select(m => (m, score: RegularBonus * Math.Min(1f, regularShows(room.Id, m.personId) / (float)RegularSaturation)
-				+ (people.Any(p => ContactNetworkService.Edge(p, m.personId) is { Fallout: false }) ? ContactBonus : 0f)
-				+ m.technicalSkill + 0.1f * BandLife.Unit($"house|{room.Id}|{day}|{m.personId}")))
-			.OrderByDescending(x => x.score).ThenBy(x => x.m.personId, StringComparer.Ordinal)
-			.Take(BandSize).Select(x => x.m.personId).ToList();
+				!reservations.Contains((day, hour, m.personId)) &&
+				!(personPlaces.TryGetValue((day, m.personId), out var place) && place != room.Id));
+		// The singer's good contacts, gathered once rather than an edge lookup per member per candidate.
+		var contacts = new HashSet<string>(StringComparer.Ordinal);
+		foreach (string p in people)
+			foreach (string other in ContactNetworkService.ContactsOf(p))
+				if (ContactNetworkService.Edge(p, other) is { Fallout: false }) contacts.Add(other);
+		ulong drawPrefix = BandLife.UnitPrefix($"house|{room.Id}|{day}|");
+		return StableSmallSelection.Take(eligible, BandSize,
+			m => RegularBonus * Math.Min(1f, regularShows(room.Id, m.personId) / (float)RegularSaturation)
+				+ (contacts.Contains(m.personId) ? ContactBonus : 0f)
+				+ m.technicalSkill + 0.1f * BandLife.UnitAfter(drawPrefix, m.personId), descendingScore, m => m.personId)
+			.Select(m => m.personId).ToList();
 	}
 
 	/// <summary>The town's rhythm players this week: members of acts present there and pooled players based there.</summary>

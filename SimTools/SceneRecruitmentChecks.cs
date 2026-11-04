@@ -66,9 +66,9 @@ public static class SceneRecruitmentChecks {
         Check(slate.Select(a => a.artistId).Distinct().Count() == 4, "slate unique");
         Check(slate.Select(a => a.artistId).SequenceEqual(SceneRecruitmentService.Slate(indie, pool.AsEnumerable().Reverse(), 1, 0, 4, out _).Select(a => a.artistId)), "stable slate independent of input ordering");
         var original = WorldStateService.Capture();
-        GD.Seed(88712); float next = GD.Randf(); GD.Seed(88712);
+        GameRandom.Seed(88712); float next = GameRandom.Randf(); GameRandom.Seed(88712);
         _ = SceneRecruitmentService.Slate(indie, pool, 1, 0, 4, out _);
-        Check(GD.Randf() == next, "recruitment query preserves global RNG");
+        Check(GameRandom.Randf() == next, "recruitment query preserves global RNG");
         Check(WorldStateService.Capture().PopulationRngState == original.PopulationRngState, "recruitment query preserves population RNG");
         var world = ArtistManager.Instance.GetAllArtists().ToList();
         var histories = world.SelectMany(a => a.sceneRecruitmentHistory ?? new()).ToList();

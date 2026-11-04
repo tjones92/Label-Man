@@ -38,7 +38,7 @@ public partial class ChartAuditRunner {
    foreach(var artist in panel) {
     var prior=artist.repertoireState;
     try {
-     using var random=new RandomNumberGenerator {Seed=CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}")};
+     using var random=new PcgRandom {Seed=CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}")};
      var prospect=new PlayerDesk.Prospect {Artist=artist};
      int requested=0;
      PlayerDesk.Instance.BuildLiveSet(prospect,artist,date.year,0,random,(want,pool)=>requested=want);

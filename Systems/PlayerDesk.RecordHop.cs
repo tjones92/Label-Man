@@ -70,7 +70,7 @@ public partial class PlayerDesk : Node {
 		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
 		if (!Require(RecordHopHours, out message)) return false;
 
-		float fee = GD.Randf() < RecordHopFeeChanceOfNothing ? 0f : Mathf.Round((float)GD.RandRange(10.0, RecordHopFeeMax));
+		float fee = GameRandom.Randf() < RecordHopFeeChanceOfNothing ? 0f : Mathf.Round((float)GameRandom.RandRange(10.0, RecordHopFeeMax));
 		if (Label.cashReserves < fee) { message = $"You're ${fee - Label.cashReserves:N0} short of the ${fee:N0} it'd take to book the room."; return false; }
 
 		Spend(RecordHopHours);
@@ -94,7 +94,7 @@ public partial class PlayerDesk : Node {
 		// Directive §8: "Gate the outcome on real act numbers -- cohesion, live-set quality, the
 		// record's hook." A weak act in front of a room is a rapport LOSS, not just a smaller gain.
 		float quality = (artist.groupCohesion + artist.livePerformance) * 0.5f * 0.6f + rec.baseRecord.hookStrength * 0.4f;
-		bool wentWell = GD.Randf() < Mathf.Clamp(quality, 0.05f, 0.95f);
+		bool wentWell = GameRandom.Randf() < Mathf.Clamp(quality, 0.05f, 0.95f);
 		string title = rec.baseRecord.title;
 		string regionId = DistanceModel.GetCityById(stop.CityId)?.parentRegionId;
 

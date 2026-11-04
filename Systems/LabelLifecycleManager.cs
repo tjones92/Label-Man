@@ -184,6 +184,8 @@ public partial class LabelLifecycleManager : Node {
 	public event Action<AILabel> OnLabelFounded;
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelPromoted;
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelDemoted;
+	// Observers see the exact quarterly gate inputs before promotion resets the capability streak.
+	public event Action<AILabel, int, bool> OnMidTierPromotionEvaluated;
 	public event Action<OperatingRosterTargetEvent> OnOperatingRosterTargetChanged;
 	public event Action<RuntimeLabelProfileFactory.Result> OnRuntimeLabelProfileInitialized;
 	
@@ -255,7 +257,7 @@ public partial class LabelLifecycleManager : Node {
 	}
 
 	private void OnMonthChanged(GameDate date) {
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		ProcessMonth(date.year, date.month);
 		SimulationPerformanceProfiler.EndLabelLifecycleMonth(profileStart);
 	}
@@ -273,6 +275,16 @@ public partial class LabelLifecycleManager : Node {
 		
 		foreach (var label in activeLabels.Where(l => l.IsActive).ToList()) {
 			UpdateLabelHealth(label);
+			if (FounderLabelLifecycle.ReviewMonth(label, year * 12 + month - 2,
+				CompetitorManager.Instance?.HasOpenFounderCommitments(label.labelId) == true)) {
+				KillLabel(label, "Dormancy");
+				continue;
+			}
+			// --studio-parent-labels: the parent's annual review decided to close it (StudioParentLabels.ReviewYear).
+			if (StudioParentLabels.IsStudioLabel(label) && label.parentClosureDue) {
+				KillLabel(label, "ParentClosure");
+				continue;
+			}
 			CheckForDeath(label);
 		}
 		
@@ -289,6 +301,9 @@ public partial class LabelLifecycleManager : Node {
 	private float CalculateMomentum(AILabel label) => Mathf.Clamp(label.reputation + (label.top40Hits * 0.05f), 0f, 1f);
 	
 	private void CheckForDeath(AILabel label) {
+		// The economic path closes unpaid firms in ProcessLabelMonth; cash-funded firms
+		// retain their runway regardless of loss count, chart history, tier or age.
+		if (EconomicLabelLifecycle.Enabled) return;
 		if (label.status != LabelStatus.Dying) return;
 		if (label.tier == LabelTier.Major) return;
 		
@@ -298,7 +313,7 @@ public partial class LabelLifecycleManager : Node {
 		else if (label.consecutiveLossMonths > 6 && label.cashReserves < 50f) deathChance = 0.2f;
 		
 		if (label.tier == LabelTier.Small) deathChance *= 1.5f;
-		if (GD.Randf() < deathChance) KillLabel(label, "Bankruptcy");
+		if (GameRandom.Randf() < deathChance) KillLabel(label, "Bankruptcy");
 	}
 	
 	private void KillLabel(AILabel label, string reason) {
@@ -313,12 +328,21 @@ public partial class LabelLifecycleManager : Node {
 		}
 		label.roster.Clear();
 		label.status = LabelStatus.Defunct;
+		label.exitReason = reason switch {
+			"Dormancy" => LabelExitReason.Dormancy, "ParentClosure" => LabelExitReason.ParentClosure, _ => LabelExitReason.Bankruptcy
+		};
 		defunctLabels.Add(label);
 		DefunctThisYear++;
+		if (EconomicLabelLifecycle.Enabled && reason == "Bankruptcy")
+			GD.Print($"LABEL_INSOLVENCY id={label.labelId} cash={label.cashReserves:F2} monthlyCashFlow={label.RecentMonthlyCashFlow:F2} missedMonthEnds={label.insolventMonthEnds}");
 		GD.Print($"[LabelManager] {label.labelName} has closed. Reason: {reason}. Operated for {label.monthsActive} months.");
 		// Phase 3b catalog succession: a bankrupt label's publishing catalog is bought by a surviving
 		// major rather than leaking. Covers of its old hits then pay the successor.
-		AILabel successor = FindCatalogSuccessor(label);
+		if (reason == "ParentClosure")
+			GD.Print($"STUDIO_PARENT_CLOSURE id={label.labelId} parent=\"{label.studioParent}\" cash={label.cashReserves:F2} lossYears={label.parentLossYears} lifetimeSupport={label.parentSupportLifetime:F0}");
+		if (reason == "Dormancy")
+			GD.Print($"LABEL_DORMANCY id={label.labelId} cash={label.cashReserves:F2} quietMonths={label.founderQuietMonths} monthlyCashFlow={label.RecentMonthlyCashFlow:F2}");
+		AILabel successor = reason == "Bankruptcy" ? FindCatalogSuccessor(label) : null;
 		if (successor != null) CompositionCatalogService.TransferCatalogControl(label.labelId, successor.labelId);
 		OnLabelDefunct?.Invoke(label, reason);
 	}
@@ -336,12 +360,16 @@ public partial class LabelLifecycleManager : Node {
 	public void MarkLabelAcquired(AILabel label, AILabel distributor) {
 		if (label == null || distributor == null || label == distributor || !label.IsActive) return;
 		label.status = LabelStatus.Acquired;
+		label.exitReason = LabelExitReason.Acquired;
 		defunctLabels.Add(label);
 		DefunctThisYear++;
 		string reason = $"Absorbed by {distributor.labelName}";
 		GD.Print($"[LabelManager] {label.labelName} acquired by {distributor.labelName}.");
 		// Catalog succession: the acquirer takes over the absorbed label's publishing catalog (Phase 3b).
 		CompositionCatalogService.TransferCatalogControl(label.labelId, distributor.labelId);
+		// The masters go too: the record-club catalogue, backlist and any club pass to the acquirer.
+		RecordClubChannel.OnAcquired(label.labelId, distributor.labelId);
+		BudgetLpChannel.OnAcquired(label.labelId, distributor.labelId);
 		OnLabelDefunct?.Invoke(label, reason);
 	}
 
@@ -378,13 +406,13 @@ public partial class LabelLifecycleManager : Node {
 		if (currentYear >= 1964 && currentYear <= 1966) adjustedChance = Mathf.Min(1f, adjustedChance * 1.3f);
 		int attempts = Mathf.Min(maxMonthlyBirths, Mathf.Max(1, Mathf.CeilToInt((targetCount - currentCount) / 12f)));
 		for (int attempt = 0; attempt < attempts && TotalActiveLabels < targetCount; attempt++) {
-			if (GD.Randf() < adjustedChance) SpawnNewLabel();
+			if (GameRandom.Randf() < adjustedChance) SpawnNewLabel();
 		}
 	}
 	
 	private void SpawnNewLabel() {
-		LabelTier tier = SelectRuntimeFoundingTier(GD.Randf(), runtimeSmallFoundingShare);
-		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier);
+		LabelTier tier = SelectRuntimeFoundingTier(GameRandom.Randf(), runtimeSmallFoundingShare);
+		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier, legacyIdentity: !ArtistPopulationLifecycle.Enabled);
 		if (ArtistPopulationLifecycle.Enabled) {
 			GameDate birthDate = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1);
 			newLabel.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
@@ -429,6 +457,7 @@ public partial class LabelLifecycleManager : Node {
 	/// or the ordinary signing/release paths from viable labels.
 	/// </summary>
 	private void TryApplyCompetitiveExit(AILabel label) {
+		if (EconomicLabelLifecycle.Enabled) return;
 		if (!ArtistPopulationLifecycle.Enabled) return;
 		int chartingLastYear = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
 		float chance = GetCompetitiveExitChance(label, chartingLastYear);
@@ -480,13 +509,17 @@ public partial class LabelLifecycleManager : Node {
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		int chartingCount = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
 		int recentReleaseCount = CompetitorManager.Instance?.GetRecentReleasedRecordCount(label.labelId, 52) ?? 0;
+		// --earned-roster-capacity: the hard capacity is what the label's earnings fund, reviewed each quarter.
+		int? earnedCapacity = EarnedRosterCapacity.Enabled ? EarnedRosterCapacity.Capacity(label) : null;
+		if (earnedCapacity != null) label.maxRosterSize = earnedCapacity.Value;
 		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, recentReleaseCount, week);
 		label.lastOrganicGrowthEligibilityWeek = week;
 		label.lastOrganicGrowthBlockingReason = blockingReason;
 		if (blockingReason != "Eligible") return;
 		int priorTarget = label.OperatingRosterTarget;
 		int weeksSincePreviousOrganicIncrease = label.lastOrganicRosterTargetGrowthWeek >= 0 ? week - label.lastOrganicRosterTargetGrowthWeek : 0;
-		label.SetOperatingRosterTarget(priorTarget + 1, LabelOperatingTargetReason.OrganicGrowth, week);
+		label.SetOperatingRosterTarget(earnedCapacity != null ? label.maxRosterSize : priorTarget + 1,
+			LabelOperatingTargetReason.OrganicGrowth, week);
 		label.organicRosterTargetGrowthCount++;
 		label.lastOrganicRosterTargetGrowthWeek = week;
 		EmitTargetEvent(label, LabelOperatingTargetReason.OrganicGrowth, priorTarget, label.OperatingRosterTarget,
@@ -638,16 +671,24 @@ public partial class LabelLifecycleManager : Node {
 				chartingLastYear >= BoutiquePivotMinimumRecentChartingRecords:
 				PromoteLabel(label, LabelTier.Independent);
 				return true;
-			case LabelTier.Independent when IsIndependentReadyForMidTier(label, chartingLastYear):
-				PromoteLabel(label, LabelTier.MidTier);
-				return true;
+			case LabelTier.Independent:
+				return TryPromoteIndependentLabel(label, chartingLastYear);
 			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold &&
-				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label):
+				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label) &&
+				!HeadScaleTemplates.HoldsMajorPromotion(label) && !StudioParentLabels.HoldsMajorPromotion(label):
 				PromoteLabel(label, LabelTier.Major);
 				return true;
 			default:
 				return false;
 		}
+	}
+
+	internal bool TryPromoteIndependentLabel(AILabel label, int chartingLastYear) {
+		bool readyForMidTier = IsIndependentReadyForMidTier(label, chartingLastYear);
+		OnMidTierPromotionEvaluated?.Invoke(label, chartingLastYear, readyForMidTier);
+		if (!readyForMidTier) return false;
+		PromoteLabel(label, LabelTier.MidTier);
+		return true;
 	}
 
 	// MidTier represents a large, proven independent rather than a capability-only
@@ -759,10 +800,12 @@ public partial class LabelLifecycleManager : Node {
 		// let Majors pull acoustically ahead and is a driver of the ahistorical late-decade indie
 		// chart surge. Only a label with capital to fund studio upgrades keeps pace now; a
 		// cash-starved small label's production stagnates, as it historically did.
-		if (currentYear > 1963 && label.cashReserves >= label.GetMonthlyOverhead() * StudioUpgradeRunwayMonths)
+		if (LabelCorporateModel.Capital && LabelCorporateModel.Applies(label))
+			LabelCorporateModel.TryProductionUpgrade(label, currentYear, currentMonth);
+		else if (currentYear > 1963 && label.cashReserves >= label.GetMonthlyOverhead() * StudioUpgradeRunwayMonths)
 			label.productionQuality = Mathf.Min(1f, label.productionQuality + drift * 0.5f);
-		label.scoutingAbility += (float)GD.RandRange(-drift, drift);
-		label.riskTolerance += (float)GD.RandRange(-drift, drift);
+		label.scoutingAbility += (float)GameRandom.RandRange(-drift, drift);
+		label.riskTolerance += (float)GameRandom.RandRange(-drift, drift);
 		label.scoutingAbility = Mathf.Clamp(label.scoutingAbility, 0f, 1f);
 		label.riskTolerance = Mathf.Clamp(label.riskTolerance, 0f, 1f);
 	}
@@ -821,13 +864,13 @@ public partial class LabelLifecycleManager : Node {
 		if (candidates.Count == 0) return null;
 		
 		float totalWeight = candidates.Sum(l => l.scoutingAbility + l.budgetLevel);
-		float roll = GD.Randf() * totalWeight;
+		float roll = GameRandom.Randf() * totalWeight;
 		float cumulative = 0f;
 		foreach (var label in candidates) {
 			cumulative += label.scoutingAbility + label.budgetLevel; // FIX: Applied typo fix from original code
 			if (roll <= cumulative) return label;
 		}
-		return candidates[(int)GD.RandRange(0, candidates.Count - 1)];
+		return candidates[(int)GameRandom.RandRange(0, candidates.Count - 1)];
 	}
 	
 	public AILabel GetLabelById(string id) {

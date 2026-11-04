@@ -11,7 +11,7 @@ using Godot;
 ///
 /// DETERMINISM: this service draws NOTHING from the global GD stream. Every stochastic choice comes
 /// from a pure stable hash over (artistId, recordId, year, salt) -- mirrors ScoutingPerception. If it
-/// used GD.RandRange it would shift the whole downstream RNG schedule and the material effect could
+/// used GameRandom.RandRange it would shift the whole downstream RNG schedule and the material effect could
 /// not be isolated from a full reshuffle. Chart outcomes change (material now shapes hook/originality)
 /// but the change is attributable and replay-stable. See SimTools/PublishingCoverSongDirective.md.
 /// </summary>
@@ -59,18 +59,22 @@ public static class SongMaterialSelectionService {
 
 	public static SelectedSongMaterial ChooseMaterial(
 		AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek,
-		SongMaterialSource? forcedSource = null
+		SongMaterialSource? forcedSource = null, bool forcedOnly = false
 	) {
+		using var timingScope = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.MaterialSelection);
+		using var materialEvaluation = PolarSongBehavior.EvaluateMaterial();
 		// AlbumMaterialPlan (§15): an album slot may dictate the source (pick the song WITHIN it, don't
 		// re-roll the source). Empty pool -> fall through to the normal mix so a slot is never starved.
 		if (forcedSource.HasValue) {
 			MaterialCandidate forced = BuildForSource(forcedSource.Value, label, artist, record, genre, year, chartWeek);
-			if (forced?.Material?.Song != null && !Rejected(forced.Material, artist, record, genre, year, label)) {
+			if (forced?.Material?.Song != null && !Rejected(forced.Material, artist, record, genre, year, label) && AcquireProfessional(forced.Material, label, artist)) {
 				Observe(artist, record, forced.Material.Song, genre, year, "forced", forced.Material.Source.ToString(), forced.Material.OriginalRecordId);
 				var prepared = PolarSongBehavior.Prepare(forced.Material, artist, record, genre, year, label);
 				RepertoireInfluenceService.OnSelected(prepared, artist, record, year);
 				return prepared;
 			}
+			// A caller that needs exactly this source (a project's own session) treats a refusal as no material.
+			if (forcedOnly) return null;
 		}
 		var candidates = new List<MaterialCandidate>();
 
@@ -91,9 +95,13 @@ public static class SongMaterialSelectionService {
 				PolarSongBehavior.Prepare(candidate.Material, artist, record, genre, year, label);
 				candidate.Score = SourceMix(candidate.Material.Source, genre, year, artist.primaryGenre) * PolarSongBehavior.SelectionScore(candidate.Material.PolarProposal.fit);
 			}
+			// --self-writing-craft-gate: a weak writer is handed songs. Off: multiplier 1.
+			if (candidate.Material.Source == SongMaterialSource.ArtistWritten && record.format != ReleaseFormat.Album && label?.isPlayerOwned != true)
+				candidate.Score *= SelfWritingCraftGate.Multiplier(ArtistWriterCraft(artist));
 			Observe(artist, record, candidate.Material.Song, genre, year, "source", candidate.Material.Source.ToString(), candidate.Material.OriginalRecordId);
 		}
 		var selected = WeightedPick(candidates, artist, record, year);
+		if (!AcquireProfessional(selected, label, artist)) selected = artistWritten.Material;
 		Observe(artist, record, selected.Song, genre, year, "selected", selected.Source.ToString(), selected.OriginalRecordId);
 		RepertoireInfluenceService.OnSelected(selected, artist, record, year);
 		return selected;
@@ -114,6 +122,10 @@ public static class SongMaterialSelectionService {
 		SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year, string referenceId = null
 	) {
 		if (song == null) return null;
+		if (ProfessionalWritingMarket.NeedsFirstRecordingLicense(song)) {
+			var owner = ChartManager.Instance?.GetLabelById(artist.labelId);
+			return owner == null ? null : BuildProfessionalForSong(owner.tier, artist, record, song, genre, year);
+		}
 		float familiarity = song.GetFamiliarityForYear(year);
 		float artistFit = InterpretationFit(artist, song, genre);
 		SongMaterialSource source =
@@ -145,6 +157,8 @@ public static class SongMaterialSelectionService {
 		LabelTier tier, SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year
 	) {
 		if (song == null) return null;
+		if (ProfessionalWritingMarket.Enabled && !ProfessionalWritingMarket.TryLicense(song,
+			ChartManager.Instance?.GetLabelById(artist.labelId), artist, out _)) return null;
 		float labelAccess = tier switch {
 			LabelTier.Major => 0.90f, LabelTier.MidTier => 0.65f, LabelTier.Boutique => 0.50f,
 			LabelTier.Independent => 0.38f, LabelTier.Small => 0.25f, _ => 0.35f
@@ -158,6 +172,23 @@ public static class SongMaterialSelectionService {
 			ProfessionalPolish = polish, ArtistIdentityFit = 0.30f
 		};
 		return PolarSongBehavior.Prepare(material, artist, record, genre, year);
+	}
+
+	/// <summary>Build artist-written material for a SPECIFIC composition the act already has (Release Judgement 2A: a song
+	/// from its shortlist, authored once). Mirrors <see cref="BuildArtistWritten"/>'s expectations for a fixed song, so the
+	/// realization is the single path's and nothing about the song is re-drawn. Pure: no GD draw.</summary>
+	internal static SelectedSongMaterial BuildArtistOriginalForSong(
+		AILabel label, SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year
+	) {
+		if (song == null) return null;
+		float eraWeight = GetArtistWrittenEraWeight(genre, year);
+		var material = new SelectedSongMaterial {
+			Song = song, Source = SongMaterialSource.ArtistWritten, IsCover = false,
+			ExpectedHook = song.commercialHook, ExpectedCompositionQuality = song.compositionQuality, ExpectedLyricQuality = song.lyricQuality,
+			FamiliarityAtRelease = 0f, ArrangementOriginality = song.originality, ProfessionalPolish = 0f,
+			ArtistIdentityFit = Mathf.Clamp(0.45f + ArtistWriterCraft(artist) * 0.40f + eraWeight * 0.15f, 0f, 1f)
+		};
+		return PolarSongBehavior.Prepare(material, artist, record, genre, year, label);
 	}
 
 	// Build only the candidate for one dictated source (AlbumMaterialPlan forced-source path).
@@ -175,18 +206,27 @@ public static class SongMaterialSelectionService {
 
 	/// <summary>The calibrated source-mix shares for a genre/year (Anchor prior, normalized), exposed so
 	/// AlbumMaterialPlan builds an album's whole-LP plan from the same decade curve the singles follow.</summary>
-	public static SourceShares GetSourceMixShares(Genre genre, int year, Genre? actGenre = null) {
-		float aw = SourceMix(SongMaterialSource.ArtistWritten, genre, year, actGenre);
-		float pro = SourceMix(SongMaterialSource.ExternalProfessional, genre, year, actGenre);
-		float std = SourceMix(SongMaterialSource.CoverStandard, genre, year, actGenre);
-		float hit = SourceMix(SongMaterialSource.CoverRecentHit, genre, year, actGenre);
-		float trad = SourceMix(SongMaterialSource.TraditionalPublicDomain, genre, year, actGenre);
+	public static SourceShares GetSourceMixShares(Genre genre, int year, Genre? actGenre = null, bool album = false) {
+		float aw = SourceMix(SongMaterialSource.ArtistWritten, genre, year, actGenre, album);
+		float pro = SourceMix(SongMaterialSource.ExternalProfessional, genre, year, actGenre, album);
+		float std = SourceMix(SongMaterialSource.CoverStandard, genre, year, actGenre, album);
+		float hit = SourceMix(SongMaterialSource.CoverRecentHit, genre, year, actGenre, album);
+		float trad = SourceMix(SongMaterialSource.TraditionalPublicDomain, genre, year, actGenre, album);
 		float sum = aw + pro + std + hit + trad;
 		if (sum <= 0f) return new SourceShares { Aw = 1f };
 		return new SourceShares { Aw = aw / sum, Pro = pro / sum, Std = std / sum, Hit = hit / sum, Trad = trad / sum };
 	}
 
 	// ---- Candidate builders ------------------------------------------------------------------
+	private static bool AcquireProfessional(SelectedSongMaterial material, AILabel label, SimulatedArtist artist) {
+		if (material?.Song == null || material.Song.originKind != SongOriginKind.ProfessionalOffice ||
+			material.IsCover && !ProfessionalWritingMarket.NeedsFirstRecordingLicense(material.Song)) return true;
+		if (!ProfessionalWritingMarket.TryLicense(material.Song, label, artist, out _)) return false;
+		if (ProfessionalWritingMarket.Enabled && material.IsCover) {
+			material.IsCover = false; material.Source = SongMaterialSource.ExternalProfessional;
+		}
+		return true;
+	}
 
 	private static MaterialCandidate BuildArtistWritten(
 		AILabel label, SimulatedArtist artist, Record record, Genre genre, int year
@@ -198,7 +238,8 @@ public static class SongMaterialSelectionService {
 		TeamWritingService.Crafts team = TeamWritingService.ForArtistOriginal(artist, record.recordId, year);
 		float compositionQuality = Mathf.Clamp(writerCraft * 0.80f + eraWeight * 0.10f + noise +
 			TeamWritingService.TeamCraftWeight * team.Melody, 0f, 1f);
-		float hook = Mathf.Clamp(compositionQuality * 0.75f + record.hookStrength * 0.15f + TeamWritingService.TeamCraftWeight * team.Hook, 0f, 1f);
+		float hook = ArtistWrittenHookScale.Hook(compositionQuality, writerCraft, noise, record.hookStrength,
+			TeamWritingService.TeamCraftWeight * team.Hook);
 		float lyric = Mathf.Clamp(writerCraft * 0.70f + eraWeight * 0.10f + TeamWritingService.TeamCraftWeight * team.Lyric, 0f, 1f);
 		float originality = Mathf.Clamp(artist.members.Count > 0 ? artist.members[0].creativity * 0.6f + 0.2f : 0.4f, 0f, 1f);
 
@@ -222,7 +263,10 @@ public static class SongMaterialSelectionService {
 	) {
 		float availability = GetProfessionalMaterialAvailability(genre, year);
 		if (availability <= 0.01f) return null;
-		SongComposition song = SampleBest(CompositionCatalogService.GetProfessionalForGenre(genre),
+		SongComposition owned = ProfessionalWritingMarket.OwnedDelivery(label, artist);
+		if (owned == null && ProfessionalWritingMarket.Enabled && ProfessionalSongBalance.SparesFreshDemos) return null;
+		SongComposition song = owned ?? SampleBest(ProfessionalSongBalance.OwnGenreFirst(ProfessionalWritingMarket.Visible(RockHitOfficePlacement.Visible(
+				PublisherPitchOrder.Visible(CompositionCatalogService.GetProfessionalForAct(genre), label), label), label, artist), genre),
 			artist, record, year, "pro", null);
 		if (song == null) return null;
 
@@ -236,7 +280,9 @@ public static class SongMaterialSelectionService {
 		float hook = Mathf.Clamp(song.commercialHook * 0.85f + polish * 0.10f, 0f, 1f);
 
 		// Better labels/needier acts get slightly more of the professional share; ambitious acts less.
-		float q = Mathf.Clamp(song.commercialHook * 0.5f + song.compositionQuality * 0.2f + labelAccess * 0.15f
+		float readHook = ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.DemoRead(song, label, "hook") : song.commercialHook;
+		float readCraft = ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.DemoRead(song, label) : song.compositionQuality;
+		float q = Mathf.Clamp(readHook * 0.5f + readCraft * 0.2f + labelAccess * 0.15f
 			+ artistNeedsSong * 0.1f + commercialNeed * 0.05f, 0f, 1f);
 		float score = SourceMix(SongMaterialSource.ExternalProfessional, genre, year)
 			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist));
@@ -369,6 +415,7 @@ public static class SongMaterialSelectionService {
 			Genre.Soul or Genre.Motown => Mathf.Clamp(0.45f + 0.25f * SmoothYear(1960f, 1966f, year), 0f, 1f),
 			Genre.Country => 0.70f,
 			Genre.RnB => 0.45f,
+			Genre.RockAndRoll when RockHitWriters.Enabled => RockHitWriters.RockAndRollAvailability(SmoothYear(1963f, 1968f, year)),
 			Genre.RockAndRoll or Genre.GarageRock or Genre.PsychedelicRock or Genre.Psychedelic =>
 				Mathf.Clamp(0.28f - 0.12f * SmoothYear(1964f, 1968f, year), 0f, 1f),
 			_ => 0.35f
@@ -396,6 +443,8 @@ public static class SongMaterialSelectionService {
 	private struct Mix { public float Aw, Pro, Std, Hit, Trad; public Mix(float a,float p,float s,float h,float t){Aw=a;Pro=p;Std=s;Hit=h;Trad=t;} }
 
 	private static Mix Anchor1960(Genre g) => g switch {
+		// --rock-hit-writers: 1960 rock & roll was staff-writer-led (std/trad still carry the rock songbook factor).
+		Genre.RockAndRoll when RockHitWriters.Enabled => new Mix(.30f, .35f * RockHitWriters.ProShareScale, .05f, .25f, .05f),
 		Genre.TeenPop        => new Mix(.06f, .56f, .14f, .14f, .10f),
 		Genre.Bubblegum      => new Mix(.06f, .56f, .14f, .14f, .10f),
 		Genre.GirlGroup      => new Mix(.08f, .54f, .14f, .14f, .10f),
@@ -418,7 +467,26 @@ public static class SongMaterialSelectionService {
 		} : new Mix(.20f, .30f, .20f, .18f, .12f)
 	};
 
+	// Opt-in 1960 revisions (ProfessionalSongBalance). --source-mix-1960-pro-trims lowers the professional share where
+	// fresh office songs were rarer than the family default: doo-wop groups wrote much of their own material; folk, blues
+	// and jazz singles leaned on traditional, self-written and standard material; classical had no office songs and fell
+	// through to the generic default. --tradpop-singles-new-songs gives TraditionalPop singles (not LPs) a new-song mix:
+	// 1960 pop singers issued mostly new publisher songs as singles and recorded the standards on albums.
+	private static Mix Revised1960(Genre g, Mix anchor, bool album) {
+		if (ProfessionalSongBalance.TradPopSinglesNewSongs && !album && g == Genre.TraditionalPop) return new Mix(.08f, .45f, .25f, .10f, .12f);
+		if (!ProfessionalSongBalance.ProTrims1960) return anchor;
+		return g switch {
+			Genre.DooWop    => new Mix(.32f, .26f, .16f, .16f, .10f),
+			Genre.Folk      => new Mix(.34f, .03f, .18f, .10f, .35f),
+			Genre.Blues     => new Mix(.31f, .05f, .20f, .22f, .22f),
+			Genre.Jazz      => new Mix(.33f, .08f, .43f, .06f, .10f),
+			Genre.Classical => new Mix(.10f, .03f, .70f, .05f, .12f),
+			_ => anchor
+		};
+	}
+
 	private static Mix Anchor1969(Genre g) => g switch {
+		Genre.RockAndRoll when RockHitWriters.Enabled => new Mix(.62f, .15f * RockHitWriters.ProShareScale, .03f, .18f, .02f),
 		Genre.TeenPop        => new Mix(.20f, .55f, .04f, .16f, .05f),
 		Genre.Bubblegum      => new Mix(.15f, .60f, .04f, .16f, .05f),
 		Genre.GirlGroup      => new Mix(.25f, .45f, .06f, .18f, .06f),
@@ -484,8 +552,8 @@ public static class SongMaterialSelectionService {
 		return song == null ? -1 : PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(song, artist, projectGenre, year, track.masterId)) *
 			PolarSongBehavior.PromotionRealizationFactor(track) * SongbookExceptionFactor(track.songSource, projectGenre, artist.primaryGenre);
 	}
-	private static float SourceMix(SongMaterialSource source, Genre genre, int year, Genre? actGenre = null) {
-		Mix a = Anchor1960(genre), b = Anchor1969(genre);
+	internal static float SourceMix(SongMaterialSource source, Genre genre, int year, Genre? actGenre = null, bool album = false) {
+		Mix a = Revised1960(genre, Anchor1960(genre), album || ProfessionalSongBalance.ChoosingAlbumFiller), b = Anchor1969(genre);
 		float t = SmoothYear(1962f, 1968f, year);
 		float Lerp(float x, float y) => Mathf.Lerp(x, y, t);
 		bool rareRock = RareRockSongbooks(genre, actGenre);
@@ -494,7 +562,10 @@ public static class SongMaterialSelectionService {
 			SongMaterialSource.ExternalProfessional or SongMaterialSource.LabelStaffWriter or SongMaterialSource.ArtistCowrittenWithProfessional => Lerp(a.Pro, b.Pro),
 			SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => Lerp(a.Std, b.Std) *
 				(rareRock ? PolarSongTable.Current.N("rockStandardFactor") : StandardShareFactor(genre)),
-			SongMaterialSource.CoverRecentHit => Lerp(a.Hit, b.Hit),
+			// --source-mix-standards-to-recent-hits: the standards share a genre gives up goes to covers of recent records,
+			// so total cover share stays at the anchor's instead of spreading over originals and professional songs.
+			SongMaterialSource.CoverRecentHit => Lerp(a.Hit, b.Hit) + (ProfessionalSongBalance.StandardsToRecentHits
+				? Lerp(a.Std, b.Std) * (1f - (rareRock ? PolarSongTable.Current.N("rockStandardFactor") : StandardShareFactor(genre))) : 0f),
 			SongMaterialSource.TraditionalPublicDomain or SongMaterialSource.AdaptedTraditional => Lerp(a.Trad, b.Trad) *
 				(rareRock ? PolarSongTable.Current.N("rockTraditionalFactor") : 1),
 			_ => 0f
@@ -503,7 +574,7 @@ public static class SongMaterialSelectionService {
 
 	// ---- Scoring helpers ---------------------------------------------------------------------
 
-	private static float ArtistWriterCraft(SimulatedArtist artist) {
+	internal static float ArtistWriterCraft(SimulatedArtist artist) {
 		float best = 0f;
 		if (artist.members != null) foreach (var m in artist.members) if (m.creativity > best) best = m.creativity;
 		return Mathf.Clamp(artist.songwritingAbility * 0.6f + best * 0.4f, 0f, 1f);
@@ -590,15 +661,72 @@ public static class SongMaterialSelectionService {
 		var pools = new IReadOnlyList<SongComposition>[fams.Length];
 		var establishment = RepertoireProvenance.CurrentEstablishmentRule();
 		for (int i = 0; i < fams.Length; i++) {
-			var merged = MergedStandards(fams[i]);
-			var pool = new List<SongComposition>();
-			for (int j = 0; j < merged.Count; j++) {
-				var s = merged[j];
-				if (RepertoireProvenance.GameplayStandard(s,year,establishment)&&MediaCutRecordingAccess(s,genre)) pool.Add(s);
+			pools[i] = EstablishedPool(fams[i], genre, year, establishment);
+			if (StartupCaches.Verify) {
+				var fresh = FilterEstablished(MergedStandards(fams[i]), 0, genre, year, establishment);
+				if (!fresh.SequenceEqual(pools[i], ReferenceEqualityComparer.Instance))
+					throw new System.InvalidOperationException($"STANDARD_POOL_CACHE_MISMATCH family={fams[i]} genre={genre} year={year} cached={pools[i].Count} fresh={fresh.Count}");
 			}
-			pools[i] = pool.ToArray();
 		}
 		return pools;
+	}
+	private static List<SongComposition> FilterEstablished(List<SongComposition> merged, int from, Genre genre, int year,
+			RepertoireProvenance.EstablishmentRule establishment) {
+		var pool = new List<SongComposition>();
+		for (int j = from; j < merged.Count; j++) {
+			var s = merged[j];
+			if (RepertoireProvenance.GameplayStandard(s,year,establishment)&&MediaCutRecordingAccess(s,genre)) pool.Add(s);
+		}
+		return pool;
+	}
+
+	// The filtered pool above, kept between calls per family (and Easy Listening's media-cut access). Its inputs are the
+	// year, the establishment rule and audit flags (all keyed), the merged union (append-only until MergedStandards
+	// replaces it), and per-song state that only changes through writes CompositionCatalogService logs. So a call
+	// re-tests only the songs logged since the last one plus any newly appended songs, and re-filters the family in
+	// merged order only when a logged song actually enters or leaves it. Re-filtering every song per call was ~21% of
+	// a late-decade window. --verify-runtime-caches recomputes each call from scratch and throws on any difference.
+	private sealed class EstablishedPoolCache {
+		public List<SongComposition> Merged; public int Synced, Year, Epoch, Touches, Phase; public bool Repair;
+		public RepertoireProvenance.EstablishmentRule Rule;
+		public readonly HashSet<SongComposition> InMerged = new(ReferenceEqualityComparer.Instance);
+		public readonly HashSet<SongComposition> Members = new(ReferenceEqualityComparer.Instance);
+		public readonly List<SongComposition> Songs = new();
+		public SongComposition[] Snapshot;
+	}
+	private static readonly Dictionary<(GenreFamily, bool), EstablishedPoolCache> establishedPools = new();
+	private static IReadOnlyList<SongComposition> EstablishedPool(GenreFamily family, Genre genre, int year,
+			RepertoireProvenance.EstablishmentRule establishment) {
+		var merged = MergedStandards(family);
+		int epoch = CompositionCatalogService.EstablishmentEpoch, touches = CompositionCatalogService.EstablishmentTouchCount;
+		var key = (family, genre == Genre.EasyListening);
+		if (!establishedPools.TryGetValue(key, out var c) || !ReferenceEquals(c.Merged, merged) || c.Synced > merged.Count ||
+				c.Year != year || c.Epoch != epoch || touches < c.Touches || !c.Rule.Equals(establishment) ||
+				c.Phase != LiveRepertoire.AuditPhase || c.Repair != LiveRepertoire.AuditGenreRepair) {
+			c = new EstablishedPoolCache { Merged = merged, Year = year, Epoch = epoch, Touches = touches, Rule = establishment,
+				Phase = LiveRepertoire.AuditPhase, Repair = LiveRepertoire.AuditGenreRepair };
+			establishedPools[key] = c;
+		}
+		bool Qualifies(SongComposition s) => RepertoireProvenance.GameplayStandard(s,year,establishment)&&MediaCutRecordingAccess(s,genre);
+		bool moved = false;
+		for (int i = c.Touches; i < touches; i++) {
+			var s = CompositionCatalogService.EstablishmentTouch(i);
+			if (!c.InMerged.Contains(s) || Qualifies(s) == c.Members.Contains(s)) continue;
+			if (!c.Members.Add(s)) c.Members.Remove(s);
+			moved = true;
+		}
+		c.Touches = touches;
+		if (moved) {
+			c.Songs.Clear();
+			for (int i = 0; i < c.Synced; i++) if (c.Members.Contains(c.Merged[i])) c.Songs.Add(c.Merged[i]);
+			c.Snapshot = null;
+		}
+		while (c.Synced < merged.Count) {
+			var s = merged[c.Synced++];
+			c.InMerged.Add(s);
+			if (Qualifies(s)) { c.Members.Add(s); c.Songs.Add(s); c.Snapshot = null; }
+		}
+		return c.Snapshot ??= c.Songs.ToArray();
 	}
 
 	// The standards-plus-hits union, distinct by song id in first-seen order. Both sources are append-only (a load
@@ -878,7 +1006,7 @@ public static class SongMaterialSelectionService {
 			float u = StableUnit(artist.artistId, record.recordId, year, $"{salt}{i}");
 			int gidx = (int)(u * total) % total;
 			SongComposition s = ResolveGlobal(pools, gidx);
-			if (s == null) continue;
+			if (s == null || ProfessionalWritingMarket.NeedsFirstRecordingLicense(s)) continue;
 			if (RejectedSample(s, artist, record, year)) continue;
 			Observe(artist, record, s, record.primaryGenre, year, "pool", salt);
 			float score = SampleScore(s, artist, record, year, applyFatigue);
@@ -905,7 +1033,7 @@ public static class SongMaterialSelectionService {
 		var families = CoverSourceFamilies(genre);
 		var rule = RepertoireProvenance.CurrentEstablishmentRule();
 		bool Eligible(SongComposition s) =>
-			s.originYear <= year && System.Array.IndexOf(families, CompositionCatalogService.PoolFamilyOf(s)) >= 0 &&
+			!ProfessionalWritingMarket.NeedsFirstRecordingLicense(s) && s.originYear <= year && System.Array.IndexOf(families, CompositionCatalogService.PoolFamilyOf(s)) >= 0 &&
 			(hit ? CompositionCatalogService.IsCoverableHit(s) && (genre == Genre.EasyListening || MediaCutRecordingAccess(s, genre))
 				: (s.isStandard || LiveRepertoire.AuditPhase >= 5 && CompositionCatalogService.IsCoverableHit(s)) &&
 				  RepertoireProvenance.GameplayStandard(s, year, rule) && MediaCutRecordingAccess(s, genre)) &&
@@ -943,6 +1071,8 @@ public static class SongMaterialSelectionService {
 #pragma warning disable CS0618
 			float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
 #pragma warning restore CS0618 // legacy path, reached only when polar selection is off
+			if (salt == "pro" && ProfessionalWritingMarket.Enabled && ChartManager.Instance?.GetLabelById(artist.labelId) is AILabel reader)
+				score = ProfessionalWritingMarket.DemoRead(s, reader) * (PolarSongBehavior.UsePolarFitSelection ? score : 1);
 			if (score > bestScore || (PolarSongBehavior.UsePolarFitSelection && score == bestScore && (best == null || GenreFit(s, record.primaryGenre) > GenreFit(best, record.primaryGenre)))) { bestScore = score; best = s; }
 		}
 		return best;

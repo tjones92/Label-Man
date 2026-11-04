@@ -63,7 +63,7 @@ public static partial class LocalSceneRoomService {
     /// <summary>One set already on a person's or act's day: where, when, and in what capacity.</summary>
     private readonly record struct DaySet(string RoomId, string ArtistId, int Start, int End, bool Backing);
 
-    private static void AddDaySet(Dictionary<string, List<DaySet>> sets, string key, DaySet set) {
+    private static void AddDaySet(Dictionary<(int Day, string Id), List<DaySet>> sets, (int Day, string Id) key, DaySet set) {
         if (!sets.TryGetValue(key, out var list)) sets[key] = list = new();
         list.Add(set);
     }
@@ -73,11 +73,11 @@ public static partial class LocalSceneRoomService {
     /// add one more room, if every one of its people's other sets that day is with this act, as a member, in that one
     /// other room, and ends (or starts) far enough away to cross town.</summary>
     private static bool DayAllows(SimulatedArtist act, SceneRoomProfile room, int day, int hour, string[] people, bool fullTime,
-            Dictionary<string, List<DaySet>> actSets, Dictionary<string, List<DaySet>> personSets) {
+            Dictionary<(int Day, string Id), List<DaySet>> actSets, Dictionary<(int Day, string Id), List<DaySet>> personSets) {
         var elsewhere = new List<DaySet>();
-        if (actSets.TryGetValue($"{day}|{act.artistId}", out var mine)) elsewhere.AddRange(mine.Where(s => s.RoomId != room.Id));
+        if (actSets.TryGetValue((day, act.artistId), out var mine)) elsewhere.AddRange(mine.Where(s => s.RoomId != room.Id));
         foreach (string p in people)
-            if (personSets.TryGetValue($"{day}|{p}", out var theirs)) elsewhere.AddRange(theirs.Where(s => s.RoomId != room.Id));
+            if (personSets.TryGetValue((day, p), out var theirs)) elsewhere.AddRange(theirs.Where(s => s.RoomId != room.Id));
         if (elsewhere.Count == 0) return true;
         if (!LocalScenes.DoubleRooms || !fullTime) return false;
         return elsewhere.All(s => s.ArtistId == act.artistId && !s.Backing && SceneRoomCatalog.Get(s.RoomId)?.PlaceId == room.PlaceId &&

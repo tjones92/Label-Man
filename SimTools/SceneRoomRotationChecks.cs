@@ -65,7 +65,7 @@ public static class SceneRoomRotationChecks {
 
             // 4. Twelve weeks of the room clock.
             ulong population = WorldStateService.Capture().PopulationRngState;
-            GD.Seed(4417); float next = GD.Randf(); GD.Seed(4417);
+            GameRandom.Seed(4417); float next = GameRandom.Randf(); GameRandom.Seed(4417);
             const string club = "nashville:club";
             var nights = new List<SceneBill>();
             var allBills = new Dictionary<string, SceneBill>(StringComparer.Ordinal);
@@ -73,7 +73,7 @@ public static class SceneRoomRotationChecks {
                 LocalSceneRoomService.Advance(date.AddDays(d), 24);
                 foreach (var b in Snapshot().Bills.Where(b => b.Day == d)) allBills[b.Id] = b;
             }
-            Check(GD.Randf() == next && WorldStateService.Capture().PopulationRngState == population, "booking consumes no global or population RNG");
+            Check(GameRandom.Randf() == next && WorldStateService.Capture().PopulationRngState == population, "booking consumes no global or population RNG");
             nights = allBills.Values.Where(b => b.RoomId == club && b.Status == SceneBillStatus.Performed).OrderBy(b => b.Day).ToList();
             var slotsHeld = allBills.Values.SelectMany(b => b.Appearances.SelectMany(s => s.PersonIds.Concat(s.BackingPersonIds ?? new())
                 .Select(p => (Key: $"{b.Day}|{s.StartHour}|{p}", DayPerson: $"{b.Day}|{p}", b.RoomId)))).ToList();

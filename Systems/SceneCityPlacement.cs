@@ -10,7 +10,7 @@ using System.Linq;
 public static class SceneCityPlacement {
     /// <summary>Philadelphia's teen-pop, vocal-group and jazz fits. Opt-in (--enable-philadelphia-recording-center) until a decade A/B:
     /// a 104-week two-seed A/B left totals flat but moved Major chart share up 6-7 points in 1961 on both seeds.</summary>
-    public static readonly bool PhiladelphiaRecordingCenter = Godot.OS.GetCmdlineUserArgs().Contains("--enable-philadelphia-recording-center");
+    public static readonly bool PhiladelphiaRecordingCenter = SimulationArguments.Get().Contains("--enable-philadelphia-recording-center");
     // All 31 playable cities remain eligible. Broad centers dominate; specialized centers
     // receive genre adjustments below. Values are relative weights, normalized per genre.
     private static readonly IReadOnlyDictionary<string, double> Opportunity = new Dictionary<string, double>(StringComparer.Ordinal) {
@@ -31,7 +31,7 @@ public static class SceneCityPlacement {
     /// let each centre lead its own sound (Nashville ~35% of Country, LA ~70% of surf, San Antonio ~30% of Tex-Mex, Chicago ~25% of
     /// blues, San Francisco ~26% of psychedelia from 1965) and thin Black-music genres in the mountain and plains West, where
     /// the 1960 Black population was small. Implied shares are opportunity x fit normalised per genre; mobility reads the same.</summary>
-    public static readonly bool SpecialistPlacement = Godot.OS.GetCmdlineUserArgs().Contains("--enable-specialist-scene-placement");
+    public static readonly bool SpecialistPlacement = SimulationArguments.Get().Contains("--enable-specialist-scene-placement");
     private static readonly HashSet<string> MountainPlainsWest = new(StringComparer.Ordinal) {
         "seattle", "portland", "denver", "phoenix", "omaha", "salt_lake_city", "albuquerque", "billings", "minneapolis" };
     private static readonly HashSet<string> NortheastAndLakes = new(StringComparer.Ordinal) {

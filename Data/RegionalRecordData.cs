@@ -17,7 +17,10 @@ public class RegionalRecordData {
 	// Awareness & Sentiment
 	public float awareness;      // 0-1: How many people in this region know about the song
 	public float sentiment;      // -1 to 1: How much they like it
-	
+	// A5: a linked LP's regional awareness without the promo's launch bonus (null otherwise).
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? promoShadowAwareness;
+
 	// Media Presence
 	public float radioPlay;      // 0-1: Current radio airplay level (the final combined value the
 	                             // pipeline consumes; produced by StationNetwork aggregation)
@@ -26,6 +29,13 @@ public class RegionalRecordData {
 	// tailAccess=1 and the panel weight is 0, so radioPlay == tailRadioPlay == the former formula
 	// (proved byte-identical before any reporter contribution is dialled in).
 	public float tailRadioPlay;
+	// Big-5 handoff probe: the part of radioPlay the reporter panel put there, this week's blend plus what the
+	// tail carried of earlier weeks' blends. Written only under --station-regional-support-panel-free; not saved.
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float panelExcessRadio;
+	// This week's reporter panel rotation, for --station-regional-support-panel-linear's chart payout; not saved.
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float panelRadioPlay;
 	public float jukeboxPlay;    // 0-1: Jukebox presence
 	// A 1960s Top 40 playlist was a list of thirty or forty slots, re-cut weekly by a programme
 	// director reading local sales reports. A record did not fade off it; it was dropped, and once
@@ -61,6 +71,8 @@ public class RegionalRecordData {
 	public float salesEffectiveAwarenessThisWeek;
 	public float salesRadioHeatThisWeek;
 	public float salesRegionalRadioPlayThisWeek;
+	// Derived before the live demand pass; the national campaign's unserved audience allocated to this market.
+	public float campaignAwarenessThisWeek;
 	public float previousRawDemand;
 	public float rawDemandThisWeek;
 	// Enabled Single demand-stage audit. These values are captured before supply
@@ -92,10 +104,50 @@ public class RegionalRecordData {
 	// Immutable settlement inputs captured after the two clearing stages.
 	public int localClearedThisWeek;
 	public int spilloverClearedThisWeek;
+	// Rack-jobber channel: this week's rack units (week-local), the rack exhaustion ledger and the rack tier
+	// (RackJobberChannel.Tier*). The last two are saved only when nonzero.
+	public int rackUnitsThisWeek;
+	public int rackUnitsTotal;
+	// Accounting stays in racks; these purchases still exhaust the original store buyer cohort.
+	public int rackStoreBuyerUnitsTotal;
+	// Follower demand (CelebrityFanbaseDesign.md §2.4): this LP's buyers who spent their purchase on a fan title instead.
+	// They exhaust the title's buyer cohort like a sale, so a displaced purchase is lost rather than deferred. Causal only.
+	public int fanDisplacedBuyerUnitsTotal;
+	public int rackTier;
 	public float salesVelocity;
 	public int sustainedGrowthWeeks;
 	public int tractionWeeks;
 	public int collapseWeeks;
+
+	// Local lifecycle (regional audience design 3a). A region has its own arrival and its own best
+	// week, so its clocks can run apart from the national ones. Ages are record ages
+	// (weeksSinceRelease), like stationDropAge, so they need no chart-week bookkeeping on load.
+	// -1 = the record is not yet in play here.
+	public int localIntroAge = -1;
+	public int localPeakUnits;
+	public int localPeakAge = -1;
+	// This week's rank on the region's single sales list (1 = best seller), 0 if unranked or not computed.
+	public int localSalesRank;
+	// Regional sync §9s: the record age from which its commercial connection is realized here. 0 (the default, so albums,
+	// player records, older saves and switched-off runs) is from launch; RegionalFitExposure.NotExposed until a spread
+	// rule reaches the region.
+	public int fitExposureAge;
+	public string fitExposureCause;
+	// Regional arrival (RegionalSyncDesign 5a). Only ever set while RegionalAudience.RegionalArrival is on, so the
+	// default (false) means "in play" for albums, player records, older saves and switched-off runs. While waiting,
+	// the promotion seed drawn for this region is held in the pending fields and lands on arrival. With sparse
+	// retail access, unitsInStores can already contain a finite shop allocation and pendingLaunchStock is zero.
+	// Campaign focus may redirect pendingLaunchAwareness into served markets, leaving no duplicate deposit here.
+	public bool awaitingArrival;
+	public int arrivalAge = -1;
+	public float pendingLaunchAwareness, pendingLaunchRadio;
+	public int pendingLaunchStock;
+
+	/// <summary>Weeks this region has had the record in play, counting the arrival week as 1; 0 before it arrives.</summary>
+	public int LocalAge(int weeksSinceRelease) => localIntroAge < 0 ? 0 : Math.Max(1, weeksSinceRelease - localIntroAge + 1);
+
+	/// <summary>Weeks since this region's best week, the regional twin of weeksSincePeakUnits; 0 before any sale.</summary>
+	public int WeeksSinceLocalPeak(int weeksSinceRelease) => localPeakAge < 0 ? 0 : Math.Max(0, weeksSinceRelease - localPeakAge);
 
 	// Demand-led discovery state. This is intentionally independent of restocking.
 	public float breakoutScore;
@@ -103,6 +155,9 @@ public class RegionalRecordData {
 	public RegionalBreakoutStage breakoutStage;
 	public float neighboringMarketTestStrength;
 	public string breakoutSourceRegionId;
+	// Record age of the last week this region was a regional hit by RegionalHitDealGate's bar, or -1. Written
+	// only while that switch is on; the switched-off deal gate reads peakBreakoutScore instead.
+	public int dealEvidenceAge = -1;
 	public float breakoutVolumeInput;
 	public float breakoutVelocityInput;
 	public float breakoutAudienceInput;
@@ -142,6 +197,8 @@ public class RegionalRecordData {
 		jukeboxPlay = 0f;
 		stationsDropped = false;
 		stationDropAge = -1;
+		localIntroAge = -1;
+		localPeakAge = -1;
 		unitsInStores = 0;
 		unitsBackordered = 0;
 		unitsSoldThisWeek = 0;

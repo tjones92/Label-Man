@@ -80,12 +80,19 @@ public static class LocalScenePersistenceService {
     }
     internal static bool Present(SimulatedArtist act, string scene, int week) {
         if (!Performs(act) || act.sceneParticipations == null) return false;
-        var current = act.sceneParticipations.Where(p => p.startWeek <= week && (!p.endWeek.HasValue || p.endWeek.Value >= week) &&
-            p.relationship != SceneRelationship.Alumnus).ToArray();
-        bool hasAwayPresence = current.Any(p => p.relationship != SceneRelationship.Resident && p.sceneId != scene);
-        return current.Any(p => p.sceneId == scene && (p.relationship != SceneRelationship.Resident ||
-            !hasAwayPresence && !p.endWeek.HasValue && SceneIdFor(act.geography?.basePlaceId) == scene));
+        // Room scheduling asks this per act, room and day. Two passes over the same current rows,
+        // without materializing them; predicates and evaluation order are unchanged.
+        var rows = act.sceneParticipations;
+        bool hasAwayPresence = false;
+        foreach (var p in rows)
+            if (CurrentAt(p, week) && p.relationship != SceneRelationship.Resident && p.sceneId != scene) { hasAwayPresence = true; break; }
+        foreach (var p in rows)
+            if (CurrentAt(p, week) && p.sceneId == scene && (p.relationship != SceneRelationship.Resident ||
+                !hasAwayPresence && !p.endWeek.HasValue && SceneIdFor(act.geography?.basePlaceId) == scene)) return true;
+        return false;
     }
+    private static bool CurrentAt(SceneParticipation p, int week) =>
+        p.startWeek <= week && (!p.endWeek.HasValue || p.endWeek.Value >= week) && p.relationship != SceneRelationship.Alumnus;
     private static bool Fits(SimulatedArtist act, PlayerDesk.ScoutingVenue venue, int year) {
         var family = GenreCatalog.Get(GenreCatalog.MapLegacy(act.primaryGenre, year)).Family;
         return AlbumLegitimacyService.IsEligibleFamily(family) &&
@@ -112,6 +119,7 @@ public static class LocalScenePersistenceService {
     /// <summary>One world-owned pass per chart week. Advances every place whether visited or not.</summary>
     public static void Advance(int week, int year) {
         if (!LocalScenes.Persisting || restoring || week <= State.LastProcessedWeek) return;
+        using var profile = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.SceneWindows);
         Reconcile();
         State.Windows.Clear();
         foreach (string scene in ScenePlaceRegistry.All.Select(p => SceneIdFor(p.Id)).Where(s => s != null).Distinct().OrderBy(s => s, StringComparer.Ordinal))

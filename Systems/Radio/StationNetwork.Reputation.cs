@@ -79,5 +79,11 @@ public sealed partial class StationNetwork {
 			rt.droppedOnWeek.Remove(recordId);
 			rt.playlist.Remove(recordId);
 		}
+		foreach (StationRuntime rt in shadowRuntimes.Values) {
+			rt.breakClaims.Remove(recordId);
+			rt.weeksInPlaylist.Remove(recordId);
+			rt.droppedOnWeek.Remove(recordId);
+			rt.playlist.Remove(recordId);
+		}
 	}
 }

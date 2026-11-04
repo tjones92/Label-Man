@@ -38,7 +38,7 @@ public static class ExternalMediaService {
 	// orchestral film scores); FilmSong (beach/rock pictures) is a mid-60s phenomenon. Kept flat here;
 	// an era ramp is a later refinement if the genre mix needs it.
 	public static ExternalMediaSourceType RollSourceType() {
-		float r = GD.Randf();
+		float r = GameRandom.Randf();
 		if (r < 0.40f) return ExternalMediaSourceType.StageCast;
 		if (r < 0.75f) return ExternalMediaSourceType.FilmScore;
 		return ExternalMediaSourceType.FilmSong;
@@ -49,12 +49,12 @@ public static class ExternalMediaService {
 	public static Genre MapGenre(ExternalMediaSourceType sourceType) {
 		switch (sourceType) {
 			case ExternalMediaSourceType.StageCast:
-				return GD.Randf() < 0.65f ? Genre.TraditionalPop : Genre.Comedy;
+				return GameRandom.Randf() < 0.65f ? Genre.TraditionalPop : Genre.Comedy;
 			case ExternalMediaSourceType.FilmScore:
-				return GD.Randf() < 0.60f ? Genre.Classical : Genre.EasyListening;
+				return GameRandom.Randf() < 0.60f ? Genre.Classical : Genre.EasyListening;
 			case ExternalMediaSourceType.FilmSong:
 			default:
-				float r = GD.Randf();
+				float r = GameRandom.Randf();
 				return r < 0.45f ? Genre.RockAndRoll : r < 0.80f ? Genre.SurfRock : Genre.FolkRock;
 		}
 	}
@@ -66,32 +66,32 @@ public static class ExternalMediaService {
 
 		// Prestige axis: critical standing trades off against youth pull, so a prestige picture is not
 		// also a mass-teen smash (and vice versa). This is the primary correlation guard.
-		float prestige = GD.Randf();
+		float prestige = GameRandom.Randf();
 		profile.criticalPrestige = prestige;
-		profile.youthAppeal = Mathf.Clamp(1f - prestige + (float)GD.RandRange(-0.15, 0.15), 0f, 1f);
+		profile.youthAppeal = Mathf.Clamp(1f - prestige + (float)GameRandom.RandRange(-0.15, 0.15), 0f, 1f);
 
-		bool blockbuster = allowBlockbuster && GD.Randf() < 0.035f;
+		bool blockbuster = allowBlockbuster && GameRandom.Randf() < 0.035f;
 		profile.isBlockbuster = blockbuster;
 		if (blockbuster) {
-			profile.boxOfficeTrajectory = (float)GD.RandRange(0.82, 1.0);
-			profile.sourcePopularity = (float)GD.RandRange(0.78, 0.95);
-			profile.castStarDraw = (float)GD.RandRange(0.6, 1.0);
-			profile.studioPromotion = (float)GD.RandRange(1.5, 2.0);
-			profile.awardsPrestige = Mathf.Clamp(prestige * (float)GD.RandRange(0.7, 1.0), 0f, 1f);
-			profile.licenseSkim = (float)GD.RandRange(0.60, 0.80);
+			profile.boxOfficeTrajectory = (float)GameRandom.RandRange(0.82, 1.0);
+			profile.sourcePopularity = (float)GameRandom.RandRange(0.78, 0.95);
+			profile.castStarDraw = (float)GameRandom.RandRange(0.6, 1.0);
+			profile.studioPromotion = (float)GameRandom.RandRange(1.5, 2.0);
+			profile.awardsPrestige = Mathf.Clamp(prestige * (float)GameRandom.RandRange(0.7, 1.0), 0f, 1f);
+			profile.licenseSkim = (float)GameRandom.RandRange(0.60, 0.80);
 			profile.upfrontLicenseFee = LicenseFeeProductionMultiple(profile); // multiple; resolved at mint
 		} else {
 			// The long tail: modest scores, B-movies, stage flops -- but a licensed release that a label
 			// paid to press is a mid-tier proposition, not mostly zeroes. Skew toward the low-middle, not
 			// the floor (the first-pass pow(.,2.2) squash put the whole population near bo=0 and, with the
 			// box-office decay, made every modest soundtrack die in ~2wk).
-			float bo = Mathf.Pow(GD.Randf(), 1.3f); // mild squash toward low-middle
+			float bo = Mathf.Pow(GameRandom.Randf(), 1.3f); // mild squash toward low-middle
 			profile.boxOfficeTrajectory = Mathf.Clamp(0.20f + bo * 0.60f, 0f, 1f);
-			profile.sourcePopularity = Mathf.Clamp(0.25f + profile.boxOfficeTrajectory * 0.45f + (float)GD.RandRange(-0.08, 0.12), 0.1f, 0.9f);
-			profile.castStarDraw = (float)GD.RandRange(0.05, 0.55);
-			profile.studioPromotion = (float)GD.RandRange(0.7, 1.3);
-			profile.awardsPrestige = Mathf.Clamp(prestige * profile.boxOfficeTrajectory * (float)GD.RandRange(0.3, 0.8), 0f, 1f);
-			profile.licenseSkim = (float)GD.RandRange(0.40, 0.65);
+			profile.sourcePopularity = Mathf.Clamp(0.25f + profile.boxOfficeTrajectory * 0.45f + (float)GameRandom.RandRange(-0.08, 0.12), 0.1f, 0.9f);
+			profile.castStarDraw = (float)GameRandom.RandRange(0.05, 0.55);
+			profile.studioPromotion = (float)GameRandom.RandRange(0.7, 1.3);
+			profile.awardsPrestige = Mathf.Clamp(prestige * profile.boxOfficeTrajectory * (float)GameRandom.RandRange(0.3, 0.8), 0f, 1f);
+			profile.licenseSkim = (float)GameRandom.RandRange(0.40, 0.65);
 			profile.upfrontLicenseFee = LicenseFeeProductionMultiple(profile);
 		}
 		return profile;
@@ -101,7 +101,7 @@ public static class ExternalMediaService {
 	// production cost (resolved at mint time). Blockbuster deals carry a large advance that gates
 	// Small/Boutique labels off the top tier; they can still catch a cheap indie sleeper.
 	public static float LicenseFeeProductionMultiple(ExternalMediaProfile profile) =>
-		profile.isBlockbuster ? (float)GD.RandRange(3.5, 5.5)
+		profile.isBlockbuster ? (float)GameRandom.RandRange(3.5, 5.5)
 			: Mathf.Lerp(0.8f, 2.4f, profile.boxOfficeTrajectory);
 
 	// Rank capable labels by reputation + capital + roster reach and pick the licensee. Blockbusters
@@ -129,7 +129,7 @@ public static class ExternalMediaService {
 			return eligible.OrderByDescending(Score).First();
 
 		float noiseCeiling = 0.9f;
-		return eligible.OrderByDescending(l => Score(l) + (float)GD.RandRange(0.0, noiseCeiling)).First();
+		return eligible.OrderByDescending(l => Score(l) + (float)GameRandom.RandRange(0.0, noiseCeiling)).First();
 	}
 
 	private static float TierWeight(LabelTier tier) => tier switch {
@@ -140,5 +140,5 @@ public static class ExternalMediaService {
 	// A plausible pooled appeal for a licensed soundtrack: these are curated, professionally produced
 	// records, so appeal is decent and rises with box-office pull, but with variance.
 	public static float PooledAppeal(ExternalMediaProfile profile) =>
-		Mathf.Clamp(0.5f + profile.boxOfficeTrajectory * 0.35f + (float)GD.RandRange(-0.12, 0.12), 0.2f, 0.95f);
+		Mathf.Clamp(0.5f + profile.boxOfficeTrajectory * 0.35f + (float)GameRandom.RandRange(-0.12, 0.12), 0.2f, 0.95f);
 }

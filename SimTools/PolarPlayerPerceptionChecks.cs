@@ -40,9 +40,9 @@ public static class PolarPlayerPerceptionChecks {
 		var choice = desk.CoverCatalogFor(artist).First();
 		var song = CompositionCatalogService.GetSong(choice.SongId);
 		string songBefore = Json(song), mastersBefore = Json(PolarSongMetadataService.Capture()), idBefore = desk.PreviewMasterId();
-		GD.Seed(7823); float nextRandom = GD.Randf(); GD.Seed(7823);
+		GameRandom.Seed(7823); float nextRandom = GameRandom.Randf(); GameRandom.Seed(7823);
 		var view = PolarPlayerPerception.Compare(choice, artist, PolarEvidenceGate.Demo, "preview-fixture", idBefore);
-		Check(GD.Randf() == nextRandom, "preview leaves GD stream untouched");
+		Check(GameRandom.Randf() == nextRandom, "preview leaves GD stream untouched");
 		Check(Json(view) == Json(PolarPlayerPerception.Compare(choice, artist, PolarEvidenceGate.Demo, "preview-fixture", idBefore)), "comparison stable");
 		Check(Json(song) == songBefore && Json(PolarSongMetadataService.Capture()) == mastersBefore && desk.PreviewMasterId() == idBefore, "preview leaves song, masters and ID allocation untouched");
 		var other = ArtistManager.Instance.GetUnsignedArtists().First(a => a.primaryGenre != artist.primaryGenre);

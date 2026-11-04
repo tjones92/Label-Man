@@ -19,6 +19,24 @@ public class SimulatedArtist {
 	// Phase 1 observation metadata. Existing economic identity fields remain authoritative.
 	public GeographicIdentity geography;
 	public List<SceneParticipation> sceneParticipations;
+	// Recruitment asks every label x act per day whether a dated guest row reaches the label's scene. Only these rows
+	// can answer yes, and they are append-only with fixed fields (ObserveArtist edits Resident rows alone), so the
+	// filtered view stays valid until the list is replaced or grows. Private: saves never see it.
+	private List<SceneParticipation> guestRowsSource;
+	private int guestRowsCount = -1;
+	private List<SceneParticipation> guestRows;
+	internal List<SceneParticipation> RecruitmentGuestRows() {
+		if (!ReferenceEquals(guestRowsSource, sceneParticipations) || guestRowsCount != (sceneParticipations?.Count ?? -1)) {
+			guestRowsSource = sceneParticipations;
+			guestRowsCount = sceneParticipations?.Count ?? -1;
+			guestRows = null;
+			if (sceneParticipations != null)
+				foreach (var p in sceneParticipations)
+					if (p.relationship is not (SceneRelationship.Resident or SceneRelationship.Alumnus) && p.endWeek.HasValue &&
+						!string.IsNullOrWhiteSpace(p.provenance)) (guestRows ??= new()).Add(p);
+		}
+		return guestRows;
+	}
 	public List<SceneRecruitmentRecord> sceneRecruitmentHistory;
 	public List<SceneMarketDecision> sceneMarketHistory; // Optional, bounded, completed decisions only; never an AI reader.
 	public int formedYear;
@@ -92,6 +110,17 @@ public class SimulatedArtist {
 
 	public float momentum;
 	public float reputation;
+	// --senior-cooling probe (§17u): chart week of the act's last Top 40 entry, and of its last cooling step.
+	// Written only while the switch is on; SeniorCooling.Unset otherwise.
+	public int seniorCoolingLastTop40Week = SeniorCooling.Unset;
+	public int seniorCoolingLastStepWeek = SeniorCooling.Unset;
+	public int seniorCoolingSteps;
+	// --hit-act-cadence / --hit-act-retention probe (§17y): chart week of the act's last Top 40 entry.
+	// Written only while a switch is on; HitActCadence.Unset otherwise.
+	public int hitCadenceLastTop40Week = HitActCadence.Unset;
+	// --hit-act-hype probe: chart weeks of the act's last Top 40 and Top 10. Written only while the switch is on.
+	public int hypeLastTop40Week = HitActHype.Unset;
+	public int hypeLastTop10Week = HitActHype.Unset;
 	public float criticalAcclaim;
 
 	// Celebrity-recognition stock (SimTools/CelebrityRecognitionDirective.md). Both [0,1],
@@ -102,6 +131,8 @@ public class SimulatedArtist {
 	// Untouched unless ArtistRecognition is observing or enabled.
 	public float publicRecognition;
 	public float culturalStanding;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public ArtistFanbaseData fanbase;
 	// Telemetry snapshot taken at each release, so the A/B can read recognition against the
 	// outcome it preceded (causation, not correlation) rather than its post-outcome value.
 	public float recognitionAtLastRelease;
@@ -118,6 +149,12 @@ public class SimulatedArtist {
 	public int consecutiveHits;
 	public int consecutiveFlops;
 	public int totalUnitsSold;
+
+	// The act's public career before the simulation started (SimTools/OpeningCareersDesign.md). Display and
+	// derivation only: these sides have no demand, stock or chart presence. The counters above were summed
+	// from it and the recognition stocks replayed from it, so the file and the numbers tell one story.
+	public List<PublicReleaseEntry> publicHistory = new List<PublicReleaseEntry>();
+	public OpeningCareerArchetype openingArchetype;
 
 	public int weeksSinceLastRelease = 999;
 	public List<string> releaseHistory = new List<string>();
@@ -230,8 +267,8 @@ public class SimulatedArtist {
 		// studio -- mostly worse, occasionally better. The SAME two draws are taken (the stream stays aligned);
 		// only the symmetric range widens, so the mean record is unchanged by construction.
 		if (BandLife.WorldChurn) varianceRange *= 1f + RoomTension();
-		float variance = (float)GD.RandRange(-varianceRange, varianceRange);
-		float luck = (float)GD.RandRange(-0.08f, 0.08f);
+		float variance = (float)GameRandom.RandRange(-varianceRange, varianceRange);
+		float luck = (float)GameRandom.RandRange(-0.08f, 0.08f);
 		return Mathf.Clamp(baseQuality + variance + luck, 0f, 1f);
 	}
 
@@ -244,12 +281,13 @@ public class SimulatedArtist {
 	}
 
 	public void UpdateAfterChartRun(int peakPosition, int weeksOnChart, int unitsSold, bool creditCurrentContract = true,
-		int regionalBreakoutMarkets = 0) {
+		int regionalBreakoutMarkets = 0, bool penalizeNeverCharted = false) {
 		if (peakPosition > 0 && peakPosition <= 100) RegisterChartEntry();
 		if (peakPosition > 0 && peakPosition <= 40) RegisterTop40Hit(creditCurrentContract);
 		if (peakPosition > 0 && peakPosition <= 10) RegisterTop10Hit();
 		if (peakPosition == 1) RegisterNumberOne();
-		CompleteChartRun(peakPosition, weeksOnChart, unitsSold, creditCurrentContract, regionalBreakoutMarkets);
+		CompleteChartRun(peakPosition, weeksOnChart, unitsSold, creditCurrentContract, regionalBreakoutMarkets,
+			penalizeNeverCharted);
 	}
 
 	public void RegisterChartEntry() {
@@ -263,6 +301,9 @@ public class SimulatedArtist {
 		consecutiveFlops = 0;
 		momentum = Mathf.Clamp(momentum + 0.02f, 0f, 1f);
 		reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
+		SeniorCooling.OnTop40(this);
+		HitActCadence.OnTop40(this);
+		HitActHype.OnTop40(this);
 		if (ArtistPopulationLifecycle.Enabled && IsContractEvaluationPending() && creditCurrentContract) {
 			contractTop40Hits++;
 			contractConsecutiveFlops = 0;
@@ -274,6 +315,7 @@ public class SimulatedArtist {
 		top10Hits++;
 		momentum = Mathf.Clamp(momentum + 0.10f, 0f, 1f);
 		reputation = Mathf.Clamp(reputation + 0.02f, 0f, 1f);
+		HitActHype.OnTop10(this);
 		UpdateCareerState();
 	}
 
@@ -283,8 +325,10 @@ public class SimulatedArtist {
 		UpdateCareerState();
 	}
 
+	/// <param name="penalizeNeverCharted">--album-scale-career-milestones (audit B2): a never-charted single takes the
+	/// schedule's worst bucket. False when off, so peak 0 costs nothing as before.</param>
 	public void CompleteChartRun(int peakPosition, int weeksOnChart, int unitsSold, bool creditCurrentContract = true,
-		int regionalBreakoutMarkets = 0) {
+		int regionalBreakoutMarkets = 0, bool penalizeNeverCharted = false) {
 		totalUnitsSold += unitsSold;
 		bool charted = peakPosition > 0 && peakPosition <= 100;
 		bool brokeOutRegionally = regionalBreakoutMarkets > 0;
@@ -307,6 +351,8 @@ public class SimulatedArtist {
 		if (peakPosition > 40) {
 			float penalty = peakPosition <= 60 ? -0.05f : peakPosition <= 100 ? -0.10f : -0.15f;
 			momentum = Mathf.Clamp(momentum + penalty, 0f, 1f);
+		} else if (peakPosition == 0 && penalizeNeverCharted) {
+			momentum = Mathf.Clamp(momentum + AlbumScaleCareerMilestones.NeverChartedPenaltySize, 0f, 1f);
 		}
 		reputation = Mathf.Clamp(reputation - 0.005f, 0f, 1f);
 		UpdateCareerState();
@@ -336,6 +382,9 @@ public class SimulatedArtist {
 		// evidence. Normal careers retain the established state-transition rules.
 		if (ArtistPopulationLifecycle.Enabled && IsContractPerformanceProbationPending() &&
 			nextState == CareerState.Dropped && !ShouldDepartForCurrentContractPerformance()) nextState = priorState;
+		// --hit-act-retention (§17y): the ladder does not drop an act within a year of its last Top 40. Off: never read.
+		if (HitActCadence.RetentionEnabled && nextState == CareerState.Dropped && priorState != CareerState.Dropped &&
+			HitActCadence.ProtectsFromDrop(this)) nextState = priorState;
 		if (nextState == CareerState.Dropped && priorState != CareerState.Dropped) {
 			if (ArtistPopulationLifecycle.Enabled) {
 				lastPerformanceEvaluationMode = GetPerformanceEvaluationMode();
@@ -401,9 +450,12 @@ public class SimulatedArtist {
 		// momentum ("hot now") and reputation ("quality track record") are orthogonal to durable
 		// recognition and stay in both regimes. Phase B swaps the discrete careerState awareness
 		// arm for the continuous recognition stock -- a REPLACEMENT, not a stack (directive §0/§3).
-		float baseTerm = (momentum * 0.5f) + (reputation * 0.3f);
+		// --senior-cooling (§17u) cools the durable fame reads, reputation and recognition, once the act has gone a
+		// year without a Top 40. The identity when off.
+		float cool = SeniorCooling.LaunchFactor(this);
+		float baseTerm = (momentum * 0.5f) + (SeniorCooling.Enabled ? reputation * cool : reputation) * 0.3f;
 		if (ArtistRecognition.Enabled)
-			return baseTerm + ArtistRecognitionService.EffectiveRecognition(this) * ArtistRecognitionService.MaxAwarenessLift;
+			return baseTerm + ArtistRecognitionService.LaunchRecognition(this) * ArtistRecognitionService.MaxAwarenessLift;
 		return baseTerm + (careerState switch {
 			CareerState.Superstar => 0.25f, CareerState.Star => 0.15f, CareerState.Established => 0.08f,
 			CareerState.Rising => 0.04f, _ => 0f

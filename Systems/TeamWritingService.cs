@@ -84,7 +84,7 @@ public static class TeamWritingService {
 	/// per world (catalogue initialization, or the first load of an older world). Keyed on the world seed.
 	/// </summary>
 	public static int BuildProfessionalTeams(IList<ProfessionalSongwriter> writers, IEnumerable<SongComposition> catalogue, ulong seed) {
-		if (!BandLife.TeamWritingEnabled || writers == null) return 0;
+		if ((!BandLife.TeamWritingEnabled && !ProfessionalWritingMarket.Enabled) || writers == null) return 0;
 		string world = seed.ToString(System.Globalization.CultureInfo.InvariantCulture);
 		float Unit(string key) => RepertoireTaxonomy.Unit(world + "|pro-team|" + key);
 		var byId = writers.ToDictionary(w => w.writerId, StringComparer.Ordinal);
@@ -108,11 +108,13 @@ public static class TeamWritingService {
 			SongwriterCredit credit = song.credits[0];
 			if (credit.writerId == null || !byId.TryGetValue(credit.writerId, out var author) || string.IsNullOrEmpty(author.teamPartnerId)) continue;
 			if (!byId.TryGetValue(author.teamPartnerId, out var partner) || Unit(song.songId + "|team-song") >= ProTeamSongShare) continue;
-			Crafts d = Delta(new[] { Of(author), Of(partner) }, 0, 0f);
-			song.compositionQuality = Mathf.Clamp(song.compositionQuality + TeamCraftWeight * d.Melody, 0f, 1f);
-			song.melodicStrength = Mathf.Clamp(song.melodicStrength + TeamCraftWeight * d.Melody, 0f, 1f);
-			song.lyricQuality = Mathf.Clamp(song.lyricQuality + TeamCraftWeight * d.Lyric, 0f, 1f);
-			song.commercialHook = Mathf.Clamp(song.commercialHook + TeamCraftWeight * d.Hook, 0f, 1f);
+			if (!ProfessionalWriting.Enabled) {
+				Crafts d = Delta(new[] { Of(author), Of(partner) }, 0, 0f);
+				song.compositionQuality = Mathf.Clamp(song.compositionQuality + TeamCraftWeight * d.Melody, 0f, 1f);
+				song.melodicStrength = Mathf.Clamp(song.melodicStrength + TeamCraftWeight * d.Melody, 0f, 1f);
+				song.lyricQuality = Mathf.Clamp(song.lyricQuality + TeamCraftWeight * d.Lyric, 0f, 1f);
+				song.commercialHook = Mathf.Clamp(song.commercialHook + TeamCraftWeight * d.Hook, 0f, 1f);
+			}
 			credit.share = 0.5f;
 			song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.ProfessionalSongwriter, writerId = partner.writerId,
 				writerName = partner.name, share = 0.5f });

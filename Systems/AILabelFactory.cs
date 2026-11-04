@@ -52,6 +52,7 @@ public static class AILabelFactory {
 	// EMI and Decca UK were corporate majors with full value-chain control; Parlophone
 	// was an EMI imprint and Pye an independently distributed operation. The
 	// parent/imprint ontology problem is tracked separately in the handoff.
+	internal static int DeferredBritishCount => BritishLabelDeferral.Enabled ? britishTemplates.Length : 0;
 	private static readonly LabelTemplate[] britishTemplates = {
 		new LabelTemplate("Parlophone", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }),
 		new LabelTemplate("Decca UK", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }, LabelTier.Major),
@@ -88,6 +89,42 @@ public static class AILabelFactory {
 		new LabelTemplate("Downey", "Los Angeles", LabelArchetype.RockRebel, new[] { Genre.SurfRock, Genre.GarageRock }),
 	};
 	
+	// §17l probe, read only with --seed-head-templates (HeadScaleTemplates). The 1960 second rank by operating label
+	// was MGM (rank 3, 40 Top 10 slots), Warner Bros. (23), ABC-Paramount (23) and Cameo-Parkway (28 with Parkway);
+	// Liberty followed with 42 in 1961. MGM and Warner Bros. were film-studio labels, ABC-Paramount the broadcaster's,
+	// all self-distributed. They are appended after every other template so label_0001-0042 keep their ids.
+	private static readonly LabelTemplate[] headScaleTemplates = {
+		new LabelTemplate("MGM", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TraditionalPop, Genre.TeenPop, Genre.RockAndRoll }, LabelTier.MidTier) { headScale = true },
+		new LabelTemplate("ABC-Paramount", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TeenPop, Genre.RnB, Genre.TraditionalPop }, LabelTier.MidTier) { headScale = true },
+		// Lost at least $3 million in 1958-60 before the Everly Brothers and Bob Newhart, so it opens at the bottom of the band.
+		new LabelTemplate("Warner Bros.", "Los Angeles", LabelArchetype.CorporateGiant, new[] { Genre.RockAndRoll, Genre.TeenPop, Genre.Comedy, Genre.TraditionalPop }, LabelTier.MidTier) { headScale = true, lowCash = true },
+	};
+
+	// Replace the default template of the same name with the switch on. Liberty was a teen-pop house (Bobby Vee,
+	// the Chipmunks, Snuff Garrett) rather than a rockabilly rebel, but its 1960 was 7 Top 10 slots and its head
+	// year (42) was 1961; seeded at head scale it ran to 53-63 slots and promoted to Major in every §17r seed, so,
+	// like Vee-Jay, it opens as a standard MidTier (§17s). Vee-Jay was a national R&B label in 1960 with 3 Top 10
+	// slots; its head years came from a 1962 signing. Both must earn the rest.
+	private static readonly Dictionary<string, LabelTemplate> headScaleUpgrades = new() {
+		["Cameo-Parkway"] = new LabelTemplate("Cameo-Parkway", "Philadelphia", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.DooWop, Genre.RockAndRoll }, LabelTier.MidTier) { headScale = true },
+		["Liberty"] = new LabelTemplate("Liberty", "Los Angeles", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.RockAndRoll, Genre.EasyListening }, LabelTier.MidTier),
+		["Vee-Jay"] = new LabelTemplate("Vee-Jay", "Chicago", LabelArchetype.RegionalHustler, new[] { Genre.RnB, Genre.Soul, Genre.DooWop }, LabelTier.MidTier),
+	};
+
+	// --studio-parent-labels (StudioParentLabels, FilmBroadcastLabelResearch.md): the film and broadcast parents' labels,
+	// seeded at the STANDARD MidTier envelope -- history's studio labels sold through independent distributors and had no
+	// Big-5 launch machinery (the head envelope's failure, §17m). Their parents supply money, not access.
+	// MGM: Connie Francis, Conway Twitty, the Hank Williams catalogue. ABC-Paramount: Paul Anka, Lloyd Price, Ray Charles.
+	// Warner: the Everly Brothers, contract players and Newhart. UA: soundtracks, easy listening, early Motown placements.
+	// Dot (Paramount Pictures from 1957): Pat Boone, Billy Vaughn, Lawrence Welk. Appended after every other template.
+	private static readonly LabelTemplate[] studioParentTemplates = {
+		new LabelTemplate("MGM", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TraditionalPop, Genre.TeenPop, Genre.Country }, LabelTier.MidTier),
+		new LabelTemplate("ABC-Paramount", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TeenPop, Genre.RnB, Genre.TraditionalPop }, LabelTier.MidTier),
+		new LabelTemplate("Warner Bros.", "Los Angeles", LabelArchetype.CorporateGiant, new[] { Genre.TeenPop, Genre.RockAndRoll, Genre.Comedy, Genre.TraditionalPop }, LabelTier.MidTier),
+		new LabelTemplate("United Artists", "New York", LabelArchetype.CorporateGiant, new[] { Genre.EasyListening, Genre.RnB, Genre.TeenPop }, LabelTier.MidTier),
+		new LabelTemplate("Dot", "Los Angeles", LabelArchetype.CorporateGiant, new[] { Genre.TraditionalPop, Genre.EasyListening, Genre.TeenPop }, LabelTier.MidTier),
+	};
+
 	private static readonly string[] northeastCities = { "New York", "Philadelphia", "Newark", "Boston", "Pittsburgh", "Baltimore", "Washington D.C." };
 	private static readonly string[] greatLakesCities = { "Chicago", "Detroit", "Cleveland", "Cincinnati", "Indianapolis", "Milwaukee" };
 	private static readonly string[] greatPlainsCities = { "Minneapolis", "St. Louis", "Kansas City", "Omaha" };
@@ -105,20 +142,44 @@ public static class AILabelFactory {
 		foreach (var template in teenHitMachineTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
 		foreach (var template in indieTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in britishTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
+		// Deferred London labels are still drawn, then dropped, so every other label keeps its id and traits.
+		List<AILabel> deferredBritish = BritishLabelDeferral.Enabled ? labels.Skip(labels.Count - britishTemplates.Length).ToList() : null;
 		foreach (var template in countryTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in folkTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Boutique, ref idCounter));
 		foreach (var template in jazzTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Boutique, ref idCounter));
 		foreach (var template in gospelTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in surfGarageTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Small, ref idCounter));
-		
+		if (HeadScaleTemplates.Enabled) {
+			foreach (var template in headScaleTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
+			foreach (var label in labels.Where(l => l.isHistorical && IsHeadScaleProbeTemplate(l.labelName)))
+				GD.Print($"HEAD_SCALE_TEMPLATE id={label.labelId} name={label.labelName} tier={label.tier} archetype={label.archetype} " +
+					$"impact={ChartSimulator.GetCampaignImpact(label):F3} reach={label.nationalReach:F3} distribution={label.distributionStrength:F3} " +
+					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
+		}
+
+		if (StudioParentLabels.SeedsTemplates) {
+			foreach (var template in studioParentTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
+			foreach (var label in labels.Where(l => l.isHistorical && l.studioParent != null))
+				GD.Print($"STUDIO_PARENT_LABEL id={label.labelId} name={label.labelName} parent=\"{label.studioParent}\" tier={label.tier} " +
+					$"impact={ChartSimulator.GetCampaignImpact(label):F3} reach={label.nationalReach:F3} distribution={label.distributionStrength:F3} " +
+					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
+		}
+
 		int remaining = targetCount - labels.Count;
 		for (int i = 0; i < remaining; i++) labels.Add(GenerateProceduralLabel(ref idCounter));
-		
+		if (deferredBritish != null) labels.RemoveAll(deferredBritish.Contains);
+
 		GD.Print($"AILabelFactory: Generated {labels.Count} labels");
 		return labels;
 	}
 	
+	/// <summary>True for the six templates the §17l switch seeds or changes, read by name for telemetry and checks.</summary>
+	internal static bool IsHeadScaleProbeTemplate(string labelName) =>
+		!string.IsNullOrEmpty(labelName) && headScaleTemplates.Select(t => t.baseName).Concat(headScaleUpgrades.Keys)
+			.Any(name => labelName == name || labelName.StartsWith(name + " ", System.StringComparison.Ordinal));
+
 	private static AILabel CreateFromTemplate(LabelTemplate template, LabelTier defaultTier, ref int idCounter) {
+		if (HeadScaleTemplates.Enabled && headScaleUpgrades.TryGetValue(template.baseName, out var upgrade)) template = upgrade;
 		var label = new AILabel();
 		LabelTier tier = template.tier ?? defaultTier;
 		idCounter++;
@@ -128,16 +189,20 @@ public static class AILabelFactory {
 		label.homeRegion = CityToRegion(template.city);
 		label.archetype = template.archetype;
 		label.tier = tier;
-		label.foundedYear = (int)GD.RandRange(1945, 1960);
+		label.foundedYear = (int)GameRandom.RandRange(1945, 1960);
 		label.isHistorical = true;
 		label.status = LabelStatus.Stable;
+		if (StudioParentLabels.Enabled) label.studioParent = StudioParentLabels.ParentFor(template.baseName);
 		
 		label.preferredGenres = template.genres;
 		label.secondaryGenres = GetRelatedGenres(template.genres[0]);
 		
-		ApplyTierStats(label, tier, template.archetype);
+		ApplyTierStats(label, tier, template.archetype, template.headScale);
+		if (template.lowCash) label.cashReserves = LabelStartingFinances.Cash(LabelTier.Major, 0.0);
 		label.strongRegions = GetRegionalStrength(template.city);
-		label.distributionRegions = GetDistributionRegions(tier, template.city);
+		// A head firm sold nationally through its own branches, so it takes the Major region count.
+		label.distributionRegions = GetDistributionRegions(template.headScale ? LabelTier.Major : tier, template.city);
+		SmallLabelHomeTerritory.Apply(label, tier);
 		DistanceModel.AssignHomeCity(label);
 		return label;
 	}
@@ -156,7 +221,8 @@ public static class AILabelFactory {
 		label.homeRegion = CityToRegion(city);
 		label.archetype = archetype;
 		label.tier = tier;
-		label.foundedYear = (int)GD.RandRange(1948, 1962);
+		// Display only, but a 1960 label must not show a 1961-62 founding. Same single draw as before.
+		label.foundedYear = (int)GameRandom.RandRange(1948, 1960);
 		label.isHistorical = false;
 		label.status = LabelStatus.Stable;
 		
@@ -166,11 +232,16 @@ public static class AILabelFactory {
 		ApplyTierStats(label, tier, archetype);
 		label.strongRegions = GetRegionalStrength(city);
 		label.distributionRegions = GetDistributionRegions(tier, city);
+		SmallLabelHomeTerritory.Apply(label, tier);
 		DistanceModel.AssignHomeCity(label);
 		return label;
 	}
 	
-	private static void ApplyTierStats(AILabel label, LabelTier tier, LabelArchetype archetype) {
+	// headScale (§17l, HeadScaleTemplates) gives a MidTier template the Major launch-channel envelope -- budget,
+	// marketing, distribution and reach, which feed every launch read of GetCampaignImpact -- with about 70% of
+	// Major release volume, the historical ratio of a 1960 second-rank firm's Top 10 slots to a Big-5 label's.
+	// Scouting, production and the behavioural draws stay MidTier.
+	private static void ApplyTierStats(AILabel label, LabelTier tier, LabelArchetype archetype, bool headScale = false) {
 		// Capacity remains strongly tiered, while scouting and production retain
 		// enough overlap for a focused small label to identify or polish a great record.
 		(float budgetMin, float budgetMax, float marketingMin, float marketingMax,
@@ -183,19 +254,21 @@ public static class AILabelFactory {
 			LabelTier.Small => (0.10f, 0.40f, 0.18f, 0.56f, 0.12f, 0.42f, 0.07f, 0.30f, 0.34f, 0.84f, 0.28f, 0.80f),
 			_ => (0.25f, 0.60f, 0.30f, 0.70f, 0.25f, 0.60f, 0.15f, 0.50f, 0.40f, 0.85f, 0.40f, 0.85f)
 		};
+		if (headScale) (budgetMin, budgetMax, marketingMin, marketingMax, distributionMin, distributionMax, reachMin, reachMax) =
+			(0.78f, 1.00f, 0.70f, 0.98f, 0.75f, 1.00f, 0.75f, 1.00f);
 
-		label.budgetLevel = (float)GD.RandRange(budgetMin, budgetMax);
-		label.marketingPower = (float)GD.RandRange(marketingMin, marketingMax);
-		label.distributionStrength = (float)GD.RandRange(distributionMin, distributionMax);
-		label.nationalReach = (float)GD.RandRange(reachMin, reachMax);
-		label.scoutingAbility = (float)GD.RandRange(scoutingMin, scoutingMax);
-		label.productionQuality = (float)GD.RandRange(productionMin, productionMax);
+		label.budgetLevel = (float)GameRandom.RandRange(budgetMin, budgetMax);
+		label.marketingPower = (float)GameRandom.RandRange(marketingMin, marketingMax);
+		label.distributionStrength = (float)GameRandom.RandRange(distributionMin, distributionMax);
+		label.nationalReach = (float)GameRandom.RandRange(reachMin, reachMax);
+		label.scoutingAbility = (float)GameRandom.RandRange(scoutingMin, scoutingMax);
+		label.productionQuality = (float)GameRandom.RandRange(productionMin, productionMax);
 		float tierMod = (budgetMin + budgetMax) * 0.5f;
 		
-		label.releasesPerMonth = tier switch {
-			LabelTier.Major => (float)GD.RandRange(2f, 4f), LabelTier.MidTier => (float)GD.RandRange(1f, 2.5f),
-			LabelTier.Independent => (float)GD.RandRange(0.5f, 1.5f), LabelTier.Small => (float)GD.RandRange(0.2f, 0.8f),
-			LabelTier.Boutique => (float)GD.RandRange(0.3f, 0.8f), _ => (float)GD.RandRange(0.5f, 1.5f)
+		label.releasesPerMonth = headScale ? (float)GameRandom.RandRange(1.6f, 2.4f) : tier switch {
+			LabelTier.Major => (float)GameRandom.RandRange(2f, 4f), LabelTier.MidTier => (float)GameRandom.RandRange(1f, 2.5f),
+			LabelTier.Independent => (float)GameRandom.RandRange(0.5f, 1.5f), LabelTier.Small => (float)GameRandom.RandRange(0.2f, 0.8f),
+			LabelTier.Boutique => (float)GameRandom.RandRange(0.3f, 0.8f), _ => (float)GameRandom.RandRange(0.5f, 1.5f)
 		};
 		
 		// These two were never initialized, so every launch label operated at
@@ -205,8 +278,8 @@ public static class AILabelFactory {
 		// never ported, so the advertised archetype identity did nothing. Envelopes
 		// and directional modifiers mirror RuntimeLabelProfileFactory so launch and
 		// runtime labels describe the same operating model.
-		label.riskTolerance = (float)GD.RandRange(0.18, 0.72);
-		label.artistLoyalty = (float)GD.RandRange(0.28, 0.78);
+		label.riskTolerance = (float)GameRandom.RandRange(0.18, 0.72);
+		label.artistLoyalty = (float)GameRandom.RandRange(0.28, 0.78);
 
 		switch (archetype) {
 			case LabelArchetype.SoulFactory:
@@ -250,19 +323,16 @@ public static class AILabelFactory {
 		// sustained quarters and charting last year, so they mean "observed operating
 		// for N months". Seeding it with pre-1960 history bypassed those gates and
 		// promoted seeded incumbents past tiers they had not earned in-run.
-		label.cashReserves = tier switch {
-			LabelTier.Major => (float)GD.RandRange(50000f, 200000f), LabelTier.MidTier => (float)GD.RandRange(15000f, 60000f),
-			LabelTier.Independent => (float)GD.RandRange(5000f, 20000f), LabelTier.Small => (float)GD.RandRange(1000f, 8000f),
-			LabelTier.Boutique => (float)GD.RandRange(3000f, 15000f), _ => 5000f
+		// Major cash: Major-scale volume on MidTier cash would run a year of losses and demote the template.
+		label.cashReserves = LabelStartingFinances.DrawCash(headScale ? LabelTier.Major : tier);
+		label.maxRosterSize = headScale ? (int)GameRandom.RandRange(25, 40) : tier switch {
+			LabelTier.Major => (int)GameRandom.RandRange(30, 60), LabelTier.MidTier => (int)GameRandom.RandRange(15, 35),
+			LabelTier.Independent => (int)GameRandom.RandRange(8, 20), LabelTier.Small => (int)GameRandom.RandRange(3, 10),
+			LabelTier.Boutique => (int)GameRandom.RandRange(5, 12), _ => 10
 		};
-		label.maxRosterSize = tier switch {
-			LabelTier.Major => (int)GD.RandRange(30, 60), LabelTier.MidTier => (int)GD.RandRange(15, 35),
-			LabelTier.Independent => (int)GD.RandRange(8, 20), LabelTier.Small => (int)GD.RandRange(3, 10),
-			LabelTier.Boutique => (int)GD.RandRange(5, 12), _ => 10
-		};
-		label.reputation = tierMod * (float)GD.RandRange(0.6, 1.0);
-		label.payolaWillingness = (float)GD.RandRange(0.1, 0.7);
-		label.artistLoyalty = Mathf.Clamp(label.artistLoyalty + (float)GD.RandRange(-0.1, 0.1), 0f, 1f);
+		label.reputation = tierMod * (float)GameRandom.RandRange(0.6, 1.0);
+		label.payolaWillingness = (float)GameRandom.RandRange(0.1, 0.7);
+		label.artistLoyalty = Mathf.Clamp(label.artistLoyalty + (float)GameRandom.RandRange(-0.1, 0.1), 0f, 1f);
 	}
 	
 	private static string GenerateLabelName(LabelArchetype archetype) {
@@ -271,11 +341,11 @@ public static class AILabelFactory {
 		if (NameGenerator.Instance != null && NameGenerator.Instance.IsReady()) return NameGenerator.Instance.GenerateLabelName(archetype);
 		string[] prefixes = { "Royal", "Golden", "Silver", "Crown", "Diamond", "Star", "Sun", "Moon", "Atlantic", "Pacific", "National", "American", "Imperial", "Liberty", "Freedom", "Victory", "Triumph", "Glory", "Ace", "Duke", "King", "Queen" };
 		string[] suffixes = { "Records", "Recording Co.", "Music", "Sound", "Productions", "Disc" };
-		return $"{prefixes[(int)GD.RandRange(0, prefixes.Length - 1)]} {suffixes[(int)GD.RandRange(0, suffixes.Length - 1)]}";
+		return $"{prefixes[(int)GameRandom.RandRange(0, prefixes.Length - 1)]} {suffixes[(int)GameRandom.RandRange(0, suffixes.Length - 1)]}";
 	}
 	
 	private static string GetLabelSuffix() {
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		if (roll < 0.6f) return " Records";
 		if (roll < 0.8f) return "";
 		if (roll < 0.9f) return " Recording Co.";
@@ -283,7 +353,7 @@ public static class AILabelFactory {
 	}
 	
 	private static LabelArchetype GetRandomArchetype() {
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		if (roll < 0.08f) return LabelArchetype.CorporateGiant;
 		if (roll < 0.18f) return LabelArchetype.SoulFactory;
 		if (roll < 0.28f) return LabelArchetype.BluesRoots;
@@ -304,7 +374,7 @@ public static class AILabelFactory {
 	// is actually known for. Named templates already supply most of the intended
 	// large firms, so the procedural draw only tops them up.
 	private static LabelTier GetRandomTier() {
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		if (roll < 0.002f) return LabelTier.Major;
 		if (roll < 0.035f) return LabelTier.MidTier;
 		if (roll < 0.365f) return LabelTier.Independent;
@@ -314,23 +384,23 @@ public static class AILabelFactory {
 	
 	private static string GetRandomCity(LabelArchetype archetype) => archetype switch {
 		LabelArchetype.CountrySpecialist => "Nashville",
-		LabelArchetype.SoulFactory => GD.Randf() < 0.6f ? "Detroit" : greatLakesCities[(int)GD.RandRange(0, greatLakesCities.Length - 1)],
-		LabelArchetype.RockRebel => GD.Randf() < 0.5f ? southernCities[(int)GD.RandRange(0, southernCities.Length - 1)] : westCoastCities[(int)GD.RandRange(0, westCoastCities.Length - 1)],
-		LabelArchetype.TeenHitMachine => GD.Randf() < 0.6f ? "New York" : "Philadelphia",
-		LabelArchetype.BluesRoots => GD.Randf() < 0.4f ? "Chicago" : southernCities[(int)GD.RandRange(0, southernCities.Length - 1)],
+		LabelArchetype.SoulFactory => GameRandom.Randf() < 0.6f ? "Detroit" : greatLakesCities[(int)GameRandom.RandRange(0, greatLakesCities.Length - 1)],
+		LabelArchetype.RockRebel => GameRandom.Randf() < 0.5f ? southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)] : westCoastCities[(int)GameRandom.RandRange(0, westCoastCities.Length - 1)],
+		LabelArchetype.TeenHitMachine => GameRandom.Randf() < 0.6f ? "New York" : "Philadelphia",
+		LabelArchetype.BluesRoots => GameRandom.Randf() < 0.4f ? "Chicago" : southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)],
 		LabelArchetype.FolkBoutique or LabelArchetype.JazzPrestige => "New York",
-		LabelArchetype.GospelPowerhouse => southernCities[(int)GD.RandRange(0, southernCities.Length - 1)],
+		LabelArchetype.GospelPowerhouse => southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)],
 		_ => GetRandomCityAny()
 	};
 	
 	private static string GetRandomCityAny() {
-		float roll = GD.Randf();
-		if (roll < 0.30f) return northeastCities[(int)GD.RandRange(0, northeastCities.Length - 1)];
-		if (roll < 0.40f) return greatLakesCities[(int)GD.RandRange(0, greatLakesCities.Length - 1)];
-		if (roll < 0.50f) return greatPlainsCities[(int)GD.RandRange(0, greatPlainsCities.Length - 1)];
-		if (roll < 0.70f) return southernCities[(int)GD.RandRange(0, southernCities.Length - 1)];
-		if (roll < 0.80f) return rockiesCities[(int)GD.RandRange(0, rockiesCities.Length - 1)];
-		return westCoastCities[(int)GD.RandRange(0, westCoastCities.Length - 1)];
+		float roll = GameRandom.Randf();
+		if (roll < 0.30f) return northeastCities[(int)GameRandom.RandRange(0, northeastCities.Length - 1)];
+		if (roll < 0.40f) return greatLakesCities[(int)GameRandom.RandRange(0, greatLakesCities.Length - 1)];
+		if (roll < 0.50f) return greatPlainsCities[(int)GameRandom.RandRange(0, greatPlainsCities.Length - 1)];
+		if (roll < 0.70f) return southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)];
+		if (roll < 0.80f) return rockiesCities[(int)GameRandom.RandRange(0, rockiesCities.Length - 1)];
+		return westCoastCities[(int)GameRandom.RandRange(0, westCoastCities.Length - 1)];
 	}
 	
 	private static Genre[] GetGenresForArchetype(LabelArchetype archetype) => archetype switch {
@@ -347,7 +417,7 @@ public static class AILabelFactory {
 		_ => new Genre[] { Genre.RockAndRoll, Genre.TraditionalPop }
 	};
 	
-	private static Genre PickRandom(params Genre[] options) => options[(int)GD.RandRange(0, options.Length - 1)];
+	private static Genre PickRandom(params Genre[] options) => options[(int)GameRandom.RandRange(0, options.Length - 1)];
 	
 	private static Genre[] GetRelatedGenres(Genre primary) => primary switch {
 		Genre.Soul => new Genre[] { Genre.RnB, Genre.Gospel, Genre.Funk },
@@ -367,7 +437,7 @@ public static class AILabelFactory {
 		var regions = new List<string>();
 		string homeRegion = CityToRegion(hqCity);
 		if (!string.IsNullOrEmpty(homeRegion)) regions.Add(homeRegion);
-		if (GD.Randf() < 0.4f) {
+		if (GameRandom.Randf() < 0.4f) {
 			string adjacent = GetAdjacentRegion(homeRegion);
 			if (!string.IsNullOrEmpty(adjacent) && !regions.Contains(adjacent)) regions.Add(adjacent);
 		}
@@ -382,9 +452,9 @@ public static class AILabelFactory {
 		// every tier's coverage by 22-59% -- and regressively, since the largest tiers
 		// gained most. These preserve each non-Major tier's former expected coverage.
 		int additionalRegions = tier switch {
-			LabelTier.Major => (int)GD.RandRange(5, 8), LabelTier.MidTier => (int)GD.RandRange(2, 4),
-			LabelTier.Independent => (int)GD.RandRange(1, 3), LabelTier.Small => (int)GD.RandRange(0, 2),
-			LabelTier.Boutique => (int)GD.RandRange(1, 2), _ => 1
+			LabelTier.Major => (int)GameRandom.RandRange(5, 8), LabelTier.MidTier => (int)GameRandom.RandRange(2, 4),
+			LabelTier.Independent => (int)GameRandom.RandRange(1, 3), LabelTier.Small => (int)GameRandom.RandRange(0, 2),
+			LabelTier.Boutique => (int)GameRandom.RandRange(1, 2), _ => 1
 		};
 		string[] allRegions = { "eastcoast", "greatlakes", "greatplains", "southwest", "deepsouth", "rockies", "westcoast" };
 		// The former sampler drew with replacement and silently discarded duplicate
@@ -397,7 +467,7 @@ public static class AILabelFactory {
 		var available = new List<string>(allRegions);
 		available.RemoveAll(region => regions.Contains(region));
 		for (int i = 0; i < additionalRegions; i++) {
-			int draw = (int)GD.RandRange(0, allRegions.Length - 1);
+			int draw = (int)GameRandom.RandRange(0, allRegions.Length - 1);
 			if (available.Count == 0) continue;
 			string region = available[draw % available.Count];
 			available.Remove(region);
@@ -426,13 +496,13 @@ public static class AILabelFactory {
 	};
 	
 	private static string GetAdjacentRegion(string region) => region switch {
-		"eastcoast" => GD.Randf() < 0.5f ? "greatlakes" : "deepsouth",
-		"greatlakes" => GD.Randf() < 0.5f ? "eastcoast" : "greatplains",
-		"greatplains" => GD.Randf() < 0.5f ? "rockies" : "southwest",
-		"deepsouth" => GD.Randf() < 0.5f ? "eastcoast" : "southwest",
-		"southwest" => GD.Randf() < 0.5f ? "deepsouth" : "rockies",
-		"rockies" => GD.Randf() < 0.5f ? "greatplains" : "westcoast",
-		"westcoast" => GD.Randf() < 0.5f ? "rockies" : "southwest",
+		"eastcoast" => GameRandom.Randf() < 0.5f ? "greatlakes" : "deepsouth",
+		"greatlakes" => GameRandom.Randf() < 0.5f ? "eastcoast" : "greatplains",
+		"greatplains" => GameRandom.Randf() < 0.5f ? "rockies" : "southwest",
+		"deepsouth" => GameRandom.Randf() < 0.5f ? "eastcoast" : "southwest",
+		"southwest" => GameRandom.Randf() < 0.5f ? "deepsouth" : "rockies",
+		"rockies" => GameRandom.Randf() < 0.5f ? "greatplains" : "westcoast",
+		"westcoast" => GameRandom.Randf() < 0.5f ? "rockies" : "southwest",
 		"UK" => string.Empty,
 		_ => "eastcoast"
 	};
@@ -445,6 +515,8 @@ public static class AILabelFactory {
 		/// national independents. Null keeps the array's default.
 		/// </summary>
 		public LabelTier? tier;
+		/// <summary>§17l head envelope (HeadScaleTemplates); lowCash opens at the bottom of the Major cash band.</summary>
+		public bool headScale, lowCash;
 		public LabelTemplate(string name, string city, LabelArchetype arch, Genre[] genres, LabelTier? tier = null) {
 			this.baseName = name; this.city = city; this.archetype = arch; this.genres = genres; this.tier = tier;
 		}

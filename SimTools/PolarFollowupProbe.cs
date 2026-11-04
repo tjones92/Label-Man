@@ -52,7 +52,7 @@ public partial class PolarFollowupProbe : Node {
        var old=categories.GetValueOrDefault(cat.Key); categories[cat.Key]=(old.raw+raw.Count(s=>s!=null&&Category(s)==cat.Key),old.distinct+cat.Count(),old.eligible+cat.Count(s=>s.originYear<=1960),old.future+cat.Count(s=>s.originYear>1960));
       }
       foreach(var s in eligible){var fit=PolarSongBehavior.Fit(s,artist,artist.primaryGenre,1960);candidates.Add(fit);if(!categoryRows.TryGetValue(Category(s),out var list))categoryRows[Category(s)]=list=new();list.Add(fit);}
-      using var random = new RandomNumberGenerator {Seed=Hash($"{seed}:1960:1:{artist.artistId}")};
+      using var random = new PcgRandom {Seed=Hash($"{seed}:1960:1:{artist.artistId}")};
       var prospect=new PlayerDesk.Prospect {Artist=artist};PlayerDesk.Instance.BuildLiveSet(prospect,artist,1960,0,random);
       sets++;slots+=prospect.LiveSet.Count;originals+=prospect.LiveSet.Count(s=>s.IsOriginal);
       if(prospect.LiveSet.Count<3)shorts++;if(eligible.Length==0)empty++;if(eligible.Length<3)thin++;future+=distinct.Length-eligible.Length;

@@ -261,7 +261,7 @@ public partial class PlayerDesk {
 
 	/// <summary>Whether the buyer's sound takes this record: its genre in their lists (own sound), the same family
 	/// (near it), or neither (null).</summary>
-	private static bool? SoundFit(AILabel buyer, Genre genre, int year) {
+	internal static bool? SoundFit(AILabel buyer, Genre genre, int year) {
 		if ((buyer.preferredGenres?.Contains(genre) ?? false) || (buyer.secondaryGenres?.Contains(genre) ?? false)) return true;
 		var family = FamilyOf(genre, year);
 		if (family == null) return null;
@@ -292,15 +292,15 @@ public partial class PlayerDesk {
 			.Take(max).ToList();
 	}
 
-	private static float MasterBar(AILabel buyer, bool ownSound) => buyer.tier switch {
+	internal static float MasterBar(AILabel buyer, bool ownSound) => buyer.tier switch {
 		LabelTier.Major => .66f, LabelTier.MidTier => .60f, LabelTier.Independent => .54f, _ => .50f,
 	} + (ownSound ? 0f : .04f);
 
-	private static float MasterTierScale(AILabel buyer) => buyer.tier switch {
+	internal static float MasterTierScale(AILabel buyer) => buyer.tier switch {
 		LabelTier.Major or LabelTier.MidTier => 1f, LabelTier.Independent => .85f, _ => .70f,
 	};
 
-	private static int BreakoutMarkets(RecordRuntimeData rec) =>
+	internal static int BreakoutMarkets(RecordRuntimeData rec) =>
 		rec?.regionalData?.Values.Count(rd => rd != null && rd.breakoutStage >= RegionalBreakoutStage.RegionalBreakout) ?? 0;
 
 	/// <summary>What a buyer's answer rests on, as a signature: a pass stands while this is unchanged.</summary>
@@ -321,7 +321,7 @@ public partial class PlayerDesk {
 		return Mathf.Clamp(appeal + noise + evidence, 0f, 1f);
 	}
 
-	private static float Round25(float v) => Mathf.Round(v / 25f) * 25f;
+	internal static float Round25(float v) => Mathf.Round(v / 25f) * 25f;
 
 	/// <summary>The buyer's answer on a heard record: a pass (with its words) or the contracts it would sign. Reads no state
 	/// beyond the evidence and changes none (an offer only draws its id number).</summary>

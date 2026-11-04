@@ -22,9 +22,19 @@ public static class LocalSceneIdentityService {
     /// <summary>Stable across processes and saves. Never uses String.GetHashCode or a mutable RNG.</summary>
     public static ulong KeyedSeed => State.WorldSeed;
     public static double AssignmentUnit(ulong seed, string key) {
+        return FinishAssignment(AppendAssignment(BeginAssignment(seed), key.AsSpan()));
+    }
+    // Preserve the exact UTF-16 hash while allowing repeated keys to share an
+    // already-hashed prefix. This changes neither the namespace nor the draw.
+    internal static ulong BeginAssignment(ulong seed) => 14695981039346656037UL ^ seed ^ Namespace;
+    internal static ulong AppendAssignment(ulong hash, ReadOnlySpan<char> key) {
         unchecked {
-            ulong h = 14695981039346656037UL ^ seed ^ Namespace;
-            foreach (char c in key ?? string.Empty) { h ^= c; h *= 1099511628211UL; }
+            foreach (char c in key) { hash ^= c; hash *= 1099511628211UL; }
+            return hash;
+        }
+    }
+    internal static double FinishAssignment(ulong h) {
+        unchecked {
             h ^= h >> 30; h *= 0xbf58476d1ce4e5b9UL; h ^= h >> 27; h *= 0x94d049bb133111ebUL; h ^= h >> 31;
             return (h >> 11) * (1.0 / 9007199254740992.0);
         }

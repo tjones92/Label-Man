@@ -15,7 +15,7 @@ public partial class StartupSnapshotRunner : Node {
             string tag = args.FirstOrDefault(a => a.StartsWith("--snapshot-tag="))?[15..] ?? "startup";
             if (tag.Any(c => !char.IsLetterOrDigit(c) && c != '-')) throw new ArgumentException("Invalid snapshot tag.");
             var result = new { world = Hash(WorldStateService.Capture()), appointments = Hash(RosterManager.Instance.SceneInitializationAppointments),
-                nextRandom = GD.Randi(), artists = ArtistManager.Instance.GetAllArtists().Count, rooms = LocalSceneRoomService.Calendar("nashville", TimeManager.Instance.CurrentDate).Count };
+                nextRandom = GameRandom.Randi(), artists = ArtistManager.Instance.GetAllArtists().Count, rooms = LocalSceneRoomService.Calendar("nashville", TimeManager.Instance.CurrentDate).Count };
             File.WriteAllText(ProjectSettings.GlobalizePath($"res://SimLogs/{tag}.json"), JsonSerializer.Serialize(result));
             GD.Print("STARTUP_SNAPSHOT " + JsonSerializer.Serialize(result));
             GetTree().Quit();

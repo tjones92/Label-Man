@@ -60,7 +60,7 @@ public static class IndependentDistributorFactory {
 		var houses = new List<IndependentDistributor>();
 		if (regions == null) return houses;
 
-		var rng = new RandomNumberGenerator { Seed = seed ^ StreamNamespace };
+		var rng = new PcgRandom { Seed = seed ^ StreamNamespace };
 		// Draw surnames from a shuffled pool so each house is its own firm rather than a
 		// variant of the same name, which is what independent sampling produced.
 		string[] surnamePool = ShuffledSurnames(rng);
@@ -106,22 +106,22 @@ public static class IndependentDistributorFactory {
 	// Payment behaviour tracks authored market difficulty. Houses in thin, hard markets
 	// were the notoriously slow payers, which is what turned a regional hit into a cash
 	// crisis for the label that had already paid the pressing plant.
-	private static float ReliabilityFor(DistributionNetwork network, RandomNumberGenerator rng) =>
+	private static float ReliabilityFor(DistributionNetwork network, PcgRandom rng) =>
 		Mathf.Clamp(0.85f - (Difficulty(network) * 0.45f) + rng.RandfRange(-0.08f, 0.08f), 0.25f, 0.95f);
 
 	// 90-120 day terms.
-	private static int PaymentTermWeeksFor(RandomNumberGenerator rng) => rng.RandiRange(12, 18);
+	private static int PaymentTermWeeksFor(PcgRandom rng) => rng.RandiRange(12, 18);
 
-	private static float ReturnAllowanceFor(DistributionNetwork network, RandomNumberGenerator rng) =>
+	private static float ReturnAllowanceFor(DistributionNetwork network, PcgRandom rng) =>
 		Mathf.Clamp(0.15f + (Difficulty(network) * 0.15f) + rng.RandfRange(-0.03f, 0.03f), 0.10f, 0.35f);
 
-	private static float ReportingHonestyFor(DistributionNetwork network, RandomNumberGenerator rng) =>
+	private static float ReportingHonestyFor(DistributionNetwork network, PcgRandom rng) =>
 		Mathf.Clamp(0.92f - (Difficulty(network) * 0.40f) + rng.RandfRange(-0.06f, 0.06f), 0.40f, 0.99f);
 
 	private static float Difficulty(DistributionNetwork network) =>
 		Mathf.Clamp(network?.difficulty ?? 0f, 0f, 1f);
 
-	private static string[] ShuffledSurnames(RandomNumberGenerator rng) {
+	private static string[] ShuffledSurnames(PcgRandom rng) {
 		var pool = (string[])HouseSurnames.Clone();
 		for (int index = pool.Length - 1; index > 0; index--) {
 			int swap = rng.RandiRange(0, index);
@@ -132,7 +132,7 @@ public static class IndependentDistributorFactory {
 
 	// Self-contained naming. NameGenerator drives label identity; drawing from it here
 	// would shift that stream and change which labels exist.
-	private static string NextHouseName(RandomNumberGenerator rng, MarketRegion region,
+	private static string NextHouseName(PcgRandom rng, MarketRegion region,
 		string[] surnamePool, ref int cursor, HashSet<string> used) {
 		string suffix = HouseSuffixes[rng.RandiRange(0, HouseSuffixes.Length - 1)];
 		if (cursor < surnamePool.Length) {

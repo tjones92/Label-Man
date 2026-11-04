@@ -23,7 +23,7 @@ public static class ScoutingBusinessChecks {
             Outcome = "LostArtistChoice", WinnerLabelId = winner.labelId, CollisionOfferCount = 2 };
         var negative = new RosterManager.DailyTalentMarketAppointment { Date = clock.CurrentDate, Label = loser, SelectedArtist = act, Outcome = "Nominated" };
         var knowledgeBefore = Json(desk.CaptureState().ScoutingKnowledge);
-        GD.Seed(193); uint expected = GD.Randi(); GD.Seed(193);
+        GameRandom.Seed(193); uint expected = GameRandom.Randi(); GameRandom.Seed(193);
         RosterManager.RecordScoutingMarketDecisions(new[] { negative });
         Check(act.sceneMarketHistory == null, "internal nomination is not a market-history event");
         RosterManager.RecordScoutingMarketDecisions(new[] { signed, lost });
@@ -31,7 +31,7 @@ public static class ScoutingBusinessChecks {
             act.sceneMarketHistory.Any(h => h.Kind == SceneMarketDecisionKind.AlternativeNotSelected), "actual resolved outcome kinds retained");
         Check(act.sceneMarketHistory.All(h => h.Day == bill.Day && h.ArtistId == act.artistId && h.SelectedDealCompleted &&
             h.SelectedLabelId == winner.labelId), "exact date, shared selection and completed-deal provenance retained");
-        Check(GD.Randi() == expected && desk.Label.cashReserves == 900 && Json(desk.CaptureState().ScoutingKnowledge) == knowledgeBefore,
+        Check(GameRandom.Randi() == expected && desk.Label.cashReserves == 900 && Json(desk.CaptureState().ScoutingKnowledge) == knowledgeBefore,
             "world-history recording consumes no RNG/cash and acquires no player knowledge");
         Check(JsonSerializer.Deserialize<SimulatedArtist>("{\"artistId\":\"legacy-act\"}", SaveGameService.TestJsonOptions).sceneMarketHistory == null,
             "legacy acts receive no fabricated market history");
@@ -63,9 +63,9 @@ public static class ScoutingBusinessChecks {
         Check(!preview.Claim.Contains("utility") && !preview.Claim.Contains("reservation") && !preview.Claim.Contains("potential"), "no evaluator or talent truth disclosed");
         float cash = desk.Label.cashReserves; int now = clock.CurrentHour * 60 + clock.CurrentMinute;
         string world = Json(WorldStateService.Capture()), before = Json(desk.CaptureState());
-        GD.Seed(197); expected = GD.Randi(); GD.Seed(197);
+        GameRandom.Seed(197); expected = GameRandom.Randi(); GameRandom.Seed(197);
         Check(Json(preview) == Json(desk.PreviewScoutingBusinessMeeting(act.artistId)), "preview stable on refresh");
-        Check(world == Json(WorldStateService.Capture()) && before == Json(desk.CaptureState()) && GD.Randi() == expected,
+        Check(world == Json(WorldStateService.Capture()) && before == Json(desk.CaptureState()) && GameRandom.Randi() == expected,
             "preview writes nothing and consumes no world RNG");
         Check(!desk.AskScoutingBusinessHistory(act.artistId, "stale", out _) && desk.Label.cashReserves == cash &&
             clock.CurrentHour * 60 + clock.CurrentMinute == now, "stale quote costs nothing");

@@ -24,7 +24,6 @@ public static class AlbumSimulator {
 	// 12-18wk band. Easing the weekly decay ~1pt lifts the median ~1-2wk back into band without
 	// re-growing the long tail (see D7SoundtrackCastAlbumHandoff.md §1, §3.3, §4).
 	private const float CatalogDecayStartWeeks = 8f;
-	private const float CatalogWeeklyDecay = 0.93f;
 	// Soundtrack/evergreen long tail: the old uniform-album constants, now reserved for the format
 	// that historically earned the 40-60wk (multi-year) run. Placeholder until the phase-4 box-office
 	// trajectory replaces flat decay for soundtracks; StageCast wants an even slower decay than this.
@@ -37,6 +36,16 @@ public static class AlbumSimulator {
 			: ChartManager.Instance?.GetRecordRuntimeData(record.linkedPromoSingleId);
 		float singleHeat = linkedPromo != null ? Mathf.Clamp(linkedPromo.radioHeat, 0f, 1f) : 0f;
 		record.linkedPromoRuntimeActive = linkedPromo != null;
+		// A later commercial cut can also substitute for this LP. It earns no
+		// advance launch bonus; use the strongest active linked exposure, bounded
+		// by the same demand fraction as the original advance mechanism.
+		if (AlbumReleasePractice.IsLive && record.baseRecord.album?.postAlbumSingleIds != null)
+			foreach (string id in record.baseRecord.album.postAlbumSingleIds) {
+				RecordRuntimeData cut = ChartManager.Instance?.GetRecordRuntimeData(id);
+				if (cut == null) continue;
+				record.linkedPromoRuntimeActive = true;
+				singleHeat = Mathf.Max(singleHeat, Mathf.Clamp(cut.radioHeat, 0f, 1f));
+			}
 		record.linkedPromoSingleHeat = singleHeat;
 		record.albumSubstitutionPropensity = substitutionPropensity;
 		record.cannibalizationSuppression = Mathf.Clamp(CompetitorManager.Instance?.CannibalizationStrength ?? 0f, 0f, 1f)
@@ -44,12 +53,17 @@ public static class AlbumSimulator {
 		float appeal = record.GetQuality();
 		record.artistHeat = artistHeat;
 		float campaign = ChartSimulator.GetCampaignImpact(label);
+		if (LabelReleaseProgramme.CapacityEnabled) campaign *= CompetitorManager.Instance?.ProgrammePushFactor(record) ?? 1f;
 		float campaignAge = record.weeksSinceRelease <= 4 ? 1f : record.weeksSinceRelease <= 12 ? 0.45f : 0.12f;
 		record.currentLabelPush = campaign * campaignAge;
 		record.totalLabelInvestment += record.currentLabelPush;
 		float chartDiscovery = record.currentPosition > 0 ? Mathf.Clamp((201f - record.currentPosition) / 200f, 0f, 1f) * 0.025f : 0f;
-		float organic = (0.004f + appeal * 0.012f + artistHeat * 0.008f + record.currentLabelPush * 0.03f + chartDiscovery) * (1f - record.awareness);
+		float organicRate = 0.004f + appeal * 0.012f + artistHeat * 0.008f + record.currentLabelPush * 0.03f + chartDiscovery;
+		float organic = organicRate * (1f - record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness + organic, 0f, 1f);
+		// A5 counterfactual: the same headroom-proportional growth from the bonus-free start.
+		if (record.promoShadowAwareness is float shadow)
+			record.promoShadowAwareness = Mathf.Clamp(shadow + organicRate * (1f - shadow), 0f, 1f);
 		float targetWom = Mathf.Pow(appeal, 2f) * 0.62f + record.momentum * 0.25f;
 		record.wordOfMouth = Mathf.Lerp(record.wordOfMouth, Mathf.Max(0f, targetWom), 0.12f);
 		// Album demand is not radio-led; retain only a small promotional proxy.
@@ -72,6 +86,12 @@ public static class AlbumSimulator {
 		int regionalCumulativeUnitsBeforeSale = data.unitsSoldTotal;
 		float observedPenetration = regionalCumulativeUnitsBeforeSale / Mathf.Max(1f, buyerPool);
 		float penetration = CalculateEffectiveRegionalPenetration(data, regionalCumulativeUnitsBeforeSale, buyerPool, genreMarketLive);
+		if (BudgetLpChannel.Enabled) {
+			double purchases = regionalCumulativeUnitsBeforeSale + (double)BudgetLpChannel.SourcePurchases(record.baseRecord.recordId, region.regionId)
+				+ (RackJobberChannel.SharedExhaustion ? data.rackUnitsTotal : data.rackStoreBuyerUnitsTotal) + data.fanDisplacedBuyerUnitsTotal;
+			penetration = Mathf.Max(penetration, (float)(purchases / Mathf.Max(1f, buyerPool)));
+			if (genreMarketLive) data.albumPeakEffectivePenetration = Mathf.Max(data.albumPeakEffectivePenetration, penetration);
+		}
 		float exhaustion = CalculateAlbumExhaustion(penetration);
 		float conversion = BasePurchaseRate * Mathf.Pow(appeal, 2.5f) * exhaustion;
 		conversion *= 0.72f + record.wordOfMouth * 0.45f;
@@ -99,7 +119,7 @@ public static class AlbumSimulator {
 		data.albumExhaustionThisWeek = exhaustion;
 		data.albumCatalogDecayMultiplierThisWeek = catalogDecayMultiplier;
 		data.albumFormatTiltThisWeek = formatTilt;
-		data.albumConversionThisWeek = conversion;
+		data.albumConversionThisWeek = LpDemandCalibration.Apply(conversion);
 		data.albumRawDemandBeforeCannibalizationThisWeek = rawDemandBeforeCannibalization;
 		data.albumRawDemandAfterCannibalizationThisWeek = rawSales;
 		data.albumUnitsInStoresBeforeSaleThisWeek = data.unitsInStores;
@@ -110,6 +130,9 @@ public static class AlbumSimulator {
 		record.albumDemandWeightedSingleHeat += rawDemandBeforeCannibalization * record.linkedPromoSingleHeat;
 		record.albumDemandWeightedSubstitutionPropensity += rawDemandBeforeCannibalization * record.albumSubstitutionPropensity;
 		record.albumDemandWeightedSuppression += rawDemandBeforeCannibalization * record.cannibalizationSuppression;
+		if (record.promoShadowDemand.HasValue)
+			record.promoShadowDemand += CalculateRawDemandBeforeCannibalization(buyerPool,
+				CalculatePromoShadowAwareness(record, data), conversion);
 		data.rawDemandThisWeek = rawSales;
 		data.unitsBackordered = Mathf.RoundToInt(data.unitsBackordered * 0.55f);
 		if (data.unitsInStores < rawSales) {
@@ -117,7 +140,7 @@ public static class AlbumSimulator {
 			rawSales = data.unitsInStores;
 		}
 		float capacity = (region.distribution.recordStoreCount * 130f + region.distribution.departmentStoreCount * 300f) * region.distribution.inventoryDepth;
-		rawSales = Mathf.Min(rawSales, capacity) * (float)GD.RandRange(0.97, 1.03);
+		rawSales = Mathf.Min(rawSales, capacity) * RegionalSalesRandom.Multiplier(record, region, 0.97, 1.03);
 		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) {
 			return Mathf.Max(0, Mathf.RoundToInt(rawSales));
 		}
@@ -130,6 +153,12 @@ public static class AlbumSimulator {
 	internal static float CalculateEffectiveRegionalPenetration(RegionalRecordData data, int regionalCumulativeUnitsBeforeSale,
 		float buyerPool, bool genreMarketLive) {
 		float observedPenetration = regionalCumulativeUnitsBeforeSale / Mathf.Max(1f, buyerPool);
+		if (data.rackStoreBuyerUnitsTotal > 0)
+			observedPenetration = (float)(((double)regionalCumulativeUnitsBeforeSale + data.rackStoreBuyerUnitsTotal) / Mathf.Max(1f, buyerPool));
+		if (RackJobberChannel.Enabled && RackJobberChannel.SharedExhaustion)
+			observedPenetration = (float)(((double)regionalCumulativeUnitsBeforeSale + data.rackUnitsTotal) / Mathf.Max(1f, buyerPool));
+		if (data.fanDisplacedBuyerUnitsTotal > 0)
+			observedPenetration += data.fanDisplacedBuyerUnitsTotal / Mathf.Max(1f, buyerPool);
 		if (!genreMarketLive) return observedPenetration;
 		float effectivePenetration = Mathf.Max(data.albumPeakEffectivePenetration, observedPenetration);
 		data.albumPeakEffectivePenetration = effectivePenetration;
@@ -152,7 +181,7 @@ public static class AlbumSimulator {
 	internal static float GetCatalogDecayMultiplier(AlbumFormat format, int weeksSinceRelease) {
 		(float startWeeks, float weeklyDecay) = format == AlbumFormat.Soundtrack
 			? (SoundtrackCatalogDecayStartWeeks, SoundtrackCatalogWeeklyDecay)
-			: (CatalogDecayStartWeeks, CatalogWeeklyDecay);
+			: (CatalogDecayStartWeeks, LpDemandProbe.WeeklyDecay);
 		return weeksSinceRelease > startWeeks
 			? Mathf.Pow(weeklyDecay, weeksSinceRelease - startWeeks) : 1f;
 	}
@@ -194,8 +223,17 @@ public static class AlbumSimulator {
 		return mult;
 	}
 
+	// The demand-side awareness of the A5 counterfactual: the same blend and chart floors,
+	// read from the bonus-free paths. A region opened after launch has no bonus to remove.
+	internal static float CalculatePromoShadowAwareness(RecordRuntimeData record, RegionalRecordData data) {
+		float awareness = (record.promoShadowAwareness ?? record.awareness) * 0.45f + (data.promoShadowAwareness ?? data.awareness) * 0.55f;
+		if (record.currentPosition > 0 && record.currentPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
+		else if (record.currentPosition > 0 && record.currentPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
+		return awareness;
+	}
+
 	internal static float CalculateRawDemandBeforeCannibalization(float buyerPool, float awareness, float conversion) =>
-		buyerPool * awareness * conversion;
+		LpDemandCalibration.Apply(buyerPool * awareness * conversion);
 
 	internal static float CalculateAlbumExhaustion(float effectivePenetration) =>
 		Mathf.Max(0.15f, 1f / (1f + effectivePenetration * 4f));
@@ -210,8 +248,11 @@ public static class AlbumSimulator {
 	};
 
 	public static void UpdateRegionalState(RecordRuntimeData record, RegionalRecordData data) {
-		float localGrowth = (record.currentLabelPush * 0.018f + record.wordOfMouth * 0.010f) * (1f - data.awareness);
+		float localRate = record.currentLabelPush * 0.018f + record.wordOfMouth * 0.010f;
+		float localGrowth = localRate * (1f - data.awareness);
 		data.awareness = Mathf.Clamp(data.awareness + localGrowth, 0f, 1f);
+		if (data.promoShadowAwareness is float shadow)
+			data.promoShadowAwareness = Mathf.Clamp(shadow + localRate * (1f - shadow), 0f, 1f);
 		data.sentiment = Mathf.Lerp(data.sentiment, record.GetQuality(), 0.06f);
 	}
 

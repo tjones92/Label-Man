@@ -79,6 +79,27 @@ public partial class AILabel : Resource {
 	[Export] public float monthlyRevenue;
 	[Export] public float monthlyExpenses;
 	public float lastMonthlyProfit;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public LabelCompanyState company;
+	// Last three completed months of actual net cash flow. Persisted with the label, including
+	// the missed-payment grace, so loading cannot erase financial distress. Old saves start empty.
+	public List<float> recentMonthlyCashFlows = new();
+	/// <summary>--ai-master-deals: this label's masters out on lease to bigger labels. Null when it has none.</summary>
+	public List<AiMasterLease> aiMasterLeases;
+	/// <summary>--ai-backers: the label's one backer agreement, ever. Null until it borrows.</summary>
+	public AiBackerLoan aiBackerLoan;
+	public int insolventMonthEnds;
+	// Opt-in founder dormancy: persisted, neutral for old saves. Transfers are not new releases.
+	public int founderLastReleasePeriod = -1, founderLastReviewPeriod = -1, founderQuietMonths;
+	public LabelExitReason exitReason;
+	// --studio-parent-labels: the film or broadcast parent, null for every other label. The parent's support
+	// window holds the last twelve monthly accruals and draws; the year fields drive the annual parent review.
+	public string studioParent;
+	public List<float> parentSupportAccrued, parentSupportDrawn;
+	public float parentSupportYearDrawn, parentSupportYearAccrued, parentSupportLifetime;
+	public int parentSupportYear, parentLossYears, parentBidYear;
+	public bool parentClosureDue;
+	public float RecentMonthlyCashFlow => recentMonthlyCashFlows?.Count > 0 ? recentMonthlyCashFlows.Average() : 0f;
 	[Export] public float debtLevel;
 	[Export] public float marketShare;
 	
@@ -132,6 +153,17 @@ public partial class AILabel : Resource {
 	// terms, and what finally arrived from invoices billed months ago.
 	public float weeklyWholesaleDeferred;
 	public float weeklyWholesaleCollected;
+	// LabelPressingEconomics: copies pressed this week, paid to the plant in cash (never deferred with the
+	// wholesale billings), and the label's own geometric memory of lifetime copies per release, which sizes the
+	// next initial run. Zero on old saves and switched-off runs: no history, so a first run is the plant minimum.
+	public float weeklyPressingSpend;
+	// --plant-credit: plant invoices on terms, and what was paid on them this week. Empty and zero when off.
+	// Not readonly: deserialized whole by the full-world save.
+	public List<PlantPayable> plantPayables = new();
+	public float outstandingPlantPayables;
+	public float weeklyPlantPaid;
+	public float pressingForecastSingleLogUnits;
+	public float pressingForecastAlbumLogUnits;
 	// Publishing goldmine (Phase 3b). Composition income this label collects when OTHER labels record a
 	// song it controls; accrued during any label's settlement and banked in a pass after the main loop.
 	public float weeklyPublishingReceipts;
@@ -288,22 +320,22 @@ public partial class AILabel : Resource {
 		
 		if (maxRosterSize == 0) {
 			maxRosterSize = tier switch {
-				LabelTier.Major => (int)GD.RandRange(35, 60),
-				LabelTier.MidTier => (int)GD.RandRange(18, 35),
-				LabelTier.Independent => (int)GD.RandRange(8, 18),
-				LabelTier.Small => (int)GD.RandRange(3, 10),
-				LabelTier.Boutique => (int)GD.RandRange(5, 12),
+				LabelTier.Major => (int)GameRandom.RandRange(35, 60),
+				LabelTier.MidTier => (int)GameRandom.RandRange(18, 35),
+				LabelTier.Independent => (int)GameRandom.RandRange(8, 18),
+				LabelTier.Small => (int)GameRandom.RandRange(3, 10),
+				LabelTier.Boutique => (int)GameRandom.RandRange(5, 12),
 				_ => 10
 			};
 		}
 		
 		if (reputation == 0) {
 			reputation = tier switch {
-				LabelTier.Major => (float)GD.RandRange(0.7, 0.95),
-				LabelTier.MidTier => (float)GD.RandRange(0.4, 0.7),
-				LabelTier.Independent => (float)GD.RandRange(0.2, 0.5),
-				LabelTier.Small => (float)GD.RandRange(0.05, 0.25),
-				LabelTier.Boutique => (float)GD.RandRange(0.3, 0.6),
+				LabelTier.Major => (float)GameRandom.RandRange(0.7, 0.95),
+				LabelTier.MidTier => (float)GameRandom.RandRange(0.4, 0.7),
+				LabelTier.Independent => (float)GameRandom.RandRange(0.2, 0.5),
+				LabelTier.Small => (float)GameRandom.RandRange(0.05, 0.25),
+				LabelTier.Boutique => (float)GameRandom.RandRange(0.3, 0.6),
 				_ => 0.3f
 			};
 		}
@@ -329,7 +361,8 @@ public partial class AILabel : Resource {
 	}
 	
 	public bool CanAffordToSign(float advanceCost) {
-		float minReserve = GetMonthlyOverhead() * 2f;
+		float minReserve = EconomicLabelLifecycle.Enabled && !isPlayerOwned
+			? EconomicLabelLifecycle.CommitmentReserve(this, signing: true) : GetMonthlyOverhead() * 2f;
 		return cashReserves - advanceCost > minReserve;
 	}
 	
@@ -351,6 +384,13 @@ public partial class AILabel : Resource {
 	}
 	
 	public float CalculateRoyaltyRate(SimulatedArtist artist) {
+		if (PeriodRoyaltyTiers.Enabled) {
+			float leverage = artist.careerState switch {
+				CareerState.Superstar => 0.08f, CareerState.Star => 0.05f, CareerState.Established => 0.03f,
+				CareerState.Rising => 0.01f, _ => 0f
+			};
+			return Mathf.Clamp(PeriodRoyaltyTiers.BaseRate(tier) + leverage * PeriodRoyaltyTiers.LeverageShare(tier), 0.02f, 0.15f);
+		}
 		float baseRate = tier switch {
 			LabelTier.Major => 0.03f, LabelTier.MidTier => 0.05f, LabelTier.Independent => 0.08f,
 			LabelTier.Small => 0.10f, LabelTier.Boutique => 0.07f, _ => 0.05f
@@ -377,11 +417,11 @@ public partial class AILabel : Resource {
 	/// </summary>
 	public int CalculateContractLength(SimulatedArtist artist) {
 		int baseTerm = artist.careerState switch {
-			CareerState.Superstar => (int)GD.RandRange(1, 3),
-			CareerState.Star => (int)GD.RandRange(2, 4),
-			CareerState.Established => (int)GD.RandRange(3, 5),
-			CareerState.Rising => (int)GD.RandRange(2, 3),
-			_ => (int)GD.RandRange(1, 2)
+			CareerState.Superstar => (int)GameRandom.RandRange(1, 3),
+			CareerState.Star => (int)GameRandom.RandRange(2, 4),
+			CareerState.Established => (int)GameRandom.RandRange(3, 5),
+			CareerState.Rising => (int)GameRandom.RandRange(2, 3),
+			_ => (int)GameRandom.RandRange(1, 2)
 		};
 		return Mathf.Clamp(baseTerm + GetContractTermBias(), 1, 7);
 	}
@@ -407,8 +447,8 @@ public partial class AILabel : Resource {
 		if (year > SinglesObligationFinalYear) return 0;
 		return artist.careerState switch {
 			CareerState.Superstar or CareerState.Star or CareerState.Established => 0,
-			CareerState.Rising => (int)GD.RandRange(4, 8),
-			_ => (int)GD.RandRange(3, 6)
+			CareerState.Rising => (int)GameRandom.RandRange(4, 8),
+			_ => (int)GameRandom.RandRange(3, 6)
 		};
 	}
 	public const int SinglesObligationFinalYear = 1966;
@@ -539,6 +579,12 @@ public partial class AILabel : Resource {
 	
 	public SimulatedArtist GetArtistForRelease(int currentYear) {
 		if (roster == null || roster.Count == 0) return null;
+		// --hit-act-cadence (§17x): a hit act due its follow-up single takes the roll ahead of the lottery. Off: never read.
+		if (HitActCadence.LaneEnabled && !isPlayerOwned) {
+			SimulatedArtist due = HitActCadence.PickDue(roster.Where(a => IsEligibleForRelease(a, currentYear)));
+			HitActCadence.MarkPick(due != null);
+			if (due != null) return due;
+		}
 		var candidates = new List<(SimulatedArtist artist, float priority)>();
 		
 		foreach (var artist in roster) {
@@ -549,7 +595,7 @@ public partial class AILabel : Resource {
 		
 		if (candidates.Count == 0) return null;
 		float totalWeight = candidates.Sum(c => c.priority);
-		float roll = (float)GD.RandRange(0f, totalWeight);
+		float roll = (float)GameRandom.RandRange(0f, totalWeight);
 		float cumulative = 0f;
 		
 		foreach (var (artist, priority) in candidates.OrderByDescending(c => c.priority)) {
@@ -588,7 +634,7 @@ public partial class AILabel : Resource {
 			float genreHeat = ChartManager.Instance.GetEffectiveGenreAcceptance(artist.primaryGenre);
 			priority += (genreHeat - 0.5f) * 0.2f;
 		}
-		priority += (float)GD.RandRange(0f, 0.15f);
+		priority += (float)GameRandom.RandRange(0f, 0.15f);
 		return Mathf.Max(0f, priority);
 	}
 	
@@ -686,7 +732,7 @@ public partial class AILabel : Resource {
 		float probability = Mathf.Max(scoutChance * scoutingMultiplier, minimumProbability);
 		if (!consumeRoll) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, rosterFullness, hasRecentHit,
 			recentHitFactor, decliningArtists, decliningFactor, probability, null, false, null);
-		float roll = rollSource?.Invoke() ?? (float)GD.RandRange(0f, 1f);
+		float roll = rollSource?.Invoke() ?? (float)GameRandom.RandRange(0f, 1f);
 		bool passed = roll < probability;
 		return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, rosterFullness, hasRecentHit,
 			recentHitFactor, decliningArtists, decliningFactor, probability, roll, passed,
@@ -720,8 +766,9 @@ public partial class AILabel : Resource {
 			
 			score += artist.momentum * 0.5f;
 			score += artist.reputation * 0.3f;
-			if (artist.reputation < 0.1f) score *= 0.5f + (riskTolerance * 0.5f);
-			
+			if (artist.reputation < 0.1f && HitHistorySigning.AppliesLowReputationPenalty(artist)) score *= 0.5f + (riskTolerance * 0.5f);
+			score += HitHistorySigning.HistoryBonus(artist);
+
 			float estimatedCost = CalculateAdvanceOffer(artist);
 			float costRatio = estimatedCost / Mathf.Max(1f, cashReserves);
 			if (costRatio > 0.3f) score *= 0.7f;
@@ -761,14 +808,16 @@ public partial class AILabel : Resource {
 	
 	public bool ShouldDropArtist(SimulatedArtist artist) {
 		if (artist.careerState == CareerState.Superstar) return false;
+		// --hit-act-retention (§17y): an act with a Top 40 in the last year is not let go on flops. Off: never read.
+		if (HitActCadence.RetentionEnabled && HitActCadence.ProtectsFromDrop(artist)) return false;
 		// Contract probation excludes stale history only while it is unresolved.
 		// Once a current-contract Top 40 clears probation, ordinary career-state
 		// review is again authoritative.
 		if (ArtistPopulationLifecycle.Enabled && artist.IsContractPerformanceProbationPending())
 			return artist.ShouldDepartForCurrentContractPerformance();
-		if (artist.consecutiveFlops >= 3 && artist.careerState <= CareerState.Rising) return (float)GD.RandRange(0f, 1f) < 0.6f;
-		if (artist.consecutiveFlops >= 4 && artist.careerState == CareerState.Established) return (float)GD.RandRange(0f, 1f) < 0.4f;
-		if (artist.careerState == CareerState.Declining && artist.consecutiveFlops >= 2) return (float)GD.RandRange(0f, 1f) < 0.5f;
+		if (artist.consecutiveFlops >= 3 && artist.careerState <= CareerState.Rising) return (float)GameRandom.RandRange(0f, 1f) < 0.6f;
+		if (artist.consecutiveFlops >= 4 && artist.careerState == CareerState.Established) return (float)GameRandom.RandRange(0f, 1f) < 0.4f;
+		if (artist.careerState == CareerState.Declining && artist.consecutiveFlops >= 2) return (float)GameRandom.RandRange(0f, 1f) < 0.5f;
 		if (artistLoyalty > 0.7f) return false;
 		return false;
 	}
@@ -788,6 +837,10 @@ public partial class AILabel : Resource {
 		// cost of an act is already charged where it lands -- studio time, pressing, gas on the road.
 		// Player-only, so the AI economy's overhead schedule is untouched.
 		if (isPlayerOwned) return CityProfiles.MonthlyOverhead(homeCityId) + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
+		return LabelCorporateModel.MonthlyOverhead(this, GetLegacyMonthlyOverhead());
+	}
+
+	public float GetLegacyMonthlyOverhead() {
 		float baseOverhead = tier switch {
 			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
 			LabelTier.Small => 150f, LabelTier.Boutique => 250f, _ => 300f
@@ -805,11 +858,16 @@ public partial class AILabel : Resource {
 		};
 	}
 	
+	/// <summary>This label's campaign for an act at artist multiplier 1 (between a new signing and a rising act).</summary>
+	public float GetStandardMarketingBudget() => MarketingBaseBudget * marketingPower;
+
+	private float MarketingBaseBudget => tier switch {
+		LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
+		LabelTier.Small => 150f, LabelTier.Boutique => 300f, _ => 300f
+	};
+
 	public float GetMarketingBudget(SimulatedArtist artist) {
-		float baseBudget = tier switch {
-			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
-			LabelTier.Small => 150f, LabelTier.Boutique => 300f, _ => 300f
-		};
+		float baseBudget = MarketingBaseBudget;
 		float artistMult = artist.careerState switch {
 			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 			CareerState.Rising => 1.2f, CareerState.NewSigning => 0.8f, _ => 0.5f
@@ -818,7 +876,7 @@ public partial class AILabel : Resource {
 	}
 }
 
-public enum RevenueEstimatorLane { OrphanSingle, PromoSingle, StandaloneAlbum, AlbumWithPromo, AlbumComponent }
+public enum RevenueEstimatorLane { OrphanSingle, PromoSingle, StandaloneAlbum, AlbumWithPromo, AlbumComponent, AlbumExtraction }
 
 public sealed class FormatRevenueMemory {
 	// Legacy fields remain diagnostic-only for old saved state; live decisions use
@@ -829,6 +887,20 @@ public sealed class FormatRevenueMemory {
 }
 
 public sealed class FormatMemoryObservation {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public bool? allInEconomics;
+	// Optional ex-ante band for --career-banded-format-memory. Null preserves the frozen save schema and
+	// means unknown in older saves; never infer a retired release's band from its artist's current career.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? careerBand;
+	// Latest estimated outcome in dollars, kept under the realization or capital-risk probes; null preserves the save schema.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? estimatedOutcomeNet;
+	// v3 risk evidence: immutable release-time prior and final contribution before fixed commitments.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskExpectedContribution;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskContribution;
 	public string releaseId;
 	public string projectId;
 	public ProjectRecordRole releaseLane;

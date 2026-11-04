@@ -5,6 +5,25 @@ using Godot;
 
 /// <summary>Opt-in behavior boundary. Scores are internal decisions; never player reads.</summary>
 public static class PolarSongBehavior {
+	// Material builders do not commit performances or change the act. Reuse pure
+	// derivations only until that one source-selection call returns.
+	private static MaterialEvaluation activeEvaluation;
+	internal sealed class MaterialEvaluation : IDisposable {
+		private readonly MaterialEvaluation previous;
+		internal readonly Dictionary<(SimulatedArtist, AILabel, PolarSessionContext, PolarSongTable), ActProfile> Acts = new();
+		internal readonly Dictionary<(Genre, PolarSongTable), MarketTasteSnapshot> Tastes = new();
+		internal readonly Dictionary<(SongComposition, SongMasterMetadata, ActProfile, Genre, int, int, string), PolarArrangementProposal> Proposals = new();
+		internal MaterialEvaluation() { previous = activeEvaluation; activeEvaluation = this; }
+		public void Dispose() => activeEvaluation = previous;
+	}
+	internal static MaterialEvaluation EvaluateMaterial() => new();
+	private static ActProfile ActFor(SimulatedArtist artist, AILabel label, PolarSessionContext session, PolarSongTable table) {
+		if (activeEvaluation == null) return PolarActProfileDeriver.Derive(artist, label, session, table);
+		var key = (artist, label, session, table);
+		if (!activeEvaluation.Acts.TryGetValue(key, out var act))
+			activeEvaluation.Acts.Add(key, act = PolarActProfileDeriver.Derive(artist, label, session, table));
+		return act;
+	}
 	public static bool UsePolarFitSelection = true; // Normal new games; saves retain their own setting.
 	// Headless causal probes only. Never persisted as gameplay settings.
 	internal static bool AuditLegacyRealization, AuditLegacyPromotion;
@@ -53,13 +72,30 @@ public static class PolarSongBehavior {
 		return new MarketTasteSnapshot { asOfWeek = raw.asOfWeek, observations = raw.observations,
 			identity = Enumerable.Range(0, SongProfile.IdentityCount).Select(i => (n * raw.identity[i] + k * center[i]) / (n + k)).ToArray() };
 	}
-	private static MarketTasteSnapshot TasteFor(Genre genre, PolarSongTable table) => PolarSongTable.AuditLegacyRepair ? tastes.GetValueOrDefault(genre) :
-		ShrinkTaste(tastes.GetValueOrDefault(genre), genre, table);
+	private static MarketTasteSnapshot TasteFor(Genre genre, PolarSongTable table) {
+		var key = (genre, table);
+		if (activeEvaluation != null && activeEvaluation.Tastes.TryGetValue(key, out var cached)) return cached;
+		var taste = PolarSongTable.AuditLegacyRepair ? tastes.GetValueOrDefault(genre) : ShrinkTaste(tastes.GetValueOrDefault(genre), genre, table);
+		if (activeEvaluation != null) activeEvaluation.Tastes.Add(key, taste);
+		return taste;
+	}
 	public static SongMasterMetadata Reference(SongComposition song, int year, string explicitId = null) {
 		var master = PolarSongMetadataService.Get(explicitId);
 		if (explicitId != null) return master != null && master.songId == song.songId && master.recordingYear <= year ? master : null;
 		// Only known completed releases, never an unshipped master or a future outcome.
-		foreach (var memory in (song.recordings ?? new()).Where(r => r.year <= year)
+		// The latest recording (then the ordinal-first id) almost always qualifies, so find it in one pass and
+		// sort the rest only when it does not. A popular standard carries many recordings; sorting them per
+		// material choice was ~2% of a late window.
+		var recordings = song.recordings;
+		if (recordings == null || recordings.Count == 0) return null;
+		SongRecordingMemory latest = null;
+		foreach (var r in recordings)
+			if (r.year <= year && (latest == null || r.year > latest.year ||
+				r.year == latest.year && StringComparer.Ordinal.Compare(r.recordId, latest.recordId) < 0)) latest = r;
+		if (latest == null) return null;
+		master = PolarSongMetadataService.Get(latest.recordId);
+		if (master != null && master.songId == song.songId && master.recordingYear <= year) return master;
+		foreach (var memory in recordings.Where(r => r.year <= year)
 			.OrderByDescending(r => r.year).ThenBy(r => r.recordId, StringComparer.Ordinal)) {
 			master = PolarSongMetadataService.Get(memory.recordId);
 			if (master != null && master.songId == song.songId && master.recordingYear <= year) return master;
@@ -73,7 +109,7 @@ public static class PolarSongBehavior {
 		var table = PolarSongTable.Current;
 		var reference = Reference(song, year, referenceId);
 		return PolarMaterialFit.Compute(SongProfileDeriver.Derive(song, reference?.taxonomy ?? song.demoTaxonomy, table),
-			PolarActProfileDeriver.Derive(artist, label ?? ChartManager.Instance?.GetLabelById(artist.labelId), session, table),
+			ActFor(artist, label ?? ChartManager.Instance?.GetLabelById(artist.labelId), session, table),
 				TasteFor(genre, table), (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + 1, table);
 	}
 	internal static float SelectionScore(MaterialFit fit) {
@@ -132,9 +168,14 @@ public static class PolarSongBehavior {
 		}
 		var reference = material.IsCover ? Reference(material.Song, year, material.ReferenceSubjectId ?? material.OriginalRecordId) : null;
 		var table = PolarSongTable.Current;
-		var act = PolarActProfileDeriver.Derive(artist, label ?? ChartManager.Instance?.GetLabelById(artist.labelId), session, table);
-		var proposal = PolarCoverResolver.Propose(material.Song, reference, act, genre, year,
-			(ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + 1, record.recordId, TasteFor(genre, table), table);
+		var act = ActFor(artist, label ?? ChartManager.Instance?.GetLabelById(artist.labelId), session, table);
+		int week = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + 1;
+		var key = (material.Song, reference, act, genre, year, week, record.recordId);
+		PolarArrangementProposal proposal;
+		if (activeEvaluation == null || !activeEvaluation.Proposals.TryGetValue(key, out proposal)) {
+			proposal = PolarCoverResolver.Propose(material.Song, reference, act, genre, year, week, record.recordId, TasteFor(genre, table), table);
+			if (activeEvaluation != null) activeEvaluation.Proposals.Add(key, proposal);
+		}
 		material.PolarProposal = proposal;
 		material.ReferenceSubjectId = reference?.masterId ?? "demo:" + material.Song.songId;
 		material.OriginalRecordId = reference?.masterId;

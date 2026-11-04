@@ -101,11 +101,11 @@ public static class LocalScenePersistenceChecks {
         string sets1 = Json(desk.Slate.Select(p => p.LiveSet).ToList());
         Check(desk.Slate.Count > 0, "persistent local cast discoverable");
         TimeManager.Instance.RestoreClock(date, 12);
-        GD.Seed(771122);
-        float expectedNextDraw = GD.Randf();
-        GD.Seed(771122);
+        GameRandom.Seed(771122);
+        float expectedNextDraw = GameRandom.Randf();
+        GameRandom.Seed(771122);
         Check(desk.ScoutVenue(PlayerDesk.ScoutingVenue.HonkyTonks, out _), "second real scouting visit");
-        Check(GD.Randf() == expectedNextDraw, "scouting observations leave the global RNG stream untouched");
+        Check(GameRandom.Randf() == expectedNextDraw, "scouting observations leave the global RNG stream untouched");
         Check(slate1 == string.Join('|', desk.Slate.Select(p => p.Artist.artistId)) && sets1 == Json(desk.Slate.Select(p => p.LiveSet).ToList()),
             "repeat visit preserves cast IDs and read repertoire");
         Check(idsBefore.SequenceEqual(am.GetAllArtists().Select(a => a.artistId).OrderBy(id => id)), "visits never create/delete population");

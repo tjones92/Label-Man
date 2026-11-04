@@ -38,10 +38,10 @@ public static class ScoutingMeetingChecks {
         var quote = Quote();
         Check(quote != null && quote.Day > bill.Day && quote.EndMinute - quote.StartMinute == 60, "real future slot within existing room calendar");
         string beforeWorld = Json(WorldStateService.Capture()), beforeKnowledge = Json(desk.CaptureState().ScoutingKnowledge);
-        GD.Seed(433); uint expected = GD.Randi(); GD.Seed(433);
+        GameRandom.Seed(433); uint expected = GameRandom.Randi(); GameRandom.Seed(433);
         Quote(); desk.ScoutingMeetings.ToArray(); desk.ScoutingSummary(artistId); desk.ScoutingProvenance(artistId);
         Check(Json(WorldStateService.Capture()) == beforeWorld && Json(desk.CaptureState().ScoutingKnowledge) == beforeKnowledge &&
-            GD.Randi() == expected && clock.CurrentHour == baseHour && clock.CurrentMinute == baseMinute, "previews preserve world, knowledge, RNG and clock");
+            GameRandom.Randi() == expected && clock.CurrentHour == baseHour && clock.CurrentMinute == baseMinute, "previews preserve world, knowledge, RNG and clock");
         Check(!desk.ArrangeScoutingMeeting(artistId, "stale", out _) && Json(WorldStateService.Capture()) == beforeWorld &&
             Json(desk.CaptureState().ScoutingKnowledge) == beforeKnowledge, "stale invitation costs nothing and records nothing");
         float cash = desk.Label.cashReserves;

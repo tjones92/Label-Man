@@ -62,9 +62,11 @@ public static class MarketSeasonality {
 	private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, int> fridayCounts = new();
 	public static int GetLiveFridayCount(int year, int month) {
 		ValidateMonth(month);
-		return fridayCounts.GetOrAdd(year * 16 + month, _ => {
+		// The sales multipliers read this 24 times per record x region; a capturing lambda allocated a closure each time.
+		if (fridayCounts.TryGetValue(year * 16 + month, out int cached)) return cached;
+		return fridayCounts.GetOrAdd(year * 16 + month, static key => {
 			int count = 0;
-			for (DateTime date = new(year, month, 1); date.Month == month; date = date.AddDays(1)) if (date.DayOfWeek == DayOfWeek.Friday) count++;
+			for (DateTime date = new(key / 16, key % 16, 1); date.Month == key % 16; date = date.AddDays(1)) if (date.DayOfWeek == DayOfWeek.Friday) count++;
 			return count;
 		});
 	}
@@ -89,7 +91,13 @@ public static class MarketSeasonality {
 		if (!float.IsFinite(result) || result <= 0f) throw new InvalidOperationException("Seasonality multiplier must be finite and positive.");
 		return result;
 	}
-	private static float WeightedSum(int year, float[] values) { float total = 0f; for (int month = 1; month <= 12; month++) total += GetLiveFridayCount(year, month) * values[month - 1]; return total; }
+	// Per (year, table): the tables are fixed, so the sum is too. Keyed by the table's identity.
+	private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int Year, float[] Table), float> weightedSums = new();
+	private static float WeightedSum(int year, float[] values) {
+		if (weightedSums.TryGetValue((year, values), out float cached)) return cached;
+		float total = 0f; for (int month = 1; month <= 12; month++) total += GetLiveFridayCount(year, month) * values[month - 1];
+		return weightedSums[(year, values)] = total;
+	}
 	private static void ValidateMonth(int month) { if (month < 1 || month > 12) throw new ArgumentOutOfRangeException(nameof(month)); }
 	private static void ValidateTables() {
 		foreach (float[] table in new[] { SingleSales, AlbumSales, RadioDelta, VenueAttendance, RecordingCost, MarketingEfficiency, ArtistAvailability, LegacySingleSales, LegacyAlbumSales }) {

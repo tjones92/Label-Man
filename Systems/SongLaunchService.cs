@@ -7,7 +7,7 @@ using Godot;
 /// (in ChartManager.PromoteRecordAI) and is capped hard.
 ///
 /// DETERMINISM: pure function of the record's release-time fields -- no RNG. It is added AFTER the
-/// existing GD.RandRange launch draws so the RNG schedule is unchanged. Kill-switch:
+/// existing GameRandom.RandRange launch draws so the RNG schedule is unchanged. Kill-switch:
 /// <see cref="LaunchInputEnabled"/> false makes Phase 2 inert (charts revert to material-only).
 /// </summary>
 public static class SongLaunchService {

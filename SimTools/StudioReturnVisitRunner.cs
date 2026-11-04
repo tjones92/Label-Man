@@ -30,10 +30,10 @@ public partial class StudioReturnVisitRunner : Node {
             Check(tiers.Length >= 2, "Nashville offers more than one local room");
 
             // Rooms and engineers are pure keyed derivations.
-            GD.Seed(800); uint next = GD.Randi(); GD.Seed(800);
+            GameRandom.Seed(800); uint next = GameRandom.Randi(); GameRandom.Seed(800);
             var budget = desk.StudioRoomFor(tiers[0], artist.artistId);
             Check(budget.CapabilityVersion == 4 && !string.IsNullOrEmpty(budget.EngineerName) && Json(budget) == Json(desk.StudioRoomFor(tiers[0], artist.artistId)) &&
-                GD.Randi() == next, "A room card names its engineer on duty, is stable, and draws no gameplay RNG");
+                GameRandom.Randi() == next, "A room card names its engineer on duty, is stable, and draws no gameplay RNG");
             Check(budget.FamiliarDates == 0 && budget.SetupMinutes == StudioPeople.SetupMinutes(budget, false) && desk.StudioMemory(budget, artist.artistId) == null,
                 "A first meeting has no memory and the full setup");
 

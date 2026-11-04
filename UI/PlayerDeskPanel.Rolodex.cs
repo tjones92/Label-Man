@@ -16,7 +16,7 @@ public partial class PlayerDeskPanel {
 	private static readonly Dictionary<RolodexRole, Color> RoleInk = new() {
 		{ RolodexRole.Deejay, new Color("1b2a52") }, { RolodexRole.Manager, new Color("8f2a22") }, { RolodexRole.Publisher, new Color("5a2d4a") },
 		{ RolodexRole.Plant, new Color("4f5c2c") }, { RolodexRole.Distributor, new Color("2f5560") }, { RolodexRole.Dealer, new Color("8a5a1c") },
-		{ RolodexRole.Booker, new Color("42624a") }, { RolodexRole.Engineer, new Color("3d3d5c") },
+		{ RolodexRole.Booker, new Color("42624a") }, { RolodexRole.Engineer, new Color("3d3d5c") }, { RolodexRole.Press, new Color("6b3a1c") },
 	};
 
 	/// <summary>Surname first, as a real book files them.</summary>

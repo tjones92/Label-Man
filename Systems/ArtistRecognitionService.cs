@@ -63,13 +63,24 @@ public static class ArtistRecognitionService {
 		artist == null ? 0f : Mathf.Clamp(artist.publicRecognition + artist.culturalStanding * StandingLaunchWeight
 			+ BestMakerReputation(artist) * MakerStandingWeight, 0f, 1f);
 
+	/// <summary>
+	/// What a launch consumes: <see cref="EffectiveRecognition"/>, cooled by --senior-cooling once the act has gone a
+	/// year without a Top 40 (§17u). The stock itself is not touched. Exactly EffectiveRecognition when off.
+	/// </summary>
+	public static float LaunchRecognition(SimulatedArtist artist) =>
+		SeniorCooling.Enabled ? EffectiveRecognition(artist) * SeniorCooling.LaunchFactor(artist) : EffectiveRecognition(artist);
+
 	// ---- gains, with diminishing returns on every deposit --------------------------------------
 	// The anti-monopoly core: a #1 does not mint a permanent franchise. Each gain buys less the
 	// higher the stock already is, so recognition saturates rather than compounds.
+	/// <summary>Every realized act gain since the process started (print-only, for media telemetry's TV share). Not saved.</summary>
+	public static double RealizedGainTotal { get; private set; }
+
 	public static void AddPublicRecognition(SimulatedArtist artist, float rawGain) {
 		if (!ArtistRecognition.Observing || artist == null || rawGain <= 0f) return;
 		float before = artist.publicRecognition;
 		artist.publicRecognition = Mathf.Clamp(before + rawGain * (1f - before), 0f, 1f);
+		RealizedGainTotal += artist.publicRecognition - before;
 		// Phase E-lite: the act's realized gain reads down to the current lineup.
 		MusicianRecognitionService.ShareArtistRecognitionGain(artist, artist.publicRecognition - before);
 	}
@@ -97,11 +108,30 @@ public static class ArtistRecognitionService {
 	/// </summary>
 	public static void OnChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
 		if (!ArtistRecognition.Observing || artist == null || record == null) return;
-		if (record.peakPosition <= 0 || record.peakPosition > 100) return;   // never charted -> no sustain to reward
-		float sustain = 0.020f * Mathf.Clamp(record.weeksOnChart / 40f, 0f, 1f);
-		float topTen  = 0.030f * Mathf.Clamp(record.weeksInTopTen / 12f, 0f, 1f);
-		float breadth = 0.020f * Mathf.Clamp(record.regionalBreakoutCount / 6f, 0f, 1f);
+		// The raw peak unless --album-scale-career-milestones scores an album on its own chart's scale.
+		CreditChartRun(artist, AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.weeksInTopTen, record.regionalBreakoutCount);
+	}
+
+	/// <summary>The run-complete credit from its facts alone, so a pre-1960 history (OpeningCareerService) is replayed
+	/// through exactly the rule a live record pays.</summary>
+	internal static void CreditChartRun(SimulatedArtist artist, int peakPosition, int weeksOnChart, int weeksInTopTen, int regionalBreakouts) {
+		if (peakPosition <= 0 || peakPosition > 100) return;   // never charted -> no sustain to reward
+		float sustain = 0.020f * Mathf.Clamp(weeksOnChart / 40f, 0f, 1f);
+		float topTen  = 0.030f * Mathf.Clamp(weeksInTopTen / 12f, 0f, 1f);
+		float breadth = 0.020f * Mathf.Clamp(regionalBreakouts / 6f, 0f, 1f);
 		AddPublicRecognition(artist, sustain + topTen + breadth);
+	}
+
+	/// <summary>The weekly calendar decay applied <paramref name="weeks"/> times to one act and its members, for the
+	/// pre-1960 replay. Same per-week rates as <see cref="DecayRegistryForWeek"/>; touches no week guard.</summary>
+	internal static void DecayActForWeeks(SimulatedArtist artist, int weeks) {
+		if (!ArtistRecognition.Observing || artist == null) return;
+		for (int i = 0; i < weeks; i++) {
+			if (artist.publicRecognition > 0f) artist.publicRecognition *= PublicRecognitionDecay;
+			if (artist.culturalStanding > 0f) artist.culturalStanding *= CulturalStandingDecay;
+			if (artist.members != null)
+				foreach (Musician member in artist.members) DecayMemberRecognition(member);
+		}
 	}
 
 	// ---- calendar decay ------------------------------------------------------------------------
@@ -153,7 +183,7 @@ public static class ArtistRecognitionService {
 	/// </summary>
 	public static ArtistRecognitionLaunchProfile GetLaunchProfile(SimulatedArtist artist, RecordRuntimeData runtime) {
 		if (artist == null) return default;
-		float effective = EffectiveRecognition(artist);
+		float effective = LaunchRecognition(artist);
 		return new ArtistRecognitionLaunchProfile(
 			artist.publicRecognition, artist.culturalStanding, effective,
 			effective * MaxAwarenessLift,

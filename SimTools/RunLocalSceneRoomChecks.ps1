@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([string]$RunTag='scene3-fixed', [switch]$FixedOnly, [switch]$IncludeCompatibility,
     [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 # Run only within the user's authorized game test window; always serial.
 $ErrorActionPreference='Stop'
 $sceneRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))

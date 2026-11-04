@@ -33,7 +33,7 @@ public partial class PlayerDesk : Node {
 			message = $"{stop.DisplayName} isn't carrying \"{TitleForRecord(recordId)}\" yet -- place it first.";
 			return false;
 		}
-		float cost = Mathf.Round((float)GD.RandRange(WindowCardCostMin, WindowCardCostMax));
+		float cost = Mathf.Round((float)GameRandom.RandRange(WindowCardCostMin, WindowCardCostMax));
 		if (Label.cashReserves < cost) { message = $"You're ${cost - Label.cashReserves:N0} short of the ${cost:N0} print run."; return false; }
 		if (TimeManager.Instance?.CanAffordMinutes(WindowCardMinutes) != true) { message = "Not enough of the day left."; return false; }
 		PressStock stockOnHand = StockFor(recordId);

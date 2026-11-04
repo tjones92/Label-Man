@@ -95,7 +95,7 @@ public partial class PolarGospelAttributionProbe : Node {
        F(c.Fit.Capability),F(c.Fit.Identity),F(c.Fit.Moment),F(PolarSongBehavior.SelectionScore(c.Fit)),F(PolarSongBehavior.SelectionScore(c.ReferenceFit)),F(PolarSongBehavior.SelectionScore(c.LegacyTaxonomyFit)),F(PolarSongBehavior.SelectionScore(c.CenterFixedProfileFit)),F(PolarSongBehavior.SelectionScore(c.CenterResolvedFit)),F(c.Fit.ReferenceIdentityDistance),PolarSongBehavior.Refuses(c.Fit,artist,empty),
        F(act[SongAxis.Toughness]),F(act[SongAxis.Sophistication]),F(act[SongAxis.Sincerity]),F(act[SongAxis.Maturity]),F(proposal.realizedProfile[SongAxis.Toughness]),F(proposal.realizedProfile[SongAxis.Sophistication]),F(proposal.realizedProfile[SongAxis.Sincerity]),F(proposal.realizedProfile[SongAxis.Maturity])));
      }
-     using var random=new Godot.RandomNumberGenerator {Seed=CensusSeed($"{seed}:{year}:{date.month}:{artist.artistId}")};
+     using var random=new PcgRandom {Seed=CensusSeed($"{seed}:{year}:{date.month}:{artist.artistId}")};
      var prospect=new PlayerDesk.Prospect {Artist=artist};int requested=0;
      PlayerDesk.Instance.BuildLiveSet(prospect,artist,year,0,random,(want,songs)=>{requested=want;if(!songs.Select(s=>s.songId).ToHashSet().SetEquals(pool.Select(s=>s.songId)))throw new InvalidOperationException("Live set pool differs from fixed diagnostic pool");});
      int originals=prospect.LiveSet.Count(s=>s.IsOriginal);var actual=prospect.LiveSet.Where(s=>!s.IsOriginal).Select(s=>s.SongId).ToArray();

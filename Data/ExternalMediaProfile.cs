@@ -29,4 +29,7 @@ public sealed class ExternalMediaProfile {
 	public float upfrontLicenseFee;   // advance paid at acceptance; gates small labels off the big tier
 
 	public bool isBlockbuster;        // rare (0-3/decade cap); the anti-monoculture guardrail lives here
+
+	// --studio-parent-labels: the film's studio, drawn at routing. Null with the switch off and for stage casts.
+	public string studioOfOrigin;
 }

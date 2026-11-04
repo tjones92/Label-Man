@@ -85,7 +85,8 @@ public static class MemberWealthService {
 		foreach (Musician m in present) {
 			float writer = WriterIncomeSinceSnapshot(m);
 			float live = SceneLiveEconomics.MemberLiveIncome(a, m, liveHours, players, year);
-			float session = SessionEmploymentService.Pay(m.personId, year);
+			// Television scale is performer income like a session (media §5.4); zero outside causal play.
+			float session = SessionEmploymentService.Pay(m.personId, year) + MediaAtmosphereService.PerformerFeesPaid(m.personId, year);
 			float income = pay.GetValueOrDefault(m) + writer + SceneLiveEconomics.LiveSavingsShare * (live + session);
 			float spend = Mathf.Clamp(SpendBase + SpendEgo * m.ego + SpendFame * Mathf.Max(fame, Mathf.Clamp(m.personalRecognition * 4f, 0f, 1f)), 0f, 0.85f);
 			m.wealth = Mathf.Max(0f, m.wealth * (1f - spend) + income);

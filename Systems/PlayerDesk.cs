@@ -28,8 +28,8 @@ public partial class PlayerDesk : Node {
 	public const int ScheduleHours = ActionCosts.Planning;          // 2 -- booking the release
 	public const int TeachHours = ActionCosts.QuickMeeting;         // 2 -- sitting the act down to start a cover
 	public const int CommissionHours = ActionCosts.QuickMeeting;    // 2 -- putting the brief to a writer
-	public const int CommissionDeliveryDays = 7;                    // a writer turns a commission around in about a week
-	public const float CommissionFee = 150f;                        // the writer's / publisher's fee, paid on commission
+	public const int CommissionDeliveryDays = MaterialPreparationService.CommissionDeliveryDays;
+	public const float CommissionFee = MaterialPreparationService.CommissionFee;
 	public const int ArtistBuyInHours = ActionCosts.QuickMeeting;   // 2 -- sit the act down and hand off the cartons
 
 	// Inbound demand (directive §4): thresholds and pacing for "they called me." All read off real
@@ -40,7 +40,8 @@ public partial class PlayerDesk : Node {
 	private const float StrangerAwarenessThreshold = 0.22f;  // regional awareness that makes a never-visited shop plausible
 	private const float StrangerRadioThreshold = 0.15f;      // regional radioPlay that does the same
 	private const float StrangerCallChancePerWeek = 0.35f;   // even with real signal, not every week rings
-	private const int StrangerCallsPerRecordPerWeek = 1;     // keep the office list legible, not a flood
+	// Stranger calls per record per week: one, more only for a record breaking in several markets at once
+	// (StrangerCallAllowance in PlayerDesk.TradePress.cs). Keeps the office list legible until there's a real flood.
 	// A shop or op calling and getting no answer is not that out of the ordinary -- one miss barely dents
 	// it. What actually costs you is a pattern: the penalty compounds with each consecutive unanswered
 	// call at the same stop, capped so a bad month is bruising, not fatal to the account.
@@ -130,8 +131,8 @@ public partial class PlayerDesk : Node {
 	// A cover is now worked up over several days, not learned on the spot: teaching costs a short setup at the
 	// desk (TeachHours) and then the act rehearses on its own for this many days -- fewer the more capable the
 	// act, scaled by musicianship/cohesion/studio craft in EstimateCoverLearnDays.
-	public const int MinCoverLearnDays = 3;
-	public const int MaxCoverLearnDays = 14;
+	public const int MinCoverLearnDays = MaterialPreparationService.MinCoverLearnDays;
+	public const int MaxCoverLearnDays = MaterialPreparationService.MaxCoverLearnDays;
 
 	// Working a town out of the trunk is, first, the drive to get there -- one-way hours off REAL road
 	// miles at a period highway average. A far adjacent town can outrun a single day; that's the seam the
@@ -1471,7 +1472,7 @@ public partial class PlayerDesk : Node {
 		PurgeGeneratedProspects(); // let go of the last slate's unsigned discoveries
 		slate.Clear();
 		SlateDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		int target = (int)GD.RandRange(2, trade ? 3 : 4);
+		int target = (int)GameRandom.RandRange(2, trade ? 3 : 4);
 
 		// Real local unsigned acts the room would draw -- but only genres the market has an ear for, so an
 		// implausible act (Tex-Mex in the Great Lakes) never crowds the bill.
@@ -1483,7 +1484,7 @@ public partial class PlayerDesk : Node {
 		float Weight(SimulatedArtist a) => WeightOf(a) * AffinityMultiplier(affinity, a.primaryGenre);
 		var slateActs = trade
 			? realRoom.OrderByDescending(a => a.CalculateBaseQuality() * AffinityMultiplier(affinity, a.primaryGenre)
-				* (float)GD.RandRange(0.85, 1.15)).Take(target).ToList()
+				* (float)GameRandom.RandRange(0.85, 1.15)).Take(target).ToList()
 			: SampleTheRoom(realRoom, Mathf.Min(target, realRoom.Count), Weight);
 
 		// The scene never runs dry: once the AI has signed the standing pool (it signs nearly all of it),
@@ -1539,7 +1540,7 @@ public partial class PlayerDesk : Node {
 		if (!ManagerSystem.Enabled || slateActs.Count == 0) return;
 		if (slateActs.Any(act => act.manager != ManagerArchetype.None)) return;
 		SimulatedArtist pick = slateActs.OrderBy(act => VenueAdvanceAsk(act, ScoutingVenue.IndustryMeets, AskScaleFor(CurrentCityId))).First();
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		pick.manager = roll < 0.5f ? ManagerArchetype.Visionary : roll < 0.8f ? ManagerArchetype.Shark : ManagerArchetype.Svengali;
 		pick.managerName = GenerateManagerNameFor();
 	}
@@ -1573,7 +1574,7 @@ public partial class PlayerDesk : Node {
 	private static Genre PickByAffinity(List<Genre> genres, Dictionary<Genre, float> affinity) {
 		float total = 0f;
 		foreach (Genre g in genres) total += AffinityOf(affinity, g);
-		float target = total > 0f ? (float)GD.RandRange(0f, total) : 0f;
+		float target = total > 0f ? (float)GameRandom.RandRange(0f, total) : 0f;
 		foreach (Genre g in genres) { target -= AffinityOf(affinity, g); if (target <= 0f) return g; }
 		return genres[genres.Count - 1];
 	}
@@ -1589,7 +1590,7 @@ public partial class PlayerDesk : Node {
 	private SimulatedArtist GenerateLocalProspect(MarketRegion region, Genre genre, int year) {
 		ArtistManager manager = ArtistManager.Instance;
 		if (manager == null) return null;
-		ArtistType type = ScoutableTypes[(int)GD.RandRange(0, ScoutableTypes.Length - 1)];
+		ArtistType type = ScoutableTypes[(int)GameRandom.RandRange(0, ScoutableTypes.Length - 1)];
 		SimulatedArtist artist = manager.GenerateArtist(type, genre, year, region.regionName);
 		if (artist == null) return null;
 		artist.prospectMarketStatus = ProspectMarketStatus.Seeking; // otherwise the signing gate refuses it
@@ -1680,10 +1681,10 @@ public partial class PlayerDesk : Node {
 	/// song is actually cut; the covers point at real catalog songs so the recording step can pull
 	/// the composition. Only <see cref="Prospect.HeardCount"/> of this is visible before a follow-up.
 	/// </summary>
-	internal void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise, RandomNumberGenerator auditRandom = null, Action<int, List<SongComposition>> auditPool = null, bool sceneRead = false) {
+	internal void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise, PcgRandom auditRandom = null, Action<int, List<SongComposition>> auditPool = null, bool sceneRead = false) {
 		// Census-only local draws leave the population simulation's global RNG untouched.
-		double Draw(double low, double high) => auditRandom == null ? GD.RandRange(low, high) : low + (high - low) * auditRandom.Randf();
-		int DrawInt(int low, int high) => auditRandom == null ? (int)GD.RandRange(low, high) : auditRandom.RandiRange(low, high);
+		double Draw(double low, double high) => auditRandom == null ? GameRandom.RandRange(low, high) : low + (high - low) * auditRandom.Randf();
+		int DrawInt(int low, int high) => auditRandom == null ? (int)GameRandom.RandRange(low, high) : auditRandom.RandiRange(low, high);
 		float Read(float truth) => Mathf.Clamp(truth + (float)Draw(-readNoise, readNoise), 0f, 1f);
 
 		// How many of their own the act carries scales with their writing.
@@ -1936,7 +1937,7 @@ public partial class PlayerDesk : Node {
 		while (heard.Count < count && remaining.Count > 0) {
 			float total = weights.Sum();
 			// Every act in the room is a floor away from zero, so a degenerate pool still draws.
-			float target = total > 0f ? (float)GD.RandRange(0f, total) : 0f;
+			float target = total > 0f ? (float)GameRandom.RandRange(0f, total) : 0f;
 			int index = remaining.Count - 1;
 			for (int i = 0; i < remaining.Count; i++) {
 				target -= weights[i];
@@ -2219,7 +2220,7 @@ public partial class PlayerDesk : Node {
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		float creativity = artist.members.Count > 0 ? artist.members.Max(member => member.creativity) : 0.4f;
 
-		int written = GD.Randf() < 0.35f ? 2 : 1;
+		int written = GameRandom.Randf() < 0.35f ? 2 : 1;
 		var titles = new List<string>();
 		for (int index = 0; index < written; index++) {
 			var song = new Song {
@@ -2227,9 +2228,9 @@ public partial class PlayerDesk : Node {
 				ArtistId = artist.artistId,
 				Genre = artist.primaryGenre,
 				Written = today,
-				Hook = Mathf.Clamp(artist.songwritingAbility * 0.7f + (float)GD.RandRange(-0.18, 0.28), 0f, 1f),
-				Originality = Mathf.Clamp(creativity * 0.7f + (float)GD.RandRange(0f, 0.3f), 0f, 1f),
-				Danceability = (float)GD.RandRange(0.3, 0.95)
+				Hook = Mathf.Clamp(artist.songwritingAbility * 0.7f + (float)GameRandom.RandRange(-0.18, 0.28), 0f, 1f),
+				Originality = Mathf.Clamp(creativity * 0.7f + (float)GameRandom.RandRange(0f, 0.3f), 0f, 1f),
+				Danceability = (float)GameRandom.RandRange(0.3, 0.95)
 			};
 			song.Title = NameGenerator.Instance?.GenerateSongTitle(song.Genre, year, artist.artistId)
 				?? $"Untitled {counter}";
@@ -2331,20 +2332,15 @@ public partial class PlayerDesk : Node {
 	/// <summary>How many days this act would take to work a new cover into their set: fewer the more capable
 	/// they are (musicianship / group cohesion / studio craft), between <see cref="MinCoverLearnDays"/> and
 	/// <see cref="MaxCoverLearnDays"/>.</summary>
-	public int EstimateCoverLearnDays(SimulatedArtist artist) {
-		if (artist == null) return MaxCoverLearnDays;
-		float ability = Mathf.Clamp(
-			artist.musicianship * 0.45f + artist.groupCohesion * 0.30f + artist.studioPerformance * 0.25f, 0f, 1f);
-		return Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(MaxCoverLearnDays, MinCoverLearnDays, ability)),
-			MinCoverLearnDays, MaxCoverLearnDays);
-	}
+	public int EstimateCoverLearnDays(SimulatedArtist artist) => MaterialPreparationService.CoverLearnDays(artist);
 
 	/// <summary>Whether this act already has a cover in rehearsal (only one at a time). Commissions are a
 	/// separate track, so a commission in flight does not close the cover catalog and vice versa.</summary>
 	public bool IsRehearsing(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && !r.IsCommission);
 
 	/// <summary>Whether this act already has a commission out with a writer (only one at a time).</summary>
-	public bool IsCommissioning(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && r.IsCommission);
+	public bool IsCommissioning(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && r.IsCommission) ||
+		ProfessionalWritingMarket.State?.Orders.Any(o => o.ArtistId == artistId && o.Status == WritingOrderStatus.Pending) == true;
 
 	/// <summary>Covers and commissions this act is currently working up / awaiting (not yet in the set).</summary>
 	public IEnumerable<CoverRehearsal> RehearsalsFor(string artistId) =>
@@ -2357,6 +2353,7 @@ public partial class PlayerDesk : Node {
 	/// what they are cutting before the studio. One commission out at a time per act.
 	/// </summary>
 	public bool CommissionSong(SimulatedArtist artist, out string message) {
+		if (ProfessionalWritingMarket.Enabled) return CommissionProfessionalSong(artist, null, out message);
 		message = "";
 		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		if (!RequireHome(out message)) return false;
@@ -2394,7 +2391,7 @@ public partial class PlayerDesk : Node {
 		if (PolarSongBehavior.UsePolarFitSelection) return PolarSongBehavior.SuitableSongs(pool, artist, year).FirstOrDefault();
 		var top = pool.OrderByDescending(s => s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f)
 			.Take(Mathf.Min(8, pool.Count)).ToList();
-		return top[(int)(GD.Randf() * top.Count) % top.Count];
+		return top[(int)(GameRandom.Randf() * top.Count) % top.Count];
 	}
 
 	/// <summary>
@@ -2440,6 +2437,7 @@ public partial class PlayerDesk : Node {
 	/// <summary>Lands any cover whose rehearsal has come due into the act's set. Runs daily, so a cover finishes
 	/// on its own even while the player is away.</summary>
 	private void ProcessCoverRehearsals(GameDate date) {
+		ProcessProfessionalWritingDeliveries(date);
 		foreach (CoverRehearsal r in rehearsals.Where(entry => entry.ReadyDate <= date).ToList()) {
 			rehearsals.Remove(r);
 			// If the act already picked it up somehow, don't double-add.
@@ -2609,8 +2607,8 @@ public partial class PlayerDesk : Node {
 			: Mathf.Clamp(artist.studioPerformance * 0.5f + artist.livePerformance * 0.2f + 0.15f, 0f, 1f);
 		// Tension widens each draw about its own centre, so the mean take is unchanged and the count of draws
 		// is the same: the room is erratic, not worse on average.
-		float hookNoise = (float)GD.RandRange(-0.10, 0.14);
-		float prodNoise = (float)GD.RandRange(-0.08, 0.10);
+		float hookNoise = (float)GameRandom.RandRange(-0.10, 0.14);
+		float prodNoise = (float)GameRandom.RandRange(-0.08, 0.10);
 		if (tension > 0f) {
 			hookNoise = 0.02f + (hookNoise - 0.02f) * (1f + tension);
 			prodNoise = 0.01f + (prodNoise - 0.01f) * (1f + tension);
@@ -2698,12 +2696,12 @@ public partial class PlayerDesk : Node {
 			isPlayerOwned = true,
 			primaryGenre = artist.primaryGenre,
 			secondaryGenre = artist.secondaryGenre,
-			controversy = (float)GD.RandRange(0f, 0.2f),
+			controversy = (float)GameRandom.RandRange(0f, 0.2f),
 			hookStrength = take.Hook,
 			productionQuality = take.Production,
 			originality = choice.WrittenSong != null ? choice.WrittenSong.Originality
 				: Mathf.Clamp((artist.members.Count > 0 ? artist.members[0].creativity : 0.4f) * 0.6f + 0.2f, 0f, 1f),
-			danceability = choice.WrittenSong != null ? choice.WrittenSong.Danceability : (float)GD.RandRange(0.3, 0.95)
+			danceability = choice.WrittenSong != null ? choice.WrittenSong.Danceability : (float)GameRandom.RandRange(0.3, 0.95)
 		};
 
 		// Stamp the song identity and blend the take toward the material (same path as the AI). A Band Room
@@ -2712,6 +2710,9 @@ public partial class PlayerDesk : Node {
 		SelectedSongMaterial material;
 		try { material = ResolveMaterial(choice, artist, record, year, week); }
 		finally { pendingTeamForCut = null; }
+		if (ProfessionalWritingMarket.Enabled && material == null && choice.Kind is MaterialKind.Commission or MaterialKind.LiveCover) {
+			Note($"Could not print \"{choice.Title}\": recording access is no longer available."); return false;
+		}
 		if (material?.Song != null) {
 			PolarSongBehavior.Prepare(material, artist, record, record.primaryGenre, year, Label,
 				new PolarSessionContext { producerCraft = Label.productionQuality, studioCraft = take.Production });
@@ -2943,10 +2944,10 @@ public partial class PlayerDesk : Node {
 	}
 
 	private PressOrder CreatePressOrder(string recordId, int quantity, int promoQuantity, float cost, GameDate today) {
-		int mail = (int)GD.RandRange(PressMailDaysMin, PressMailDaysMax);
-		int plating = (int)GD.RandRange(PressPlatingDaysMin, PressPlatingDaysMax);
-		int queue = (int)GD.RandRange(PressQueueDaysMin, PressQueueDaysMax);
-		int ship = (int)GD.RandRange(PressShipDaysMin, PressShipDaysMax);
+		int mail = (int)GameRandom.RandRange(PressMailDaysMin, PressMailDaysMax);
+		int plating = (int)GameRandom.RandRange(PressPlatingDaysMin, PressPlatingDaysMax);
+		int queue = (int)GameRandom.RandRange(PressQueueDaysMin, PressQueueDaysMax);
+		int ship = (int)GameRandom.RandRange(PressShipDaysMin, PressShipDaysMax);
 		// Plants back up when the whole market is pressing hard -- the holiday build-up. The seasonal
 		// single-demand multiplier stands in for how deep the plant's queue is that month.
 		float backlog = MarketSeasonality.Enabled
@@ -3144,7 +3145,7 @@ public partial class PlayerDesk : Node {
 		// makes of THIS record across the counter (the same appeal term the shelf actually sells on), on
 		// top of what the relationship has earned. A great record at a bold dealer is a box; a dud at a
 		// timid one is a courtesy two, and they are different numbers for the first time.
-		float jitter = Mathf.Lerp(0.85f, 1.15f, GD.Randf());
+		float jitter = Mathf.Lerp(0.85f, 1.15f, GameRandom.Randf());
 		float nerve = Mathf.Lerp(NerveMin, NerveMax, stop.BuyerNerve);
 		float ear = EarForRecord(stop, recordId);
 		if (stop.Kind == StopKind.Op) {
@@ -3230,7 +3231,7 @@ public partial class PlayerDesk : Node {
 	/// "dealing with one record shop in your hometown."</summary>
 	private static int StopVisitHours(StopKind kind) {
 		int baseHours = EstimatedStopHours(kind);
-		float roll = GD.Randf();
+		float roll = GameRandom.Randf();
 		if (roll < 0.15f) return Mathf.Max(1, baseHours - 1);
 		if (roll > 0.80f) return baseHours + 1;
 		return baseHours;
@@ -3341,7 +3342,7 @@ public partial class PlayerDesk : Node {
 			0.03f, 0.97f);
 		// A pre-order is a shop that already asked for it: no cold-counter roll, and at least what it asked for.
 		int preOrder = PreOrderQty(stop, recordId);
-		if (untried && preOrder == 0 && GD.Randf() > acceptChance) {
+		if (untried && preOrder == 0 && GameRandom.Randf() > acceptChance) {
 			TouchStop(stop, 0.02f); // a passed call still counts as an introduction
 			stop.PassedRecordIds.Add(recordId); // sticks until GenerateInboundCalls clears it on real evidence
 			// A market that isn't open to the sound at all yet (directive §10) reads differently than an
@@ -3908,7 +3909,7 @@ public partial class PlayerDesk : Node {
 		foreach (RecordRuntimeData rec in ReleasedRecords) {
 			if (rec?.baseRecord == null) continue;
 			string recordId = rec.baseRecord.recordId;
-			int strangerCallsThisRecord = 0;
+			int strangerCallsThisRecord = 0, strangerAllowance = StrangerCallAllowance(recordId);
 
 			foreach (var pair in rec.regionalData) {
 				string regionId = pair.Key;
@@ -3934,7 +3935,7 @@ public partial class PlayerDesk : Node {
 				// "Never carried" rather than "never visited" so a stop that passed on this one COD (§3.3
 				// addendum: a pass sticks) is exactly as reachable here as a true never-visited shop once
 				// the record earns real evidence -- this call is the "potential success" that reopens it.
-				if (strangerCallsThisRecord < StrangerCallsPerRecordPerWeek) {
+				if (strangerCallsThisRecord < strangerAllowance) {
 					bool strangerSignal = rd.awareness >= StrangerAwarenessThreshold || rd.radioPlay >= StrangerRadioThreshold;
 					if (strangerSignal) {
 						// Venue excluded alongside OneStop: it keeps no OnHand history to be "untried" against,
@@ -3945,8 +3946,8 @@ public partial class PlayerDesk : Node {
 							&& IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId)).ToList();
 						// Promo mechanic directive §6.1/§6.3: a live trade pick or breakout listing is the
 						// loudest inbound generator in the game -- it multiplies this roll, never units directly.
-						if (strangers.Count > 0 && GD.Randf() < Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) {
-							PlayerStop pick = strangers[GD.RandRange(0, strangers.Count - 1)];
+						if (strangers.Count > 0 && GameRandom.Randf() < Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) {
+							PlayerStop pick = strangers[GameRandom.RandRange(0, strangers.Count - 1)];
 							InboundCallReason reason = rd.radioPlay >= StrangerRadioThreshold ? InboundCallReason.StationAdded : InboundCallReason.Requests;
 							AddCall(pick, recordId, SuggestedPlacement(pick, recordId), reason, week, consignment: true);
 							strangerCallsThisRecord++;
@@ -3964,7 +3965,7 @@ public partial class PlayerDesk : Node {
 						bool servedByKnownAccount = allStops.Values.Any(s => s.CityId == oneStop.CityId && s.Kind != StopKind.OneStop
 							&& s.Relationship >= OneStopServedRelationshipFloor
 							&& s.OnHand.TryGetValue(recordId, out ConsignmentLot ownLot) && ownLot.Placed > 0);
-						if (!servedByKnownAccount || GD.Randf() >= Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) continue;
+						if (!servedByKnownAccount || GameRandom.Randf() >= Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) continue;
 						AddCall(oneStop, recordId, OneStopCartonDefaultQty, InboundCallReason.OneStopTest, week, consignment: false);
 					}
 				}
@@ -4255,7 +4256,7 @@ public partial class PlayerDesk : Node {
 			bool untried = IsUntriedAt(stop, recordId);
 			if (untried) {
 				float acceptChance = Mathf.Clamp(RunnerAcceptBase + familiarity * RunnerAcceptSlope, 0.08f, 0.9f);
-				if (GD.Randf() > acceptChance) {
+				if (GameRandom.Randf() > acceptChance) {
 					stop.PassedRecordIds.Add(recordId);
 					Note($"Your runner struck out with {stop.DisplayName} in {CityName(stop.CityId)} on \"{TitleForRecord(recordId)}\".");
 					continue;
@@ -4312,7 +4313,7 @@ public partial class PlayerDesk : Node {
 		if (!Require(ProjectPromoHours, out message)) return false;
 
 		int stationCount = Mathf.Min(ProjectPromoStationCount(tier), reporters.Count);
-		string[] picks = reporters.OrderBy(_ => GD.Randf()).Take(stationCount).Select(s => s.stationId).ToArray();
+		string[] picks = reporters.OrderBy(_ => GameRandom.Randf()).Take(stationCount).Select(s => s.stationId).ToArray();
 
 		Spend(ProjectPromoHours);
 		Label.cashReserves -= cost;
@@ -4764,6 +4765,8 @@ public partial class PlayerDesk : Node {
 		ResolvePendingMailings();
 		ScanForCoversOfOwnSongs();
 		CheckBreakoutHeadlines();
+		// Producers answer pitches, aired dates are reported, reporters' deadlines pass (media directive Phase 2).
+		MediaAtmosphereService.PlayerDay(this, date);
 		GatherTradeNews();
 		// Last, so the paper also carries what the morning itself turned up (a pressing arriving, a record
 		// going out, a market breaking) instead of holding it back a day.
@@ -4925,7 +4928,7 @@ public partial class PlayerDesk : Node {
 				// local pull so real airplay converts into a standing trickle instead of decaying to zero.
 				float decay = Mathf.Max(buzz * TrunkBuzzDecayFloor,
 					Mathf.Pow(TrunkDecayPerDay, lot.DaysSinceRestock));
-				float luck = (float)GD.RandRange(0.55, 1.45);
+				float luck = (float)GameRandom.RandRange(0.55, 1.45);
 				// The day's move is fractional and it is KEPT (see ConsignmentLot.SellThroughCarry). Rounding
 				// it each day silently discarded every sub-half-copy expectation, which is what a shop-sized
 				// lot always is -- a 4-copy lot of a #1 record moved 0.24 a day and therefore never sold one
@@ -5251,9 +5254,9 @@ public partial class PlayerDesk : Node {
 
 			float flipPressure = FlipHookWeight * hookDelta + FlipStallWeight * stallTerm
 				+ FlipReachWeight * reachTerm + FlipGenreFitWeight * genreFitDelta + workedFlipBoost;
-			if (GD.Randf() >= Mathf.Clamp(flipPressure, 0f, 1f) * FlipWeeklyChanceCap) continue; // nothing -- the overwhelming default
+			if (GameRandom.Randf() >= Mathf.Clamp(flipPressure, 0f, 1f) * FlipWeeklyChanceCap) continue; // nothing -- the overwhelming default
 
-			if (GD.Randf() < FlipSplitActionShare) ApplySplitAction(r); else ReverseSides(r);
+			if (GameRandom.Randf() < FlipSplitActionShare) ApplySplitAction(r); else ReverseSides(r);
 			flipResolvedRecordIds.Add(recordId);
 			ForgetFlipAdvocacy(recordId, reporterStations);
 			Changed?.Invoke();
@@ -5823,7 +5826,10 @@ public partial class PlayerDesk : Node {
 		message = null;
 		if (pendingDistributionOffer == null) { message = "No offer on the table."; return false; }
 		DistributionDeal offer = pendingDistributionOffer;
-		CompetitorManager.Instance?.SignDistributionDeal(Label, offer);
+		if (CompetitorManager.Instance?.SignDistributionDeal(Label, offer) != true) {
+			message = "This offer can no longer be funded. You can decline it and seek a new offer.";
+			return false;
+		}
 		string distributorName = CompetitorManager.Instance?.GetLabel(offer.distributorId)?.labelName ?? "the distributor";
 		pendingDistributionOffer = null;
 		Note($"Signed with {distributorName} -- {offer.termWeeks}-week P&D deal.");

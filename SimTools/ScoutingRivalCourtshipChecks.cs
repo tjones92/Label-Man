@@ -103,9 +103,9 @@ public static class ScoutingRivalCourtshipChecks {
         bidder = ScoutingCredibleOffersChecks.OpenRival(act);
         clock.RestoreClock(LocalSceneRoomService.Date(heardDay + 1), 9);
         string worldBefore = Json(WorldStateService.Capture());
-        GD.Seed(941); uint draw = GD.Randi(); GD.Seed(941);
+        GameRandom.Seed(941); uint draw = GameRandom.Randi(); GameRandom.Seed(941);
         var court = desk.StartCourtshipForCheck(act, bidder, RivalCourtshipOrigin.Crowding);
-        Check(GD.Randi() == draw && Json(WorldStateService.Capture()) == worldBefore, "starting a courtship draws nothing and writes no world state");
+        Check(GameRandom.Randi() == draw && Json(WorldStateService.Capture()) == worldBefore, "starting a courtship draws nothing and writes no world state");
         Check(court.Stage == RivalCourtshipStage.Inquiry && court.NextDay >= Today() + 2 && court.NextDay <= Today() + 4 && desk.RivalInterestLine(id) == null,
             "an inquiry is a man listening at the back: nobody tells the player yet");
         // The booker of the room it happened in tells the player the next time the player is there.
@@ -129,9 +129,9 @@ public static class ScoutingRivalCourtshipChecks {
         court = desk.RivalCourtships.Single(c => c.ArtistId == id);
         bool fades = PlayerDesk.StableUnitForCheck($"{seed}|{court.Id}|fade") < PlayerDesk.RivalInterestFadeShare;
         clock.RestoreClock(LocalSceneRoomService.Date(court.NextDay), 6);
-        GD.Seed(942); draw = GD.Randi(); GD.Seed(942);
+        GameRandom.Seed(942); draw = GameRandom.Randi(); GameRandom.Seed(942);
         desk.AdvanceRivalCourtshipsForCheck();
-        Check(GD.Randi() == draw, "moving a courtship on draws nothing");
+        Check(GameRandom.Randi() == draw, "moving a courtship on draws nothing");
         court = desk.RivalCourtships.Single(c => c.ArtistId == id);
         Check(fades ? court.Stage == RivalCourtshipStage.Faded && court.EndReason.Contains("passed") : court.Stage == RivalCourtshipStage.Meeting && court.MeetingDay == Today(),
             $"interest can end: the stable hash decides ({(fades ? "faded" : "met")})");

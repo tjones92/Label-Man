@@ -117,7 +117,7 @@ public static class FolkEasyListeningChecks {
    foreach(int year in new[]{1960,1961,1962,1963}) {
     TimeManager.Instance.RestoreClock(new GameDate(year,1,1),hour,minute);
     foreach(var act in population) {
-     using var random=new RandomNumberGenerator {Seed=RepertoireTaxonomy.Hash($"{SimulationSeedBootstrap.RequestedSeed}:{year}:{act.artistId}")};
+     using var random=new PcgRandom {Seed=RepertoireTaxonomy.Hash($"{SimulationSeedBootstrap.RequestedSeed}:{year}:{act.artistId}")};
      var prospect=new PlayerDesk.Prospect {Artist=act};var mix=LiveRepertoire.SetMix(act,year);
      PlayerDesk.Instance.BuildLiveSet(prospect,act,year,0,random);
      Check(prospect.LiveSet.Count>=3&&prospect.LiveSet.Count<=5,"Fresh-world real-fit sets fill");

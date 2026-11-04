@@ -94,11 +94,11 @@ public static class ScoutingComparisonChecks {
         Check(desk.RestoreState(save, out message), "restore controlled acquired context fixture");
         string world = Json(WorldStateService.Capture()), knowledge = Json(desk.CaptureState().ScoutingKnowledge);
         int hour = clock.CurrentHour, minute = clock.CurrentMinute; float cash = desk.Label.cashReserves;
-        GD.Seed(155); uint next = GD.Randi(); GD.Seed(155);
+        GameRandom.Seed(155); uint next = GameRandom.Randi(); GameRandom.Seed(155);
         var summary = desk.ScoutingSummary(source.ArtistId).ToArray(); desk.ScoutingProvenance(source.ArtistId);
         Check(summary.Single(l => l.StartsWith("Consistency:")).Contains("broadly similar impressions"), "ordinary notebook uses same pair, not all-set range");
         Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState().ScoutingKnowledge) == knowledge &&
-            GD.Randi() == next && hour == clock.CurrentHour && minute == clock.CurrentMinute && cash == desk.Label.cashReserves,
+            GameRandom.Randi() == next && hour == clock.CurrentHour && minute == clock.CurrentMinute && cash == desk.Label.cashReserves,
             "comparison, summary and provenance preserve world, knowledge, RNG, time and money");
         var serialized = JsonSerializer.Deserialize<PlayerSaveData>(Json(desk.CaptureState()), SaveGameService.TestJsonOptions);
         Check(desk.RestoreState(serialized, out _) && desk.ScoutingSummary(source.ArtistId).SequenceEqual(summary), "serialized dossier reproduces exact comparison");

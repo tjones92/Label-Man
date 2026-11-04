@@ -68,7 +68,7 @@ public partial class ChartAuditRunner {
    else if(easySoundtrackCensus)LiveRepertoire.AuditEasySoundtracks=false;
    else LiveRepertoire.AuditGenreRepair=false;
    SongMaterialSelectionService.ObserveLiveSource=null;
-   using var random=new Godot.RandomNumberGenerator {Seed=CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}")};
+   using var random=new PcgRandom {Seed=CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}")};
    var set=new PlayerDesk.Prospect {Artist=artist};PlayerDesk.Instance.BuildLiveSet(set,artist,date.year,0,random);
    for(int i=0;i<set.LiveSet.Count;i++) {
     var item=set.LiveSet[i];var song=CompositionCatalogService.GetSong(item.SongId);

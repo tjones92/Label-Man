@@ -48,9 +48,9 @@ public static class SceneInformationChecks {
         Check(Tip(Array.Empty<string>(),new[] {"one","two"}) == null, "cancelled performance cannot produce a tip");
         bill.Status=SceneBillStatus.Scheduled; bill.Appearances[0].Status=SceneBillStatus.Cancelled;
         Check(Tip(Array.Empty<string>(),new[] {"one","two"}) == null, "cancelled act cannot produce a tip");
-        string before=Json(WorldStateService.Capture()); GD.Seed(42); uint draw=GD.Randi(); GD.Seed(42);
+        string before=Json(WorldStateService.Capture()); GameRandom.Seed(42); uint draw=GameRandom.Randi(); GameRandom.Seed(42);
         for(int i=0;i<3;i++) { News(77); Tip(Array.Empty<string>(),new[] {"one","two"}); }
-        Check(GD.Randi()==draw && before==Json(WorldStateService.Capture()), "information reads preserve world and global RNG");
+        Check(GameRandom.Randi()==draw && before==Json(WorldStateService.Capture()), "information reads preserve world and global RNG");
         var desk=PlayerDesk.Instance;
         Check(desk.FoundLabel("Information Checks", "nashville",out string message), "player fixture: " + message);
         var save=desk.CaptureState();

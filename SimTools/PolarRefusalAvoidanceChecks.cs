@@ -25,10 +25,10 @@ public static class PolarRefusalAvoidanceChecks {
   SongMaterialSelectionService.OnRefusalAvoidance+=Observe;
   try {
    PolarSongBehavior.UsePolarFitSelection=true;
-   GD.Seed(1001);uint next=GD.Randi();GD.Seed(1001);
+   GameRandom.Seed(1001);uint next=GameRandom.Randi();GameRandom.Seed(1001);
    var slots=SongMaterialSelectionService.SelectLiveCovers(new[]{refused},artist,1960,1);
    if(slots.Count!=0||excluded!=1||unfilled!=1)throw new Exception("All-refused pool must be empty and reported");
-   if(GD.Randi()!=next)throw new Exception("Avoidance touched global RNG");
+   if(GameRandom.Randi()!=next)throw new Exception("Avoidance touched global RNG");
    foreach(var row in PolarSongTable.Current.Archetypes){var song=new SongComposition {songId="accepted-fixture",primaryGenre=artist.primaryGenre,plasticity=1,plasticityFrozen=true,demoTaxonomy=new SongTaxonomy{primaryGenre=artist.primaryGenre,archetype=Enum.Parse<SongArchetype>(row.Name)}};
     var key=new Record{recordId=$"live:{artist.artistId}:1960:{song.songId}",primaryGenre=artist.primaryGenre};
     var material=SongMaterialSelectionService.BuildCoverForSong(artist,key,song,artist.primaryGenre,1960);

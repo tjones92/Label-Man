@@ -133,7 +133,7 @@ public partial class NameGenerator : Node {
 		// Callers must gate on IsReady() rather than relying on this fallback: it is the one
 		// path in the act-naming family that touches the global stream, and ArtistManager's
 		// population path cannot afford a draw from it.
-		if (_engine == null) return $"Artist {GD.Randi()}";
+		if (_engine == null) return $"Artist {GameRandom.Randi()}";
 		var ctx = MakeContext(genre, year, artistType, _actRng);
 		ctx.RegionId = regionId;
 		if (labelStyle.HasValue) ctx.LabelArchetype = labelStyle.Value.ToString();
@@ -327,7 +327,7 @@ public partial class NameGenerator : Node {
 	/// </para>
 	/// </param>
 	public string GenerateSongTitle(Genre genre, int year, string artistKey = null) {
-		if (_engine == null) return $"Untitled {GD.Randi()}";
+		if (_engine == null) return $"Untitled {GameRandom.Randi()}";
 		var ctx = MakeContext(genre, year, ArtistType.Unknown);
 		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
 		string bucket = "song|" + (artistKey ?? "");

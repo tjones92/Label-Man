@@ -805,7 +805,10 @@ public partial class PlayerDesk {
 			case BandVerb.SpotlightThem: {
 				string old = a.stageName;
 				a.stageName = $"{m.firstName} {m.lastName} & {AndThe(a)}";
-				m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.01f, 0f, 1f);
+				// With media member fame on, the billing promises the camera and the fame arrives when an audience sees it
+				// (SimTools/CelebrityFanbaseDesign.md §5); otherwise the office mints it, as before.
+				if (!MediaAtmosphereService.PromiseCamera(a, m, billing: true, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate))
+					m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.01f, 0f, 1f);
 				AddTrust(m, 0.12f);
 				OthersSpotlight(m, 0.10f);
 				a.careerEvents.Add($"{year}: Billed as {a.stageName} (was {old})");
@@ -955,7 +958,8 @@ public partial class PlayerDesk {
 				after.Add("You hold them. The band notice.");
 				break;
 			case BandVerb.SoloSingleYes:
-				m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.008f, 0f, 1f);
+				if (!MediaAtmosphereService.PromiseCamera(a, m, billing: false, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate))
+					m.personalRecognition = Mathf.Clamp(m.personalRecognition + 0.008f, 0f, 1f);
 				AddTrust(m, 0.12f);
 				OthersSpotlight(m, 0.06f);
 				after.Add($"{m.firstName} gets {(m.isMale ? "his" : "her")} side. The others get a reason to watch {(m.isMale ? "him" : "her")}.");
@@ -1019,13 +1023,20 @@ public partial class PlayerDesk {
 			message = "The act already has a relocation arranged."; return false;
 		}
 		RoadBooking b = BookingFor(a);
+		// A taped series takes its diary weeks out of the road year (CelebrityFanbaseDesign.md §3.3.2).
+		int diary = MediaAtmosphereService.PlayerDiaryWeeks(a.artistId, YearNow);
+		if (diary > 0 && b.ResidencyWeeks + b.TourWeeks + residencyWeeks + tourWeeks > MediaResidencies.RoadWeeksPerYear - diary) {
+			int left = Math.Max(0, MediaResidencies.RoadWeeksPerYear - diary - b.ResidencyWeeks - b.TourWeeks);
+			message = $"The television series takes {diary} weeks of {a.stageName}'s year. There's room for {left} more on the road.";
+			return false;
+		}
 		SceneRoomProfile room = null;
 		if (residencyWeeks > 0 && b.ResidencyRoomId == null) {
 			if (!ResidencyRoom(a, b, out room, out message)) return false;
 			if (!Require(BookerPitchHours, out message)) return false;
 			Spend(BookerPitchHours);
 			int shows = LocalSceneRoomService.ShowsAt(room.Id, a.artistId);
-			if (GD.Randf() >= Mathf.Max(0.05f, BookerAcceptChance(a, shows) - BackerRoomPenalty(room.Id)) * ResidencyAskFactor) {
+			if (GameRandom.Randf() >= Mathf.Max(0.05f, BookerAcceptChance(a, shows) - BackerRoomPenalty(room.Id)) * ResidencyAskFactor) {
 				b.ResidencyRefusedRoomId = room.Id; b.ResidencyRefusedDay = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate); b.ResidencyRefusedShows = shows;
 				message = $"{room.ContactName} likes {a.stageName} fine for a night, but won't give them a standing run at {room.Name}.";
 				Note(message);
@@ -1094,10 +1105,29 @@ public partial class PlayerDesk {
 	/// <summary>The road load BandLifeService reads for a player act: what the player actually booked.</summary>
 	private float PlayerRoadLoadFor(SimulatedArtist a) {
 		if (a == null || Label == null || a.labelId != Label.labelId) return -1f;
-		if (!roadBookings.TryGetValue(a.artistId, out RoadBooking b) || b.Year != BandLifeService.LastAnnualYear + 1) return 0.10f;
+		int year = BandLifeService.LastAnnualYear + 1;
+		// Taping a series is work too, at a club week's rate (§3.3.2).
+		float tv = MediaResidencies.DiaryLoadPerWeek * MediaAtmosphereService.PlayerDiaryWeeks(a.artistId, year);
+		if (!roadBookings.TryGetValue(a.artistId, out RoadBooking b) || b.Year != year) return Mathf.Clamp(0.10f + tv, 0f, 0.95f);
 		float load = 0.10f + 0.015f * b.ResidencyWeeks + 0.022f * b.TourWeeks;
 		if (b.TimeOffUntilWeek >= 0) load *= 0.6f;
-		return Mathf.Clamp(load, 0f, 0.95f);
+		return Mathf.Clamp(load + tv, 0f, 0.95f);
+	}
+
+	/// <summary>
+	/// A series signed for this act (§3.3.2): cancel this year's tour weeks past what its diary leaves, and say how many.
+	/// Club runs already on a room's bill stand; the act carries both.
+	/// </summary>
+	internal int TrimRoadForTelevision(SimulatedArtist a) {
+		if (a == null || !roadBookings.TryGetValue(a.artistId, out RoadBooking b) || b.Year != YearNow) return 0;
+		int over = b.ResidencyWeeks + b.TourWeeks - (MediaResidencies.RoadWeeksPerYear - MediaAtmosphereService.PlayerDiaryWeeks(a.artistId, YearNow));
+		int cut = Mathf.Clamp(over, 0, b.TourWeeks);
+		if (cut == 0) return 0;
+		b.TourWeeks -= cut;
+		b.WeeksRemaining = Math.Max(0, b.WeeksRemaining - cut);
+		Note($"Cancelled {cut} weeks of {a.stageName}'s touring to make room for the television series.");
+		Changed?.Invoke();
+		return cut;
 	}
 
 	private void RunRoadBookings(GameDate date, int week) {
@@ -1213,6 +1243,10 @@ public partial class PlayerDesk {
 	/// Repeated sessions are what make a pair eligible for a pact (the co-credits accrue when the song is cut).
 	/// </summary>
 	public bool BookWritingSession(SimulatedArtist a, Musician first, Musician second, bool withStaffWriter, out string message) {
+		if (ProfessionalWritingMarket.Enabled && withStaffWriter) {
+			if (first == null) { message = "Pick a member to write with the professional supplier."; return false; }
+			return CommissionProfessionalSong(a, null, out message, first.personId);
+		}
 		message = "";
 		if (a == null || first == null || a.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		if (!RequireHome(out message)) return false;

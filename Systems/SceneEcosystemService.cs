@@ -100,6 +100,16 @@ public static class SceneEcosystemService {
     // Prevent bookings at the old base after departure, including calendars made before arrival.
     public static bool AvailableAt(string artistId, string placeId, int day) =>
         state?.Moves.Any(m => m.ArtistId == artistId && m.Status == SceneMoveStatus.Planned && day >= m.DepartureDay) != true;
+    /// <summary>Each artist's earliest planned departure day: <c>AvailableAt(a, _, day)</c> is false exactly when
+    /// <c>day &gt;= PlannedDepartures()[a]</c>. A snapshot for callers that ask per act per day while moves stand still.</summary>
+    internal static Dictionary<string, int> PlannedDepartures() {
+        var departures = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (state == null) return departures;
+        foreach (var m in state.Moves)
+            if (m.Status == SceneMoveStatus.Planned && m.ArtistId != null)
+                departures[m.ArtistId] = departures.TryGetValue(m.ArtistId, out int day) ? Math.Min(day, m.DepartureDay) : m.DepartureDay;
+        return departures;
+    }
     public static void Advance(GameDate date) {
         if (!LocalScenes.Institutions || restoring) return;
         if (LocalScenes.AiInvestment) InvestForAi(date);

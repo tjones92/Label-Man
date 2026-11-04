@@ -1,0 +1,118 @@
+"""Check that historical review cannot mix units, configurations or repeated seeds."""
+import copy
+import tempfile
+import unittest
+from pathlib import Path
+
+import pandas as pd
+
+from analyze_label_tier_historical_benchmarks import analyze, review
+
+
+class HistoricalConcentrationReviewTests(unittest.TestCase):
+    def sample(self, values=((20, 40), (30, 50), (40, 60))):
+        runs, results = [], []
+        for seed, (cr4, cr8) in enumerate(values, 1):
+            name = f"sample-{seed}"
+            runs.append({"prefix": f"SimLogs/{name}", "annual": {1960: {
+                "chartWeeks": 52, "top10Slots": 520,
+                "cr4Top10SlotsPct": cr4, "cr8Top10SlotsPct": cr8}}})
+            results.append({"name": name, "passed": True, "exitCode": 0,
+                            "args": ["--weeks=52", "--calibration", f"--seed={seed}", f"--run={name}"]})
+        return runs, {"assemblySha256": "fixture-assembly", "results": results}
+
+    def test_outlier_seeds_do_not_replace_the_multi_seed_mean(self):
+        runs, manifest = self.sample()
+        result = review(runs, manifest)
+        self.assertEqual(result["status"], "WITHIN_BANDS")
+        self.assertEqual(result["metrics"]["cr4Top10SlotsPct"]["meanPct"], 30)
+        self.assertEqual(result["metrics"]["cr8Top10SlotsPct"]["meanPct"], 50)
+
+    def test_inclusive_boundaries_and_advisory_departures(self):
+        runs, manifest = self.sample(((30, 58),) * 3)
+        self.assertEqual(review(runs, manifest)["status"], "WITHIN_BANDS")
+        for run in runs:
+            run["annual"][1960]["cr4Top10SlotsPct"] = 40.5
+        result = review(runs, manifest)
+        self.assertEqual(result["status"], "REVIEW")
+        self.assertTrue(result["advisoryOnly"])
+        self.assertEqual(len(result["historicalWarnings"]), 1)
+
+    def test_later_years_use_the_pooled_band_not_the_1960_band(self):
+        runs, manifest = self.sample(((35, 53),) * 3)
+        for run in runs:
+            run["annual"][1962] = dict(run["annual"][1960])
+        self.assertEqual(review(runs, manifest, 1960)["status"], "WITHIN_BANDS")
+        later = review(runs, manifest, 1962)
+        self.assertEqual(later["status"], "REVIEW")
+        self.assertEqual(later["metrics"]["cr4Top10SlotsPct"]["bandPct"], [22.0, 32.0])
+        self.assertEqual(later["historicalReference"]["cr4Top10SlotsPct"], 26.7)
+        with self.assertRaisesRegex(ValueError, "No operating-label review band"):
+            review(runs, manifest, 1970)
+
+    def test_two_seeds_are_provisional_and_duplicate_seeds_are_rejected(self):
+        runs, manifest = self.sample(((28, 52),) * 2)
+        self.assertEqual(review(runs, manifest)["status"], "INSUFFICIENT_SEEDS")
+        manifest["results"][1]["args"][2] = "--seed=1"
+        with self.assertRaisesRegex(ValueError, "Duplicate seed"):
+            review(runs, manifest)
+
+    def test_partial_failed_or_mismatched_runs_cannot_enter_review(self):
+        runs, manifest = self.sample()
+        partial = copy.deepcopy(runs)
+        partial[0]["annual"][1960]["chartWeeks"] = 51
+        with self.assertRaisesRegex(ValueError, "52 weeks"):
+            review(partial, manifest)
+        failed = copy.deepcopy(manifest)
+        failed["results"][0]["passed"] = False
+        with self.assertRaisesRegex(ValueError, "did not complete"):
+            review(runs, failed)
+        with self.assertRaisesRegex(ValueError, "match the manifest"):
+            review(runs[:-1], manifest)
+        different_flags = copy.deepcopy(manifest)
+        different_flags["results"][1]["args"].append("--no-small-home-territory")
+        with self.assertRaisesRegex(ValueError, "same flags"):
+            review(runs, different_flags)
+
+    def test_top10_slots_do_not_use_unit_concentration_or_rank_11(self):
+        root = Path(__file__).resolve().parent.parent / "SimLogs"
+        with tempfile.TemporaryDirectory(dir=root) as directory:
+            prefix = str(Path(directory) / "fixture")
+            rows = [dict(week=week, year=1960, recordId=f"record-{rank}",
+                         artistId=f"artist-{rank}", labelId=f"label-{rank}",
+                         labelTier="MidTier", genre="TeenPop", currentPosition=rank,
+                         unitsThisWeek=1000000 if rank == 11 else 1)
+                    for week in range(1, 53) for rank in range(1, 12)]
+            records = pd.DataFrame(rows)
+            records.to_csv(prefix + "-records.csv", index=False)
+            pd.DataFrame(columns=["resolution"]).to_csv(prefix + "-deal-ledger.csv", index=False)
+            pd.DataFrame([dict(year=1960, totalChartUnits=int(records.unitsThisWeek.sum()),
+                               c4ChartShare=0.99, c8ChartShare=0.999)]).to_csv(
+                                   prefix + "-concentration.csv", index=False)
+            pd.DataFrame([dict(labelId=f"label-{rank}", labelName=f"Label {rank}")
+                          for rank in range(1, 12)]).to_csv(prefix + "-label-directory.csv", index=False)
+            pd.DataFrame(columns=["week", "eventType", "artistId", "currentPrimaryGenre",
+                                  "labelTier", "priorContractCount"]).to_csv(
+                                      prefix + "-artist-population-events.csv", index=False)
+            result = analyze(prefix)["annual"][1960]
+            self.assertEqual(result["top10Slots"], 520)
+            self.assertEqual(result["cr4Top10SlotsPct"], 40)
+            self.assertEqual(result["cr8Top10SlotsPct"], 80)
+            self.assertEqual(result["operatingLabelsWithAnyTop10"], 10)
+
+            # A label may exit before the end-of-run directory is written. Its
+            # display name must survive without changing the slot arithmetic.
+            directory_path = prefix + "-label-directory.csv"
+            directory = pd.read_csv(directory_path)
+            directory[directory.labelId.ne("label-1")].to_csv(directory_path, index=False)
+            pd.DataFrame([dict(releaseLabelId="label-1", labelName="Exited Label")]).to_csv(
+                prefix + "-first-chart-events.csv", index=False)
+            exited = analyze(prefix)["annual"][1960]
+            names = {row["labelId"]: row["labelName"] for row in exited["leadingTop10OperatingLabels"]}
+            self.assertEqual(names["label-1"], "Exited Label")
+            self.assertEqual(exited["cr4Top10SlotsPct"], result["cr4Top10SlotsPct"])
+            self.assertEqual(exited["cr8Top10SlotsPct"], result["cr8Top10SlotsPct"])
+
+
+if __name__ == "__main__":
+    unittest.main()

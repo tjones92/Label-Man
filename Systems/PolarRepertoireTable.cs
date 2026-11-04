@@ -98,6 +98,12 @@ public static class RepertoireTaxonomy {
   hash^=hash>>33;hash=unchecked(hash*0xff51afd7ed558ccdUL);hash^=hash>>33;hash=unchecked(hash*0xc4ceb9fe1a85ec53UL);return hash^(hash>>33);
  }
  public static float Unit(string key)=>(Hash(key)>>40)/(float)(1UL<<24);
+ // Hash split into prefix, appends and finish, so many keys sharing a prefix hash it once. Finish(Append(Begin(), a+b)) == Hash(a+b).
+ public static ulong BeginHash()=>14695981039346656037UL;
+ public static ulong AppendHash(ulong hash,ReadOnlySpan<char> text){foreach(char c in text){hash^=c;hash=unchecked(hash*1099511628211UL);}return hash;}
+ public static float FinishUnit(ulong hash){
+  hash^=hash>>33;hash=unchecked(hash*0xff51afd7ed558ccdUL);hash^=hash>>33;hash=unchecked(hash*0xc4ceb9fe1a85ec53UL);return ((hash^(hash>>33))>>40)/(float)(1UL<<24);
+ }
  public static void Assign(SongComposition song,string family,int observationYear) {
   var table=PolarRepertoireTable.Current;
   var rows=table.Assignments[family].Where(r=>PolarSongTable.Current.Row(Enum.Parse<SongArchetype>(r.Archetype)).FromYear<=observationYear).ToArray();
@@ -110,7 +116,7 @@ public static class RepertoireTaxonomy {
    tags=PolarSongMetadataService.ClassifyLegacyTags(song.genreTagIds),pace=shape.Pace,mood=shape.Mood,mappingId="repertoire-v1"};
   song.wordDensity=chosen.Density;song.defaultForm=Enum.Parse<SongForm>(chosen.Form);song.defaultMeter=Enum.Parse<SongMeter>(chosen.Meter);
   if(chosen.Context!=null)CompositionShapeVariation.AuthorContext(song,Enum.Parse<SongContentContext>(chosen.Context),"procedural-repertoire-authoring:"+family+":"+chosen.Archetype);
-  song.repertoireSchemaVersion=1;song.repertoireSeedFamily=family;song.repertoireVariation=new float[SongProfile.AxisCount];
+  song.repertoireSchemaVersion=1;song.repertoireSeedFamily=family;CompositionCatalogService.TouchEstablishment(song);song.repertoireVariation=new float[SongProfile.AxisCount];
   for(int i=0;i<song.repertoireVariation.Length;i++)song.repertoireVariation[i]=(Unit(song.songId+"|variation|"+i)*2-1)*table.N(i<SongProfile.DemandCount?"demandVariation":"identityVariation");
  }
 }

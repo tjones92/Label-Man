@@ -33,7 +33,7 @@ public sealed partial class StationNetwork {
 	private readonly Dictionary<string, Dictionary<StationFormat, float>> tailFormatReachByRegion =
 		new(StringComparer.Ordinal);
 
-	private readonly RandomNumberGenerator rng = new();
+	private readonly PcgRandom rng = new();
 	private int currentYear;
 
 	// Payola candidacy lookup (recordId, stationId) -> active bribe boost. Set by ChartManager to the
@@ -52,6 +52,7 @@ public sealed partial class StationNetwork {
 
 	public StationNetwork(ulong seed) {
 		rng.Seed = seed;   // seeded off the sim master seed for reproducibility
+		shadowRng.Seed = seed ^ ShadowRngSalt;   // §9l: the shadow playlists' own stream; unused unless that probe is on
 	}
 
 	/// <summary>
@@ -78,6 +79,12 @@ public sealed partial class StationNetwork {
 	/// <summary>What tier this station currently has a record at. Read-only view for the Rolodex card.</summary>
 	public SpinTier SpinTierOf(string stationId, string recordId) =>
 		GetStation(stationId)?.rt?.TierOf(recordId) ?? SpinTier.None;
+
+	/// <summary>Two consecutive weeks of ordinary rotation, excluding ungraduated auditions.</summary>
+	public bool HasSustainedSupport(string recordId, string regionId) =>
+		stationsByRegion.TryGetValue(regionId, out var stations) && stations.Any(s =>
+			s.rt != null && s.rt.playlist.ContainsKey(recordId) && !s.rt.activeTrials.Contains(recordId)
+			&& s.rt.sustainedWeeks.GetValueOrDefault(recordId) >= 2);
 
 	public IReadOnlyList<RadioStation> ReportersInRegion(string regionId) =>
 		stationsByRegion.TryGetValue(regionId, out var list) ? list : (IReadOnlyList<RadioStation>)Array.Empty<RadioStation>();

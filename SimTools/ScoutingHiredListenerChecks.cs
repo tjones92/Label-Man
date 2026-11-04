@@ -25,10 +25,10 @@ public static class ScoutingHiredListenerChecks {
         float expectedFee = PlayerDesk.ScoutingConsultationHourly1960 * SceneLiveEconomics.PriceLevel(bill.Year) * (slot.EndHour - slot.StartHour);
         Check(Math.Abs(listener.ConsultationFee - expectedFee) < .001f, "explicit time-scaled consultation quote");
         string world = Json(WorldStateService.Capture()), knowledge = Json(desk.CaptureState().ScoutingKnowledge);
-        GD.Seed(179); uint expectedRng = GD.Randi(); GD.Seed(179);
+        GameRandom.Seed(179); uint expectedRng = GameRandom.Randi(); GameRandom.Seed(179);
         Check(Json(listeners) == Json(desk.HiredScoutingListeners(bill.Id, eventId)), "stable quotes on refresh");
         Check(world == Json(WorldStateService.Capture()) && knowledge == Json(desk.CaptureState().ScoutingKnowledge), "preview changes no world, money or knowledge");
-        Check(GD.Randi() == expectedRng, "preview consumes no RNG");
+        Check(GameRandom.Randi() == expectedRng, "preview consumes no RNG");
         float cash = desk.Label.cashReserves, expenses = desk.Label.monthlyExpenses;
         void NoCost() => Check(clock.CurrentHour == slot.StartHour && clock.CurrentMinute == 0 && desk.Label.cashReserves == cash && desk.Label.monthlyExpenses == expenses, "blocked action costs nothing");
         Check(!desk.ListenSceneAppearanceWithListener(bill.Id, eventId, listener.PersonId, "stale", out _), "stale quote rejected"); NoCost();

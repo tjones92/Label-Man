@@ -33,9 +33,9 @@ public static class ScoutingTermsChecks {
             opening.OccurredDay == bill.Day && opening.AcquiredDay == bill.Day && opening.AcquiredMinute == 615, "source and actual statement time");
         Check(desk.Label.cashReserves == cash && clock.CurrentHour == 10 && clock.CurrentMinute == 15, "recording adds no approach cost");
         string knowledge = Json(desk.CaptureState().ScoutingKnowledge), world = Json(WorldStateService.Capture());
-        GD.Seed(144); uint draw = GD.Randi(); GD.Seed(144);
+        GameRandom.Seed(144); uint draw = GameRandom.Randi(); GameRandom.Seed(144);
         desk.ScoutingSummary(act.artistId); desk.ScoutingProvenance(act.artistId); desk.ScoutingBusinessStatements(act.artistId);
-        Check(Json(desk.CaptureState().ScoutingKnowledge) == knowledge && Json(WorldStateService.Capture()) == world && GD.Randi() == draw, "previews preserve evidence, world and RNG");
+        Check(Json(desk.CaptureState().ScoutingKnowledge) == knowledge && Json(WorldStateService.Capture()) == world && GameRandom.Randi() == draw, "previews preserve evidence, world and RNG");
         Check(desk.ApproachToSign(p, out _) && Json(desk.CaptureState().ScoutingKnowledge) == knowledge, "reopening generates no second ask");
         var openingSave = JsonSerializer.Deserialize<PlayerSaveData>(Json(desk.CaptureState()), SaveGameService.TestJsonOptions);
         Check(desk.OpenScoutingDossier(act.artistId, out _) && Json(desk.CaptureState().ScoutingKnowledge) == knowledge, "pad reopening is not a conversation");

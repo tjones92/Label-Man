@@ -56,10 +56,10 @@ public static class ScoutingSessionPromiseChecks {
 
         // 1. The promise is a term on the table: free to propose, no RNG, no world change.
         float cash = desk.Label.cashReserves;
-        GD.Seed(311); uint draw = GD.Randi(); GD.Seed(311);
+        GameRandom.Seed(311); uint draw = GameRandom.Randi(); GameRandom.Seed(311);
         Check(desk.PlayNegotiationCounter(talk, ContractCounter.Promise, out message) && talk.sessionPromised && talk.stage == ContractTalkStage.Tabling,
             "promise joins the package: " + message);
-        Check(GD.Randi() == draw && Json(WorldStateService.Capture()) == objectionWorld && desk.Label.cashReserves == cash &&
+        Check(GameRandom.Randi() == draw && Json(WorldStateService.Capture()) == objectionWorld && desk.Label.cashReserves == cash &&
             Minute() == hour * 60 + minute && desk.ContractCommitments.Count == 0, "proposing spends nothing, draws nothing and commits nothing");
         Check(desk.WithdrawSessionPromise(talk, out message) && !talk.sessionPromised, "promise can be withdrawn before agreement");
         Check(!desk.WithdrawSessionPromise(talk, out message), "nothing left to withdraw");

@@ -1,0 +1,71 @@
+[CmdletBinding()]
+param(
+    [int[]]$Seeds = @(1001,2002),
+    [int]$Weeks = 104,
+    [string]$Tag = 'writing-combined-integration',
+    [switch]$WithoutLpAssembly,
+    [string]$DebutLpPriorScale = '',
+    [switch]$LpFillerSparesFreshDemos,
+    [switch]$ProfessionalFamilyPool,
+    [string]$WriterCapacity = '',
+    [switch]$RegionalOffices,
+    [string]$ExtraWriters = '',
+    [switch]$RoyaltyLicences,
+    [switch]$CanonicalOfficeGenres,
+    [switch]$SpecialistOffices,
+    [switch]$StandardsToRecentHits,
+    [switch]$ProTrims1960,
+    [switch]$TradPopSinglesNewSongs,
+    [switch]$ProgrammeSearchFollowsMix,
+    [switch]$WithoutLpAssemblyGateUncredited,
+    [switch]$ProfilePerformance,
+    # Opt-in treatment switches appended after the profile, e.g. -Extra '--media-demand-press','--media-ai-performer-fees'
+    [string[]]$Extra = @(),
+    [string]$ExpectedAssemblySha256 = '511E9709FE20879CE4636C7FFE39F9C62E9CE825DC8EB01A110041711D221AC5'
+)
+$ErrorActionPreference = 'Stop'
+$integrationFlags = @(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'writing_combined_integration_flags.txt') |
+    ForEach-Object { $_.Trim() } | Where-Object { $_ -and !$_.StartsWith('#') })
+if ($WithoutLpAssembly) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the LP assembly ablation.' }
+    $integrationFlags = @($integrationFlags | Where-Object { $_ -ne '--lp-assembly' -and $_ -ne '--lp-assembly-gate-uncredited' })
+}
+if ($DebutLpPriorScale) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the debut LP prior treatment.' }
+    $integrationFlags += "--album-prior-debut-scale=$DebutLpPriorScale"
+}
+# --lp-assembly-gate-uncredited is in the flag file since 2026-11-04; this ablation restores the old double credit.
+if ($WithoutLpAssemblyGateUncredited) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the LP gate ablation.' }
+    $integrationFlags = @($integrationFlags | Where-Object { $_ -ne '--lp-assembly-gate-uncredited' })
+}
+if ($LpFillerSparesFreshDemos -or $WriterCapacity -or $ProfessionalFamilyPool -or $RegionalOffices -or $ExtraWriters -or $RoyaltyLicences -or $CanonicalOfficeGenres -or $SpecialistOffices -or $StandardsToRecentHits -or $ProTrims1960 -or $TradPopSinglesNewSongs -or $ProgrammeSearchFollowsMix) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for a professional song balance treatment.' }
+    if ($LpFillerSparesFreshDemos) { $integrationFlags += '--lp-filler-spares-fresh-demos' }
+    if ($ProfessionalFamilyPool) { $integrationFlags += '--professional-family-pool' }
+    if ($WriterCapacity) { $integrationFlags += "--writing-market-capacity=$WriterCapacity" }
+    if ($RegionalOffices) { $integrationFlags += '--writing-market-regional-offices' }
+    if ($ExtraWriters) { $integrationFlags += "--writing-market-extra-writers=$ExtraWriters" }
+    if ($RoyaltyLicences) { $integrationFlags += '--writing-market-royalty-licences' }
+    if ($CanonicalOfficeGenres) { $integrationFlags += '--writing-market-canonical-office-genres' }
+    if ($SpecialistOffices) { $integrationFlags += '--writing-market-specialist-offices' }
+    if ($StandardsToRecentHits) { $integrationFlags += '--source-mix-standards-to-recent-hits' }
+    if ($ProTrims1960) { $integrationFlags += '--source-mix-1960-pro-trims' }
+    if ($TradPopSinglesNewSongs) { $integrationFlags += '--tradpop-singles-new-songs' }
+    if ($ProgrammeSearchFollowsMix) { $integrationFlags += '--programme-search-follows-mix' }
+}
+# Measurement only: writes <run>-performance-profile.csv with per-phase seconds each year; outputs are unchanged.
+if ($ProfilePerformance) { $integrationFlags += '--profile-performance' }
+if ($Extra.Count -gt 0) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for an -Extra treatment.' }
+    $integrationFlags += $Extra
+}
+foreach ($integrationSeed in $Seeds) {
+    $integrationName = "$Tag-market-$integrationSeed"
+    if (Test-Path -LiteralPath (Join-Path $PSScriptRoot "../SimLogs/writing-calibration/$integrationName.log")) {
+        throw "Refusing to overwrite $integrationName; use a fresh tag."
+    }
+}
+& (Join-Path $PSScriptRoot 'RunWritingMarketCalibration.ps1') -Arm market -Workflow combined `
+    -Seeds $Seeds -Weeks $Weeks -Tag $Tag -CausalFanbase -DefaultProfile -ConcentrationAudit `
+    -MaterialFunnelAudit -ExtraFlags $integrationFlags -ExpectedAssemblySha256 $ExpectedAssemblySha256

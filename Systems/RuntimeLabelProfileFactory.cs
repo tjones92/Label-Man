@@ -6,8 +6,9 @@ using Godot;
 /// <summary>
 /// Enabled-lifecycle operating profile for a label founded during the simulation.
 /// This intentionally sits beside, rather than inside, <see cref="LabelGenerator"/>:
-/// that generator remains the legacy identity shell and must retain its shared-RNG
-/// schedule for disabled compatibility.  All decisions here use a local stable PRNG.
+/// that generator supplies the name, city, regions and opening finances, and draws
+/// the legacy archetype/genre/track-record identity only for the lifecycle-off path.
+/// All decisions here use a local stable PRNG.
 /// </summary>
 public static class RuntimeLabelProfileFactory {
 	public const string ProfileVersion = "runtime-founded-v1";

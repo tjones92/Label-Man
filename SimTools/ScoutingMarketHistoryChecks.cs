@@ -45,10 +45,10 @@ public static class ScoutingMarketHistoryChecks {
             LocalScenes.Configure(enabled ? Array.Empty<string>() : new[] { "--disable-scouting-market-history" });
             WorldStateService.Apply(JsonSerializer.Deserialize<WorldSaveData>(baseline, SaveGameService.TestJsonOptions), date, seed, deferSceneRelink: true);
             Check(desk.RestoreState(JsonSerializer.Deserialize<PlayerSaveData>(player, SaveGameService.TestJsonOptions), out _), "matched player restored");
-            LocalSceneIdentityService.CompleteRestore(); GD.Seed(77123);
+            LocalSceneIdentityService.CompleteRestore(); GameRandom.Seed(77123);
         }
         Restore(false); clock.EndDay();
-        string controlJson = Json(WorldStateService.Capture()); string control = Digest(controlJson); string controlPlayer = Json(desk.CaptureState()); uint controlRng = GD.Randi();
+        string controlJson = Json(WorldStateService.Capture()); string control = Digest(controlJson); string controlPlayer = Json(desk.CaptureState()); uint controlRng = GameRandom.Randi();
         Check(ArtistManager.Instance.GetAllArtists().All(a => a.sceneMarketHistory == null || a.sceneMarketHistory.Count == 0), "off control records no future history");
         Restore(true); clock.EndDay();
         var events = ArtistManager.Instance.GetAllArtists().SelectMany(a => a.sceneMarketHistory ?? new()).ToArray();
@@ -57,7 +57,7 @@ public static class ScoutingMarketHistoryChecks {
         string treatmentJson = Json(WorldStateService.Capture());
         if (Digest(treatmentJson) != control) { File.WriteAllText(Godot.ProjectSettings.GlobalizePath("res://SimLogs/business-v1-market-control.json"), controlJson); File.WriteAllText(Godot.ProjectSettings.GlobalizePath("res://SimLogs/business-v1-market-treatment.json"), treatmentJson); }
         Check(Digest(treatmentJson) == control, "all pre-existing world fields identical in matched on/off clearing");
-        Check(Json(desk.CaptureState()) == controlPlayer && GD.Randi() == controlRng, "player state and RNG continuation identical under recording control");
+        Check(Json(desk.CaptureState()) == controlPlayer && GameRandom.Randi() == controlRng, "player state and RNG continuation identical under recording control");
         Check(desk.ScoutingDossiers.Count == 0, "actual market recording never grants player knowledge");
         LocalScenes.Configure(Array.Empty<string>());
         GD.Print($"SCOUTING_MARKET_HISTORY_CHECK_PASS checks={checks} events={events.Length} normalizedWorld={control}");

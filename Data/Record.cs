@@ -20,6 +20,8 @@ public partial class Record : IFieldsOnlySave {
 	// made before release lanes existed.
 	[Export] public ProjectRecordRole projectRole = ProjectRecordRole.None;
 	[Export] public string albumProjectId;
+	// A later extraction points at its already released LP; it is not an advance campaign.
+	[Export] public string sourceAlbumRecordId;
 	
 	[ExportGroup("Musical Attributes")]
 	[Export] public Genre primaryGenre;

@@ -255,7 +255,7 @@ public partial class ChartAuditRunner {
    // LiveRepertoire lazily initializes a gameplay field. Restore it after observation.
    var priorRepertoire = artist.repertoireState;
    try {
-    using var random = new RandomNumberGenerator { Seed = CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}") };
+    using var random = new PcgRandom { Seed = CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}") };
     if(genreRepairCensus)CaptureGenreRepairReference(artist,entry.Unsigned,date,priorRepertoire);
     var prospect = new PlayerDesk.Prospect { Artist = artist };
     int requested = 0; List<SongComposition> pool = null;

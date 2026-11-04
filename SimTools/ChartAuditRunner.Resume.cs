@@ -23,6 +23,7 @@ public partial class ChartAuditRunner {
 	private readonly SortedSet<int> saveWorldYears = new();
 	private string saveWorldName;
 	private string resumeWorldName;
+	private string saveWorldAtEndName;
 	private bool keepExactSaveName;
 
 	/// <summary>The world file. Lives under SimLogs (gitignored): a run artifact, not source.</summary>
@@ -35,6 +36,9 @@ public partial class ChartAuditRunner {
 		public string[] Flags { get; set; } = Array.Empty<string>();
 		/// <summary>The member fame slice the world was run at. Absent from worlds saved before Phase 4d2.</summary>
 		public float? MemberFameShare { get; set; }
+		/// <summary>Checkpoints only (--checkpoint-world): the completed audit week and the global stream position.</summary>
+		public int? AuditWeek { get; set; }
+		public ulong? GlobalRandomState { get; set; }
 		public WorldSaveData World { get; set; }
 	}
 
@@ -50,6 +54,8 @@ public partial class ChartAuditRunner {
 				saveWorldName = argument["--save-world=".Length..];
 			else if (argument.StartsWith("--resume-world=", StringComparison.Ordinal))
 				resumeWorldName = argument["--resume-world=".Length..];
+			else if (argument.StartsWith("--save-world-at-end=", StringComparison.Ordinal))
+				saveWorldAtEndName = argument["--save-world-at-end=".Length..];
 		}
 		keepExactSaveName = saveWorldYears.Count == 1 && !string.IsNullOrWhiteSpace(saveWorldName);
 		if (saveWorldYears.Count > 0 && string.IsNullOrWhiteSpace(saveWorldName)) saveWorldName = runName;
@@ -61,7 +67,8 @@ public partial class ChartAuditRunner {
 	private static string[] SimulationFlags() => OS.GetCmdlineUserArgs()
 		.Where(a => !a.StartsWith("--run=", StringComparison.Ordinal) && !a.StartsWith("--weeks=", StringComparison.Ordinal) &&
 			!a.StartsWith("--save-world", StringComparison.Ordinal) && !a.StartsWith("--resume-world=", StringComparison.Ordinal) &&
-			a != "--calibration" && a != "--lean-probe" && a != "--aggregate-only" && a != "--profile-performance")
+			!a.StartsWith("--checkpoint-world=", StringComparison.Ordinal) && a != "--continue-checkpoint" &&
+			a != "--calibration" && a != "--lean-probe" && a != "--aggregate-only" && a != "--chart-history" && a != "--profile-performance")
 		.OrderBy(a => a, StringComparer.Ordinal).ToArray();
 
 	/// <summary>
@@ -73,20 +80,33 @@ public partial class ChartAuditRunner {
 		int target = saveWorldYears.Max(y => y <= TimeManager.Instance.CurrentDate.year ? y : int.MinValue);
 		saveWorldYears.RemoveWhere(y => y <= target);
 		string name = keepExactSaveName ? saveWorldName : $"{saveWorldName}-{target}";
+		SaveAuditWorld(name);
+	}
+
+	private void SaveAuditWorld(string name, int? auditWeek = null, bool atomic = false) {
 		GameDate now = TimeManager.Instance.CurrentDate;
 		var file = new AuditWorldFile {
-			Version = SaveGameService.CurrentVersion,
+			Version = SaveGameService.WritingVersion,
 			WorldSeed = SimulationSeedBootstrap.RequestedSeed,
 			Year = now.year, Month = now.month, Day = now.day,
 			Flags = SimulationFlags(),
 			MemberFameShare = MusicianRecognitionService.MemberFameShare,
+			AuditWeek = auditWeek,
+			GlobalRandomState = auditWeek.HasValue ? GameRandom.State : null,
 			World = WorldStateService.Capture()
 		};
 		string path = WorldPath(name);
 		Directory.CreateDirectory(Path.GetDirectoryName(path));
-		using (FileStream stream = File.Create(path))
+		// A checkpoint replaces the previous one only once it is complete, so a run killed mid-write keeps the last.
+		string target = atomic ? path + ".tmp" : path;
+		using (FileStream stream = File.Create(target))
 		using (var gzip = new GZipStream(stream, CompressionLevel.Optimal))
 			JsonSerializer.Serialize(gzip, file, SaveGameService.TestJsonOptions);
+		if (atomic) {
+			// The previous checkpoint is kept as <name>-prev: a run killed outright resumes from it (see Checkpoint.cs).
+			if (File.Exists(path)) File.Move(path, WorldPath(name + "-prev"), overwrite: true);
+			File.Move(target, path);
+		}
 		GD.Print($"CHART_AUDIT_WORLD_SAVED name={name} date={now.ToShortString()} chartWeek={file.World.ChartWeek} path={path}");
 	}
 
@@ -98,7 +118,8 @@ public partial class ChartAuditRunner {
 		AuditWorldFile file;
 		using (FileStream stream = File.OpenRead(path))
 		using (var gzip = new GZipStream(stream, CompressionMode.Decompress))
-			file = JsonSerializer.Deserialize<AuditWorldFile>(gzip, SaveGameService.TestJsonOptions);
+			// Pooled: a late world otherwise holds one string copy per occurrence of every id.
+			file = JsonSerializer.Deserialize<AuditWorldFile>(gzip, PooledStringJsonConverter.For(SaveGameService.TestJsonOptions));
 		if (file?.World == null) throw new InvalidDataException($"Saved world '{resumeWorldName}' is unreadable.");
 		if (file.Version > SaveGameService.CurrentVersion) throw new InvalidDataException($"Saved world '{resumeWorldName}' is from a newer save version.");
 
@@ -113,6 +134,7 @@ public partial class ChartAuditRunner {
 		var date = new GameDate(file.Year, file.Month, file.Day);
 		WorldStateService.Apply(file.World, date, file.WorldSeed);
 		RescaleMemberFameForResume(file);
+		ContinueCheckpointIfRequested(file.AuditWeek, file.GlobalRandomState);
 		GD.Print($"CHART_AUDIT_WORLD_RESUMED name={resumeWorldName} date={date.ToShortString()} chartWeek={file.World.ChartWeek}");
 	}
 

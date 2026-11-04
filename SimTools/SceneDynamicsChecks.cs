@@ -23,7 +23,7 @@ public static class SceneDynamicsChecks {
         }
         LocalScenes.Configure(Array.Empty<string>());
         string before = Json(WorldStateService.Capture());
-        GD.Seed(901); uint expected = GD.Randi(); GD.Seed(901);
+        GameRandom.Seed(901); uint expected = GameRandom.Randi(); GameRandom.Seed(901);
         var a = SceneDynamicsObservations.Capture(TimeManager.Instance.CurrentDate);
         var b = SceneDynamicsObservations.Capture(TimeManager.Instance.CurrentDate);
         var moves = SceneDynamicsMobility.Capture(TimeManager.Instance.CurrentDate);
@@ -52,7 +52,7 @@ public static class SceneDynamicsChecks {
         Check(SceneDynamicsAttention.BoundedHeat(1000) <= 1 && SceneDynamicsAttention.BoundedHeat(0) == 0, "large shock saturates and absence produces zero");
         var oldRow = JsonSerializer.Deserialize<SceneRecruitmentRecord>("{\"ArtistId\":\"legacy\",\"LabelId\":\"label\",\"Week\":10,\"Phase\":\"DailyMarket\",\"BasePlaceId\":\"memphis\"}", SaveGameService.TestJsonOptions);
         Check(oldRow.SigningGenre == null && SceneDynamicsAttention.Project(new[] { oldRow }, 10).Evidence.Single().SigningGenre == null, "legacy event genre stays unknown");
-        Check(expected == GD.Randi(), "observation preserves global RNG");
+        Check(expected == GameRandom.Randi(), "observation preserves global RNG");
         Check(before == Json(WorldStateService.Capture()), "observation preserves complete world state");
         Check(Json(a) == Json(b), "repeated reads reproduce the same facts");
         Check(a.Count == 31 && a.Select(r => r.PlaceId).Distinct().Count() == 31, "every playable city included once");

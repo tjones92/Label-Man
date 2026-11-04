@@ -88,7 +88,7 @@ public static class MechanicalRoyaltyService {
 		if (transferSlice > 0f) {
 			AILabel controller = !string.IsNullOrEmpty(routing.ControllerLabelId) ? getLabel?.Invoke(routing.ControllerLabelId) : null;
 			if (controller != null && !ReferenceEquals(controller, sellingLabel)) {
-				controller.cashReserves += transferSlice;
+				LabelCompanyAccounts.ChangeCash(controller, transferSlice, LabelCashKind.PublishingReceipts);
 				controller.monthlyRevenue += transferSlice;
 			}
 			// A vanished controller's slice is already folded into totalExpense above as a leak --

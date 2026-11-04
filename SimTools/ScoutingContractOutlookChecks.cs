@@ -72,10 +72,10 @@ public static class ScoutingContractOutlookChecks {
         // 1. Reading the outlook is pure: same answer twice, no RNG, no world or player change.
         Reset(); Ambition(0.9f);
         string worldBefore = Json(WorldStateService.Capture()), playerBefore = Json(desk.CaptureState());
-        GD.Seed(919); uint draw = GD.Randi(); GD.Seed(919);
+        GameRandom.Seed(919); uint draw = GameRandom.Randi(); GameRandom.Seed(919);
         var first = desk.ReadContractOutlook(act, false); var second = desk.ReadContractOutlook(act, false);
         Check(Json(first) == Json(second), "outlook is deterministic");
-        Check(GD.Randi() == draw && Json(WorldStateService.Capture()) == worldBefore && Json(desk.CaptureState()) == playerBefore && Minute() == hour * 60 + minute,
+        Check(GameRandom.Randi() == draw && Json(WorldStateService.Capture()) == worldBefore && Json(desk.CaptureState()) == playerBefore && Minute() == hour * 60 + minute,
             "reading draws nothing, spends nothing and writes nothing");
 
         // 2. A new label's claims are discounted; what the act can see for itself is not.
@@ -149,9 +149,9 @@ public static class ScoutingContractOutlookChecks {
 
         // 7. The promotion promise: free to propose, scored, affordable, recorded beside the session promise.
         Reopen();
-        float cash = desk.Label.cashReserves; GD.Seed(921); draw = GD.Randi(); GD.Seed(921); worldBefore = Json(WorldStateService.Capture());
+        float cash = desk.Label.cashReserves; GameRandom.Seed(921); draw = GameRandom.Randi(); GameRandom.Seed(921); worldBefore = Json(WorldStateService.Capture());
         Check(desk.AddPromotionPromise(talk, out message) && talk.promotionPromised && !desk.AddPromotionPromise(talk, out _), "promotion joins the package once: " + message);
-        Check(GD.Randi() == draw && desk.Label.cashReserves == cash && Json(WorldStateService.Capture()) == worldBefore &&
+        Check(GameRandom.Randi() == draw && desk.Label.cashReserves == cash && Json(WorldStateService.Capture()) == worldBefore &&
             Minute() == openedHour * 60 + openedMinute && desk.ContractCommitments.Count == 0, "proposing a push spends, draws and commits nothing");
         Check(desk.WithdrawPromotionPromise(talk, out message) && !talk.promotionPromised && !desk.WithdrawPromotionPromise(talk, out _), "the push can be withdrawn");
         float reserve = desk.Label.GetMonthlyOverhead() * 2f;

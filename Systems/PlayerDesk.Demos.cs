@@ -198,7 +198,7 @@ public partial class PlayerDesk {
 		Spend(DemoOfferHours);
 		var quote = DemoQuoteFor(act);
 		float chance = DemoAcceptChance(act, quote);
-		if (GD.Randf() >= chance) {
+		if (GameRandom.Randf() >= chance) {
 			demoRefusals[artistId] = DemoToday + DemoRefusalDays;
 			message = $"{act.stageName} heard you out at the bar: ${quote.Gross:N0} for a demo is more than they want to spend right now.";
 			Note(message);

@@ -19,6 +19,11 @@ public sealed class StationRuntime {
 	// recordId -> week this station last dropped it (drives re-add hysteresis).
 	public readonly Dictionary<string, int> droppedOnWeek = new(System.StringComparer.Ordinal);
 
+	// Trial history prevents restarting an expired or graduated audition.
+	public readonly Dictionary<string, int> trialStartedWeek = new(System.StringComparer.Ordinal);
+	public readonly HashSet<string> activeTrials = new(System.StringComparer.Ordinal);
+	public readonly Dictionary<string, int> sustainedWeeks = new(System.StringComparer.Ordinal);
+
 	// Relationships (the cultivation surface).
 	public readonly Dictionary<string, float> labelRapport = new(System.StringComparer.Ordinal);
 	public readonly Dictionary<string, float> artistLoyalty = new(System.StringComparer.Ordinal);

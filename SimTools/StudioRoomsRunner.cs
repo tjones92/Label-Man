@@ -78,9 +78,9 @@ public partial class StudioRoomsRunner : Node {
             // ================= Overnight trips =================
             // A tight band: the trip is the subject here, not an owner's terms.
             var band = tight; Sign(band);
-            GD.Seed(77); uint next = GD.Randi(); GD.Seed(77);
+            GameRandom.Seed(77); uint next = GameRandom.Randi(); GameRandom.Seed(77);
             var offers = desk.StudioRoomIds().Select(id => desk.StudioOffer(id, band.artistId)).ToList();
-            Check(GD.Randi() == next && Json(offers) == Json(desk.StudioRoomIds().Select(id => desk.StudioOffer(id, band.artistId)).ToList()),
+            Check(GameRandom.Randi() == next && Json(offers) == Json(desk.StudioRoomIds().Select(id => desk.StudioOffer(id, band.artistId)).ToList()),
                 "Listing rooms, house bands and renown is stable and draws no gameplay randomness");
             var overnight = offers.Where(o => o.Overnight).ToList();
             var homeCity = DistanceModel.GetCityById("atlanta");
@@ -256,9 +256,9 @@ public partial class StudioRoomsRunner : Node {
                 !desk.StartSession(Live(harmony), one, PlayerDesk.StudioTier.Budget, 3, out message, overrideRefusal: true, backingSingers: true) && desk.Session == null,
                 "A band with its own singers isn't offered a backing group: " + message);
             Unsign(harmony);
-            GD.Seed(78); next = GD.Randi(); GD.Seed(78);
+            GameRandom.Seed(78); next = GameRandom.Randi(); GameRandom.Seed(78);
             var group = desk.StudioBackingSingers("atlanta", Live(singer), clock.CurrentDate, 540, 900);
-            Check(GD.Randi() == next && Json(group) == Json(desk.StudioBackingSingers("atlanta", Live(singer), clock.CurrentDate, 540, 900)), "Finding a backing group is pure");
+            Check(GameRandom.Randi() == next && Json(group) == Json(desk.StudioBackingSingers("atlanta", Live(singer), clock.CurrentDate, 540, 900)), "Finding a backing group is pure");
             Check(group != null && group.Voices.Count is >= 2 and <= 3 && group.GroupName.EndsWith("Singers") && group.Voices.All(v => singer.members.All(m => m.personId != v.PersonId)) &&
                 group.Fee == group.Voices.Sum(v => Mathf.Round(10f + 30f * v.Reading)), $"A singer can hire a local backing group: {group?.Text}");
             before = desk.Label.cashReserves;

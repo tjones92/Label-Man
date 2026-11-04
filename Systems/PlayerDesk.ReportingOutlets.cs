@@ -58,7 +58,7 @@ public partial class PlayerDesk : Node {
 			stationsToldCount++;
 		}
 
-		bool tradeMention = stop.ReportsToTrades && !HasEverSubmittedToTrade(recordId) && GD.Randf() < ReportingTradeMentionChance;
+		bool tradeMention = stop.ReportsToTrades && !HasEverSubmittedToTrade(recordId) && GameRandom.Randf() < ReportingTradeMentionChance;
 		if (tradeMention) {
 			tradeSubmissions.Add(new TradeSubmission {
 				RecordId = recordId, SubmittedWeek = week, ResolveWeek = week,
@@ -136,7 +136,7 @@ public partial class PlayerDesk : Node {
 		float shield = (1f - stop.Relationship) * HypeDetectionRelationshipShield;
 		float detectionChance = Mathf.Clamp(HypeDetectionBase + countTerm + shield * heat, 0.03f, 0.85f);
 
-		if (GD.Randf() < detectionChance) {
+		if (GameRandom.Randf() < detectionChance) {
 			stop.PassedRecordIds.Add(recordId);
 			stop.Relationship = Mathf.Min(stop.Relationship, HypeBurnRelationshipFloor);
 			stop.HypeBurned = true;

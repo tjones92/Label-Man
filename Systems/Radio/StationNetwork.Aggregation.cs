@@ -82,4 +82,18 @@ public sealed partial class StationNetwork {
 		}
 		return reachTotal > 0f ? weighted / reachTotal : 0f;
 	}
+
+	/// <summary>Research listener proxy: every format retains its audience, independently of
+	/// Hot 100 reporting eligibility. Still a regional reach-weighted proxy, not unique listeners.</summary>
+	public float ListenerRadioPlay(string recordId, string regionId) {
+		if (recordId == null || !stationsByRegion.TryGetValue(regionId, out List<RadioStation> roster)) return 0f;
+		float weighted = 0f, reachTotal = 0f;
+		foreach (RadioStation s in roster) {
+			float reach = s.EffectiveReach();
+			if (reach <= 0f) continue;
+			reachTotal += reach;
+			weighted += SpinWeight(s.rt?.TierOf(recordId) ?? SpinTier.None) * reach;
+		}
+		return reachTotal > 0f ? weighted / reachTotal : 0f;
+	}
 }

@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param([string]$RunTag = 'scene0-control-v1', [string]$Godot = 'C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 
 # Run only during a user-authorized simulation window. One engine at a time.
 $ErrorActionPreference = 'Stop'

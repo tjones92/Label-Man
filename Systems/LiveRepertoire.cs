@@ -33,11 +33,13 @@ public static class LiveRepertoire {
  internal static bool RecentHitCandidate(SongComposition song)=>!ExternalMedia(song)&&(!TeenHit(song)||HitSize(song)>=PolarRepertoireTable.Current.N("teenRecentHitMinimumSize"));
  internal static bool AuditDisableAffinity, AuditSmoothRanking;
  private static readonly Dictionary<Genre,List<SongComposition>> secondary=new();
- public static void Reset()=>secondary.Clear();
+ // Membership beside each list: Contains was a linear scan per admitted hit (~7% of a 1969 window). Lists stay in order.
+ private static readonly HashSet<(Genre,SongComposition)> secondaryMembers=new();
+ public static void Reset(){secondary.Clear();secondaryMembers.Clear();}
  public static void Index(SongComposition song) {
   if(song.primaryGenre==song.secondaryGenre)return;
   if(!secondary.TryGetValue(song.secondaryGenre,out var pool))secondary[song.secondaryGenre]=pool=new();
-  if(!pool.Contains(song))pool.Add(song);
+  if(secondaryMembers.Add((song.secondaryGenre,song)))pool.Add(song);
  }
  private static ActRepertoireState State(SimulatedArtist artist)=>artist.repertoireState??=new ActRepertoireState {preferenceSeed=RepertoireTaxonomy.Hash(artist.artistId+"|repertoire")};
  public static RepertoireAffinity Affinity(SimulatedArtist artist)=>!AuditGenreRepair&&artist.primaryGenre is Genre.TeenPop or Genre.Classical or Genre.Childrens?null:PolarRepertoireTable.Current.GenreAffinities.GetValueOrDefault(artist.primaryGenre.ToString());

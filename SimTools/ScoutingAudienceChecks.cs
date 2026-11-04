@@ -91,12 +91,12 @@ public static class ScoutingAudienceChecks {
         var player = desk.CaptureState(); player.ScoutingKnowledge.Dossiers = new() { fixture };
         Check(desk.RestoreState(player, out message), "restore controlled retained context");
         string world = Json(WorldStateService.Capture()), knowledge = Json(desk.CaptureState());
-        GD.Seed(872); uint draw = GD.Randi(); GD.Seed(872);
+        GameRandom.Seed(872); uint draw = GameRandom.Randi(); GameRandom.Seed(872);
         var detail = desk.ScoutingAudienceDetails(plan.ArtistId).ToArray(); var summary = desk.ScoutingSummary(plan.ArtistId);
         var playerNotes = desk.ScoutingPlayerNotes(plan.ArtistId).ToArray();
         var roomNotes = ScoutingAudience.RoomImpression(desk.ScoutingDossiers.Single()).ToArray();
         Check(summary.Count(l => l.StartsWith("Audience:")) == 1 && summary.Single(l => l.StartsWith("Audience:")).Contains("2 distinct whole-bill"), "notebook uses retained history once");
-        Check(world == Json(WorldStateService.Capture()) && knowledge == Json(desk.CaptureState()) && GD.Randi() == draw, "audience views preserve full world, player and RNG");
+        Check(world == Json(WorldStateService.Capture()) && knowledge == Json(desk.CaptureState()) && GameRandom.Randi() == draw, "audience views preserve full world, player and RNG");
         var captured = desk.CaptureState(); captured.ScoutingKnowledge.Dossiers.Single().Observations[0].BillAttendance = 1;
         Check(desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "capture is detached");
         var rooms = LocalSceneRoomService.Copy(WorldStateService.Capture().SceneRooms); rooms.Bills.RemoveAll(b => b.Id == bill.Id);

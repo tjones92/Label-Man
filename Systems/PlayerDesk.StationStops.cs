@@ -97,7 +97,7 @@ public partial class PlayerDesk : Node {
 		string title = TitleForRecord(recordId);
 		float interest = StationInterest(station, recordId, out string coolReason);
 
-		if (GD.Randf() > Mathf.Clamp(DropOffBaseChance + interest * DropOffInterestWeight, 0.06f, 0.96f)) {
+		if (GameRandom.Randf() > Mathf.Clamp(DropOffBaseChance + interest * DropOffInterestWeight, 0.06f, 0.96f)) {
 			// A no still put you in front of him -- he knows the label's name now, and nothing else.
 			RolodexEntry met = EnsureStationEntry(station, discover: true);
 			met?.log.Insert(0, $"{Today()} — Wouldn't take \"{title}\" off my hands.");

@@ -31,7 +31,12 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 21; // v21: member second roles, per-date studio rules version; v20: house players, backing singers, room renown, studio trips; v16: arrangements; v17: retained source-bound mono finishes; v18: song structure, part rehearsal, located reads; v19: breakdowns, named session players, travel, chief/second engineers
+	public const int CurrentVersion = 37; // v37: finite professional writing supply and contracts.
+	// Legacy-mode worlds still use exactly the v21 schema. Only experimental RNG
+	// worlds need v22, so older executables cannot silently change their dice on load.
+	// Only a world carrying the observe-only release-judgement shadow needs v23.
+	// Keep v24 while tagged history survives, including after the experimental switch is turned off.
+	public static int WritingVersion => ProfessionalWritingMarket.Enabled || ProfessionalWritingMarket.State != null ? 37 : RetailPurchaseEnvelope.Enabled ? 36 : LpDemandCalibration.Enabled ? 35 : LpChannelExperiment.BuyerAccess ? 34 : LpChannelExperiment.Enabled ? 33 : BudgetLpChannel.Enabled || BudgetLpChannel.State != null ? 32 : LabelReleaseProgramme.ProjectJudgementEnabled || AiRepertoireService.HasPreparedState || CompetitorManager.Instance?.HasProjectJudgementState == true ? 31 : LabelReleaseProgramme.LpAssemblyEnabled || CompetitorManager.Instance?.HasLpAssemblyState == true ? 30 : LabelReleaseProgramme.MaterialSearchEnabled || CompetitorManager.Instance?.HasMaterialSearchState == true ? 29 : LabelReleaseProgramme.HasState ? 28 : RecordCampaignSpend.HasState ? 27 : PromoSynergyFeedback.HasState ? 26 : ReleaseAllInEconomics.HasState ? 25 : CareerBandedFormatMemory.HasState ? 24 : AiRepertoireService.HasState ? 23 : RegionalSalesRandom.Version == 0 ? 21 : 22;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -233,7 +238,7 @@ public static class SaveGameService {
 		slot = slot.Trim();
 
 		var envelope = new SaveEnvelope {
-			Version = CurrentVersion,
+			Version = WritingVersion,
 			SavedAtUtc = DateTime.UtcNow.ToString("o"),
 			WorldSeed = SimulationSeedBootstrap.RequestedSeed,
 			Player = PlayerDesk.Instance.CaptureState(),
@@ -328,7 +333,7 @@ public static class SaveGameService {
 
 /// <summary>The top-level save file. The reserved world section is Phase 4 (full-world save).</summary>
 public sealed class SaveEnvelope {
-	public int Version { get; set; } = SaveGameService.CurrentVersion;
+	public int Version { get; set; } = SaveGameService.WritingVersion;
 	public string SavedAtUtc { get; set; }
 	public ulong? WorldSeed { get; set; }
 	public int Year { get; set; }
@@ -612,6 +617,10 @@ public sealed class LabelSaveData {
 	public int top40Hits { get; set; }
 	public int numberOneHits { get; set; }
 	public int monthsActive { get; set; }
+	public int founderLastReleasePeriod { get; set; } = -1;
+	public int founderLastReviewPeriod { get; set; } = -1;
+	public int founderQuietMonths { get; set; }
+	public LabelExitReason exitReason { get; set; }
 	public float outstandingWholesaleReceivables { get; set; }
 	public float lifetimeWholesaleWriteOffs { get; set; }
 	public string[] strongRegions { get; set; } = Array.Empty<string>();
@@ -647,6 +656,8 @@ public sealed class LabelSaveData {
 		payolaWillingness = l.payolaWillingness, releasesPerMonth = l.releasesPerMonth,
 		totalReleases = l.totalReleases, top40Hits = l.top40Hits, numberOneHits = l.numberOneHits,
 		monthsActive = l.monthsActive,
+		founderLastReleasePeriod = l.founderLastReleasePeriod, founderLastReviewPeriod = l.founderLastReviewPeriod,
+		founderQuietMonths = l.founderQuietMonths, exitReason = l.exitReason,
 		outstandingWholesaleReceivables = l.outstandingWholesaleReceivables,
 		lifetimeWholesaleWriteOffs = l.lifetimeWholesaleWriteOffs,
 		strongRegions = l.strongRegions ?? Array.Empty<string>(),
@@ -674,6 +685,8 @@ public sealed class LabelSaveData {
 		l.payolaWillingness = payolaWillingness; l.releasesPerMonth = releasesPerMonth;
 		l.totalReleases = totalReleases; l.top40Hits = top40Hits; l.numberOneHits = numberOneHits;
 		l.monthsActive = monthsActive;
+		l.founderLastReleasePeriod = founderLastReleasePeriod; l.founderLastReviewPeriod = founderLastReviewPeriod;
+		l.founderQuietMonths = founderQuietMonths; l.exitReason = exitReason;
 		l.outstandingWholesaleReceivables = outstandingWholesaleReceivables;
 		l.lifetimeWholesaleWriteOffs = lifetimeWholesaleWriteOffs;
 		l.strongRegions = strongRegions ?? Array.Empty<string>();
@@ -1082,6 +1095,26 @@ public sealed class RegionalRecordSaveData {
 	public int sustainedGrowthWeeks { get; set; }
 	public int tractionWeeks { get; set; }
 	public int collapseWeeks { get; set; }
+	// Local lifecycle (regional audience 3a). Null in saves written before it existed.
+	public int? localIntroAge { get; set; }
+	public int localPeakUnits { get; set; }
+	public int localPeakAge { get; set; } = -1;
+	// RegionalHitDealGate's last qualifying week; absent (-1) in older saves and switched-off runs.
+	public int dealEvidenceAge { get; set; } = -1;
+	// Rack-jobber ledger and tier; absent unless the rack channel has sold or racked here.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? rackUnits { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? rackTier { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? rackStoreBuyers { get; set; }
+	// Follower demand: LP buyers spent on a fan title; absent unless fans displaced this LP.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? fanDisplacedBuyers { get; set; }
+	// Regional sync §9s exposure age; absent (exposed from launch) in older saves and switched-off runs.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? fitExposureAge { get; set; }
+	public string fitExposureCause { get; set; }
 
 	public static RegionalRecordSaveData From(RegionalRecordData d) => new() {
 		regionId = d.regionId, awareness = d.awareness, sentiment = d.sentiment, radioPlay = d.radioPlay,
@@ -1089,7 +1122,17 @@ public sealed class RegionalRecordSaveData {
 		stationDropAge = d.stationDropAge, unitsInStores = d.unitsInStores, unitsBackordered = d.unitsBackordered,
 		unitsSoldTotal = d.unitsSoldTotal, breakoutScore = d.breakoutScore, peakBreakoutScore = d.peakBreakoutScore,
 		breakoutStage = (int)d.breakoutStage, salesVelocity = d.salesVelocity,
-		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks
+		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks,
+		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge,
+		dealEvidenceAge = d.dealEvidenceAge,
+		rackUnits = d.rackUnitsTotal != 0 ? d.rackUnitsTotal : null, rackTier = d.rackTier != 0 ? d.rackTier : null,
+		rackStoreBuyers = d.rackStoreBuyerUnitsTotal != 0 ? d.rackStoreBuyerUnitsTotal : null,
+		fanDisplacedBuyers = d.fanDisplacedBuyerUnitsTotal != 0 ? d.fanDisplacedBuyerUnitsTotal : null,
+		fitExposureAge = d.fitExposureAge != 0 ? d.fitExposureAge : null,
+		fitExposureCause = d.fitExposureCause,
+		arrival = d.awaitingArrival || d.pendingLaunchStock != 0 || d.arrivalAge >= 0
+			? new RegionalArrivalSaveData { awaitingArrival = d.awaitingArrival, arrivalAge = d.arrivalAge,
+				stock = d.pendingLaunchStock, awareness = d.pendingLaunchAwareness, radio = d.pendingLaunchRadio } : null
 	};
 
 	public RegionalRecordData ToRegional() {
@@ -1099,10 +1142,39 @@ public sealed class RegionalRecordSaveData {
 			unitsInStores = unitsInStores, unitsBackordered = unitsBackordered, unitsSoldTotal = unitsSoldTotal,
 			breakoutScore = breakoutScore, peakBreakoutScore = peakBreakoutScore,
 			breakoutStage = (RegionalBreakoutStage)breakoutStage, salesVelocity = salesVelocity,
-			sustainedGrowthWeeks = sustainedGrowthWeeks, tractionWeeks = tractionWeeks, collapseWeeks = collapseWeeks
+			sustainedGrowthWeeks = sustainedGrowthWeeks, tractionWeeks = tractionWeeks, collapseWeeks = collapseWeeks,
+			// An older save has no arrival; a region that has already sold is treated as in play from
+			// release, which is what every region's clock was before local clocks existed.
+			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
+			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge,
+			fitExposureAge = fitExposureAge ?? 0, fitExposureCause = fitExposureCause,
+			fanDisplacedBuyerUnitsTotal = fanDisplacedBuyers ?? 0
 		};
+		if (rackUnits != null || rackTier != null) {
+			RackJobberChannel.RequireForResume();
+			d.rackUnitsTotal = rackUnits ?? 0; d.rackTier = rackTier ?? 0;
+		}
+		if (rackStoreBuyers != null) {
+			if (LpChannelExperiment.ChoiceShare <= 0 || rackStoreBuyers < 0 || rackStoreBuyers > d.rackUnitsTotal)
+				throw new InvalidOperationException("Resume routed store buyers with their valid saved rack-choice treatment.");
+			d.rackStoreBuyerUnitsTotal = rackStoreBuyers.Value;
+		}
+		if (arrival != null) {
+			d.awaitingArrival = arrival.awaitingArrival; d.arrivalAge = arrival.arrivalAge;
+			d.pendingLaunchStock = arrival.stock; d.pendingLaunchAwareness = arrival.awareness; d.pendingLaunchRadio = arrival.radio;
+		}
 		return d;
 	}
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public RegionalArrivalSaveData arrival { get; set; }
+}
+
+public sealed class RegionalArrivalSaveData {
+	public bool awaitingArrival { get; set; }
+	public int arrivalAge { get; set; } = -1;
+	public int stock { get; set; }
+	public float awareness { get; set; }
+	public float radio { get; set; }
 }
 
 /// <summary>A released player record: its base master data plus the durable runtime chart/sales/regional
@@ -1118,6 +1190,7 @@ public sealed class RuntimeRecordSaveData {
 	public int lastChartedAge { get; set; }
 	public int lastSalesAboveRetirementFloorAge { get; set; }
 	public int weeksInTopTen { get; set; }
+	public int albumCareerPeak { get; set; }
 	public bool artistChartEntryCredited { get; set; }
 	public bool artistTop40Credited { get; set; }
 	public bool artistTop10Credited { get; set; }
@@ -1137,6 +1210,16 @@ public sealed class RuntimeRecordSaveData {
 	public float radioPanelShare { get; set; }
 	public float lifetimeLabelNet { get; set; }
 	public float sunkProductionCost { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? sunkMarketingCost { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? capitalRiskExpectedContribution { get; set; }
+	// LabelPressingEconomics pressing book; absent on old saves, which load as an unopened book.
+	public bool pressingBookOpened { get; set; }
+	public int unitsPressed { get; set; }
+	public int pressingBookSold { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public PhysicalInventoryState physicalInventory { get; set; }
 	public bool revenueMemoryEligible { get; set; }
 	public float releaseTimeExpectedNet { get; set; }
 	public float releaseTimeOpportunityScale { get; set; }
@@ -1158,6 +1241,15 @@ public sealed class RuntimeRecordSaveData {
 	public int weeksOfGrammyBump { get; set; }
 	public int initialLaunchStock { get; set; }
 	public float perceivedQualityMultiplier { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? hitActFitFloorAtLaunch { get; set; }
+	// Regional sync §9u relive log; absent when off.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public List<int> fitRelivePositions { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public List<float> fitReliveAwareness { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public FanReleaseAudience fanAudience { get; set; }
 
 	public static RuntimeRecordSaveData From(RecordRuntimeData r) => new() {
 		Record = RecordSaveData.From(r.baseRecord),
@@ -1165,7 +1257,7 @@ public sealed class RuntimeRecordSaveData {
 			.Select(RegionalRecordSaveData.From).ToList(),
 		currentPosition = r.currentPosition, lastWeekPosition = r.lastWeekPosition, peakPosition = r.peakPosition,
 		weeksOnChart = r.weeksOnChart, weeksSinceRelease = r.weeksSinceRelease, lastChartedAge = r.lastChartedAge,
-		lastSalesAboveRetirementFloorAge = r.lastSalesAboveRetirementFloorAge, weeksInTopTen = r.weeksInTopTen,
+		lastSalesAboveRetirementFloorAge = r.lastSalesAboveRetirementFloorAge, weeksInTopTen = r.weeksInTopTen, albumCareerPeak = r.albumCareerPeak,
 		artistChartEntryCredited = r.artistChartEntryCredited, artistTop40Credited = r.artistTop40Credited,
 		artistTop10Credited = r.artistTop10Credited, artistNumberOneCredited = r.artistNumberOneCredited,
 		artistChartRunCompleted = r.artistChartRunCompleted, culturalRunCompleted = r.culturalRunCompleted,
@@ -1173,21 +1265,26 @@ public sealed class RuntimeRecordSaveData {
 		isBullet = r.isBullet, isAnchor = r.isAnchor, overallMomentum = r.overallMomentum,
 		unitsThisWeek = r.unitsThisWeek, unitsPreviousWeek = r.unitsPreviousWeek, totalUnitsSold = r.totalUnitsSold,
 		peakWeeklyUnits = r.peakWeeklyUnits, weeksSincePeakUnits = r.weeksSincePeakUnits, radioPanelShare = r.radioPanelShare,
-		lifetimeLabelNet = r.lifetimeLabelNet, sunkProductionCost = r.sunkProductionCost, revenueMemoryEligible = r.revenueMemoryEligible,
+		lifetimeLabelNet = r.lifetimeLabelNet, sunkProductionCost = r.sunkProductionCost, sunkMarketingCost = r.sunkMarketingCost, revenueMemoryEligible = r.revenueMemoryEligible,
+		capitalRiskExpectedContribution = r.capitalRiskExpectedContribution,
+		pressingBookOpened = r.pressingBookOpened, unitsPressed = r.unitsPressed, pressingBookSold = r.pressingBookSold,
+		physicalInventory = r.physicalInventory?.Copy(),
 		releaseTimeExpectedNet = r.releaseTimeExpectedNet, releaseTimeOpportunityScale = r.releaseTimeOpportunityScale,
 		releaseMemoryWeek = r.releaseMemoryWeek, awareness = r.awareness, momentum = r.momentum, saturation = r.saturation,
 		radioHeat = r.radioHeat, wordOfMouth = r.wordOfMouth, artistHeat = r.artistHeat, artistPreviousHits = r.artistPreviousHits,
 		currentLabelPush = r.currentLabelPush, totalLabelInvestment = r.totalLabelInvestment, peakMomentum = r.peakMomentum,
 		weeksPositive = r.weeksPositive, weeksNegative = r.weeksNegative, isGrammyNominated = r.isGrammyNominated,
 		isGrammyWinner = r.isGrammyWinner, weeksOfGrammyBump = r.weeksOfGrammyBump, initialLaunchStock = r.initialLaunchStock,
-		perceivedQualityMultiplier = r.perceivedQualityMultiplier
+		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, fanAudience = r.fanAudience,
+		fitRelivePositions = r.fitRelivePositions != null ? new List<int>(r.fitRelivePositions) : null,
+		fitReliveAwareness = r.fitReliveAwareness != null ? new List<float>(r.fitReliveAwareness) : null
 	};
 
 	public RecordRuntimeData ToRuntime() {
 		var runtime = new RecordRuntimeData(Record.ToRecord()) {
 			currentPosition = currentPosition, lastWeekPosition = lastWeekPosition, peakPosition = peakPosition,
 			weeksOnChart = weeksOnChart, weeksSinceRelease = weeksSinceRelease, lastChartedAge = lastChartedAge,
-			lastSalesAboveRetirementFloorAge = lastSalesAboveRetirementFloorAge, weeksInTopTen = weeksInTopTen,
+			lastSalesAboveRetirementFloorAge = lastSalesAboveRetirementFloorAge, weeksInTopTen = weeksInTopTen, albumCareerPeak = albumCareerPeak,
 			artistChartEntryCredited = artistChartEntryCredited, artistTop40Credited = artistTop40Credited,
 			artistTop10Credited = artistTop10Credited, artistNumberOneCredited = artistNumberOneCredited,
 			artistChartRunCompleted = artistChartRunCompleted, culturalRunCompleted = culturalRunCompleted,
@@ -1195,14 +1292,19 @@ public sealed class RuntimeRecordSaveData {
 			isBullet = isBullet, isAnchor = isAnchor, overallMomentum = overallMomentum,
 			unitsThisWeek = unitsThisWeek, unitsPreviousWeek = unitsPreviousWeek, totalUnitsSold = totalUnitsSold,
 			peakWeeklyUnits = peakWeeklyUnits, weeksSincePeakUnits = weeksSincePeakUnits, radioPanelShare = radioPanelShare,
-			lifetimeLabelNet = lifetimeLabelNet, sunkProductionCost = sunkProductionCost, revenueMemoryEligible = revenueMemoryEligible,
+			lifetimeLabelNet = lifetimeLabelNet, sunkProductionCost = sunkProductionCost, sunkMarketingCost = sunkMarketingCost, revenueMemoryEligible = revenueMemoryEligible,
+			capitalRiskExpectedContribution = capitalRiskExpectedContribution,
+			pressingBookOpened = pressingBookOpened, unitsPressed = unitsPressed, pressingBookSold = pressingBookSold,
+			physicalInventory = physicalInventory?.Copy(),
 			releaseTimeExpectedNet = releaseTimeExpectedNet, releaseTimeOpportunityScale = releaseTimeOpportunityScale,
 			releaseMemoryWeek = releaseMemoryWeek, awareness = awareness, momentum = momentum, saturation = saturation,
 			radioHeat = radioHeat, wordOfMouth = wordOfMouth, artistHeat = artistHeat, artistPreviousHits = artistPreviousHits,
 			currentLabelPush = currentLabelPush, totalLabelInvestment = totalLabelInvestment, peakMomentum = peakMomentum,
 			weeksPositive = weeksPositive, weeksNegative = weeksNegative, isGrammyNominated = isGrammyNominated,
 			isGrammyWinner = isGrammyWinner, weeksOfGrammyBump = weeksOfGrammyBump, initialLaunchStock = initialLaunchStock,
-			perceivedQualityMultiplier = perceivedQualityMultiplier
+			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, fanAudience = fanAudience,
+			fitRelivePositions = fitRelivePositions != null ? new List<int>(fitRelivePositions) : null,
+			fitReliveAwareness = fitReliveAwareness != null ? new List<float>(fitReliveAwareness) : null
 		};
 		runtime.regionalData = (Regions ?? new List<RegionalRecordSaveData>())
 			.ToDictionary(region => region.regionId, region => region.ToRegional(), StringComparer.Ordinal);

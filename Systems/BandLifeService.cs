@@ -1058,15 +1058,19 @@ public static class BandLifeService {
 	/// learned their name rather than the band's (spotlight share), and that name can carry a record (an absolute
 	/// bar on their own recognition). The old gate compared member to act recognition and opened with time.
 	/// </summary>
-	public static bool IsSoloViable(Musician m, SimulatedArtist a, int year) {
+	public static bool IsSoloViable(Musician m, SimulatedArtist a, int year) => IsSoloViable(m, a, year, x => x.personalRecognition);
+
+	/// <summary>The same gate read on another recognition (media telemetry's with and without television; read-only).</summary>
+	public static bool IsSoloViable(Musician m, SimulatedArtist a, int year, Func<Musician, float> recognition) {
 		if (m == null || a == null) return false;
 		var active = a.members.Where(x => x.isActive && x.observedGoneYear == 0).ToList();
-		float total = active.Sum(x => x.personalRecognition);
-		float spot = total > 0.005f ? m.personalRecognition / total : 0f;
+		float total = active.Sum(recognition);
+		float own = recognition(m);
+		float spot = total > 0.005f ? own / total : 0f;
 		int yearsInGroup = Mathf.Max(0, year - m.joinedYear);
 		int hits = a.top40Hits;
 		return m.WouldConsiderSoloCareer(yearsInGroup, hits, MemberWealthService.SoloIndependence(m)) &&
-			spot >= SoloSpotlightShare && m.personalRecognition >= SoloLaunchBar;
+			spot >= SoloSpotlightShare && own >= SoloLaunchBar;
 	}
 
 	/// <summary>
@@ -1414,15 +1418,20 @@ public static class BandLifeService {
 		return hire;
 	}
 
-	public static PooledPerson FindPoolReplacement(SimulatedArtist a, MusicianRole role, bool lead, int year) =>
-		PersonPool.Ordered()
+	public static PooledPerson FindPoolReplacement(SimulatedArtist a, MusicianRole role, bool lead, int year) {
+		// Highest score, ties to the lowest person id. Ordered() is already in person-id order, so the first
+		// maximum is the element the former OrderByDescending(score).ThenBy(id).First() returned, without sorting.
+		PooledPerson best = null;
+		float bestScore = 0f;
+		foreach (var x in PersonPool.Ordered()
 			.Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 45 && p.lastArtistId != a.artistId && SceneSourceService.CanJoinFromPool(p.person, a))
 			.Select(p => (p, score: RoleMatch(role, lead, p.person) + (p.homeRegion == a.homeRegion ? 1f : 0f) +
 				ContactNetworkService.HiringScore(p.person, a) +
 				SceneMatch(p.lastGenre, a.primaryGenre) + (p.person.GetAge(year) <= 35 ? 0.5f : 0f) + p.person.technicalSkill))
-			.Where(x => RoleMatch(role, lead, x.p.person) >= 2f)
-			.OrderByDescending(x => x.score).ThenBy(x => x.p.person.personId, StringComparer.Ordinal)
-			.Select(x => x.p).FirstOrDefault();
+			.Where(x => RoleMatch(role, lead, x.p.person) >= 2f))
+			if (best == null || Comparer<float>.Default.Compare(x.score, bestScore) > 0) { best = x.p; bestScore = x.score; }
+		return best;
+	}
 
 	private static float RoleMatch(MusicianRole role, bool lead, Musician m) {
 		if (lead) return MemberAxesService.IsSinger(m) ? 3f : 0f;
@@ -1522,7 +1531,7 @@ public static class BandLifeService {
 		if (!from.contractLeavingMemberOption || person == null || person.personalRecognition < SoloLaunchBar) return false;
 		if (!label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(solo))) return false;
 		float advance = label.SignArtist(solo, year);
-		CompetitorManager.Instance?.RecordExpense(label, advance);
+		CompetitorManager.Instance?.RecordExpense(label, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.Instance.SignArtist(solo, label.labelId, year);
 		solo.careerEvents.Add($"{year}: {label.labelName} exercised its leaving-member option");
 		return true;

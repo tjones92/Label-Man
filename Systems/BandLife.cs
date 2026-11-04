@@ -109,6 +109,10 @@ public static class BandLife {
 	/// <summary>A uniform [0,1) draw keyed on the world seed and a caller key. Touches no RNG stream.</summary>
 	public static float Unit(string key) =>
 		RepertoireTaxonomy.Unit(WorldSeed.ToString(CultureInfo.InvariantCulture) + "|band-life|" + key);
+	/// <summary>The hash state of a <see cref="Unit"/> key prefix: <c>UnitAfter(UnitPrefix(a), b) == Unit(a + b)</c>.</summary>
+	public static ulong UnitPrefix(string keyPrefix) => RepertoireTaxonomy.AppendHash(RepertoireTaxonomy.AppendHash(RepertoireTaxonomy.BeginHash(),
+		WorldSeed.ToString(CultureInfo.InvariantCulture) + "|band-life|"), keyPrefix);
+	public static float UnitAfter(ulong prefix, string keySuffix) => RepertoireTaxonomy.FinishUnit(RepertoireTaxonomy.AppendHash(prefix, keySuffix));
 
 	/// <summary>An approximately standard-normal keyed draw (Irwin-Hall over four keyed uniforms).</summary>
 	public static float Normal(string key) {

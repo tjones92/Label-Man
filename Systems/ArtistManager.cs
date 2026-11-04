@@ -103,7 +103,7 @@ public partial class ArtistManager : Node {
 	// reservoir back into supply the market can actually see.
 	private const int LatentRotationWeeks = 52;
 	private readonly Dictionary<Genre, int> recentRuntimeFormationCounts = new();
-	private RandomNumberGenerator populationRng;
+	private PcgRandom populationRng;
 	private double formationAccumulator;
 	private int formationYearPeakTarget;
 	// Reused across weeks so the sweeps below do not allocate a set per tick.
@@ -183,23 +183,25 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	if (record?.baseRecord == null) return;
 	var artist = GetArtist(record.baseRecord.artistId);
 	if (artist == null) return;
+	// --album-scale-career-milestones: an album's peak on the album chart's own scale; the raw peak otherwise.
+	int peak = AlbumScaleCareerMilestones.ObserveCareerPeak(record);
 
-	if (record.peakPosition > 0 && !record.artistChartEntryCredited) {
+	if (peak > 0 && !record.artistChartEntryCredited) {
 		artist.RegisterChartEntry();
 		ArtistRecognitionService.OnChartEntry(artist);
 		record.artistChartEntryCredited = true;
 	}
-	if (record.peakPosition > 0 && record.peakPosition <= 40 && !record.artistTop40Credited) {
+	if (peak > 0 && peak <= 40 && !record.artistTop40Credited) {
 		artist.RegisterTop40Hit(CreditsCurrentContract(record, artist));
 		ArtistRecognitionService.OnTop40(artist);
 		record.artistTop40Credited = true;
 	}
-	if (record.peakPosition > 0 && record.peakPosition <= 10 && !record.artistTop10Credited) {
+	if (peak > 0 && peak <= 10 && !record.artistTop10Credited) {
 		artist.RegisterTop10Hit();
 		ArtistRecognitionService.OnTop10(artist);
 		record.artistTop10Credited = true;
 	}
-	if (record.peakPosition == 1 && !record.artistNumberOneCredited) {
+	if (peak == 1 && !record.artistNumberOneCredited) {
 		artist.RegisterNumberOne();
 		ArtistRecognitionService.OnNumberOne(artist);
 		record.artistNumberOneCredited = true;
@@ -246,8 +248,9 @@ public sealed class LaborMarketWeeklySnapshot {
 		if (artist == null) return;
 
 		if (record.artistChartRunCompleted) return;
-		artist.CompleteChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
-			CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
+		artist.CompleteChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+			CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
+			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
 		ArtistRecognitionService.OnChartRunComplete(artist, record);
 		record.artistChartRunCompleted = true;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
@@ -410,7 +413,7 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// </para>
 	/// <para>
 	/// <see cref="NameGenerator.IsReady"/> is the correct gate because it is exactly the
-	/// condition under which <c>GenerateArtistName</c> falls back to <c>GD.Randi()</c> — the one
+	/// condition under which <c>GenerateArtistName</c> falls back to <c>GameRandom.Randi()</c> — the one
 	/// path in the naming API that WOULD touch the global stream.
 	/// </para>
 	/// </summary>
@@ -551,7 +554,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		string firstName, lastName;
 
 		// See GenerateStageName: the gate is whether the namer can serve a name without falling
-		// back to GD.Randi(), not which RNG the population happens to be on.
+		// back to GameRandom.Randi(), not which RNG the population happens to be on.
 		if (NameGenerator.Instance?.IsReady() == true) {
 			(firstName, lastName) = NameGenerator.Instance.GeneratePersonName(isMale, genre, bandEthnicity);
 		} else {
@@ -748,7 +751,7 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// </summary>
 	/// <summary>Public door onto the same quality-correlated roll used at generation, for a signed
 	/// act picking up a manager mid-contract (player-only; see PlayerDesk.ContractNegotiation.cs).
-	/// Uses <c>Randf()</c>, which is <c>GD.Randf()</c> outside population generation -- never the
+	/// Uses <c>Randf()</c>, which is <c>GameRandom.Randf()</c> outside population generation -- never the
 	/// stream-aware population RNG in that context, so this cannot perturb the AI's schedule.</summary>
 	public ManagerArchetype RollManagerArchetypeFor(SimulatedArtist artist) => RollManagerArchetype(artist);
 
@@ -778,9 +781,9 @@ public sealed class LaborMarketWeeklySnapshot {
 		return $"{first} {last}";
 	}
 
-	private float Randf() => UsesPopulationRng ? populationRng.Randf() : GD.Randf();
-	private float RandRange(float min, float max) => UsesPopulationRng ? populationRng.RandfRange(min, max) : (float)GD.RandRange(min, max);
-	private int RandInt(int min, int max) => UsesPopulationRng ? populationRng.RandiRange(min, max) : (int)GD.RandRange(min, max);
+	private float Randf() => UsesPopulationRng ? populationRng.Randf() : GameRandom.Randf();
+	private float RandRange(float min, float max) => UsesPopulationRng ? populationRng.RandfRange(min, max) : (float)GameRandom.RandRange(min, max);
+	private int RandInt(int min, int max) => UsesPopulationRng ? populationRng.RandiRange(min, max) : (int)GameRandom.RandRange(min, max);
 
 	/// <summary>Called only by ChartManager's explicit post-chart live sequence.</summary>
 	public void AdvancePopulationLifecycle(GameDate date) {
@@ -804,13 +807,19 @@ public sealed class LaborMarketWeeklySnapshot {
 			// is observing or lineup churn is on; draws nothing from any stream (every chance is keyed).
 			if (rollover) BandLifeService.OnYearBoundary(date.year);
 		}
-		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
-		ApplyLifecycleExits(date.year);
-		MaterializeRuntimeFormation(date);
-		ExpireCompletedProspectSearchSpells(date.year);
-		RotateRestedLatentProspects();
-		ActivateProspectsForHiringOpportunities();
-		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: false);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationOwnership))
+			ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationExits))
+			ApplyLifecycleExits(date.year);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationFormation))
+			MaterializeRuntimeFormation(date);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationProspects)) {
+			ExpireCompletedProspectSearchSpells(date.year);
+			RotateRestedLatentProspects();
+			ActivateProspectsForHiringOpportunities();
+		}
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationOwnership))
+			ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: false);
 	}
 
 	private void MaterializeRuntimeFormation(GameDate date) {
@@ -1083,7 +1092,7 @@ public sealed class LaborMarketWeeklySnapshot {
 
 	private void EnsurePopulationRng() {
 		if (populationRng != null) return;
-		populationRng = new RandomNumberGenerator();
+		populationRng = new PcgRandom();
 		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
 		populationRng.Seed = seed ^ 0x617274697374706fUL; // "artistpo", stable namespace
 	}
@@ -1405,7 +1414,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			recentRuntimeFormationCounts[(Genre)kv.Key] = kv.Value;
 
 		if (w.HasPopulationRng) {
-			populationRng = new RandomNumberGenerator { Seed = w.PopulationRngSeed };
+			populationRng = new PcgRandom { Seed = w.PopulationRngSeed };
 			populationRng.State = w.PopulationRngState;
 		}
 	}
@@ -1520,7 +1529,7 @@ public sealed class LaborMarketWeeklySnapshot {
 
 	internal static SimulatedArtist GenerateRuntimeArtistForProbe(int year, ulong seed) {
 		var manager = new ArtistManager {
-			populationRng = new RandomNumberGenerator { Seed = seed ^ 0x617274697374706fUL },
+			populationRng = new PcgRandom { Seed = seed ^ 0x617274697374706fUL },
 			generatingRuntimePopulation = true
 		};
 		try {
@@ -1529,7 +1538,7 @@ public sealed class LaborMarketWeeklySnapshot {
 	}
 	internal static IReadOnlyList<SimulatedArtist> GenerateRuntimeArtistsForProbe(int year, ulong seed, int count) {
 		var manager = new ArtistManager {
-			populationRng = new RandomNumberGenerator { Seed = seed ^ 0x617274697374706fUL },
+			populationRng = new PcgRandom { Seed = seed ^ 0x617274697374706fUL },
 			generatingRuntimePopulation = true
 		};
 		try {
@@ -1539,12 +1548,12 @@ public sealed class LaborMarketWeeklySnapshot {
 		} finally { manager.generatingRuntimePopulation = false; }
 	}
 	internal static Genre ChooseRuntimeSecondaryGenreForProbe(Genre primary, int year, ulong seed) {
-		var manager = new ArtistManager { populationRng = new RandomNumberGenerator { Seed = seed }, generatingRuntimePopulation = true };
+		var manager = new ArtistManager { populationRng = new PcgRandom { Seed = seed }, generatingRuntimePopulation = true };
 		try { return manager.ChooseRuntimeSecondaryGenre(primary, year); }
 		finally { manager.generatingRuntimePopulation = false; }
 	}
 	internal static Genre GetEnabledRelatedGenreForProbe(Genre primary, ulong seed) {
-		var manager = new ArtistManager { populationRng = new RandomNumberGenerator { Seed = seed }, generatingRuntimePopulation = true };
+		var manager = new ArtistManager { populationRng = new PcgRandom { Seed = seed }, generatingRuntimePopulation = true };
 		try { return manager.GetRelatedGenre(primary); }
 		finally { manager.generatingRuntimePopulation = false; }
 	}

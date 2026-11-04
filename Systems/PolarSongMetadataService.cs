@@ -7,6 +7,7 @@ using System.Text;
 
 /// <summary>Data-only master registry. No RNG, fitting, selection, rights routing or market mutation.</summary>
 public static class PolarSongMetadataService {
+	private static readonly JsonSerializerOptions fingerprintJsonOptions = new() { IncludeFields = true };
 	private static readonly Dictionary<string, SongMasterMetadata> masters = new(StringComparer.Ordinal);
 	private static readonly Dictionary<string, List<SongMasterMetadata>> mastersBySong = new(StringComparer.Ordinal);
 	// Shadow metadata maintenance only. This flag cannot enable selection or chart behavior.
@@ -43,9 +44,12 @@ public static class PolarSongMetadataService {
 
 	public static void EnsureComposition(SongComposition song) {
 		CompositionShapeVariation.Ensure(song);
-		if (song == null || song.demoTaxonomy != null) return;
-		song.demoTaxonomy = new SongTaxonomy { primaryGenre = song.primaryGenre, secondaryGenre = song.secondaryGenre,
-			tags = ClassifyLegacyTags(song.genreTagIds) };
+		if (song == null) return;
+		if (song.demoTaxonomy == null)
+			song.demoTaxonomy = new SongTaxonomy { primaryGenre = song.primaryGenre, secondaryGenre = song.secondaryGenre,
+				tags = ClassifyLegacyTags(song.genreTagIds) };
+		// Content is read from the title and lyric mode only; nothing reads it but the media layer (draw-free, idempotent).
+		SongContentTags.Author(song);
 	}
 
 	/// <summary>Freeze only at a committed, explicitly derived first master. No preview-time writes.
@@ -111,17 +115,33 @@ public static class PolarSongMetadataService {
 	private static void WarmComposition(SongComposition song, PolarSongTable table) {
 		var first = Get(song.firstCommittedMasterId);
 		if (!song.plasticityFrozen && first != null) FreezePlasticity(song, first.masterId,
-			SongProfileDeriver.Derive(song, first.taxonomy, table).plasticity, "first-master:" + table.Version);
+			SongProfileDeriver.Derive(song, first.taxonomy, table).plasticity, FirstMasterProvenance(table));
 		foreach (var master in mastersBySong.GetValueOrDefault(song.songId) ?? new()) {
 			// Existing recording shapes are historical facts. H affects future resolutions only.
 			if (CompositionShapeVariation.ActiveVersion > 0 && master.cachedProfile != null) continue;
 			string inputs = JsonSerializer.Serialize(new { master.taxonomy, song.wordDensity, song.defaultMeter, song.defaultForm, song.repertoireVariation,
-				song.plasticity, song.plasticityFrozen, table.ContentFingerprint }, new JsonSerializerOptions { IncludeFields = true });
+				song.plasticity, song.plasticityFrozen, table.ContentFingerprint }, fingerprintJsonOptions);
 			string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inputs)));
 			if (master.cachedProfile != null && master.profileFingerprint == fingerprint) continue;
 			master.cachedProfile = SongProfileDeriver.Derive(song, master.taxonomy, table);
-			master.profileFingerprint = fingerprint;
+			master.profileFingerprint = PooledFingerprint(fingerprint);
 		}
+	}
+	// Both strings repeat across the catalogue: one provenance per table version, and identical inputs give one
+	// fingerprint (thousands of masters share each). Reuse the instance; the values are unchanged.
+	private static string firstMasterProvenance, firstMasterProvenanceVersion;
+	private static string FirstMasterProvenance(PolarSongTable table) {
+		if (firstMasterProvenance == null || firstMasterProvenanceVersion != table.Version) {
+			firstMasterProvenance = "first-master:" + table.Version;
+			firstMasterProvenanceVersion = table.Version;
+		}
+		return firstMasterProvenance;
+	}
+	private static readonly Dictionary<string, string> fingerprintPool = new(StringComparer.Ordinal);
+	private static string PooledFingerprint(string fingerprint) {
+		if (fingerprintPool.TryGetValue(fingerprint, out string shared)) return shared;
+		fingerprintPool.Add(fingerprint, fingerprint);
+		return fingerprint;
 	}
 	private static void IndexMaster(SongMasterMetadata master) {
 		if (string.IsNullOrEmpty(master.songId)) return;

@@ -46,11 +46,11 @@ public partial class RosterManager {
     private static int DrawSceneInitialTarget(AILabel label) {
         // Same tier fill ranges as the frozen allocation; no capacity or population retuning.
         float fill = label.tier switch {
-            LabelTier.Major => (float)GD.RandRange(0.6, 0.85),
-            LabelTier.MidTier => (float)GD.RandRange(0.5, 0.75),
-            LabelTier.Independent => (float)GD.RandRange(0.4, 0.7),
-            LabelTier.Small => (float)GD.RandRange(0.3, 0.6),
-            LabelTier.Boutique => (float)GD.RandRange(0.5, 0.8), _ => 0.5f
+            LabelTier.Major => (float)GameRandom.RandRange(0.6, 0.85),
+            LabelTier.MidTier => (float)GameRandom.RandRange(0.5, 0.75),
+            LabelTier.Independent => (float)GameRandom.RandRange(0.4, 0.7),
+            LabelTier.Small => (float)GameRandom.RandRange(0.3, 0.6),
+            LabelTier.Boutique => (float)GameRandom.RandRange(0.5, 0.8), _ => 0.5f
         };
         return Mathf.RoundToInt(label.maxRosterSize * fill);
     }
@@ -60,7 +60,7 @@ public partial class RosterManager {
             initialAccessible = new(StringComparer.Ordinal);
             initialUnsigned = ArtistManager.Instance.GetLaunchRosterCandidates().Select(a => a.artistId).ToHashSet(StringComparer.Ordinal);
         }
-        try { InitializeSceneRostersCore(labels, year); }
+        try { MidTierNationalAr.RunLaunchAllocation(() => InitializeSceneRostersCore(labels, year)); }
         finally { initialAccessible = null; initialUnsigned = null; }
     }
 
@@ -74,15 +74,30 @@ public partial class RosterManager {
             targets.Add(label.labelId, DrawSceneInitialTarget(label));
         }
         var remaining = labels.Where(l => l.CurrentRosterSize < targets[l.labelId]).ToList();
+        // MidTier national A&R (opt-in) opens once the Majors are done; capable MidTiers that ran dry wait for it.
+        var waiting = new List<AILabel>();
+        void OpenNationalRouteOnceMajorsAreDone() {
+            if (MidTierNationalAr.LaunchRouteOpen || !MidTierNationalAr.Enabled || remaining.Any(l => l.tier == LabelTier.Major)) return;
+            MidTierNationalAr.OpenLaunchRoute();
+            foreach (var label in labels.Where(MidTierNationalAr.Qualifies)) initialAccessible?.Remove(label.labelId);
+            remaining.AddRange(waiting);
+            waiting.Clear();
+        }
+        OpenNationalRouteOnceMajorsAreDone();
         for (int round = 0; remaining.Count > 0; round++) {
             sceneInitializationRound = round;
             foreach (var label in SceneInitializationOrder(remaining, round)) {
                 var artist = FindArtistForLabel(label, year);
-                if (artist == null) { remaining.Remove(label); continue; }
+                if (artist == null) {
+                    remaining.Remove(label);
+                    if (MidTierNationalAr.WaitsForLaunchRoute(label)) waiting.Add(label);
+                    continue;
+                }
                 InitialSignArtist(label, artist, year);
                 if (artist.labelId == label.labelId) initialUnsigned?.Remove(artist.artistId);
                 if (label.CurrentRosterSize >= targets[label.labelId]) remaining.Remove(label);
             }
+            OpenNationalRouteOnceMajorsAreDone();
         }
         var unsigned = ArtistManager.Instance.GetLaunchRosterCandidates();
         foreach (var label in labels) {
@@ -126,7 +141,7 @@ public partial class RosterManager {
                 artist.CalculateBaseQuality(), ScoutingPerception.PerceivedQuality(artist, label, -1)));
             return artist;
         }
-        float roll = (float)GD.RandRange(0f, scored.Sum(x => x.score));
+        float roll = (float)GameRandom.RandRange(0f, scored.Sum(x => x.score));
         foreach (var entry in scored) { roll -= entry.score; if (roll <= 0f) return Pick(entry.artist); }
         return Pick(scored[^1].artist);
     }

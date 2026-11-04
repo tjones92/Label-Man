@@ -53,9 +53,9 @@ public static class LocalSceneRoomChecks {
             Check(before.Bills.Any(b => b.Appearances.Any(s => !string.IsNullOrEmpty(am.GetArtist(s.ArtistId).labelId))), "signed residents remain publicly hearable");
             Check(before.Bills.Any(b => b.Appearances.Any(s => am.GetArtist(s.ArtistId).prospectMarketStatus == ProspectMarketStatus.Latent)), "latent contract prospects can work publicly");
             ulong populationBefore = original.PopulationRngState;
-            GD.Seed(812334); float next = GD.Randf(); GD.Seed(812334);
+            GameRandom.Seed(812334); float next = GameRandom.Randf(); GameRandom.Seed(812334);
             _ = LocalSceneRoomService.Calendar("miami", date);
-            Check(GD.Randf() == next, "calendar reads preserve global RNG");
+            Check(GameRandom.Randf() == next, "calendar reads preserve global RNG");
             Check(WorldStateService.Capture().PopulationRngState == populationBefore, "scene calendar does not consume population RNG");
             int artistCount = am.GetAllArtists().Count();
             var first = before.Bills.First(b => b.Day == 0 && b.Appearances.Count > 0 && SceneRoomCatalog.Get(b.RoomId).IsPerformance);
@@ -157,10 +157,10 @@ public static class LocalSceneRoomChecks {
             string read = Json(desk.Slate.Select(p => new { p.Artist.artistId, p.LiveSet }).ToList());
             string billsAfter = Json(Snapshot());
             TimeManager.Instance.RestoreClock(date, first.StartHour);
-            GD.Seed(554433); next = GD.Randf(); GD.Seed(554433);
+            GameRandom.Seed(554433); next = GameRandom.Randf(); GameRandom.Seed(554433);
             Check(!desk.ScoutSceneRoom(first.RoomId, out _), "repeat observation of booked bill is rejected without new evidence or cost");
             Check(read == Json(desk.Slate.Select(p => new { p.Artist.artistId, p.LiveSet }).ToList()) && billsAfter == Json(Snapshot()), "repeat observation preserves shared sets and work ledger");
-            Check(GD.Randf() == next, "room scouting does not alter global RNG");
+            Check(GameRandom.Randf() == next, "room scouting does not alter global RNG");
             Check(Json(desk.CaptureState().ScoutingKnowledge) == evidenceBefore, "same-event replay preserves acquired evidence");
             var limitedRooms = Snapshot();
             var limitedBill = limitedRooms.Bills.Single(b => b.Id == first.Id);

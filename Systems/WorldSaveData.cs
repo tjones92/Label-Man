@@ -26,10 +26,18 @@ using Godot;
 /// re-link against the restored world.</para>
 /// </summary>
 public sealed class WorldSaveData {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public double? LpDemandScale { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? RetailPurchasePolicy { get; set; }
 	// --- Clock (Phase 0) ---
 	public int ChartWeek { get; set; }
 	public int Hour { get; set; }
 	public int Minute { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public int RegionalSalesRngVersion { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public ulong RegionalSalesRngSeed { get; set; }
 	// The Saturday the currently-displayed chart is dated to (frozen "for week ending" header). Stored as ints
 	// because GameDate isn't a save DTO type; 0 = pre-fix save, recovered from the calendar on load.
 	public int ChartWeekEndingYear { get; set; }
@@ -103,6 +111,10 @@ public sealed class WorldSaveData {
     public SceneEcosystemSaveData SceneEcosystem { get; set; }
 	// Remembered relationships and session work (ContactNetworkService). Absent in older saves: starts empty.
 	public ContactNetworkSaveData ContactNetwork { get; set; }
+	// Television bookings, airings and per-act media tallies (MediaAtmosphereService). Absent in older saves: starts empty.
+	public MediaSaveData Media { get; set; }
+	// Release Judgement Phase 1 shadow shortlists (AiRepertoireService, save v23). Null unless the shadow ran.
+	public AiRepertoireSaveData AiRepertoire { get; set; }
 }
 
 /// <summary>Band-member simulation world state that does not live on an artist or a musician.</summary>
@@ -124,6 +136,7 @@ public sealed class BandLifeSaveData {
 /// (the pools share SongComposition objects with <see cref="Songs"/> and are not a pure function of it, so they
 /// are relinked rather than rebuilt). The catalogue's own RNG state is preserved.</summary>
 public sealed class CompositionSaveData {
+	public ProfessionalWritingMarketState WritingMarket { get; set; }
 	public int ShapeVariationVersion {get;set;}
 	public ulong? ShapeVariationWorldSeed {get;set;}
 	public int RepertoireSchemaVersion {get;set;}
@@ -170,6 +183,8 @@ public sealed class RosterSaveData {
 /// whole; their id-keyed indices and the record object refs inside a project are relinked on load. Transient
 /// weekly telemetry (per-label revenue/lifecycle accumulators, reset each week) is intentionally not saved.</summary>
 public sealed class CompetitorSaveData {
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public ReleaseProgrammeState ReleaseProgramme { get; set; }
 	public List<AlbumProject> AlbumProjects { get; set; } = new();
 	public List<AlbumProject> PendingAlbumProjects { get; set; } = new();
 	public Dictionary<string, string> ProjectById { get; set; } = new();        // index key -> projectId
@@ -197,6 +212,10 @@ public sealed class CompetitorSaveData {
 	// Mints every AI "gen_N"/"album_N" id. Not restoring it resets the counter to 0 on load, so newly-generated
 	// AI records collide with restored ids and the next Save's record ToDictionary throws on the duplicate.
 	public int GeneratedRecordCounter { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public RecordClubState RecordClubs { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public BudgetLpState BudgetLps { get; set; }
 }
 
 /// <summary>One entry of the (artistId, year) -> project-count map, flattened for JSON (tuple keys don't
@@ -265,9 +284,13 @@ public static class WorldStateService {
 	public static WorldSaveData Capture() {
 		GameDate ending = ChartManager.Instance?.ChartWeekEndingDate ?? default;
 		var world = new WorldSaveData {
+			LpDemandScale = LpDemandCalibration.SavedScale,
+			RetailPurchasePolicy = RetailPurchaseEnvelope.SavedVersion,
 			ChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Hour = TimeManager.Instance?.CurrentHour ?? 0,
 			Minute = TimeManager.Instance?.CurrentMinute ?? 0,
+			RegionalSalesRngVersion = RegionalSalesRandom.Version,
+			RegionalSalesRngSeed = RegionalSalesRandom.SavedSeed,
 			ChartWeekEndingYear = ending.year,
 			ChartWeekEndingMonth = ending.month,
 			ChartWeekEndingDay = ending.day
@@ -281,6 +304,8 @@ public static class WorldStateService {
 		CompositionCatalogService.CaptureWorld(world);
 		BandLifeService.CaptureWorld(world);
 		ContactNetworkService.CaptureWorld(world);
+		MediaAtmosphereService.CaptureWorld(world);
+		AiRepertoireService.CaptureWorld(world);
 		LocalSceneIdentityService.CaptureWorld(world);
 		LocalScenePersistenceService.CaptureWorld(world);
         LocalSceneRoomService.CaptureWorld(world);
@@ -293,6 +318,9 @@ public static class WorldStateService {
 	/// Order matters: artists first, then labels (whose rosters relink to those artists), then the lifecycle
 	/// (whose active list is the very same object as the label list).</summary>
 	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
+		LpDemandCalibration.RequireSaved(world?.LpDemandScale);
+		RetailPurchaseEnvelope.RequireSaved(world?.RetailPurchasePolicy);
+		ProfessionalWritingMarket.RequireSaved(world?.Composition?.WritingMarket);
         SceneAttentionFeedback.Reset(); // derived prior-week cache must not survive a load/rollback
 		if (world == null) {
 			if (deferSceneRelink) {
@@ -304,6 +332,7 @@ public static class WorldStateService {
 			return;
 		}
 		// Validate scene versions before mutating managers. Real player loads defer migration until success.
+		RegionalSalesRandom.Validate(world.RegionalSalesRngVersion);
 		LocalScenePersistenceService.ValidateRestore(world.ScenePersistence);
         LocalSceneRoomService.ValidateRestore(world.SceneRooms);
         SceneEcosystemService.ValidateRestore(world.SceneEcosystem);
@@ -322,6 +351,8 @@ public static class WorldStateService {
 		CompositionCatalogService.RehydrateWorld(world);
 		BandLifeService.RehydrateWorld(world, date.year);
 		ContactNetworkService.RehydrateWorld(world);
+		MediaAtmosphereService.RehydrateWorld(world);
+		AiRepertoireService.RehydrateWorld(world);
 		ChartManager.Instance?.RestoreChartWeek(world.ChartWeek);
 		// Restore the frozen "for week ending" date. A pre-fix save (year 0) never stored it, so recover the most
 		// recent week-ending Saturday from the restored calendar date.
@@ -332,8 +363,9 @@ public static class WorldStateService {
 		ChartManager.Instance?.RebuildRadioForLoad();   // reporter panel is seed-reproducible; rebuild for the restored year
 
 		// Reseed the global RNG deterministically so repeated loads of this save continue identically.
-		GD.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
+		GameRandom.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
 		if (!deferSceneRelink) LocalSceneIdentityService.CompleteRestore();
+		RegionalSalesRandom.Restore(world.RegionalSalesRngVersion, world.RegionalSalesRngSeed, worldSeed);
 	}
 
 	/// <summary>SplitMix64-style mix of the world seed and the resumed week into a stable global RNG seed.</summary>

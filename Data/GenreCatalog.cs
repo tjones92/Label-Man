@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Godot;
 
 /// <summary>Immutable, data-owned canonical genre metadata for the enabled Directive 5 path.</summary>
@@ -21,9 +22,13 @@ public sealed class GenreProfile {
 		SegmentWeights = new ReadOnlyDictionary<string, float>(GenreSegmentRouting.Create(genre, family, audience));
 	}
 
+	// Keyframe years for BaselineKeyframes. Hoisted: the baseline is read per record x region x segment, and a
+	// local array literal allocated on every call.
+	private static readonly int[] BaselineYears = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+
 	public float GetBaseline(float year) {
 		float clamped = Mathf.Clamp(year, 1960f, 1969f);
-		int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+		int[] years = BaselineYears;
 		for (int i = 0; i < years.Length - 1; i++) if (clamped <= years[i + 1]) return Mathf.Lerp(BaselineKeyframes[i], BaselineKeyframes[i + 1], (clamped - years[i]) / (years[i + 1] - years[i]));
 		return BaselineKeyframes[^1];
 	}
@@ -34,7 +39,7 @@ public sealed class GenreProfile {
 	/// genre is past its own peak.</summary>
 	public float GetBaselinePeakThrough(float year) {
 		float clamped = Mathf.Clamp(year, 1960f, 1969f);
-		int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+		int[] years = BaselineYears;
 		float peak = GetBaseline(clamped);
 		for (int i = 0; i < years.Length; i++) {
 			if (years[i] > clamped) break;
@@ -54,7 +59,31 @@ public sealed class GenreProfile {
 
 public static class GenreCatalog {
 	/// <summary>TEMPORARY A/B control (2026-10-13): restores the pre-trim Soul and R&B keyframes. Remove after the decade A/B.</summary>
-	private static readonly bool RsControl = Array.IndexOf(OS.GetCmdlineUserArgs(), "--rs-keyframes-control") >= 0;
+	private static readonly bool RsControl = Array.IndexOf(SimulationArguments.Get(), "--rs-keyframes-control") >= 0;
+	// Calibration probes, inert unless named. --genre-keyframe-scale=TraditionalPop@1960=1.07,... multiplies one
+	// baseline keyframe; --radio-acceptance=RockAndRoll=1.0,... replaces a genre's RadioAcceptance multiplier.
+	private static readonly Dictionary<(Genre, int), float> KeyframeScaleProbe = ParseProbe("--genre-keyframe-scale=", true)
+		.ToDictionary(p => (p.genre, p.year), p => p.value);
+	private static readonly Dictionary<Genre, float> RadioAcceptanceProbe = ParseProbe("--radio-acceptance=", false)
+		.ToDictionary(p => p.genre, p => p.value);
+	// --radio-acceptance-ramp=Soul@1963=1.0,Soul@1966=0.55 replaces a genre's flat multiplier with a piecewise-linear
+	// year curve, held flat outside its first and last keyframe. Inert unless named; wins over --radio-acceptance=.
+	private static readonly Dictionary<Genre, (float year, float value)[]> RadioAcceptanceRamp = ParseProbe("--radio-acceptance-ramp=", true)
+		.GroupBy(p => p.genre).ToDictionary(g => g.Key, g => g.Select(p => ((float)p.year, p.value)).OrderBy(k => k.Item1).ToArray());
+	internal static List<(Genre genre, int year, float value)> ParseProbe(string prefix, bool withYear) {
+		var result = new List<(Genre, int, float)>();
+		foreach (string arg in SimulationArguments.Get().Where(a => a.StartsWith(prefix, StringComparison.Ordinal)))
+			foreach (string item in arg.Substring(prefix.Length).Split(',', StringSplitOptions.RemoveEmptyEntries)) {
+				string[] kv = item.Split('=');
+				string[] key = kv[0].Split('@');
+				if (kv.Length != 2 || key.Length != (withYear ? 2 : 1) || !Enum.TryParse(key[0], out Genre genre)
+					|| !float.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value)
+					|| (withYear && !int.TryParse(key[1], out _)))
+					throw new ArgumentException($"Bad {prefix} item '{item}'.");
+				result.Add((genre, withYear ? int.Parse(key[1]) : 0, value));
+			}
+		return result;
+	}
 	private static readonly Dictionary<Genre, GenreProfile> Profiles = new();
 	private static readonly Dictionary<string, GenreProfile> ProfilesById = new(StringComparer.Ordinal);
 	private static readonly ReadOnlyCollection<GenreProfile> AllProfiles;
@@ -405,8 +434,17 @@ public static class GenreCatalog {
 
 	/// <summary>Per-genre radio-acceptance multiplier applied to the national acceptance that feeds
 	/// radio heat only. Expects a canonical genre; default 1.0 leaves a genre's airplay untouched.</summary>
-	public static float GetRadioAcceptance(Genre canonical) =>
-		RadioAcceptanceOverrides.TryGetValue(canonical, out float r) ? r : 1f;
+	public static float GetRadioAcceptance(Genre canonical, float year) {
+		if (RadioAcceptanceRamp.TryGetValue(canonical, out var ramp)) {
+			if (year <= ramp[0].year) return ramp[0].value;
+			for (int i = 1; i < ramp.Length; i++)
+				if (year <= ramp[i].year)
+					return Mathf.Lerp(ramp[i - 1].value, ramp[i].value, (year - ramp[i - 1].year) / Mathf.Max(ramp[i].year - ramp[i - 1].year, 1e-3f));
+			return ramp[^1].value;
+		}
+		return RadioAcceptanceProbe.TryGetValue(canonical, out float probe) ? probe :
+			RadioAcceptanceOverrides.TryGetValue(canonical, out float r) ? r : 1f;
+	}
 
 	// ERA-RAMPED FORMAT ORIENTATION -- the new lever for a genre that must move single->album ACROSS
 	// the decade, which a flat SingleOrientation cannot express. The flat value drives the whole
@@ -527,6 +565,12 @@ public static class GenreCatalog {
 		}
 	}
 	private static void Add(string id, Genre genre, GenreFamily family, float emergence, float? death, float audience, float orientation, params float[] baseline) {
+		if (KeyframeScaleProbe.Count > 0) {
+			baseline = (float[])baseline.Clone();
+			int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+			for (int i = 0; i < baseline.Length && i < years.Length; i++)
+				if (KeyframeScaleProbe.TryGetValue((genre, years[i]), out float scale)) baseline[i] *= scale;
+		}
 		GenreProfile profile = new(id, genre, family, emergence, death, audience, orientation, baseline);
 		if (!Profiles.TryAdd(genre, profile) || !ProfilesById.TryAdd(id, profile)) throw new InvalidOperationException($"Duplicate canonical genre '{id}'.");
 	}

@@ -80,9 +80,9 @@ public static class ScoutingCredibleOffersChecks {
         var bidder = OpenRival(act); // AI labels given room and cash; restored by the next Reset
         Check(bidder != null, "fixture needs a reachable rival");
         string worldBefore = Json(WorldStateService.Capture());
-        GD.Seed(931); uint draw = GD.Randi(); GD.Seed(931);
+        GameRandom.Seed(931); uint draw = GameRandom.Randi(); GameRandom.Seed(931);
         var offer = desk.MakeRivalOfferForCheck(act, bidder);
-        Check(GD.Randi() == draw && Json(WorldStateService.Capture()) == worldBefore, "making an offer draws nothing and writes no world state");
+        Check(GameRandom.Randi() == draw && Json(WorldStateService.Capture()) == worldBefore, "making an offer draws nothing and writes no world state");
         Check(offer.RivalLabelId == bidder.labelId && offer.Status == RivalOfferStatus.Pending && offer.DecisionDay == Today() + PlayerDesk.RivalOfferDecisionDays &&
             offer.Terms.Advance == Mathf.Ceil(bidder.CalculateManagerAdjustedAdvance(act) / 5f) * 5f && offer.Terms.TermYears is >= 1 and <= 7,
             "the offer is the rival's own pricing with a decision day");
@@ -128,9 +128,9 @@ public static class ScoutingCredibleOffersChecks {
         desk.ResolveRivalOffersForCheck();
         Check(desk.PendingRivalOffer(id) != null && string.IsNullOrEmpty(act.labelId), "nothing happens before the decision day");
         clock.RestoreClock(LocalSceneRoomService.Date(told.DecisionDay), 6);
-        GD.Seed(932); draw = GD.Randi(); GD.Seed(932);
+        GameRandom.Seed(932); draw = GameRandom.Randi(); GameRandom.Seed(932);
         desk.ResolveRivalOffersForCheck();
-        Check(GD.Randi() == draw, "the rival's signing draws no global RNG");
+        Check(GameRandom.Randi() == draw, "the rival's signing draws no global RNG");
         act = am.GetArtist(id);
         Check(act.labelId == bidder.labelId && bidder.roster.Contains(act) && act.unrecoupedAdvance == told.Terms.Advance && act.royaltyRate == told.Terms.RoyaltyRate &&
             act.contractLength == told.Terms.TermYears && desk.RivalOffers.Single(o => o.ArtistId == id).Status == RivalOfferStatus.Accepted,
@@ -177,9 +177,9 @@ public static class ScoutingCredibleOffersChecks {
         Check(desk.ApproachToSign(prospect, out message) && prospect.Talk != null, "a talk without a rival: " + message);
         talk = prospect.Talk; ask = talk.ask;
         float cash = desk.Label.cashReserves; float baseCredit = desk.AcceptanceCreditForCheck(talk); int before = Minute();
-        GD.Seed(933); draw = GD.Randi(); GD.Seed(933); worldBefore = Json(WorldStateService.Capture());
+        GameRandom.Seed(933); draw = GameRandom.Randi(); GameRandom.Seed(933); worldBefore = Json(WorldStateService.Capture());
         Check(desk.AddDistributionPromise(talk, out message) && talk.distributionPromised && !desk.AddDistributionPromise(talk, out _), "distribution joins the package once: " + message);
-        Check(GD.Randi() == draw && desk.Label.cashReserves == cash && Minute() == before && Json(WorldStateService.Capture()) == worldBefore && desk.ContractCommitments.Count == 0,
+        Check(GameRandom.Randi() == draw && desk.Label.cashReserves == cash && Minute() == before && Json(WorldStateService.Capture()) == worldBefore && desk.ContractCommitments.Count == 0,
             "proposing distribution spends, draws and commits nothing");
         float credit = desk.AcceptanceCreditForCheck(talk) - baseCredit;
         Check(credit >= 0.02f && credit <= 0.08f, $"the promise is scored inside the session range ({credit:0.000})");

@@ -66,6 +66,13 @@ public static class CompositionShapeVariation {
  public static void AuthorContext(SongComposition song, SongContentContext context, string evidence) {
   if(song == null || !Enum.IsDefined(context) || string.IsNullOrWhiteSpace(evidence))
    throw new ArgumentException("Explicit composition and authorship evidence required");
-  song.contentContext=context; song.contextAuthorshipEvidence=evidence;
+  song.contentContext=context; song.contextAuthorshipEvidence=PooledEvidence(evidence);
+ }
+ // Evidence strings are built per song but repeat across the catalogue (one per authoring route); keep one instance.
+ private static readonly System.Collections.Generic.Dictionary<string,string> evidencePool = new(StringComparer.Ordinal);
+ private static string PooledEvidence(string evidence) {
+  if(evidencePool.TryGetValue(evidence, out string shared)) return shared;
+  evidencePool.Add(evidence, evidence);
+  return evidence;
  }
 }

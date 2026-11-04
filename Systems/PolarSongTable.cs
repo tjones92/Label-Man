@@ -24,7 +24,49 @@ public sealed class PolarSongTable {
 	// Only the bounded development probes may select the frozen pre-repair fixture.
 	internal static bool AuditLegacyRepair;
 	public float N(string key) => Numbers[key];
-	public PolarArchetypeRow Row(SongArchetype archetype) => Archetypes.First(r => r.Name == archetype.ToString());
+	/// <summary>The material-fit constants, read once per Numbers dictionary: Evaluate runs per candidate reading per song.</summary>
+	internal FitNumbers Fit {
+		get {
+			if (fitNumbers == null || !ReferenceEquals(fitNumbersSource, Numbers)) { fitNumbers = new FitNumbers(this); fitNumbersSource = Numbers; }
+			return fitNumbers;
+		}
+	}
+	private FitNumbers fitNumbers;
+	private Dictionary<string, float> fitNumbersSource;
+	internal sealed class FitNumbers {
+		public readonly float CapabilityPenalty, HeadroomBonus, IdentityBasePenalty, RigidityPenalty, NeutralMoment, MomentPenalty;
+		public FitNumbers(PolarSongTable table) {
+			CapabilityPenalty = table.N("capabilityPenalty"); HeadroomBonus = table.N("headroomBonus");
+			IdentityBasePenalty = table.N("identityBasePenalty"); RigidityPenalty = table.N("rigidityPenalty");
+			NeutralMoment = table.N("neutralMoment"); MomentPenalty = table.N("momentPenalty");
+		}
+	}
+	/// <summary><c>IdentityWeights.Sum()</c>, computed once per array.</summary>
+	internal float IdentityWeightSum {
+		get {
+			if (!ReferenceEquals(identityWeightSumSource, IdentityWeights)) { identityWeightSum = IdentityWeights.Sum(); identityWeightSumSource = IdentityWeights; }
+			return identityWeightSum;
+		}
+	}
+	private float identityWeightSum;
+	private float[] identityWeightSumSource;
+	public PolarArchetypeRow Row(SongArchetype archetype) {
+		// Profile derivation asks this per candidate reading; index the first row of each name once per Archetypes array.
+		if (!ReferenceEquals(rowIndexSource, Archetypes)) {
+			rowIndex.Clear();
+			foreach (SongArchetype value in Enum.GetValues<SongArchetype>()) {
+				string valueName = value.ToString();
+				var first = Archetypes?.FirstOrDefault(r => r.Name == valueName);
+				if (first != null) rowIndex[value] = first;
+			}
+			rowIndexSource = Archetypes;
+		}
+		if (rowIndex.TryGetValue(archetype, out var row)) return row;
+		string name = archetype.ToString();
+		return Archetypes.First(r => r.Name == name);
+	}
+	private PolarArchetypeRow[] rowIndexSource;
+	private readonly Dictionary<SongArchetype, PolarArchetypeRow> rowIndex = new();
 	public PolarStylePrior Prior(Genre genre) => derivedPriors.TryGetValue(genre, out var center) ? center : LegacyPrior(genre);
 	private PolarStylePrior LegacyPrior(Genre genre) => GenreOverrides.TryGetValue(genre.ToString(), out var p) ? p :
 		Families[GenreCatalog.TryGet(genre, out var g) ? g.Family.ToString() : GenreFamily.Pop.ToString()];

@@ -280,8 +280,9 @@ public static class AlbumLegitimacyService {
 		if (record.baseRecord.originality < LandmarkOriginalityBar) return;
 		if (!HasCanonisationRoom(year)) return;
 
+		// The raw peak unless --album-scale-career-milestones scores the album on its own chart's scale.
 		(float recognition, _) = CulturalRecognitionService.Consume(record.baseRecord.recordId,
-			record.peakPosition, Mathf.Max(artist.reputation, artist.criticalAcclaim));
+			AlbumScaleCareerMilestones.CareerPeak(record), Mathf.Max(artist.reputation, artist.criticalAcclaim));
 		if (recognition < LandmarkRecognitionBar) return;
 
 		record.landmarkPublished = true;
@@ -297,6 +298,9 @@ public static class AlbumLegitimacyService {
 		CulturalMemoryService.Publish(artist.artistId, artist.labelId,
 			GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year), year,
 			CulturalEventType.LandmarkAlbum, merit, recognition, strength);
+		// Print-only: the landmark count, genre mix and chart reach are Phase 2b's measures (CelebrityFanbaseDesign.md §4.3).
+		GD.Print($"LANDMARK year={year} genre={record.baseRecord.primaryGenre} peak={AlbumScaleCareerMilestones.CareerPeak(record)}" +
+			$" acclaim={artist.criticalAcclaim:F3} reputation={artist.reputation:F3} recognition={recognition:F3} merit={merit:F3} act=\"{artist.stageName}\"");
 	}
 
 	internal static void ResetForProbe() {

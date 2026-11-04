@@ -216,7 +216,10 @@ public partial class RosterManager : Node {
 				label.operatingRosterTargetSource = LabelOperatingTargetReason.LaunchPopulation.ToString();
 			}
 		}
-		if (StarCanopy.Enabled) SeedInitialStarCanopy(labels, year);
+		// Opening careers supersede the quality-ranked canopy: the same Superstar/Star counts, chosen by genre
+		// and given a history the counters, ages and recognition are derived from (OpeningCareerService).
+		if (OpeningCareers.Enabled) OpeningCareerService.Seed(labels, year);
+		else if (StarCanopy.Enabled) SeedInitialStarCanopy(labels, year);
 		if (debugMode) PrintRosterStats(labels);
 		GD.Print("RosterManager: Initialization complete");
 	}
@@ -323,7 +326,7 @@ public partial class RosterManager : Node {
 	/// lifecycle capacity, not this draw, remains authoritative.
 	/// </summary>
 	private static void ConsumeLegacyRuntimeCapacityAlignmentDraw(AILabel label) =>
-		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, (minimum, maximum) => { _ = GD.RandRange(minimum, maximum); });
+		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, (minimum, maximum) => { _ = GameRandom.RandRange(minimum, maximum); });
 
 	internal static void ConsumeLegacyRuntimeCapacityAlignmentDrawForProbe(AILabel label, Action<int, int> draw) =>
 		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, draw);
@@ -341,11 +344,11 @@ public partial class RosterManager : Node {
 	
 	private void PopulateInitialRoster(AILabel label, int year) {
 		float fillRatio = label.tier switch {
-			LabelTier.Major => (float)GD.RandRange(0.6, 0.85),
-			LabelTier.MidTier => (float)GD.RandRange(0.5, 0.75),
-			LabelTier.Independent => (float)GD.RandRange(0.4, 0.7),
-			LabelTier.Small => (float)GD.RandRange(0.3, 0.6),
-			LabelTier.Boutique => (float)GD.RandRange(0.5, 0.8),
+			LabelTier.Major => (float)GameRandom.RandRange(0.6, 0.85),
+			LabelTier.MidTier => (float)GameRandom.RandRange(0.5, 0.75),
+			LabelTier.Independent => (float)GameRandom.RandRange(0.4, 0.7),
+			LabelTier.Small => (float)GameRandom.RandRange(0.3, 0.6),
+			LabelTier.Boutique => (float)GameRandom.RandRange(0.5, 0.8),
 			_ => 0.5f
 		};
 		
@@ -388,7 +391,7 @@ public partial class RosterManager : Node {
 		if (scored.Count == 0) return null;
 		
 		float totalScore = scored.Sum(s => s.score);
-		float roll = (float)GD.RandRange(0f, totalScore);
+		float roll = (float)GameRandom.RandRange(0f, totalScore);
 		float cumulative = 0f;
 		
 		foreach (var (artist, score) in scored) {
@@ -407,7 +410,7 @@ public partial class RosterManager : Node {
 		else if (label.secondaryGenres != null && label.secondaryGenres.Contains(artist.primaryGenre)) score += 0.2f;
 		
 		if (artist.reputation < 0.1f) score *= 0.5f + (label.riskTolerance * 0.5f);
-		if (!LocalScenes.Recruitment) score *= (float)GD.RandRange(0.8f, 1.2f);
+		if (!LocalScenes.Recruitment) score *= (float)GameRandom.RandRange(0.8f, 1.2f);
 		if (LocalScenes.Recruitment) score *= SceneRecruitmentService.Explain(label, artist, 0).Weight;
 		return score;
 	}
@@ -415,42 +418,42 @@ public partial class RosterManager : Node {
 	private void InitialSignArtist(AILabel label, SimulatedArtist artist, int year) {
 		if (!SceneRecruitmentService.CanAccess(label, artist, 0)) return;
 		float advanceRange = label.tier switch {
-			LabelTier.Major => (float)GD.RandRange(2000f, 8000f),
-			LabelTier.MidTier => (float)GD.RandRange(800f, 3000f),
-			LabelTier.Independent => (float)GD.RandRange(300f, 1200f),
-			LabelTier.Small => (float)GD.RandRange(100f, 500f),
-			LabelTier.Boutique => (float)GD.RandRange(200f, 800f),
-			_ => (float)GD.RandRange(200f, 800f)
+			LabelTier.Major => (float)GameRandom.RandRange(2000f, 8000f),
+			LabelTier.MidTier => (float)GameRandom.RandRange(800f, 3000f),
+			LabelTier.Independent => (float)GameRandom.RandRange(300f, 1200f),
+			LabelTier.Small => (float)GameRandom.RandRange(100f, 500f),
+			LabelTier.Boutique => (float)GameRandom.RandRange(200f, 800f),
+			_ => (float)GameRandom.RandRange(200f, 800f)
 		};
 		
 		artist.labelId = label.labelId;
-		artist.signedYear = year - (int)GD.RandRange(0, 5);
+		artist.signedYear = year - (int)GameRandom.RandRange(0, 5);
 		artist.careerState = CareerState.NewSigning;
 		artist.royaltyRate = label.CalculateRoyaltyRate(artist);
 		artist.unrecoupedAdvance = advanceRange;
-		artist.contractLength = (int)GD.RandRange(3, 6);
+		artist.contractLength = (int)GameRandom.RandRange(3, 6);
 		// Dated from when the act was actually signed, not from the launch year, so the
 		// seeded roster does not reach its expiry cliff all at once. signedYear is already
 		// backdated up to five years above.
 		artist.contractExpiresYear = Mathf.Max(year + 1, artist.signedYear + artist.contractLength);
 		artist.contractExpiresWeek = (artist.contractExpiresYear - year) * 52;
-		artist.weeksSinceLastRelease = (int)GD.RandRange(0, 52);
+		artist.weeksSinceLastRelease = (int)GameRandom.RandRange(0, 52);
 		
-		if (GD.Randf() < 0.3f) {
-			artist.totalReleases = (int)GD.RandRange(1, 5);
-			artist.weeksSinceLastRelease = (int)GD.RandRange(4, 30);
+		if (GameRandom.Randf() < 0.3f) {
+			artist.totalReleases = (int)GameRandom.RandRange(1, 5);
+			artist.weeksSinceLastRelease = (int)GameRandom.RandRange(4, 30);
 			
-			if (GD.Randf() < 0.4f) {
-				artist.top40Hits = (int)GD.RandRange(1, 3);
+			if (GameRandom.Randf() < 0.4f) {
+				artist.top40Hits = (int)GameRandom.RandRange(1, 3);
 				artist.careerState = CareerState.Rising;
-				artist.momentum = (float)GD.RandRange(0.1f, 0.4f);
-				artist.reputation = (float)GD.RandRange(0.1f, 0.3f);
+				artist.momentum = (float)GameRandom.RandRange(0.1f, 0.4f);
+				artist.reputation = (float)GameRandom.RandRange(0.1f, 0.3f);
 			}
-			if (GD.Randf() < 0.15f) {
-				artist.top10Hits = (int)GD.RandRange(1, 2);
+			if (GameRandom.Randf() < 0.15f) {
+				artist.top10Hits = (int)GameRandom.RandRange(1, 2);
 				artist.careerState = CareerState.Established;
-				artist.momentum = (float)GD.RandRange(0.2f, 0.5f);
-				artist.reputation = (float)GD.RandRange(0.2f, 0.5f);
+				artist.momentum = (float)GameRandom.RandRange(0.2f, 0.5f);
+				artist.reputation = (float)GameRandom.RandRange(0.2f, 0.5f);
 			}
 		}
 		
@@ -460,7 +463,7 @@ public partial class RosterManager : Node {
 	}
 	
 	private void OnWeekEnded(GameDate date) {
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		OnWeekEndedCore(date);
 		SimulationPerformanceProfiler.EndRosterWeek(profileStart);
 	}
@@ -470,6 +473,14 @@ public partial class RosterManager : Node {
 		// Recognition fades from the mass market on the calendar, whether or not the act
 		// releases again. Idempotent per artist per week; inert unless recognition is observing.
 		ArtistRecognitionService.DecayRegistryForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		// "Hot now" cools on the calendar too (§17p probe); a no-op unless --artist-momentum-half-life is named.
+		if (ArtistMomentumHalfLife.Enabled)
+			ArtistMomentumHalfLife.DecayRegistryForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
+		// A senior act a year past its last Top 40 steps down the ladder (§17u probe); a no-op unless --senior-cooling is named.
+		if (SeniorCooling.LadderEnabled)
+			SeniorCooling.CoolLadderForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
+		if (HitActCadence.AnyEnabled) HitActCadence.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		if (KnownActAirplay.Enabled) KnownActAirplay.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;
@@ -479,7 +490,7 @@ public partial class RosterManager : Node {
 		// disabled weekly telemetry reset.
 		if (!IsLiveGenreMarket()) weeklyScoutingVacancyByLabelId.Clear();
 		WeeklyScoutingRolls++;
-		if (!IsLiveGenreMarket() && GD.Randf() < weeklyScoutChance) {
+		if (!IsLiveGenreMarket() && GameRandom.Randf() < weeklyScoutChance) {
 			// Frozen disabled boundary: retain the global throttle and three-label cap.
 			ProcessScouting(date.year);
 		}
@@ -487,7 +498,7 @@ public partial class RosterManager : Node {
 
 	private void OnDayStarted(GameDate date) {
 		if (!IsLiveGenreMarket()) return;
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		ProcessDailyTalentMarket(date);
 		SimulationPerformanceProfiler.EndDailyTalentMarket(profileStart);
 	}
@@ -524,6 +535,7 @@ public partial class RosterManager : Node {
 		summary.SupplySnapshotCount = supplySnapshot.Count;
 		summary.FreshSupplySnapshotCount = supplySnapshot.Count(IsFreshSupplyCandidate);
 		summary.ExperiencedSupplySnapshotCount = summary.SupplySnapshotCount - summary.FreshSupplySnapshotCount;
+		var supplyIndex = new DailySupplyIndex(supplySnapshot, chartWeek, date.year);
 		var nominations = new List<DailyNomination>();
 		var appointments = new List<DailyTalentMarketAppointment>();
 
@@ -551,7 +563,7 @@ public partial class RosterManager : Node {
 				continue;
 			}
 
-			DailyNomination nomination = NominateFromDailySnapshot(label, date.year, service, supplySnapshot, appointment, observation);
+			DailyNomination nomination = NominateFromDailySnapshot(label, date.year, service, supplySnapshot, appointment, observation, supplyIndex);
 			if (nomination != null) { nominations.Add(nomination); summary.Nominations++; }
 			label.lastScoutingOutcome = appointment.Outcome;
 			FinalizeTalentServiceState(label, service);
@@ -592,7 +604,7 @@ public partial class RosterManager : Node {
 				continue;
 			}
 			float advance = winner.Label.SignArtist(winner.Artist, date.year);
-			CompetitorManager.Instance?.RecordExpense(winner.Label, advance);
+			CompetitorManager.Instance?.RecordExpense(winner.Label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(winner.Artist, winner.Label.labelId, date.year);
 			SceneRecruitmentService.RecordSigning(winner.Label, winner.Artist, chartWeek, date.year, "DailyMarket");
 			WeeklySignings++; RecordSigning(winner.Label.tier, winner.Artist, transition.IsReSigning);
@@ -612,9 +624,9 @@ public partial class RosterManager : Node {
 	}
 
 	private DailyNomination NominateFromDailySnapshot(AILabel label, int year, TalentServiceState service, List<SimulatedArtist> snapshot,
-		DailyTalentMarketAppointment appointment, LabelScoutingVacancyObservation observation) {
-		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, snapshot, out int discoveryPoolCount);
-		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out _);
+		DailyTalentMarketAppointment appointment, LabelScoutingVacancyObservation observation, DailySupplyIndex supplyIndex) {
+		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, snapshot, out int discoveryPoolCount, supplyIndex);
+		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out int experiencedAccessible, supplyIndex);
 		// Fog the live read: same window GetEnabledSupplyCandidates uses, so a scout's perception is
 		// stable within the 4-week window and re-evaluation cannot launder it.
 		int discoveryWindow = Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) - 1) / DiscoveryRefreshWindowWeeks;
@@ -630,7 +642,7 @@ public partial class RosterManager : Node {
 			selected = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, false, "RegionalFreshRecovery");
 			lane = selected == null ? null : "FreshPotential";
 			if (selected == null && !LocalScenes.Recruitment) {
-				List<SimulatedArtist> national = GetEnabledSupplyCandidates(label, year, true, true, snapshot, out _);
+				List<SimulatedArtist> national = GetEnabledSupplyCandidates(label, year, true, true, snapshot, out _, supplyIndex);
 				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(national, discoveryWindow);
 				selected = SelectAffordableCandidate(label, nationalEvaluation.CandidateScores, 0f, true, "NationalFreshRecovery");
 				lane = selected == null ? null : "FreshPotential";
@@ -638,6 +650,12 @@ public partial class RosterManager : Node {
 					selected = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, false, "RegionalExperiencedRecovery");
 					lane = selected == null ? null : "ExperiencedProduction";
 				}
+			}
+			// --hit-history-signing-recovery: a free agent with a hit history competes with the fresh pick on score. Off: never read.
+			if (HitHistorySigning.RecoveryCompetes && LocalScenes.Recruitment && selected != null) {
+				SimulatedArtist hit = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores.Where(s => s.Artist?.top40Hits > 0).ToList(),
+					.3f, false, "HitHistoryRecovery");
+				if (hit != null && ScoreOf(experiencedEvaluation.CandidateScores, hit) > ScoreOf(freshEvaluation.CandidateScores, selected)) { selected = hit; lane = "ExperiencedProduction"; }
 			}
 			if (LocalScenes.Recruitment && selected == null) {
 				selected = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, false, "GeographicExperiencedRecovery");
@@ -649,6 +667,7 @@ public partial class RosterManager : Node {
 			if (bestFresh != null && (bestExperienced == null || ScoreOf(freshEvaluation.CandidateScores, bestFresh) >= ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced))) { selected = bestFresh; lane = "FreshPotential"; }
 			else { selected = bestExperienced; lane = selected == null ? null : "ExperiencedProduction"; }
 		}
+		ObserveFreeAgentNomination(label, experienced, experiencedAccessible, experiencedEvaluation, freshEvaluation, selected, lane, service.Mode.ToString());
 		if (selected == null) { appointment.Outcome = snapshot.Count == 0 ? "NoCandidate" : "NoQualifyingCandidate"; observation.FailureReason = appointment.Outcome; return null; }
 		appointment.SelectedArtist = selected; appointment.SelectedLane = lane; appointment.Outcome = "Nominated";
 		observation.SelectedLane = lane; observation.SigningAttempted = true; observation.FailureReason = "Nominated";
@@ -702,7 +721,7 @@ public partial class RosterManager : Node {
 		AILabel rival = FindRivalToPlayer(artist, date, preferredLabelId);
 		if (rival == null) return null;
 		float advance = rival.SignArtist(artist, date.year);
-		CompetitorManager.Instance?.RecordExpense(rival, advance);
+		CompetitorManager.Instance?.RecordExpense(rival, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
 		SceneRecruitmentService.RecordSigning(rival, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "PlayerRival");
 		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
@@ -719,7 +738,7 @@ public partial class RosterManager : Node {
 		AILabel rival = FindRivalToPlayer(artist, date, labelId);
 		if (rival == null || rival.labelId != labelId || !rival.CanAffordToSign(terms.Advance)) return null;
 		float advance = rival.SignArtist(artist, date.year, terms);
-		CompetitorManager.Instance?.RecordExpense(rival, advance);
+		CompetitorManager.Instance?.RecordExpense(rival, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
 		SceneRecruitmentService.RecordSigning(rival, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "PlayerRival");
 		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
@@ -739,7 +758,7 @@ public partial class RosterManager : Node {
 		if (!SceneRecruitmentService.CanAccess(buyer, artist, week)) return false;   // the same reach every rival signing needs
 		ArtistManager.Instance?.DropArtist(artist, date.year, playerLabel, ArtistDropReason.Voluntary);
 		float advance = buyer.SignArtist(artist, date.year, terms);
-		CompetitorManager.Instance?.RecordExpense(buyer, advance);
+		CompetitorManager.Instance?.RecordExpense(buyer, advance, LabelCashKind.ArtistAdvances);
 		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, buyer.labelId, date.year);
 		SceneRecruitmentService.RecordSigning(buyer, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "MasterBuyer");
 		WeeklySignings++; RecordSigning(buyer.tier, artist, transition.IsReSigning);
@@ -890,7 +909,7 @@ public partial class RosterManager : Node {
 			return;
 		}
 		
-		var scoutingLabels = labels.Where(l => !l.isPlayerOwned && l.ShouldScoutNewArtist()).OrderBy(_ => GD.Randf()).Take(3);
+		var scoutingLabels = labels.Where(l => !l.isPlayerOwned && l.ShouldScoutNewArtist()).OrderBy(_ => GameRandom.Randf()).Take(3);
 		foreach (var label in scoutingLabels) TrySignNewArtist(label, year);
 	}
 
@@ -908,7 +927,7 @@ public partial class RosterManager : Node {
 			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
 			if (gate.ScoutingGatePassed) scoutingLabels.Add((label, observation));
 		}
-		foreach ((AILabel label, LabelScoutingVacancyObservation observation) in scoutingLabels.OrderBy(_ => GD.Randf()).Take(3))
+		foreach ((AILabel label, LabelScoutingVacancyObservation observation) in scoutingLabels.OrderBy(_ => GameRandom.Randf()).Take(3))
 			TrySignNewArtist(label, year, observation);
 	}
 
@@ -1076,7 +1095,7 @@ public partial class RosterManager : Node {
 		if (SceneRecruitmentService.CanAccess(label, bestCandidate, ChartManager.Instance?.GetCurrentChartWeek() ?? 0) &&
 			label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(bestCandidate))) {
 			float advance = label.SignArtist(bestCandidate, year);
-			CompetitorManager.Instance?.RecordExpense(label, advance);
+			CompetitorManager.Instance?.RecordExpense(label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
 			SceneRecruitmentService.RecordSigning(label, bestCandidate, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, year, "WeeklyMarket");
 			string signingKind = transition.IsReSigning ? "ReSigning" : "FirstSigning";
@@ -1265,6 +1284,28 @@ public partial class RosterManager : Node {
 	private static bool IsInScoutingRegion(SimulatedArtist artist, MarketRegion region) => artist != null && region != null &&
 		NormalizeRegionName(artist.homeRegion) == NormalizeRegionName(region.regionName);
 
+	// Nominations share an immutable daily snapshot; ownership changes only in the
+	// later commit pass. Filter eligibility and partition its lanes/regions once,
+	// preserving snapshot order and every label's own discovery keys and scoring.
+	private sealed class DailySupplyIndex {
+		private readonly List<SimulatedArtist> all, fresh, experienced;
+		private readonly Dictionary<(bool? Fresh, MarketRegion Region), List<SimulatedArtist>> regional = new();
+		public DailySupplyIndex(List<SimulatedArtist> snapshot, int week, int year) {
+			all = snapshot.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, week))
+				.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
+				.Where(artist => Instance?.IsHeldForPlayer(artist.artistId) != true).ToList();
+			fresh = all.Where(IsFreshSupplyCandidate).ToList();
+			experienced = all.Where(artist => !IsFreshSupplyCandidate(artist)).ToList();
+		}
+		public List<SimulatedArtist> Lane(bool? freshLane) => !freshLane.HasValue ? all : freshLane.Value ? fresh : experienced;
+		public List<SimulatedArtist> Regional(bool? freshLane, MarketRegion region) {
+			var key = (freshLane, region);
+			if (!regional.TryGetValue(key, out var pool))
+				regional.Add(key, pool = Lane(freshLane).Where(artist => IsInScoutingRegion(artist, region)).ToList());
+			return pool;
+		}
+	}
+
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, out int discoveryPoolCount) =>
 		GetEnabledSupplyCandidates(label, year, null, false, out discoveryPoolCount);
 
@@ -1275,22 +1316,22 @@ public partial class RosterManager : Node {
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool freshLane, bool nationalFreshRecovery,
 		out int discoveryPoolCount) => GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, out discoveryPoolCount);
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool freshLane, bool nationalFreshRecovery,
-		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount) =>
-		GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, supplySnapshot, out discoveryPoolCount);
+		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount, DailySupplyIndex supplyIndex = null) =>
+		GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, supplySnapshot, out discoveryPoolCount, supplyIndex);
 
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool? freshLane, bool nationalFreshRecovery,
 		out int discoveryPoolCount) => GetEnabledSupplyCandidates(label, year, freshLane, nationalFreshRecovery, null, out discoveryPoolCount);
 
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool? freshLane, bool nationalFreshRecovery,
-		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount) {
+		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount, DailySupplyIndex supplyIndex = null) {
 		MarketRegion region = ChartManager.Instance?.GetRegionById(label.homeRegion);
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		List<SimulatedArtist> eligible = (supplySnapshot ?? ArtistManager.Instance.GetUnsignedArtists())
+		List<SimulatedArtist> eligible = supplyIndex?.Lane(freshLane) ?? (supplySnapshot ?? ArtistManager.Instance.GetUnsignedArtists())
 			.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, currentWeek))
 			.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
 			.Where(artist => Instance?.IsHeldForPlayer(artist.artistId) != true)
 			.ToList();
-		if (freshLane.HasValue) eligible = eligible.Where(artist => freshLane.Value
+		if (supplyIndex == null && freshLane.HasValue) eligible = eligible.Where(artist => freshLane.Value
 			? artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance
 			: !(artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance)).ToList();
 		int slateSize = GetDiscoverySlateSize(label.scoutingAbility);
@@ -1302,7 +1343,7 @@ public partial class RosterManager : Node {
 					GenreSupplyService.GetSupplyWeight(a.primaryGenre, label, a, region, year))
 				.ThenBy(a => a.artistId, StringComparer.Ordinal).ToList();
 		}
-		List<SimulatedArtist> regional = eligible.Where(artist => IsInScoutingRegion(artist, region)).ToList();
+		List<SimulatedArtist> regional = supplyIndex?.Regional(freshLane, region) ?? eligible.Where(artist => IsInScoutingRegion(artist, region)).ToList();
 		// A regional call now exhausts the available regional supply even when it
 		// cannot fill the entire slate. National supply is a separate Recovery pass,
 		// not an automatic replacement for a thin home market.
@@ -1320,12 +1361,13 @@ public partial class RosterManager : Node {
 	private void OnMonthChanged(GameDate date) {
 		var labels = GetAllLabels();
 		if (labels == null) return;
+		if (date.month == 1) PrintFreeAgentYear(date.year - 1, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		if (IsLiveGenreMarket()) ReconcileEnabledRosterLifecycle(labels, date.year);
 		foreach (var label in labels) {
 			// Renewals and drops on the player's roster are the player's calls.
 			if (label.isPlayerOwned) continue;
-			ProcessContractExpirations(label, date.year);
-			if (GD.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
+			ProcessContractExpirations(label, date);
+			if (GameRandom.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
 		}
 	}
 	
@@ -1344,21 +1386,25 @@ public partial class RosterManager : Node {
 		return termMatured || deliveryMatured;
 	}
 
-	private void ProcessContractExpirations(AILabel label, int year) {
+	private void ProcessContractExpirations(AILabel label, GameDate date) {
+		int year = date.year;
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		var expiring = label.roster.Where(a => IsContractMatured(a, year, currentWeek)).ToList();
 		foreach (var artist in expiring) {
+			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) continue;
 			bool wantToResign = ShouldResignArtist(label, artist);
-			if (wantToResign && label.CanAffordToSign(label.CalculateAdvanceOffer(artist))) {
+			if (HitActRenewalFinance.CanAfford(label, artist, wantToResign, date)) {
 				float newAdvance = label.CalculateAdvanceOffer(artist);
-				artist.unrecoupedAdvance = newAdvance;
+				// --cross-collateralized-renewal carries the old balance into the new deal (audit B7).
+				artist.unrecoupedAdvance = CrossCollateralizedRenewal.RenewedBalance(artist.unrecoupedAdvance, newAdvance);
 				artist.contractLength = label.CalculateContractLength(artist);
 				artist.contractExpiresYear = year + artist.contractLength;
 				artist.contractExpiresWeek = currentWeek + artist.contractLength * 52;
 				artist.contractSinglesObligation = label.CalculateContractSinglesObligation(artist, year);
 				artist.contractReleases = 0;
 				artist.royaltyRate = label.CalculateRoyaltyRate(artist);
-				CompetitorManager.Instance?.RecordExpense(label, newAdvance);
+				CompetitorManager.Instance?.RecordExpense(label, newAdvance, LabelCashKind.ArtistAdvances);
+				HitActRenewalFinance.RecordPaid(label, artist, newAdvance);
 				artist.careerEvents.Add($"{year}: Re-signed with {label.labelName}");
 				if (debugMode) GD.Print($"RE-SIGN: {label.labelName} re-signs {artist.stageName}");
 			} else {
@@ -1368,8 +1414,37 @@ public partial class RosterManager : Node {
 		}
 	}
 	
+	/// <summary>
+	/// --studio-parent-labels: a parent-backed studio label outbids the incumbent for a proven act at contract expiry
+	/// (Warner and the Everly Brothers, 1960). The act leaves on an ordinary ContractExpired departure and signs the
+	/// bidder's own term sheet with the parent's guarantee as its advance. False, with nothing changed, when no one bids.
+	/// </summary>
+	private bool TrySignToStudioParentBidder(AILabel label, SimulatedArtist artist, GameDate date, int currentWeek) {
+		if (!StudioParentLabels.Enabled || ArtistManager.Instance == null) return false;
+		// The same geographic access every signing needs (SceneRecruitmentService.RecordSigning asserts it).
+		var (bidder, guarantee) = StudioParentLabels.SelectBidder(label, artist, date.year, GetAllLabels(),
+			candidate => SceneRecruitmentService.CanAccess(candidate, artist, currentWeek));
+		if (bidder == null) return false;
+		TransitionDroppedArtist(label, artist, date.year, ArtistDropReason.ContractExpired);
+		ContractTermSheet sheet = bidder.GenerateTermSheet(artist, date.year);
+		var terms = new ContractTermSheet(Mathf.Max(sheet.Advance, guarantee), sheet.RoyaltyRate, sheet.TermYears,
+			sheet.SinglesObligation, sheet.LabelOwnsPublishing, sheet.ArtistCreativeControl, sheet.NegotiationDifficulty,
+			sheet.Manager, sheet.ManagerName, sheet.DemandSummary);
+		StudioParentLabels.FundAcquisition(bidder, terms.Advance, "free-agent", date);
+		float advance = bidder.SignArtist(artist, date.year, terms);
+		CompetitorManager.Instance?.RecordExpense(bidder, advance, LabelCashKind.ArtistAdvances);
+		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, bidder.labelId, date.year);
+		SceneRecruitmentService.RecordSigning(bidder, artist, currentWeek, date.year, "StudioParentBid");
+		WeeklySignings++; RecordSigning(bidder.tier, artist, transition.IsReSigning);
+		bidder.parentBidYear = date.year;
+		artist.careerEvents.Add($"{date.year}: Left {label.labelName} for {bidder.labelName}");
+		return true;
+	}
+
 	private bool ShouldResignArtist(AILabel label, SimulatedArtist artist) {
 		if (artist.careerState >= CareerState.Star) return true;
+		// --hit-act-retention (§17x): any Top 40 under this contract earns the renewal. Off: never read.
+		if (HitActCadence.RetentionEnabled && HitActCadence.ShouldRenew(artist)) return true;
 		if (artist.careerState == CareerState.Rising && artist.momentum > 0.2f) return true;
 		if (artist.careerState == CareerState.Established && artist.consecutiveFlops < 2) return true;
 		if (artist.careerState == CareerState.Declining) return false;
@@ -1387,7 +1462,7 @@ public partial class RosterManager : Node {
 		if (artist.careerState == CareerState.NewSigning && artist.contractReleases >= 2 &&
 			artist.top40Hits == 0 && artist.contractChartedRecords == 0 && artist.contractRegionalBreakouts == 0 &&
 			!artist.HasRecoupedCurrentContract()) return false;
-		return GD.Randf() < label.artistLoyalty;
+		return GameRandom.Randf() < label.artistLoyalty;
 	}
 	
 	private void ProcessRosterReview(AILabel label, int year) {
@@ -1423,8 +1498,9 @@ public partial class RosterManager : Node {
 				TransitionDroppedArtist(creditedLabel, artist, year, ArtistDropReason.Performance);
 			return;
 		}
-		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
-			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
+		artist.UpdateAfterChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
+			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
 		RunCulturalReads(artist, record, label, year);
@@ -1446,7 +1522,7 @@ public partial class RosterManager : Node {
 		if (record.culturalRunCompleted) return;
 		record.culturalRunCompleted = true;
 		ArtistCriticalAcclaimService.OnChartRunComplete(artist, record, label);
-		ArtistEvolutionService.OnChartRunComplete(artist, record.peakPosition,
+		ArtistEvolutionService.OnChartRunComplete(artist, AlbumScaleCareerMilestones.CareerPeak(record),
 			record.baseRecord?.album?.albumFormat == AlbumFormat.Concept);
 		// Albums route through the landmark rule; singles route through the breakthrough-hit
 		// rule. Both end up in the same ledger, because an act can be moved by either.
@@ -1552,17 +1628,20 @@ public partial class RosterManager : Node {
 				owners.Add(label);
 			}
 		}
-		foreach ((SimulatedArtist artist, List<AILabel> owners) in memberships) {
-			AILabel owner = !string.IsNullOrEmpty(artist.labelId)
-				? allLabels.FirstOrDefault(label => label.labelId == artist.labelId)
-				: null;
-			if (owner == null) {
-				foreach (AILabel roster in owners) roster.roster.RemoveAll(candidate => candidate == artist);
-				continue;
-			}
-			foreach (AILabel roster in owners) roster.roster.RemoveAll(candidate => candidate == artist);
-			owner.roster.Add(artist);
+		// Every artist leaves every roster it is on and rejoins only its owner's, in membership order. Done artist by
+		// artist that was a RemoveAll per roster per artist plus a linear owner search: quadratic in roster size. Each
+		// roster ends as its null slots followed by the artists it owns in membership order, so build that directly.
+		var ownerById = new Dictionary<string, AILabel>(System.StringComparer.Ordinal);
+		foreach (AILabel label in allLabels) if (label.labelId != null) ownerById.TryAdd(label.labelId, label);
+		var owned = new Dictionary<AILabel, List<SimulatedArtist>>();
+		foreach (SimulatedArtist artist in memberships.Keys) {
+			AILabel owner = !string.IsNullOrEmpty(artist.labelId) ? ownerById.GetValueOrDefault(artist.labelId) : null;
+			if (owner == null) continue;
+			if (!owned.TryGetValue(owner, out var list)) owned[owner] = list = new List<SimulatedArtist>();
+			list.Add(artist);
 		}
+		foreach (AILabel label in allLabels) label.roster.RemoveAll(candidate => candidate != null && memberships.ContainsKey(candidate));
+		foreach ((AILabel owner, List<SimulatedArtist> artists) in owned) owner.roster.AddRange(artists);
 		ArtistManager.Instance?.ReconcileEnabledUnsignedPool();
 	}
 

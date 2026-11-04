@@ -46,9 +46,9 @@ public static class ScoutingAppointmentChecks {
             var quote = desk.PreviewScoutingInvitation(artistId, activity);
             Check(quote != null, "feasible activity quote: " + activity);
             string worldBefore = Json(WorldStateService.Capture());
-            GD.Seed(432); uint next = GD.Randi(); GD.Seed(432);
+            GameRandom.Seed(432); uint next = GameRandom.Randi(); GameRandom.Seed(432);
             desk.PreviewScoutingInvitation(artistId, activity); desk.ScoutingSummary(artistId);
-            Check(Json(WorldStateService.Capture()) == worldBefore && GD.Randi() == next, "pure activity preview");
+            Check(Json(WorldStateService.Capture()) == worldBefore && GameRandom.Randi() == next, "pure activity preview");
             Check(!desk.ArrangeScoutingMeeting(artistId, "stale", out _, activity), "stale quote rejected");
             float cash = desk.Label.cashReserves, expenses = desk.Label.monthlyExpenses;
             Check(desk.ArrangeScoutingMeeting(artistId, quote.Id, out message, activity), "consent: " + message);

@@ -126,6 +126,8 @@ public sealed class SongRecordingMemory {
 /// </summary>
 [Serializable]
 public sealed class SongComposition {
+	/// <summary>Assignment understanding from previous recordings with this team; reduces mismatch only.</summary>
+	public float writingAssignmentFamiliarity;
 	// Composition subject; only explicit author/import evidence may establish it.
 	public SongContentContext contentContext = SongContentContext.Unknown;
 	public string contextAuthorshipEvidence;
@@ -149,6 +151,11 @@ public sealed class SongComposition {
 	public SongForm defaultForm;
 	public float? wordDensity;
 	public string[] contentTagIds = Array.Empty<string>();
+	// SongContentTags (media directive §7.1): "tag|severity|evidence" per finding, what was examined, and the title it
+	// was read from. Null basis = never authored (older saves); re-read on load.
+	public string[] contentTagEvidence = Array.Empty<string>();
+	public string contentTagsBasis;
+	public string contentTagsTitle;
 	public float? plasticity;
 	public bool plasticityFrozen;
 	public string firstCommittedMasterId;
@@ -206,8 +213,9 @@ public sealed class SongComposition {
 }
 
 /// <summary>
-/// A professional (office/staff) songwriter who is not an artist. Rights-metadata only in this phase:
-/// the credited counterparty on a professional song's rights, with no P&L or agency yet.
+/// A persistent professional (office/staff) songwriter who is not an artist. With
+/// --professional-writing, craft and genre suitability condition professional song output.
+/// Publisher affiliation and standing team links persist; contracts and workload are future stages.
 /// </summary>
 [Serializable]
 public sealed class ProfessionalSongwriter {

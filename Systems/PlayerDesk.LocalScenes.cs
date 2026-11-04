@@ -39,7 +39,7 @@ public partial class PlayerDesk {
             // Re-reading a cast cannot reroll the act's offered repertoire or consume the world's RNG.
             ulong readSeed = (ulong)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
                 $"scene-read-v1|{placeId}|{(int)venue}|{week}|{artist.artistId}") * 9007199254740992.0);
-            using var localDraws = new RandomNumberGenerator { Seed = readSeed };
+            using var localDraws = new PcgRandom { Seed = readSeed };
             BuildLiveSet(prospect, artist, year, noise, localDraws, sceneRead: true);
             prospect.Rough = ReadRough(prospect, notebook.FirstOrDefault(n => n.Artist?.artistId == artist.artistId));
             slate.Add(prospect);

@@ -42,7 +42,7 @@ public partial class PlayerDesk {
                 ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0), ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0, 1),
                 AskingAdvance = VenueAdvanceAsk(artist, ScoutingVenue.IndustryMeets, AskScaleFor(CurrentCityId)),
                 Note = $"Demo submitted through the {ScenePlaceRegistry.Get(placeId).Name} office. The act remains based there; no live appearance or master rights are implied." };
-            using var draws = new RandomNumberGenerator { Seed = (ulong)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
+            using var draws = new PcgRandom { Seed = (ulong)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
                 $"source-demo-read-v1|{Label.labelId}|{artist.artistId}|{week / 4}") * 9007199254740992.0) };
             BuildLiveSet(prospect, artist, date.year, ScoutingReadNoise(Label.scoutingAbility), draws, sceneRead: true);
             foreach (var song in prospect.LiveSet) song.SourceTag = "submitted demo";

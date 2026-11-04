@@ -4,7 +4,7 @@ using System.Linq;
 using Godot;
 
 /// <summary>The identity function of a person in the book. Each is a tab of the Rolodex.</summary>
-public enum RolodexRole { Deejay, Manager, Publisher, Plant, Distributor, Dealer, Booker, Engineer }
+public enum RolodexRole { Deejay, Manager, Publisher, Plant, Distributor, Dealer, Booker, Engineer, Press }
 
 /// <summary>One card in the book. Deejay cards carry the playable <see cref="RolodexEntry"/>; the rest are the
 /// people behind things the player already deals with, read off real state.</summary>
@@ -26,7 +26,7 @@ public sealed class DirectoryCard {
 /// and the stops the desk already runs. What is new is the person: a stable name and a face, derived from an FNV hash
 /// of the thing they belong to, never from a random stream, so building the book cannot move a seeded run.
 /// </summary>
-public static class RolodexDirectory {
+public static partial class RolodexDirectory {
 	private static readonly string[] MaleFirst = { "Al", "Arnold", "Bernie", "Carl", "Chet", "Dave", "Eddie", "Frank", "Gene", "Hal", "Harvey", "Irv", "Jack", "Jerry", "Lou",
 		"Marty", "Mel", "Morrie", "Nate", "Norm", "Ozzie", "Paul", "Ray", "Sid", "Sol", "Stan", "Tony", "Vince", "Walt", "Wes" };
 	private static readonly string[] FemaleFirst = { "Barbara", "Dolores", "Edna", "Flo", "Gloria", "Irene", "Joan", "Lois", "Marge", "Nell", "Pat", "Ruth", "Sylvia", "Vera", "Wanda" };
@@ -53,6 +53,7 @@ public static class RolodexDirectory {
 		RolodexRole.Distributor => "DISTRIBUTOR",
 		RolodexRole.Booker => "BOOKERS",
 		RolodexRole.Engineer => "ENGINEERS",
+		RolodexRole.Press => "PRESS & TV",
 		_ => "SHOPS & OPS",
 	};
 
@@ -64,6 +65,7 @@ public static class RolodexDirectory {
 		RolodexRole.Distributor => "You have no distribution deal. Nobody is carrying your records but you.",
 		RolodexRole.Booker => "No venue bookers met yet. Visit a venue during its posted hours and introduce yourself.",
 		RolodexRole.Engineer => "You have not worked a studio date yet. The engineers you record with are filed here.",
+		RolodexRole.Press => "No television in this town worth knowing yet, and no trade editor has seen a record from you.",
 		_ => "No shop or jukebox operator has taken a record from you yet. Get out of the office and work a town.",
 	};
 
@@ -84,6 +86,7 @@ public static class RolodexDirectory {
 				return card;
 			}).ToList();
 			case RolodexRole.Engineer: return Engineers(desk);
+			case RolodexRole.Press: return PressAndTelevision(desk);
 			default: return new List<DirectoryCard>();
 		}
 	}

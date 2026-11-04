@@ -59,9 +59,9 @@ public partial class StudioFoundationRunner : Node {
             desk.KeepTake(0, -1); desk.KeepTake(0, 99);
             Check(session.Cuts[0].KeptTake == -1, "Invalid selection does not choose a take");
             string evidence = Json(PendingSessionSaveData.From(session));
-            GD.Seed(314); uint expected = GD.Randi(); GD.Seed(314);
+            GameRandom.Seed(314); uint expected = GameRandom.Randi(); GameRandom.Seed(314);
             StudioTakeEvidence.Observe(session, session.Cuts[0], 0, .9f, .9f);
-            Check(GD.Randi() == expected && Json(PendingSessionSaveData.From(session)) == evidence, "Observation is frozen and does not consume gameplay RNG");
+            Check(GameRandom.Randi() == expected && Json(PendingSessionSaveData.From(session)) == evidence, "Observation is frozen and does not consume gameplay RNG");
             var restored = JsonSerializer.Deserialize<PendingSessionSaveData>(evidence, SaveGameService.TestJsonOptions).ToSession(desk.Songs);
             Check(restored.Cuts.All(c => c.KeptTake == -1) && Json(PendingSessionSaveData.From(restored)) == evidence, "Unselected date and all evidence round-trip");
             var legacy = JsonSerializer.Deserialize<PendingSessionSaveData>(evidence, SaveGameService.TestJsonOptions);
