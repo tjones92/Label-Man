@@ -19,8 +19,10 @@ try {
         ForEach-Object { $_.Trim() } | Where-Object { $_ -and !$_.StartsWith('#') }) + $Extra
     $logDir = Join-Path $root 'SimLogs/playtest'
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-    $log = Join-Path $logDir ("branch-playtest-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".log")
-    $gameArgs = @('--path', '.', '--log-file', $log, '--') + $flags
+    $runName = "branch-playtest-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $log = Join-Path $logDir ($runName + ".log")
+    # --response-auditions (in the decade set) needs a plain run name for its SimLogs/<run>-response-auditions.jsonl.
+    $gameArgs = @('--path', '.', '--log-file', $log, '--', "--run=$runName") + $flags
     Write-Host "Launching with $($flags.Count) flags; log: $log"
     Start-Process -FilePath $Godot -ArgumentList $gameArgs -WorkingDirectory $root
 } finally { Pop-Location }
