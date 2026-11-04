@@ -16,7 +16,7 @@ public static class ProfessionalWritingMarket {
 	public static ProfessionalWritingMarketState State { get; private set; }
 	public static int Week => Math.Max(State?.LastWeek ?? 0, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 	private static IReadOnlyList<ProfessionalSongwriter> Writers => CompositionCatalogService.ProfessionalWriters;
-	private static ProfessionalSongwriter Writer(string id) => Writers.FirstOrDefault(w => w.writerId == id);
+	private static ProfessionalSongwriter Writer(string id) => CompositionCatalogService.GetProfessionalWriter(id);
 	private static float Unit(string key) => RepertoireTaxonomy.Unit(BandLife.WorldSeed + "|writing-market|" + key);
 	internal static float AccessOrder(string artistId, int week) => Unit("access-order|" + week + "|" + artistId);
 	private static bool Active(ProfessionalSongwriter w, int year) => w != null && year >= w.activeStartYear && year <= w.activeEndYear;

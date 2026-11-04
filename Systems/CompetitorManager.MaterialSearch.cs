@@ -160,7 +160,7 @@ public partial class CompetitorManager {
 
     private void ReviewProgrammeMaterialSearches(AILabel label, GameDate date) {
         if (!LabelReleaseProgramme.MaterialSearchEnabled) return;
-        foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == label.labelId && i.Format == ReleaseFormat.Single &&
+        foreach (var item in ProgrammeState.ItemsForLabel(label.labelId).Where(i => i.Format == ReleaseFormat.Single &&
             LabelReleaseProgramme.IsOpen(i) && i.PreparedRecord == null).OrderBy(i => i.IntendedWeek).ThenBy(i => i.Id, StringComparer.Ordinal)) {
             // A reminder has already bought work for this intention. Do not start a competing search while it is pending.
             if (ProfessionalWritingMarket.AwaitingReminderCommission(item)) continue;
@@ -230,7 +230,7 @@ public partial class CompetitorManager {
                     if (!started) {
                         audit.StartBlock = AuditMaterialStartBlock(item, label, artist, best.Song, best.Professional, date, pipelineWeek);
                         if (audit.StartBlock == "label-capacity")
-                            audit.BlockingSlots = string.Join(";", ProgrammeState.Items.Where(i => i.LabelId == label.labelId && i.MaterialSearch?.State == ProgrammeMaterialState.Pending)
+                            audit.BlockingSlots = string.Join(";", ProgrammeState.ItemsForLabel(label.labelId).Where(i => i.MaterialSearch?.State == ProgrammeMaterialState.Pending)
                                 .OrderBy(i => i.Id, StringComparer.Ordinal).Select(i => i.Id));
                     }
                 }

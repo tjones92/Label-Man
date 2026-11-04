@@ -26,4 +26,16 @@ public static class ReleaseAllInEconomics {
 	internal static float ExpectedCampaign(float baseBudget, float estimatedQuality) =>
 		Math.Max(0f, baseBudget) * (.6f + .8f * Math.Clamp(estimatedQuality, 0f, 1f));
 	internal static bool ShouldCommit(float expectedProfit) => float.IsFinite(expectedProfit) && expectedProfit > 0f;
+
+	/// <summary>
+	/// Opt-in, <c>--lp-assembly-gate-uncredited</c>. The profit gate removes the album portfolio credit from the LP
+	/// projection, because DecideRelease added it. With <c>--lp-assembly</c> the slate replaces that projection with the
+	/// raw assembly prior, which never held the credit, so the gate removed it a second time. The credit scales with the
+	/// album-era weight: about $1 in 1960-61 (immaterial, LpProfitGateFunnelInvestigation.md), about $28k from 1966, when it
+	/// refused ~90% of LP preparations every week and halved late-decade LP volume (SimTools/BranchEndDecadeReview.md).
+	/// With the switch the gate tests the assembly prior net of the expected campaign (which the assembly prior also
+	/// lacked), and removes no credit. Inert unless named.
+	/// </summary>
+	public const string AssemblyGateUncreditedSwitch = "--lp-assembly-gate-uncredited";
+	public static readonly bool AssemblyGateUncredited = SimulationArguments.Get().Contains(AssemblyGateUncreditedSwitch);
 }

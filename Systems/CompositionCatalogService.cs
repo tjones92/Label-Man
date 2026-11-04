@@ -65,6 +65,19 @@ public static class CompositionCatalogService {
 	/// <summary>The publisher houses, for the Rolodex's directory of who plugs what.</summary>
 	public static IReadOnlyList<MusicPublisher> Publishers => publishers;
 	public static IReadOnlyList<ProfessionalSongwriter> ProfessionalWriters => professionalWriters;
+	// Id lookup for the professional writers. Every mutation of professionalWriters bumps the version; the first writer
+	// with an id wins, matching FirstOrDefault over the list.
+	private static int professionalWritersVersion, professionalWriterIndexVersion = -1;
+	private static readonly Dictionary<string, ProfessionalSongwriter> professionalWriterById = new(StringComparer.Ordinal);
+	internal static ProfessionalSongwriter GetProfessionalWriter(string writerId) {
+		if (writerId == null) return professionalWriters.FirstOrDefault(w => w.writerId == null);
+		if (professionalWriterIndexVersion != professionalWritersVersion) {
+			professionalWriterById.Clear();
+			foreach (var w in professionalWriters) if (w.writerId != null) professionalWriterById.TryAdd(w.writerId, w);
+			professionalWriterIndexVersion = professionalWritersVersion;
+		}
+		return professionalWriterById.TryGetValue(writerId, out var found) ? found : null;
+	}
 	public static int StandardCount { get { int n = 0; foreach (var kv in standardsByGenre) n += kv.Value.Count; return n; } }
 
 	public static void Initialize(int startYear, IEnumerable<AILabel> labels, ulong seed) {
@@ -85,6 +98,7 @@ public static class CompositionCatalogService {
 		traditionalByFamily.Clear();
 		coverableHitsByFamily.Clear();
 		professionalWriters.Clear();
+		professionalWritersVersion++;
 		publishers.Clear();
 		writerLedger.Clear();
 		writerStintLedger.Clear();
@@ -288,6 +302,7 @@ public static class CompositionCatalogService {
 				activeEndYear = startYear + rng.RandiRange(6, 14)
 			};
 			professionalWriters.Add(writer);
+			professionalWritersVersion++;
 			pub.staffWriterIds.Add(writer.writerId);
 		}
 	}
@@ -377,6 +392,7 @@ public static class CompositionCatalogService {
 				activeEndYear = startYear + r.RandiRange(6, 14)
 			};
 			professionalWriters.Add(writer);
+			professionalWritersVersion++;
 			pub.staffWriterIds.Add(writer.writerId);
 		}
 		foreach (var o in ProfessionalSongBalance.AddedOffices()) {
@@ -1153,6 +1169,7 @@ public static class CompositionCatalogService {
 			songsByControllerLabel[kv.Key] = ResolveSongs(kv.Value);
 
 		professionalWriters.Clear(); professionalWriters.AddRange(c.ProfessionalWriters ?? new List<ProfessionalSongwriter>());
+		professionalWritersVersion++;
 		publishers.Clear(); publishers.AddRange(c.Publishers ?? new List<MusicPublisher>());
 		ProfessionalWritingMarket.Restore(c.WritingMarket);
 		writerLedger.Clear();

@@ -16,7 +16,7 @@ public partial class CompetitorManager {
 			if (artist.hitCadenceLastTop40Week < 0 || clock.SingleWeek > artist.hitCadenceLastTop40Week) continue;
 			int target = Math.Max(pipelineWeek + LabelReleaseProgramme.PreparationWeeks, clock.SingleWeek + LabelReleaseProgramme.SingleFloor);
 			if (target > pipelineWeek + LabelReleaseProgramme.Horizon) continue;
-			var singles = ProgrammeState.Items.Where(i => i.LabelId == label.labelId && i.Format == ReleaseFormat.Single &&
+			var singles = ProgrammeState.ItemsForLabel(label.labelId).Where(i => i.Format == ReleaseFormat.Single &&
 				LabelReleaseProgramme.IsOpen(i) && pipelineWeek - i.IntendedWeek <= LabelReleaseProgramme.Horizon).ToList();
 			var own = singles.Where(i => i.ArtistId == artist.artistId && i.ContractSequence == artist.contractSequence)
 				.OrderBy(i => i.DueWeek).ThenBy(i => i.Id, StringComparer.Ordinal).FirstOrDefault();
@@ -32,6 +32,7 @@ public partial class CompetitorManager {
 			if (reassigned) {
 				item.ArtistId = artist.artistId;
 				item.ContractSequence = artist.contractSequence;
+				ProgrammeState.Items.Touch(); // the per-artist slate index keys on ArtistId
 			}
 			item.Source = "hit-follow-up";
 			item.Score = Math.Max(10, item.Score);

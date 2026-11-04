@@ -21,8 +21,8 @@ public partial class CompetitorManager {
 	public IReadOnlyList<ReleaseSlateItem> GetReleaseSlate() => ProgrammeState?.Items ?? (IReadOnlyList<ReleaseSlateItem>)Array.Empty<ReleaseSlateItem>();
 	internal void SetProgrammeForChecks(ReleaseProgrammeState state) { ProgrammeState = state; programmeCampaignByRecord.Clear(); }
 
-	internal float ProgrammeCashReserved(string labelId) => ProgrammeState?.Items
-		.Where(i => i.LabelId == labelId && LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem)
+	internal float ProgrammeCashReserved(string labelId) => ProgrammeState?.ItemsForLabel(labelId)
+		.Where(i => LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem)
 		.Sum(i => i.ReservedProduction + i.ReservedMarketing + i.ReservedPressing) ?? 0f;
 
 	private ProgrammeClock ProgrammeClockFor(SimulatedArtist artist) {
@@ -55,8 +55,8 @@ public partial class CompetitorManager {
 			HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks).ToList();
 		OnProgrammeResources?.Invoke(new ProgrammeResourceTelemetry { Week = pipelineWeek, Year = date.year, LabelId = label.labelId, Tier = label.tier.ToString(),
 			Attempts = WeeklyReleaseRollsFired - attempts, Successes = WeeklySuccessfulReleases - successes,
-			OpenItems = ProgrammeState.Items.Count(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i)),
-			DueFollowUps = due.Count, UnplannedFollowUps = due.Count(a => !ProgrammeState.Items.Any(i => i.ArtistId == a.artistId && i.Format == ReleaseFormat.Single && LabelReleaseProgramme.IsOpen(i))),
+			OpenItems = ProgrammeState.ItemsForLabel(label.labelId).Count(i => LabelReleaseProgramme.IsOpen(i)),
+			DueFollowUps = due.Count, UnplannedFollowUps = due.Count(a => !ProgrammeState.ItemsForArtist(a.artistId).Any(i => i.Format == ReleaseFormat.Single && LabelReleaseProgramme.IsOpen(i))),
 			CashReserved = ProgrammeCashReserved(label.labelId), PromotionPool = ProgrammePromotionPool(label),
 			PromotionCommittedPeak = ProgrammePromotionCommittedPeak(label.labelId),
 			PromotionBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend),
@@ -115,6 +115,12 @@ public partial class CompetitorManager {
 			if (item.Format == ReleaseFormat.Album && LabelReleaseProgramme.LpAssemblyEnabled) {
 				item.LpAssembly = BuildLpAssembly(label, artist, decisionArtist, date.year, decision, item);
 				plan.projectedAlbumStandaloneNet = item.LpAssembly.ProjectedNet;
+				// The assembly prior carries no portfolio credit, so there is none for the gate to remove; nor does it
+				// carry the expected campaign that DecideRelease takes off the album prior, so take that off here.
+				if (ReleaseAllInEconomics.AssemblyGateUncredited) {
+					plan.albumPortfolioCredit = 0f;
+					plan.projectedAlbumStandaloneNet -= plan.expectedMarketingBudget;
+				}
 			}
 			if (item.Format == ReleaseFormat.Album) plan.projectedAlbumNet = plan.projectedAlbumStandaloneNet;
 			if (!PassesReleaseProfitGate(label, artist, date.year, selection.Genre, plan)) return false;
@@ -162,10 +168,12 @@ public partial class CompetitorManager {
 	private float AvailableProgrammeCampaign(AILabel label, int week, ReleaseSlateItem exclude = null) {
 		if (!LabelReleaseProgramme.CapacityEnabled) return float.PositiveInfinity;
 		float remaining = ProgrammePromotionPool(label);
+		// Filter once, in list order, so each week's Sum visits the same values in the same order as a full scan.
+		var campaigns = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId).ToList();
+		var holds = ProgrammeState.ItemsForLabel(label.labelId).Where(i => LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem && i != exclude).ToList();
 		for (int w = week; w < week + LabelReleaseProgramme.CampaignWeeks; w++) {
-			float booked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= w && w < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
-			booked += ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem && i != exclude &&
-				i.DueWeek <= w && w < i.DueWeek + LabelReleaseProgramme.CampaignWeeks).Sum(i => i.ReservedMarketing);
+			float booked = campaigns.Where(c => c.Week <= w && w < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
+			booked += holds.Where(i => i.DueWeek <= w && w < i.DueWeek + LabelReleaseProgramme.CampaignWeeks).Sum(i => i.ReservedMarketing);
 			remaining = Math.Min(remaining, ProgrammePromotionPool(label) - booked);
 		}
 		return Math.Max(0, remaining);
@@ -182,7 +190,7 @@ public partial class CompetitorManager {
 			changes[end] = changes.GetValueOrDefault(end) - amount;
 		}
 		foreach (var campaign in ProgrammeState.Campaigns.Where(c => c.LabelId == labelId)) Add(campaign.Week, campaign.Spend);
-		foreach (var item in ProgrammeState.Items.Where(i => i.LabelId == labelId && LabelReleaseProgramme.IsOpen(i))) Add(item.DueWeek, item.ReservedMarketing);
+		foreach (var item in ProgrammeState.ItemsForLabel(labelId).Where(i => LabelReleaseProgramme.IsOpen(i))) Add(item.DueWeek, item.ReservedMarketing);
 		double running = 0, peak = 0;
 		foreach (double change in changes.Values) { running += change; peak = Math.Max(peak, running); }
 		return (float)peak;
@@ -246,7 +254,7 @@ public partial class CompetitorManager {
 
 	// An act may hold several open single intentions when they are spaced by the single floor; one open LP at most.
 	private bool HasConflictingIntention(SimulatedArtist artist, ReleaseFormat format, int week) =>
-		ProgrammeState.Items.Any(i => i.ArtistId == artist.artistId && i.Format == format && LabelReleaseProgramme.IsOpen(i) &&
+		ProgrammeState.ItemsForArtist(artist.artistId).Any(i => i.Format == format && LabelReleaseProgramme.IsOpen(i) &&
 			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleFloor));
 
 	private void PlanProgramme(AILabel label, GameDate date, int? from = null) {
@@ -289,7 +297,7 @@ public partial class CompetitorManager {
 						.Select(a => {
 							var clock = ProgrammeClockFor(a);
 							int last = format == ReleaseFormat.Single ? clock.SingleWeek : clock.AlbumWeek;
-							foreach (var open in ProgrammeState.Items.Where(i => i.ArtistId == a.artistId && i.Format == format &&
+							foreach (var open in ProgrammeState.ItemsForArtist(a.artistId).Where(i => i.Format == format &&
 								LabelReleaseProgramme.IsOpen(i) && i.IntendedWeek < week)) last = Math.Max(last, open.IntendedWeek);
 							int age = week - last;
 							bool hot = HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks;
@@ -417,7 +425,7 @@ public partial class CompetitorManager {
 			remainingSlots[format] += HitFollowUpSlots(label, pipelineWeek);
 			preparationSlots[format] += HitFollowUpSlots(label, pipelineWeek + 1);
 		}
-		foreach (var item in ProgrammeWorkQueue(label, ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.IsOpen(i) && i.State != ReleaseSlateState.AwaitingDelivery).OrderBy(i => i.IntendedWeek).ThenByDescending(i => i.Score))) {
+		foreach (var item in ProgrammeWorkQueue(label, ProgrammeState.ItemsForLabel(label.labelId).Where(i => LabelReleaseProgramme.IsOpen(i) && i.State != ReleaseSlateState.AwaitingDelivery).OrderBy(i => i.IntendedWeek).ThenByDescending(i => i.Score))) {
 			var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
 			if (artist == null || artist.contractSequence != item.ContractSequence || !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist)) {
 				ReviewSlate(item, ReleaseSlateState.Cancelled, "rights-or-artist-unavailable"); continue;
@@ -472,7 +480,7 @@ public partial class CompetitorManager {
 		// issues ones prepared in an earlier week, so one failure does not push every later intention back a week.
 		// Unused work is still not banked. Only intentions dated after this week qualify: a failure is not retried,
 		// and a master is never recorded and issued in the same week. A work-budget label has no idle dated work.
-		if (!budget) foreach (var item in ProgrammeWorkQueue(label, ProgrammeState.Items.Where(i => i.LabelId == label.labelId && LabelReleaseProgramme.CanUseIdleSlot(i, pipelineWeek) && !preparedNow.Contains(i))
+		if (!budget) foreach (var item in ProgrammeWorkQueue(label, ProgrammeState.ItemsForLabel(label.labelId).Where(i => LabelReleaseProgramme.CanUseIdleSlot(i, pipelineWeek) && !preparedNow.Contains(i))
 			.OrderBy(i => i.DueWeek).ThenByDescending(i => i.Score), idle: true)) {
 			if (preparationSlots[item.Format] <= 0 && remainingSlots[item.Format] <= 0) continue;
 			var artist = label.roster.FirstOrDefault(a => a.artistId == item.ArtistId);
@@ -520,7 +528,7 @@ public partial class CompetitorManager {
 			marketing *= LabelReleaseProgramme.CampaignStatusFactor(label);
 		}
 		shortfall = marketing <= 0 ? "promotion-congestion" : "insufficient-unreserved-cash";
-		float ownHold = item != issuingSlateItem && ProgrammeState.Items.Contains(item) && LabelReleaseProgramme.IsOpen(item)
+		float ownHold = item != issuingSlateItem && ProgrammeState.ItemsForLabel(item.LabelId).Contains(item) && LabelReleaseProgramme.IsOpen(item)
 			? item.ReservedProduction + item.ReservedMarketing + item.ReservedPressing : 0;
 		if (marketing <= 0) return false;
 		float unreserved = label.cashReserves - (ProgrammeCommitmentReserve(label) - ownHold);

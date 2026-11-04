@@ -223,9 +223,70 @@ public sealed class ProgrammeCampaign {
 	public int Week;
 	public float Spend, Share;
 }
+/// <summary>
+/// The slate, saved exactly as a plain list. Every mutation through this type bumps <see cref="Version"/>; anything but
+/// an append also bumps <see cref="StructuralVersion"/>. <see cref="ReleaseProgrammeState"/>'s per-label and per-artist
+/// index uses them to append new items, or to rebuild after any other change.
+/// </summary>
+public sealed class SlateItemList : List<ReleaseSlateItem> {
+	internal int Version, StructuralVersion;
+	private void Structural() { Version++; StructuralVersion++; }
+	/// <summary>Call after changing an item's ArtistId or LabelId in place, so the index is rebuilt.</summary>
+	internal void Touch() => Structural();
+	public new ReleaseSlateItem this[int index] { get => base[index]; set { Structural(); base[index] = value; } }
+	public new void Add(ReleaseSlateItem item) { Version++; base.Add(item); }
+	public new void AddRange(IEnumerable<ReleaseSlateItem> items) { Structural(); base.AddRange(items); }
+	public new void Insert(int index, ReleaseSlateItem item) { Structural(); base.Insert(index, item); }
+	public new bool Remove(ReleaseSlateItem item) { Structural(); return base.Remove(item); }
+	public new void RemoveAt(int index) { Structural(); base.RemoveAt(index); }
+	public new void RemoveRange(int index, int count) { Structural(); base.RemoveRange(index, count); }
+	public new int RemoveAll(Predicate<ReleaseSlateItem> match) { Structural(); return base.RemoveAll(match); }
+	public new void Clear() { Structural(); base.Clear(); }
+}
+
 public sealed class ReleaseProgrammeState {
 	public bool CampaignsInitialized;
-	public List<ReleaseSlateItem> Items = new();
+	public SlateItemList Items = new();
+
+	// Runtime index, never saved. Items keep their global order within each label's and each artist's list, so a filter
+	// or Sum over them visits the same items in the same order as the same filter over Items (byte-identical
+	// arithmetic). An item's LabelId is fixed at creation. Its ArtistId changes only in breakout planning, which calls
+	// Items.Touch(). Appends since the last read are added to the end; any other change (or a mutation through a
+	// List<T> reference, caught by the count check) rebuilds everything.
+	private Dictionary<string, List<ReleaseSlateItem>> itemsByLabel, itemsByArtist;
+	private SlateItemList indexedItems;
+	private int indexedVersion, indexedStructuralVersion, indexedCount;
+	private const string NullKey = "\0null";
+	private void EnsureIndex() {
+		if (itemsByLabel != null && ReferenceEquals(indexedItems, Items) && indexedVersion == Items.Version && indexedCount == Items.Count) return;
+		int start = 0;
+		if (itemsByLabel != null && ReferenceEquals(indexedItems, Items) && indexedStructuralVersion == Items.StructuralVersion &&
+			Items.Count - indexedCount == Items.Version - indexedVersion && Items.Count > indexedCount) start = indexedCount;
+		else {
+			itemsByLabel ??= new Dictionary<string, List<ReleaseSlateItem>>(StringComparer.Ordinal);
+			itemsByArtist ??= new Dictionary<string, List<ReleaseSlateItem>>(StringComparer.Ordinal);
+			itemsByLabel.Clear(); itemsByArtist.Clear();
+		}
+		for (int i = start; i < Items.Count; i++) {
+			var item = Items[i];
+			Bucket(itemsByLabel, item.LabelId).Add(item);
+			Bucket(itemsByArtist, item.ArtistId).Add(item);
+		}
+		indexedItems = Items; indexedVersion = Items.Version; indexedStructuralVersion = Items.StructuralVersion; indexedCount = Items.Count;
+	}
+	private static List<ReleaseSlateItem> Bucket(Dictionary<string, List<ReleaseSlateItem>> index, string key) {
+		key ??= NullKey;
+		if (!index.TryGetValue(key, out var list)) index[key] = list = new List<ReleaseSlateItem>();
+		return list;
+	}
+	internal IReadOnlyList<ReleaseSlateItem> ItemsForLabel(string labelId) {
+		EnsureIndex();
+		return itemsByLabel.TryGetValue(labelId ?? NullKey, out var found) ? found : Array.Empty<ReleaseSlateItem>();
+	}
+	internal IReadOnlyList<ReleaseSlateItem> ItemsForArtist(string artistId) {
+		EnsureIndex();
+		return itemsByArtist.TryGetValue(artistId ?? NullKey, out var found) ? found : Array.Empty<ReleaseSlateItem>();
+	}
 	public Dictionary<string, ProgrammeClock> Clocks = new(StringComparer.Ordinal);
 	public List<ProgrammeCampaign> Campaigns = new();
 	public Dictionary<string, int> PlannedThrough = new(StringComparer.Ordinal);

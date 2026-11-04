@@ -19,7 +19,7 @@ TREATMENT_FLAGS = ('--lp-filler-spares-fresh-demos', '--professional-family-pool
                    '--writing-market-royalty-licences', '--writing-market-canonical-office-genres',
                    '--writing-market-specialist-offices', '--source-mix-standards-to-recent-hits',
                    '--source-mix-1960-pro-trims', '--tradpop-singles-new-songs',
-                   '--programme-search-follows-mix')
+                   '--programme-search-follows-mix', '--lp-assembly-gate-uncredited')
 GENRES = ('RockAndRoll', 'TeenPop', 'RnB', 'Country', 'TraditionalPop', 'Soul', 'DooWop', 'EasyListening')
 
 
