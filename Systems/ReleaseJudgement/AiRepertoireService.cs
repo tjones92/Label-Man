@@ -362,7 +362,7 @@ public static class AiRepertoireService {
 		IReadOnlyList<SongComposition> Either(IReadOnlyList<SongComposition> byGenre, IReadOnlyList<SongComposition> byFamily) =>
 			byGenre.Count > 0 ? byGenre : byFamily;
 		return source switch {
-			SongMaterialSource.ExternalProfessional => CompositionCatalogService.GetProfessionalForGenre(genre),
+			SongMaterialSource.ExternalProfessional => CompositionCatalogService.GetProfessionalForAct(genre),
 			SongMaterialSource.CoverStandard => Either(CompositionCatalogService.GetStandardsForGenre(genre), CompositionCatalogService.GetStandardsForFamily(family)),
 			SongMaterialSource.CoverRecentHit => Either(CompositionCatalogService.GetCoverableHitsForGenre(genre), CompositionCatalogService.GetCoverableHitsForFamily(family)),
 			SongMaterialSource.TraditionalPublicDomain => Either(CompositionCatalogService.GetTraditionalForGenre(genre), CompositionCatalogService.GetTraditionalForFamily(family)),

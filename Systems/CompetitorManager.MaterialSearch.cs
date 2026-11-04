@@ -176,7 +176,7 @@ public partial class CompetitorManager {
             var sample = new List<(SongComposition Song, bool Professional)>();
             if (ProfessionalWritingMarket.OwnedDelivery(label, artist) is SongComposition delivery) { sample.Add((delivery, true)); if (audit != null) audit.Owned = 1; }
             foreach (bool professional in new[] { true, false }) {
-                var pool = professional ? CompositionCatalogService.GetProfessionalForGenre(genre) : CompositionCatalogService.GetStandardsForGenre(genre);
+                var pool = professional ? CompositionCatalogService.GetProfessionalForAct(genre) : CompositionCatalogService.GetStandardsForGenre(genre);
                 if (professional && AccessibleProfessionalSampling)
                     pool = pool.Where(s => CanObtainProgrammeSong(s, label, true, date.year, pipelineWeek)).ToArray();
                 if (professional && audit != null) audit.Pool = pool.Count;

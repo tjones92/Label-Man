@@ -93,6 +93,7 @@ public static class ProfessionalWritingMarket {
 	}
 	public static float LicenseFee(SongComposition song, AILabel label, SimulatedArtist artist) {
 		if (!Enabled || State == null || song == null) return MaterialPreparationService.CommissionFee;
+		if (ProfessionalSongBalance.RoyaltyLicences) return 0;
 		if (State.Demos.TryGetValue(song.songId, out var d) && d.LabelId == label?.labelId && d.ArtistId == artist?.artistId &&
 			d.Status is WritingDemoStatus.Licensed or WritingDemoStatus.Recorded && (d.Status == WritingDemoStatus.Recorded || d.HoldUntilWeek >= Week)) return 0;
 		return Rate(SupplierFor(song), false);
@@ -106,7 +107,7 @@ public static class ProfessionalWritingMarket {
 			float fee = Rate(s.WriterId, true);
 			return new WritingOffer { WriterId = s.WriterId, Name = SupplierName(s.WriterId), Reputation = s.Reputation,
 				CommissionFee = c?.LabelId == label.labelId ? fee * (c.Kind == WritingContractKind.Exclusive ? .2f : .8f) : fee,
-				LicenseFee = Rate(s.WriterId, false), PreferredRetainer = fee * .75f, ExclusiveRetainer = fee * 2.5f,
+				LicenseFee = ProfessionalSongBalance.RoyaltyLicences ? 0 : Rate(s.WriterId, false), PreferredRetainer = fee * .75f, ExclusiveRetainer = fee * 2.5f,
 				DeliveryWeeks = Members(s.WriterId).Average(w => w.reliability) >= .65f ? 2 : 3,
 				PreviousAssignments = p?.Assignments ?? 0, PreviousHits = p?.Hits ?? 0,
 				Available = s.BusyUntilWeek <= Week && (c == null || c.LabelId == label.labelId || c.Kind != WritingContractKind.Exclusive) };
@@ -374,7 +375,7 @@ public static class ProfessionalWritingMarket {
 		}
 		foreach (var s in State.Suppliers.Values.OrderBy(s => s.WriterId, StringComparer.Ordinal)) {
 			if (!ActiveSupplier(s.WriterId, date.year) || week < s.NextWritingWeek || week <= s.BusyUntilWeek) continue;
-			s.NextWritingWeek = week + 4 + (int)(Unit(s.WriterId + "|cadence") * 3);
+			s.NextWritingWeek = week + ProfessionalSongBalance.CadenceWeeks(Unit(s.WriterId + "|cadence"));
 			if (State.Demos.Values.Count(d => d.WriterId == s.WriterId && d.Status == WritingDemoStatus.Available) >= 8) continue;
 			var writer = Writer(s.WriterId);
 			var pub = CompositionCatalogService.Publishers.First(p => p.publisherId == writer.publisherId);

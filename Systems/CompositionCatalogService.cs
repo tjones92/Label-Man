@@ -101,6 +101,7 @@ public static class CompositionCatalogService {
 		GeneratePreGameRecentHits(startYear);
 		GenerateProfessionalPool(labels, startYear);
 		GenerateInitialProfessionalCatalog(startYear);
+		if (ProfessionalSongBalance.ExtendsPool) ExtendProfessionalPool(startYear, seed);
 		proTeamsBuilt = false;
 		if (BandLife.TeamWritingEnabled || ProfessionalWritingMarket.Enabled) {
 			TeamWritingService.BuildProfessionalTeams(professionalWriters, songs.Values, BandLife.WorldSeed);
@@ -349,6 +350,72 @@ public static class CompositionCatalogService {
 	}
 
 	/// <summary>
+	/// --writing-market-regional-offices / --writing-market-extra-writers (ProfessionalSongBalance): more offices and
+	/// staff writers, appended after the opening catalogue. Every draw comes from a private stream; writers continue
+	/// the prowriter ids and opening titles take their office's live-song ids, so the trait, title and song-id
+	/// streams the rest of the world reads are unchanged.
+	/// </summary>
+	private static void ExtendProfessionalPool(int startYear, ulong seed) {
+		var r = new PcgRandom { Seed = seed ^ 0x706f6f6c657874UL }; // "poolext"
+		float N(float mean, float sd) {
+			float u1 = Mathf.Max(.000001f, r.Randf()), u2 = r.Randf();
+			return Mathf.Clamp(mean + Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(2f * Mathf.Pi * u2) * sd, 0f, 1f);
+		}
+		var opening = publishers.ToArray();
+		void AddWriter(MusicPublisher pub) {
+			var writer = new ProfessionalSongwriter {
+				writerId = $"prowriter_{professionalWriters.Count + 1:D4}",
+				name = $"Staff Writer {professionalWriters.Count + 1}",
+				publisherId = pub.publisherId,
+				primaryGenre = pub.focusGenres.Length > 0 ? pub.focusGenres[0] : Genre.TraditionalPop,
+				secondaryGenre = pub.focusGenres.Length > 1 ? pub.focusGenres[1] : Genre.EasyListening,
+				melodyCraft = N(.62f, .16f), lyricCraft = N(.60f, .16f), hookCraft = N(.66f, .15f),
+				commercialInstinct = N(.64f, .16f), versatility = N(.55f, .18f), reliability = N(.60f, .17f),
+				trendSensitivity = N(.55f, .18f),
+				activeStartYear = startYear - r.RandiRange(0, 6),
+				activeEndYear = startYear + r.RandiRange(6, 14)
+			};
+			professionalWriters.Add(writer);
+			pub.staffWriterIds.Add(writer.writerId);
+		}
+		if (ProfessionalSongBalance.RegionalOffices) foreach (var o in ProfessionalSongBalance.RegionalOfficeTable) {
+			var pub = new MusicPublisher {
+				publisherId = o.Id, publisherName = o.Name, scene = o.Scene, focusGenres = o.Focus,
+				catalogQuality = N(.62f, .12f), songPluggerSkill = N(.60f, .14f), commercialAggression = N(.58f, .16f),
+				artistFriendly = N(.45f, .18f), buyoutWillingness = N(.40f, .18f)
+			};
+			publishers.Add(pub);
+			for (int i = 0; i < o.Writers; i++) AddWriter(pub);
+			for (int serial = 1; serial <= 45; serial++) {
+				Genre primary = o.Focus[r.RandiRange(0, o.Focus.Length - 1)];
+				var bank = primary is Genre.RnB or Genre.DooWop or Genre.Soul ? SoulTitles : RockTitles;
+				var song = new SongComposition {
+					songId = $"song_{o.Id}_{serial:D5}",
+					title = $"{bank.Openers[r.RandiRange(0, bank.Openers.Length - 1)]} {bank.Closers[r.RandiRange(0, bank.Closers.Length - 1)]}",
+					primaryGenre = primary,
+					secondaryGenre = o.Focus.Length > 1 ? o.Focus[1] : primary,
+					originYear = startYear - r.RandiRange(0, 3),
+					originKind = SongOriginKind.ProfessionalOffice,
+					compositionQuality = N(.62f, .15f), melodicStrength = N(.62f, .15f), lyricQuality = N(.56f, .16f),
+					commercialHook = N(.68f, .15f), rhythmicAppeal = N(.58f, .17f), adaptability = N(.55f, .18f),
+					originality = N(.42f, .16f), standardDurability = N(.35f, .16f),
+					nationalFamiliarity = 0f, isStandard = false
+				};
+				song.rights.controlType = PublishingControlType.ExternalPublisher;
+				song.rights.publisherId = pub.publisherId;
+				song.rights.publisherName = pub.publisherName;
+				song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.ProfessionalSongwriter,
+					writerId = pub.staffWriterIds[r.RandiRange(0, pub.staffWriterIds.Count - 1)], writerName = "Staff Writer", share = 1f });
+				if (ProfessionalWriting.Enabled) ResolveProfessionalCreditNames(song);
+				CompositionShapeVariation.AuthorContext(song, SongContentContext.Secular, "procedural-publishing-office:" + pub.publisherId + ":" + pub.scene);
+				Register(song);
+				pub.catalogSongIds.Add(song.songId);
+			}
+		}
+		for (int i = 0; i < ProfessionalSongBalance.ExtraWriters; i++) AddWriter(opening[r.RandiRange(0, opening.Length - 1)]);
+	}
+
+	/// <summary>
 	/// --rock-hit-office-placement: one new song from an office, written in a live week. Its traits match the initial
 	/// office catalogue but come from a private stream keyed by (world seed, office, serial), and it takes an id from its
 	/// own namespace, so the trait, title and song-id streams the rest of the world reads are unchanged. The serial is
@@ -359,7 +426,7 @@ public static class CompositionCatalogService {
 		if (pub == null || focus == null || focus.Length == 0) return null;
 		string prefix = $"song_{publisherId}_";
 		int serial = songs.Keys.Count(k => k.StartsWith(prefix, StringComparison.Ordinal)) + 1;
-		var r = new PcgRandom { Seed = BandLife.WorldSeed ^ 0x6f6666696365UL ^ ((ulong)serial * 0x9E3779B97F4A7C15UL) };
+		var r = new PcgRandom { Seed = BandLife.WorldSeed ^ 0x6f6666696365UL ^ ((ulong)serial * 0x9E3779B97F4A7C15UL) ^ ProfessionalSongBalance.OfficeSalt(publisherId) };
 		float N(float mean, float sd) {
 			float u1 = Mathf.Max(.000001f, r.Randf()), u2 = r.Randf();
 			return Mathf.Clamp(mean + Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(2f * Mathf.Pi * u2) * sd, 0f, 1f);
@@ -558,6 +625,21 @@ public static class CompositionCatalogService {
 	/// <summary>Professional (office/staff) catalog songs for a genre -- curated, no artist-originals.</summary>
 	public static IReadOnlyList<SongComposition> GetProfessionalForGenre(Genre genre) =>
 		professionalByGenre.TryGetValue(genre, out var list) ? list : emptySongs;
+
+	private static readonly Dictionary<Genre, (int Signature, List<SongComposition> Songs)> professionalFamilyCache = new();
+	/// <summary>The professional pool an AI act can be pitched from. Under --professional-family-pool it is the act's
+	/// genre followed by the rest of its family in genre order, as cover pools already fall back to the family;
+	/// otherwise exactly <see cref="GetProfessionalForGenre"/>. Pools only grow, so a count signature keeps the cache honest.</summary>
+	public static IReadOnlyList<SongComposition> GetProfessionalForAct(Genre genre) {
+		if (!ProfessionalSongBalance.FamilyPool || !GenreCatalog.TryGet(genre, out var profile)) return GetProfessionalForGenre(genre);
+		var members = professionalByGenre.Where(kv => kv.Key == genre || GenreCatalog.TryGet(kv.Key, out var p) && p.Family == profile.Family)
+			.OrderBy(kv => kv.Key == genre ? -1 : (int)kv.Key).Select(kv => kv.Value).ToArray();
+		int signature = members.Sum(m => m.Count);
+		if (professionalFamilyCache.TryGetValue(genre, out var cached) && cached.Signature == signature) return cached.Songs;
+		var songs = members.SelectMany(m => m).ToList();
+		professionalFamilyCache[genre] = (signature, songs);
+		return songs;
+	}
 
 	/// <summary>Traditional / public-domain songs for a genre.</summary>
 	public static IReadOnlyList<SongComposition> GetTraditionalForGenre(Genre genre) =>

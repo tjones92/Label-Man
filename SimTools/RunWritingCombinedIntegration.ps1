@@ -5,6 +5,12 @@ param(
     [string]$Tag = 'writing-combined-integration',
     [switch]$WithoutLpAssembly,
     [string]$DebutLpPriorScale = '',
+    [switch]$LpFillerSparesFreshDemos,
+    [switch]$ProfessionalFamilyPool,
+    [string]$WriterCapacity = '',
+    [switch]$RegionalOffices,
+    [string]$ExtraWriters = '',
+    [switch]$RoyaltyLicences,
     [string]$ExpectedAssemblySha256 = '511E9709FE20879CE4636C7FFE39F9C62E9CE825DC8EB01A110041711D221AC5'
 )
 $ErrorActionPreference = 'Stop'
@@ -17,6 +23,15 @@ if ($WithoutLpAssembly) {
 if ($DebutLpPriorScale) {
     if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the debut LP prior treatment.' }
     $integrationFlags += "--album-prior-debut-scale=$DebutLpPriorScale"
+}
+if ($LpFillerSparesFreshDemos -or $WriterCapacity -or $ProfessionalFamilyPool -or $RegionalOffices -or $ExtraWriters -or $RoyaltyLicences) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for a professional song balance treatment.' }
+    if ($LpFillerSparesFreshDemos) { $integrationFlags += '--lp-filler-spares-fresh-demos' }
+    if ($ProfessionalFamilyPool) { $integrationFlags += '--professional-family-pool' }
+    if ($WriterCapacity) { $integrationFlags += "--writing-market-capacity=$WriterCapacity" }
+    if ($RegionalOffices) { $integrationFlags += '--writing-market-regional-offices' }
+    if ($ExtraWriters) { $integrationFlags += "--writing-market-extra-writers=$ExtraWriters" }
+    if ($RoyaltyLicences) { $integrationFlags += '--writing-market-royalty-licences' }
 }
 foreach ($integrationSeed in $Seeds) {
     $integrationName = "$Tag-market-$integrationSeed"

@@ -1,0 +1,281 @@
+# Bringing covers and professional songs toward the historical ratio
+
+2026-11-03. Follows `ProfessionalOfficeSongBalanceHandoff.md`. Target: the working
+early-1960s singles assumption in `FreshMaterialHistoricalCalibration.md`, a central
+**1.33 covers per fresh professional song** with **1–2** as a broad sensitivity range.
+This is a calibration hypothesis, not a quota. Covers are `CoverStandard` plus
+`CoverRecentHit`; professional is `ExternalProfessional`. The measure is the mature
+issued single intention cohort used throughout the writing investigations.
+
+## Diagnosis: professional singles are supply-bound, and LPs take the supply
+
+In the combined control (seed 1001):
+
+- **About 93% of professional arrivals find no song.** Of ~11,600 professional
+  arrivals to act shortlists, 328 licensed a demo and 254 ordered a commission.
+  Commissions were refused 7,487 times because no single plan met the minimum
+  delivery time, and 3,329 times because the act already had two candidates.
+  Covers draw on large catalogue pools and practically never come up empty.
+  Realized arrivals were 897 professional against 10,681 covers. The attempted
+  rates follow the source-mix anchors; the realized ones do not.
+- **Arrivals that do find a song convert well.** 897 professional arrivals became
+  718 mature professional singles, against 2,726 from 10,681 cover arrivals.
+  Professional singles reach the Top 40 13% of the time, covers 5.8%.
+- **The writers' output is small, and LPs use most of it.** 91 writers produce about
+  22 demos a week, around 2,300 over two years. LP non-single cuts draw on the same
+  visible pool and license demos at the same rate as singles: 1,537 LP cuts used
+  professional songs, and 1,100 of 1,846 newly recorded demos appeared only on LPs.
+- **Genre filing hides some of the stock.** An office song takes one random focus
+  genre (Detroit: Motown/Soul/RnB; LA: SunshinePop/TeenPop/Bubblegum/EasyListening),
+  and AI acts saw only exact primary-genre matches. At week 78, Detroit held 135
+  unplaced demos while R&B and Soul arrivals came up empty 2,825 times. R&R and
+  TeenPop are truly short: their offices had 2 and 31 demos available.
+
+## Levers (opt-in, inert when off)
+
+All three are in `Systems/ProfessionalSongBalance.cs`. The flag-off build reproduced
+the original combined worlds byte for byte (label finance, slate, profit gates,
+records, company-monthly) on both seeds.
+
+| Flag | Change |
+|---|---|
+| `--lp-filler-spares-fresh-demos` | A non-single album cut may use only a demo the act already holds. It never licenses a fresh one and falls through to the ordinary source mix. |
+| `--professional-family-pool` | AI acts are pitched professional demos from their whole genre family, own genre first, as cover pools already fall back to the family (`CompositionCatalogService.GetProfessionalForAct`). |
+| `--writing-market-capacity=X` | Writers start a demo X times as often. The cap of eight unplaced demos per writer is unchanged. |
+
+The wrapper exposes them as `-LpFillerSparesFreshDemos`, `-ProfessionalFamilyPool`
+and `-WriterCapacity`.
+
+## Results
+
+Two seeds (1001, 2002), 104 weeks, assembly
+`7D4AD086C4A828E4EBA500EA233932617088D7B9FDD42541D5C81C2CC0CF042E`, all against
+`writing-balance2-off`.
+
+| Arm | Pro singles | Covers | Covers/pro (by seed) | Singles | Artist-written | LPs | Closures | Writing fees | Hit acts | Top 40 entries | Fixed top-30 share |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Control | 1,350 | 5,536 | 4.10 (3.80, 4.45) | 10,861 | 3,239 | 8,109 | 232 | $0.99M | 573 | 1,012 | .286 |
+| Filler + family | 2,041 | 5,135 | 2.52 (2.34, 2.70) | 10,859 | 2,986 | 8,114 | 233 | $1.31M | 565 | 1,025 | .297 |
+| **+ capacity ×2** | **2,506** | **4,860** | **1.94 (1.82, 2.06)** | 10,762 | 2,744 | 8,162 | 240 | $1.86M | 574 | 1,023 | .286 |
+| + capacity ×3 | 2,770 | 4,660 | 1.68 (1.67, 1.69) | 10,563 | 2,544 | 7,963 | 268 | $2.20M | 583 | 1,007 | .262 |
+| + capacity ×4 | 2,931 | 4,544 | 1.55 (1.48, 1.62) | 10,515 | 2,451 | 7,933 | 278 | $2.40M | 550 | 1,019 | .283 |
+
+Single-lever screens on seed 1001 (an earlier assembly with its own byte-identical
+control): LP filler alone 3.80 → 2.55, capacity ×2 alone 3.80 → 3.19, and both
+together 2.15. The family pool alone *worsened* the ratio to 4.30, because LPs
+absorbed the newly visible demos (album-only demos 1,100 → 1,219). It helps only
+once the filler rule protects them (filler 2.55 → filler + family 2.34).
+
+Covers per professional song by genre, pooled:
+
+| Genre | Control | + cap ×2 | + cap ×3 | Design anchor (1960, covers/pro) |
+|---|---:|---:|---:|---:|
+| RockAndRoll | 3.37 | 2.57 | 2.05 | 0.86 (rock-hit-writers anchor) |
+| TeenPop | 1.64 | 0.66 | 0.60 | 0.50 |
+| RnB | 5.31 | 3.14 | 3.03 | 0.80 |
+| Country | 4.15 | 1.48 | 1.31 | 0.89 |
+| TraditionalPop | 12.79 | 3.20 | 2.57 | 1.79 |
+| Soul | 3.19 | 1.29 | 0.97 | 0.80 |
+| DooWop | 2.13 | 1.22 | 1.25 | 0.80 |
+| EasyListening | 3.20 | 1.69 | 1.30 | 1.71 |
+
+Design anchors are the 1960 `Anchor1960` shares before `StandardShareFactor`, so
+they overstate covers for non-songbook genres. They show direction, not targets.
+
+### Side effects
+
+- **Quality and charts hold.** In seed 1001's all-lever world, professional singles
+  keep a mean record hook of .73–.76 and the all-single mean rises .684 → .694.
+  Top 40 entries, hit acts and top-30 concentration stay within seed noise up to ×2.
+- **Smaller labels gain most.** Professional singles by tier, seed 1001, control →
+  all levers: Small 161 → 335, Independent 251 → 467, Boutique 97 → 198,
+  MidTier 114 → 189, Major 274 → 336.
+- **Artist-written singles are displaced.** Self-written singles fall from 3,239 to
+  2,744 at ×2 (30% → 25% of singles), which is closer to the 1960 anchor (~20–22%).
+- **Higher capacity costs closures.** ×2 is within noise (+8). ×3 and ×4 add 36 and
+  46 closures as writing fees double: more assignments raise writer demand and
+  reputation, and with them `Rate()`. Fee-driven turnover at ×3+ was not traced.
+- **LPs change only modestly.** Album releases hold through ×2 and fall about 2%
+  at ×3–×4. LP cuts shift from professional songs to covers, originals and
+  traditional material.
+
+## Recommendation
+
+Use **filler + family + capacity ×2** as the candidate configuration. It is the first
+point inside the 1–2 range on both seeds' pooled count (1.94), and costs nothing
+measurable in closures, chart breadth or quality. Capacity ×3 reaches 1.68 but adds
+~36 closures. Before pushing toward the 1.33 central assumption, look at writer fee
+inflation or a cheaper supply route (for example, a larger writer pool at fixed fees
+rather than faster writers) rather than raw cadence. R&R and R&B stay furthest from
+their anchors at every dose. Their gap is office supply (one R&R office; Detroit's
+three-way focus), not visibility, so per-office capacity or extra offices are the
+next genre-specific lever.
+
+Limits: two seeds, two years. The LP filler rule removes fresh professional songs
+from album filler entirely; history had some. A softer version, such as allowing
+fresh demos on LPs only for acts with no open single plan, is untested. Decade-length
+and later-era behaviour, including the 1962–68 shift toward self-writing, is
+unverified.
+
+## Follow-up: more offices and writers instead of faster writers
+
+The opening world has 6 offices and 120 writers (about 91 active). A ballpark for the
+1960–62 market is 50–90 publishing offices with staff and demo operations, and 400–700
+working professional writers, of whom 150–250 were core hit writers. That estimate comes
+from 1961 society rolls (ASCAP 5,679 active writers and 1,902 publishers; BMI about
+5,300 writers and 4,500 publishers) and the Brill Building's ~165 music businesses in
+1962. Most rolled names were inactive or vanity firms. The model also has no office
+where much R&B and R&R writing happened: the regional label houses (Chess/Arc, Vee-Jay,
+King/Lois, Stax/East and Hi, Minit/Imperial, Cameo-Parkway, plus Atlantic/Leiber–Stoller
+in New York).
+
+Two more opt-in levers in `Systems/ProfessionalSongBalance.cs`:
+
+| Flag | Change |
+|---|---|
+| `--writing-market-regional-offices` | Six label-house offices: New York R&B (RnB/R&R/DooWop, 18 writers), Chicago (RnB/DooWop/Blues, 14), Cincinnati (RnB/R&R/Country, 10), Memphis (Soul/RnB/R&R, 12), New Orleans (RnB/R&R, 8), Philadelphia (TeenPop/R&R/DooWop, 12). 74 writers, 45 opening titles each. |
+| `--writing-market-extra-writers=N` | N more writers dealt uniformly across the six opening offices, as the original 120 were. No opening catalogue; ordinary cadence and fees. |
+
+The extension draws from a private stream after the opening catalogue and takes its own
+writer and song ids. Live songs from an added office get an office salt in their keyed
+stream. In the opening offices, a live song's traits are keyed by serial alone, so
+serial n repeats across those offices; that quirk is left as is. The flag-off build
+reproduced `writing-balance2-off` byte for byte on both seeds (146 and 145 output files;
+only the request file's run name and timestamp differ). Assembly
+`2CE46559C06A3E72FB3969199BBC11A474E3328173B48E42E4ED8829C6BCC384`.
+
+Pooled seeds 1001 and 2002, 104 weeks. All arms include filler + family. The control
+and the earlier arms are the same worlds as above.
+
+| Arm | Writers | Pro singles | Covers | Covers/pro (by seed) | Singles | LPs | Closures | Writing fees | Fees per pro single | Hit acts | Top 40 entries |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Control | 120 | 1,350 | 5,536 | 4.10 (3.80, 4.45) | 10,861 | 8,109 | 232 | $0.99M | $733 | 573 | 1,012 |
+| + capacity ×2 (earlier) | 120 | 2,506 | 4,860 | 1.94 (1.82, 2.06) | 10,762 | 8,162 | 240 | $1.86M | $742 | 574 | 1,023 |
+| **+ regional offices** | 194 | **3,030** | 4,585 | **1.51 (1.43, 1.60)** | 10,551 | 8,013 | 261 | $2.18M | $719 | 557 | 1,018 |
+| + regional + 120 writers | 314 | 3,528 | 4,223 | 1.20 (1.10, 1.30) | 10,470 | 7,853 | 292 | $3.08M | $873 | 553 | 1,025 |
+
+Covers per professional song by genre (pooled seeds; anchors as above):
+
+| Genre | Control | + cap ×2 | + regional | + regional + 120 | Anchor |
+|---|---:|---:|---:|---:|---:|
+| RockAndRoll | 3.37 | 2.57 | 0.87 | 0.91 | 0.86 |
+| TeenPop | 1.64 | 0.66 | 0.83 | 0.56 | 0.50 |
+| RnB | 5.31 | 3.14 | 1.88 | 1.50 | 0.80 |
+| Country | 4.15 | 1.48 | 2.07 | 1.23 | 0.89 |
+| TraditionalPop | 12.79 | 3.20 | 4.06 | 2.52 | 1.79 |
+| Soul | 3.19 | 1.29 | 0.64 | 0.61 | 0.80 |
+| DooWop | 2.13 | 1.22 | 0.74 | 0.66 | 0.80 |
+| EasyListening | 3.20 | 1.69 | 1.63 | 1.22 | 1.71 |
+
+(Genre ratios pool each seed's covers and professional singles for that genre.)
+
+Findings:
+
+- **Offices beat speed.** 74 regional writers (+62% headcount) do more than doubling every
+  writer's cadence: 1.51 against 1.94, with 524 more professional singles. Most of the
+  gain is in the genres the regional offices serve. R&R lands on its anchor (0.87 vs
+  0.86); Soul and DooWop move just past theirs. Commissions fall (254 → ~90 per seed)
+  because licensed demos now meet the arrivals: empty arrivals drop from ~10,800 to
+  ~7,800 per seed.
+- **The extra 120 writers mostly reach the non-R&B genres.** Country, TraditionalPop and
+  EasyListening gain the most, since the writers go to the opening offices. The overall
+  ratio overshoots the 1.33 centre to 1.20, and seed 1001 lands at 1.10.
+- **Closures follow total writing spend, not cadence.** Closures run 261 (+29 on the
+  control) for regional and 292 (+60) for regional + 120, about where capacity ×3–×4
+  landed (268, 278). Fees per professional single hold at ~$720–740 through regional, so
+  the regional cost is volume, not unit price. At +120 writers the unit fee rises to
+  $873, partly because LP cuts take professional songs again (album-only demos 439 →
+  691 on seed 1001; LP professional cuts 2,157 → 3,020 pooled). The per-single fee
+  trajectory was not traced to `Rate()` versus LP licensing.
+- **Self-written and cover singles give way.** "Other" (mostly self-written) launches fall
+  from 4,841 to 3,660 (regional) and 3,407 (+120), pooled. Hit acts slip 573 → 557 → 553
+  and Top 40 entries hold.
+- **R&B and TraditionalPop stay high.** R&B is still about twice its anchor; five of six
+  regional offices file a share of their songs as RnB, but R&B single demand is large.
+  TraditionalPop's gap is the songbook: standards supply most of its covers.
+
+### Recommendation (follow-up)
+
+Use **filler + family + regional offices** as the candidate, in place of capacity ×2. It is
+the closest arm to 1.33 on both seeds, fixes R&R, and costs closures about halfway
+between ×2 and ×3. A modest extra-writer dose (roughly 40–60) would centre the pooled ratio
+near 1.33. The +120 dose overshoots and costs about 30 more closures.
+
+The closure cost is now the binding question, and it argues for looking at fees after
+all. Historically, publishers did not charge labels a fee to record a song: they pitched
+for free and earned the statutory mechanical royalty (2¢ a side). A first-recording
+license priced at $55+ per demo is a model choice. A royalty-funded licence, rather than
+fee inflation, is the likely route to more professional songs without more closures.
+That is untested.
+
+Limits: two seeds and two years. Office staffs and focus mixes are ballpark. The extra
+writers keep the original uniform dealing, so New York is not weighted to its real size.
+Later-era behaviour is unverified.
+
+## Follow-up: royalty-funded licences
+
+An AI record already pays the 2¢ mechanical on every composition through COGS, and
+`PeriodAiPublishing` routes it to the song's controller, so an external office is paid
+for every copy sold. In the market, a first-recording licence also charges an upfront
+fee (`Rate()`, from $55), so a professional song is paid for twice while a cover is paid
+for once. Period publishers pitched for free and lived on the mechanical.
+
+| Flag | Change |
+|---|---|
+| `--writing-market-royalty-licences` | `LicenseFee` is zero, so recording an office demo first costs nothing upfront. Commissions, retainers, the 12-week first-recording hold and the 8-demo cap are unchanged. |
+
+Two runs only (seeds 1001 and 2002), on assembly
+`611212D2137D1EFACF92F4BB2C0DFEC2DF7C75F0B20D56D0A3E238FE33EEA975`. Each differs from
+`writing-balance3-ff-regional` by this flag alone. The build adds the one gated return
+and its switch; flag-off inertness on this build is argued from the code, not
+byte-checked. The analyzer refuses mixed assemblies, so the comparison was computed
+from its `arm()` output directly.
+
+| Arm (all with filler + family) | Pro singles | Covers | Covers/pro (by seed) | Singles | LPs | Closures (by seed) | Writing fees | Hit acts | Top 40 entries |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Control (no levers) | 1,350 | 5,536 | 4.10 (3.80, 4.45) | 10,861 | 8,109 | 232 (126, 106) | $0.99M | 573 | 1,012 |
+| + regional offices | 3,030 | 4,585 | 1.51 (1.43, 1.60) | 10,551 | 8,013 | 261 (132, 129) | $2.18M | 557 | 1,018 |
+| **+ regional + royalty licences** | **3,255** | 4,505 | **1.38 (1.33, 1.44)** | 10,899 | 8,301 | **213 (110, 103)** | $0.46M | 550 | 1,015 |
+
+By genre (pooled): RockAndRoll 0.94, TeenPop 0.72, RnB 1.67, Country 1.60,
+TraditionalPop 3.98, Soul 0.59, DooWop 0.74, EasyListening 1.39.
+
+- **The ratio lands near the 1.33 centre**, at 1.38 pooled; seed 1001 is at 1.33.
+- **Closures fall below the control**: 213 against 232 with no levers and 261 with
+  regional offices alone. Bankruptcies fall on both seeds (96 → 80 and 107 → 83 against
+  regional). Writing spend is now commissions and retainers only, $0.46M against the
+  control's $0.99M. So the closure gain is mostly money that no longer leaves the
+  labels. The closure cost of the regional arm was the licence fee.
+- **Volume returns.** Singles and LPs recover to slightly above the control (10,899
+  singles and 8,301 LPs, against 10,861 and 8,109), because the cash stays on the books.
+- **Hit acts keep slipping**: 573 → 557 → 550. Top 40 entries hold, so the chart is
+  shared among slightly more acts per hit act rather than shrinking. Two seeds cannot
+  separate that from noise.
+- R&B (1.67) and TraditionalPop (3.98) remain the outliers, as before.
+
+### Recommendation (royalty licences)
+
+Use **filler + family + regional offices + royalty licences** as the candidate. On two
+seeds it is the only arm that is both inside ±0.1 of the 1.33 centre and costs no
+closures. It also matches the period: publishers pitched demos free and were paid by
+mechanicals. Extra writers are no longer needed to hit the target. Before adoption,
+confirm flag-off inertness on the current build and run a longer horizon. A free licence
+removes the price signal that rationed demos, and its effect after 1962, when
+self-writing rises, is unverified.
+
+## Reproduction
+
+```powershell
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001 -Tag writing-balance2-off -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001 -Tag writing-balance2-all -LpFillerSparesFreshDemos -ProfessionalFamilyPool -WriterCapacity 2 -ExpectedAssemblySha256 <hash>
+py SimTools/analyze_professional_song_balance.py --control-tag writing-balance2-off --treatment-tags writing-balance2-filler-family writing-balance2-all writing-balance2-all-cap3 writing-balance2-all-cap4 --seeds 1001 2002
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance3-ff-regional -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance3-ff-regional-w120 -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -ExtraWriters 120 -ExpectedAssemblySha256 <hash>
+py SimTools/analyze_professional_song_balance.py --control-tag writing-balance3-off --treatment-tags writing-balance3-ff-regional writing-balance3-ff-regional-w120 --seeds 1001 2002 --output SimLogs/writing-calibration/writing-professional-song-balance3.json
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance4-ff-regional-royalty -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -ExpectedAssemblySha256 <hash>
+```
+
+Run one task per seed in parallel and pass an absolute script path from background
+shells. Output: `SimLogs/writing-calibration/writing-professional-song-balance.json`.
+The analyzer rejects mixed assemblies, incomplete runs, engine errors, and any flag
+difference outside the balance levers.

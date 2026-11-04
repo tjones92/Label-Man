@@ -4035,8 +4035,12 @@ public partial class CompetitorManager : Node {
 				};
 				SongMaterialSource? forcedSource = planSlots != null && attemptedSlot < planSlots.Length
 					? planSlots[attemptedSlot] : (SongMaterialSource?)null;
-				SelectedSongMaterial trackMaterial = SongMaterialSelectionService.ChooseMaterial(
-					label, artist, trackKey, artist.primaryGenre, year, albumChartWeek, forcedSource);
+				SelectedSongMaterial trackMaterial;
+				ProfessionalSongBalance.ChoosingAlbumFiller = true;
+				try {
+					trackMaterial = SongMaterialSelectionService.ChooseMaterial(
+						label, artist, trackKey, artist.primaryGenre, year, albumChartWeek, forcedSource);
+				} finally { ProfessionalSongBalance.ChoosingAlbumFiller = false; }
 				if (PolarSongBehavior.UsePolarFitSelection && trackMaterial == null) continue;
 				SongMaterialApplicationService.ApplyIdentityToAlbumTrack(track, trackMaterial);
 				PolarSongMetadataService.RegisterTrack(track, trackMaterial?.Song, trackKey.recordId, artist.artistId,
