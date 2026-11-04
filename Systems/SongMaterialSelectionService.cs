@@ -544,7 +544,10 @@ public static class SongMaterialSelectionService {
 			SongMaterialSource.ExternalProfessional or SongMaterialSource.LabelStaffWriter or SongMaterialSource.ArtistCowrittenWithProfessional => Lerp(a.Pro, b.Pro),
 			SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => Lerp(a.Std, b.Std) *
 				(rareRock ? PolarSongTable.Current.N("rockStandardFactor") : StandardShareFactor(genre)),
-			SongMaterialSource.CoverRecentHit => Lerp(a.Hit, b.Hit),
+			// --source-mix-standards-to-recent-hits: the standards share a genre gives up goes to covers of recent records,
+			// so total cover share stays at the anchor's instead of spreading over originals and professional songs.
+			SongMaterialSource.CoverRecentHit => Lerp(a.Hit, b.Hit) + (ProfessionalSongBalance.StandardsToRecentHits
+				? Lerp(a.Std, b.Std) * (1f - (rareRock ? PolarSongTable.Current.N("rockStandardFactor") : StandardShareFactor(genre))) : 0f),
 			SongMaterialSource.TraditionalPublicDomain or SongMaterialSource.AdaptedTraditional => Lerp(a.Trad, b.Trad) *
 				(rareRock ? PolarSongTable.Current.N("rockTraditionalFactor") : 1),
 			_ => 0f

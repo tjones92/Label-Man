@@ -13,6 +13,7 @@ param(
     [switch]$RoyaltyLicences,
     [switch]$CanonicalOfficeGenres,
     [switch]$SpecialistOffices,
+    [switch]$StandardsToRecentHits,
     [string]$ExpectedAssemblySha256 = '511E9709FE20879CE4636C7FFE39F9C62E9CE825DC8EB01A110041711D221AC5'
 )
 $ErrorActionPreference = 'Stop'
@@ -26,7 +27,7 @@ if ($DebutLpPriorScale) {
     if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for the debut LP prior treatment.' }
     $integrationFlags += "--album-prior-debut-scale=$DebutLpPriorScale"
 }
-if ($LpFillerSparesFreshDemos -or $WriterCapacity -or $ProfessionalFamilyPool -or $RegionalOffices -or $ExtraWriters -or $RoyaltyLicences -or $CanonicalOfficeGenres -or $SpecialistOffices) {
+if ($LpFillerSparesFreshDemos -or $WriterCapacity -or $ProfessionalFamilyPool -or $RegionalOffices -or $ExtraWriters -or $RoyaltyLicences -or $CanonicalOfficeGenres -or $SpecialistOffices -or $StandardsToRecentHits) {
     if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for a professional song balance treatment.' }
     if ($LpFillerSparesFreshDemos) { $integrationFlags += '--lp-filler-spares-fresh-demos' }
     if ($ProfessionalFamilyPool) { $integrationFlags += '--professional-family-pool' }
@@ -36,6 +37,7 @@ if ($LpFillerSparesFreshDemos -or $WriterCapacity -or $ProfessionalFamilyPool -o
     if ($RoyaltyLicences) { $integrationFlags += '--writing-market-royalty-licences' }
     if ($CanonicalOfficeGenres) { $integrationFlags += '--writing-market-canonical-office-genres' }
     if ($SpecialistOffices) { $integrationFlags += '--writing-market-specialist-offices' }
+    if ($StandardsToRecentHits) { $integrationFlags += '--source-mix-standards-to-recent-hits' }
 }
 foreach ($integrationSeed in $Seeds) {
     $integrationName = "$Tag-market-$integrationSeed"

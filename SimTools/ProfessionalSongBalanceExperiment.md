@@ -372,6 +372,61 @@ mixes (more cover share, or less professional share, in the arrival mix) so that
 historical ratio. The other trims offices until scarcity produces it. The first is the more stable model,
 because a ratio produced by scarcity drifts whenever writer output or demand moves.
 
+## Follow-up: Country offices and recalibrated 1960 mixes
+
+The 1.33 target comes from the working central mix in `FreshMaterialHistoricalCalibration.md`: 20% artist-written,
+30% professional, 20% standards, 20% recent-hit covers, 10% traditional. The 1960 `Anchor1960` mixes average close to
+that, but only *before* `StandardShareFactor`, which keeps 15% (R&B, Soul), 40% (pop, country, teen) or 2% (rock) of
+a genre's standards share. Normalization then spreads the removed share over every source, so total cover share
+roughly halves for the non-songbook genres.
+
+| Flag | Change |
+|---|---|
+| `--source-mix-standards-to-recent-hits` | In `SourceMix`, the standards share a genre gives up is added to recent-hit covers, so its total cover share stays at the anchor's. All consumers read `SourceMix`: single arrivals, material search, and the LP plan (`GetSourceMixShares`). |
+| `--writing-market-specialist-offices` (extended) | Adds three Country offices: Acuff-Rose (14 writers), Tree & Cedarwood (12) and a Bakersfield house (8). Ten offices and 120 writers in all. |
+
+Design covers/pro after the change: R&B, Soul and DooWop 0.46 → 0.80; Country 0.52 → 0.89; TeenPop ~0.35 → 0.50.
+TraditionalPop and EasyListening keep all their standards and are unchanged.
+
+Build `3FA4004C4C46FC7723655EDA23C0B0A9AA9B3849A27950DF8FAD91688D0BA6FE`. Both arms run filler + family + regional +
+royalty + canonical genres + specialist offices (with Country). Two seeds, 104 weeks. Flag-off, this build reproduces
+`writing-balance5-off` byte for byte on seed 1001 (145 of 145 output files).
+
+| Arm | Pro singles | Covers | Covers/pro (by seed) | Self-written | Closures (by seed) | Hit acts | Top 40 entries |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Specialist, no Country (previous build) | 4,005 | 4,161 | 1.04 (1.01, 1.06) | 2,238 | 223 (120, 103) | 576 | 1,025 |
+| Specialist + Country | 4,398 | 4,002 | 0.91 (0.92, 0.90) | 2,073 | 224 (110, 114) | 547 | 1,031 |
+| **+ standards to recent hits** | 4,124 | 4,456 | **1.08 (1.02, 1.14)** | 1,914 | 228 (124, 104) | 579 | 1,023 |
+
+| Genre | Specialist + Country | + mix change | Design (after change) |
+|---|---:|---:|---:|
+| RnB | 0.95 | 1.16 | 0.80 |
+| TraditionalPop | 2.92 | 2.79 | 1.79 |
+| Country | 0.55 | 0.68 | 0.89 |
+| RockAndRoll | 0.96 | 1.10 | ≤0.86 |
+| Soul | 0.48 | 0.62 | 0.80 |
+| DooWop | 0.54 | 0.79 | 0.80 |
+| TeenPop | 0.40 | 0.61 | 0.50 |
+| EasyListening | 0.80 | 0.92 | 1.71 |
+
+- **Country offices fix Country.** Country falls 1.58 → 0.55, and 90% of its professional arrivals license a demo,
+  against 15%. With the mix change it is 0.68, below its design.
+- **The mix change moves the pooled ratio less than the design does.** The design-implied ratio for the eight
+  genres rises about 1.25×; the realized pooled ratio rises 1.19× (0.91 → 1.08). The likely reason is selection:
+  where a professional and a cover candidate compete, professional songs win most contests (the earlier
+  `material-funnel` read), so extra cover arrivals convert at less than their share. That was not traced in these runs.
+- **LP cuts follow the mix.** Recent-hit covers on LPs rise ~22% per seed (12,115 → 14,682 and 11,102 → 14,015),
+  mostly at the expense of self-written (−1,500) and traditional (−750) cuts per seed. Professional LP cuts barely move,
+  because the filler rule keeps fresh demos for singles.
+- **No cost.** Closures (228) sit inside the ±10-per-seed noise, hit acts recover to 579, Top 40 entries hold.
+- TraditionalPop (2.79) stays the outlier against its 1.79 design. It now licenses 79% of professional arrivals,
+  so its remaining gap is selection and its standards-heavy design, not supply.
+
+The candidate is now filler + family + regional + royalty licences + canonical genres + specialist offices +
+standards to recent hits: 1.08, inside the 1–2 range but below the 1.33 centre. Reaching the centre would need
+the 1960 professional shares themselves to come down. TeenPop (56%), the R&B family (40%) and Country (36%) sit above
+the central 30%. That is a further, separate recalibration.
+
 ## Reproduction
 
 ```powershell
@@ -386,6 +441,9 @@ py SimTools/analyze_professional_song_balance.py --control-tag writing-balance3-
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance5-ffrr-canon -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -ExpectedAssemblySha256 <hash>
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance5-ffrr-canon-spec -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -SpecialistOffices -ExpectedAssemblySha256 <hash>
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001 -Tag writing-balance5-off -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance6-spec-country -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -SpecialistOffices -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance6-spec-country-mix -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -SpecialistOffices -StandardsToRecentHits -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001 -Tag writing-balance6-off -ExpectedAssemblySha256 <hash>
 ```
 
 Run one task per seed in parallel and pass an absolute script path from background

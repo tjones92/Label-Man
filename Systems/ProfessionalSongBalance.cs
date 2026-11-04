@@ -26,10 +26,13 @@ using System.Linq;
 /// <see cref="GenreCatalog.MapLegacy"/>. New York Pop files a third of its songs as GirlGroup and Detroit a third as Motown,
 /// legacy values no act holds and no family pool reaches, so those demos were never placed and filled their writers'
 /// eight-demo caps. The draw is unchanged; only the filed genre is.</item>
-/// <item><c>--writing-market-specialist-offices</c>: seven single-genre offices (two TraditionalPop, one TeenPop, one
-/// EasyListening, three R&amp;B), 86 staff writers and 45 opening titles each. With it, an act is pitched professional
+/// <item><c>--writing-market-specialist-offices</c>: ten single-genre offices (two TraditionalPop, one TeenPop, one
+/// EasyListening, three R&amp;B, three Country), 120 staff writers and 45 opening titles each. With it, an act is pitched professional
 /// demos of its own genre first and reaches into its family only when its own shelf is empty, so TeenPop and
 /// EasyListening acts no longer draw down the TraditionalPop offices.</item>
+/// <item><c>--source-mix-standards-to-recent-hits</c>: in <c>SongMaterialSelectionService.SourceMix</c>, the standards share
+/// a non-songbook genre gives up under <c>StandardShareFactor</c> is added to recent-hit covers instead of being spread over
+/// every source by normalization. The 1960 anchors match the working central mix (40% covers) only before that factor.</item>
 /// </list>
 /// All are off unless named and consume no random draws. The pool extension draws from a private stream and
 /// takes its own writer and song ids after the opening catalogue, so the shared catalogue streams are untouched.
@@ -51,6 +54,8 @@ public static class ProfessionalSongBalance {
 	public static readonly bool CanonicalOfficeGenres = SimulationArguments.Get().Contains(CanonicalOfficeGenresSwitch);
 	public const string SpecialistOfficesSwitch = "--writing-market-specialist-offices";
 	public static readonly bool SpecialistOffices = SimulationArguments.Get().Contains(SpecialistOfficesSwitch);
+	public const string StandardsToRecentHitsSwitch = "--source-mix-standards-to-recent-hits";
+	public static readonly bool StandardsToRecentHits = SimulationArguments.Get().Contains(StandardsToRecentHitsSwitch);
 	internal static bool ExtendsPool => RegionalOffices || ExtraWriters > 0 || SpecialistOffices;
 
 	/// <summary>The genre an office song is filed under; the legacy value itself when the canonical switch is off.</summary>
@@ -88,6 +93,10 @@ public static class ProfessionalSongBalance {
 		("pub_houston_rnb", "Houston R&B House", PublishingScene.LabelAffiliate, new[] { Genre.RnB }, 10),
 		("pub_la_rnb", "Los Angeles R&B House", PublishingScene.LabelAffiliate, new[] { Genre.RnB }, 10),
 		("pub_harlem_rnb", "Harlem R&B House", PublishingScene.LabelAffiliate, new[] { Genre.RnB }, 10),
+		// Country: Acuff-Rose; Tree and Cedarwood; Central Songs (Capitol, Bakersfield/Hollywood).
+		("pub_acuff_rose", "Acuff-Rose Country House", PublishingScene.Nashville, new[] { Genre.Country }, 14),
+		("pub_tree_cedarwood", "Tree & Cedarwood House", PublishingScene.Nashville, new[] { Genre.Country }, 12),
+		("pub_bakersfield", "Bakersfield Country House", PublishingScene.LabelAffiliate, new[] { Genre.Country }, 8),
 	};
 
 	/// <summary>Offices the extension adds, in creation order.</summary>
