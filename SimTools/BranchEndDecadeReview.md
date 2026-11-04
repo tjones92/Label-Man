@@ -37,9 +37,9 @@ it should.
 
 ## Concerning: LP volume halves after 1965 (fixed, opt-in)
 
-On branch-end seed 2002, LP units went 71M (1962) → 35M (1969), the album decision share 0.44 → 0.22, and active
-albums 5.5k → 2.7k. Seed 1001 matched (74M → 34M). Historically the LP share of units *rises* (about 30% in 1960
-to 55% in 1969). The song flags are not the cause: `songflags-off` slides the same way (1969: 32M, share 0.20).
+On branch-end seed 2002, store LP units went 71M (1962) → 35M (1969), the album decision share 0.44 → 0.22, and
+active albums 5.5k → 2.7k. Seed 1001 matched (74M → 34M). Store LPs should hold at about 54-56M (Billboard, 1966-68;
+see the all-channel table below). The song flags are not the cause: `songflags-off` slides the same way (1969: 32M, share 0.20).
 
 **Cause: the LP profit gate subtracted the album portfolio credit twice.**
 1. `DecideRelease` adds the portfolio credit to the album projection.
@@ -56,8 +56,8 @@ expected campaign instead, which the assembly prior also lacked. Seed 2002, bran
 
 | | 1965 | 1966 | 1967 | 1968 | 1969 |
 |---|---|---|---|---|---|
-| LP units (M) | 65 → 63 | 54 → 59 | 42 → 59 | 39 → 56 | 35 → 53 |
-| LP unit share | .33 → .33 | .30 → .32 | .25 → .32 | .23 → .30 | .22 → .29 |
+| store LP units (M) | 65 → 63 | 54 → 59 | 42 → 59 | 39 → 56 | 35 → 53 |
+| store LP share of units | .33 → .33 | .30 → .32 | .25 → .32 | .23 → .30 | .22 → .29 |
 | album decision share | .43 → .46 | .37 → .45 | .30 → .46 | .25 → .45 | .22 → .46 |
 | LP gate pass rate | .65 → .97 | .29 → .98 | .17 → .99 | .11 → 1.00 | .09 → 1.00 |
 | major family chart share | .69 → .67 | .59 → .66 | .57 → .65 | .58 → .64 | .58 → .62 |
@@ -66,9 +66,41 @@ expected campaign instead, which the assembly prior also lacked. Seed 2002, bran
 The fix removes the decline and the late MidTier collapse (MidTiers depend on LP margin). With the song flags off,
 MidTiers fall to 5 by 1969. Singles are unchanged at 128M a year.
 
-Still open: the LP share is *flat* at about .30-.33 rather than rising toward .50-.55. After the fix the gate passes
-almost everything from 1965 on, so it no longer limits LP volume. The ceiling is upstream, in how many LP
-intentions the slate plans. That's a separate investigation and not a regression.
+### All LP channels match Billboard: the "flat LP share" was a measurement error
+
+The rows above use `decade-annual-rollup` `albumUnits`, which counts **record-store sales only**. The default
+simulation profile also turns on record clubs, rack jobbers, budget LPs and the retail purchase envelope
+(`--record-clubs --rack-jobbers --budget-lps --retail-purchase-envelope=1`, `SimulationArguments.cs`). After store
+clearing those channels move LP buyers out of the store cohort (`lp-channel-choice-weekly`: about 20M a year switch to
+racks from 1965). Store units are 38-60% of the regional album budget, and that isn't lost demand.
+
+All channels, seed 2002, millions of LPs. Racks come from `rack-region-weekly`, budget LPs from `budget-region-weekly`,
+clubs from `record-club-annual` without its `Licensor` rows (those repeat the licensed operators' units, so summing
+every role double-counts about 20M). Billboard figures are from the 1966 Buyers Guide (1961-65) and the 1969-70
+directory (1966-68):
+
+| year | stores | racks + budget | clubs | LP total | Billboard total | Billboard stores / racks / clubs |
+|---|---|---|---|---|---|---|
+| 1961 | 65.6 | 50.3 | 45 | 160.9 | 173 | 68 / 60 / 45 |
+| 1963 | 70.0 | 60.9 | 41 | 171.9 | 186 | 66 / 79 / 41 |
+| 1965 | 63.4 | 69.9 | 46 | 179.3 | 228 (older, soft) | 76 / 106 / 46 |
+| 1966 | 59.1 | 72.2 | 47 | 178.2 | 180 | 56 / 77 / 47 |
+| 1967 | 58.9 | 81.7 | 49 | 189.5 | 192 | 56 / 87 / 49 |
+| 1968 | 55.6 | 93.8 | 49 | 198.4 | 196 | 54 / 93 / 49 |
+| 1969 | 53.5 | 103.0 | 49 | 205.5 | (n/a) | |
+
+With the LP fix every channel tracks the period totals from 1966 on. 1961-64 run 7-12% low, mostly racks. Without
+the fix, store LPs fall to 39M in 1968 against Billboard's 54M, and racks partly mask it: the total is 184.5M against
+198.4M. So the fix also corrects which channel the LPs sell through.
+
+Against singles the LP unit share is .56-.62. Billboard's all-format share is .46-.52, but that includes jukebox singles
+(50-55M a year), which the model has no channel for. Without jukeboxes, Billboard is .57 (1961), .53 (1964) and .54
+(1965), the same as the model. The rough author curve (30% in 1960 → 55% in 1969) predates the club, rack and budget
+channels, and the Billboard tables replace it.
+
+What genuinely differs is the singles side. Model singles are a flat 128M a year (the fixed purse,
+`singles-volume-is-a-fixed-purse`). Billboard stores + racks singles grow 132 → 192M from 1961 to 1965, plus jukeboxes.
+That's a separate design question, not an LP problem.
 
 Recommendation: add `--lp-assembly-gate-uncredited` to the working bundle wherever `--lp-assembly` is on.
 
