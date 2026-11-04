@@ -313,6 +313,65 @@ Candidate levers, untested: weight the regional offices' R&B filing above their 
 or give R&B a dedicated office; add a staffed Tin Pan Alley/Brill pop office for TraditionalPop; and
 consider a singles-only TraditionalPop/EasyListening mix with fewer standards than the LP mix.
 
+## Follow-up: stranded legacy-genre demos and specialist offices
+
+Two more opt-in levers in `Systems/ProfessionalSongBalance.cs`:
+
+| Flag | Change |
+|---|---|
+| `--writing-market-canonical-office-genres` | An office song's genre is filed through `GenreCatalog.MapLegacy`. The draw (and the title bank) is unchanged, so no shared stream moves. |
+| `--writing-market-specialist-offices` | Seven single-genre offices on the private extension stream: Broadway & Film and Big Three (TraditionalPop, 16 and 14 writers), Brill Teen (TeenPop, 16), Mood & Instrumental (EasyListening, 10), and Houston, Los Angeles and Harlem R&B houses (10 each). 86 writers, 45 opening titles each. Acts are pitched their own genre's demos first and reach into the family only when their own shelf is empty, in all three professional-pool consumers. |
+
+**The bug.** New York Pop's focus list is `{TeenPop, GirlGroup, TraditionalPop}` and Detroit's is
+`{Motown, Soul, RnB}`. Both `GirlGroup` and `Motown` are legacy values (`MapLegacy` maps them to TeenPop and
+Soul), but the catalogue never maps an office song, indexes it by raw genre, and the legacy values have no
+genre profile, so neither exact nor family pools reach them. No act or record carries those genres. In the
+royalty world (seed 1001, week 104), Detroit holds 110 unplaced demos and 7 of its 19 writers sit at the
+eight-demo cap; New York Pop holds 27, with 5 of 9 writers at the cap, and wrote only 156 live songs against
+Tin Pan Alley's 449. Every other office ends with 0–2 available demos except Tin Pan (24) and Nashville (19).
+
+Build `25DDCEAA1B1A194C637EFBDC22D7AFA3F97E0901CFF2F51CFC2FCBF39C451051`; both arms add to filler + family +
+regional + royalty licences. Two seeds, 104 weeks. Flag-off, this build reproduces `writing-balance4-off` byte for
+byte on seed 1001 (145 of 145 output files).
+
+| Arm | Pro singles | Covers | Covers/pro (by seed) | Closures (by seed) | Hit acts | Top 40 entries | Writing fees |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Royalty candidate (previous build) | 3,255 | 4,505 | 1.38 (1.33, 1.44) | 213 (110, 103) | 550 | 1,015 | $0.46M |
+| + canonical genres | 3,380 | 4,467 | 1.32 (1.20, 1.46) | 235 (130, 105) | 541 | 1,023 | $0.42M |
+| + canonical + specialist | 4,005 | 4,161 | **1.04 (1.01, 1.06)** | 223 (120, 103) | 576 | 1,025 | $0.40M |
+
+Seed 1001's closures move 110 → 130 → 120 across arms with no matching cost signal (fees fall), so they read
+as reshuffle noise of about ±10 per seed.
+
+| Genre | Royalty | + canonical | + specialist | Licensed share of arrivals (specialist) | Design |
+|---|---:|---:|---:|---:|---:|
+| RnB | 1.67 | 1.41 | 0.90 | 76% | 0.46 |
+| TraditionalPop | 3.98 | 3.01 | 2.28 | 79% | 1.79 |
+| Country | 1.60 | 1.55 | 1.58 | 15% | 0.52 |
+| RockAndRoll | 0.94 | 0.92 | 1.02 | 21% | ≤0.86 |
+| Soul | 0.59 | 0.57 | 0.51 | 73% | 0.46 |
+| DooWop | 0.74 | 0.71 | 0.63 | 79% | ~0.46 |
+| TeenPop | 0.72 | 0.78 | 0.42 | 69% | ~0.35 |
+| EasyListening | 1.39 | 1.45 | 0.89 | 78% | 1.71 |
+
+- **The canonical fix is worth keeping on its own.** It frees Detroit and New York Pop, R&B falls 1.67 → 1.41
+  and TraditionalPop 3.98 → 3.01, and the pooled ratio lands on 1.32. It changes no draw.
+- **Specialist offices end supply scarcity for the genres they serve.** 69–79% of professional arrivals now
+  license a demo, against 16–30% before. R&B (0.90) and TraditionalPop (2.28) close most of the gap to their
+  designs. Country, which no specialist office serves, is unchanged at 1.58 with 15% licensed. Nashville is the
+  next office gap.
+- **With supply no longer binding, the design mixes set the ratio, and they are below the target.** If each of
+  these eight genres sat exactly on its design, they would pool at about 0.71 covers per professional song (the
+  specialist arm pools them at 0.92). The 1.33 central assumption from `FreshMaterialHistoricalCalibration.md`
+  and the 1960 `Anchor1960` source mixes disagree. Until now writer scarcity hid that by manufacturing covers.
+  EasyListening is already below its own design (0.89 vs 1.71), and TeenPop is near its own (0.42 vs ~0.35).
+- Hit acts recover to 576 and Top 40 entries hold. Self-written singles fall a further ~150.
+
+So there are two ways to land near 1.33. One keeps the offices realistic and recalibrates the 1960 source
+mixes (more cover share, or less professional share, in the arrival mix) so that ample supply lands on the
+historical ratio. The other trims offices until scarcity produces it. The first is the more stable model,
+because a ratio produced by scarcity drifts whenever writer output or demand moves.
+
 ## Reproduction
 
 ```powershell
@@ -324,6 +383,9 @@ py SimTools/analyze_professional_song_balance.py --control-tag writing-balance2-
 py SimTools/analyze_professional_song_balance.py --control-tag writing-balance3-off --treatment-tags writing-balance3-ff-regional writing-balance3-ff-regional-w120 --seeds 1001 2002 --output SimLogs/writing-calibration/writing-professional-song-balance3.json
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance4-ff-regional-royalty -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -ExpectedAssemblySha256 <hash>
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance4-off -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance5-ffrr-canon -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance5-ffrr-canon-spec -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -CanonicalOfficeGenres -SpecialistOffices -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001 -Tag writing-balance5-off -ExpectedAssemblySha256 <hash>
 ```
 
 Run one task per seed in parallel and pass an absolute script path from background

@@ -52,8 +52,6 @@ public static class PolarGospelDirective3Checks {
    Check(CompositionShapeVariation.ActiveVersion==0&&CompositionCatalogService.AllSongs.All(s=>s.shapeVariationSchemaVersion==1&&s.contentContext==SongContentContext.Unknown),"actual older-save load defaults off and preserves unknown context");
    foreach(var kv in caches)Check(JsonSerializer.Serialize(PolarSongMetadataService.Get(kv.Key).cachedProfile,SaveGameService.TestJsonOptions)==kv.Value,"older-save caches preserved");
    WorldStateService.Apply(saved,date,SimulationSeedBootstrap.RequestedSeed);
-   GospelSongbookExpansion.ValidateRequest(Array.Empty<string>());GospelSongbookExpansion.ValidateRequest(new[]{"--gospel-songbook-v2=off"});
-   bool blocked=false;try{GospelSongbookExpansion.ValidateRequest(new[]{"--gospel-songbook-v2=on"});}catch(InvalidOperationException){blocked=true;}Check(blocked,"unresearched expansion fails explicitly");
    var book=CompositionCatalogService.AllSongs.Where(s=>s.repertoireSeedFamily=="Gospel Standard").ToArray();
    Check(book.Length==350&&book.All(s=>s.contentContext==SongContentContext.Sacred),"sacred fixture unchanged");
    var artist=ArtistManager.Instance.GetUnsignedArtists().First();var songForCover=book[0];

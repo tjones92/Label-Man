@@ -16,7 +16,8 @@ from analyze_writing_concentration import iter_rows
 
 TREATMENT_FLAGS = ('--lp-filler-spares-fresh-demos', '--professional-family-pool', '--writing-market-capacity=', '--album-prior-debut-scale=',
                    '--writing-market-regional-offices', '--writing-market-extra-writers=',
-                   '--writing-market-royalty-licences')
+                   '--writing-market-royalty-licences', '--writing-market-canonical-office-genres',
+                   '--writing-market-specialist-offices')
 GENRES = ('RockAndRoll', 'TeenPop', 'RnB', 'Country', 'TraditionalPop', 'Soul', 'DooWop', 'EasyListening')
 
 

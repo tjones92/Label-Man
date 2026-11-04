@@ -61,10 +61,33 @@ foreach ($calSeed in $Seeds) {
     $calStart = [datetime]::UtcNow
     @{run=$calName; assemblySha256=$calHash; flags=$calFlags; startedUtc=$calStart.ToString('o')} |
         ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $calDir "$calName-request.json") -Encoding utf8
-    & $Godot --headless --path $calRoot --log-file (Join-Path $calDir "$calName-engine.log") SimTools/ChartAuditRunner.tscn -- @calFlags > $calLog 2> $calError
+    # Host telemetry (wall time alone cannot tell paging from CPU contention): every 15 s, the run's Godot
+    # processes' CPU seconds and peak working set, the lowest free RAM seen, and the system page-in rate.
+    $calTelemetry = Join-Path $calDir "$calName-host.json"
+    $calMonitor = Start-Job -ArgumentList $calName, $calTelemetry -ScriptBlock {
+        param($name, $out)
+        $peak = 0; $cpu = 0.0; $minFree = [double]::MaxValue; $pageIn = 0.0; $samples = 0
+        while ($true) {
+            $procs = @(Get-CimInstance Win32_Process -Filter "Name LIKE 'Godot%'" | Where-Object { $_.CommandLine -match "--run=$([regex]::Escape($name))(\s|$)" })
+            $ws = 0; $c = 0.0
+            foreach ($p in $procs) { $g = Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue; if ($g) { $ws += $g.WorkingSet64; $c += $g.TotalProcessorTime.TotalSeconds } }
+            if ($ws -gt $peak) { $peak = $ws }; if ($c -gt $cpu) { $cpu = $c }
+            $free = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1KB
+            if ($free -lt $minFree) { $minFree = $free }
+            try { $pageIn += (Get-Counter '\Memory\Pages Input/sec' -ErrorAction Stop).CounterSamples[0].CookedValue; $samples++ } catch {}
+            @{cpuSeconds = [math]::Round($cpu); peakWorkingSetMB = [math]::Round($peak / 1MB); minFreeRamMB = [math]::Round($minFree)
+              meanPagesInputPerSec = if ($samples) { [math]::Round($pageIn / $samples, 1) } else { $null }; samples = $samples } |
+                ConvertTo-Json | Set-Content -LiteralPath $out -Encoding utf8
+            Start-Sleep -Seconds 15
+        }
+    }
+    try {
+        & $Godot --headless --path $calRoot --log-file (Join-Path $calDir "$calName-engine.log") SimTools/ChartAuditRunner.tscn -- @calFlags > $calLog 2> $calError
+    } finally { Stop-Job $calMonitor; Remove-Job $calMonitor -Force }
     if ($LASTEXITCODE -ne 0 -or !(Select-String -LiteralPath $calLog -SimpleMatch "CHART_AUDIT_COMPLETE run=$calName weeks=$Weeks" -Quiet) -or
         (Select-String -LiteralPath $calError -Pattern 'ERROR:|Exception' -Quiet)) { throw "$calName failed; inspect logs." }
-    @{run=$calName; assemblySha256=$calHash; flags=$calFlags; seconds=([datetime]::UtcNow-$calStart).TotalSeconds} |
+    $calHost = if (Test-Path -LiteralPath $calTelemetry) { Get-Content -LiteralPath $calTelemetry -Raw | ConvertFrom-Json } else { $null }
+    @{run=$calName; assemblySha256=$calHash; flags=$calFlags; seconds=([datetime]::UtcNow-$calStart).TotalSeconds; host=$calHost} |
         ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $calDir "$calName-manifest.json") -Encoding utf8
     Write-Output "Completed $calName."
 }

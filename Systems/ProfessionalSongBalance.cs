@@ -22,6 +22,14 @@ using System.Linq;
 /// <item><c>--writing-market-royalty-licences</c>: a first recording of an office demo costs the label no upfront
 /// licence fee. Period publishers pitched songs free and were paid by the 2c mechanical, which an AI record already
 /// pays through COGS (PeriodAiPublishing). Commissions, retainers and the first-recording hold are unchanged.</item>
+/// <item><c>--writing-market-canonical-office-genres</c>: an office song's genre is filed through
+/// <see cref="GenreCatalog.MapLegacy"/>. New York Pop files a third of its songs as GirlGroup and Detroit a third as Motown,
+/// legacy values no act holds and no family pool reaches, so those demos were never placed and filled their writers'
+/// eight-demo caps. The draw is unchanged; only the filed genre is.</item>
+/// <item><c>--writing-market-specialist-offices</c>: seven single-genre offices (two TraditionalPop, one TeenPop, one
+/// EasyListening, three R&amp;B), 86 staff writers and 45 opening titles each. With it, an act is pitched professional
+/// demos of its own genre first and reaches into its family only when its own shelf is empty, so TeenPop and
+/// EasyListening acts no longer draw down the TraditionalPop offices.</item>
 /// </list>
 /// All are off unless named and consume no random draws. The pool extension draws from a private stream and
 /// takes its own writer and song ids after the opening catalogue, so the shared catalogue streams are untouched.
@@ -39,7 +47,22 @@ public static class ProfessionalSongBalance {
 	public static readonly int ExtraWriters = ParseExtraWriters(SimulationArguments.Get());
 	public const string RoyaltyLicencesSwitch = "--writing-market-royalty-licences";
 	public static readonly bool RoyaltyLicences = SimulationArguments.Get().Contains(RoyaltyLicencesSwitch);
-	internal static bool ExtendsPool => RegionalOffices || ExtraWriters > 0;
+	public const string CanonicalOfficeGenresSwitch = "--writing-market-canonical-office-genres";
+	public static readonly bool CanonicalOfficeGenres = SimulationArguments.Get().Contains(CanonicalOfficeGenresSwitch);
+	public const string SpecialistOfficesSwitch = "--writing-market-specialist-offices";
+	public static readonly bool SpecialistOffices = SimulationArguments.Get().Contains(SpecialistOfficesSwitch);
+	internal static bool ExtendsPool => RegionalOffices || ExtraWriters > 0 || SpecialistOffices;
+
+	/// <summary>The genre an office song is filed under; the legacy value itself when the canonical switch is off.</summary>
+	internal static Genre FileGenre(Genre drawn) => CanonicalOfficeGenres ? GenreCatalog.MapLegacy(drawn, 1960) : drawn;
+
+	/// <summary>Under specialist offices, the act's own-genre demos when any are visible, else the whole (family) pool.</summary>
+	internal static System.Collections.Generic.IReadOnlyList<SongComposition> OwnGenreFirst(
+		System.Collections.Generic.IReadOnlyList<SongComposition> pool, Genre genre) {
+		if (!SpecialistOffices || pool.Count == 0) return pool;
+		var own = pool.Where(s => s != null && s.primaryGenre == genre).ToArray();
+		return own.Length > 0 && own.Length < pool.Count ? own : pool;
+	}
 	// Set only while GenerateAlbum chooses a non-single cut's material.
 	internal static bool ChoosingAlbumFiller;
 
@@ -54,6 +77,25 @@ public static class ProfessionalSongBalance {
 		("pub_philadelphia", "Philadelphia Teen House", PublishingScene.LabelAffiliate, new[] { Genre.TeenPop, Genre.RockAndRoll, Genre.DooWop }, 12),
 	};
 
+	// Single-genre houses of 1960-62: Chappell/Famous (Broadway and film), Robbins-Feist-Miller, Aldon and Hill & Range,
+	// a mood/instrumental catalogue, and the R&B publishers the label houses above miss (Lion/Duke-Peacock in Houston,
+	// Venice/Specialty and Modern in Los Angeles, Fire/Fury and Old Town in Harlem). Staffs are ballpark.
+	internal static readonly (string Id, string Name, PublishingScene Scene, Genre[] Focus, int Writers)[] SpecialistOfficeTable = {
+		("pub_broadway_film", "Broadway & Film Music House", PublishingScene.LegacyTinPanAlley, new[] { Genre.TraditionalPop }, 16),
+		("pub_big_three", "Big Three Pop House", PublishingScene.LegacyTinPanAlley, new[] { Genre.TraditionalPop }, 14),
+		("pub_brill_teen", "Brill Teen House", PublishingScene.NewYorkPopFactory, new[] { Genre.TeenPop }, 16),
+		("pub_mood_music", "Mood & Instrumental House", PublishingScene.LegacyTinPanAlley, new[] { Genre.EasyListening }, 10),
+		("pub_houston_rnb", "Houston R&B House", PublishingScene.LabelAffiliate, new[] { Genre.RnB }, 10),
+		("pub_la_rnb", "Los Angeles R&B House", PublishingScene.LabelAffiliate, new[] { Genre.RnB }, 10),
+		("pub_harlem_rnb", "Harlem R&B House", PublishingScene.LabelAffiliate, new[] { Genre.RnB }, 10),
+	};
+
+	/// <summary>Offices the extension adds, in creation order.</summary>
+	internal static System.Collections.Generic.IEnumerable<(string Id, string Name, PublishingScene Scene, Genre[] Focus, int Writers)> AddedOffices() {
+		if (RegionalOffices) foreach (var o in RegionalOfficeTable) yield return o;
+		if (SpecialistOffices) foreach (var o in SpecialistOfficeTable) yield return o;
+	}
+
 	internal static int ParseExtraWriters(System.Collections.Generic.IEnumerable<string> arguments) {
 		string value = (arguments ?? Array.Empty<string>()).SingleOrDefault(a => a.StartsWith(ExtraWritersPrefix, StringComparison.Ordinal));
 		if (value == null) return 0;
@@ -65,7 +107,7 @@ public static class ProfessionalSongBalance {
 	/// <summary>Salt for a live office song's keyed stream. Zero for the opening offices, whose songs keep their
 	/// serial-only key; an added office gets its own, so its serial-n song does not repeat another office's traits.</summary>
 	internal static ulong OfficeSalt(string publisherId) {
-		if (!RegionalOffices || !RegionalOfficeTable.Any(o => o.Id == publisherId)) return 0;
+		if (!AddedOffices().Any(o => o.Id == publisherId)) return 0;
 		ulong h = 14695981039346656037UL;
 		foreach (char c in publisherId) { h ^= c; h *= 1099511628211UL; }
 		return h;

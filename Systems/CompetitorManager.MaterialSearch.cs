@@ -179,6 +179,7 @@ public partial class CompetitorManager {
                 var pool = professional ? CompositionCatalogService.GetProfessionalForAct(genre) : CompositionCatalogService.GetStandardsForGenre(genre);
                 if (professional && AccessibleProfessionalSampling)
                     pool = pool.Where(s => CanObtainProgrammeSong(s, label, true, date.year, pipelineWeek)).ToArray();
+                if (professional) pool = ProfessionalSongBalance.OwnGenreFirst(pool, genre);
                 if (professional && audit != null) audit.Pool = pool.Count;
                 if (pool.Count == 0) continue;
                 var seen = new HashSet<string>(StringComparer.Ordinal);

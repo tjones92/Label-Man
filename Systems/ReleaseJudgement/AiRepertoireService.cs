@@ -430,9 +430,11 @@ public static class AiRepertoireService {
 		if (source == SongMaterialSource.ExternalProfessional && ProfessionalWritingMarket.OwnedDelivery(label, artist) is SongComposition delivery &&
 			!ProfessionalWritingMarket.WasDeliveryOffered(delivery.songId, artist.artistId) &&
 			!act.Candidates.Any(c => c.Disposition == ShadowDisposition.Active && c.SongId == delivery.songId)) return delivery;
-		IReadOnlyList<SongComposition> pool = PoolFor(source, ProjectGenre(artist, year));
+		Genre poolGenre = ProjectGenre(artist, year);
+		IReadOnlyList<SongComposition> pool = PoolFor(source, poolGenre);
 		if (source == SongMaterialSource.ExternalProfessional) pool = RockHitOfficePlacement.Visible(pool, label);
 		if (source == SongMaterialSource.ExternalProfessional) pool = ProfessionalWritingMarket.Visible(pool, label, artist);
+		if (source == SongMaterialSource.ExternalProfessional) pool = ProfessionalSongBalance.OwnGenreFirst(pool, poolGenre);
 		if (pool.Count == 0) return null;
 		for (int attempt = 0; attempt < 4; attempt++) {
 			int index = Math.Min(pool.Count - 1, (int)(ReleaseJudgement.Unit($"pick|{artist.artistId}|{key}|{attempt}") * pool.Count));

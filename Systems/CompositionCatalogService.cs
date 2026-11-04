@@ -275,8 +275,8 @@ public static class CompositionCatalogService {
 				writerId = $"prowriter_{i + 1:D4}",
 				name = $"Staff Writer {i + 1}",
 				publisherId = pub.publisherId,
-				primaryGenre = pub.focusGenres.Length > 0 ? pub.focusGenres[0] : Genre.TraditionalPop,
-				secondaryGenre = pub.focusGenres.Length > 1 ? pub.focusGenres[1] : Genre.EasyListening,
+				primaryGenre = ProfessionalSongBalance.FileGenre(pub.focusGenres.Length > 0 ? pub.focusGenres[0] : Genre.TraditionalPop),
+				secondaryGenre = ProfessionalSongBalance.FileGenre(pub.focusGenres.Length > 1 ? pub.focusGenres[1] : Genre.EasyListening),
 				melodyCraft = ClampNormal(.62f, .16f),
 				lyricCraft = ClampNormal(.60f, .16f),
 				hookCraft = ClampNormal(.66f, .15f),
@@ -316,8 +316,8 @@ public static class CompositionCatalogService {
 				var song = new SongComposition {
 					songId = NextSongId(),
 					title = GenerateRealTitle(primary),
-					primaryGenre = primary,
-					secondaryGenre = pub.focusGenres.Length > 1 ? pub.focusGenres[1] : primary,
+					primaryGenre = ProfessionalSongBalance.FileGenre(primary),
+					secondaryGenre = ProfessionalSongBalance.FileGenre(pub.focusGenres.Length > 1 ? pub.focusGenres[1] : primary),
 					originYear = startYear - rng.RandiRange(0, 3),
 					originKind = SongOriginKind.ProfessionalOffice,
 					compositionQuality = ClampNormal(.62f, .15f),
@@ -367,8 +367,9 @@ public static class CompositionCatalogService {
 				writerId = $"prowriter_{professionalWriters.Count + 1:D4}",
 				name = $"Staff Writer {professionalWriters.Count + 1}",
 				publisherId = pub.publisherId,
-				primaryGenre = pub.focusGenres.Length > 0 ? pub.focusGenres[0] : Genre.TraditionalPop,
-				secondaryGenre = pub.focusGenres.Length > 1 ? pub.focusGenres[1] : Genre.EasyListening,
+				primaryGenre = ProfessionalSongBalance.FileGenre(pub.focusGenres.Length > 0 ? pub.focusGenres[0] : Genre.TraditionalPop),
+				secondaryGenre = ProfessionalSongBalance.FileGenre(pub.focusGenres.Length > 1 ? pub.focusGenres[1] :
+					pub.focusGenres.Length == 1 && ProfessionalSongBalance.SpecialistOffices ? pub.focusGenres[0] : Genre.EasyListening),
 				melodyCraft = N(.62f, .16f), lyricCraft = N(.60f, .16f), hookCraft = N(.66f, .15f),
 				commercialInstinct = N(.64f, .16f), versatility = N(.55f, .18f), reliability = N(.60f, .17f),
 				trendSensitivity = N(.55f, .18f),
@@ -378,7 +379,7 @@ public static class CompositionCatalogService {
 			professionalWriters.Add(writer);
 			pub.staffWriterIds.Add(writer.writerId);
 		}
-		if (ProfessionalSongBalance.RegionalOffices) foreach (var o in ProfessionalSongBalance.RegionalOfficeTable) {
+		foreach (var o in ProfessionalSongBalance.AddedOffices()) {
 			var pub = new MusicPublisher {
 				publisherId = o.Id, publisherName = o.Name, scene = o.Scene, focusGenres = o.Focus,
 				catalogQuality = N(.62f, .12f), songPluggerSkill = N(.60f, .14f), commercialAggression = N(.58f, .16f),
@@ -392,8 +393,8 @@ public static class CompositionCatalogService {
 				var song = new SongComposition {
 					songId = $"song_{o.Id}_{serial:D5}",
 					title = $"{bank.Openers[r.RandiRange(0, bank.Openers.Length - 1)]} {bank.Closers[r.RandiRange(0, bank.Closers.Length - 1)]}",
-					primaryGenre = primary,
-					secondaryGenre = o.Focus.Length > 1 ? o.Focus[1] : primary,
+					primaryGenre = ProfessionalSongBalance.FileGenre(primary),
+					secondaryGenre = ProfessionalSongBalance.FileGenre(o.Focus.Length > 1 ? o.Focus[1] : primary),
 					originYear = startYear - r.RandiRange(0, 3),
 					originKind = SongOriginKind.ProfessionalOffice,
 					compositionQuality = N(.62f, .15f), melodicStrength = N(.62f, .15f), lyricQuality = N(.56f, .16f),
@@ -437,8 +438,8 @@ public static class CompositionCatalogService {
 			songId = $"{prefix}{serial:D5}",
 			writingAssignmentFamiliarity = familiarity,
 			title = $"{bank.Openers[r.RandiRange(0, bank.Openers.Length - 1)]} {bank.Closers[r.RandiRange(0, bank.Closers.Length - 1)]}",
-			primaryGenre = primary,
-			secondaryGenre = focus.Length > 1 ? focus[1] : primary,
+			primaryGenre = ProfessionalSongBalance.FileGenre(primary),
+			secondaryGenre = ProfessionalSongBalance.FileGenre(focus.Length > 1 ? focus[1] : primary),
 			originYear = year,
 			originKind = SongOriginKind.ProfessionalOffice,
 			compositionQuality = N(.62f, .15f), melodicStrength = N(.62f, .15f), lyricQuality = N(.56f, .16f),

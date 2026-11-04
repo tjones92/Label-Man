@@ -265,8 +265,8 @@ public static class SongMaterialSelectionService {
 		if (availability <= 0.01f) return null;
 		SongComposition owned = ProfessionalWritingMarket.OwnedDelivery(label, artist);
 		if (owned == null && ProfessionalWritingMarket.Enabled && ProfessionalSongBalance.SparesFreshDemos) return null;
-		SongComposition song = owned ?? SampleBest(ProfessionalWritingMarket.Visible(RockHitOfficePlacement.Visible(
-				PublisherPitchOrder.Visible(CompositionCatalogService.GetProfessionalForAct(genre), label), label), label, artist),
+		SongComposition song = owned ?? SampleBest(ProfessionalSongBalance.OwnGenreFirst(ProfessionalWritingMarket.Visible(RockHitOfficePlacement.Visible(
+				PublisherPitchOrder.Visible(CompositionCatalogService.GetProfessionalForAct(genre), label), label), label, artist), genre),
 			artist, record, year, "pro", null);
 		if (song == null) return null;
 

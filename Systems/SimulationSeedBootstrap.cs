@@ -18,12 +18,6 @@ public partial class SimulationSeedBootstrap : Node {
 			GetTree().Quit(2);
 			return;
 		}
-		try { GospelSongbookExpansion.ValidateRequest(args); }
-		catch (Exception ex) {
-			GD.PrintErr("GOSPEL_SONGBOOK_V2_REJECTED: " + ex.Message);
-			GetTree().Quit(2);
-			return;
-		}
 		try { CompositionShapeVariation.ActiveVersion = CompositionShapeVariation.ResolveVersion(args, CompositionShapeVariation.LatestVersion); }
 		catch (Exception ex) {
 			GD.PrintErr("COMPOSITION_SHAPE_FLAGS_REJECTED: " + ex.Message);
