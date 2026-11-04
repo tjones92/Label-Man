@@ -321,5 +321,27 @@ Inertness with the switches off: 104 weeks, seed 1001, `--enable-genre-market-v2
 `--default-simulation-profile` the media suite fails one existing check ("The Ed Sullivan Show declines 7 uncharted
 records") on the pre-change code too, so that failure predates this work.
 
+### Short screen, 2026-11-04 (104 weeks, branch playtest configuration)
+
+Base: `SimTools/branch_playtest_flags.txt` + `--calibration`. Runs `msrc3-<arm>-<seed>` in SimLogs. Arms: control, all
+three, then each alone. Changes against the matched control:
+
+| Arm | Seed | LP units 1960 / 61 | Releases 1961, singles / LPs | Verdict |
+|---|---|---|---|---|
+| all three | 1001 | +0.67% / −0.84% | −1.2% / −1.6% | over the ±1% release limit; split out |
+| controversy | 1001 | byte-identical | byte-identical | inert: no on-air defiance in two years, so it never fired. Untested in a world. |
+| AI fees | 1001 | 0 / −0.69% | −0.03% / +0.5% | pass (active-singles snapshot −5.9%, not repeated) |
+| AI fees | 2002 | 0 / −0.12% | +0.1% / −0.7% | pass |
+| press | 1001 | +0.67% / −1.16% | −1.3% / −1.3% | fail |
+| press | 2002 | −1.95% / −0.72% | −3.3% / −3.0% | fail, same sign |
+
+Singles units are identical in every arm (the fixed purse). Press asks are small (39-49 requests a year, summed
+request 0.04-0.05). It writes nothing but `DemandLift`, so the release drop must run through who sells. Press requests
+land on hits the magazines cover, and neutral titles donate, so marginal records sell less, and that can feed the
+realized-unit forecasts behind release decisions. Two seeds with the same sign isn't proof. A permuted-press arm (the
+`--media-demand-permute` idea) would separate targeting from reshuffle.
+
+Disposition: AI fees pass this screen. Press stays off. Controversy is unexercised.
+
 Still to do: a short screen of each source alone (singles and LPs within ±1%, Major top-10 counts), then the AI-fee
 accounting look (member wealth and departures by tier, with fees on and off).

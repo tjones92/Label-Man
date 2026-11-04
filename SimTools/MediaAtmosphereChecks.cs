@@ -462,8 +462,16 @@ public partial class MediaAtmosphereChecks : Node {
 		var records = ChartManager.Instance.GetAllRecords()
 			.Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && !r.baseRecord.isPlayerOwned && r.regionalData.TryGetValue(region, out var rd) && rd != null && rd.unitsSoldThisWeek > 0)
 			.OrderByDescending(r => r.regionalData[region].unitsSoldThisWeek).ThenBy(r => r.baseRecord.recordId).Take(12).ToList();
-		var uncharted = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && r.currentPosition <= 0 && r.unitsThisWeek > 0)
-			.Take(8).ToList();
+		// Unknown acts only: Sullivan books a name the parents already know without a current record (the standing lane), and
+		// the game profile's opening careers give some uncharted acts that standing.
+		TvProgram sullivanShow = MediaOutletCatalog.Get("ed_sullivan");
+		bool Unknown(RecordRuntimeData r) {
+			SimulatedArtist act = ArtistManager.Instance.GetArtist(r.baseRecord.artistId);
+			return act != null && act.primaryGenre != Genre.Comedy && r.baseRecord.primaryGenre != Genre.Comedy
+				&& ArtistRecognitionService.EffectiveRecognition(act) < sullivanShow.StandingFloor;
+		}
+		var uncharted = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && r.currentPosition <= 0 && r.unitsThisWeek > 0
+			&& Unknown(r)).Take(8).ToList();
 		foreach (var r in records) MediaAtmosphereService.PitchTelevision(desk, r, locals[0].Id, out _);
 		foreach (var r in uncharted) MediaAtmosphereService.PitchTelevision(desk, r, "ed_sullivan", out _);
 		for (int i = 0; i < 6; i++) clock.EndDay();
@@ -471,7 +479,7 @@ public partial class MediaAtmosphereChecks : Node {
 		var national = MediaAtmosphereService.Pitches.Where(p => p.ProgramId == "ed_sullivan").ToList();
 		Check(local.Count(p => p.Status == PitchStatus.Offered) >= 2 && local.All(p => p.Status != PitchStatus.Sent),
 			$"Records the town is buying get local dates: {local.Count(p => p.Status == PitchStatus.Offered)} offers, {local.Count(p => p.Status == PitchStatus.Declined)} declined");
-		Check(national.Count > 0 && national.All(p => p.Status == PitchStatus.Declined), $"The Ed Sullivan Show declines {national.Count} uncharted records" +
+		Check(national.Count > 0 && national.All(p => p.Status == PitchStatus.Declined), $"The Ed Sullivan Show declines {national.Count} uncharted records by acts below its standing floor" +
 			string.Concat(national.Where(p => p.Status != PitchStatus.Declined).Select(p => $"; not declined: {p.ArtistName} {p.Status} {p.Reason}")));
 		foreach (var p in local.Take(3)) GD.Print($"  pitch: {p.ArtistName} -> {p.Status} {p.Reason} {(p.Status == PitchStatus.Offered ? MediaAtmosphereService.FromDayIndex(p.AirDay).ToShortString() + " reach " + MediaText.Audience(p.ReachHigh) : "")}");
 		var offer = local.First(p => p.Status == PitchStatus.Offered);
