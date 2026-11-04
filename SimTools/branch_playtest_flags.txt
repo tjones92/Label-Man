@@ -3,7 +3,8 @@
 # writing profile, the causal fanbase bundle, the ten song-balance switches and the LP gate fix.
 # Press requests and AI performer fees are added after their decade A/B (mediasrc-decade-market-2002,
 # MediaAtmospherePhase4Notes.md). --media-demand-controversy stays out: it never fired in a decade.
-# Launch with SimTools/RunBranchPlaytest.ps1.
+# Launch with SimTools/RunBranchPlaytest.ps1. Adopted as the default profile media-atmosphere-v3
+# (Systems/SimulationArguments.cs, 2026-11-04); keep the two lists in step.
 --release-judgement-shadow
 --release-judgement-select=perceived
 --label-release-slate

@@ -20,10 +20,13 @@ public static class ResponseAuditionProbe {
 		if (Mode != "random" && Mode != "response") throw new ArgumentException("response-auditions takes random or response");
 		if (!StationRegionalSupport.Enabled || StationRegionalSupport.ChartReadsNational || StationPicks.Extra)
 			throw new ArgumentException("Response auditions require live regional support and reserved picks");
-		if (args.Any(a => a.StartsWith("--resume-world") || a.StartsWith("--save-world")))
-			throw new ArgumentException("Response auditions require fresh uninterrupted worlds");
+		// The mechanism runs everywhere (it is in the default profile). Only the screen's audition log needs a fresh,
+		// uninterrupted world with a plain run name: trial state is runtime-only, so a resumed or loaded world starts
+		// its trials empty, as the station panel's runtime does on load.
 		string run = args.FirstOrDefault(a => a.StartsWith("--run="))?.Substring(6);
-		if (string.IsNullOrEmpty(run) || Path.GetFileName(run) != run) throw new ArgumentException("Plain run name required");
+		bool interrupted = args.Any(a => a.StartsWith("--resume-world") || a.StartsWith("--save-world"));
+		if (string.IsNullOrEmpty(run) || interrupted) return;
+		if (Path.GetFileName(run) != run) throw new ArgumentException("Plain run name required");
 		Writer = new StreamWriter(Path.Combine(ProjectSettings.GlobalizePath("res://SimLogs"), run + "-response-auditions.jsonl")) { AutoFlush = true };
 	}
 	// Units per million population per rotation-equivalent, shrunk toward zero by 100 purchases.
@@ -105,7 +108,7 @@ public sealed partial class StationNetwork {
 			var seat = result.Seats.FirstOrDefault(s => s.Id == c.Id);
 			responseOffers.TryGetValue(key, out var source);
 			responseNow.TryGetValue((c.Id, station.regionId), out var local);
-			ResponseAuditionProbe.Writer.WriteLine(JsonSerializer.Serialize(new {
+			ResponseAuditionProbe.Writer?.WriteLine(JsonSerializer.Serialize(new {
 				week = meeting.Week, station = station.stationId, record = c.Id, region = station.regionId,
 				sourceRegion = source?.Region, sourceWeek = source?.Week, sourceScore = source?.Score,
 				localScore = local?.Score, localUnits = local?.Units, localPanel = local?.Panel, backorders = local?.Backorders,

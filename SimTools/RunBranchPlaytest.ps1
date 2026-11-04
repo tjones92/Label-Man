@@ -5,8 +5,9 @@ param(
     [string[]]$Extra = @(),
     [switch]$NoBuild
 )
-# Plays the ordinary game (the lp-retail-v2 profile is applied automatically to a windowed game) with this branch's
-# configuration from branch_playtest_flags.txt. Logs go to SimLogs/playtest/<timestamp>.log.
+# Plays the ordinary game with branch_playtest_flags.txt. Since media-atmosphere-v3 became the default profile
+# (Systems/SimulationArguments.cs) those flags are already applied to any windowed game; the file now matters for
+# -Extra trials and for a run name (the audition log). Logs go to SimLogs/playtest/<timestamp>.log.
 $ErrorActionPreference = 'Stop'
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location -LiteralPath $root
