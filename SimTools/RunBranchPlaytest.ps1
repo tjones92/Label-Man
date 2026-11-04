@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Godot = 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe',
-    # Opt-in extras, e.g. -Extra '--media-demand-press','--media-ai-performer-fees'
+    # Opt-in extras, e.g. -Extra '--media-demand-controversy'
     [string[]]$Extra = @(),
     [switch]$NoBuild
 )

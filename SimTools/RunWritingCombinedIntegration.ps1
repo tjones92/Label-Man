@@ -19,6 +19,8 @@ param(
     [switch]$ProgrammeSearchFollowsMix,
     [switch]$WithoutLpAssemblyGateUncredited,
     [switch]$ProfilePerformance,
+    # Opt-in treatment switches appended after the profile, e.g. -Extra '--media-demand-press','--media-ai-performer-fees'
+    [string[]]$Extra = @(),
     [string]$ExpectedAssemblySha256 = '511E9709FE20879CE4636C7FFE39F9C62E9CE825DC8EB01A110041711D221AC5'
 )
 $ErrorActionPreference = 'Stop'
@@ -54,6 +56,10 @@ if ($LpFillerSparesFreshDemos -or $WriterCapacity -or $ProfessionalFamilyPool -o
 }
 # Measurement only: writes <run>-performance-profile.csv with per-phase seconds each year; outputs are unchanged.
 if ($ProfilePerformance) { $integrationFlags += '--profile-performance' }
+if ($Extra.Count -gt 0) {
+    if ($Tag -eq 'writing-combined-integration') { throw 'Choose a distinct tag for an -Extra treatment.' }
+    $integrationFlags += $Extra
+}
 foreach ($integrationSeed in $Seeds) {
     $integrationName = "$Tag-market-$integrationSeed"
     if (Test-Path -LiteralPath (Join-Path $PSScriptRoot "../SimLogs/writing-calibration/$integrationName.log")) {

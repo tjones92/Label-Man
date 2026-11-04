@@ -1,8 +1,9 @@
 # Branch playtest configuration (media-atmosphere, 2026-11-04): the branch-end decade setup
 # (lpgate-decade-market-2002) without its telemetry and audit switches. That is the combined
 # writing profile, the causal fanbase bundle, the ten song-balance switches and the LP gate fix.
-# The three unscreened media switches (--media-demand-press, --media-demand-controversy,
-# --media-ai-performer-fees) are left out. Launch with SimTools/RunBranchPlaytest.ps1.
+# Press requests and AI performer fees are added after their decade A/B (mediasrc-decade-market-2002,
+# MediaAtmospherePhase4Notes.md). --media-demand-controversy stays out: it never fired in a decade.
+# Launch with SimTools/RunBranchPlaytest.ps1.
 --release-judgement-shadow
 --release-judgement-select=perceived
 --label-release-slate
@@ -162,3 +163,5 @@
 --source-mix-1960-pro-trims
 --tradpop-singles-new-songs
 --programme-search-follows-mix
+--media-demand-press
+--media-ai-performer-fees

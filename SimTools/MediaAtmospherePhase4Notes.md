@@ -387,3 +387,39 @@ the LP cost grows.
 
 Still to do: a short screen of each source alone (singles and LPs within ±1%, Major top-10 counts), then the AI-fee
 accounting look (member wealth and departures by tier, with fees on and off).
+
+## Decade A/B of the three media sources (seed 2002, 2026-11-04)
+
+Control `lpgate-decade-market-2002` (the branch-end decade, build D22F957D). Treatment `mediasrc-decade-market-2002`
+has the same 169 flags plus `--media-demand-press --media-demand-controversy --media-ai-performer-fees`, at HEAD 79ae24e
+with the slate index. Launched with `RunWritingCombinedIntegration.ps1 -Extra` (new pass-through). The two builds
+differ only by off-by-default code and the byte-checked slate index, so the control stands. One paired seed with
+all three sources in one arm can't attribute anything to a single source.
+
+Runtime: 58.5 min against 4h 44m for the control (4.9x, from the slate index; the treatment paged more).
+
+**What fired.** Press: 39-70 requests a year 1960-65, 95-102 a year 1966-69 (summed request 0.04-0.08). Controversy:
+**zero events in ten years**. No on-air defiance happens, so the source is untested and inert in this profile. AI fees:
+1.2-3.9k produced network dates a year paying 3.5-10.5k performer fees, $0.5-1.6M a year to members.
+
+| Measure | Result | Limit |
+|---|---|---|
+| Singles units | identical every year (fixed purse) | pass |
+| LP units, all four channels | −1.13% (1960), then within ±0.35% 1961-69 | pass; the press LP cost seen at 104 weeks doesn't grow |
+| LP channel mix | stores −2.2..+3.3%, racks −2.4..+5.0%, budget −4.6..+3.3%, offsetting | reshuffle between channels |
+| Releases | albums −2.9 / −5.0% (1961-62), +3.1 / +4.2 / +4.6 / +6.7% (1966-69); singles +2.4 / +3.8% (1968-69) | fails ±1%; decisions +2.8 to +5.1% 1967-69 |
+| Top 1 / 5 / 10% acts' slot-weeks (records.csv) | −0.87 / −2.46 / −2.12 pt | pass |
+| Genre slot-weeks 1960-69 | TeenPop −1.7, Soul +1.2, RnB +1.0; rest within 1 | fails 1 pt, mildly |
+| Major-family share | 1965 −9.9, 1966 −4.3; 1968 +1.4, 1969 +5.3; ten-year mean −0.7 pt | consolidation years up |
+| Top-10 hits by debut year | Major 720 → 681 (−5.4%), Independent 320 → 369, MidTier 176 → 187, Boutique 77 → 62 | reported |
+| Closures | MidTier 13 → 8, Boutique 42 → 35, Independent 122 → 114, Small 115 → 120 | — |
+
+- **The LP question is answered:** the targeting cost press showed in its second year (−0.8%) doesn't build up. LP
+  units match the control within 0.35% from 1961 on.
+- **Release volume drifts up late** (more LPs and singles for the same units, so fewer units per release). Not traced;
+  one seed, and 104-week release noise was already 1.5-1.8% per seed.
+- **Major top-10s fall again** (−5%, Independents gain, most of it in 1965). Same direction as the targeted demand
+  adapter's 1963 resume deficit (about one in ten), half the size. Major share over the decade is flat, and the
+  consolidation years are higher.
+- Lifecycle-based slot-weeks (`analyze_media_recognition_screen.py`) attribute only ~27% of decade slot-weeks, because
+  lifecycles hold closed records. Decade concentration and genre should come from `records.csv` chart rows.
