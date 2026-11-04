@@ -227,8 +227,9 @@ for once. Period publishers pitched for free and lived on the mechanical.
 Two runs only (seeds 1001 and 2002), on assembly
 `611212D2137D1EFACF92F4BB2C0DFEC2DF7C75F0B20D56D0A3E238FE33EEA975`. Each differs from
 `writing-balance3-ff-regional` by this flag alone. The build adds the one gated return
-and its switch; flag-off inertness on this build is argued from the code, not
-byte-checked. The analyzer refuses mixed assemblies, so the comparison was computed
+and its switch. Flag-off inertness is byte-checked: `writing-balance4-off` on this build
+reproduces `writing-balance3-off` (assembly `2CE46559…`) on both seeds, 145 of 145
+output files identical per seed (logs, manifest and request excluded). The analyzer refuses mixed assemblies, so the comparison was computed
 from its `arm()` output directly.
 
 | Arm (all with filler + family) | Pro singles | Covers | Covers/pro (by seed) | Singles | LPs | Closures (by seed) | Writing fees | Hit acts | Top 40 entries |
@@ -258,10 +259,59 @@ TraditionalPop 3.98, Soul 0.59, DooWop 0.74, EasyListening 1.39.
 Use **filler + family + regional offices + royalty licences** as the candidate. On two
 seeds it is the only arm that is both inside ±0.1 of the 1.33 centre and costs no
 closures. It also matches the period: publishers pitched demos free and were paid by
-mechanicals. Extra writers are no longer needed to hit the target. Before adoption,
-confirm flag-off inertness on the current build and run a longer horizon. A free licence
+mechanicals. Extra writers are no longer needed to hit the target. Flag-off inertness is now byte-checked. Before adoption, run a longer horizon (planned for
+the branch-end decade A/B). A free licence
 removes the price signal that rationed demos, and its effect after 1962, when
 self-writing rises, is unverified.
+
+## Follow-up: why R&B and TraditionalPop stay high
+
+Same two worlds per seed (`writing-balance3-off` and `writing-balance4-ff-regional-royalty`), pooled.
+Single-source counts are from issued slate singles by record genre; arrival outcomes are from
+`professional-arrivals`, keyed by the act's genre.
+
+| Genre | Std covers | Recent-hit covers | Pro | Covers/pro | Design covers/pro | Pro arrivals | Licensed | Empty | Writer-equivalents |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| RnB | 62 | 516 | 347 | 1.67 | **0.46** | ~4,220 | 1,249 (30%) | 2,885 (68%) | ~29 |
+| TraditionalPop | 560 | 259 | 206 | 3.98 | **1.79** | ~1,630 | 262 (16%) | 1,356 (83%) | ~13 |
+| Country | 214 | 251 | 291 | 1.60 | 0.52 | ~2,380 | 404 (17%) | 1,924 (81%) | ~13 |
+| RockAndRoll | 17 | 607 | 664 | 0.94 | ≤0.86 | ~4,440 | 835 (19%) | 3,518 (79%) | ~21 + R&R office |
+
+"Design" is the 1960 `Anchor1960` mix *after* `StandardShareFactor`, which the earlier tables
+omitted. That scaling moves R&B's design from 0.80 to 0.46 (factor 0.15 on standards) and Country's
+from 0.89 to 0.52 (factor 0.40). For the songbook genres it is 1 and changes nothing. Rock & roll's
+standards use `rockStandardFactor`, so its value is the earlier unscaled 0.86 as an upper bound.
+Country is as far off its design as R&B (3.1×) and shares the cause: 81% of its professional arrivals
+come up empty. Writer-equivalents count each office's writers divided by its
+number of focus genres (opening offices hold 20 writers each, with `--rock-hit-writers` on).
+
+- **Both are still supply-bound, not losing at selection.** "Empty" is an arrival that found no demo
+  (`empty-count-blocked` or `no-plan-minimum-delivery`). A demo that does arrive usually becomes the
+  single: TraditionalPop turns 262 licensed arrivals into 206 issued professional singles. Covers
+  never come up empty, so they fill the slots professional arrivals leave. The `material-funnel`
+  contests, where both a professional and a cover candidate are positive, already favour
+  professional songs (R&B 1,119 to 788; TraditionalPop 1,112 to 672).
+- **R&B has the largest professional demand of any genre.** Its design gives professional songs 46%
+  of singles, because the standards share it gives up is redistributed. It attempts about 4,220
+  professional arrivals, as many as rock & roll, across ~29 writer-equivalents, and all five
+  label-house offices that file R&B split it with R&R, DooWop, Blues, Country or Soul. Recent-hit
+  covers fill the gap: 42% of R&B singles against an 18% design share.
+- **TraditionalPop has the least professional supply per arrival.** Two offices file it (New York
+  Pop and Legacy Tin Pan Alley), each splitting it three ways, so ~13 writer-equivalents. With the
+  family pool on, TeenPop, GirlGroup and EasyListening acts draw on the same demos. Standards fill
+  the rest: 560 standard covers against 206 professional singles.
+- **TraditionalPop's own design is standards-heavy.** The 1960 mix is Std .40 against Pro .28, the
+  same mix LPs use (`AlbumMaterialPlan`). That fits the period's LPs; on singles it is probably too
+  high, since 1960 pop singles were mostly new Tin Pan Alley songs. Even so, 3.98 is 2.2× its own
+  design. R&B's 1.67 is 3.6× its design.
+- **The pooled 1.38 balances these against genres under their anchor.** Soul (0.59), TeenPop (0.72)
+  and DooWop (0.74) sit below theirs. Doubling TraditionalPop's professional singles alone would move
+  the pooled ratio to about 1.24 (4,299 covers / 3,461 professional). Fixing the outliers means
+  re-centring the total, not just adding writers.
+
+Candidate levers, untested: weight the regional offices' R&B filing above their other focus genres,
+or give R&B a dedicated office; add a staffed Tin Pan Alley/Brill pop office for TraditionalPop; and
+consider a singles-only TraditionalPop/EasyListening mix with fewer standards than the LP mix.
 
 ## Reproduction
 
@@ -273,6 +323,7 @@ py SimTools/analyze_professional_song_balance.py --control-tag writing-balance2-
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance3-ff-regional-w120 -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -ExtraWriters 120 -ExpectedAssemblySha256 <hash>
 py SimTools/analyze_professional_song_balance.py --control-tag writing-balance3-off --treatment-tags writing-balance3-ff-regional writing-balance3-ff-regional-w120 --seeds 1001 2002 --output SimLogs/writing-calibration/writing-professional-song-balance3.json
 ./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance4-ff-regional-royalty -LpFillerSparesFreshDemos -ProfessionalFamilyPool -RegionalOffices -RoyaltyLicences -ExpectedAssemblySha256 <hash>
+./SimTools/RunWritingCombinedIntegration.ps1 -Seeds 1001,2002 -Tag writing-balance4-off -ExpectedAssemblySha256 <hash>
 ```
 
 Run one task per seed in parallel and pass an absolute script path from background
