@@ -1298,6 +1298,8 @@ public partial class PlayerDesk : Node {
         contractCommitments.Clear();
         rivalOffers.Clear();
         rosterDepartures.Clear();
+		catalogNumbers.Clear();
+		pendingSigningMoment = null;
         ResetRosterWatch();
 		PolarPlayerPerception.Reset();
 		currentCityId = city.cityId; // you start at your own office
@@ -4883,7 +4885,7 @@ public partial class PlayerDesk : Node {
 	/// consequential business, 2 = everything else. The Morning Paper leads with the best rank-0 story.</summary>
 	public static int MorningStoryRank(string entry) {
 		string[] lead = {
-			"THE DOORS CLOSE", "BREAKOUT", "RELEASED:", "CHART DEBUT", "pressing plant delivered", "plant collected",
+			"THE DOORS CLOSE", "FIRST SIGNING:", "BREAKOUT", "RELEASED:", "CHART DEBUT", "pressing plant delivered", "plant collected",
 			"in the red", "back in the black"
 		};
 		if (lead.Any(signal => entry.Contains(signal, StringComparison.OrdinalIgnoreCase))) return 0;
@@ -6005,6 +6007,7 @@ public partial class PlayerDesk : Node {
 				FirstNotedYear = entry.FirstNoted?.year ?? 0, FirstNotedMonth = entry.FirstNoted?.month ?? 0, FirstNotedDay = entry.FirstNoted?.day ?? 0
 			}).ToList(),
 			AcetateCopies = new Dictionary<string, int>(acetateCopies),
+			CatalogNumbers = new Dictionary<string, int>(catalogNumbers),
 			Books = books.Select(WeekBookSaveData.From).ToList(),
 
 			// The desk's working state: the shelf, the release pipeline, the pressing plant, the trunk.
@@ -6277,6 +6280,7 @@ public partial class PlayerDesk : Node {
 		acetateCopies.Clear();
 		foreach (var (recordId, copies) in data.AcetateCopies ?? new Dictionary<string, int>())
 			if (!string.IsNullOrEmpty(recordId) && copies > 0) acetateCopies[recordId] = copies;
+		LoadCatalogNumbers(data.CatalogNumbers);
 
 		// Masters first, keyed by record id, so planned releases can re-link their A/B sides to the very
 		// same Master objects (a scheduled master lives in both lists).

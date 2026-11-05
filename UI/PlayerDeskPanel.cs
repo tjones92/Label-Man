@@ -399,6 +399,7 @@ public partial class PlayerDeskPanel : Control {
 	private void Refresh() {
 		if (!Visible) return;
 		PlayerDesk desk = PlayerDesk.Instance;
+		ShowPendingSigningMoment(desk);
 		TimeManager time = TimeManager.Instance;
 		content = contentRoot;   // a Distribution section may have left `content` pointing at a child
 		nextUpLabel.Text = string.Empty;
@@ -1408,13 +1409,17 @@ public partial class PlayerDeskPanel : Control {
 
 		TermsForm(prefill, $"OFFER CONTRACT  ({PlayerDesk.PushoverSignHours}h)",
 			(advance, royalty, term, singles, labelPub, artistControl) => {
-				bool signed = PlayerDesk.Instance.OfferContract(prospect, advance, royalty, term, singles,
-					labelPub, artistControl, out string message);
-				GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-				bool walked = !signed && prospect.CooldownUntil is GameDate until && today < until;
-				if (signed || walked) negotiating = null;
-				Say(message, signed);
-				Refresh();
+				var offer = new ContractTermSheet(advance, royalty, term, singles, labelPub, artistControl,
+					b.NegotiationDifficulty, b.Manager, b.ManagerName, b.DemandSummary);
+				SubmitEasyOffer(prospect, offer, sheet => {
+					bool signed = PlayerDesk.Instance.OfferContract(prospect, sheet.Advance, sheet.RoyaltyRate, sheet.TermYears,
+						sheet.SinglesObligation, sheet.LabelOwnsPublishing, sheet.ArtistCreativeControl, out string message);
+					GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+					bool walked = !signed && prospect.CooldownUntil is GameDate until && today < until;
+					if (signed || walked) negotiating = null;
+					Say(message, signed);
+					Refresh();
+				});
 			},
 			() => { negotiating = null; Refresh(); }, b, prospect.Artist.stageName);
 	}
