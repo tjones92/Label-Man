@@ -8,7 +8,7 @@
 //   * a doubled article ("The the Ozarks Players");
 //   * Roman/number disambiguation ("RCA Records III") and exact duplicates;
 //   * labels that reuse a historical label's name.
-// Usage: NamingCensus [acts=7000] [labels=1100] [seed=1001] [--samples]
+// Usage: NamingCensus [acts=7000] [labels=1100] [seed=1001] [--samples] [--genres A,B] [--years 1962-1965]
 
 using System;
 using System.Collections.Generic;
@@ -43,6 +43,15 @@ public static class Program {
 			(Genre.Soul, 6), (Genre.Country, 9), (Genre.Folk, 5), (Genre.Jazz, 5), (Genre.Blues, 4), (Genre.EasyListening, 5),
 			(Genre.Gospel, 3), (Genre.SurfRock, 3), (Genre.GarageRock, 3), (Genre.BritishBeat, 3), (Genre.PsychedelicRock, 2),
 			(Genre.FolkRock, 2), (Genre.SunshinePop, 1), (Genre.LatinPop, 1), (Genre.HardRock, 1), (Genre.Bubblegum, 1) };
+		// --genres A,B,... measures only those genres, equally weighted; --years 1962-1965 pins the act years
+		int gi = Array.IndexOf(args, "--genres");
+		if (gi >= 0 && gi + 1 < args.Length)
+			genres = args[gi + 1].Split(',').Select(x => (Enum.Parse<Genre>(x.Trim(), true), 1.0)).ToArray();
+		int yi = Array.IndexOf(args, "--years");
+		int y0 = 1960, ySpan = 10;
+		if (yi >= 0 && yi + 1 < args.Length) { var yy = args[yi + 1].Split('-'); y0 = int.Parse(yy[0]); ySpan = int.Parse(yy[^1]) - y0 + 1; }
+		int si = Array.IndexOf(args, "--sample-count");
+		int sampleN = si >= 0 && si + 1 < args.Length ? int.Parse(args[si + 1]) : 14;
 		double gsum = genres.Sum(x => x.w);
 
 		int persons = 0, personMiss = 0, sizeMiss = 0, kinMiss = 0, theThe = 0, roman = 0, solos = 0, bands = 0, famActs = 0, famBilled = 0;
@@ -54,7 +63,7 @@ public static class Program {
 		for (int i = 0; i < nActs; i++) {
 			double r = popRng.NextDouble() * gsum; Genre g = genres[^1].g;
 			foreach (var x in genres) { if ((r -= x.w) < 0) { g = x.g; break; } }
-			int year = 1960 + (i * 10 / Math.Max(1, nActs));
+			int year = y0 + (i * ySpan / Math.Max(1, nActs));
 			double tr = popRng.NextDouble();
 			ArtistType type = tr < 0.40 ? (popRng.Chance(0.75) ? ArtistType.SoloMale : ArtistType.SoloFemale)
 				: tr < 0.75 ? ArtistType.Band : tr < 0.90 ? ArtistType.VocalGroup : ArtistType.Duo;
@@ -66,7 +75,7 @@ public static class Program {
 			if (solo) solos++; else bands++;
 			names[name] = names.TryGetValue(name, out var n0) ? n0 + 1 : 1;
 			if (!byGenre.TryGetValue(g, out var lst)) byGenre[g] = lst = new List<string>();
-			if (lst.Count < 14) lst.Add($"{name}  [{lineup.Size}: {string.Join(", ", lineup.People)}{(lineup.Family ? " FAM" : "")}]");
+			if (lst.Count < sampleN) lst.Add($"{name}  [{lineup.Size}: {string.Join(", ", lineup.People)}{(lineup.Family ? " FAM" : "")}]");
 
 			// person check: every lexicon person word in the name must belong to a member
 			var memberWords = new HashSet<string>(lineup.People.SelectMany(p => new[] { p.First, p.Last }), StringComparer.OrdinalIgnoreCase);

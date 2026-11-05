@@ -402,6 +402,59 @@ the inheritance instead of the number. TitleCensus decade 1001/2002/3003: lint 1
 ## Still open
 
 * One-word titles 7.3-8.0% vs 9.6%.
-* British (6), protoPunk (4), funk (5) song sets; gospel / girl-group / teen-pop / surf / latin band sets (3 each)
-  are serviceable but small; `bandName.garageEarly` (pre-1966 garage, grammar, 2 rules).
+* ~~British (6), protoPunk (4), funk (5) song sets~~ and ~~`bandName.garageEarly`~~ — done, next section; gospel / girl-group / teen-pop / surf / latin band sets (3 each)
+  are serviceable but small.
 * Calibration: names and titles are simulation inputs (programme identity, track traits), so this pass re-baselines too.
+
+# British, proto-punk, funk titles; early garage band names (2026-11-04)
+
+The last thin sets named in the audit pass. Same method as the fourth pass: period shapes over their own pools
+(61 new pools in `lexicon.ontology.json`, prefixes `bt` `pk` `fn` `bnGe`; `fk` was already folk's), the old
+generic frames kept at low weight.
+
+| set | routes | before | now | shapes |
+|---|---|---|---|---|
+| `songTitle.british` | BritishBeat, BritishPop, BritishInvasion | 4 + extras/clauses | 15 + extras/clauses | "She Loves You" third-person lines, "Bits and Pieces" pairs ("Buttons and Bells", "Teacups and Lollipops"), "Waterloo Sunset" place titles ("Mersey Bridge", "Boxing Day Rain"), "Last Bus to Southend", "Mrs. Higgins" / "Auntie Huxtable", "A Well Respected Man", "Happy Jack" ("Clever Sid"), "Pictures of Lily" ("Dreams of Rosie"), "Saturday Again", "I'm Into Something Good", plain beat lines ("Leave It Out", "Can't Stop Thinking") |
+| `songTitle.protoPunk` | ProtoPunk | 4 | 16 + extras | "I Wanna Be Your Dog" ("I Wanna Live Fast"), "No Fun" ("No Good", "Dead End"), "Venus in Furs" ("Saint in Rubber"), "White Light/White Heat" (same-colour echo), "Sister Ray" (gendered kin + name: "Auntie Sue", "Big Jack"), "Waiting for the Landlord", "Down on the Strip", "Ann Arbor Is Calling", "All Yesterday's Strangers", "Rocket Reducer No. 62" |
+| `songTitle.funk` | Funk | 5 | 17 + extras/clauses | "Cissy Strut" ("Possum Shuffle"), "Funky Broadway" ("Funky Sidewalk"), "Mother Popcorn" ("Brother Neckbone"), "I Got You (I Feel Good)" ("Hit It (All Night Long)"), "Cold Sweat" / "Soul Finger" ("Brand New Pocket"), "Time Is Tight" ("The Rent Is Hard"), "It's Your Thing", "Say It Loud"-type message lines, "Ain't It Funky Now", "Do the Pigfoot", one-word ("Pepperpot"), "Part 1" kept |
+| `bandName.garageEarly` | GarageRock before 1966 | 2 (animals/birds) | 12 | "The Kingsmen" ("The Viceroys", "The Courtiers"), "The Trashmen" ("The Hatchetmen"), "The Rockin' Ramrods" ("The Fabulous Valiants"), "Paul Revere and the Raiders" ("Dion and the Bandits", "Robin Strong and the Deputies"), "The Bobby Fuller Four" (head count from the lineup), "The Sir Douglas Quintet", car / space-age plurals ("The Corvairs", "The Jetliners"), "The Amarillo Rogues", noise agents ("The Howlers"), animals at low weight |
+
+Person slots bind to members as before (the leader's diminutive is allowed: "Petey 'n' the Torches"); the count and
+ensemble words come from the lineup with a cast size of 3-7 / 3-6. A drafted "Skip and the Buccaneers" nickname frame
+was dropped: the nickname named nobody in the band. `reserved.json` +101 songs (the real titles each frame was modelled
+on and its near neighbours: "Chelsea Morning", "Ups and Downs", "Soul Shake", "Get On Up"...) and +8 acts; the pools
+leave out real acts already reserved (Monarchs, Regents, Rivieras, Skyliners, Cuff Links) and generic backing words are
+deliberately not reserved, because a reserved act also blocks "X and the <act>".
+
+`NamingCensus` gains `--genres A,B`, `--years 1962-1965` and `--sample-count N` for focused runs, like TitleCensus.
+
+## Result
+
+TitleCensus, `--genres BritishBeat,BritishPop,BritishInvasion,ProtoPunk,Funk`, 2,400 songs, seeds 1001 / 2002:
+
+| | Hot 100 1960-64 | before | now |
+|---|---|---|---|
+| two capitalised words | 17.2% | 32.7 / 31.1% | 19.9 / 19.5% |
+| five+ words | 26.7% | 20.2 / 21.6% | 23.8 / 24.8% |
+| one word | 9.6% | 9.6 / 10.0% | 8.3 / 9.1% |
+| parenthetical | 8.8% | 12.2 / 13.3% | 12.2 / 11.9% |
+| you/your | 13.3% | 17.3 / 17.4% | 19.0 / 18.9% |
+| I-opener | 6.7% | 7.2 / 7.5% | 8.7 / 9.4% |
+| lint per 1,000 | | 2.1 / 1.4 | 0.7 / 0.0 |
+
+You/your and I-openers run above the chart here because the beat-group voice keeps a larger share of love clauses
+(0.18) than the decade mix. Decade mix, seeds 1001/2002/3003: every shape row within ±1 pt of the previous pass, songs
+100% distinct, no template fails >20% of fills, lint 1.2 / 1.6 / 0.9. The lint hits are false positives in older shared
+frames ("in the Middle of the Night", "Wake Up the Town"), reshuffled, not in the new sets.
+
+NamingCensus, GarageRock 1962-65, 1,500 acts: the one non-member hit is "Larry and the Hustlers" for Lawrence (a
+diminutive the detector does not know); head-count / kin claims 0 / 0, duplicates 0. Decade seeds 1001 / 2002:
+non-member 2.5 / 2.4% (stage diminutives, as before), Roman suffixes 0 / 2, false claims 0. `NamingCoreTests` 189/189.
+Game project builds.
+
+## Still open
+
+* One-word titles in the decade mix 7.9-8.1% (chart 9.6%).
+* Gospel / girl-group / teen-pop / surf / latin band sets (3 templates each) and folk-rock / reggae / sunshine
+  albums are serviceable but small; British, funk and proto-punk albums still use the generic and shared sets.
+* Calibration: another re-baseline for these genres' track traits and programme identities.
