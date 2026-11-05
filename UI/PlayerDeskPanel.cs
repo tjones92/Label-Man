@@ -2673,11 +2673,10 @@ public partial class PlayerDeskPanel : Control {
 				if (!expanded) continue;
 
 				string estHours = PlayerDesk.StopVisitEstimate(kind);
-				if (kind is not (PlayerDesk.StopKind.OneStop or PlayerDesk.StopKind.Venue or PlayerDesk.StopKind.Station)) {
-					// What each verb costs, said once for the list rather than on forty buttons; then one account open at a time.
-					content.AddChild(FaintLine(StopVerbCosts(kind, estHours)));
-					if (selectedStopId == null) selectedStopId = kindStops.FirstOrDefault(s => !desk.HasWorkedStopToday(s.StopId))?.StopId;
-				}
+				// What each verb costs, said once for the list rather than on forty buttons; then one account open at a time,
+				// the first one not yet worked today opening on its own the first time through.
+				content.AddChild(FaintLine(StopVerbCosts(kind, estHours)));
+				if (selectedStopId == null) selectedStopId = kindStops.FirstOrDefault(s => !desk.HasWorkedStopToday(s.StopId))?.StopId;
 				foreach (PlayerDesk.PlayerStop stop in kindStops) {
 					if (kind == PlayerDesk.StopKind.OneStop) {
 						content.AddChild(BuildOneStopRow(stop, onHand, singlePick, stopsWithCalls));
@@ -4062,16 +4061,106 @@ public partial class PlayerDeskPanel : Control {
 	/// <summary>Directive §6: a one-stop takes no Pitch/Consign/Service -- it's "locked as a customer
 	/// until inbound demand exists," then a warehouse visit, then a flat carton sale on COD/net terms.
 	/// A distinct row shape from the walk-in Shop/Op accounts above, not a variant of theirs.</summary>
-	/// <summary>What the account verbs cost, said once over the list instead of on every button.</summary>
-	private static string StopVerbCosts(PlayerDesk.StopKind kind, string estHours) =>
-		$"Click an account to work it.  Pitch, consign or service: {estHours} each"
-		+ (kind == PlayerDesk.StopKind.Shop
-			? $"  ·  window card: {PlayerDesk.WindowCardMinutes / 60}h and $8–20  ·  in-store: {PlayerDesk.InStoreAppearanceHours}h"
-			: "") + ".";
+	/// <summary>What each kind of account's verbs cost, said once over its list instead of on every button.</summary>
+	private static string StopVerbCosts(PlayerDesk.StopKind kind, string estHours) => kind switch {
+		PlayerDesk.StopKind.Shop => $"Click an account to work it.  Pitch, consign or service: {estHours} each  ·  window card: "
+			+ $"{PlayerDesk.WindowCardMinutes / 60}h and $8–20  ·  in-store: {PlayerDesk.InStoreAppearanceHours}h.",
+		PlayerDesk.StopKind.OneStop => $"Click a one-stop to work it.  A warehouse visit or a carton sale: {PlayerDesk.OneStopVisitHours}h.",
+		PlayerDesk.StopKind.Venue => $"Click a table to work it.  Work the table: {estHours}  ·  book a hop: {PlayerDesk.RecordHopHours}h.",
+		PlayerDesk.StopKind.Station => $"Click a station to work it.  Drop off: {PlayerDesk.DropOffMinutes / 60}h  ·  wait for him: "
+			+ $"{PlayerDesk.WaitForHimMinutes / 60}h  ·  leave it with the desk: ~{PlayerDesk.LeaveWithReceptionistMinutes}m  ·  "
+			+ $"ask what's on the survey: ~{PlayerDesk.AskSurveyMinutes}m, free.",
+		_ => $"Click an account to work it.  Pitch, consign or service: {estHours} each.",
+	};
 
-	/// <summary>One shop or operator as a single ledger line. Clicking it opens its counter slip underneath with the verbs
-	/// that make sense for that account right now; one account is open at a time, so the page carries one set of buttons
-	/// instead of five on every store (playtest 2026-11-04: eight stores, forty buttons, each repeating its hours).</summary>
+	/// <summary>Every account, whatever its kind, is one ledger line. Clicking it opens its counter slip underneath with
+	/// the verbs that make sense for it right now; one account is open at a time, so the page carries one set of buttons
+	/// instead of a row of them on every account (playtest 2026-11-04: eight stores, forty buttons, each repeating its
+	/// hours). The open line and everything above it never move.</summary>
+	private Control AccountRow(PlayerDesk.PlayerStop stop, string status, bool dim, Func<Control> slip) {
+		bool open = selectedStopId == stop.StopId;
+		string text = (open ? "▾  " : "▸  ") + status;
+		var label = new Label {
+			Text = text, SizeFlagsHorizontal = SizeFlags.ExpandFill,
+			// One line, always: a result must never insert a row and shove the next account down.
+			ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
+		};
+		label.AddThemeColorOverride("font_color", dim && !open ? Heard : Ink);
+		var box = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		box.AddThemeConstantOverride("separation", 0);
+		box.AddChild(ClickRow(label, open, () => { selectedStopId = open ? "" : stop.StopId; RefreshKeepingScroll(); }, status));
+		if (open) box.AddChild(slip());
+		return box;
+	}
+
+	/// <summary>An open account's slip: the verbs in one flowing row (the obvious next move solid, the rest beside it)
+	/// and plain sentences for what the solid one does or why there is nothing to do here today.</summary>
+	private sealed class CounterSlip {
+		public readonly PanelContainer Root = Slip();
+		private readonly VBoxContainer column = new();
+		private readonly HFlowContainer verbs = new();
+		private readonly PlayerDeskPanel panel;
+		private string hint;
+
+		public CounterSlip(PlayerDeskPanel panel) {
+			this.panel = panel;
+			column.AddThemeConstantOverride("separation", 8);
+			verbs.AddThemeConstantOverride("h_separation", 8);
+			verbs.AddThemeConstantOverride("v_separation", 6);
+			Root.AddChild(column);
+			column.AddChild(verbs);
+		}
+
+		/// <summary>A sentence in the slip, above the verbs.</summary>
+		public void Note(string text) {
+			var note = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			note.AddThemeFontOverride("font", PaperTheme.SerifItalic);
+			note.AddThemeFontSizeOverride("font_size", 15);
+			note.AddThemeColorOverride("font_color", Heard);
+			column.AddChild(note);
+			column.MoveChild(verbs, column.GetChildCount() - 1);
+		}
+
+		/// <summary>A verb. The primary one is solid, and its tooltip becomes the sentence under the row.</summary>
+		public Button Verb(string text, bool primary, string tip, Func<bool> run) {
+			var button = primary ? Primary(text) : Btn(text);
+			button.CustomMinimumSize = new Vector2(primary ? 130 : 0, 34);
+			button.TooltipText = tip;
+			button.Pressed += () => panel.Act(run);
+			verbs.AddChild(button);
+			if (primary) hint = tip;
+			return button;
+		}
+
+		public void Add(Control control) => verbs.AddChild(control);
+
+		/// <summary>Finishes the slip: drops an empty verb row and puts the primary verb's sentence under it.</summary>
+		public Control Done(string hintLead = null) {
+			if (verbs.GetChildCount() == 0) verbs.QueueFree();
+			else if (hint != null) {
+				var line = new Label { Text = (hintLead ?? "") + hint, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+				line.AddThemeFontOverride("font", PaperTheme.SerifItalic);
+				line.AddThemeFontSizeOverride("font_size", 15);
+				line.AddThemeColorOverride("font_color", Heard);
+				column.AddChild(line);
+			}
+			return Root;
+		}
+	}
+
+	/// <summary>The runner toggle, on any account he can work.</summary>
+	private void RunnerVerb(CounterSlip slip, PlayerDesk desk, PlayerDesk.PlayerStop stop) {
+		if (!desk.HasRunner || !PlayerDesk.RunnerCanWork(stop.Kind)) return;
+		bool onRoute = desk.IsOnRunnerRoute(stop.StopId);
+		slip.Verb(onRoute ? "TAKE OFF THE RUNNER'S ROUTE" : "PUT ON THE RUNNER'S ROUTE", false,
+			"He works shops and jukebox operators in towns you've opened, once a chart week, at no hours of yours.", () => {
+				bool ok = PlayerDesk.Instance.AssignRunnerStop(stop.StopId, !onRoute, out string message);
+				Say(message, ok);
+				return true;
+			});
+	}
+
+	/// <summary>A record store or jukebox operator.</summary>
 	private Control StopRow(PlayerDesk desk, PlayerDesk.PlayerStop stop, PlayerDesk.StopKind kind,
 			List<(string RecordId, string Title, int OnHand)> onHand, OptionButton singlePick, HashSet<string> stopsWithCalls) {
 		int stockHere = stop.OnHand.Values.Sum(lot => lot.Remaining);
@@ -4081,8 +4170,7 @@ public partial class PlayerDeskPanel : Control {
 			: stop.Relationship < 0.35f ? "acquainted"
 			: stop.Relationship < 0.7f ? "friendly"
 			: "standing account";
-		bool open = selectedStopId == stop.StopId;
-		string text = (open ? "▾  " : "▸  ") + (called ? "☎ " : "") + stop.DisplayName + "  ·  " + relWord
+		string status = (called ? "☎ " : "") + stop.DisplayName + "  ·  " + relWord
 			+ (stockHere > 0 ? $"  ·  {stockHere:N0} on shelf" : "")
 			+ (stop.OpenBalance > 0.5f ? $"  ·  ${stop.OpenBalance:N0} owed" : "")
 			+ (called ? "  ·  they called" : "")
@@ -4091,67 +4179,22 @@ public partial class PlayerDeskPanel : Control {
 			+ (desk.KnowsWhoReports(stop.StopId) ? "  ·  reports" : "")
 			+ (desk.HasRunner && desk.IsOnRunnerRoute(stop.StopId) ? "  ·  on the runner's route" : "")
 			+ (workedToday ? "  ·  worked today" : "");
-		var label = new Label {
-			Text = text, SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			// One line, always: a result must never insert a row and shove the next account down.
-			ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
-		};
-		label.AddThemeColorOverride("font_color", workedToday && !open ? Heard : Ink);
-		var box = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		box.AddThemeConstantOverride("separation", 0);
-		box.AddChild(ClickRow(label, open, () => { selectedStopId = open ? "" : stop.StopId; RefreshKeepingScroll(); }, text.Substring(3)));
-		if (open) box.AddChild(StopSlip(desk, stop, kind, onHand, singlePick, workedToday));
-		return box;
+		return AccountRow(stop, status, workedToday, () => StopSlip(desk, stop, kind, onHand, singlePick, workedToday));
 	}
 
-	/// <summary>The open account's counter slip: one solid verb for the obvious next move (pitch a cold store, service
-	/// one that already holds your record), the rest beside it, a plain sentence on what the solid one does, and the
+	/// <summary>A store or operator's slip: pitch a cold account, service one that already holds your record, and the
 	/// follow-up verbs (window card, in-store) only once there is a record on the shelf for them to sell.</summary>
 	private Control StopSlip(PlayerDesk desk, PlayerDesk.PlayerStop stop, PlayerDesk.StopKind kind,
 			List<(string RecordId, string Title, int OnHand)> onHand, OptionButton singlePick, bool workedToday) {
-		var slip = Slip();
-		var column = new VBoxContainer();
-		column.AddThemeConstantOverride("separation", 8);
-		slip.AddChild(column);
-		void Say2(string text) {
-			var note = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-			note.AddThemeFontOverride("font", PaperTheme.SerifItalic);
-			note.AddThemeFontSizeOverride("font_size", 15);
-			note.AddThemeColorOverride("font_color", Heard);
-			column.AddChild(note);
-		}
-		var verbs = new HFlowContainer();
-		verbs.AddThemeConstantOverride("h_separation", 8);
-		verbs.AddThemeConstantOverride("v_separation", 6);
-		string RecordId() => onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)].RecordId;
-		Button Verb(string text, bool primary, string tip, Func<bool> run) {
-			var button = primary ? Primary(text) : Btn(text);
-			button.CustomMinimumSize = new Vector2(primary ? 130 : 0, 34);
-			button.TooltipText = tip;
-			button.Pressed += () => Act(run);
-			verbs.AddChild(button);
-			return button;
-		}
-		void Runner() {
-			if (!desk.HasRunner) return;
-			bool onRoute = desk.IsOnRunnerRoute(stop.StopId);
-			Verb(onRoute ? "TAKE OFF THE RUNNER'S ROUTE" : "PUT ON THE RUNNER'S ROUTE", false,
-				"He works shops and jukebox operators in towns you've opened, once a chart week, at no hours of yours.", () => {
-					bool ok = PlayerDesk.Instance.AssignRunnerStop(stop.StopId, !onRoute, out string message);
-					Say(message, ok);
-					return true;
-				});
-		}
-
+		var slip = new CounterSlip(this);
 		if (onHand.Count == 0 || workedToday) {
-			Say2(onHand.Count == 0 ? "No sellable copies on hand. Order another pressing from the CATALOG first."
+			slip.Note(onHand.Count == 0 ? "No sellable copies on hand. Order another pressing from the CATALOG first."
 				: "You've worked this account today. Come back tomorrow.");
-			Runner();
-			if (verbs.GetChildCount() > 0) column.AddChild(verbs);
-			return slip;
+			RunnerVerb(slip, desk, stop);
+			return slip.Done();
 		}
-
-		const string PitchTip = "Try for a COD placement. The store can pass; what sells pays cash while you're in town, otherwise it's held until you collect.";
+		string RecordId() => onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)].RecordId;
+		const string PitchTip = "Try for a COD placement. They can pass; what sells pays cash while you're in town, otherwise it's held until you collect.";
 		const string ConsignTip = "Easier shelf space: they'll take it on consignment, but every sale sits on their balance until you collect.";
 		const string ServiceTip = "Collect what they owe you and restock from the single picked above.";
 		bool placed = stop.OnHand.Count > 0;
@@ -4159,39 +4202,34 @@ public partial class PlayerDeskPanel : Control {
 		Func<bool> consign = () => { bool ok = PlayerDesk.Instance.ConsignAtStop(stop.StopId, RecordId(), out string m); Say(m, ok); return true; };
 		Func<bool> service = () => { bool ok = PlayerDesk.Instance.ServiceStop(stop.StopId, RecordId(), out string m); Say(m, ok); return true; };
 		if (placed) {
-			Verb("SERVICE", true, ServiceTip, service);
-			Verb("PITCH", false, PitchTip, pitch);
-			Verb("CONSIGN", false, ConsignTip, consign);
-		} else {
-			Verb("PITCH", true, PitchTip, pitch);
-			Verb("CONSIGN", false, ConsignTip, consign);
-		}
+			slip.Verb("SERVICE", true, ServiceTip, service);
+			slip.Verb("PITCH", false, PitchTip, pitch);
+		} else slip.Verb("PITCH", true, PitchTip, pitch);
+		slip.Verb("CONSIGN", false, ConsignTip, consign);
 
 		// Directive §7.2: the honest report verb, only at a dealer the player has worked out keeps a report (§7.1).
 		if (stop.ReportsToTrades && desk.KnowsWhoReports(stop.StopId))
-			Verb($"ASK FOR THE REPORT  (~{PlayerDesk.AskForReportMinutes}m)", false, "Ask what this dealer is sending the trades for your record.",
+			slip.Verb($"ASK FOR THE REPORT  (~{PlayerDesk.AskForReportMinutes}m)", false, "Ask what this dealer is sending the trades for your record.",
 				() => { bool ok = PlayerDesk.Instance.AskForTheReport(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
 
 		// Directive §9: window card and in-store appearance need the record already on this shelf: the second thing you do.
 		if (kind == PlayerDesk.StopKind.Shop && placed) {
-			Verb("WINDOW CARD", false, "One hour. Costs $8–20 for the print run; the exact quote is rolled when you place it.",
+			slip.Verb("WINDOW CARD", false, "One hour. Costs $8–20 for the print run; the exact quote is rolled when you place it.",
 				() => { bool ok = PlayerDesk.Instance.BuyWindowCard(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
-			Verb("IN-STORE", false, $"{PlayerDesk.InStoreAppearanceHours} hours. Needs an act with real local standing.",
+			slip.Verb("IN-STORE", false, $"{PlayerDesk.InStoreAppearanceHours} hours. Needs an act with real local standing.",
 				() => { bool ok = PlayerDesk.Instance.BookInStoreAppearance(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
 			// Directive §7.3: the dishonest verb -- Fixer-gated, only at a reporting dealer, never once he's burned.
 			if ((stop.ReportsToTrades || stop.ReportsToStationIds.Count > 0) && desk.KnowsWhoReports(stop.StopId) && !stop.HypeBurned
 					&& desk.InstinctProfile.TheFixer >= PlayerDesk.HypeTheCountMinFixer) {
 				var hypeCount = Spin(1, 25, 1, 5);
 				hypeCount.CustomMinimumSize = new Vector2(60, 34);
-				verbs.AddChild(hypeCount);
-				Verb($"HYPE THE COUNT  (~{PlayerDesk.HypeTheCountMinutes}m)", false, "Buy back copies to pad what this dealer reports.",
+				slip.Add(hypeCount);
+				slip.Verb($"HYPE THE COUNT  (~{PlayerDesk.HypeTheCountMinutes}m)", false, "Buy back copies to pad what this dealer reports.",
 					() => { bool ok = PlayerDesk.Instance.HypeTheCount(stop.StopId, RecordId(), (int)hypeCount.Value, out string m); Say(m, ok); return true; });
 			}
 		}
-		Runner();
-		column.AddChild(verbs);
-		Say2(placed ? "Service: " + ServiceTip : "Pitch: " + PitchTip);
-		return slip;
+		RunnerVerb(slip, desk, stop);
+		return slip.Done(placed ? "Service: " : "Pitch: ");
 	}
 
 	/// <summary>A list line the player clicks to open: the whole row is the hit area, it lights with a rust rule on
@@ -4237,54 +4275,45 @@ public partial class PlayerDeskPanel : Control {
 		return slip;
 	}
 
+	/// <summary>Directive §6: a one-stop is locked as a customer until an account it serves brings you up (a call); then one
+	/// warehouse visit opens it, and after that you sell it cartons. Same ledger line and slip as every other account.</summary>
 	private Control BuildOneStopRow(PlayerDesk.PlayerStop stop, List<(string RecordId, string Title, int OnHand)> onHand,
 			OptionButton singlePick, HashSet<string> stopsWithCalls) {
-		var row = new HBoxContainer();
-		row.AddThemeConstantOverride("separation", 10);
 		bool hasCall = stopsWithCalls.Contains(stop.StopId);
-
-		if (!stop.OneStopUnlocked) {
-			var label = new Label {
-				Text = (hasCall ? "    ☎ " : "    ") + $"{stop.DisplayName} — "
-					+ (hasCall ? "heard about it from an account they serve" : "not yet acquainted; a known account has to bring you up"),
-				CustomMinimumSize = new Vector2(520, 32)
-			};
-			label.AddThemeColorOverride("font_color", Ink);
-			row.AddChild(label);
-			if (hasCall) {
-				var visit = Btn($"VISIT WAREHOUSE ({PlayerDesk.OneStopVisitHours}h)");
-				visit.CustomMinimumSize = new Vector2(200, 32);
-				visit.Pressed += () => Act(() => {
-					bool ok = PlayerDesk.Instance.VisitOneStopWarehouse(stop.StopId, out string message);
-					Say(message, ok);
+		string status = (hasCall ? "☎ " : "") + stop.DisplayName + "  ·  "
+			+ (!stop.OneStopUnlocked
+				? (hasCall ? "heard about you from an account they serve" : "not yet acquainted")
+				: stop.OneStopTrusted ? "net terms" : "COD only");
+		return AccountRow(stop, status, !stop.OneStopUnlocked && !hasCall, () => {
+			var slip = new CounterSlip(this);
+			if (!stop.OneStopUnlocked) {
+				if (!hasCall) {
+					slip.Note("Not yet acquainted: one of the accounts they supply has to bring you up. When one does, they'll call, and a warehouse visit opens the door.");
+					return slip.Done();
+				}
+				slip.Verb("VISIT THE WAREHOUSE", true, "They've heard of you from an account they serve. Go and see them, and they'll take your cartons from then on.",
+					() => { bool ok = PlayerDesk.Instance.VisitOneStopWarehouse(stop.StopId, out string m); Say(m, ok); return true; });
+				return slip.Done();
+			}
+			if (onHand.Count == 0) {
+				slip.Note("No sellable copies on hand. Order another pressing from the CATALOG first.");
+				return slip.Done();
+			}
+			SpinBox qty = Spin(1, PlayerDesk.OneStopCartonMax, 1, PlayerDesk.OneStopCartonDefault);
+			qty.CustomMinimumSize = new Vector2(80, 34);
+			qty.TooltipText = "Copies in the carton.";
+			slip.Add(qty);
+			slip.Verb("SELL A CARTON", true,
+				"They buy the carton outright and scatter it to shops and operators you never meet. "
+				+ (stop.OneStopTrusted ? "Net terms: they pay on schedule." : "COD: you're nobody to them yet."),
+				() => {
+					string recordId = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)].RecordId;
+					bool ok = PlayerDesk.Instance.SellCartonToOneStop(stop.StopId, recordId, Mathf.RoundToInt((float)qty.Value), out string m);
+					Say(m, ok);
 					return true;
 				});
-				row.AddChild(visit);
-			}
-			return row;
-		}
-
-		var stopLabel = new Label {
-			Text = $"    {stop.DisplayName} — {(stop.OneStopTrusted ? "net terms" : "COD only")}",
-			CustomMinimumSize = new Vector2(300, 32)
-		};
-		stopLabel.AddThemeColorOverride("font_color", Ink);
-		row.AddChild(stopLabel);
-
-		SpinBox qty = Spin(1, PlayerDesk.OneStopCartonMax, 1, PlayerDesk.OneStopCartonDefault);
-		row.AddChild(qty);
-
-		var sell = Btn($"SELL CARTON ({PlayerDesk.OneStopVisitHours}h)");
-		sell.CustomMinimumSize = new Vector2(160, 32);
-		sell.Pressed += () => Act(() => {
-			if (onHand.Count == 0) return false;
-			(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
-			bool ok = PlayerDesk.Instance.SellCartonToOneStop(stop.StopId, recordId, Mathf.RoundToInt((float)qty.Value), out string message);
-			Say(message, ok);
-			return true;
+			return slip.Done();
 		});
-		row.AddChild(sell);
-		return row;
 	}
 
 	// Period-idiom plural for each account kind's expand header. Falls back to "<Kind>s" so a future
@@ -4298,124 +4327,61 @@ public partial class PlayerDeskPanel : Control {
 		_ => kind + "s"
 	};
 
-	/// <summary>Directive §3.3: a Venue takes no Pitch/Consign/Service -- one verb, WorkTheHopTable, cash
-	/// at the table with no ledger to show. A distinct row shape from the walk-in Shop/Op accounts, same
-	/// reasoning as BuildOneStopRow above.</summary>
+	/// <summary>Directive §3.3: a church or hop table takes no pitch, consign or service: you work the table for cash, or
+	/// (directive §8) book a hop with a jock to MC it. Same ledger line and slip as every other account.</summary>
 	private Control BuildVenueRow(PlayerDesk.PlayerStop stop, List<(string RecordId, string Title, int OnHand)> onHand,
 			OptionButton singlePick) {
-		var row = new HBoxContainer();
-		row.AddThemeConstantOverride("separation", 10);
 		string relWord = stop.Relationship <= 0f ? "never worked" : stop.Relationship < 0.35f ? "known to you" : "a regular table";
 		bool workedToday = PlayerDesk.Instance.HasWorkedStopToday(stop.StopId);
-
-		var stopLabel = new Label {
-			Text = $"    {stop.DisplayName} ({relWord})" + (workedToday ? "  ·  worked today" : ""),
-			CustomMinimumSize = new Vector2(400, 32), VerticalAlignment = VerticalAlignment.Center,
-			ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
-		};
-		stopLabel.AddThemeColorOverride("font_color", workedToday ? Heard : Ink);
-		row.AddChild(stopLabel);
-
-		// Early-game F1: where the town's rooms sell, tables run on their show nights (venues board), not here.
-		if (!PlayerDesk.RoomTablesActive(stop.CityId)) {
-			string estHours = PlayerDesk.StopVisitEstimate(PlayerDesk.StopKind.Venue);
-			var work = Btn($"WORK THE TABLE ({estHours})");
-			work.Disabled = workedToday;
-			work.CustomMinimumSize = new Vector2(170, 32);
-			work.Pressed += () => Act(() => {
-				if (onHand.Count == 0) return false;
-				(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
-				bool ok = PlayerDesk.Instance.WorkTheHopTable(stop.StopId, recordId, out string message);
-				Say(message, ok);
-				return true;
-			});
-			row.AddChild(work);
-		}
-
-		// Directive §8: the record hop -- the act appears, an MC'd table moves several times what a
-		// bare one does, and (win or lose the room) a jock trusted enough to book gets a real advocacy
-		// swing out of it. BookRecordHop itself checks for a trusted-enough jock in this town.
-		var hop = Btn($"BOOK A HOP ({PlayerDesk.RecordHopHours}h)");
-		hop.CustomMinimumSize = new Vector2(170, 32);
-		hop.Pressed += () => Act(() => {
-			if (onHand.Count == 0) return false;
-			(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
-			bool ok = PlayerDesk.Instance.BookRecordHop(stop.StopId, recordId, out string message);
-			Say(message, ok);
-			return true;
+		string status = stop.DisplayName + "  ·  " + relWord + (workedToday ? "  ·  worked today" : "");
+		return AccountRow(stop, status, workedToday, () => {
+			var slip = new CounterSlip(this);
+			if (onHand.Count == 0) {
+				slip.Note("No sellable copies on hand. Order another pressing from the CATALOG first.");
+				return slip.Done();
+			}
+			string RecordId() => onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)].RecordId;
+			// Early-game F1: where the town's rooms sell, tables run on their show nights (the venues board), not here.
+			bool tablesHere = !PlayerDesk.RoomTablesActive(stop.CityId);
+			if (!tablesHere) slip.Note("Tables in this town run on the rooms' show nights. Work them from the venues board.");
+			else if (workedToday) slip.Note("You've worked this table today. Come back tomorrow.");
+			else slip.Verb("WORK THE TABLE", true, "Sell copies across the table, cash in hand, no ledger.",
+				() => { bool ok = PlayerDesk.Instance.WorkTheHopTable(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
+			slip.Verb("BOOK A HOP", !tablesHere || workedToday,
+				"A jock MCs, your act appears and you sell at the table. Needs a jock in town who trusts you; a weak act on the bill is a real mistake.",
+				() => { bool ok = PlayerDesk.Instance.BookRecordHop(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
+			return slip.Done();
 		});
-		row.AddChild(hop);
-		return row;
 	}
 
-	/// <summary>Promo mechanic directive §4: the station stop -- no shelf, no balance, just the jock
-	/// you can walk in on. Draws only from the promo picker's pool, never the sellable one.</summary>
+	/// <summary>Promo mechanic directive §4: a station has no shelf and no balance, just the jock you can walk in on. Drop it
+	/// off first; WAIT FOR HIM and LEAVE IT WITH THE DESK are what a wave-off is for. Draws only from the promo pool.</summary>
 	private Control BuildStationRow(PlayerDesk.PlayerStop stop, List<(string RecordId, string Title, int PromoOnHand)> promoOnHand,
 			OptionButton promoPick) {
-		var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		row.AddThemeConstantOverride("separation", 6);
-
-		var stopLabel = new Label {
-			Text = $"    {stop.DisplayName}",
-			SizeFlagsHorizontal = SizeFlags.ExpandFill
-		};
-		stopLabel.AddThemeColorOverride("font_color", Ink);
-		row.AddChild(stopLabel);
-		var actions = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		actions.AddThemeConstantOverride("h_separation", 8);
-		actions.AddThemeConstantOverride("v_separation", 6);
-		row.AddChild(actions);
-
-		string RecordId() => promoOnHand.Count == 0 ? null
-			: promoOnHand[Mathf.Clamp(promoPick.Selected, 0, promoOnHand.Count - 1)].RecordId;
-
-		var dropOff = Btn($"DROP OFF ({PlayerDesk.DropOffMinutes / 60}h)");
-		dropOff.CustomMinimumSize = new Vector2(120, 32);
-		dropOff.Disabled = promoOnHand.Count == 0;
-		dropOff.Pressed += () => Act(() => {
-			string recordId = RecordId();
-			if (recordId == null) return false;
-			bool ok = PlayerDesk.Instance.DropOffAtStation(stop.StopId, recordId, out string message);
-			Say(message, ok);
-			return true;
+		return AccountRow(stop, stop.DisplayName, false, () => {
+			var slip = new CounterSlip(this);
+			string RecordId() => promoOnHand.Count == 0 ? null
+				: promoOnHand[Mathf.Clamp(promoPick.Selected, 0, promoOnHand.Count - 1)].RecordId;
+			if (promoOnHand.Count == 0)
+				slip.Note("No promo copies on hand: press some with the next run. You can still ask what's on their survey.");
+			else {
+				slip.Verb("DROP OFF", true, "Leave promo copies with the jock. He reads the record, the format and you, and he can wave you off.",
+					() => { bool ok = PlayerDesk.Instance.DropOffAtStation(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
+				slip.Verb("WAIT FOR HIM", false, "Sit in the lobby until he'll see you, then pitch him in person: a better shot than the phone.",
+					() => {
+						RolodexCall call = PlayerDesk.Instance.WaitForHimAtStation(stop.StopId, RecordId(), out string m);
+						Say(m, call != null);
+						if (call != null) GoToTab(RolodexTab, PageRolodex); // the pitch opens in person -- take focus immediately
+						return true;
+					});
+				slip.Verb("LEAVE IT WITH THE DESK", false, "One copy with the receptionist. Quick, and it's what you do when you're behind.",
+					() => { bool ok = PlayerDesk.Instance.LeaveWithReceptionist(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
+			}
+			slip.Verb("ASK WHAT'S ON THE SURVEY", promoOnHand.Count == 0,
+				"Free: how they're spinning your records, and which local dealers report to them.",
+				() => { bool ok = PlayerDesk.Instance.AskWhatsOnSurvey(stop.StopId, out string m); Say(m, ok); return true; });
+			return slip.Done();
 		});
-		actions.AddChild(dropOff);
-
-		var waitFor = Btn($"WAIT FOR HIM ({PlayerDesk.WaitForHimMinutes / 60}h)");
-		waitFor.CustomMinimumSize = new Vector2(150, 32);
-		waitFor.Disabled = promoOnHand.Count == 0;
-		waitFor.Pressed += () => Act(() => {
-			string recordId = RecordId();
-			if (recordId == null) return false;
-			RolodexCall call = PlayerDesk.Instance.WaitForHimAtStation(stop.StopId, recordId, out string message);
-			Say(message, call != null);
-			if (call != null) GoToTab(RolodexTab, PageRolodex); // the pitch opens in person -- take focus immediately
-			return true;
-		});
-		actions.AddChild(waitFor);
-
-		var leaveIt = Btn($"LEAVE W/ DESK (~{PlayerDesk.LeaveWithReceptionistMinutes}m)");
-		leaveIt.CustomMinimumSize = new Vector2(150, 32);
-		leaveIt.Disabled = promoOnHand.Count == 0;
-		leaveIt.Pressed += () => Act(() => {
-			string recordId = RecordId();
-			if (recordId == null) return false;
-			bool ok = PlayerDesk.Instance.LeaveWithReceptionist(stop.StopId, recordId, out string message);
-			Say(message, ok);
-			return true;
-		});
-		actions.AddChild(leaveIt);
-
-		var survey = Btn($"SURVEY (~{PlayerDesk.AskSurveyMinutes}m, free)");
-		survey.CustomMinimumSize = new Vector2(150, 32);
-		survey.Pressed += () => Act(() => {
-			bool ok = PlayerDesk.Instance.AskWhatsOnSurvey(stop.StopId, out string message);
-			Say(message, ok);
-			return true;
-		});
-		actions.AddChild(survey);
-
-		return row;
 	}
 
 	// --- Styled interactive controls -------------------------------------------------------------
