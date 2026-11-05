@@ -142,6 +142,27 @@ public sealed class ScoutingKnowledgeSaveData {
     public List<ScoutingNegotiationState> Negotiations { get; set; } = new();
     /// <summary>Approaches to heard acts that were not looking for a deal. Null on older saves.</summary>
     public List<ScoutingDirectApproach> Approaches { get; set; }
+    /// <summary>The venue you are standing in today, if any (null: elsewhere in town). Older saves: null.</summary>
+    public string AtRoomId { get; set; }
+    public int? AtRoomDay { get; set; }
+    /// <summary>Phone numbers you hold for acts, and who refused to give one until when. Null on older saves.</summary>
+    public List<ScoutingActNumber> ActNumbers { get; set; }
+    public List<ScoutingNumberRefusal> NumberRefusals { get; set; }
+}
+/// <summary>A number that reaches one member of an act. It stops reaching the act when that person leaves it.</summary>
+public sealed class ScoutingActNumber {
+    public string ArtistId { get; set; }
+    public string PersonId { get; set; }
+    public string PersonName { get; set; }
+    /// <summary>Who gave it: the member after a set, or a booker (by name).</summary>
+    public string Source { get; set; }
+    public int Day { get; set; }
+}
+/// <summary>A source declined to give an act's number; it can be asked again from UntilDay.</summary>
+public sealed class ScoutingNumberRefusal {
+    public string ArtistId { get; set; }
+    public string SourceId { get; set; }
+    public int UntilDay { get; set; }
 }
 public enum ScoutingApproachStatus { Considering, Ready, Declined, Lapsed }
 /// <summary>A label asked an act that was off the market whether it would hear an offer. The act either agreed to think

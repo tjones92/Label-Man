@@ -509,3 +509,23 @@ instead); LPs described as Hot 100 records and given song-level lines (an LP now
 only run / sound / buzz / sales / awards); "A classic AABA song" on most records (AABA is the catalogue default, so it
 is not mentioned); region prepositions ("in the Rockies", "on the West Coast"); "a Easy Listening streak"; the
 full-notes coffeehouse "band drive" caveat on a solo act.
+
+# Playtest fixes (2026-11-05)
+
+* **Formed year vs founders.** Opening-world acts are dated 0-5 years before 1960, but `GenerateMembers` stamped every
+  founder with 1960. `ArtistManager.AlignFoundersWithFormation` sets founders to the formed year at generation and on
+  load (repairs old saves). Draws nothing, but `joinedYear` feeds band-life tenure (pair strain, growth, contact
+  edges), so AI worlds shift slightly: needs a short paired run before the next decade A/B.
+  An act that formed in 1956 and first recorded in late 1959 is left alone: years of gigging before a first record
+  is period-normal.
+* **Presence.** You are in one venue at a time (`PlayerDesk.ScoutingPresence`). GO HERE walks across town (20 min);
+  hearing or waiting for a set walks you there (the walk comes out of a wait, and a set you'd miss on arrival refuses
+  before spending anything); driving to another town or a new day puts you nowhere. Introductions, booker questions,
+  tips and booker number requests need you at that venue.
+* **Numbers.** Ask a member after a set (85%) or a booker who has had the act play (35% + 10% per bill you've heard
+  there, cap 85%); keyed per season, a no stands until the season ends. With a number you can ring the act from
+  anywhere, 9:00-21:00, when they aren't on stage: arrange a return meeting / rehearsal / demo or ask about past
+  label decisions. Phone meetings use their own source id, so they don't consume the heard set's post-set invitation.
+  Terms were never presence-gated (the card's TALK TO THEM); the "catch their next set to talk terms" news now says so.
+* **Minutes, not hours.** Booker question 10 min, tip 15, past label decisions 20, number 5 (act) / 10 (booker), call
+  10. Arranged meetings keep their real length.

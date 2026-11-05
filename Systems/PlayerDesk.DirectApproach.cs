@@ -79,13 +79,15 @@ public partial class PlayerDesk {
                 Note($"{a.ArtistName} {ActGrammar.Verb(artist, "is", "are")} no longer in a position to take your offer.");
             } else if (ArtistManager.Instance.IsEligibleForPopulationSigning(artist, week)) {
                 a.Status = ScoutingApproachStatus.Ready;
-                // Terms are talked after a set you've heard that day (TALK TO ACT), so the news says where to be rather
-                // than implying the offer can go in from the desk. (Playtest 2026-11-04: the paper said "now", the pad
-                // had no DISCUSS TERMS until the player happened to hear the act again.)
+                // Terms open from the act's notebook card (TALK TO THEM). The news says how to reach them: by the number
+                // you hold, or at their next set. (Playtest 2026-11-04: the paper said "now" with no way in;
+                // 2026-11-05: a once-a-week venue was the only way to reach an act.)
                 var next = NextReachableScoutingSet(a.ArtistId);
-                string where = next == null
-                    ? "Catch one of their sets and talk to them afterwards -- check the venue calendars for their next date."
-                    : $"Catch their next set -- {next.RoomName}, {LocalSceneRoomService.Date(next.Day).ToHeadlineString()}, {next.StartMinute / 60:00}:{next.StartMinute % 60:00} -- and talk terms afterwards.";
+                string where = ActNumber(a.ArtistId) is { } number
+                    ? $"Open their card in the act notebook to talk terms, or ring {number.PersonName} to set up a meeting."
+                    : next == null
+                    ? "Open their card in the act notebook to talk terms. To meet them, catch a set or ask a booker for their number."
+                    : $"Open their card in the act notebook to talk terms. Their next set: {next.RoomName}, {LocalSceneRoomService.Date(next.Day).ToHeadlineString()}, {next.StartMinute / 60:00}:{next.StartMinute % 60:00}.";
                 Note($"{a.ArtistName}'s side: they'll hear an offer from you now. {where} Other labels can hear of it too.");
             } else if (today > a.UntilDay) {
                 a.Status = ScoutingApproachStatus.Lapsed;
@@ -104,7 +106,7 @@ public partial class PlayerDesk {
         string when = LocalSceneRoomService.Date(a.Day).ToHeadlineString(), until = LocalSceneRoomService.Date(a.UntilDay).ToHeadlineString();
         return a.Status switch {
             ScoutingApproachStatus.Considering => $"Approach ({when}): they weren't looking for a deal and are thinking yours over; answer due by {until}.",
-            ScoutingApproachStatus.Ready => $"Approach ({when}): they agreed to hear an offer -- talk terms after a set you've heard that day. Other labels can now hear they're available.",
+            ScoutingApproachStatus.Ready => $"Approach ({when}): they agreed to hear an offer -- talk terms from their card. Other labels can now hear they're available.",
             ScoutingApproachStatus.Declined => $"Approach ({when}): they want to keep playing locally this season; ask again after {until}.",
             _ => $"Approach ({when}): it came to nothing; asking again later is a fresh conversation."
         };

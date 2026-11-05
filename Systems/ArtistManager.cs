@@ -340,6 +340,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		};
 		
 		GenerateMembers(artist, type, primaryGenre, year);
+		AlignFoundersWithFormation(artist);
 		ConfigureEasyListeningBandleader(artist,year);
 		ConfigureJazzInstrumentalist(artist);
 		// Band-member Phase 1b: split axes, keyed on the world seed and person id and anchored on the roles
@@ -1291,8 +1292,18 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// freshly generated world never produced). The act is signed to the player, so it's dropped from the
 	/// unsigned pool and never re-enters the AI talent market.
 	/// </summary>
+	/// <summary>A founding member joined when the act formed. Opening-world acts are dated up to five years before the
+	/// start, but their founders were stamped with the start year, so a "formed 1956" act listed founders who joined in
+	/// 1960. Also repairs saves made before the fix. Draws nothing.</summary>
+	internal static void AlignFoundersWithFormation(SimulatedArtist artist) {
+		if (artist?.members == null || artist.formedYear <= 0) return;
+		foreach (Musician m in artist.members)
+			if (m != null && m.isFoundingMember && m.joinedYear > artist.formedYear) m.joinedYear = artist.formedYear;
+	}
+
 	public void RestoreArtist(SimulatedArtist artist) {
 		if (artist == null || string.IsNullOrEmpty(artist.artistId)) return;
+		AlignFoundersWithFormation(artist);
 		artistRegistry[artist.artistId] = artist;
 		foreach (Musician member in artist.members ?? new List<Musician>())
 			if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
@@ -1413,6 +1424,7 @@ public sealed class LaborMarketWeeklySnapshot {
 
 		foreach (SimulatedArtist artist in w.Artists ?? new List<SimulatedArtist>()) {
 			if (artist == null || string.IsNullOrEmpty(artist.artistId)) continue;
+			AlignFoundersWithFormation(artist);
 			artistRegistry[artist.artistId] = artist;
 			foreach (Musician member in artist.members ?? new List<Musician>())
 				if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;

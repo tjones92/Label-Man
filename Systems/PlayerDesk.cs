@@ -4483,6 +4483,7 @@ public partial class PlayerDesk : Node {
 		Spend(hours);
 		if (gas > 0f) { Label.cashReserves -= gas; Label.monthlyExpenses += gas; }
 		currentCityId = dest.cityId;
+		LeaveSceneRoom(); // a new town: you are not in any of its venues yet
 		CollectAtCity(dest.cityId); // show up and the shops settle what they've been holding
 		Note($"Drove to {dest.name} ({hours}h, ${gas:N0} gas).");
 		message = goingHome ? "Back at the office." : $"You're in {dest.name}.";

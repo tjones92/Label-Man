@@ -21,14 +21,18 @@ public partial class PlayerDesk {
         var act = ArtistManager.Instance.GetArtist(artistId); var room = SceneRoomCatalog.Get(heard?.RoomId);
         var clock = TimeManager.Instance;
         int day = LocalSceneRoomService.Day(clock.CurrentDate), now = clock.CurrentHour * 60 + clock.CurrentMinute;
-        if (heard == null || act == null || act.lifecycleStatus != ArtistLifecycleStatus.Active ||
-            heard.OccurredDay != day || heard.EndMinute > now || room == null ||
-            room.PlaceId != LocalScenePersistenceService.SceneIdFor(CurrentCityId) ||
-            !LocalScenePersistenceService.Present(act, room.PlaceId, day / 7) || !SceneEcosystemService.AvailableAt(artistId, room.PlaceId, day)) return null;
-        var people = act.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active && heard.PersonIds.Contains(m.personId))
-            .OrderByDescending(m => m.isBandLeader).ThenByDescending(m => m.isLeadVocalist).ThenBy(m => m.personId, StringComparer.Ordinal).ToArray();
-        var speaker = people.FirstOrDefault(m => !LocalSceneRoomService.HasPersonBooking(m.personId, day, now, now + 60, room.Id));
-        if (speaker == null) return null;
+        bool inPerson = heard != null && act != null && act.lifecycleStatus == ArtistLifecycleStatus.Active &&
+            heard.OccurredDay == day && heard.EndMinute <= now && room != null && IsAtSceneRoom(room.Id) &&
+            LocalScenePersistenceService.Present(act, room.PlaceId, day / 7) && SceneEcosystemService.AvailableAt(artistId, room.PlaceId, day);
+        Musician speaker = null;
+        if (inPerson) {
+            var people = act.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active && heard.PersonIds.Contains(m.personId))
+                .OrderByDescending(m => m.isBandLeader).ThenByDescending(m => m.isLeadVocalist).ThenBy(m => m.personId, StringComparer.Ordinal).ToArray();
+            speaker = people.FirstOrDefault(m => !LocalSceneRoomService.HasPersonBooking(m.personId, day, now, now + ActHistoryMinutes, room.Id));
+        }
+        // Not after a set: the number you hold reaches the same account by phone.
+        if (speaker == null) { inPerson = false; var phone = PhoneSpeaker(artistId); speaker = phone.person; room = SceneRoomCatalog.Get(phone.heard?.RoomId); }
+        if (speaker == null || room == null) return null;
         var history = (act.sceneMarketHistory ?? new()).Where(h => h.ArtistId == artistId && h.Day <= day)
             .OrderBy(h => h.Day).ThenBy(h => h.Id, StringComparer.Ordinal).TakeLast(8).ToArray();
         string eventId = "act-market-account-v1|" + artistId + "|" + string.Join(";", history.Select(h => h.Id));
@@ -46,9 +50,9 @@ public partial class PlayerDesk {
         string blocked = null;
         if (dossier.Observations.Any(o => o.Kind == ScoutingEvidenceKind.ActBusinessClaim && o.EventId == eventId))
             blocked = "You already recorded this account. A different speaker or another click is not a new market decision.";
-        else if (now < room.OpenHour * 60 || now + 60 > room.CloseHour * 60)
-            blocked = "Allow a full hour after the set within this room's posted hours.";
-        else if (!clock.CanAffordMinutes(60)) blocked = "There is not an hour left for this conversation today.";
+        else if (inPerson && (now < room.OpenHour * 60 || now + ActHistoryMinutes > room.CloseHour * 60))
+            blocked = "The room closes before you'd finish talking.";
+        else if (!clock.CanAffordMinutes(ActHistoryMinutes)) blocked = "No time left for this conversation today.";
         return new() { EventId = eventId, RoomId = room.Id, SourcePersonId = speaker.personId, SourceName = speaker.FullName,
             Claim = claim, Available = blocked == null, UnavailableReason = blocked,
             QuoteId = $"{eventId}|{speaker.personId}|{speaker.FullName}|{act.labelId}|{day}|{now}|{claim}" };
@@ -56,13 +60,13 @@ public partial class PlayerDesk {
 
     public bool AskScoutingBusinessHistory(string artistId, string expectedQuoteId, out string message) {
         var meeting = PreviewScoutingBusinessMeeting(artistId);
-        if (meeting == null) { message = "Speak with a free member at the room after a set you heard today. Their current presence and performance bookings still apply."; return false; }
+        if (meeting == null) { message = "Speak with a free member at the room after a set you heard today, or call a number you hold."; return false; }
         if (expectedQuoteId != null && meeting.QuoteId != expectedQuoteId) { message = "The speaker, time or account changed. Review the conversation again."; return false; }
         if (!meeting.Available) { message = meeting.UnavailableReason; return false; }
-        if (!Require(1, out message)) return false;
+        if (!Require(0, out message)) return false;
         // Capture the statement before advancing the world. Later signings never rewrite what was said.
         int occurred = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
-        Spend(1); scoutingKnowledge.Visit = null;
+        SpendMinutes(ActHistoryMinutes); scoutingKnowledge.Visit = null;
         var clock = TimeManager.Instance; var dossier = scoutingKnowledge.Dossiers.Single(d => d.ArtistId == artistId);
         dossier.Observations.Add(new() { Id = $"act-account-v1|{Label.labelId}|{meeting.EventId}", EventId = meeting.EventId,
             LabelId = Label.labelId, ArtistId = artistId, ArtistName = dossier.ArtistName, Kind = ScoutingEvidenceKind.ActBusinessClaim,

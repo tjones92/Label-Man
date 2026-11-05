@@ -1156,7 +1156,7 @@ public partial class PlayerDeskPanel : Control {
         if (prospect.SceneRoomId != null && showEvidence) {
             var follow = Btn("HEAR ANOTHER ANNOUNCED SET");
             follow.Pressed += () => Act(() => { bool ok = desk.FollowUp(prospect, out string result); Say(result, ok); return ok; }); row.AddChild(follow);
-            var booker = Btn("ASK ABOUT THIS ROOM'S BOOKING HISTORY (1h)");
+            var booker = Btn($"ASK ABOUT THIS ROOM'S BOOKING HISTORY ({PlayerDesk.BookerQuestionMinutes}min)");
             booker.Pressed += () => Act(() => { bool ok = desk.AskScoutingBooker(prospect.SceneRoomId, prospect.Artist.artistId, true, out string result); Say(result, ok); return ok; }); row.AddChild(booker);
         } else if (prospect.SceneRoomId == null && !prospect.FollowedUp) {
             var follow = Btn($"FOLLOW UP ({PlayerDesk.FollowUpHours}h)");

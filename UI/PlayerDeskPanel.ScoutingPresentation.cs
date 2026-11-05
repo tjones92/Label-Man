@@ -106,7 +106,8 @@ public partial class PlayerDeskPanel {
             string costs = circuit ? $"One-way gas: {Money(option.TravelCost)}; return trip separate. Cash after driving at today's quote: {Money(desk.Label.cashReserves - immediateCost)}."
                 : option.Playing ? $"Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}."
                 : $"Waiting charges no admission. Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}. Future expenses and income may change this amount.";
-            action.TooltipText = $"{option.WaitingMinutes}min wait on the set day. {costs}\nWaiting advances ordinary expenses and other labels' decisions. Check the bill and price on arrival.";
+            string walk = !circuit && !desk.IsAtSceneRoom(option.RoomId) ? $" Includes the {PlayerDesk.CrossTownMinutes}-minute walk across town to the venue." : "";
+            action.TooltipText = $"{option.WaitingMinutes}min wait on the set day.{walk} {costs}\nWaiting advances ordinary expenses and other labels' decisions. Check the bill and price on arrival.";
             GreyWhy(action, SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId) ? "This room is in another town: drive there first." : "Not enough cash for the admission.");
             card.TooltipText = action.TooltipText;
             var clock = TimeManager.Instance;
@@ -147,6 +148,24 @@ public partial class PlayerDeskPanel {
         int calendarOffsetWeeks, Action<int> shift, Action refill, bool calendarFirst = false) {
         var clock = TimeManager.Instance; var date = clock.CurrentDate;
         ScoutingText($"{SceneRoomCharacter.KindName(room.Kind)} · about {SceneLiveEconomics.Capacity(room)} people · {Hour12(room.OpenHour)}–{Hour12(room.CloseHour)}", 14, Heard);
+        // Where you are (playtest 2026-11-05: introducing yourself here used to work from anywhere in town).
+        var whereRow = new HBoxContainer(); whereRow.AddThemeConstantOverride("separation", 12);
+        var whereText = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        whereText.AddThemeFontSizeOverride("font_size", 14);
+        bool here = desk.IsAtSceneRoom(room.Id);
+        string presentId = desk.PresentRoomId;
+        whereText.Text = here ? "You're here." : room.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId) ? "This venue is in another town."
+            : presentId != null ? $"You're at {SceneRoomCatalog.Get(presentId)?.Name}. Talking to this booker means going over." : "You're elsewhere in town. Talking to this booker means going over.";
+        whereText.AddThemeColorOverride("font_color", here ? new Color("42624a") : ScoutingVenueInk);
+        whereRow.AddChild(whereText);
+        if (!here && room.PlaceId == LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId)) {
+            var go = ScoutingSmallButton($"GO HERE · {PlayerDesk.CrossTownMinutes}min");
+            go.Disabled = !desk.CanGoToSceneRoom(room.Id, out string goWhy);
+            go.TooltipText = go.Disabled ? goWhy : "Walk across town to this venue. Hearing or waiting for a set here takes you here too.";
+            go.Pressed += () => Act(() => { bool ok = desk.GoToSceneRoom(room.Id, out string result); Say(result, ok); refill(); return ok; });
+            whereRow.AddChild(go);
+        }
+        content.AddChild(whereRow);
         // On the A&R tab the calendar and tonight's bill lead; the room's character and booker follow.
         if (calendarFirst) ScoutingVenueCalendar(desk, room, selectedDay, select, afterAction, calendarOffsetWeeks, shift);
         var info = new HBoxContainer(); info.AddThemeConstantOverride("separation", 24);
@@ -171,13 +190,14 @@ public partial class PlayerDeskPanel {
             ScoutingText(known ? "In your Rolodex · knows this venue's acts and dates" : "Introduce yourself at the venue during posted hours.", 13, Heard);
         });
         contact.AddChild(contactInfo);
-        var meet = ScoutingSmallButton(known ? "ASK FOR A TIP" : "INTRODUCE YOURSELF");
+        var meet = ScoutingSmallButton(known ? $"ASK FOR A TIP · {PlayerDesk.BookerTipMinutes}min" : $"INTRODUCE YOURSELF · 15min");
         if (known) {
-            meet.Disabled = room.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId) ||
-                clock.CurrentHour * 60 + clock.CurrentMinute < room.OpenHour * 60 ||
-                clock.CurrentHour * 60 + clock.CurrentMinute + 60 > room.CloseHour * 60 || !clock.CanAffordMinutes(60);
-            meet.TooltipText = "1h · no fee. Ask for an announced set worth hearing; this creates no listening evidence.";
-            GreyWhy(meet, "Only in this town, while the room is open with an hour to spare, and with an hour left in your day.");
+            int nowMinute = clock.CurrentHour * 60 + clock.CurrentMinute;
+            string away = desk.NotAtRoomReason(room);
+            meet.Disabled = away != null || nowMinute < room.OpenHour * 60 ||
+                nowMinute + PlayerDesk.BookerTipMinutes > room.CloseHour * 60 || !clock.CanAffordMinutes(PlayerDesk.BookerTipMinutes);
+            meet.TooltipText = $"{PlayerDesk.BookerTipMinutes}min · no fee. Ask for an announced set worth hearing; this creates no listening evidence.";
+            GreyWhy(meet, away ?? "The booker is in during posted venue hours, and you need a quarter of an hour left in your day.");
             meet.Pressed += () => Act(() => { bool ok = desk.AskSceneBooker(room.Id, out string result); Say(result, ok); refill(); return ok; });
         } else {
             meet.Disabled = !desk.CanIntroduceSceneBooker(room.Id, out string reason);

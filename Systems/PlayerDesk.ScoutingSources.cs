@@ -93,10 +93,12 @@ public partial class PlayerDesk {
         string blocked = null;
         if (scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId)?.Observations.Any(o => o.EventId == eventId) == true)
             blocked = "You already recorded this answer. There is no new information to buy.";
-        else if (minute < room.OpenHour * 60 || minute + 60 > room.CloseHour * 60)
-            blocked = "Allow an hour within the booker's posted room hours.";
-        else if (minute + 60 > clock.HardStopHour * 60 || clock.HoursRemainingWithOvertime < 1)
-            blocked = "There is not an hour left for this conversation today.";
+        else if (NotAtRoomReason(room) is { } away)
+            blocked = away;
+        else if (minute < room.OpenHour * 60 || minute + BookerQuestionMinutes > room.CloseHour * 60)
+            blocked = "The booker is in during posted venue hours.";
+        else if (!clock.CanAffordMinutes(BookerQuestionMinutes))
+            blocked = "No time left for this today.";
         return new() { EventId = eventId, BillId = billId, RoomId = room.Id, SourceId = room.ContactId, SourceName = room.ContactTitle,
             PlaceName = ScenePlaceRegistry.Get(room.PlaceId)?.Name,
             Claim = claim, OccurredDay = occurred, BillAttendance = attendance, BillCapacity = capacity,
@@ -107,13 +109,12 @@ public partial class PlayerDesk {
     public bool AskScoutingSource(string roomId, string artistId, ScoutingSourceQuestion question, string expectedQuoteId, out string message) {
         var answer = PreviewScoutingSource(roomId, artistId, question);
         if (answer == null) { message = "Visit the room's city with scouting encounters enabled to ask its booker."; return false; }
-        if (expectedQuoteId != null && expectedQuoteId != answer.QuoteId) { message = "The booker's information changed. Review the question again before spending an hour."; return false; }
+        if (expectedQuoteId != null && expectedQuoteId != answer.QuoteId) { message = "The booker's information changed. Review the question again."; return false; }
         if (!answer.Available) { message = answer.UnavailableReason; return false; }
-        if (!Require(1, out message)) return false;
+        if (!Require(0, out message)) return false;
         var clock = TimeManager.Instance;
         // Snapshot the source's answer before the ordinary world advances; later changes do not rewrite it.
-        Spend(1);
-        scoutingKnowledge.Visit = null;
+        SpendMinutes(BookerQuestionMinutes);
         var artist = ArtistManager.Instance.GetArtist(artistId);
         var room = SceneRoomCatalog.Get(roomId);
         Dossier(artistId, artist.stageName).Observations.Add(new() { Id = $"claim-v1|{Label.labelId}|{answer.EventId}", EventId = answer.EventId,

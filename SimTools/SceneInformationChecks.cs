@@ -59,12 +59,16 @@ public static class SceneInformationChecks {
         Check(desk.SceneContactFamiliarity(room.ContactId)==2, "contact familiarity restored");
         Check(Json(save.SceneInformation)==Json(desk.CaptureState().SceneInformation), "rumor evidence, source, dates and read state roundtrip");
         TimeManager.Instance.RestoreClock(GameDate.StartDate, room.OpenHour);
+        // Presence (2026-11-05): a booker is only spoken to in their own venue.
+        Check(!desk.AskSceneBooker(room.Id, out message) && message.Contains("Go there first"), "a booker across town cannot be asked: " + message);
+        Check(desk.GoToSceneRoom(room.Id, out message) && desk.IsAtSceneRoom(room.Id), "walk to the venue: " + message);
+        TimeManager.Instance.RestoreClock(GameDate.StartDate, room.OpenHour);
         int hour = TimeManager.Instance.CurrentHour;
         var bills = LocalSceneRoomService.Calendar("nashville", GameDate.StartDate);
         var realTip = SceneInformationService.Lead(room,bills,Array.Empty<string>(),new[] {"one","two"},0,hour);
         Check(realTip != null, "actual calendar has a reachable introduction");
         Check(desk.AskSceneBooker(room.Id,out message), "real booker action: " + message);
-        Check(TimeManager.Instance.CurrentHour == hour+1 && desk.CaptureState().SceneInformation.Leads.Any(l=>l.Id==realTip.Id), "conversation spends one hour and persists evidence");
+        Check(TimeManager.Instance.CurrentHour * 60 + TimeManager.Instance.CurrentMinute == hour * 60 + PlayerDesk.BookerTipMinutes && desk.CaptureState().SceneInformation.Leads.Any(l=>l.Id==realTip.Id), "a tip takes a quarter hour and persists evidence");
         int afterHour = TimeManager.Instance.CurrentHour;
         Check(!desk.AskSceneBooker(room.Id,out _) && TimeManager.Instance.CurrentHour == afterHour, "same introduction cannot farm time or leads");
         Check(desk.SceneLeadNotes().Count > 0, "persisted tip is visible with verification status");

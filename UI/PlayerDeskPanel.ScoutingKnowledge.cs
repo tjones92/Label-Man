@@ -329,7 +329,7 @@ public partial class PlayerDeskPanel {
         Body($"Speak with {meeting.SourceName} after the set. Ask about past label decisions; this is a conversation, not more listening.");
         var ask = ScoutingSmallButton("PAST LABEL DECISIONS");
         ask.Disabled = !meeting.Available;
-        ask.TooltipText = "Ask about past label decisions. Their account may be incomplete and does not establish a current offer or deadline. The conversation takes one hour and ends this room visit; later listening requires admission again.";
+        ask.TooltipText = $"Ask about past label decisions. Their account may be incomplete and does not establish a current offer or deadline. {PlayerDesk.ActHistoryMinutes}min.";
         if (!meeting.Available) Body(meeting.UnavailableReason);
         ask.Pressed += () => Act(() => {
             beforeAction?.Invoke();
@@ -342,17 +342,22 @@ public partial class PlayerDeskPanel {
         var rooms = dossier.Observations.Select(o => o.RoomId).Distinct().Select(SceneRoomCatalog.Get)
             .Where(r => r != null && r.PlaceId == LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId)).ToArray();
         if (rooms.Length == 0) return;
-        Body($"Ask a booker about {dossier.ArtistName} · 1h · no fee. This adds a source's account, not another listening.");
+        Body($"Ask a booker about {dossier.ArtistName} · {PlayerDesk.BookerQuestionMinutes}min · no fee, at the booker's venue. This adds a source's account, not another listening.");
         var choices = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         var roomChoice = new OptionButton();
         foreach (var room in rooms) roomChoice.AddItem(room.Name + (desk.KnowsSceneBooker(room.Id) ? " — " + room.ContactName : " — booker not met"));
         var questionChoice = new OptionButton();
         foreach (var value in Enum.GetValues<ScoutingSourceQuestion>()) questionChoice.AddItem(PlayerDesk.ScoutingSourceQuestionText(value), (int)value);
         questionChoice.TooltipText = "Choose a source question; selecting or refreshing spends no time and creates no evidence.";
-        var ask = Btn("ASK ABOUT " + dossier.ArtistName.ToUpperInvariant() + " (1h · no fee)");
+        var ask = Btn("ASK ABOUT " + dossier.ArtistName.ToUpperInvariant() + $" ({PlayerDesk.BookerQuestionMinutes}min · no fee)");
         var availability = FaintLine("");
         var introduce = ScoutingSmallButton("INTRODUCE YOURSELF · 15min");
         introduce.Pressed += () => Act(() => { bool ok = desk.IntroduceSceneBooker(rooms[roomChoice.Selected].Id, out string result); Say(result, ok); return ok; });
+        var goThere = ScoutingSmallButton($"GO TO THE VENUE · {PlayerDesk.CrossTownMinutes}min");
+        goThere.Pressed += () => Act(() => { bool ok = desk.GoToSceneRoom(rooms[roomChoice.Selected].Id, out string result); Say(result, ok); return ok; });
+        // Playtest 2026-11-05: a once-a-week venue was the only way to reach an act. A booker who has had them in may give a number.
+        var number = ScoutingSmallButton($"ASK FOR THEIR NUMBER · {PlayerDesk.AskBookerNumberMinutes}min");
+        number.Pressed += () => Act(() => { bool ok = desk.AskBookerForNumber(rooms[roomChoice.Selected].Id, dossier.ArtistId, out string result); Say(result, ok); return ok; });
         ScoutingSourceAnswer preview = null;
         void UpdatePreview() {
             preview = desk.PreviewScoutingSource(rooms[roomChoice.Selected].Id, dossier.ArtistId,
@@ -363,6 +368,14 @@ public partial class PlayerDeskPanel {
             introduce.Visible = !known;
             introduce.Disabled = !desk.CanIntroduceSceneBooker(rooms[roomChoice.Selected].Id, out string reason);
             introduce.TooltipText = introduce.Disabled ? reason : "15min · no fee. Add this booker to your Rolodex.";
+            var selectedRoom = rooms[roomChoice.Selected];
+            goThere.Visible = !desk.IsAtSceneRoom(selectedRoom.Id);
+            goThere.Disabled = !desk.CanGoToSceneRoom(selectedRoom.Id, out string goWhy);
+            goThere.TooltipText = goThere.Disabled ? goWhy : "Walk across town to " + selectedRoom.Name + ". Bookers talk in their own venue.";
+            string numberWhy = desk.BookerNumberBlocked(selectedRoom.Id, dossier.ArtistId);
+            number.Visible = desk.ActNumber(dossier.ArtistId) == null;
+            number.Disabled = numberWhy != null;
+            number.TooltipText = numberWhy ?? "A booker who has had them play may pass on a number. The better they know you, the likelier; a no stands for the season.";
             availability.Text = preview == null ? "This source is unavailable." : preview.Available ?
                 "Available during posted room hours; the conversation advances ordinary expenses and decisions." : preview.UnavailableReason;
             if (!known) availability.Text = "Meet this venue's booker before asking about the act.";
@@ -373,7 +386,7 @@ public partial class PlayerDeskPanel {
                 (ScoutingSourceQuestion)questionChoice.GetItemId(questionChoice.Selected), preview?.QuoteId, out string result);
             Say(result, ok); return ok;
         });
-        UpdatePreview(); choices.AddChild(roomChoice); choices.AddChild(introduce); choices.AddChild(questionChoice); choices.AddChild(availability); choices.AddChild(ask);
+        UpdatePreview(); choices.AddChild(roomChoice); choices.AddChild(goThere); choices.AddChild(introduce); choices.AddChild(questionChoice); choices.AddChild(availability); choices.AddChild(ask); choices.AddChild(number);
         content.AddChild(choices);
     }
 
