@@ -14,6 +14,7 @@
     <Compile Remove="SimLogs\**\*.cs" />
     <Compile Remove="SimTools\NamingCoreTests\**\*.cs" />
     <Compile Remove="SimTools\NamingCensus\**\*.cs" />
+    <Compile Remove="SimTools\TitleCensus\**\*.cs" />
     <Compile Remove="SimTools\CounterRngTests\**\*.cs" />
     <Compile Remove="SimTools\PlaylistMeetingTests\**\*.cs" />
     <Compile Remove="SimTools\HeapScan\**\*.cs" />

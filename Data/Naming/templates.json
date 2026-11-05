@@ -1267,7 +1267,7 @@
       "slots": { "selfTitle#1": { "pos": "selfTitle" } }, "gate": { "maxYear": 1964 } },
     { "id": "alb_rnr_on_top", "type": "album", "pattern": "%selfTitle#1% Is on Top", "weight": 1, "words": [5,12],
       "slots": { "selfTitle#1": { "pos": "selfTitle" } }, "gate": { "maxYear": 1965 } },
-    { "id": "alb_rnr_party", "type": "album", "pattern": "A %adjective#1% Rock 'n' Roll Party", "weight": 2, "words": [7,8],
+    { "id": "alb_rnr_party", "type": "album", "pattern": "A %adjective#1% Rock 'n' Roll Party", "weight": 2, "words": [5,6],
       "slots": { "adjective#1": { "pos": "adjective", "filter": "joyful|playful|restless|youthful" } },
       "constraints": [ { "type": "moodDirected", "target": ["joyful","playful","restless"], "threshold": 0.3 } ] },
     { "id": "alb_rnr_dance_program", "type": "album", "pattern": "%verb#1:base% with %selfTitle#1%", "weight": 1, "words": [3,10],

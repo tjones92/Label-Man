@@ -29,6 +29,7 @@ public partial class NameGenerator : Node {
 	private NameEngine _engine;
 	private TemplateRouter _router;   // ancestry-driven (kind,genre)->set resolution (replaces the switch)
 	private ActNaming _acts;          // act / label / person naming policy (Godot-free; see ActNaming.cs)
+	private TitleNaming _titles;      // song / album title policy (Godot-free; see TitleNaming.cs)
 	private IRandom _rng;             // dedicated naming stream, isolated from GD.Rand
 	// A SECOND naming stream, for the names of acts and people only.
 	//
@@ -80,6 +81,7 @@ public partial class NameGenerator : Node {
 		}
 		_engine = _acts.Engine;
 		_router = _acts.Router;
+		_titles = new TitleNaming(_acts);
 
 		_rng = new DeterministicRandom(DeriveSeed());
 		_actRng = new DeterministicRandom(DeriveSeed() ^ 0x6163746E616D6573UL); // "actnames"
@@ -195,10 +197,7 @@ public partial class NameGenerator : Node {
 	/// </param>
 	public string GenerateSongTitle(Genre genre, int year, string artistKey = null) {
 		if (_engine == null) return $"Untitled {GameRandom.Randi()}";
-		var ctx = MakeContext(genre, year, ArtistType.Unknown);
-		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
-		string bucket = "song|" + (artistKey ?? "");
-		return _engine.Generate(symbol, ctx, bucket, nearDup: false, attempts: 30);
+		return _titles.SongTitle(genre, year, artistKey, _rng);
 	}
 
 	/// <summary>
@@ -212,9 +211,7 @@ public partial class NameGenerator : Node {
 		if (_engine == null) return null;
 		double unit = LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, "song-title-v1|" + key);
 		var rng = new DeterministicRandom((ulong)(unit * 9007199254740992.0));
-		var ctx = MakeContext(genre, year, ArtistType.Unknown, rng);
-		string title = _engine.ExpandRouted(ChooseSongSymbol(genre, year, rng), ctx);
-		return string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+		return _titles.KeyedSongTitle(genre, year, rng);
 	}
 
 	/// <summary>
@@ -227,25 +224,10 @@ public partial class NameGenerator : Node {
 	/// </summary>
 	public string GenerateCatalogTitle(Genre genre, int year) {
 		if (_engine == null) return null;
-		var ctx = MakeContext(genre, year, ArtistType.Unknown, _titleRng);
-		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
-		// Scoped per genre (same reasoning as the artist-name bucket): the launch catalog is
-		// ~3,570 standards drawn from a genre-weighted prior that concentrates hard on a few
-		// genres, each with a curated (not grammar) songTitle set. A shared exact-uniqueness
-		// bucket meant every genre's draws exhausted the SAME space instead of each genre
-		// exhausting only its own -- scoping cuts collision-driven retries for the crowded genres.
-		return _engine.Generate(symbol, ctx, "song|catalog|" + genre, nearDup: false, attempts: 30);
-	}
-
-	private string ChooseSongSymbol(Genre genre, int year, IRandom rng) {
-		// Ancestry-driven routing (docs D/E) replaces the old genre->bucket switch. Each genre reaches
-		// its most specific set, then its family, then a set-less genre falls to the era blend below.
-		string key = _router.Resolve("songTitle", genre.ToString());
-		if (key != null) return key;
-		// Ultimate fallback for a genre with no set and no family rung: the legacy era-appropriate blend.
-		if (year < 1964) return "songTitle.early60s";
-		if (year < 1967) return rng.Chance(0.5) ? "songTitle.early60s" : "songTitle.soul";
-		return rng.Next(3) switch { 0 => "songTitle.psych", 1 => "songTitle.soul", _ => "songTitle.early60s" };
+		// Exact uniqueness is scoped per genre (the launch catalog concentrates hard on a few genres,
+		// so a shared exact bucket exhausted the same space for all of them); world-wide reuse is
+		// avoided softly through TitleNaming's world bucket.
+		return _titles.CatalogTitle(genre, year, _titleRng);
 	}
 
 	public string GenerateBSideTitle(Genre genre, int year, string aSideTitle) {
@@ -276,16 +258,7 @@ public partial class NameGenerator : Node {
 	/// </param>
 	public string GenerateAlbumTitle(Genre genre, int year, string artistName, bool isCompilation = false, string leadSingle = null, string artistKey = null) {
 		if (_engine == null) return artistName;
-		var ctx = MakeContext(genre, year, ArtistType.Unknown, _albumRng);
-		ctx.Slots["artist"] = artistName;
-		ctx.Slots["selfTitle"] = artistName;
-		if (!string.IsNullOrWhiteSpace(leadSingle)) { ctx.Slots["leadSingle"] = leadSingle; ctx.Slots["titleTrack"] = leadSingle; }
-		if (isCompilation) return _engine.ExpandOnce("compilationTitle", ctx);
-		double r = _albumRng.NextDouble();
-		if (r < 0.08) return artistName;                          // self-titled (rare; the sets also self-title)
-		if (r < 0.20) return _engine.ExpandRouted("albumFormat", ctx);
-		string key = _router?.Resolve("albumTitle", genre.ToString()) ?? "albumTitle";
-		return _engine.Generate(key, ctx, "album|" + (artistKey ?? artistName), nearDup: false, attempts: 30);
+		return _titles.AlbumTitle(genre, year, artistName, isCompilation, leadSingle, artistKey, _albumRng);
 	}
 
 	public string GenerateInstrumentalTitle(Genre genre, int year) {
@@ -440,7 +413,7 @@ public partial class NameGenerator : Node {
 			case CatArtist:
 				return _engine.ExpandRouted(ChooseArtistSymbol(genre, year, type, ctx), ctx);
 			case CatSong:
-				return _engine.ExpandRouted(ChooseSongSymbol(genre, year, ctx.Rng), ctx);
+				return _engine.ExpandRouted(_titles.ChooseSongSymbol(genre, year, ctx.Rng), ctx);
 			case CatAlbum: {
 				ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
 				ctx.Slots["selfTitle"] = ctx.Slots["artist"];           // %leadSingle% unavailable here -> those templates drop
@@ -574,7 +547,7 @@ public partial class NameGenerator : Node {
 	private string[] SymbolsForCategory(string category, Genre genre, int year, ArtistType type, NamingContext probe) {
 		switch (category) {
 			case CatArtist: return new[] { ChooseArtistSymbol(genre, year, type, probe) };
-			case CatSong:   return new[] { ChooseSongSymbol(genre, year, probe.Rng) };
+			case CatSong:   return new[] { _titles.ChooseSongSymbol(genre, year, probe.Rng) };
 			case CatAlbum:  return new[] { "albumTitle", "albumFormat" };
 			case CatPerson: return new[] { "personName" };
 			default:        return new[] { category };

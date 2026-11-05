@@ -32,6 +32,8 @@ public sealed class ActNaming {
 		if (string.IsNullOrEmpty(lexJson) || string.IsNullOrEmpty(grammarJson)) return null;
 		var lexicon = Lexicon.LoadFromJson(lexJson);
 		foreach (var f in LexiconFiles.Skip(1)) { string j = read(f); if (!string.IsNullOrEmpty(j)) lexicon.AppendJson(j); }
+		// Grammatical features (how a word can be used in a title) as g* tags: see Core/Selection.cs.
+		var features = new WordFeatures(); features.LoadJson(read("features.json")); features.Apply(lexicon);
 		var ontology = new TagOntology(); ontology.LoadJson(read("ontology.json"));
 		var moods = new MoodGraph(); moods.LoadJson(read("moods.json"));
 		var inflection = new Inflection(); inflection.LoadJson(read("inflection.json"));
@@ -60,6 +62,25 @@ public sealed class ActNaming {
 			foreach (var a in acts.EnumerateArray()) _reservedActs.Add(ActCore(a.GetString()));
 		if (doc.RootElement.TryGetProperty("labels", out var labels))
 			ReserveLabelNames(labels.EnumerateArray().Select(x => x.GetString()).ToList());
+		if (doc.RootElement.TryGetProperty("songs", out var songs))
+			foreach (var s in songs.EnumerateArray()) _reservedSongs.Add(SongCore(s.GetString()));
+	}
+
+	private readonly HashSet<string> _reservedSongs = new(StringComparer.Ordinal);
+
+	/// <summary>Letters and digits only, lower case: "It's My Party" == "its my party".</summary>
+	private static string SongCore(string t) {
+		var sb = new System.Text.StringBuilder();
+		foreach (char ch in (t ?? "").ToLowerInvariant()) if (char.IsLetterOrDigit(ch)) sb.Append(ch); else if (ch == ' ' && sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
+		return sb.ToString().Trim();
+	}
+
+	/// <summary>Is this a famous real song of the period, outright or with a parenthetical added or removed?</summary>
+	public bool IsReservedSong(string title) {
+		if (_reservedSongs.Count == 0 || string.IsNullOrWhiteSpace(title)) return false;
+		if (_reservedSongs.Contains(SongCore(title))) return true;
+		string bare = System.Text.RegularExpressions.Regex.Replace(title, @"\s*\([^)]*\)\s*", " ").Trim();
+		return bare != title && _reservedSongs.Contains(SongCore(bare));
 	}
 
 	private static string ActCore(string n) {

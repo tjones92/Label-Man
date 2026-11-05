@@ -1,0 +1,97 @@
+{
+  "//": "Grammatical features for title slots (TitleSelection in Core/Selection.cs). Mood/domain tags say what a word is ABOUT; these say how it can be USED. Each list adds a tag (gAbstract, gMass, ...) to every entry of that pos/word at load, and the selection rules read the tags against a slot's literal neighbours: an object pronoun after a verb needs gObjPerson; 'the' cannot precede gProper/gArticle/gAdverbial/gExclaim/gGerund; 'down the'/'up the'/'along the' need gPath; spatial 'the' (under/over/across/through/beyond/beside/on...) rejects gAbstract; a bare preposition before a singular count noun ('Songs of Shack', 'Live at Alley') is rejected. Words not listed are concrete, singular, countable, and take no person object. Place names are gProper automatically unless written with their article ('the Delta'); any word written 'the X' is gArticle automatically.",
+
+  "verb": {
+    "objPerson": [
+      "abandon", "adore", "believe", "bless", "bring", "call", "carry", "chase", "cherish", "consider",
+      "deceive", "deliver", "embrace", "follow", "fool", "forget", "forgive", "heal", "hear", "help",
+      "hold", "hurt", "keep", "kiss", "know", "leave", "lift", "love", "miss", "move", "need",
+      "please", "raise", "redeem", "remember", "rock", "satisfy", "see", "shake", "take", "teach",
+      "tell", "touch", "trust", "want", "wake", "boss", "own", "thrill", "tease", "squeeze", "save",
+      "find", "treat", "haunt", "warn", "release", "rescue", "lead", "free", "kid", "phone", "meet",
+      "marry", "show", "send", "hug", "lose", "comfort", "hate", "remind", "wait for", "dig"
+    ]
+  },
+
+  "noun": {
+    "abstract": [
+      "ache", "action", "adoration", "affection", "awareness", "brotherhood", "choice", "consciousness",
+      "courage", "covenant", "delusion", "desire", "destiny", "devotion", "dignity", "doom", "emotion",
+      "essence", "eternity", "faith", "fantasy", "fate", "favorite", "feeling", "fortune", "freedom",
+      "glory", "grace", "grief", "habit", "heartache", "heartbreak", "honor", "hope", "hunger", "illusion",
+      "infinity", "joy", "justice", "liberty", "life", "loneliness", "longing", "love", "luck", "memory",
+      "mercy", "misery", "mood", "need", "oath", "passion", "peace", "perception", "pledge", "pride",
+      "promise", "prophecy", "redemption", "respect", "revolution", "romance", "sadness", "salvation",
+      "sisterhood", "sorrow", "temptation", "tenderness", "truth", "unity", "uprising", "vow", "want",
+      "wisdom", "yearning", "hard luck", "bad-luck spell", "dry spell", "sin", "trouble", "speed",
+      "style", "taste", "thirst", "fury", "sweetness", "silence", "stillness", "laughter", "reckoning",
+      "reverie", "hallucination", "mirage", "quest", "verdict", "sentence", "parole", "fear", "despair",
+      "regret", "patience", "chance", "trust", "belief", "doubt", "madness", "sorrow", "beauty",
+      "happiness", "kindness", "wonder", "shame", "triumph", "victory", "defeat", "danger", "darkness",
+      "inspiration", "imagination", "harmony", "ecstasy", "rapture", "bliss", "solitude", "innocence",
+      "attitude", "comfort", "confidence", "consolation", "perception", "refraction", "reflection",
+      "motion", "measure", "depth", "occasion", "news", "class", "standard", "classic", "first", "mind",
+      "soul", "spirit", "rhythm", "music", "poetry", "melody", "tempo", "time", "fun", "tenderness"
+    ],
+    "mass": [
+      "asphalt", "beer", "blood", "brew", "champagne", "chocolate", "chrome", "cinnamon", "concrete",
+      "cornbread", "dust", "foam", "fog", "fuel", "gin", "gold", "granite", "gravel", "grits", "hail",
+      "haze", "heat", "incense", "iron", "jasmine", "lace", "lead", "leather", "lightning", "lipstick",
+      "marmalade", "mascara", "mink", "mist", "money", "moonlight", "moonshine", "neon", "nectar", "nitro",
+      "perfume", "rain", "rice", "rust", "sand", "satin", "silk", "silver", "smoke", "snow", "spray",
+      "stardust", "starlight", "steam", "steel", "sugar", "sunshine", "taffy", "thunder", "vanilla",
+      "vapor", "velvet", "whiskey", "wine", "work", "candy", "bubblegum", "peppermint", "honey", "water",
+      "fire", "light", "wind", "skin", "glass", "crystal", "funk", "soul", "gospel", "blues", "rhythm",
+      "rock", "jazz", "boogaloo", "boogie", "mojo", "voodoo", "hoodoo", "salsa", "music", "news",
+      "moonlight", "twilight", "midnight", "daybreak", "dawn", "dusk", "nightfall", "sundown", "sunrise",
+      "sunset", "springtime", "wintertime", "summer", "winter", "autumn", "spring", "heaven", "space",
+      "earth", "paradise", "action", "love", "life", "time", "home", "school", "church", "town", "work"
+    ],
+    "proper": [
+      "alma", "avalon", "babylon", "broadway", "california", "carolina", "chicago", "eden", "georgia",
+      "harlem", "havana", "heaven", "hereafter", "jordan", "kansas city", "linda", "donna", "mars",
+      "memphis", "nashville", "new orleans", "paradise", "penny lane", "purgatory", "rio", "route 66",
+      "telstar", "tennessee", "texas", "tijuana", "venus", "zion", "main street", "dracula",
+      "frankenstein", "monday", "sunday", "september", "saturday night", "genesis", "exodus",
+      "hollywood", "detroit", "mexico", "hawaii", "paris", "rome", "london", "tokyo",
+      "cosmos", "gto", "t-bird", "tonight", "tomorrow",
+      "yesterday",
+      "after school", "graduation", "senior", "homeroom", "study hall"
+    ],
+    "adverbial": [
+      "always", "never", "maybe", "someday", "sometimes", "forever", "tomorrow", "tonight", "yesterday",
+      "first", "quiet", "precious", "romantic", "spanish", "latin", "parisian", "viennese", "mexican",
+      "continental", "back", "front", "middle", "side", "after school", "downtown", "uptown", "low-down", "swell", "classic",
+      "deuce"
+    ],
+    "exclaim": [
+      "alley oop", "amen", "hallelujah", "boola-boola", "ooh-poo-pah-doo", "ram-a-lama", "sh-boom",
+      "shama-lama", "bamba", "cha-cha", "speedoo", "bugalú", "guaguancó", "corazón", "mi vida", "besos",
+      "amor", "querida", "bonita", "sabor", "ritmo", "montuno", "descarga", "pachanga", "guajira",
+      "guaracha", "yummy", "choo-choo"
+    ],
+    "gerund": [
+      "aching", "burning", "dancing", "kissin'", "lovin'", "huggin'", "marching", "rockin'", "shakin'",
+      "shaking", "trembling", "killing", "burnout"
+    ],
+    "plural": [
+      "arms", "bars", "blue jeans", "boots", "chains", "diamonds", "eyes", "flowers", "grits", "hands",
+      "jitters", "lights", "lips", "plains", "roses", "senses", "shakes", "suede shoes", "tears", "tracks",
+      "walls", "badlands", "blues", "the changes", "the stars", "news", "crossroads", "heartstrings",
+      "the ozarks"
+    ],
+    "path": [
+      "road", "highway", "river", "street", "avenue", "boulevard", "alley", "back alley", "lane", "path",
+      "trail", "track", "tracks", "railroad", "line", "county line", "hall", "hallway", "aisle", "hill",
+      "hillside", "mountain", "canyon", "creek", "stream", "bayou", "the bayou", "valley", "tunnel",
+      "sidewalk", "pipeline", "coast", "shoreline", "shore", "backroad", "dirt road", "blacktop",
+      "boardwalk", "strip", "straightaway", "stairs", "steps", "gutter", "drag", "midway", "river",
+      "the delta", "delta", "range", "ridge", "the border", "frontier", "subway", "rail", "line"
+    ]
+  },
+
+  "place": {
+    "path": [ "beale street", "bourbon street", "52nd street", "abbey road", "broadway", "sunset strip",
+              "route 66", "highway 101", "the mississippi", "the rio grande", "the crossroads" ]
+  }
+}

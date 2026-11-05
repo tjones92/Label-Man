@@ -159,6 +159,8 @@ namespace LabelMan.Naming {
 		public readonly Dictionary<string, string> Surface = new(StringComparer.OrdinalIgnoreCase);  // post-inflection
 		public readonly Dictionary<string, HashSet<string>> Moods = new(StringComparer.OrdinalIgnoreCase);
 		public readonly Dictionary<string, int> Register = new(StringComparer.OrdinalIgnoreCase);
+		/// <summary>The lexicon entry each drawn slot came from (absent for bound / lineup / coined slots).</summary>
+		public readonly Dictionary<string, WordEntry> Entries = new(StringComparer.OrdinalIgnoreCase);
 		public List<string> OrderedRefs = new();
 		public double MoodThreshold;
 	}
@@ -449,16 +451,29 @@ namespace LabelMan.Naming {
 				bool ok = true;
 				// left-to-right, biasing each draw by moods locked so far
 				var locked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-				foreach (var (_, slotRef) in t.Segments) {
+				bool select = UsesSelection(t);
+				var segs = t.Segments;
+				for (int si = 0; si < segs.Count; si++) {
+					string slotRef = segs[si].slotRef;
 					if (slotRef == null) continue;
 					if (!DrawSlot(t, slotRef, ctx, genre, locked, st)) { ok = false; break; }
+					// Grammatical selection: redraw a word that does not fit the text around its slot.
+					if (select && !SlotFits(t, si, st)) {
+						bool fixedIt = false;
+						for (int r = 0; r < SelectionRedraws && !fixedIt; r++) {
+							if (!DrawSlot(t, slotRef, ctx, genre, locked, st)) break;
+							fixedIt = SlotFits(t, si, st);
+						}
+						if (!fixedIt) { ok = false; break; }
+					}
 					if (st.Moods.TryGetValue(slotRef, out var m) && m != null) foreach (var x in m) locked.Add(x);
 					if (!st.OrderedRefs.Contains(slotRef)) st.OrderedRefs.Add(slotRef);
 				}
 				if (!ok) continue;
 				if (!EnforceConstraints(t, ctx, genre, st)) continue;
+				if (select && !AllSlotsFit(t, st)) continue;     // a constraint reroll can break a fit
 				string assembled = Assemble(t, st);
-				assembled = PostProcessor.Run(assembled, genre, ctx, st, t.Type);
+				assembled = PostProcessor.Run(assembled, genre, ctx, st, t.Type, punctuate: !t.Slots.Values.Any(s => IsBoundPos(s.Pos)));
 				int wc = assembled.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
 				if (wc < t.MinWords || wc > t.MaxWords) continue;
 				return assembled;
@@ -466,9 +481,48 @@ namespace LabelMan.Naming {
 			return null;
 		}
 
+		/// <summary>Redraws allowed for a word that fails grammatical selection before the attempt fails.</summary>
+		public const int SelectionRedraws = 8;
+
+		/// <summary>Grammatical selection applies to song and album titles (act names have their own checks).</summary>
+		private static bool UsesSelection(ConstraintTemplate t) => TitleSelection.Enabled && (t.Type == "song" || t.Type == "album");
+
+		/// <summary>Does the word in segment <paramref name="si"/> fit its literal neighbours?</summary>
+		private static bool SlotFits(ConstraintTemplate t, int si, FillState st) {
+			var segs = t.Segments;
+			string slotRef = segs[si].slotRef;
+			if (!st.Entries.TryGetValue(slotRef, out var e) || e == null) return true;
+			var left = new StringBuilder();
+			for (int k = 0; k <= si; k++) {
+				left.Append(segs[k].lit);
+				if (k < si && segs[k].slotRef != null && st.Surface.TryGetValue(segs[k].slotRef, out var s)) left.Append(s);
+			}
+			// right context: following literal text, plus any later slot already drawn (the final check
+			// sees the whole title, so "Honor Beside the Barn" is caught once the connector is in)
+			var rightSb = new StringBuilder();
+			for (int k = si + 1; k < segs.Count; k++) {
+				rightSb.Append(segs[k].lit);
+				if (segs[k].slotRef == null) continue;
+				if (!st.Surface.TryGetValue(segs[k].slotRef, out var s2) || !st.OrderedRefs.Contains(segs[k].slotRef)) break;
+				rightSb.Append(s2);
+			}
+			string right = rightSb.ToString();
+			var spec = t.Slots[slotRef];
+			bool pluralized = spec.Inflect == InflForm.Plural && st.Surface.TryGetValue(slotRef, out var sf)
+							  && !string.Equals(sf, st.Lemma[slotRef], StringComparison.OrdinalIgnoreCase);
+			return TitleSelection.Admits(spec.Pos, e, left.ToString(), right, pluralized);
+		}
+
+		private static bool AllSlotsFit(ConstraintTemplate t, FillState st) {
+			for (int si = 0; si < t.Segments.Count; si++)
+				if (t.Segments[si].slotRef != null && !SlotFits(t, si, st)) return false;
+			return true;
+		}
+
 		private bool DrawSlot(ConstraintTemplate t, string slotRef, NamingContext ctx, GenreProfile genre,
 							  HashSet<string> locked, FillState st) {
 			var spec = t.Slots[slotRef];
+			st.Entries.Remove(slotRef);
 			if (spec.Optional && ctx.Rng.Chance(0.5)) { st.Lemma[slotRef] = null; st.Surface[slotRef] = ""; return true; }
 
 			if (spec.Markov && _coiner != null) {
@@ -557,9 +611,14 @@ namespace LabelMan.Naming {
 			st.Lemma[slotRef] = word;
 			st.Moods[slotRef] = pick.Moods;
 			st.Register[slotRef] = pick.Register;
-			// inflection (contextual for dual-form pasts by genre+mood tags)
+			st.Entries[slotRef] = pick;
+			// inflection (contextual for dual-form pasts by genre+mood tags). A word that is already plural,
+			// carries its own article, or is a mass/proper/exclamation word is never pluralized
+			// ("Blue Jeanses", "Marmalades", "The Bayous").
 			string surface = word;
-			if (spec.Inflect.HasValue) {
+			bool noPlural = TitleSelection.Enabled && spec.Inflect == InflForm.Plural &&
+				(pick.HasTag("gPlural") || pick.HasTag("gArticle") || pick.HasTag("gMass") || pick.HasTag("gAbstract") || pick.HasTag("gProper") || pick.HasTag("gExclaim") || pick.HasTag("gGerund"));
+			if (spec.Inflect.HasValue && !noPlural) {
 				var moodCtx = new List<string>(); if (pick.Moods != null) moodCtx.AddRange(pick.Moods);
 				if (genre.Orthography == Locale.US) moodCtx.Add("us"); else if (genre.Orthography == Locale.UK) moodCtx.Add("uk");
 				surface = _infl.InflectContextual(word, spec.Inflect.Value, genre.Orthography, moodCtx);
@@ -661,17 +720,26 @@ namespace LabelMan.Naming {
 
 	// ---- Layer 1 §5: the ordered post-processor pipeline --------------------------
 	public static class PostProcessor {
-		public static string Run(string s, GenreProfile genre, NamingContext ctx, FillState st, string outputType = null) {
+		public static string Run(string s, GenreProfile genre, NamingContext ctx, FillState st, string outputType = null, bool punctuate = true) {
 			if (string.IsNullOrEmpty(s)) return s;
 			var v = genre.Voice; var rng = ctx.Rng;
 			bool actName = outputType == "band" || outputType == "solo";
 			s = ApostropheDrop(s, v.ApostropheDropRate, rng, actName);
 			s = Numerals(s, v.NumeralPreference, rng);
 			s = TitleCase(s);
-			// Act names (band/solo) don't take !/? punctuation — only titles do.
+			// Act names (band/solo) don't take !/? punctuation — only titles do. A title built around a
+			// bound name (the act, the lead single) does not either: "Meet the Calloways?" is not a title.
 			bool isActName = outputType == "band" || outputType == "solo";
-			if (!isActName) s = Punctuation(s, v.PunctuationIntensity, rng);
+			if (!isActName && (punctuate || !TitleSelection.Enabled)) s = Punctuation(s, v.PunctuationIntensity, rng);
 			return CollapseSpaces(s);
+		}
+
+		/// <summary>"Spring", "Bring", "Thing", "King": the -ing is not a suffix (no vowel before it), so
+		/// it is never dropped to "Sprin'".</summary>
+		private static bool IngIsSuffix(string w) {
+			if (!TitleSelection.Enabled) return true;
+			string stem = w.Substring(0, w.Length - 3);
+			return stem.IndexOfAny(new[] { 'a', 'e', 'i', 'o', 'u', 'y', 'A', 'E', 'I', 'O', 'U', 'Y' }) >= 0;
 		}
 
 		// contextual: only -ing gerunds and "and" -> "'n'" (doc 1 §5 rule 1)
@@ -680,7 +748,7 @@ namespace LabelMan.Naming {
 			var words = s.Split(' ');
 			for (int i = 0; i < words.Length; i++) {
 				string w = words[i];
-				if (w.Length > 4 && w.EndsWith("ing", StringComparison.OrdinalIgnoreCase) && rng.Chance(rate))
+				if (w.Length > 4 && w.EndsWith("ing", StringComparison.OrdinalIgnoreCase) && IngIsSuffix(w) && rng.Chance(rate))
 					words[i] = w.Substring(0, w.Length - 1) + "'";                // running -> runnin'
 				// "Jerry Ellis 'n' His Orchestra" is not a billing anyone printed. Act names only: the song
 				// path keeps its exact draw sequence (titles are hashed into track traits).
@@ -717,7 +785,8 @@ namespace LabelMan.Naming {
 
 		private static string Punctuation(string s, double intensity, IRandom rng) {
 			if (intensity > 0.6 && rng.Chance((intensity - 0.6) * 1.2)) return s + "!";
-			if (intensity > 0.4 && rng.Chance((intensity - 0.4) * 0.3)) return s + "?";
+			// "?" only on a question ("Will You Still Love Me?"), never on "Meet the Calloways?".
+			if (intensity > 0.4 && rng.Chance((intensity - 0.4) * 0.3) && (!TitleSelection.Enabled || TitlePolish.IsQuestion(s))) return s + "?";
 			return s;
 		}
 

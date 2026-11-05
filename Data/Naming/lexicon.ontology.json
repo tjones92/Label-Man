@@ -318,10 +318,10 @@
       "Oh", "Baby", "Hey", "Come Here", "Darling", "My Dear", "Sweet Thing", "Kiss Me"
     ]},
     { "pos": "opener", "tags": ["taunt", "cheeky"], "words": [
-      "Get Lost", "Beat It", "Take a Walk", "So Long", "Big Deal", "Who Cares", "Talk Talk", "Nowhere"
+      "Get Lost", "Beat It", "Take a Walk", "So Long", "Big Deal", "Who Cares", "Nowhere"
     ]},
     { "pos": "opener", "tags": ["teen", "joyful"], "words": [
-      "It's My Party", "Hey Now", "Come On Over", "See You", "Party Time", "Be My Baby", "Puppy Love"
+      "Hey Now", "Come On Over", "See You", "Party Time"
     ]},
     { "pos": "opener", "tags": ["regret", "melancholy"], "words": [
       "I'm Sorry", "If Only", "I Wish", "I Can't", "Too Late", "I Should've", "Forgive Me", "I Never"
@@ -347,7 +347,7 @@
 
     { "//": "=== PHRASE FRAGMENTS — parenthetical subtitles (Motown/soul/easy signature). Full clauses used inside (...). ===",
       "pos": "phraseFrag", "tags": ["soul", "romantic"], "words": [
-      "I'll Be There", "I Can't Help Myself", "You Send Me", "Just a Little Bit", "Baby I Need You",
+      "I'll Be There", "You Send Me", "Just a Little Bit", "Baby I Need You",
       "Don't Leave Me", "Come Back to Me", "I Want You Back", "Hold On", "I Second That Emotion",
       "Sweeter Than the Day Before", "Ain't That Peculiar"
     ]},
@@ -414,7 +414,7 @@
 
     { "//": "=== NUMBERS — garage/funk numeric titles. 'small' for (Part N). ===",
       "pos": "number", "tags": ["any"], "words": [
-      "96", "16", "1-2-3", "One", "Two", "Seven", "Nineteen", "A Thousand", "634-5789", "409"
+      "96", "16", "1-2-3", "One", "Two", "Seven", "Nineteen", "A Thousand"
     ]},
     { "pos": "number", "tags": ["small", "smallNumber", "jazzMeter"], "words": [ "One", "Two", "Three", "1", "2" ]},
     { "pos": "number", "tags": ["jazzMeter"], "words": [ "Four", "Five", "Seven" ]},
@@ -517,7 +517,7 @@
       "Wait for Me Tonight", "Under the Same Old Moon", "Someday You'll Understand", "Right Back Where We Started"
     ]},
     { "pos": "phraseFrag", "tags": ["doowop", "vocableTitle"], "words": [
-      "Doo-Wah", "Sha-Bam", "Ooh-La-Ray", "Ram-a-Lam", "Ding-a-Ling",
+      "Doo-Wah", "Sha-Bam", "Ooh-La-Ray", "Ram-a-Lam", "Ding-a-Dong-Dee",
       "Zoom-Boom-Zay", "Wop-Bop-a-Loo", "Sha-Na-Doo", "Bim-Bam-Boo", "Doo-Ron-Doo"
     ]},
     { "pos": "phraseFrag", "tags": ["doowop", "romanticResponse"], "words": [
@@ -600,10 +600,10 @@
       "Wait Until You Hear Me", "Since I Found Real Love"
     ]},
     { "pos": "phraseFrag", "tags": ["soul", "parentheticalMain"], "words": [
-      "I Can't Help Myself", "Ain't Nothing Like the Real Thing", "You've Really Got a Hold on Me", "I'm Losing You"
+      "I Keep Coming Back", "You Got the Best of Me", "Nobody Knows It but Me", "I Won't Let Go"
     ]},
     { "pos": "phraseFrag", "tags": ["soul", "parentheticalResponse"], "words": [
-      "Sugar Pie, Honey Bunch", "Since You've Been Gone", "Hold On Tight", "Come Back to Stay"
+      "Hold On Tight", "Come Back to Stay"
     ]},
 
     { "//": "=== GROUPNOUN — the aspirational/abstract/motion families behind Motown-style billing (Martha and the X, Smokey Robinson and the Y). ===",
@@ -684,7 +684,7 @@
       "pos": "phraseFrag", "tags": ["traditionalPop", "titleClause"], "words": [
       "All I Need Is You Tonight", "As Long as You're Beside Me", "I Could Have Loved You Forever",
       "I Wish I'd Known Sooner", "If You Were Only Mine", "Let's Call It an Evening",
-      "Someone Is Waiting for Me", "There Goes My Heart Again", "You Make the Nights Feel Young",
+      "Someone Is Waiting for Me", "You Make the Nights Feel Young",
       "Nobody Else but You"
     ]},
 
@@ -720,7 +720,7 @@
 
     { "//": "=== FIRST NAMES — 'titleName' for given-name song titles (Peggy Sue/Johnny/Donna-style); 'historicalName' for the one-off 'Roll Over Beethoven' address-a-composer construction. Tagged 'early60s' so they fade on the real era clock, not a fictional one. ===",
       "pos": "firstName", "tags": ["titleName", "early60s"], "words": [
-      "Peggy Sue", "Johnny", "Susie", "Donna", "Diana", "Sherry", "Bobby", "Runaround Sue"
+      "Johnny", "Susie", "Donna", "Diana", "Sherry", "Bobby"
     ]},
     { "pos": "firstName", "tags": ["historicalName"], "words": [ "Beethoven", "Mozart", "Chopin", "Bach" ]},
 
@@ -794,7 +794,7 @@
     { "//": "=== TITLE-CLAUSE phraseFrags — original phrasing per the doc's own note ('period-style invented examples, not a recommendation to duplicate specific historical titles'). ===",
       "pos": "phraseFrag", "tags": ["teenPop", "titleClause"], "words": [
       "All I Want Is You Tonight", "Are You Really True", "Breaking Up Is Never Easy", "Come to My Party Tonight",
-      "Don't Tell My Friends About Us", "He Never Even Called", "I Can't Stay Mad at You", "I Dream About You Every Night",
+      "Don't Tell My Friends About Us", "He Never Even Called", "I Dream About You Every Night",
       "I Wish I Were Older Now", "I'll Meet You After the Dance", "It's Just Not Fair", "Let's Go Down to the Dance",
       "Meet Me by the Phone Booth", "Nobody Understands Me at All", "She Doesn't Even Know I'm Alive",
       "That's Why I Fell for You", "Tonight Is Gonna Be Our Night", "Why Won't You Ever Call", "You Don't Know My Heart at All"

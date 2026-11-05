@@ -48,6 +48,9 @@ namespace LabelMan.Naming {
 		}
 		public bool HasConstraintSet(string symbol) => _constraintSets.ContainsKey(symbol);
 		public IEnumerable<string> ConstraintSymbols => _constraintSets.Keys;
+		/// <summary>The templates registered under a symbol (empty if none). Diagnostics only.</summary>
+		public IReadOnlyList<ConstraintTemplate> ConstraintSet(string symbol) =>
+			_constraintSets.TryGetValue(symbol, out var l) ? l : (IReadOnlyList<ConstraintTemplate>)System.Array.Empty<ConstraintTemplate>();
 
 		/// <summary>Does a name-set exist for this key in EITHER layer — a Layer-2 constraint set or a
 		/// grammar symbol? The TemplateRouter uses this as its existence predicate so it can route to
@@ -162,8 +165,9 @@ namespace LabelMan.Naming {
 			Generate(symbol, ctx, bucket, nearDup, attempts, null);
 
 		/// <summary>
-		/// Options for act and label names only. Song and album titles never pass any of these: their
-		/// exact strings and draw counts are hashed into track traits, so their path stays byte-stable.
+		/// Uniqueness options. Act and label names use Finalize/Accept/ExactBucket/Variants; song titles
+		/// use SoftBucket (soft world-wide reuse avoidance). Titles are hashed into track traits, so any
+		/// change to what reaches them re-baselines the sim.
 		/// </summary>
 		public sealed class UniqueOptions {
 			/// <summary>Applied to every candidate before the uniqueness check (e.g. ActNamePolish).</summary>
@@ -174,6 +178,10 @@ namespace LabelMan.Naming {
 			public string ExactBucket;
 			/// <summary>Ordered last-resort variants of an exhausted base name, tried before Roman numerals.</summary>
 			public Func<string, IEnumerable<string>> Variants;
+			/// <summary>A wider bucket whose names are avoided only while <see cref="SoftAttempts"/> draws remain:
+			/// a soft, world-wide uniqueness (song titles may repeat across acts, but rarely).</summary>
+			public string SoftBucket;
+			public int SoftAttempts = 20;
 		}
 
 		public string Generate(string symbol, NamingContext ctx, string bucket, bool nearDup, int attempts, UniqueOptions opts) {
@@ -202,6 +210,7 @@ namespace LabelMan.Naming {
 		private string GenerateUnique(Func<string> produce, string symbol, string bucket, bool nearDup, int attempts, NamingContext ctx, UniqueOptions opts = null) {
 			var exact = Bucket(_used, opts?.ExactBucket ?? bucket);
 			var fuzzy = nearDup ? Bucket(_usedFuzzy, bucket) : null;
+			var soft = opts?.SoftBucket != null ? Bucket(_used, opts.SoftBucket) : null;
 			if (opts?.Finalize != null) { var raw = produce; produce = () => { string s = raw(); return string.IsNullOrWhiteSpace(s) ? s : opts.Finalize(s); }; }
 
 			string last = null;
@@ -212,12 +221,14 @@ namespace LabelMan.Naming {
 				last = candidate;
 				string key = Normalize(candidate);
 				if (key.Length == 0 || exact.Contains(key)) continue;
+				if (soft != null && i < opts.SoftAttempts && soft.Contains(key)) continue;
 				if (fuzzy != null) {
 					string fk = FuzzyKey(candidate);
 					// allow near-dups only after we've tried a while (avoid pathological starvation)
 					if (fuzzy.Contains(fk) && i < attempts - 5) continue;
 					fuzzy.Add(fk);
 				}
+				soft?.Add(key);
 				exact.Add(key);
 				return candidate;
 			}

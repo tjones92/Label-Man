@@ -23,6 +23,7 @@ public static class Program {
 		TestBlend();
 		TestNameEngineIntegration();
 		TestLineupBinding();
+		TestTitleSelection();
 		Console.WriteLine($"\n{total - fails}/{total} passed" + (fails == 0 ? "  ALL GREEN" : $"  ({fails} FAILED)"));
 		Environment.Exit(fails == 0 ? 0 : 1);
 	}
@@ -538,5 +539,31 @@ public static class Program {
 		True("head count word is the lineup size", sawThree);
 		Eq("polish collapses a doubled article", ActNamePolish.Run("The the Ozarks Players"), "The Ozarks Players");
 		True("no lineup = legacy draw (unbound)", eng.FillConstraint("band.t", new NamingContext { Genre = "RockAndRoll", Year = 1962, Rng = new DeterministicRandom(2UL), ArtistType = "Band" }).Length > 0);
+	}
+
+	static void TestTitleSelection() {
+		Console.WriteLine("== Title selection ==");
+		WordEntry W(string word, string pos, params string[] tags) => new WordEntry { Word = word, Pos = pos, Tags = new HashSet<string>(tags, StringComparer.OrdinalIgnoreCase) };
+		var sing = W("sing", "verb"); var hold = W("hold", "verb", "gObjPerson");
+		True("intransitive verb refused before Me", !TitleSelection.Admits("verb", sing, "You ", " Me", false));
+		True("person-object verb admitted before Me", TitleSelection.Admits("verb", hold, "You ", " Me", false));
+		True("intransitive verb fine without an object", TitleSelection.Admits("verb", sing, "Let's ", "", false));
+		var mercy = W("redemption", "noun", "gAbstract"); var road = W("road", "noun", "gPath"); var wagon = W("wagon", "noun");
+		True("abstract noun refused after 'down the'", !TitleSelection.Admits("noun", mercy, "Mercy Down the ", "", false));
+		True("path noun admitted after 'down the'", TitleSelection.Admits("noun", road, "Down the ", "", false));
+		True("non-path noun refused after 'down the'", !TitleSelection.Admits("noun", wagon, "Down the ", "", false));
+		True("abstract head refused before 'beside the'", !TitleSelection.Admits("noun", W("honor", "noun", "gAbstract"), "", " Beside the Barn", false));
+		var tj = W("Tijuana", "place", "gProper"); var shack = W("shack", "noun");
+		True("proper place refused after 'the'", !TitleSelection.Admits("place", tj, "Down the ", "", false));
+		True("bare count noun refused after 'of'", !TitleSelection.Admits("noun", shack, "Songs of ", "", false));
+		True("bare count noun fine when pluralized", TitleSelection.Admits("noun", shack, "Songs of ", "", true));
+		True("modifier before a capitalised head skips the article rules", TitleSelection.Admits("place", tj, "at the ", " Jazz Festival", false));
+		Eq("polish collapses 'the the'", TitlePolish.Title("Live at the the Riverside Theater"), "Live at the Riverside Theater");
+		Eq("'?' dropped from a non-question", TitlePolish.Title("Meet the Calloways?"), "Meet the Calloways");
+		Eq("'?' kept on a question", TitlePolish.Title("Will You Be Mine?"), "Will You Be Mine?");
+		Eq("plural act takes a plural verb", TitlePolish.Album("The Calloways Sings Their Greatest Hits", "The Calloways", null), "The Calloways Sing Their Greatest Hits");
+		Eq("solo act keeps the singular verb", TitlePolish.Album("Patsy Hart Sings Their Greatest Hits", "Patsy Hart", null), "Patsy Hart Sings the Greatest Hits");
+		Eq("act article lower-case mid-title", TitlePolish.Album("Here's The Dean Brothers", "The Dean Brothers", null), "Here's the Dean Brothers");
+		Eq("lead single kept verbatim", TitlePolish.Album("Lead Single!", "The Calloways", "Lead Single"), "Lead Single");
 	}
 }
