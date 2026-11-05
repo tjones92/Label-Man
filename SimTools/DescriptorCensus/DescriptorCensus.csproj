@@ -1,0 +1,19 @@
+<!-- Descriptor census: runs the fact-gated wording (Systems/Naming/Descriptors) on synthetic states, checks that every
+     gated phrase only appears when its fact holds, and measures how often two subjects read word-for-word alike.
+     Run:  dotnet run -c Release (project SimTools/DescriptorCensus) [samples]
+     Not part of "Label Man.sln"; the game build excludes this folder via a Compile Remove. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>DescriptorCensus</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Systems/Naming/Descriptors/**/*.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

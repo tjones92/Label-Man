@@ -458,3 +458,54 @@ Game project builds.
 * Gospel / girl-group / teen-pop / surf / latin band sets (3 templates each) and folk-rock / reggae / sunshine
   albums are serviceable but small; British, funk and proto-punk albums still use the generic and shared sets.
 * Calibration: another re-baseline for these genres' track traits and programme identities.
+
+# Descriptive lines: fact-gated wording (2026-11-05)
+
+Playtest 2026-11-04: impression lines repeated word-for-word across acts ("Confident and convincing singing · room
+limits detail"). Same problem in the chart/record/act/label trade-paper blurbs and the Rolodex reads: one fixed line per
+band, so the world read flat. Some blurb lines also invented states ("Banned in several Southern states", "the
+industry is watching", "Steady performance across all regions" on a record no region knew).
+
+**Rule.** Every phrase names a state the simulation holds, or it is not offered. Wording is an `(when, text)` pool
+(`Systems/Naming/Descriptors/Phrase.cs`); a pool whose facts are all false says nothing. Two phrases may describe the
+same state in different words. Picks are a pure hash of the subject (act + observation, record + week, label, DJ),
+so a card reads the same when reopened and nothing draws from a game stream.
+
+* **Scouting impressions** (`ScoutingImpressionPhrases`, facts from `PlayerDesk.ImpressionFactsFor`). Each axis is a
+  head (impression strength) plus at most one observed clause: the lead singer by first name (only when exactly one
+  lead vocalist was on stage), backing voices, parts on stage, no drummer, players sitting in, originals / covers
+  counted from the set, the set's genre span, partial coverage, who stayed, calls for songs, arrivals, a thin crowd.
+  "Best / weak spot" heads only when that axis clearly leads or trails the others. "Room limits detail" is replaced by
+  the room's own blind spot in a few words (tooltip keeps `SceneRoomCharacter.Masks`); the coffeehouse "band drive"
+  note is not shown for a solo act. Full notes, the evidence summary and rehearsal/demo notes use the same reads.
+* **Trade press** (`TradePressPhrases`, facts gathered by `JournalisticDescriptor`). A record blurb is the position
+  line plus up to three families: chart run, hook / danceability, sound (production trait + master production
+  style), shape (form, meter, vocal approach, lyric mode, instrumental, duration from master taxonomy), origin (cover
+  of whose record, standard, traditional, self-written, named writers), title content tags (`SongContentTags`),
+  buzz (radio heat, word of mouth, regional breakouts), store sales week on week, Grammy. Removed: the controversy
+  pool (cosmetic field; the claims were invented). Act files add lineup, formed year, founders / departures, label,
+  chart weeks; label files use tier instead of `budgetLevel`, plus founding, roster and hits. Regional hint is empty
+  when no region knows the record. Movement lines can name the places moved.
+* **Rolodex passive reads**: same gates, two or three wordings each, keyed on the DJ.
+* Side fixes: `DescribeLabel` drew from the global `GameRandom` stream every time a label file opened (UI-only caller,
+  so no sim effect in audits, but it moved the player's world). Dead `GetSalesCommentary` / `GetContextCommentary` /
+  `GetQuickSummary` / `GetGenreDescription` (global-stream draws, no callers) removed.
+
+**Census** (`SimTools/DescriptorCensus`, 4,000 synthetic subjects each, every gate checked; exits 1 on a violation):
+
+| scouting axis | old distinct | new distinct | old P(two acts same line) | new |
+|---|---|---|---|---|
+| Vocals | 8 | 489 | 18.5% | 1.4% |
+| Playing | 12 | 1,633 | 12.6% | 0.6% |
+| Material | 6 | 1,622 | 18.4% | 0.3% |
+| Stage presence | 6 | 536 | 21.2% | 0.7% |
+
+Two acts sharing at least one identical impression line: 52.7% → 3.2%. Record blurbs: 550 distinct body sentences
+(was 24 + 4), the commonest appears in 6.6% of blurbs, blurbs with no body sentence 11.5% → 0%. All gates held.
+
+Real-save probe (Autosave 1, Feb 1960, temporary headless driver) caught what the census could not: a crash on covers
+with no original-artist id; placeholder writer credits ("A Staff Writer song.", now dropped, publisher named
+instead); LPs described as Hot 100 records and given song-level lines (an LP now reads against the LP chart and gets
+only run / sound / buzz / sales / awards); "A classic AABA song" on most records (AABA is the catalogue default, so it
+is not mentioned); region prepositions ("in the Rockies", "on the West Coast"); "a Easy Listening streak"; the
+full-notes coffeehouse "band drive" caveat on a solo act.

@@ -560,6 +560,9 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public List<CallLine> PassiveReads(RolodexCallContext c) {
 		var lines = new List<CallLine>();
+		// Each read is gated on the same fact as before; V only picks between wordings of that fact, keyed on the
+		// contact, so two DJs in the same situation do not say it in the same words (and one DJ stays consistent).
+		string V(string slot, params string[] wordings) => Phrase.Pick($"{c.entry?.djId}|{slot}", wordings);
 		void Read(ExecutiveVoice voice, int score, string hint, string clear, string deep) {
 			InsightStrength s = score >= 5 ? InsightStrength.DeepRead
 				: score >= 4 ? InsightStrength.ClearRead
@@ -577,15 +580,15 @@ public partial class PlayerDesk : Node {
 
 		// THE EAR -- can he hear, and does he actually mean what he is about to say about the record?
 		Read(ExecutiveVoice.Ear, c.instincts.TheEar,
-			hint: c.djTaste > 0.6f ? "He listens. Whatever he says about the record, he will have heard it first."
-				: c.djTaste < 0.35f ? "He is not really listening to records. He is listening to the room."
-				: "Ordinary ears. He will go with whatever everyone else is going with.",
+			hint: c.djTaste > 0.6f ? V("ear-hint-listens", "He listens. Whatever he says about the record, he will have heard it first.", "He actually plays the records he is sent. His opinion will be his own.")
+				: c.djTaste < 0.35f ? V("ear-hint-room", "He is not really listening to records. He is listening to the room.", "Records are background to him. He hears what the room is humming.")
+				: V("ear-hint-ordinary", "Ordinary ears. He will go with whatever everyone else is going with.", "No special ear. He will like it when the trade sheets tell him to."),
 			clear: c.HasRecord
 				? (c.recordProduction < 0.38f && c.recordHook > 0.60f
-					? "The record has a problem and it is not the problem he is going to name. The drums are rough. The chorus is not."
+					? V("ear-clear-rough", "The record has a problem and it is not the problem he is going to name. The drums are rough. The chorus is not.", "The sound is rough and the song is not. If he hesitates, it is the mix he heard, not the tune.")
 					: c.recordHook < 0.40f
-					? "There is nothing in this to grab onto. He will feel that even if he cannot say why."
-					: "The record can survive an honest listen. That is not nothing.")
+					? V("ear-clear-nohook", "There is nothing in this to grab onto. He will feel that even if he cannot say why.", "No hook to hang it on. He will drift off halfway and not know why.")
+					: V("ear-clear-honest", "The record can survive an honest listen. That is not nothing.", "Nothing in the grooves will embarrass you. Let him play it.", "It holds up when somebody really listens. That counts with a man who does."))
 				: null,
 			deep: c.HasRecord && c.djGenreAffinity > 1.15f
 				? $"He has a soft spot for this kind of thing. He will not admit it, but the objection he raises will not be about the music."
@@ -595,46 +598,46 @@ public partial class PlayerDesk : Node {
 
 		// THE STREET -- is the city actually where he says it is?
 		Read(ExecutiveVoice.Street, c.instincts.TheStreet,
-			hint: c.regionalGenreAcceptance > 0.55f ? "This town is open to this kind of record."
-				: c.regionalGenreAcceptance < 0.35f ? "This is not a town that has asked for this."
-				: "The city is neither for nor against it.",
+			hint: c.regionalGenreAcceptance > 0.55f ? V("street-hint-open", "This town is open to this kind of record.", "This sound has a home here already.")
+				: c.regionalGenreAcceptance < 0.35f ? V("street-hint-closed", "This is not a town that has asked for this.", "Nobody here is waiting for this sound.")
+				: V("street-hint-neutral", "The city is neither for nor against it.", "The town has no strong feelings about this sound either way."),
 			clear: c.regionalGenreMomentum > 0.08f
-				? "Whatever the station thinks, the city is moving toward this sound. The numbers are behind the street."
+				? V("street-clear-rising", "Whatever the station thinks, the city is moving toward this sound. The numbers are behind the street.", "The town is warming to this sound week by week. Time is on your side here.")
 				: c.regionalGenreMomentum < -0.05f
-				? "This sound is on its way out here. He is not wrong, he is just early to say so."
-				: "Nothing is moving here in either direction. This is a flat market for it.",
+				? V("street-clear-falling", "This sound is on its way out here. He is not wrong, he is just early to say so.", "This town is cooling on the sound. Whatever he says, the street agrees with him.")
+				: V("street-clear-flat", "Nothing is moving here in either direction. This is a flat market for it.", "The town's taste for this has not budged in weeks.", "Steady here: nobody is turning toward this sound or away from it."),
 			deep: c.HasRecord && c.regionalAwareness > 0.12f
-				? "People here have already heard of it. Not many. But it is not a cold start any more."
+				? V("street-deep-aware", "People here have already heard of it. Not many. But it is not a cold start any more.", "A few people in town know the record already. You are not starting from nothing.")
 				: $"He works {RolodexShifts.Label(c.shift)}, which tells you exactly which audience he can hand you.");
 
 		// THE SUIT -- what is this contact worth, what does the institution allow, what will it cost?
 		Read(ExecutiveVoice.Suit, c.instincts.TheSuit,
-			hint: c.djInfluence > 0.65f ? "He carries real weight in this market."
-				: c.djInfluence < 0.35f ? "Small fish. A foot in the door, not a door."
-				: "Medium pull. A spin here matters but will not move the needle far.",
+			hint: c.djInfluence > 0.65f ? V("suit-hint-heavy", "He carries real weight in this market.", "His word counts for a lot in this market.")
+				: c.djInfluence < 0.35f ? V("suit-hint-small", "Small fish. A foot in the door, not a door.", "Not much pull. A spin from him is a start, not a breakthrough.")
+				: V("suit-hint-medium", "Medium pull. A spin here matters but will not move the needle far.", "Some weight here, not a lot. A spin helps; it does not decide anything."),
 			clear: c.HasRecord && c.formatAdmittance < 0.08f
 				? "Do not waste the call on this record. This station's format does not admit it, and no favour changes a format."
 				: c.managerPressureHigh
-				? "He does not decide much. There is somebody upstairs, and that somebody reads the sales sheets."
-				: "He has room to move here if he wants to. The decision really is his.",
+				? V("suit-clear-upstairs", "He does not decide much. There is somebody upstairs, and that somebody reads the sales sheets.", "The playlist is not his to set. His manager watches the sales and has the last word.")
+				: V("suit-clear-free", "He has room to move here if he wants to. The decision really is his.", "Nobody above him is checking. If he wants it on, it goes on."),
 			deep: c.HasRecord && c.salesSupport < 0.35f && c.unitsTotal > 100
-				? "The record peaked and is sliding. He will see that on the same sheet you do."
+				? V("suit-deep-sliding", "The record peaked and is sliding. He will see that on the same sheet you do.", "Its sales have turned down, and he reads the same numbers you do.")
 				: c.HasRecord && c.unitsTotal > 200
 				? $"You have {c.unitsTotal:N0} copies out. That is a number you can say out loud."
 				: c.HasRecord && c.unitsTotal < 50
-				? "You have no numbers. Every argument you make has to be about the music or about him."
+				? V("suit-deep-nonumbers", "You have no numbers. Every argument you make has to be about the music or about him.", "Fewer than fifty copies out. Sell him the song, because you cannot sell him a figure.")
 				: null);
 
 		// THE FIXER -- what is in it for him, and what would it cost you if it went wrong?
 		Read(ExecutiveVoice.Fixer, c.instincts.TheFixer,
-			hint: c.djGreed > 0.55f ? "There is cash in the sleeve and he already knows it."
-				: c.djGreed < 0.25f ? "Not the type. Offer him money and you will not get a second call."
-				: "Open to an arrangement, but he will not be the one to bring it up.",
+			hint: c.djGreed > 0.55f ? V("fixer-hint-greedy", "There is cash in the sleeve and he already knows it.", "He takes envelopes. He is waiting to see if you know that.")
+				: c.djGreed < 0.25f ? V("fixer-hint-clean", "Not the type. Offer him money and you will not get a second call.", "He does not take money. Try it and the line goes dead for good.")
+				: V("fixer-hint-open", "Open to an arrangement, but he will not be the one to bring it up.", "He might take something, if you are the one who raises it."),
 			clear: c.djSuspicion > 0.50f
-				? "He is hot right now. Somebody has been through the logs. Whatever you do, do not do it with money."
+				? V("fixer-clear-hot", "He is hot right now. Somebody has been through the logs. Whatever you do, do not do it with money.", "People are watching his logs. Money now would burn you both.")
 				: c.djGreed > 0.55f
 				? "He does not want lunch money. He wants enough that saying yes feels like a decision, not a habit."
-				: "The money channel is open but narrow. It buys a spin, not a friend.",
+				: V("fixer-clear-narrow", "The money channel is open but narrow. It buys a spin, not a friend.", "Money will get you a play or two. It will not get you a champion."),
 			deep: c.djEgo > 0.6f
 				? "The thing he actually wants is to be right in public before anyone else was. That is cheaper than cash and worth more to him."
 				: c.rapport > 0.3f

@@ -42,7 +42,7 @@ public partial class PlayerDeskPanel {
         grid.AddThemeConstantOverride("h_separation", 24); grid.AddThemeConstantOverride("v_separation", 8);
         foreach (var axis in desk.ScoutingListeningAxes(dossier.ArtistId)) {
             var label = new Label { Text = axis.Axis }; label.AddThemeFontOverride("font", PaperTheme.SansBold); label.AddThemeFontSizeOverride("font_size", 15); label.AddThemeColorOverride("font_color", ScoutingArtistInk);
-            var read = new Label { Text = char.ToUpperInvariant(axis.Read[0]) + axis.Read[1..] + (axis.Limitation != null ? " · room limits detail" : ""),
+            var read = new Label { Text = Phrase.Capitalize(axis.Read) + (axis.RoomNote != null ? " · " + axis.RoomNote : ""),
                 TooltipText = axis.Limitation ?? "Your impression of this set, not a prediction of future talent.",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Stop };
             read.AddThemeFontSizeOverride("font_size", 15); read.AddThemeColorOverride("font_color", Ink);
