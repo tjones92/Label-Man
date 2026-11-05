@@ -445,6 +445,8 @@ public static partial class MediaAtmosphereService {
 				followingSinceRow.Remove(id);
 			}
 		}
+		if (StatureObservation.Log != null || StatureObservation.ShadowConfig != null)
+			StatureObservation.WriteWeek(weekEnd, evidence.All, regions, regYoung, regAdult);
 	}
 
 	private static string Csv(string s) => string.IsNullOrEmpty(s) ? "" : s.Replace(',', ' ').Replace('"', '\'');

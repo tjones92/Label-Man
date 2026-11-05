@@ -21,6 +21,17 @@ namespace LabelMan.Naming {
 		// uniquenessBucket -> set of normalized keys / soundex keys
 		private readonly Dictionary<string, HashSet<string>> _used = new();
 		private readonly Dictionary<string, HashSet<string>> _usedFuzzy = new();
+
+		public NameUniquenessState CaptureUniqueness() => new() {
+			Exact = _used.ToDictionary(p => p.Key, p => p.Value.ToList()),
+			Fuzzy = _usedFuzzy.ToDictionary(p => p.Key, p => p.Value.ToList())
+		};
+
+		public void RestoreUniqueness(NameUniquenessState saved) {
+			_used.Clear(); _usedFuzzy.Clear();
+			foreach (var p in saved.Exact) _used.Add(p.Key, new HashSet<string>(p.Value));
+			foreach (var p in saved.Fuzzy) _usedFuzzy.Add(p.Key, new HashSet<string>(p.Value));
+		}
 		// constraint-template sets (Layer 2), keyed by grammar-style symbol; loaded from templates.json.
 		// Case-insensitive so the TemplateRouter can build keys from PascalCase genre ids (songTitle.Jazz)
 		// and still hit the lower-cased set names (songTitle.jazz).

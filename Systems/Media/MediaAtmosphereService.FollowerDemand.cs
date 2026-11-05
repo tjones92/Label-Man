@@ -13,6 +13,29 @@ public static partial class MediaAtmosphereService {
 	private static readonly Dictionary<string, (FollowerLaunch Book, float Factor)> followerWeek = new(StringComparer.Ordinal);
 	/// <summary>Each act's crowds this week by region (people in the room for it), for the live joiners. Consumed weekly.</summary>
 	private static readonly Dictionary<string, float[]> liveCrowds = new(StringComparer.Ordinal);
+
+	internal static Dictionary<string, Dictionary<string, float>> CapturePendingLiveCrowds() {
+		var regions = ChartManager.Instance.GetAllRegions();
+		var result = new Dictionary<string, Dictionary<string, float>>(StringComparer.Ordinal);
+		foreach (var p in liveCrowds) {
+			if (p.Value.Length != regions.Count) throw new InvalidOperationException("Live crowd region count differs from the world.");
+			var row = new Dictionary<string, float>(StringComparer.Ordinal);
+			for (int i = 0; i < regions.Count; i++) row.Add(regions[i].regionId, p.Value[i]);
+			result.Add(p.Key, row);
+		}
+		return result;
+	}
+
+	internal static void RestorePendingLiveCrowds(Dictionary<string, Dictionary<string, float>> saved) {
+		liveCrowds.Clear();
+		if (saved == null) return;
+		var regions = ChartManager.Instance.GetAllRegions();
+		foreach (var p in saved) {
+			var row = new float[regions.Count];
+			for (int i = 0; i < regions.Count; i++) row[i] = p.Value[regions[i].regionId];
+			liveCrowds.Add(p.Key, row);
+		}
+	}
 	private static readonly Dictionary<string, double> followerDemandLedger = new(StringComparer.Ordinal);
 	private static void FollowerDemandLedger(string key, double amount) => followerDemandLedger[key] = followerDemandLedger.GetValueOrDefault(key) + amount;
 	/// <summary>Closed books this year, for the advance-order distribution (§9). Print-only.</summary>

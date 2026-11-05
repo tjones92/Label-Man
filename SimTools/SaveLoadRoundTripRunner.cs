@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Godot;
@@ -40,6 +41,23 @@ public partial class SaveLoadRoundTripRunner : Node {
 				else if (arg == "--polar-song-fit-check") polarFitCheck = true;
 				else if (arg.StartsWith("--inspect-slot=", StringComparison.Ordinal)) inspectSlot = arg["--inspect-slot=".Length..];
 			}
+			string statureRoundtrip = OS.GetCmdlineUserArgs().SingleOrDefault(a => a.StartsWith("--stature-live-roundtrip=", StringComparison.Ordinal));
+			if (statureRoundtrip != null) StatureObservation.ConfigureShadow(statureRoundtrip.Substring("--stature-live-roundtrip=".Length), true);
+			string replayArg = OS.GetCmdlineUserArgs().SingleOrDefault(a => a.StartsWith("--stature-replay-weeks=", StringComparison.Ordinal));
+			int replayWeeks = replayArg == null ? 0 : int.Parse(replayArg.Substring("--stature-replay-weeks=".Length));
+			bool replayGlobalRng = OS.GetCmdlineUserArgs().Contains("--stature-replay-restore-global-rng");
+			bool evidenceOnlyReplay = OS.GetCmdlineUserArgs().Contains("--stature-evidence-only-replay");
+			bool traceWorldReplay = OS.GetCmdlineUserArgs().Contains("--stature-replay-world-trace");
+			string traceRecord = OS.GetCmdlineUserArgs().SingleOrDefault(a => a.StartsWith("--stature-replay-record=", StringComparison.Ordinal))?["--stature-replay-record=".Length..];
+			string traceRegion = OS.GetCmdlineUserArgs().SingleOrDefault(a => a.StartsWith("--stature-replay-region=", StringComparison.Ordinal))?["--stature-replay-region=".Length..];
+			if (replayArg != null && (statureRoundtrip == null || replayWeeks < 1))
+				throw new ArgumentException("Stature replay requires --stature-live-roundtrip and a positive replay length.");
+			if (replayGlobalRng && replayWeeks == 0) throw new ArgumentException("RNG replay requires --stature-replay-weeks.");
+			if (traceWorldReplay && (replayWeeks == 0 || evidenceOnlyReplay)) throw new ArgumentException("World tracing requires a world continuation replay.");
+			if (evidenceOnlyReplay && (replayWeeks == 0 || replayGlobalRng || traceRecord != null || traceRegion != null))
+				throw new ArgumentException("Evidence-only replay requires replay weeks and cannot use world replay diagnostics.");
+			if ((traceRecord != null || traceRegion != null) && (replayWeeks == 0 || string.IsNullOrWhiteSpace(traceRecord) || string.IsNullOrWhiteSpace(traceRegion)))
+				throw new ArgumentException("Demand tracing requires a replay, record ID and region ID.");
 
 			if (TimeManager.Instance == null || ChartManager.Instance == null)
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
@@ -106,6 +124,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--single-prior-recalibration-check")) { SinglePriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--career-banded-format-memory-check")) { CareerBandedFormatMemoryChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--album-prior-recalibration-check")) { AlbumPriorRecalibrationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-shadow-policy-check")) { StatureShadowPolicyChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--release-economics-check")) { ReleaseEconomicsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--promo-synergy-feedback-check")) { PromoSynergyFeedbackChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--economy-audit-b-check")) { EconomyAuditBChecks.Run(); GetTree().Quit(0); return; }
@@ -181,6 +200,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			}
 
 			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-market-roundtrip")) ProfessionalWritingMarketChecks.StageRoundTrip();
+			if (RunStatureFreshContinuation(weeks, replayWeeks, statureRoundtrip, traceWorldReplay)) return;
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
 			ProfessionalWritingMarketChecks.CheckLiveState();
 
@@ -190,12 +210,93 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (LabelReleaseProgramme.Enabled) LabelReleaseProgrammeChecks.CheckLiveState();
 
 			WorldSaveData cap1 = WorldStateService.Capture();
+			GameDate capturedDate = TimeManager.Instance.CurrentDate;
+			ulong capturedGlobalRng = GameRandom.State;
+			if (statureRoundtrip != null && (cap1.Media?.ExperimentalStature == null ||
+				cap1.Media.ExperimentalStature.Normalizer.LastProcessedDate == default || cap1.Media.ExperimentalStature.Snapshots.Count == 0))
+				throw new InvalidOperationException("Live stature state or dated snapshots missing from world save.");
 			HitActFitSupportChecks.CheckLiveState();
 			ArtistFanbaseChecks.CheckLiveState();
 			string a = JsonSerializer.Serialize(cap1, opts);
+			DateTime replayStartDate = replayWeeks == 0 ? default : cap1.Media.ExperimentalStature.Normalizer.LastProcessedDate;
+			string uninterruptedShadow = null;
+			string uninterruptedWorldAfterWeek1 = null;
+			var uninterruptedInputs = new System.Collections.Generic.List<string>();
+			var uninterruptedShadows = new System.Collections.Generic.List<string>();
+			var resumedInputs = new System.Collections.Generic.List<string>();
+			var uninterruptedSources = new System.Collections.Generic.List<string>();
+			var resumedSources = new System.Collections.Generic.List<string>();
+			var uninterruptedDemand = new System.Collections.Generic.List<string>();
+			var resumedDemand = new System.Collections.Generic.List<string>();
+			var uninterruptedMarkets = new System.Collections.Generic.List<string>();
+			var resumedMarkets = new System.Collections.Generic.List<string>();
+			var uninterruptedPopulation = new System.Collections.Generic.Dictionary<string, (float Raw, int Serviceable)>(StringComparer.Ordinal);
+			var resumedPopulation = new System.Collections.Generic.Dictionary<string, (float Raw, int Serviceable)>(StringComparer.Ordinal);
+			void CapturePopulation(System.Collections.Generic.Dictionary<string, (float Raw, int Serviceable)> target, string stage, RecordRuntimeData record, MarketRegion region, RegionalRecordData data, int units) {
+				if (stage == "after-demand" && region.regionId == traceRegion && record.baseRecord.format == ReleaseFormat.Single && record.baseRecord.recordId != null)
+					target[record.baseRecord.recordId] = (data.rawDemandThisWeek, units);
+			}
+			void CaptureMarket(System.Collections.Generic.List<string> target, ChartManager.MarketClearingRegionalSummary summary) {
+				if (summary.RegionId == traceRegion) target.Add(JsonSerializer.Serialize(summary, new JsonSerializerOptions { IncludeFields = true }));
+			}
+			void CaptureDemand(System.Collections.Generic.List<string> target, string stage, RecordRuntimeData record, MarketRegion region, RegionalRecordData data, int units) {
+				if (record.baseRecord.recordId != traceRecord || region.regionId != traceRegion) return;
+				target.Add(JsonSerializer.Serialize(new { stage, units, globalRng = GameRandom.State, recordAwareness = record.awareness,
+					record.momentum, record.radioHeat, record.weeksSinceRelease, data.awareness, data.radioPlay, data.sentiment,
+					data.unitsInStores, data.unitsSoldTotal, data.rawDemandThisWeek, data.salesEffectiveAwarenessThisWeek,
+					data.serviceableIntentThisWeek, data.storeCapacityThisWeek, data.marketDisplacedDemandThisWeek,
+					data.localClearedThisWeek, data.spilloverClearedThisWeek, data.genreDemandAcceptanceThisWeek }));
+				if (stage == "after-demand") target.Add(JsonSerializer.Serialize(new { stage = "demand-factors", region = region.regionId,
+					retailScale = LocalRetailExposure.Scale(region.regionId),
+					reporter = ChartManager.Instance.ReporterAirplay(record.baseRecord.recordId, region.regionId),
+					listener = ChartManager.Instance.ListenerAirplay(record.baseRecord.recordId, region.regionId), data }, new JsonSerializerOptions(opts) { WriteIndented = false }));
+			}
+			if (replayWeeks > 0) {
+				if (traceRecord != null) {
+					ChartManager.ReplayDemandObserver = (stage, record, region, data, units) => { CaptureDemand(uninterruptedDemand, stage, record, region, data, units); CapturePopulation(uninterruptedPopulation, stage, record, region, data, units); };
+					ChartManager.ReplayMarketObserver = summary => CaptureMarket(uninterruptedMarkets, summary);
+				}
+				StatureObservation.ReplayEvidenceObserver = (date, evidence, source) => { uninterruptedInputs.Add(JsonSerializer.Serialize(evidence, opts)); uninterruptedSources.Add(source); };
+				for (int w = 0; w < replayWeeks; w++) {
+					if (TimeManager.Instance.IsGameOver) throw new InvalidOperationException("Game ended during stature replay.");
+					AdvanceOneChartWeek();
+					if (w == 0 && traceWorldReplay) uninterruptedWorldAfterWeek1 = JsonSerializer.Serialize(WorldStateService.Capture(), opts);
+					if (evidenceOnlyReplay) uninterruptedShadows.Add(JsonSerializer.Serialize(MediaAtmosphereService.ExperimentalStatureShadow(), opts));
+				}
+				uninterruptedShadow = JsonSerializer.Serialize(WorldStateService.Capture().Media.ExperimentalStature, opts);
+			}
 
 			WorldSaveData restored = JsonSerializer.Deserialize<WorldSaveData>(a, opts);
-			WorldStateService.Apply(restored, TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
+			if (evidenceOnlyReplay) {
+				StatureObservation.ReplayEvidenceObserver = null;
+				var replayShadow = restored?.Media?.ExperimentalStature ?? throw new InvalidOperationException("Saved shadow is missing.");
+				if (uninterruptedInputs.Count != replayWeeks || uninterruptedShadows.Count != replayWeeks)
+					throw new InvalidOperationException("Evidence replay requires exactly one observation per week.");
+				for (int w = 0; w < replayWeeks; w++) {
+					var input = JsonSerializer.Deserialize<Dictionary<string, StatureWeeklyShadow.ArtistEvidence>>(uninterruptedInputs[w], opts)
+						?? throw new InvalidOperationException("Recorded shadow evidence is missing.");
+					DateTime observationDate = replayStartDate.AddDays(7 * (w + 1));
+					if (!replayShadow.Advance(observationDate, input, StatureObservation.ShadowConfig))
+						throw new InvalidOperationException($"Evidence replay did not advance in week {w + 1}.");
+					string replayed = JsonSerializer.Serialize(replayShadow, opts);
+					if (replayed != uninterruptedShadows[w]) {
+						using var left = JsonDocument.Parse(uninterruptedShadows[w]);
+						using var right = JsonDocument.Parse(replayed);
+						string difference = FirstJsonDifference(left.RootElement, right.RootElement, "shadow");
+						if (difference != null) throw new InvalidOperationException($"Evidence replay differs in week {w + 1}: {difference}");
+						throw new InvalidOperationException($"Evidence replay serialization order differs in week {w + 1}.");
+					}
+					if (replayShadow.Advance(observationDate, input, StatureObservation.ShadowConfig))
+						throw new InvalidOperationException($"Evidence replay was not idempotent in week {w + 1}.");
+				}
+				GD.Print($"STATURE_EVIDENCE_REPLAY_PASS weeks={replayWeeks} start={replayStartDate:yyyy-MM-dd}");
+				GetTree().Quit(0); return;
+			}
+			WorldStateService.Apply(restored, capturedDate, SimulationSeedBootstrap.RequestedSeed);
+			if (replayWeeks > 0) {
+				GD.Print($"STATURE_REPLAY_GLOBAL_RNG captured={capturedGlobalRng} afterRestore={GameRandom.State} override={replayGlobalRng}");
+				if (replayGlobalRng) GameRandom.State = capturedGlobalRng;
+			}
 
 			WorldSaveData cap2 = WorldStateService.Capture();
 			ProfessionalWritingMarketChecks.CheckLiveState();
@@ -204,6 +305,89 @@ public partial class SaveLoadRoundTripRunner : Node {
 			string b = JsonSerializer.Serialize(cap2, opts);
 
 			if (a == b) {
+				if (replayWeeks > 0) {
+					if (traceRecord != null) {
+						ChartManager.ReplayDemandObserver = (stage, record, region, data, units) => { CaptureDemand(resumedDemand, stage, record, region, data, units); CapturePopulation(resumedPopulation, stage, record, region, data, units); };
+						ChartManager.ReplayMarketObserver = summary => CaptureMarket(resumedMarkets, summary);
+					}
+					StatureObservation.ReplayEvidenceObserver = (date, evidence, source) => { resumedInputs.Add(JsonSerializer.Serialize(evidence, opts)); resumedSources.Add(source); };
+					for (int w = 0; w < replayWeeks; w++) {
+						if (TimeManager.Instance.IsGameOver) throw new InvalidOperationException("Game ended during restored stature replay.");
+						AdvanceOneChartWeek();
+						if (w == 0 && traceWorldReplay) {
+							using var leftWorld = JsonDocument.Parse(uninterruptedWorldAfterWeek1);
+							using var rightWorld = JsonDocument.Parse(JsonSerializer.Serialize(WorldStateService.Capture(), opts));
+							foreach (var section in leftWorld.RootElement.EnumerateObject()) {
+								if (!rightWorld.RootElement.TryGetProperty(section.Name, out var rightSection)) { GD.Print($"STATURE_WORLD_DIFF missing={section.Name}"); continue; }
+								if (section.Name == "ShadowContinuation") {
+									foreach (var part in section.Value.EnumerateObject()) {
+										string delta = FirstJsonDifference(part.Value, rightSection.GetProperty(part.Name), "world.ShadowContinuation." + part.Name);
+										if (delta != null) GD.Print("STATURE_WORLD_DIFF " + delta);
+									}
+								} else {
+									string delta = FirstJsonDifference(section.Value, rightSection, "world." + section.Name);
+									if (delta != null) GD.Print("STATURE_WORLD_DIFF " + delta);
+								}
+							}
+						}
+					}
+					if (MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate != replayStartDate.AddDays(7 * replayWeeks))
+						throw new InvalidOperationException("Restored stature clock did not advance through the replay.");
+					StatureObservation.ReplayEvidenceObserver = null;
+					ChartManager.ReplayDemandObserver = null;
+					ChartManager.ReplayMarketObserver = null;
+					if (traceRecord != null) {
+						if (uninterruptedDemand.Count != replayWeeks * 4 || resumedDemand.Count != replayWeeks * 4 || uninterruptedMarkets.Count != replayWeeks || resumedMarkets.Count != replayWeeks)
+							throw new InvalidOperationException("Expected four demand trace entries per week in each continuation.");
+						for (int i = 0; i < uninterruptedDemand.Count; i++) {
+							GD.Print($"STATURE_DEMAND_TRACE arm=uninterrupted {uninterruptedDemand[i]}");
+							GD.Print($"STATURE_DEMAND_TRACE arm=resumed {resumedDemand[i]}");
+						}
+						for (int i = 0; i < replayWeeks; i++) {
+							GD.Print($"STATURE_MARKET_TRACE arm=uninterrupted {uninterruptedMarkets[i]}");
+							GD.Print($"STATURE_MARKET_TRACE arm=resumed {resumedMarkets[i]}");
+						}
+						foreach (string id in uninterruptedPopulation.Keys.Union(resumedPopulation.Keys, StringComparer.Ordinal)
+							.OrderByDescending(id => Math.Abs(uninterruptedPopulation.GetValueOrDefault(id).Raw - resumedPopulation.GetValueOrDefault(id).Raw)).ThenBy(id => id, StringComparer.Ordinal).Take(10)) {
+							var left = uninterruptedPopulation.GetValueOrDefault(id); var right = resumedPopulation.GetValueOrDefault(id);
+							GD.Print($"STATURE_POPULATION_TRACE record={id} present={uninterruptedPopulation.ContainsKey(id)}/{resumedPopulation.ContainsKey(id)} raw={left.Raw:R}/{right.Raw:R} serviceable={left.Serviceable}/{right.Serviceable}");
+						}
+					}
+					if (uninterruptedInputs.Count != replayWeeks || resumedInputs.Count != replayWeeks)
+						throw new InvalidOperationException("Stature replay did not observe exactly one evidence input per week.");
+					for (int w = 0; w < replayWeeks; w++) {
+						using var left = JsonDocument.Parse(uninterruptedInputs[w]);
+						using var right = JsonDocument.Parse(resumedInputs[w]);
+						string difference = FirstJsonDifference(left.RootElement, right.RootElement, "evidence");
+						if (difference != null) {
+							using var sourceLeft = JsonDocument.Parse(uninterruptedSources[w]);
+							using var sourceRight = JsonDocument.Parse(resumedSources[w]);
+							string market = FirstJsonDifference(sourceLeft.RootElement.GetProperty("Markets"), sourceRight.RootElement.GetProperty("Markets"), "markets");
+							string[] parts = difference.Split('.');
+							string id = parts.Length > 1 ? parts[1].Split(':')[0] : "";
+							var artistsLeft = sourceLeft.RootElement.GetProperty("Artists"); var artistsRight = sourceRight.RootElement.GetProperty("Artists");
+							string artist = artistsLeft.TryGetProperty(id, out var salesLeft) && artistsRight.TryGetProperty(id, out var salesRight)
+								? FirstJsonDifference(salesLeft, salesRight, "artistSales") : "artist sales absent in at least one continuation";
+							var recordsLeft = sourceLeft.RootElement.GetProperty("Records"); var recordsRight = sourceRight.RootElement.GetProperty("Records");
+							bool hasLeftRecords = recordsLeft.TryGetProperty(id, out var recordLeft);
+							bool hasRightRecords = recordsRight.TryGetProperty(id, out var recordRight);
+							string records = hasLeftRecords && hasRightRecords
+								? FirstJsonDifference(recordLeft, recordRight, "records") : "artist records absent in at least one continuation";
+							string recordIds = recordLeft.ValueKind == JsonValueKind.Array ? string.Join(", ", recordLeft.EnumerateArray().Select(r => r.GetProperty("Id").GetString())) : "unavailable";
+							string recordChanges = DescribeRecordSales(recordLeft, recordRight);
+							throw new InvalidOperationException($"Stature replay input differs in week {w + 1}: {difference}\nSales for {id}: {artist ?? "identical"}\nRecord inputs: {records ?? "identical"} (uninterrupted IDs in order: {recordIds})\nRecord sales changes: {recordChanges}\nMarket totals: {market ?? "identical"}");
+						}
+					}
+					string resumedShadow = JsonSerializer.Serialize(WorldStateService.Capture().Media.ExperimentalStature, opts);
+					if (uninterruptedShadow != resumedShadow) {
+						int diff = 0;
+						while (diff < uninterruptedShadow.Length && diff < resumedShadow.Length && uninterruptedShadow[diff] == resumedShadow[diff]) diff++;
+						int start = Math.Max(0, diff - 100);
+						string excerpt(string value) => value.Substring(Math.Min(start, value.Length), Math.Min(200, value.Length - Math.Min(start, value.Length)));
+						throw new InvalidOperationException($"Stature replay differs after {replayWeeks} weeks at character {diff} (uninterrupted={uninterruptedShadow.Length}, resumed={resumedShadow.Length}).\nUninterrupted: {excerpt(uninterruptedShadow)}\nResumed: {excerpt(resumedShadow)}");
+					}
+					GD.Print($"STATURE_REPLAY_PASS weeks={replayWeeks}");
+				}
 				// Also exercise the real gzip + Godot FileAccess buffer IO path end-to-end, and report the
 				// compressed size (the actual on-disk save size for this world).
 				string gzipStatus = VerifyGzipFileIo(cap1, opts, out long compressedBytes);
@@ -213,7 +397,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 					GD.Print("PROFESSIONAL_WRITING_MARKET_RESUME passed");
 				}
 				if (LabelReleaseProgramme.Enabled) {
+					var lastStatureDate = statureRoundtrip == null ? default : MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate;
 					AdvanceOneChartWeek();
+					if (statureRoundtrip != null && MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate != lastStatureDate.AddDays(7))
+						throw new InvalidOperationException("Live stature clock did not continue after world restore.");
 					LabelReleaseProgrammeChecks.CheckLiveState();
 					GD.Print("LABEL_RELEASE_PROGRAMME_RESUME passed");
 					HitActFitSupportChecks.CheckLiveState();
@@ -237,6 +424,44 @@ public partial class SaveLoadRoundTripRunner : Node {
 			GD.PushError("SAVELOAD_ROUNDTRIP_ERROR: " + exception);
 			GetTree().Quit(3);
 		}
+	}
+
+	private static string FirstJsonDifference(JsonElement left, JsonElement right, string path) {
+		if (left.ValueKind != right.ValueKind) return $"{path}: {left.GetRawText()} vs {right.GetRawText()}";
+		if (left.ValueKind == JsonValueKind.Object) {
+			var rightProperties = right.EnumerateObject().ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal);
+			foreach (var item in left.EnumerateObject()) {
+				if (!rightProperties.Remove(item.Name, out var other)) return $"{path}.{item.Name}: missing after restore";
+				string difference = FirstJsonDifference(item.Value, other, path + "." + item.Name);
+				if (difference != null) return difference;
+			}
+			return rightProperties.Count == 0 ? null : $"{path}.{rightProperties.Keys.OrderBy(k => k, StringComparer.Ordinal).First()}: added after restore";
+		}
+		if (left.ValueKind == JsonValueKind.Array) {
+			if (left.GetArrayLength() != right.GetArrayLength()) return $"{path}: array lengths {left.GetArrayLength()} vs {right.GetArrayLength()}";
+			for (int i = 0; i < left.GetArrayLength(); i++) {
+				string difference = FirstJsonDifference(left[i], right[i], $"{path}[{i}]");
+				if (difference != null) return difference;
+			}
+			return null;
+		}
+		return left.GetRawText() == right.GetRawText() ? null : $"{path}: {left.GetRawText()} vs {right.GetRawText()}";
+	}
+
+	private static string DescribeRecordSales(JsonElement left, JsonElement right) {
+		if (left.ValueKind != JsonValueKind.Array || right.ValueKind != JsonValueKind.Array) return "unavailable";
+		var other = right.EnumerateArray().ToDictionary(r => r.GetProperty("Id").GetString(), r => r, StringComparer.Ordinal);
+		var changes = new System.Collections.Generic.List<string>();
+		foreach (var record in left.EnumerateArray()) {
+			string id = record.GetProperty("Id").GetString();
+			if (!other.TryGetValue(id, out var resumed)) { changes.Add(id + " missing after restore"); continue; }
+			var regions = resumed.GetProperty("Regions");
+			foreach (var region in record.GetProperty("Regions").EnumerateObject()) {
+				if (!regions.TryGetProperty(region.Name, out var value)) changes.Add($"{id}/{region.Name} missing after restore");
+				else if (region.Value.GetRawText() != value.GetRawText()) changes.Add($"{id}/{region.Name}: {region.Value.GetRawText()} vs {value.GetRawText()}");
+			}
+		}
+		return changes.Count == 0 ? "none among matched regions" : string.Join("; ", changes);
 	}
 
 	/// <summary>Mirrors SaveGameService's gzip file IO: stream a world through GZipStream into a buffer, store it

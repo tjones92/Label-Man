@@ -64,9 +64,15 @@ public static class AiMasterDeals {
 	private const uint PickupDecision = 0x4D530100U;
 	private static bool configured;
 	public static bool Enabled { get; private set; }
-	/// <summary>Breakout markets last heard per record: a call comes only on new evidence. Not saved; a resumed run
-	/// re-hears current evidence, and the keyed draw gives the same answer.</summary>
+	/// <summary>Breakout markets last heard per record: a call comes only on new evidence. Ordinary saves omit this;
+	/// the experimental persisted-shadow checkpoint retains it so rollback replays the same pickup decisions.</summary>
 	private static readonly Dictionary<string, int> pickupEvidence = new(StringComparer.Ordinal);
+
+	internal static Dictionary<string, int> CapturePickupEvidence() => new(pickupEvidence, StringComparer.Ordinal);
+	internal static void RestorePickupEvidence(Dictionary<string, int> saved) {
+		pickupEvidence.Clear();
+		if (saved != null) foreach (var p in saved) pickupEvidence.Add(p.Key, p.Value);
+	}
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;

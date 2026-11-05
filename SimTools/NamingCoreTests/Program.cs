@@ -14,7 +14,13 @@ public static class Program {
 		if (!cond) { fails++; Console.WriteLine($"  FAIL {what}"); }
 	}
 
-	public static void Main() {
+	public static void Main(string[] args) {
+		TestRandomContinuation();
+		TestNamingContinuation();
+		if (args.Contains("--continuation-only")) {
+			Console.WriteLine($"{total - fails}/{total} continuation checks passed");
+			Environment.Exit(fails == 0 ? 0 : 1);
+		}
 		TestInflection();
 		TestMoodGraph();
 		TestOntology();
@@ -24,6 +30,48 @@ public static class Program {
 		TestNameEngineIntegration();
 		Console.WriteLine($"\n{total - fails}/{total} passed" + (fails == 0 ? "  ALL GREEN" : $"  ({fails} FAILED)"));
 		Environment.Exit(fails == 0 ? 0 : 1);
+	}
+
+	static void TestRandomContinuation() {
+		Console.WriteLine("== Random continuation ==");
+		foreach (int seed in new[] { 0, 1001, -2002, int.MinValue, int.MaxValue }) {
+			var original = new DeterministicRandom(seed);
+			var reference = new Random(seed);
+			int[] bounds = { -1, 0, 1, 2, 97, int.MaxValue };
+			for (int i = 0; i < 1000; i++) {
+				int bound = bounds[i % bounds.Length];
+				True("unchanged integer sequence", original.Next(bound) == (bound <= 0 ? 0 : reference.Next(bound)));
+				True("unchanged double sequence", original.NextDouble() == reference.NextDouble());
+			}
+			var state = System.Text.Json.JsonSerializer.Deserialize<DeterministicRandomState>(System.Text.Json.JsonSerializer.Serialize(original.CaptureState()));
+			var resumed = DeterministicRandom.RestoreState(state);
+			for (int i = 0; i < 1000; i++) {
+				True("resumed integer sequence", original.Next(bounds[i % bounds.Length]) == resumed.Next(bounds[i % bounds.Length]));
+				True("resumed double sequence", original.NextDouble() == resumed.NextDouble());
+			}
+		}
+	}
+
+	static void TestNamingContinuation() {
+		Console.WriteLine("== Naming continuation ==");
+		NameEngine MakeEngine() {
+			var lex = new Lexicon();
+			lex.Add(new WordEntry { Word = "echo", Pos = "noun" });
+			lex.Add(new WordEntry { Word = "lady", Pos = "noun" });
+			return new NameEngine(lex, GrammarEngine.ParseGrammar("{\"title\":[\"The {noun.cap}\"]}"));
+		}
+		var engine = MakeEngine();
+		var random = new DeterministicRandom(1001);
+		var context = new NamingContext { Genre = "Blues", Year = 1960, Rng = random };
+		for (int i = 0; i < 4; i++) engine.Generate("title", context, "songs", true, 8);
+		var rngState = System.Text.Json.JsonSerializer.Deserialize<DeterministicRandomState>(System.Text.Json.JsonSerializer.Serialize(random.CaptureState()));
+		var names = System.Text.Json.JsonSerializer.Deserialize<NameUniquenessState>(System.Text.Json.JsonSerializer.Serialize(engine.CaptureUniqueness()));
+		string[] expected = Enumerable.Range(0, 12).Select(_ => engine.Generate("title", context, "songs", true, 8)).ToArray();
+		foreach (var target in new[] { engine, MakeEngine() }) {
+			target.RestoreUniqueness(names); context.Rng = DeterministicRandom.RestoreState(rngState);
+			string[] actual = Enumerable.Range(0, 12).Select(_ => target.Generate("title", context, "songs", true, 8)).ToArray();
+			True("restored exact/fuzzy buckets and title sequence", expected.SequenceEqual(actual));
+		}
 	}
 
 	static void TestInflection() {

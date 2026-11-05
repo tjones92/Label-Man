@@ -45,6 +45,21 @@ public partial class NameGenerator : Node {
 	// provably inert to the economy -- nothing else draws from it.
 	private IRandom _titleRng;
 
+	internal NamingContinuationSaveData CaptureContinuation() {
+		EnsureLoaded();
+		return new() {
+			Main = ((DeterministicRandom)_rng).CaptureState(), Acts = ((DeterministicRandom)_actRng).CaptureState(),
+			Titles = ((DeterministicRandom)_titleRng).CaptureState(), Uniqueness = _engine.CaptureUniqueness()
+		};
+	}
+
+	internal void RestoreContinuation(NamingContinuationSaveData saved) {
+		if (saved == null) return;
+		EnsureLoaded();
+		_rng = DeterministicRandom.RestoreState(saved.Main); _actRng = DeterministicRandom.RestoreState(saved.Acts);
+		_titleRng = DeterministicRandom.RestoreState(saved.Titles); _engine.RestoreUniqueness(saved.Uniqueness);
+	}
+
 	// Load in _EnterTree (not _Ready): later autoloads (e.g. ChartManager) generate labels during
 	// THEIR _EnterTree, which runs before this node's _Ready. Setting Instance without a loaded
 	// engine let those callers see Instance != null but _engine == null, so GenerateLabelName fell

@@ -5483,10 +5483,19 @@ public partial class CompetitorManager : Node {
 
 		albumProjects.Clear(); albumProjects.AddRange(c.AlbumProjects ?? new List<AlbumProject>());
 		pendingAlbumProjects.Clear(); pendingAlbumProjects.AddRange(c.PendingAlbumProjects ?? new List<AlbumProject>());
+		var projectContinuation = w.ShadowContinuation?.Projects;
+		if (projectContinuation != null) {
+			generatedProjectCounter = projectContinuation.Counter;
+			// Pending work is the same project object as its history/index entry, not a second mutable copy.
+			var canonical = albumProjects.ToDictionary(p => p.projectId, System.StringComparer.Ordinal);
+			for (int i = 0; i < pendingAlbumProjects.Count; i++)
+				if (canonical.TryGetValue(pendingAlbumProjects[i].projectId, out var project)) pendingAlbumProjects[i] = project;
+		}
 
 		// A project's Record refs: relink released records to the shared allRecords object (identity); a pending
 		// project's record isn't in allRecords, so its deserialized copy stays.
-		foreach (AlbumProject project in albumProjects.Concat(pendingAlbumProjects)) RelinkProjectRecords(project);
+		foreach (AlbumProject project in albumProjects.Concat(pendingAlbumProjects))
+			RelinkProjectRecords(project, projectContinuation?.Records.GetValueOrDefault(project.projectId));
 
 		var projectByProjectId = albumProjects.Concat(pendingAlbumProjects)
 			.Where(p => !string.IsNullOrEmpty(p.projectId))
@@ -5556,13 +5565,13 @@ public partial class CompetitorManager : Node {
 		return highest;
 	}
 
-	private static void RelinkProjectRecords(AlbumProject project) {
+	private static void RelinkProjectRecords(AlbumProject project, ProjectRecordLinksSaveData links = null) {
 		if (project == null) return;
-		if (project.albumRecord?.recordId != null) {
+		if (project.albumRecord?.recordId != null && (links == null || links.AlbumIsLive)) {
 			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.albumRecord.recordId);
 			if (live?.baseRecord != null) project.albumRecord = live.baseRecord;
 		}
-		if (project.promoSingleRecord?.recordId != null) {
+		if (project.promoSingleRecord?.recordId != null && (links == null || links.PromoIsLive)) {
 			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.promoSingleRecord.recordId);
 			if (live?.baseRecord != null) project.promoSingleRecord = live.baseRecord;
 		}

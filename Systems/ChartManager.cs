@@ -300,6 +300,9 @@ public partial class ChartManager : Node {
 		public int PhysicalBackorders, MarketDisplacedDemand, InventoryMovement;
 		public int RackUnits;
 	}
+	// Optional replay diagnostic; never installed by normal simulation paths.
+	internal static Action<string, RecordRuntimeData, MarketRegion, RegionalRecordData, int> ReplayDemandObserver;
+	internal static Action<MarketClearingRegionalSummary> ReplayMarketObserver;
 	private sealed class MarketIntent {
 		public RecordRuntimeData Record;
 		public RegionalRecordData Data;
@@ -1373,6 +1376,7 @@ public partial class ChartManager : Node {
 					data.genreRadioOpportunityThisWeek = GenreAcceptanceService.GetRegionalRadioOpportunity(
 						record.baseRecord.primaryGenre, region, acceptanceYear, blendedAcceptance);
 				}
+				ReplayDemandObserver?.Invoke("before-demand", record, region, data, 0);
 				int serviceable = isAlbum
 					? AlbumSimulator.CalculateRegionalSales(record, region, data, year, month, triggerEvents, label)
 					: ChartSimulator.CalculateRegionalSales(record, region, data, quality, blendedAcceptance, year, month,
@@ -1397,6 +1401,7 @@ public partial class ChartManager : Node {
 				}
 				serviceable = BoundedAudienceProbe.CapServiceable(data, serviceable);
 				data.serviceableIntentThisWeek = serviceable;
+				ReplayDemandObserver?.Invoke("after-demand", record, region, data, serviceable);
 				data.marketDisplacedDemandThisWeek = 0;
 				MarketIntent intent;
 				if (intentCount < marketIntentScratch.Count) intent = marketIntentScratch[intentCount];
@@ -1562,6 +1567,7 @@ public partial class ChartManager : Node {
 					summary.InventoryViolationCount++;
 				intent.Data.unitsInStores = Mathf.Max(0, intent.Data.unitsInStores - intent.Cleared);
 				intent.Data.unitsSoldThisWeek = intent.Cleared;
+				ReplayDemandObserver?.Invoke("after-clearing", intent.Record, region, intent.Data, intent.Cleared);
 				intent.Data.unitsSoldTotal += intent.Cleared;
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
@@ -1574,6 +1580,7 @@ public partial class ChartManager : Node {
 				summary.ReconciliationDelta != 0)
 				summary.AllocationViolationCount++;
 			lastMarketClearingSummaries.Add(summary);
+			ReplayMarketObserver?.Invoke(summary);
 		}
 		// Rack jobbers sell to their own shoppers after the stores have cleared; their units bypass every summary above.
 		if (!BudgetLpChannel.Enabled) RackJobberChannel.ClearWeek(allRecords, allRegions, GetLabelById, currentChartWeek, year, month, triggerEvents);
@@ -3009,6 +3016,11 @@ public partial class ChartManager : Node {
 	/// (playlists, rapport, payola actions) resets rather than being snapshotted -- the record-level airplay
 	/// state that actually feeds the chart is restored with the records. Rebuild after the clock is restored.</summary>
 	public void RebuildRadioForLoad() => BuildRadioPanel(TimeManager.Instance?.CurrentDate.year ?? 1960);
+
+	internal StationContinuationSaveData CaptureShadowRadio() => stationNetwork?.CaptureContinuation();
+	internal void RestoreShadowRadio(StationContinuationSaveData saved) {
+		if (saved != null) stationNetwork.RestoreContinuation(saved, allRegions);
+	}
 
 	public void RehydrateRecords(WorldSaveData w) {
 		marketIntentScratch.Clear();
