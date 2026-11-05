@@ -489,7 +489,7 @@ public static partial class MediaAtmosphereService {
 			lead.Story.Tone = StoryTone.Admiring;
 			lead.Story.Face = MediaFans.Face(fans);
 			lead.Story.FanState = fans?.State ?? FanEpisodeState.None;
-			Fact(lead, EvidenceSource.BroadcastAiring, $"seen on {teenShows} teen program(s)", today);
+			Fact(lead, EvidenceSource.BroadcastAiring, $"seen on {Plural.Of(teenShows, "teen program")}", today);
 			Fact(lead, EvidenceSource.NationalChart, $"No. {r.currentPosition} this week", today);
 			lead.Outlets.AddRange(Outlets(PressFamily.TeenFan));
 			leads.Add(lead);

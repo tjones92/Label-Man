@@ -969,6 +969,9 @@ public partial class PlayerDesk : Node {
 		if (station == null) { message = "No such radio station."; return false; }
 		MarketRegion here = CurrentRegion();
 		if (here == null || station.regionId != here.regionId) { message = "Take the acetate to a station in the market you're working."; return false; }
+		// Hand delivery is an hour across town, not across the region: a station in another town needs the drive
+		// first. (Playtest 2026-11-04: WLKP Atlanta took an hour from Memphis.)
+		if (!IsStationInCurrentTown(station)) { message = $"{station.callsign} is in {station.cityName} -- drive there first, then hand it over."; return false; }
 		if (!Require(1, out message)) return false;
 		Spend(1);
 		acetateCopies.Remove(recordId);
@@ -988,6 +991,9 @@ public partial class PlayerDesk : Node {
 		Changed?.Invoke();
 		return true;
 	}
+	/// <summary>True when the station's town is the town you're standing in, so a walk-in visit is an hour's job.</summary>
+	public bool IsStationInCurrentTown(RadioStation station) =>
+		station != null && DistanceModel.GetCityByName(station.cityName)?.cityId is { } cityId && cityId == CurrentCityId;
 	public IEnumerable<string> WorkedCities => workedCities;
 
 	// ── Promo servicing (directive §3.2) ────────────────────────────────────────────────────────
@@ -1055,6 +1061,32 @@ public partial class PlayerDesk : Node {
 		if (officeOnly && !AtHome) return;
 		if (skipStops.Any(stop => stop.Title == title)) return;
 		skipStops.Add((title, type));
+	}
+
+	/// <summary>Released, sellable copies sitting in the office while nobody works an account: no shop or operator
+	/// approached since <paramref name="idleDays"/> days ago and no runner on a route. 0 when someone is working them.
+	/// (Playtest 2026-11-04: a 14-day skip with 725 records in the office raised no flag and sold nothing.)</summary>
+	public int UnworkedOfficeCopies(out int idleDays) {
+		idleDays = 0;
+		if (Label == null || runner?.RouteStopIds.Count > 0) return 0;
+		var released = ReleasedRecords.Where(r => r?.baseRecord != null).ToDictionary(r => r.baseRecord.recordId, r => r.baseRecord.releaseDate, StringComparer.Ordinal);
+		var sitting = inventory.Where(kv => kv.Value.Remaining > 0 && released.ContainsKey(kv.Key)).ToList();
+		if (sitting.Count == 0) return 0;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		GameDate since = sitting.Select(kv => released[kv.Key]).Where(d => d.year > 0).DefaultIfEmpty(today).Aggregate((a, b) => a < b ? a : b);
+		foreach (PlayerStop stop in EnsureStops().Values)
+			if (stop.LastApproachDate.year > 0 && stop.LastApproachDate > since) since = stop.LastApproachDate;
+		idleDays = Math.Max(0, (new DateTime(today.year, today.month, today.day) - new DateTime(since.year, since.month, since.day)).Days);
+		return sitting.Sum(kv => kv.Value.Remaining);
+	}
+
+	public const int UnworkedStockStopDays = 7;
+
+	/// <summary>A skip stops once a week while stock sits unworked, so a long skip can't quietly sell nothing.</summary>
+	private void FlagUnworkedStock() {
+		int copies = UnworkedOfficeCopies(out int idle);
+		if (copies > 0 && idle > 0 && idle % UnworkedStockStopDays == 0)
+			FlagSkipStop($"{copies:N0} records in the office and nobody has worked an account for {idle} days", EventType.Reminder);
 	}
 
 	private (string Title, EventType Type)? ProbeSkipStop() {
@@ -1127,7 +1159,12 @@ public partial class PlayerDesk : Node {
 		if (Instance == this) Instance = null;
 	}
 
-	private void OnHourChanged(int hour) { AnnounceDueCallbacks(); Changed?.Invoke(); }
+	private bool announcingCallbacks;
+	private void OnHourChanged(int hour) {
+		announcingCallbacks = true;
+		try { AnnounceDueCallbacks(); } finally { announcingCallbacks = false; }
+		Changed?.Invoke();
+	}
 
 	private void OnRivalTalentMarketAppointment(RosterManager.DailyTalentMarketAppointment appointment) {
 		if (appointment?.SelectedArtist == null || appointment.Label == null || appointment.Label.isPlayerOwned) return;
@@ -1168,7 +1205,7 @@ public partial class PlayerDesk : Node {
 				GameOver($"{MaxMonthsInTheRed} months in the red with the bills unpaid. {Label.labelName} folds.");
 				return;
 			}
-			Note($"Another month in the red (${Label.cashReserves:N0}). {MonthsOfGraceLeft} month(s) before the bank closes you.");
+			Note($"Another month in the red (${Label.cashReserves:N0}). {Plural.Of(MonthsOfGraceLeft, "month")} before the bank closes you.");
 		} else if (monthsInTheRed > 0) {
 			monthsInTheRed = 0;
 			Note("Back in the black -- the bank's off your back for now.");
@@ -1261,6 +1298,8 @@ public partial class PlayerDesk : Node {
         contractCommitments.Clear();
         rivalOffers.Clear();
         rosterDepartures.Clear();
+		catalogNumbers.Clear();
+		pendingSigningMoment = null;
         ResetRosterWatch();
 		PolarPlayerPerception.Reset();
 		currentCityId = city.cityId; // you start at your own office
@@ -2140,7 +2179,7 @@ public partial class PlayerDesk : Node {
 			OpenNegotiation(prospect, ReadContractOutlook(prospect.Artist, renewal: false));
 			DiscloseRivalOffer(prospect.Artist.artistId);
 			RememberScoutingNegotiation(prospect);
-			message = $"{prospect.Artist.stageName} have {rivalPaper.RivalLabelName}'s offer in hand now. They want to talk terms.";
+			message = $"{prospect.Artist.stageName} {ActGrammar.Verb(prospect.Artist, "has", "have")} {rivalPaper.RivalLabelName}'s offer in hand now. They want to talk terms.";
 			Changed?.Invoke();
 			return false;
 		}
@@ -2239,7 +2278,7 @@ public partial class PlayerDesk : Node {
 		}
 
 		Note($"{artist.stageName} wrote {string.Join(" / ", titles)}.");
-		message = $"Wrote {written} song(s).";
+		message = $"Wrote {Plural.Of(written, "song")}.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -2593,8 +2632,8 @@ public partial class PlayerDesk : Node {
 		}
 		pendingSession = session;
 
-		Note($"Booked {StudioTierName(tier)} for {hours}h with {artist.stageName}: {cutting.Count} song(s), {takes} take(s) each, ${cost:N0}.");
-		message = $"{takes} take(s) of {cutting.Count} song(s) in the can -- keep the ones you want.";
+		Note($"Booked {StudioTierName(tier)} for {hours}h with {artist.stageName}: {Plural.Of(cutting.Count, "song")}, {Plural.Of(takes, "take")} each, ${cost:N0}.");
+		message = $"{Plural.Of(takes, "take")} of {Plural.Of(cutting.Count, "song")} in the can -- keep the ones you want.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -2667,10 +2706,10 @@ public partial class PlayerDesk : Node {
 			SessionTake take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
 			if (PrintMaster(artist, cut.Choice, take, perMasterCost, pendingSession.Date, year, week, SelectedStudioFinish(cut), StudioStructureOf(cut, take))) printed++;
 		}
-		Note($"Printed {printed} master(s) from the {StudioTierName(pendingSession.Tier)} date with {artist.stageName}.");
+		Note($"Printed {Plural.Of(printed, "master")} from the {StudioTierName(pendingSession.Tier)} date with {artist.stageName}.");
 		RememberStudioVisit(pendingSession, true, masters.Skip(mastersBefore).Select(m => m.Record?.recordId).Where(id => id != null).ToList());
 		pendingSession = null;
-		message = $"{printed} master(s) on the shelf." + AwayFromHomeNote();
+		message = $"{Plural.Of(printed, "master")} on the shelf." + AwayFromHomeNote();
 		Changed?.Invoke();
 		return true;
 	}
@@ -3728,6 +3767,21 @@ public partial class PlayerDesk : Node {
 				if (lot.Remaining > 0) yield return (CityName(stop.CityId), stop.DisplayName, TitleForRecord(recordId), lot.Remaining);
 	}
 
+	/// <summary>One record's sell-through for its catalog card: copies on shop shelves, copies sold (settled weeks plus
+	/// this week's trunk units), and roughly what the shops holding it owe. A stop's balance is not kept per record, so
+	/// it is shared out by each record's placed copies there.</summary>
+	public (int OnShelves, int Sold, float Owed) RecordSellThrough(string recordId) {
+		int shelves = 0; float owed = 0f;
+		foreach (PlayerStop stop in EnsureStops().Values) {
+			if (!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot)) continue;
+			shelves += Math.Max(0, lot.Remaining);
+			int placedAll = stop.OnHand.Values.Sum(l => Math.Max(0, l.Placed));
+			if (stop.OpenBalance > 0f && placedAll > 0) owed += stop.OpenBalance * Math.Max(0, lot.Placed) / placedAll;
+		}
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		return (shelves, (rec?.totalUnitsSold ?? 0) + PendingTrunkUnits(recordId), owed);
+	}
+
 	// ========================================================================
 	// INBOUND DEMAND -- "they called me" (directive §4). Today, trunk is 100% player-push; this is the
 	// seam that lets a title with real local demand pull the player back to a shelf instead of dying at
@@ -3807,41 +3861,70 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	private void CheckWeeklyBreakoutNotices() {
 		if (Label == null || CompetitorManager.Instance == null) return;
-		float bar = CompetitorManager.Instance.RegionalBreakoutDealThreshold;
+		var cm = CompetitorManager.Instance;
+		float bar = cm.RegionalBreakoutDealThreshold;
+		// The paper only promises what the doors will say: "a house would take the line" is the wholesale gate's own
+		// proof (HasProvenBreakoutIn, what TAKE THE MEETING reads), and "a P&D house would hear this out" is the pitch's
+		// own readiness check. Below those bars the record is news, not an open door, and the line says what the
+		// door is waiting for. (Playtest 2026-11-04: the paper fired on the running .20 peak while both doors refused.)
+		bool dealReady = cm.PlayerDealReadiness(Label, out _);
 
 		foreach (RecordRuntimeData rec in ReleasedRecords) {
 			if (rec?.baseRecord == null || rec.regionalData == null) continue;
 			string recordId = rec.baseRecord.recordId;
 			string title = TitleForRecord(recordId);
-			int provenUncovered = 0;
+			var heardOnly = new List<string>();
+			int heardUncovered = 0;
 
 			foreach (var pair in rec.regionalData) {
 				string regionId = pair.Key;
 				if ((pair.Value?.peakBreakoutScore ?? 0f) < bar) continue;
 				if (Label.HasDistributionInRegion(regionId)) continue; // already selling there through a line or a deal
-				provenUncovered++;
-				if (!breakoutNoticesShown.Add($"{recordId}|{regionId}")) continue;
-
+				heardUncovered++;
 				string regionName = ChartManager.Instance?.GetRegionById(regionId)?.regionName ?? regionId;
+				if (!cm.HasProvenBreakoutIn(Label, regionId)) {
+					if (breakoutNoticesShown.Add($"{recordId}|{regionId}|heard")) heardOnly.Add(regionName);
+					continue;
+				}
+				if (!breakoutNoticesShown.Add($"{recordId}|{regionId}")) continue;
 				// Point at a door that's actually open. A market with no house with room is still news --
 				// it's what a P&D pitch is built on -- but it isn't a trip worth taking this week.
-				bool houseHasRoom = CompetitorManager.Instance.GetIndependentDistributorsInRegion(regionId)
+				bool houseHasRoom = cm.GetIndependentDistributorsInRegion(regionId)
 					.Any(house => house.HasCapacity && !house.CarriesLabel(Label.labelId));
 				Note(houseHasRoom
-					? $"{regionName} has heard \"{title}\" -- a house would take the line there now. ({DistributionHours}h to go place it.)"
-					: $"{regionName} has heard \"{title}\", but no house there has room for another line right now.");
+					? $"{regionName} has been buying \"{title}\" week after week -- a house would take the line there now. "
+						+ $"(DISTRIBUTION, wholesale houses: {DistributionHours}h to go place it.)"
+					: $"{regionName} has been buying \"{title}\" week after week, but no house there has room for another line right now.");
 			}
 
-			// The national read. Proof in this many uncovered markets at once is the record outgrowing the
-			// trunk: every one of those markets is turning its demand into backorder because nothing restocks
-			// a player record where the label has no coverage.
-			if (provenUncovered >= NationalBreakoutRegionCount && Label.activeDeal == null
-				&& breakoutNoticesShown.Add($"{recordId}|NATIONAL")) {
-				Note($"\"{title}\" is breaking in {provenUncovered} markets you don't cover -- that demand is "
-					+ "sitting as backorder, not sales. A P&D house would hear this one out.");
+			if (heardOnly.Count > 0)
+				Note($"\"{title}\" is getting heard in {JoinRegions(heardOnly)} -- not proof yet. A wholesale house there wants "
+					+ (WholesaleSpreadGate.Enabled ? $"about {WholesaleSpreadGate.SustainedTractionWeeks} straight weeks of it selling" : "it to break out")
+					+ " before it'll take your line; until then a pitch is a cold gamble.");
+
+			// The national read. Demand in this many uncovered markets at once is the record outgrowing the trunk:
+			// those markets turn it into backorder because nothing restocks a player record where the label has no
+			// coverage. Whether a P&D house would sit down is the pitch's own check, not this count.
+			if (Label.activeDeal != null) continue;
+			bool hitNow = !RegionalHitDealGate.Enabled
+				|| rec.regionalData.Values.Any(d => RegionalHitDealGate.IsRecent(d, rec.weeksSinceRelease));
+			if (dealReady && hitNow && breakoutNoticesShown.Add($"{recordId}|PND")) {
+				Note($"\"{title}\" is a regional hit right now -- a P&D house would hear this one out. "
+					+ $"(DISTRIBUTION, P&D deal: {SignHours}h to make the rounds.)");
+			} else if (!dealReady && heardUncovered >= NationalBreakoutRegionCount && breakoutNoticesShown.Add($"{recordId}|NATIONAL")) {
+				Note($"\"{title}\" is being asked for in {heardUncovered} markets you don't cover -- that demand is sitting as "
+					+ "backorder, not sales. A P&D house won't sit down on rumours, though: it wants one market where the record "
+					+ "is a hit right now.");
 			}
 		}
 	}
+
+	private static string JoinRegions(IReadOnlyList<string> names) => names.Count switch {
+		0 => "",
+		1 => names[0],
+		2 => $"{names[0]} and {names[1]}",
+		_ => string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1],
+	};
 
 	/// <summary>Directive §7's other unlock path: "inbound calls in two cities the same week." Reads what
 	/// GenerateInboundCalls just added rather than tracking a parallel counter.</summary>
@@ -4330,7 +4413,7 @@ public partial class PlayerDesk : Node {
 		ChartManager.Instance?.PlaceProjectPromo(recordId, Label.labelId, picks, effectiveness,
 			ProjectPromoDiscretion, ProjectPromoMobConnection, week, date.year, date.month, ProjectPromoWeeks);
 
-		Note($"Put a promo man on \"{TitleForRecord(recordId)}\" in {region.regionName} for ${cost:N0} -- {stationCount} station(s), about {ProjectPromoWeeks} weeks.");
+		Note($"Put a promo man on \"{TitleForRecord(recordId)}\" in {region.regionName} for ${cost:N0} -- {Plural.Of(stationCount, "station")}, about {ProjectPromoWeeks} weeks.");
 		message = $"Promo man working {region.regionName} for about {ProjectPromoWeeks} weeks (${cost:N0}).";
 		Changed?.Invoke();
 		return true;
@@ -4400,6 +4483,7 @@ public partial class PlayerDesk : Node {
 		Spend(hours);
 		if (gas > 0f) { Label.cashReserves -= gas; Label.monthlyExpenses += gas; }
 		currentCityId = dest.cityId;
+		LeaveSceneRoom(); // a new town: you are not in any of its venues yet
 		CollectAtCity(dest.cityId); // show up and the shops settle what they've been holding
 		Note($"Drove to {dest.name} ({hours}h, ${gas:N0} gas).");
 		message = goingHome ? "Back at the office." : $"You're in {dest.name}.";
@@ -4756,6 +4840,7 @@ public partial class PlayerDesk : Node {
 		ProcessMasterDealsDawn(date);
 		ProcessSongPlacementsDawn();
 		ProcessTrunkDay();
+		FlagUnworkedStock();
 		CheckWeeklyInboundCalls();
 		CheckWeeklyRunner();
 		CheckWeeklyFlip();
@@ -4801,7 +4886,7 @@ public partial class PlayerDesk : Node {
 	/// consequential business, 2 = everything else. The Morning Paper leads with the best rank-0 story.</summary>
 	public static int MorningStoryRank(string entry) {
 		string[] lead = {
-			"THE DOORS CLOSE", "BREAKOUT", "RELEASED:", "CHART DEBUT", "pressing plant delivered", "plant collected",
+			"THE DOORS CLOSE", "FIRST SIGNING:", "BREAKOUT", "RELEASED:", "CHART DEBUT", "pressing plant delivered", "plant collected",
 			"in the red", "back in the black"
 		};
 		if (lead.Any(signal => entry.Contains(signal, StringComparison.OrdinalIgnoreCase))) return 0;
@@ -5578,7 +5663,10 @@ public partial class PlayerDesk : Node {
 		GameDate date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		log.Insert(0, $"{date.ToShortString()}  {entry}");
 		if (log.Count > 60) log.RemoveAt(log.Count - 1);
-		UnreadLogCount = Mathf.Min(UnreadLogCount + 1, log.Count);
+		// The LEDGER badge is for news, not for echoes of what the player just clicked (playtest 2026-11-04: it reached 60,
+		// nearly all "Waited until the announced start" and the like, and the player stopped reading it).
+		if (TimeManager.Instance?.TurningTheDay == true || announcingCallbacks)
+			UnreadLogCount = Mathf.Min(UnreadLogCount + 1, log.Count);
 		GD.Print($"[Desk] {entry}");
 	}
 
@@ -5920,6 +6008,7 @@ public partial class PlayerDesk : Node {
 				FirstNotedYear = entry.FirstNoted?.year ?? 0, FirstNotedMonth = entry.FirstNoted?.month ?? 0, FirstNotedDay = entry.FirstNoted?.day ?? 0
 			}).ToList(),
 			AcetateCopies = new Dictionary<string, int>(acetateCopies),
+			CatalogNumbers = new Dictionary<string, int>(catalogNumbers),
 			Books = books.Select(WeekBookSaveData.From).ToList(),
 
 			// The desk's working state: the shelf, the release pipeline, the pressing plant, the trunk.
@@ -6192,6 +6281,7 @@ public partial class PlayerDesk : Node {
 		acetateCopies.Clear();
 		foreach (var (recordId, copies) in data.AcetateCopies ?? new Dictionary<string, int>())
 			if (!string.IsNullOrEmpty(recordId) && copies > 0) acetateCopies[recordId] = copies;
+		LoadCatalogNumbers(data.CatalogNumbers);
 
 		// Masters first, keyed by record id, so planned releases can re-link their A/B sides to the very
 		// same Master objects (a scheduled master lives in both lists).
@@ -6371,8 +6461,8 @@ public partial class PlayerDesk : Node {
 
 		message = missing == 0
 			? $"Loaded {label.labelName}."
-			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
-		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
+			: $"Loaded {label.labelName} -- {Plural.Of(missing, "roster act")} could not be re-linked.";
+		if (recovered > 0) message += $" Recovered {Plural.Of(recovered, "record")} an older save had dropped.";
 		RestoreScoutingKnowledge(data.ScoutingKnowledge);
         RestoreRenewalDiscussion(data.RenewalDiscussion);
         RestoreContractCommitments(data.ContractCommitments);

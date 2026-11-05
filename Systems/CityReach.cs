@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 /// <summary>
 /// City reach (SimTools/RegionalSyncDesign.md §9d): where a single is actually in play, at city grain. At launch a
@@ -10,7 +11,8 @@ using System.Collections.Generic;
 /// of its places reached. Before a place is reached its stations cannot add the record; a region's share of the
 /// national awareness blend, its chart floors and its rotation target scale with its reach, keeping a hearsay floor.
 /// Launch stock and launch awareness are not held, so out-of-territory launch sales are kept. Reads settled state
-/// only; no draws. State is runtime-only (probe switch, not yet saved); a record without state reads as fully reached.
+/// only; no draws. Ordinary saves omit this probe state; persisted-shadow checkpoints retain it.
+/// A record without state reads as fully reached.
 /// </summary>
 public static class CityReach {
 	private const string Flag = "--city-reach";
@@ -21,6 +23,29 @@ public static class CityReach {
 
 	private sealed class State { public ulong Reached; public float[] Exposure; }
 	private static readonly Dictionary<string, State> states = new(StringComparer.Ordinal);
+
+	internal static CityReachContinuationSaveData CaptureContinuation() {
+		if (!Enabled) return null;
+		EnsurePlaces();
+		return new() {
+			PlaceIds = places.Select(p => p.Id).ToList(),
+			Records = states.ToDictionary(p => p.Key, p => new CityReachRecordSaveData {
+				Reached = p.Value.Reached, Exposure = (float[])p.Value.Exposure.Clone()
+			}, StringComparer.Ordinal)
+		};
+	}
+
+	internal static void RestoreContinuation(CityReachContinuationSaveData saved) {
+		states.Clear();
+		if (saved == null) return;
+		EnsurePlaces();
+		if (!saved.PlaceIds.SequenceEqual(places.Select(p => p.Id), StringComparer.Ordinal))
+			throw new InvalidOperationException("Saved shadow city-reach places differ from the current world.");
+		foreach (var p in saved.Records) {
+			if (p.Value.Exposure.Length != places.Count) throw new InvalidOperationException("Invalid saved city-reach exposure.");
+			states.Add(p.Key, new State { Reached = p.Value.Reached, Exposure = (float[])p.Value.Exposure.Clone() });
+		}
+	}
 	private static IReadOnlyList<(string Id, string RegionId, string CityId, float Population)> places;
 	private static float[,] miles;
 	private static readonly Dictionary<string, int> placeByCityName = new(StringComparer.Ordinal);

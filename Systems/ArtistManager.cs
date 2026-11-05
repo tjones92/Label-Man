@@ -340,6 +340,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		};
 		
 		GenerateMembers(artist, type, primaryGenre, year);
+		AlignFoundersWithFormation(artist);
 		ConfigureEasyListeningBandleader(artist,year);
 		ConfigureJazzInstrumentalist(artist);
 		// Band-member Phase 1b: split axes, keyed on the world seed and person id and anchored on the roles
@@ -347,9 +348,10 @@ public sealed class LaborMarketWeeklySnapshot {
 		MemberAxesService.EnsureAxes(artist, year);
 		// Second roles (MemberRoleService): keyed, read only by player-side studio code.
 		MemberRoleService.Ensure(artist, year);
-		artist.stageName = type is ArtistType.SoloMale or ArtistType.SoloFemale
-			? artist.members[0].FullName
-			: GenerateStageName(type, primaryGenre, year);
+		// Named from the lineup just generated: whoever the name mentions is in the act, and whatever it
+		// claims (Trio, Brothers, "and His Orchestra") is true of it. Solo acts go through the same path,
+		// so a bluesman can be billed "Little Willie Pugh" while his musician record says William Pugh.
+		artist.stageName = GenerateStageName(type, primaryGenre, year, artist);
 		artist.RecalculateStats();
 		
 		artist.momentum = 0f;
@@ -417,9 +419,16 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// path in the naming API that WOULD touch the global stream.
 	/// </para>
 	/// </summary>
-	private string GenerateStageName(ArtistType type, Genre genre, int year) {
-		if (NameGenerator.Instance?.IsReady() == true)
-			return NameGenerator.Instance.GenerateArtistName(genre, year, type, null, LabelArchetype.RegionalHustler);
+	private string GenerateStageName(ArtistType type, Genre genre, int year, SimulatedArtist artist) {
+		if (NameGenerator.Instance?.IsReady() == true) {
+			var lineup = BuildNamingLineup(artist);
+			// A family act shares the front person's surname; copy it onto the musicians so the
+			// "Brothers" on the label is true of the people in the van. Act naming stream only.
+			if (NameGenerator.Instance.RollFamilyAct(genre, lineup))
+				for (int i = 0; i < lineup.People.Count; i++) lineup.Source[i].lastName = lineup.People[i].Last;
+			return NameGenerator.Instance.GenerateArtistName(genre, year, type, null, LabelArchetype.RegionalHustler, lineup);
+		}
+		if (type is ArtistType.SoloMale or ArtistType.SoloFemale && artist.members.Count > 0) return artist.members[0].FullName;
 		// A SEPARATE counter. artistIdCounter is the artist ID source (see GenerateArtist), so
 		// borrowing it to number a placeholder name advanced the ID sequence by an extra step per
 		// act -- and artistId keys the song-title near-duplicate bucket, so the fallback path was
@@ -433,6 +442,20 @@ public sealed class LaborMarketWeeklySnapshot {
 		};
 	}
 	
+	/// <summary>The act's members in billing order -- bandleader, then lead singer, then the rest as
+	/// generated -- for the namer. Null for an act with no members (it is then named blind).</summary>
+	private static NamingLineup BuildNamingLineup(SimulatedArtist artist) {
+		if (artist?.members == null || artist.members.Count == 0) return null;
+		var ordered = artist.members.Where(m => m != null)
+			.OrderByDescending(m => m.isBandLeader).ThenByDescending(m => m.isLeadVocalist).ToList();
+		var l = new NamingLineup();
+		foreach (var m in ordered) { l.People.Add(new LabelMan.Naming.LineupPerson(m.firstName, m.lastName, !m.isMale)); l.Source.Add(m); }
+		return l;
+	}
+
+	/// <summary>A naming lineup that remembers which musician each person came from.</summary>
+	private sealed class NamingLineup : LabelMan.Naming.Lineup { public readonly List<Musician> Source = new(); }
+
 	private void GenerateMembers(SimulatedArtist artist, ArtistType type, Genre genre, int year) {
 		switch (type) {
 			case ArtistType.SoloMale: GenerateSoloArtist(artist, true, genre, year); break;
@@ -1269,8 +1292,18 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// freshly generated world never produced). The act is signed to the player, so it's dropped from the
 	/// unsigned pool and never re-enters the AI talent market.
 	/// </summary>
+	/// <summary>A founding member joined when the act formed. Opening-world acts are dated up to five years before the
+	/// start, but their founders were stamped with the start year, so a "formed 1956" act listed founders who joined in
+	/// 1960. Also repairs saves made before the fix. Draws nothing.</summary>
+	internal static void AlignFoundersWithFormation(SimulatedArtist artist) {
+		if (artist?.members == null || artist.formedYear <= 0) return;
+		foreach (Musician m in artist.members)
+			if (m != null && m.isFoundingMember && m.joinedYear > artist.formedYear) m.joinedYear = artist.formedYear;
+	}
+
 	public void RestoreArtist(SimulatedArtist artist) {
 		if (artist == null || string.IsNullOrEmpty(artist.artistId)) return;
+		AlignFoundersWithFormation(artist);
 		artistRegistry[artist.artistId] = artist;
 		foreach (Musician member in artist.members ?? new List<Musician>())
 			if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
@@ -1391,6 +1424,7 @@ public sealed class LaborMarketWeeklySnapshot {
 
 		foreach (SimulatedArtist artist in w.Artists ?? new List<SimulatedArtist>()) {
 			if (artist == null || string.IsNullOrEmpty(artist.artistId)) continue;
+			AlignFoundersWithFormation(artist);
 			artistRegistry[artist.artistId] = artist;
 			foreach (Musician member in artist.members ?? new List<Musician>())
 				if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
@@ -1401,6 +1435,9 @@ public sealed class LaborMarketWeeklySnapshot {
 		}
 		foreach (string id in w.UnsignedArtistIds ?? new List<string>())
 			if (id != null && artistRegistry.TryGetValue(id, out SimulatedArtist artist)) unsignedArtists.Add(artist);
+		// The namer's uniqueness memory is not saved; acts formed after a load must not repeat a name
+		// already in the world.
+		NameGenerator.Instance?.ReserveActNames(artistRegistry.Values.Select(a => a.stageName));
 
 		artistIdCounter = w.ArtistIdCounter;
 		musicianIdCounter = w.MusicianIdCounter;

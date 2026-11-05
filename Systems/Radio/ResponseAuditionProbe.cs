@@ -36,12 +36,12 @@ public static class ResponseAuditionProbe {
 }
 
 public sealed partial class StationNetwork {
-	private sealed class ResponseEvidence {
+	public sealed class ResponseEvidence {
 		public int Week, Streak, Units, Backorders;
 		public float Radio, Panel, Score;
 		public string Region;
 	}
-	private sealed class ResponseTrial { public int Start; public bool Active; }
+	public sealed class ResponseTrial { public int Start; public bool Active; }
 	private Dictionary<(string, string), ResponseEvidence> responsePrevious = new(), responseNow = new();
 	private readonly Dictionary<(string, string), ResponseTrial> responseTrials = new();
 	private readonly Dictionary<(string, string), ResponseEvidence> responseOffers = new();

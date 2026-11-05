@@ -41,6 +41,7 @@ public partial class PlayerDesk {
         if (Label == null || !LocalScenes.Rooms || room == null || room.PlaceId != LocalScenePersistenceService.SceneIdFor(CurrentCityId))
             reason = "Visit the venue's city to introduce yourself.";
         else if (KnowsSceneBooker(roomId)) reason = "You have already met this booker.";
+        else if (NotAtRoomReason(room) is { } away) reason = away;
         else if (clock.CurrentHour * 60 + clock.CurrentMinute < room.OpenHour * 60 ||
                  clock.CurrentHour * 60 + clock.CurrentMinute + 15 > room.CloseHour * 60)
             reason = "Introduce yourself during posted venue hours.";
@@ -90,18 +91,20 @@ public partial class PlayerDesk {
         if (Label == null || room == null || !LocalScenes.Rooms || room.PlaceId != LocalScenePersistenceService.SceneIdFor(CurrentCityId)) {
             message = "Visit this room's city to speak with its booker."; return false;
         }
-        if (!Require(1, out message)) return false;
+        if (NotAtRoomReason(room) is { } away) { message = away; return false; }
+        if (!Require(0, out message)) return false;
+        if (TimeManager.Instance?.CanAffordMinutes(BookerTipMinutes) != true) { message = "No time left for this today."; return false; }
         var date = TimeManager.Instance.CurrentDate;
         int day = LocalSceneRoomService.Day(date), hour = TimeManager.Instance.CurrentHour;
-        if (hour < room.OpenHour || hour >= room.CloseHour) {
-            message = "The booker is available during this room's posted hours."; return false;
+        if (hour < room.OpenHour || hour * 60 + TimeManager.Instance.CurrentMinute + BookerTipMinutes > room.CloseHour * 60) {
+            message = "The booker is in during this room's posted hours."; return false;
         }
         var lead = SceneInformationService.Lead(room, LocalSceneRoomService.Calendar(CurrentCityId, date),
             sceneDiscoveries.Keys, sceneInformation.Contacts.FirstOrDefault(c => c.ContactId == room.ContactId)?.HeardBillIds ?? new(), day, hour);
         if (lead == null || sceneInformation.Leads.Any(l => l.Id == lead.Id)) {
             message = "The booker has no new introduction on the announced bills."; return false;
         }
-        Spend(1);
+        SpendMinutes(BookerTipMinutes);
         RememberBookerIntroduction(room);
         sceneInformation.Leads.RemoveAll(l => l.ExpiresDay < day);
         sceneInformation.Leads.Add(lead);

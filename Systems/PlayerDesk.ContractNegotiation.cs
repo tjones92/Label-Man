@@ -649,6 +649,7 @@ public partial class PlayerDesk : Node {
 			? " They took the cheap deal, and they'll remember it when the paper comes up for renewal." : "");
         RememberScoutingBusinessStatement(prospect, "agreement", ScoutingBusinessStatementKind.Agreement,
             "The deal completed: " + ScoutingTermsText(ScoutingStatedTerms.From(sheet)), sheet);
+        RecordSigningMoment(prospect.Artist, sheet, underAsk);
         return true;
 	}
 

@@ -7,7 +7,7 @@ using Godot;
 
 /// <summary>Fresh-world research probes, never game defaults. Taste stays fixed; these test
 /// whether local listening and purchases can transmit it through the existing finite market.
-/// Session memory is deliberately not a save format: reject save/resume experiments.</summary>
+/// Ordinary saves omit session memory; the explicit persisted-shadow check snapshots it by record and region ID.</summary>
 public static class LocalRadioConsumptionProbe {
 	public static float Contact { get; private set; }
 	public static float Familiarity { get; private set; }
@@ -21,6 +21,27 @@ public static class LocalRadioConsumptionProbe {
 	private sealed class Memory { public int Age = -1; public float Listening; }
 	private static readonly Dictionary<RegionalRecordData, Memory> memories = new();
 	public static bool Enabled => Contact > 0 || Familiarity > 0 || Peer > 0 || LocalShelf > 0 || LocalSignal;
+
+	internal static Dictionary<string, Dictionary<string, LocalListeningSaveData>> CaptureContinuation(IEnumerable<RecordRuntimeData> records) {
+		if (!Enabled && !observe) return null;
+		var result = new Dictionary<string, Dictionary<string, LocalListeningSaveData>>(StringComparer.Ordinal);
+		foreach (var r in records) {
+			var regions = new Dictionary<string, LocalListeningSaveData>(StringComparer.Ordinal);
+			foreach (var p in r.regionalData)
+				if (memories.TryGetValue(p.Value, out var m)) regions[p.Key] = new() { Age = m.Age, Listening = m.Listening };
+			if (regions.Count > 0) result.Add(r.baseRecord.recordId, regions);
+		}
+		return result;
+	}
+
+	internal static void RestoreContinuation(Dictionary<string, Dictionary<string, LocalListeningSaveData>> saved, IEnumerable<RecordRuntimeData> records) {
+		memories.Clear();
+		if (saved == null) return;
+		foreach (var r in records)
+			if (saved.TryGetValue(r.baseRecord.recordId, out var regions))
+				foreach (var p in regions)
+					if (r.regionalData.TryGetValue(p.Key, out var data)) memories[data] = new() { Age = p.Value.Age, Listening = p.Value.Listening };
+	}
 
 	public static void Configure(IEnumerable<string> arguments) {
 		var args = arguments.ToArray();

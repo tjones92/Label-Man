@@ -112,6 +112,12 @@ public static class GenreRepertoireRepairChecks {
    Check(CompositionCatalogService.MigrateComedyRepertoire(new[]{routine})==1&&CompositionCatalogService.MigrateComedyRepertoire(new[]{routine})==0,"Migration is idempotent");
    Check(rights==JsonSerializer.Serialize(routine.rights,SaveGameService.TestJsonOptions),"Migration preserves royalties");
    Check(CompositionCatalogService.AllSongs.Count(s=>s.repertoireSeedFamily=="Classical works")==120&&CompositionCatalogService.AllSongs.Count(s=>s.repertoireSeedFamily=="Children songs")==80,"Retain existing books");
+   // Playtest 2026-11-04: "Folk Standards 133" reached repertoire, the pressing slip and the paper.
+   var native=CompositionCatalogService.AllSongs.Where(s=>s.songId.StartsWith("song_native_",StringComparison.Ordinal)).ToList();
+   var placeholder=native.Where(s=>s.repertoireSeedFamily!=null&&s.title.StartsWith(s.repertoireSeedFamily+" ",StringComparison.Ordinal)).ToList();
+   Check(native.Count>0&&placeholder.Count==0,$"Native repertoire carries real titles ({native.Count} songs, {placeholder.Count} placeholders: {string.Join(", ",placeholder.Take(3).Select(s=>s.title))})");
+   int distinct=native.Select(s=>s.title).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+   Check(distinct>=native.Count*.97,$"Native titles mostly distinct ({distinct}/{native.Count}); samples: {string.Join(" | ",native.Where((s,i)=>i%97==0).Take(8).Select(s=>s.title))}");
    foreach(var genre in new[]{Genre.Classical,Genre.Childrens}) {
     var act=new SimulatedArtist {artistId="repair-book-"+genre,primaryGenre=genre};
     var pool=LiveRepertoire.Pool(act,1960,1);var set=SongMaterialSelectionService.SelectLiveCovers(pool,act,1960,5);

@@ -54,6 +54,13 @@ public static class RegionalHitDealGateChecks {
 			evidence = CompetitorManager.EvaluateRegionalDealEvidence(new[] { oldSmash, current, ramp }, "gate-label", null, .20f);
 			Check(CompetitorManager.IsPullDealTrigger(client, evidence) && evidence.EarningRecordId == "gate-current",
 				"a recent regional hit qualifies and is the record the deal covers, not the stale bigger peak");
+			// Playtest 2026-11-04: the paper promised a P&D sit-down on a running peak while the pitch refused. The paper,
+			// the PITCH button and the pitch now share PlayerDealReadiness: a ramp is refused with the bar named, a hit is not.
+			var player = new AILabel { labelId = "gate-label", tier = LabelTier.Small };
+			Check(!CompetitorManager.PlayerDealReadiness(player, new[] { ramp }, .20f, out string notYet) && notYet != null && notYet.Contains("regional hit"),
+				"a launch-ramp peak does not make the player deal-ready, and the reason names the bar: " + notYet);
+			Check(CompetitorManager.PlayerDealReadiness(player, new[] { oldSmash, current, ramp }, .20f, out string none) && none == null,
+				"a current regional hit makes the player deal-ready with no refusal");
 			current.weeksSinceRelease = 7 + RegionalHitDealGate.RecentWeeks;
 			evidence = CompetitorManager.EvaluateRegionalDealEvidence(new[] { oldSmash, current, ramp }, "gate-label", null, .20f);
 			Check(!CompetitorManager.IsPullDealTrigger(client, evidence) && evidence.EarningRecordId == "gate-old-smash",

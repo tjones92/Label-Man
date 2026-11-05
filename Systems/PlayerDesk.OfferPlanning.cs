@@ -13,7 +13,7 @@ public partial class PlayerDesk {
             $"Cash after advance: ${CashAfterAdvance:N0} · signing reserve: ${SigningReserve:N0} (2 months of current ${MonthlyOverhead:N0} overhead) · " +
             (AdvanceAffordable ? "reserve covered." : $"must leave more than ${SigningReserve:N0}; lower the advance or wait for more cash.") +
             $"\nRoster: {RosterUsed}/{RosterCapacity} · " + (Renewal ? "renewal uses the existing slot." : RosterSpace ? "space for one new act." : "full; a new signing needs a free slot.") +
-            $"\nAgreed unpaid appointments: ${PendingAppointmentFees:N0} across {PendingAppointmentCount} retained booking(s), payable at attendance; no cash set aside. These appointments can change or be cancelled." +
+            $"\nAgreed unpaid appointments: ${PendingAppointmentFees:N0} across {Plural.Of(PendingAppointmentCount, "retained booking")}, payable at attendance; no cash set aside. These appointments can change or be cancelled." +
             $"\nRecording estimate: home budget room, {MinSessionHours}h, ${BudgetSessionCost:N0}; after the advance, retained appointment fees and this session: ${CashAfterFeesAndSession:N0}. " +
             (CashAfterFeesAndSession < 0 ? "This combined plan exceeds current cash. " : "") +
             (!Home ? "Return home to use this route. " : "") + (!ConsoleFree ? "Print or scrap the session on the console first. " : "") +
@@ -31,7 +31,7 @@ public partial class PlayerDesk {
                     new("Cash after advance", $"${CashAfterAdvance:N0}" + (AdvanceAffordable ? "" : "  (below the signing reserve; lower the advance or wait for more cash)"), !AdvanceAffordable),
                     new("Signing reserve", $"${SigningReserve:N0}  (2 months of ${MonthlyOverhead:N0} overhead)  " + (AdvanceAffordable ? "covered" : "not covered"), !AdvanceAffordable),
                     new("Roster", $"{RosterUsed}/{RosterCapacity}  " + (Renewal ? "renewal uses the existing slot" : RosterSpace ? "space for one new act" : "full; a new signing needs a free slot"), !Renewal && !RosterSpace),
-                    new("Booked fees", PendingAppointmentCount == 0 ? "none outstanding" : $"${PendingAppointmentFees:N0} across {PendingAppointmentCount} booking(s), payable at attendance", false),
+                    new("Booked fees", PendingAppointmentCount == 0 ? "none outstanding" : $"${PendingAppointmentFees:N0} across {Plural.Of(PendingAppointmentCount, "booking")}, payable at attendance", false),
                     new("Recording estimate", $"${BudgetSessionCost:N0} for one {MinSessionHours}h home budget session", false),
                     new("Left after all that", $"${CashAfterFeesAndSession:N0}" + (CashAfterFeesAndSession < 0 ? "  This combined plan exceeds current cash." : ""), CashAfterFeesAndSession < 0),
                 };

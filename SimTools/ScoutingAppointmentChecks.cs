@@ -30,7 +30,7 @@ public static class ScoutingAppointmentChecks {
         clock.RestoreClock(LocalSceneRoomService.Date(bill.Day), slot.StartHour);
         Check(desk.ListenSceneAppearance(bill.Id, ScenePerformanceService.EventId(bill, slot), out message), "actual first listening: " + message);
         var act = am.GetArtist(artistId);
-        act.labelId = null; act.careerState = CareerState.Unsigned; act.lifecycleStatus = ArtistLifecycleStatus.Active;
+        act.labelId = null; act.unrecoupedAdvance = 0; act.careerState = CareerState.Unsigned; act.lifecycleStatus = ArtistLifecycleStatus.Active;
         act.prospectMarketStatus = ProspectMarketStatus.Seeking; act.manager = ManagerArchetype.None;
         desk.Label.cashReserves = 100000;
         var baseWorld = WorldStateService.Capture(); var basePlayer = desk.CaptureState();
@@ -87,7 +87,8 @@ public static class ScoutingAppointmentChecks {
             Check(clock.CurrentHour * 60 + clock.CurrentMinute == booked.EndMinute && desk.Label.cashReserves == cash - booked.Fee && desk.Label.monthlyExpenses == expenses + booked.Fee, "exact duration and accounting");
             var evidence = desk.ScoutingDossiers.Single().Observations;
             Check(evidence.Count(o => o.Kind is ScoutingEvidenceKind.RehearsalSample or ScoutingEvidenceKind.DemoSample) == 1 && evidence.Count(o => o.Kind == ScoutingEvidenceKind.Performance) == 1, "bounded sample separate from live evidence");
-            Check(desk.Session == null && am.GetArtist(artistId).labelId == null && am.GetArtist(artistId).unrecoupedAdvance == 0, "no master, signing or artist debt");
+            Check(desk.Session == null, "no master (studio session left open)");
+            Check(am.GetArtist(artistId).labelId == null && am.GetArtist(artistId).unrecoupedAdvance == 0, "no signing or artist debt: label=" + am.GetArtist(artistId).labelId);
             int count = evidence.Count;
             Check(!desk.AttendScoutingMeeting(booked.Id, out _) && desk.ScoutingDossiers.Single().Observations.Count == count && desk.Label.cashReserves == cash - booked.Fee, "no farming or double payment");
             Reset(); quote = desk.PreviewScoutingInvitation(artistId, activity);

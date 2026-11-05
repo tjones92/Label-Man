@@ -136,12 +136,12 @@ public partial class PlayerDesk {
 	private string DemoPitchBlock(SimulatedArtist act, SceneBill bill) {
 		var clock = TimeManager.Instance;
 		int now = clock.CurrentHour * 60 + clock.CurrentMinute;
-		if (!WantsARecord(act)) return $"{act.stageName} aren't looking to make a record.";
+		if (!WantsARecord(act)) return $"{act.stageName} {ActGrammar.Verb(act, "isn't", "aren't")} looking to make a record.";
 		if (DemoRefusedUntil(act.artistId) is int until) return $"{act.stageName} said no; ask again after {LocalSceneRoomService.Date(until).ToShortString()}.";
 		if (demoJobs.Any(j => j.ArtistId == act.artistId && j.Status == DemoStatus.Booked)) return $"{act.stageName} already have a demo booked with you.";
 		var quote = DemoQuoteFor(act);
 		if (quote == null) return "No local room is free in the next two weeks.";
-		if (quote.Gross > DemoClientMeans(act) * DemoAffordableShare) return $"{act.stageName} haven't the money for a ${quote.Gross:N0} demo.";
+		if (quote.Gross > DemoClientMeans(act) * DemoAffordableShare) return $"{act.stageName} {ActGrammar.Verb(act, "hasn't", "haven't")} the money for a ${quote.Gross:N0} demo.";
 		if (now < bill.StartHour * 60) return $"Catch them between sets, from {Clock12(bill.StartHour)}.";
 		return null;
 	}
@@ -221,11 +221,12 @@ public partial class PlayerDesk {
 
 	private string DemoActUnavailable(DemoJob job) {
 		var act = ArtistManager.Instance?.GetArtist(job.ArtistId);
-		if (act == null || act.lifecycleStatus != ArtistLifecycleStatus.Active) return $"{job.ArtistName} have broken up.";
+		if (act == null || act.lifecycleStatus != ArtistLifecycleStatus.Active)
+			return ActGrammar.IsSingular(act) ? $"{job.ArtistName} has quit playing." : $"{job.ArtistName} have broken up.";
 		var people = act.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).ToList();
-		if (people.Count == 0) return $"{job.ArtistName} have nobody left to play.";
+		if (people.Count == 0) return $"{job.ArtistName} {ActGrammar.Verb(act, "has", "have")} nobody left to play.";
 		string scene = LocalScenePersistenceService.SceneIdFor(Label.homeCityId);
-		if (scene != null && !LocalScenePersistenceService.Present(act, scene, job.Day / 7)) return $"{job.ArtistName} have left town.";
+		if (scene != null && !LocalScenePersistenceService.Present(act, scene, job.Day / 7)) return $"{job.ArtistName} {ActGrammar.Verb(act, "has", "have")} left town.";
 		return null;
 	}
 

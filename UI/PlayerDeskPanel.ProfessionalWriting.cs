@@ -14,6 +14,7 @@ public partial class PlayerDeskPanel {
 			var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8);
 			var commission = Btn($"COMMISSION ${offer.CommissionFee:N0} · {offer.DeliveryWeeks} weeks");
 			commission.Disabled = !offer.Available || desk.IsCommissioning(artist.artistId);
+			GreyWhy(commission, desk.IsCommissioning(artist.artistId) ? "A song is already being written for them." : "This writer is not taking work right now.");
 			commission.Pressed += () => Act(() => { bool ok = desk.CommissionProfessionalSong(artist, offer.WriterId, out string message); Say(message, ok); return ok; });
 			row.AddChild(commission);
 			if (contract == null) {

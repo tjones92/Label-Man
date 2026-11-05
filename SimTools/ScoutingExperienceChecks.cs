@@ -21,7 +21,12 @@ public static class ScoutingExperienceChecks {
         // produce precisely the same performance/work state.
         var world = WorldStateService.Capture();
         clock.RestoreClock(LocalSceneRoomService.Date(bill.Day), slot.StartHour);
+        // Already at the venue (2026-11-05 presence), so the wait takes no walk and the paired replay below
+        // advances exactly the same clock. Set through saved state: moving the clock back would re-run world hours.
+        var atVenue = desk.CaptureState(); atVenue.ScoutingKnowledge.AtRoomId = bill.RoomId; atVenue.ScoutingKnowledge.AtRoomDay = bill.Day;
+        Check(desk.RestoreState(atVenue, out message), "place the player at the venue: " + message);
         Check(desk.WaitForSceneAppearance(bill.Id, identity, out message), "explicit wait: " + message);
+        Check(desk.IsAtSceneRoom(bill.RoomId) && clock.CurrentHour == slot.StartHour && clock.CurrentMinute == 0, "the wait ends at the venue on time");
         float cash = desk.Label.cashReserves;
         int previewHour = clock.CurrentHour;
         var preview = desk.NextReachableScoutingSet(act.artistId);
@@ -142,6 +147,9 @@ public static class ScoutingExperienceChecks {
         var sourcePlayer = desk.CaptureState(); var sourceRooms = WorldStateService.Capture().SceneRooms;
         var sourceOriginalDate = clock.CurrentDate; var sourceDate = sourceOriginalDate.AddDays(1); int sourceHour = clock.CurrentHour, sourceMinute = clock.CurrentMinute;
         clock.RestoreClock(sourceDate, room.OpenHour);
+        // A new day starts away from every venue: walk back to the booker's room before asking (2026-11-05).
+        Check(desk.GoToSceneRoom(room.Id, out message), "walk to the booker's venue: " + message);
+        clock.RestoreClock(sourceDate, room.OpenHour);
         string beforePreview = Json(desk.CaptureState().ScoutingKnowledge);
         string beforeRoomPreview = Json(WorldStateService.Capture().SceneRooms);
         var sourcePreview = desk.PreviewScoutingSource(room.Id, act.artistId, ScoutingSourceQuestion.NextDate);
@@ -166,19 +174,19 @@ public static class ScoutingExperienceChecks {
         Check(!desk.AskScoutingSource(room.Id, act.artistId, ScoutingSourceQuestion.BillAudience, "stale-source", out _) &&
             clock.CurrentHour == room.OpenHour && Json(desk.CaptureState().ScoutingKnowledge) == beforePreview,
             "stale source quote blocks without time or evidence");
-        int beforeConversation = clock.CurrentHour; float beforeConversationCash = desk.Label.cashReserves;
+        int beforeConversation = clock.CurrentHour * 60 + clock.CurrentMinute; float beforeConversationCash = desk.Label.cashReserves;
         Check(desk.AskScoutingSource(room.Id, act.artistId, ScoutingSourceQuestion.BillAudience, audience.QuoteId, out message),
             "completed bill source conversation: " + message);
         var audienceClaim = desk.ScoutingDossiers.Single(d => d.ArtistId == act.artistId).Observations.Last();
-        Check(clock.CurrentHour == beforeConversation + 1 && desk.Label.cashReserves == beforeConversationCash &&
-            desk.CaptureState().ScoutingKnowledge.Visit == null, "conversation spends exactly one hour, no fee, ends continuous listening visit");
+        Check(clock.CurrentHour * 60 + clock.CurrentMinute == beforeConversation + PlayerDesk.BookerQuestionMinutes && desk.Label.cashReserves == beforeConversationCash &&
+            desk.CaptureState().ScoutingKnowledge.Visit == null, "a booker question takes minutes, no fee, ends continuous listening visit");
         Check(audienceClaim.Kind == ScoutingEvidenceKind.BookerClaim && audienceClaim.SourceId == room.ContactId &&
             audienceClaim.BillAttendance == 150 && audienceClaim.BillCapacity == 200 && audienceClaim.OccurredDay == sourceDay - 1 &&
-            audienceClaim.AcquiredDay == sourceDay && audienceClaim.AcquiredMinute == clock.CurrentHour * 60 && audienceClaim.Interpretation == null,
+            audienceClaim.AcquiredDay == sourceDay && audienceClaim.AcquiredMinute == clock.CurrentHour * 60 + clock.CurrentMinute && audienceClaim.Interpretation == null,
             "source snapshot preserves source, occurrence versus receipt, scope and no musical truth");
         var sourceSaved = JsonSerializer.Deserialize<PlayerSaveData>(Json(desk.CaptureState()), SaveGameService.TestJsonOptions);
         Check(desk.RestoreState(sourceSaved, out message) && !desk.AskScoutingSource(room.Id, act.artistId, ScoutingSourceQuestion.BillAudience, audience.QuoteId, out _) &&
-            clock.CurrentHour == beforeConversation + 1, "source answer survives reload and cannot be bought twice");
+            clock.CurrentHour * 60 + clock.CurrentMinute == beforeConversation + PlayerDesk.BookerQuestionMinutes, "source answer survives reload and cannot be bought twice");
         sourceFixture.Bills.RemoveAll(b => b.Id == "source-previous-bill");
         LocalSceneRoomService.BeginRestore(sourceFixture); LocalSceneRoomService.CompleteRestore();
         Check(desk.ScoutingDossiers.Single(d => d.ArtistId == act.artistId).Observations.Last().Claim == audience.Claim,
@@ -200,12 +208,12 @@ public static class ScoutingExperienceChecks {
         sourceFixture.Bills.Single(b => b.Id == "source-announced-bill").Appearances[0].StartHour--;
         LocalSceneRoomService.BeginRestore(sourceFixture); LocalSceneRoomService.CompleteRestore();
         Check(!desk.AskScoutingSource(room.Id, act.artistId, ScoutingSourceQuestion.NextDate, announcedDate.QuoteId, out _) &&
-            clock.CurrentHour == beforeConversation + 1, "same bill programme time revision invalidates a captured quote without cost");
+            clock.CurrentHour * 60 + clock.CurrentMinute == beforeConversation + PlayerDesk.BookerQuestionMinutes, "same bill programme time revision invalidates a captured quote without cost");
         sourceFixture.Bills.Single(b => b.Id == "source-announced-bill").Status = SceneBillStatus.Cancelled;
         LocalSceneRoomService.BeginRestore(sourceFixture); LocalSceneRoomService.CompleteRestore();
         Check(!desk.AskScoutingSource(room.Id, act.artistId, ScoutingSourceQuestion.AnnouncedMaterial, programme.QuoteId, out _) &&
-            clock.CurrentHour == beforeConversation + 1, "programme cancellation invalidates captured source quote without cost");
-        clock.RestoreClock(sourceDate, room.CloseHour - 1, 30);
+            clock.CurrentHour * 60 + clock.CurrentMinute == beforeConversation + PlayerDesk.BookerQuestionMinutes, "programme cancellation invalidates captured source quote without cost");
+        clock.RestoreClock(sourceDate, room.CloseHour - 1, 60 - PlayerDesk.BookerQuestionMinutes / 2);
         Check(desk.PreviewScoutingSource(room.Id, act.artistId, ScoutingSourceQuestion.AnnouncedMaterial)?.Available == false,
             "subhour room closing blocks a full conversation");
         clock.RestoreClock(sourceDate, clock.HardStopHour);

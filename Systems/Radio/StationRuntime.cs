@@ -11,6 +11,7 @@ public enum SpinTier { None, Light, Mid, High }
 /// relationship + reputation state is here from Phase 1 so roster generation and the aggregation
 /// have somewhere to hang their weather.
 /// </summary>
+[System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Populate)]
 public sealed class StationRuntime {
 	// recordId -> current tier. Sparse: only records this station actually plays (~35 entries).
 	public readonly Dictionary<string, SpinTier> playlist = new(System.StringComparer.Ordinal);

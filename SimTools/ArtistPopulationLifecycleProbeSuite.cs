@@ -1693,9 +1693,9 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(independents > midTier * 3,
 			"81c regional independents outnumber national independents in the seeded 1960 market");
 
-		// Motown and Stax must earn MidTier rather than begin there in January 1960.
+		// Motown and Satellite (Stax from 1961) must earn MidTier rather than begin there in January 1960.
 		AILabel motown = labels.FirstOrDefault(label => label.labelName != null && label.labelName.StartsWith("Motown", StringComparison.Ordinal));
-		AILabel stax = labels.FirstOrDefault(label => label.labelName != null && label.labelName.StartsWith("Stax", StringComparison.Ordinal));
+		AILabel stax = labels.FirstOrDefault(label => label.labelName != null && label.labelName.StartsWith("Satellite", StringComparison.Ordinal));
 		Require(motown != null && motown.tier == LabelTier.Independent &&
 			stax != null && stax.tier == LabelTier.Independent,
 			"81d firms that were months old or trading under an earlier name in 1960 start below the mature large-independent tier");
