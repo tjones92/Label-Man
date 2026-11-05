@@ -19,7 +19,7 @@ using LabelMan.Naming;
 
 public static class Program {
 	static readonly string[] HistoricalLabels = {
-		"Columbia", "RCA Victor", "Capitol", "Decca", "Mercury", "Motown", "Stax", "Atlantic", "Chess", "King", "Sun",
+		"Columbia", "RCA Victor", "Capitol", "Decca", "Mercury", "Motown", "Satellite", "Atlantic", "Chess", "King", "Sun",
 		"Imperial", "Specialty", "Liberty", "Cameo-Parkway", "Chancellor", "Colpix", "Dimension", "Red Bird", "Vee-Jay",
 		"Duke-Peacock", "Excello", "Ace", "Fire-Fury", "Parlophone", "Decca UK", "Pye", "EMI" };
 

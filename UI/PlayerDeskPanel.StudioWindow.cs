@@ -1165,9 +1165,14 @@ public partial class PlayerDeskPanel {
         notes.AddThemeConstantOverride("separation", 2);
         line.AddChild(notes);
         string With(string note, string detail) => detail == null ? note : note + " " + detail;
-        var all = new[] { "Engineer: " + With(take.EngineerNote, take.EngineerDetail), "Performer: " + take.PerformerNote, take.BandNote == null ? null : "Band: " + take.BandNote, "Producer: " + With(take.ProducerNote, take.ProducerDetail) }
+        // The producer's chair is the label's own unless someone was hired for it; say whose ear the note is.
+        // (Playtest 2026-11-04: a "Producer" note on every take with no producer booked.)
+        string hiredProducer = PlayerDesk.Instance.Session?.Hires.FirstOrDefault(h => h.Kind == StudioHireKind.Producer)?.Name;
+        string producerLead = hiredProducer != null ? $"Producer ({hiredProducer}): " : "Your read (producing): ";
+        string producerLine = producerLead + With(take.ProducerNote, take.ProducerDetail);
+        var all = new[] { "Engineer: " + With(take.EngineerNote, take.EngineerDetail), "Performer: " + take.PerformerNote, take.BandNote == null ? null : "Band: " + take.BandNote, producerLine }
             .Where(n => n != null).ToArray();
-        foreach (string note in open ? all : all.Where(n => n.StartsWith("Producer: ", StringComparison.Ordinal)))
+        foreach (string note in open ? all : new[] { producerLine })
             StudioText(notes, note, 15, Heard);
         if (take.Work != null) {
             var setup = PlayerDesk.StudioTakeSetup(PlayerDesk.Instance.Session, take).Where(l => l != take.Work.IncidentNote).ToList();

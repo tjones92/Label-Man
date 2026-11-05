@@ -969,6 +969,9 @@ public partial class PlayerDesk : Node {
 		if (station == null) { message = "No such radio station."; return false; }
 		MarketRegion here = CurrentRegion();
 		if (here == null || station.regionId != here.regionId) { message = "Take the acetate to a station in the market you're working."; return false; }
+		// Hand delivery is an hour across town, not across the region: a station in another town needs the drive
+		// first. (Playtest 2026-11-04: WLKP Atlanta took an hour from Memphis.)
+		if (!IsStationInCurrentTown(station)) { message = $"{station.callsign} is in {station.cityName} -- drive there first, then hand it over."; return false; }
 		if (!Require(1, out message)) return false;
 		Spend(1);
 		acetateCopies.Remove(recordId);
@@ -988,6 +991,9 @@ public partial class PlayerDesk : Node {
 		Changed?.Invoke();
 		return true;
 	}
+	/// <summary>True when the station's town is the town you're standing in, so a walk-in visit is an hour's job.</summary>
+	public bool IsStationInCurrentTown(RadioStation station) =>
+		station != null && DistanceModel.GetCityByName(station.cityName)?.cityId is { } cityId && cityId == CurrentCityId;
 	public IEnumerable<string> WorkedCities => workedCities;
 
 	// ── Promo servicing (directive §3.2) ────────────────────────────────────────────────────────

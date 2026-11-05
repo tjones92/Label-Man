@@ -267,10 +267,19 @@ public partial class PlayerDesk {
             $"{next.ListeningMinutes}min listening; ${next.Admission:0.00} admission at the current quote. Waiting advances ordinary expenses and other labels' decisions; check the bill on arrival.";
     }
     public IReadOnlyList<string> ScoutingProvenance(string artistId) => scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId)?.Observations
-        .Select(o => $"{o.Kind} · {o.SourceName ?? o.Channel} · {o.RoomName ?? SceneRoomCatalog.Get(o.RoomId)?.Name ?? ScenePlaceRegistry.Get(o.PlaceId)?.Name ?? "place unknown"} · occurred {(o.OccurredDay.HasValue ? LocalSceneRoomService.Date(o.OccurredDay.Value).ToHeadlineString() : o.OccurredWeek.HasValue ? "week beginning " + LocalSceneRoomService.Date(o.OccurredWeek.Value * 7).ToHeadlineString() : "unknown")}, acquired {LocalSceneRoomService.Date(o.AcquiredDay).ToHeadlineString()} at {(o.AcquiredMinute.HasValue ? $"{o.AcquiredMinute.Value / 60:00}:{o.AcquiredMinute.Value % 60:00}" : "unknown time")} · {o.Credibility} · {o.Conditions ?? o.Claim}" +
+        .Select(o => $"{o.Kind} · {o.SourceName ?? o.Channel} · {o.RoomName ?? SceneRoomCatalog.Get(o.RoomId)?.Name ?? ScenePlaceRegistry.Get(o.PlaceId)?.Name ?? "place unknown"} · occurred {(o.OccurredDay.HasValue ? LocalSceneRoomService.Date(o.OccurredDay.Value).ToHeadlineString() : o.OccurredWeek.HasValue ? "week beginning " + LocalSceneRoomService.Date(o.OccurredWeek.Value * 7).ToHeadlineString() : "unknown")}, acquired {LocalSceneRoomService.Date(o.AcquiredDay).ToHeadlineString()} at {(o.AcquiredMinute.HasValue ? $"{o.AcquiredMinute.Value / 60:00}:{o.AcquiredMinute.Value % 60:00}" : "unknown time")} · {o.Credibility} · {ProvenanceConditions(o)}" +
             (o.Kind == ScoutingEvidenceKind.BusinessStatement && o.BusinessStatementKind == ScoutingBusinessStatementKind.Counter && o.StatedTerms != null ? " · Counter terms: " + ScoutingTermsText(o.StatedTerms) : "") +
-            (o.Kind == ScoutingEvidenceKind.ListenerOpinion ? $" · {o.Channel}" + (o.ConsultationFee > 0 ? $" · ${o.ConsultationFee:0.00} consultation paid" : "") : "") + (o.Kind is ScoutingEvidenceKind.Performance or ScoutingEvidenceKind.ListenerOpinion ? $" · listened {o.StartMinute / 60:00}:{o.StartMinute % 60:00}–{o.EndMinute / 60:00}:{o.EndMinute % 60:00} · {o.Coverage:P0} coverage · " +
+            (o.Kind == ScoutingEvidenceKind.ListenerOpinion ? $" · {o.Channel}" + (o.ConsultationFee > 0 ? $" · ${o.ConsultationFee:0.00} consultation paid" : "") : "") + (o.Kind is ScoutingEvidenceKind.Performance or ScoutingEvidenceKind.ListenerOpinion ? $" · listened {o.StartMinute / 60:00}:{o.StartMinute % 60:00}–{o.EndMinute / 60:00}:{o.EndMinute % 60:00} · {(o.Coverage >= .9 ? "the whole set (full coverage)" : $"{o.Coverage:P0} of the set (partial coverage)")} · " +
                 (o.Coverage >= .9 ? "Heard material: " : "Announced material; individual titles heard are uncertain: ") + string.Join("; ", o.Set.Select(s => s.Title + (s.Original ? " (original)" : " (standard)"))) : "")).ToArray() ?? Array.Empty<string>();
+    // Older saves stored a partial-coverage caveat on every set, even a whole one heard start to finish; the caveat
+    // only reads true when part of the set was missed. (Playtest 2026-11-04: "partial coverage… 100% coverage".)
+    private const string LegacyCoverageCaveat = " Repertoire is the scheduled set; partial coverage does not identify every song heard.";
+    private static string ProvenanceConditions(ScoutingObservation o) {
+        string text = o.Conditions ?? o.Claim;
+        if (text != null && o.Coverage >= .9 && text.EndsWith(LegacyCoverageCaveat, StringComparison.Ordinal))
+            text = text.Substring(0, text.Length - LegacyCoverageCaveat.Length) + ".";
+        return text;
+    }
     public bool AskScoutingBooker(string roomId, string artistId, bool bookingHistory, out string message) =>
         AskScoutingSource(roomId, artistId, bookingHistory ? ScoutingSourceQuestion.BookingHistory : ScoutingSourceQuestion.NextDate, null, out message);
     private void RememberFoundingAct(Prospect prospect, ContractTermSheet terms) {

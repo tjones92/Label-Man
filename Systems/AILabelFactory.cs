@@ -13,11 +13,12 @@ public static class AILabelFactory {
 	
 	// 1960 tiers, not mid-decade ones. Atlantic, Chess and King were already
 	// national independents in 1960. Motown was months old with no national hit,
-	// and Stax was still Satellite, a Memphis storefront operation -- both must earn
+	// and Stax was still Satellite, a Memphis storefront operation (renamed Stax in 1961), so it trades
+	// under Satellite here -- both must earn
 	// MidTier through the promotion ladder rather than start there.
 	private static readonly LabelTemplate[] soulFactoryTemplates = {
 		new LabelTemplate("Motown", "Detroit", LabelArchetype.SoulFactory, new[] { Genre.Soul, Genre.RnB, Genre.GirlGroup }, LabelTier.Independent),
-		new LabelTemplate("Stax", "Memphis", LabelArchetype.BluesRoots, new[] { Genre.Soul, Genre.RnB, Genre.Gospel }, LabelTier.Independent),
+		new LabelTemplate("Satellite", "Memphis", LabelArchetype.BluesRoots, new[] { Genre.Soul, Genre.RnB, Genre.Gospel }, LabelTier.Independent),
 		new LabelTemplate("Atlantic", "New York", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul, Genre.Jazz }),
 		new LabelTemplate("Chess", "Chicago", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul }),
 		new LabelTemplate("King", "Cincinnati", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul, Genre.Funk }),

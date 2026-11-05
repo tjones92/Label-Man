@@ -462,10 +462,13 @@ public partial class UIManager : Control
 			}
 			var front = stories.Where(PlayerDesk.IsFrontPageStory).ToList();
 			var rest = stories.Where(story => !PlayerDesk.IsFrontPageStory(story)).ToList();
-			// The lead is the day's real headline. With no front-page news the first item still leads, smaller.
+			// The lead is the day's real headline. With no front-page news of the label's own, the trade's top story
+			// leads, smaller; the office's own small business never does. (Playtest 2026-11-04: the headline was the
+			// player's own canned reply, "Kenny Sanders isn't looking for a record deal".)
 			bool realLead = front.Count > 0;
-			string lead = realLead ? front[0] : rest.Count > 0 ? rest[0] : null;
-			if (!realLead && rest.Count > 0) rest.RemoveAt(0);
+			bool leadDay = ReferenceEquals(digest, dayDigests[^1]);
+			string lead = realLead ? front[0] : leadDay && trade != null && trade.Count > 0 ? trade[0] : null;
+			if (!realLead && lead != null) trade = trade.Skip(1).ToList();
 			if (lead != null) {
 				Label headline = PaperText(lead, realLead ? 36 : 26, ink, PaperTheme.SerifBold);
 				// A story about one of the player's acts carries the act's halftone photo beside the headline.

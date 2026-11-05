@@ -653,9 +653,12 @@ public partial class PlayerDeskPanel : Control {
 		var options = new List<string>();
 		if (desk.AtHome && desk.CanStillWorkThePhones()) options.Add("work the phones (free)");
 		// The acetate is the one thing that can pay off before the plant delivers: a test disc a local DJ can play.
-		if (desk.Masters.Any(master => !master.Released && desk.AcetatesFor(master.Record?.recordId) > 0))
+		// Only for a record still waiting on vinyl: once the pressing is in the office, the real 45 does the acetate's job.
+		// (Playtest 2026-11-04: NEXT UP offered a $20 acetate for a record already pressed and sitting in the office.)
+		bool AwaitingVinyl(PlayerDesk.Master master) => !master.Released && desk.StockFor(master.Record?.recordId) == null;
+		if (desk.Masters.Any(master => AwaitingVinyl(master) && desk.AcetatesFor(master.Record?.recordId) > 0))
 			options.Add("play your acetate down the phone to a DJ, or hand it to one in person");
-		else if (desk.Label.cashReserves >= 20f && desk.Masters.Any(master => !master.Released))
+		else if (desk.Label.cashReserves >= 20f && desk.Masters.Any(AwaitingVinyl))
 			options.Add("cut a $20 acetate (a test disc a DJ can play now)");
 		if (desk.Label.CurrentRosterSize > 0) options.Add("work up songs");
 		else options.Add("scout a room (hours only)");
@@ -2215,7 +2218,8 @@ public partial class PlayerDeskPanel : Control {
 				if (!single.Dated && desk.EarliestReleaseDays(single) > 0) DateControls(desk, single);
 				if (order == null && !pressed) PressingControls(desk, id, true);
 				else if (order != null || pressed) PressingControls(desk, id, false);
-				AcetateControls(desk, id);
+				// With the 45s in the office a test disc has no job left; keep only an acetate already cut.
+				if (!pressed || desk.AcetatesFor(id) > 0) AcetateControls(desk, id);
 				CompareControls(desk, single.Master);
 			}, "Pressing order", rush ? "RUSH" : null);
 		}
@@ -2322,9 +2326,13 @@ public partial class PlayerDeskPanel : Control {
 			cut.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.CutAcetate(recordId, out string message); Say(message, ok); return ok; });
 			controls.AddChild(cut);
 		} else {
-			RadioStation[] localStations = desk.Rolodex.Select(card => ChartManager.Instance?.GetRadioStation(card.stationId))
+			RadioStation[] regionStations = desk.Rolodex.Select(card => ChartManager.Instance?.GetRadioStation(card.stationId))
 				.Where(station => station != null && station.regionId == desk.CurrentCity?.parentRegionId)
 				.Distinct().ToArray();
+			RadioStation[] localStations = regionStations.Where(desk.IsStationInCurrentTown).ToArray();
+			if (localStations.Length == 0 && regionStations.Length > 0) {
+				Body($"Your DJs are out of town ({string.Join(", ", regionStations.Select(s => $"{s.callsign}, {s.cityName}").Distinct())}). Drive there to hand the acetate over in person, or play it to them down the phone.");
+			}
 			if (localStations.Length > 0) {
 				var stationPicker = Option();
 				foreach (RadioStation station in localStations) stationPicker.AddItem(station.callsign);
@@ -2818,6 +2826,28 @@ public partial class PlayerDeskPanel : Control {
 					var mailCount = Spin(1, 500, 1, 25);
 					mailRow.AddChild(mailCount);
 					content.AddChild(mailRow);
+
+					// The list is the region's reporter stations that don't have the record yet; the spinner can't
+					// promise more pieces than there are names to send them to.
+					var listNote = FormLabel("");
+					content.AddChild(listNote);
+					void RefreshList() {
+						string recordId = promoOnHand[Mathf.Clamp(mailSinglePick.Selected, 0, promoOnHand.Count - 1)].RecordId;
+						MarketRegion region = regions[Mathf.Clamp(regionPick.Selected, 0, regions.Count - 1)];
+						int names = desk.MailableStationCount(recordId, region.regionId);
+						int onHand = promoOnHand[Mathf.Clamp(mailSinglePick.Selected, 0, promoOnHand.Count - 1)].PromoOnHand;
+						int most = Mathf.Min(names, onHand);
+						mailCount.MaxValue = Mathf.Max(1, most);
+						mailCount.Value = Mathf.Clamp((int)mailCount.Value, 1, Mathf.Max(1, most));
+						mailCount.Editable = most > 0;
+						listNote.Text = names == 0
+							? $"Every reporter station in {region.regionName} already has a copy."
+							: $"Your {region.regionName} list has {Plural.Of(names, "station")} without this record" +
+								(onHand < names ? $"; you have {onHand:N0} promo on hand." : ".");
+					}
+					mailSinglePick.ItemSelected += _ => RefreshList();
+					regionPick.ItemSelected += _ => RefreshList();
+					RefreshList();
 
 					var mailBtn = Btn("MAIL THE LIST");
 					mailBtn.CustomMinimumSize = new Vector2(200, 42);
