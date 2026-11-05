@@ -54,7 +54,6 @@ public partial class PlayerDeskPanel : Control {
 	private string selectedDriveCityId;   // the picked line in the destination list (and the map), or null
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
-	private PopupPanel foundingCityPopup;
 	// The founding archetype selected on the founding page; persists across Refresh() rebuilds.
 	private FoundingArchetype selectedArchetype = FoundingArchetype.TradeInsider;
 	private string selectedFoundingCityId;
@@ -520,6 +519,7 @@ public partial class PlayerDeskPanel : Control {
 
 		Clear(content);
 		(currentPage ?? PageAandR)();
+		if (pageStain != null) pageStain.Modulate = Colors.White;   // the founding pages fade it; the office doesn't
 		pageStain?.QueueRedraw();   // the page's coffee ring belongs to the open tab
 		UpdateTabBadges(desk);
 	}
@@ -802,127 +802,18 @@ public partial class PlayerDeskPanel : Control {
 	// FOUNDING
 	// ========================================================================
 
-	private void PageFounding() {
-		content.AddChild(FoundingTitleCard());
-		// A returning player's first button: the newest save of any kind, autosaves included.
-		SaveGameService.SaveInfo? newest = SaveGameService.NewestSave();
-		if (newest.HasValue) {
-			SaveGameService.SaveInfo last = newest.Value;
-			string lastSlot = last.Slot;
-			Heading("WELCOME BACK");
-			Body($"{last.LabelName}, {last.InGameDate.ToHeadlineString()}  •  {(SaveGameService.IsAutosaveSlot(lastSlot) ? "autosave" : $"saved as \"{lastSlot}\"")}, {last.SavedAtUtc.ToLocalTime():g}");
-			var cont = Btn("CONTINUE");
-			cont.CustomMinimumSize = new Vector2(260, 46);
-			PaperModal.StylePrimary(cont, Rust);
-			cont.Pressed += () => { bool ok = SaveGameService.Load(lastSlot, out string message); Say(message, ok); Refresh(); };
-			content.AddChild(cont);
-			Body("Or start a new label below. Press Esc to save, load another game, or exit.");
-		}
-
-		Heading("WHO WERE YOU BEFORE THIS?");
-		Body("Start here: choose your background, name the label, pick a home town, then open the doors.");
-
-		// Archetype selector: a row of buttons, the selected one at full opacity.
-		var archetypeRow = new HBoxContainer();
-		archetypeRow.AddThemeConstantOverride("separation", 6);
-		content.AddChild(archetypeRow);
-		foreach (FoundingArchetype arch in System.Enum.GetValues<FoundingArchetype>()) {
-			FoundingArchetype captured = arch;
-			var btn = Btn(FoundingArchetypeData.Get(arch).Name.ToUpperInvariant());
-			btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			btn.CustomMinimumSize = new Vector2(0, 40);
-			btn.TooltipText = ArchetypeMechanics(arch);
-			bool isSelected = arch == selectedArchetype;
-			btn.AddThemeStyleboxOverride("normal", new StyleBoxFlat {
-				BgColor = isSelected ? Rust : new Color("ead8ad"),
-				BorderColor = isSelected ? new Color("f1e5c8") : new Color("8a7048"),
-				BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
-				CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4
-			});
-			btn.AddThemeColorOverride("font_color", isSelected ? Paper : Ink);
-			btn.Pressed += () => { selectedArchetype = captured; Refresh(); };
-			// Each origin wears the print of what it is best at (a linocut, on a paper patch when the button is dark).
-			ExecutiveInstinctProfile spread = FoundingArchetypeData.Get(arch).Instincts;
-			btn.AddThemeStyleboxOverride("hover", (StyleBox)btn.GetThemeStylebox("normal").Duplicate());
-			btn.AddThemeStyleboxOverride("pressed", (StyleBox)btn.GetThemeStylebox("normal").Duplicate());
-			btn.Alignment = HorizontalAlignment.Right;
-			var badge = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore, Position = new Vector2(8, 5), Size = new Vector2(34, 34) };
-			badge.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("f1e5c8"), CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3 });
-			badge.AddChild(new LinocutIcon().Set(StrongestInstinct(spread), 30f));
-			btn.AddChild(badge);
-			archetypeRow.AddChild(btn);
-		}
-
-		var selected = FoundingArchetypeData.Get(selectedArchetype);
-		Body($"{selected.Tagline}  ·  Starting capital: ${selected.Capital:N0}");
-		Body(selected.Description);
-
-		// Instinct spread: four linocuts with a vinyl rating each, then the label's three stats the same way.
-		content.AddChild(InstinctRow(selected.Instincts, false));
-		content.AddChild(StatRow(("Scouting", selected.ScoutingAbility), ("Production", selected.ProductionQuality), ("Marketing", selected.MarketingPower)));
-		float firstRunCost = PlayerDesk.PressingCost(PlayerDesk.PressMinimumOrder);
-		Body($"MONEY AND RUNWAY  ·  ${selected.Capital:N0} starting cash; a first {PlayerDesk.PressMinimumOrder:N0}-copy pressing costs about ${firstRunCost:N0}. " +
-			$"Monthly overhead is the office rent of the town you pick plus ${CityProfiles.OfficeBaseOverhead:N0} for the phone and postage: ${CityProfiles.OverheadRange().Low:N0} to ${CityProfiles.OverheadRange().High:N0} a month. The overdraft ceiling is three months of overhead below zero (not borrowed cash). The bank checks cash on the 1st of each month, after that month's overhead: three checks in a row below $0 close the label, and any check at or above $0 resets the count.");
-		Body("Instincts (1–5) affect what you can read and which contact options appear. Label stats (0–1) affect scouting, recording quality, and promotion.");
-		Body($"Your roster can hold up to {PlayerDesk.PlayerRosterCapacity} acts.");
-
-		Heading("NAME THE LABEL AND PICK YOUR TOWN");
-
-		var nameEdit = new LineEdit { PlaceholderText = "Label name", Text = foundingLabelName, CustomMinimumSize = new Vector2(400, 38) };
-		StyleField(nameEdit);
-		LabelBrandPicker brandPicker = null;
-		nameEdit.TextChanged += value => { foundingLabelName = value; brandPicker?.SetLabelName(value); };
-		content.AddChild(nameEdit);
-
-		// A town is a founding decision, so show the local advantages on a card instead of hiding them in a dropdown.
-		List<MarketRegion> regions = ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>();
-		var regionName = regions.ToDictionary(r => r.regionId, r => r.regionName);
-		List<MarketCity> cities = DistanceModel.GetCities()
-			.OrderBy(city => regionName.TryGetValue(city.parentRegionId, out string name) ? name : city.parentRegionId)
-			.ThenByDescending(city => city.isRegionalHub)
-			.ThenBy(city => city.distributionTier)
-			.ToList();
-		if (string.IsNullOrEmpty(selectedFoundingCityId) && cities.Count > 0) selectedFoundingCityId = cities[0].cityId;
-		MarketCity selectedCity = cities.FirstOrDefault(city => city.cityId == selectedFoundingCityId) ?? cities.FirstOrDefault();
-		selectedFoundingCityId = selectedCity?.cityId;
-		var townRow = new HBoxContainer();
-		var town = FormLabel(selectedCity == null ? "No towns loaded." : $"{selectedCity.name}  —  {regionName.GetValueOrDefault(selectedCity.parentRegionId, selectedCity.parentRegionId)}");
-		town.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		townRow.AddChild(town);
-		var browse = Btn("CHOOSE TOWN  →");
-		browse.Disabled = cities.Count == 0;
-		browse.Pressed += () => ShowFoundingCities(cities, regions);
-		townRow.AddChild(browse);
-		content.AddChild(townRow);
-
-		Heading("YOUR LABEL'S PAPER");
-		Body("A crest, a pair of period colours and a lettering for the name. They go on your office, your contracts, the chart and the paper; skip it and the name picks for you.");
-		brandPicker = new LabelBrandPicker(foundingBrand, foundingLabelName);
-		brandPicker.Changed += () => foundingBrand = brandPicker.Customised ? brandPicker.Current : null;
-		content.AddChild(brandPicker);
-
-		var found = Primary("OPEN THE DOORS");
-		found.CustomMinimumSize = new Vector2(240, 44);
-		found.TooltipText = "Start the label with the selected background, name, town, and starting cash.";
-		found.Pressed += () => {
-			if (cities.Count == 0) { Say("No towns loaded.", false); return; }
-			bool ok = PlayerDesk.Instance.FoundLabel(nameEdit.Text, selectedFoundingCityId ?? cities[0].cityId, selectedArchetype, brandPicker.Current, out string message);
-			Say(message, ok);
-			Refresh();
-		};
-		content.AddChild(found);
-	}
+	// The founding page itself lives in PlayerDeskPanel.Founding.cs.
 
 	/// <summary>What it is like to run a label out of this town, in plain words: the rent, the rivals, the
 	/// studios, the shipping and the shops at home. Every figure is the one the game will actually use.</summary>
-	private static string TownFacts(MarketCity city) {
+	private static string TownFacts(MarketCity city, bool includeOffice = true) {
 		CityProfile profile = CityProfiles.Get(city.cityId);
 		float quality = PlayerDesk.StudioQualityIn(city.cityId, city.parentRegionId);
 		float mid = PlayerDesk.StudioHourlyRateIn(city.cityId, city.parentRegionId, PlayerDesk.StudioTier.Mid);
 		float budget = PlayerDesk.StudioHourlyRateIn(city.cityId, city.parentRegionId, PlayerDesk.StudioTier.Budget);
 		float top = PlayerDesk.StudioHourlyRateIn(city.cityId, city.parentRegionId, PlayerDesk.StudioTier.Top);
 		return $"{profile.Character}\n\n" +
-			$"THE OFFICE  ·  Rent is ${profile.Rent:N0} a month, ${CityProfiles.MonthlyOverhead(city.cityId):N0} all in with the phone and postage.\n" +
+			(includeOffice ? $"THE OFFICE  ·  Rent is ${profile.Rent:N0} a month, ${CityProfiles.MonthlyOverhead(city.cityId):N0} all in with the phone and postage.\n" : "") +
 			$"THE SCENE  ·  {CityProfiles.CrowdingText(profile)} {CityProfiles.AskText(profile)}\n" +
 			$"THE STUDIOS  ·  Rooms run ${budget:N0} to ${top:N0} an hour (about ${mid:N0} for a middling one), with {CityProfiles.StudioSoundText(quality)}.\n" +
 			$"SHIPPING  ·  {CityProfiles.ShippingText(city)}\n" +
@@ -935,118 +826,6 @@ public partial class PlayerDeskPanel : Control {
 		FoundingArchetype.PromoMan => "The Fixer helps read suspicion and unlocks harder-edged contact options; Street helps read local momentum. Stronger promotion, but modest cash.",
 		_ => "A balanced start. Suit helps with business terms and reach; Ear and Fixer guide record and contact reads. Moderate starting cash and label stats."
 	};
-
-	private void ShowFoundingCities(List<MarketCity> cities, List<MarketRegion> regions) {
-		if (foundingCityPopup != null) foundingCityPopup.QueueFree();
-		foundingCityPopup = new PopupPanel { Size = new Vector2I(1540, 760) };
-		var popup = foundingCityPopup;
-		var regionName = regions.ToDictionary(region => region.regionId, region => region.regionName);
-		popup.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = Paper, BorderColor = Rust,
-			BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
-			ContentMarginLeft = 28, ContentMarginRight = 28, ContentMarginTop = 24, ContentMarginBottom = 24
-		});
-		AddChild(popup);
-		var card = new VBoxContainer();
-		card.AddThemeConstantOverride("separation", 10);
-		popup.AddChild(card);
-		var heading = new Label { Text = "CHOOSE YOUR HOME TOWN", CustomMinimumSize = new Vector2(0, 34) };
-		heading.AddThemeFontSizeOverride("font_size", 26);
-		heading.AddThemeColorOverride("font_color", Ink);
-		card.AddChild(heading);
-		var search = new LineEdit { PlaceholderText = "Search by town or region…", CustomMinimumSize = new Vector2(0, 36) };
-		card.AddChild(search);
-		var selection = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-		selection.AddThemeConstantOverride("separation", 18);
-		card.AddChild(selection);
-		var cityList = new ItemList { CustomMinimumSize = new Vector2(260, 0), SizeFlagsVertical = SizeFlags.ExpandFill };
-		cityList.AddThemeColorOverride("font_color", Ink);
-		cityList.AddThemeColorOverride("font_selected_color", Paper);
-		cityList.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("ead8ad"), BorderColor = new Color("8a7048"),
-			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1 });
-		cityList.AddThemeStyleboxOverride("selected", new StyleBoxFlat { BgColor = Rust });
-		cityList.AddThemeStyleboxOverride("selected_focus", new StyleBoxFlat { BgColor = Rust });
-		// The hovered row was white text on near-white; hover is a highlighter swipe with ink text.
-		cityList.AddThemeColorOverride("font_hovered_color", Ink);
-		cityList.AddThemeStyleboxOverride("hovered", new StyleBoxFlat { BgColor = new Color(PaperTheme.Highlighter, 0.55f) });
-		selection.AddChild(cityList);
-		// The atlas: every town where it really is, its region tinted; click a town to read about it.
-		var atlas = new UsMap { CustomMinimumSize = new Vector2(720, 460), SizeFlagsVertical = SizeFlags.ShrinkBegin };
-		atlas.CityNote = id => {
-			var town = DistanceModel.GetCityById(id);
-			return town == null ? null : $"{regionName.GetValueOrDefault(town.parentRegionId, town.parentRegionId)}{(town.isRegionalHub ? " · regional hub" : "")}";
-		};
-		var atlasColumn = new VBoxContainer();
-		atlasColumn.AddThemeConstantOverride("separation", 6);
-		atlasColumn.AddChild(atlas);
-		var atlasKey = new Label { Text = "Click a town on the map or in the list. Shaded areas are the sales regions; bold towns are regional hubs." , AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(720, 0) };
-		atlasKey.AddThemeFontSizeOverride("font_size", 13);
-		atlasKey.AddThemeColorOverride("font_color", Heard);
-		atlasColumn.AddChild(atlasKey);
-		selection.AddChild(atlasColumn);
-		var detail = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		detail.AddThemeConstantOverride("separation", 12);
-		selection.AddChild(detail);
-		Label CardText(int size) {
-			var label = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-			label.AddThemeFontSizeOverride("font_size", size);
-			label.AddThemeColorOverride("font_color", Ink);
-			detail.AddChild(label);
-			return label;
-		}
-		var cityName = CardText(28);
-		var location = CardText(16);
-		detail.AddChild(new HSeparator());
-		var details = CardText(16);
-		var neighbors = CardText(16);
-		var select = Btn("MAKE THIS MY HOME");
-		select.CustomMinimumSize = new Vector2(0, 42);
-		detail.AddChild(select);
-		string popupCityId = selectedFoundingCityId;
-		int index = Math.Max(0, cities.FindIndex(city => city.cityId == popupCityId));
-		List<MarketCity> filteredCities = new();
-		void ShowCard() {
-			if (index < 0 || index >= filteredCities.Count) return;
-			MarketCity city = filteredCities[index];
-			popupCityId = city.cityId;
-			atlas.SelectedCityId = city.cityId; atlas.HighlightRegionId = city.parentRegionId;
-			MarketRegion region = regions.FirstOrDefault(candidate => candidate.regionId == city.parentRegionId);
-			cityName.Text = city.name.ToUpperInvariant();
-			location.Text = $"{region?.regionName ?? city.parentRegionId}{(city.isRegionalHub ? "  •  REGIONAL HUB" : "")}";
-			string tastes = string.Join(", ", (region?.genrePreferences ?? Array.Empty<GenrePreference>())
-				.OrderByDescending(pref => pref.affinity).Take(3).Select(pref => GenreNameFormatter.Format(pref.genre)));
-			details.Text = TownFacts(city) + $"\n\nThe region leans toward {tastes}.";
-			neighbors.Text = "THE ROAD  ·  Nearest towns: " + string.Join(", ", cities.Where(other => other.cityId != city.cityId)
-				.OrderBy(other => DistanceModel.GetRoadMilesBetween(city.cityId, other.cityId)).Take(3)
-				.Select(other => $"{other.name} ({PlayerDesk.Instance.DriveQuote(city.cityId, other.cityId).Hours}h)"));
-		}
-		void FilterCities(string query) {
-			string keepCityId = popupCityId;
-			string term = (query ?? string.Empty).Trim();
-			filteredCities = cities.Where(city => string.IsNullOrEmpty(term)
-				|| city.name.Contains(term, StringComparison.OrdinalIgnoreCase)
-				|| (regionName.GetValueOrDefault(city.parentRegionId, city.parentRegionId) ?? "").Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
-			cityList.Clear();
-			foreach (MarketCity city in filteredCities)
-				cityList.AddItem($"{city.name}  ·  {regionName.GetValueOrDefault(city.parentRegionId, city.parentRegionId)}");
-			index = filteredCities.FindIndex(city => city.cityId == keepCityId);
-			if (index < 0 && filteredCities.Count > 0) index = 0;
-			if (index >= 0) { popupCityId = filteredCities[index].cityId; cityList.Select(index); ShowCard(); }
-			else { cityName.Text = "NO TOWNS MATCH"; location.Text = "Try a different town or region."; details.Text = ""; neighbors.Text = ""; }
-			select.Disabled = filteredCities.Count == 0;
-		}
-		cityList.ItemSelected += item => { index = (int)item; popupCityId = filteredCities[index].cityId; ShowCard(); };
-		atlas.CityPressed += id => {
-			if (filteredCities.All(c => c.cityId != id)) { popupCityId = id; search.Text = ""; FilterCities(""); }
-			index = filteredCities.FindIndex(c => c.cityId == id);
-			if (index < 0) return;
-			popupCityId = id; cityList.Select(index); cityList.EnsureCurrentIsVisible(); ShowCard();
-		};
-		search.TextChanged += FilterCities;
-		select.Pressed += () => { if (index < 0 || index >= filteredCities.Count) return; selectedFoundingCityId = popupCityId; popup.Hide(); Refresh(); };
-		FilterCities(search.Text);
-		popup.PopupCentered(new Vector2I(1540, 760));
-	}
 
 	// ========================================================================
 	// SAVE / LOAD
