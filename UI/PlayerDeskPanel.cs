@@ -2545,7 +2545,7 @@ public partial class PlayerDeskPanel : Control {
 				List<PlayerDesk.PlayerStop> kindStops = kindGroup.ToList();
 				bool expanded = expandedStopKinds.Contains(kind);
 
-				var header = Btn($"{(expanded ? "▾" : "▸")}  {StopKindLabel(kind).ToUpperInvariant()}  ({kindStops.Count})");
+				var header = Band($"{(expanded ? "▾" : "▸")}  {StopKindLabel(kind).ToUpperInvariant()}  ({kindStops.Count})");
 				header.CustomMinimumSize = new Vector2(360, 36);
 				header.Pressed += () => {
 					if (!expandedStopKinds.Remove(kind)) expandedStopKinds.Add(kind);
@@ -3391,34 +3391,71 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(hang);
 	}
 
-	/// <summary>One option button, coloured by the voice that surfaced it, with its cost and its
-	/// truthfulness spelled out underneath. A bluff is always labelled as one.</summary>
+	/// <summary>One thing the player can say: a line of script, not a boxed button. Left-aligned serif behind a rust
+	/// lead mark, coloured by the voice that surfaced it and marked with that instinct's linocut, with its cost and its
+	/// truthfulness in small italic underneath. A bluff is always labelled as one. The whole row is the hit area.</summary>
 	private void RenderOption(CallOption opt, Action onPressed) {
-		string prefix = opt.voice == ExecutiveVoice.None ? "" : $"[{VoiceName(opt.voice)}] ";
-		var btn = Btn(prefix + opt.label);
-		btn.CustomMinimumSize = new Vector2(0, 38);
-		btn.Disabled = !opt.enabled;
-		if (opt.enabled) btn.Pressed += onPressed;
-		if (opt.voice != ExecutiveVoice.None) {
-			btn.AddThemeColorOverride("font_color", VoiceColor(opt.voice));
-			btn.AddThemeColorOverride("font_hover_color", VoiceColor(opt.voice));
+		bool voiced = opt.voice != ExecutiveVoice.None;
+		var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		row.AddThemeConstantOverride("separation", 0);
+
+		var line = new Button {
+			Text = "▸  " + opt.label, Alignment = HorizontalAlignment.Left,
+			AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill,
+			CustomMinimumSize = new Vector2(0, 34), Disabled = !opt.enabled,
+			TooltipText = voiced ? VoiceName(opt.voice) : "",
+			MouseDefaultCursorShape = opt.enabled ? CursorShape.PointingHand : CursorShape.Arrow,
+		};
+		float indent = voiced ? 42f : 10f;
+		StyleBoxFlat Face(Color fill, int lead) => new() {
+			BgColor = fill, BorderColor = lead > 0 ? Rust : new Color("c9b48a"),
+			BorderWidthLeft = lead, BorderWidthBottom = lead > 0 ? 0 : 1,
+			ContentMarginLeft = indent - lead, ContentMarginRight = 10, ContentMarginTop = 6, ContentMarginBottom = 6,
+		};
+		line.AddThemeStyleboxOverride("normal", Face(new Color(0, 0, 0, 0), 0));
+		line.AddThemeStyleboxOverride("hover", Face(new Color("f6ecd0"), 3));
+		line.AddThemeStyleboxOverride("pressed", Face(new Color("ead8ad"), 3));
+		line.AddThemeStyleboxOverride("disabled", Face(new Color(0, 0, 0, 0), 0));
+		line.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		line.AddThemeFontOverride("font", PaperTheme.Serif);
+		line.AddThemeFontSizeOverride("font_size", 17);
+		Color ink = voiced ? VoiceColor(opt.voice) : Ink;
+		foreach (string key in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" })
+			line.AddThemeColorOverride(key, ink);
+		line.AddThemeColorOverride("font_disabled_color", new Color("9a8a6a"));
+		if (voiced) {
+			// The instinct the line draws on wears its linocut, the same prints as the founding cards.
+			var badge = new LinocutIcon().Set(VoiceInstinct(opt.voice), 26f);
+			badge.MouseFilter = MouseFilterEnum.Ignore;
+			badge.Position = new Vector2(8, 4);
+			if (!opt.enabled) badge.Modulate = new Color(1, 1, 1, 0.45f);
+			line.AddChild(badge);
 		}
-		content.AddChild(btn);
+		if (opt.enabled) line.Pressed += onPressed;
+		row.AddChild(line);
 
 		string sub = opt.enabled ? opt.subLabel : opt.disabledReason;
+		if (opt.isBluff) sub = string.IsNullOrEmpty(sub) ? "Not true. He may check." : sub + "  —  not true. He may check.";
 		if (!string.IsNullOrEmpty(sub)) {
-			var note = new Label { Text = "     " + sub, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			var margin = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
+			margin.AddThemeConstantOverride("margin_left", (int)indent + 18);
+			margin.AddThemeConstantOverride("margin_bottom", 4);
+			var note = new Label { Text = sub, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			note.AddThemeFontOverride("font", PaperTheme.SerifItalic);
 			note.AddThemeFontSizeOverride("font_size", 14);
 			note.AddThemeColorOverride("font_color", opt.isBluff ? Rust : Heard);
-			content.AddChild(note);
+			margin.AddChild(note);
+			row.AddChild(margin);
 		}
-		if (opt.isBluff) {
-			var warn = new Label { Text = "     (Not true. He may check.)" };
-			warn.AddThemeFontSizeOverride("font_size", 13);
-			warn.AddThemeColorOverride("font_color", Rust);
-			content.AddChild(warn);
-		}
+		content.AddChild(row);
 	}
+
+	private static InstinctKind VoiceInstinct(ExecutiveVoice voice) => voice switch {
+		ExecutiveVoice.Street => InstinctKind.Street,
+		ExecutiveVoice.Suit   => InstinctKind.Suit,
+		ExecutiveVoice.Fixer  => InstinctKind.Fixer,
+		_ => InstinctKind.Ear,
+	};
 
 	private static string VoiceName(ExecutiveVoice voice) => voice switch {
 		ExecutiveVoice.Ear    => "THE EAR",
@@ -3795,7 +3832,7 @@ public partial class PlayerDeskPanel : Control {
 	private Button SectionHeading(string key, string title, bool defaultOpen, string help = null) {
 		content = contentRoot;   // close the previous section: later rows belong to this one
 		bool open = sectionOpen.TryGetValue(key, out bool chosen) ? chosen : defaultOpen;
-		var header = Btn($"{(open ? "▾" : "▸")}  {title}");
+		var header = Band($"{(open ? "▾" : "▸")}  {title}");
 		header.Alignment = HorizontalAlignment.Left;
 		header.CustomMinimumSize = new Vector2(0, 36);
 		header.TooltipText = open ? "Click to collapse this stage." : "Click to open this stage.";
@@ -4243,7 +4280,13 @@ public partial class PlayerDeskPanel : Control {
 	// stylebox, which reads fine on the beige page. Only the CheckBox is special -- it has no filled box,
 	// so its label sits straight on the paper and must be dark in every state, or a hover/focus turns it
 	// near-white and it vanishes (the "highlighting an option should not be white" note).
-	private static Button Btn(string text) => new Button { Text = text };
+	// A button is as wide as its words. Dropped straight into the page's VBox it would otherwise stretch to the
+	// full sheet (a 900px bar around "HANG UP"); rows that want to fill say so with ExpandFill, and section
+	// bands use Band().
+	private static Button Btn(string text) => new Button { Text = text, SizeFlagsHorizontal = SizeFlags.ShrinkBegin };
+
+	/// <summary>A full-width section band (a fold-open header): the one kind of button that spans the sheet.</summary>
+	private static Button Band(string text) => new Button { Text = text, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 
 	/// <summary>The one verb on a card that spends time or money: a solid oxblood button.</summary>
 	private static Button Primary(string text) => new Button { Text = text, ThemeTypeVariation = PaperTheme.Primary };

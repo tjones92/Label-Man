@@ -22,7 +22,7 @@ public partial class PlayerDeskPanel {
     private void ScoutingSection(string key, string title, bool defaultOpen, Action build) {
         var parent = content;
         bool open = sectionOpen.TryGetValue(key, out bool chosen) ? chosen : defaultOpen;
-        var toggle = Btn((open ? "▾  " : "▸  ") + title);
+        var toggle = Band((open ? "▾  " : "▸  ") + title);
         toggle.Alignment = HorizontalAlignment.Left;
         toggle.Pressed += () => { sectionOpen[key] = !open; RefreshKeepingScroll(); };
         parent.AddChild(toggle);
@@ -58,7 +58,7 @@ public partial class PlayerDeskPanel {
             content = body;
             try {
                 bool expanded = expandedScoutingArtistId == dossier.ArtistId;
-                var header = Btn($"{(expanded ? "▾" : "▸")}  {dossier.ArtistName} · {dossier.Priority}");
+                var header = Band($"{(expanded ? "▾" : "▸")}  {dossier.ArtistName} · {dossier.Priority}");
                 header.Alignment = HorizontalAlignment.Left;
                 header.AddThemeFontOverride("font", PaperTheme.SerifBold);
                 header.AddThemeFontSizeOverride("font_size", 21);
