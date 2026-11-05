@@ -44,6 +44,8 @@ public sealed class NamingContinuationSaveData {
 	public LabelMan.Naming.DeterministicRandomState Main { get; set; }
 	public LabelMan.Naming.DeterministicRandomState Acts { get; set; }
 	public LabelMan.Naming.DeterministicRandomState Titles { get; set; }
+	public LabelMan.Naming.DeterministicRandomState Albums { get; set; }
+	public LabelMan.Naming.DeterministicRandomState Labels { get; set; }
 	public LabelMan.Naming.NameUniquenessState Uniqueness { get; set; }
 }
 

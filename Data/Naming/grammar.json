@@ -100,7 +100,7 @@
     "The {adjective:psych} {groupNoun:british}",
     "The {lastName:generic} {groupNoun:british}",
     "The (Leather|Velvet|Vinyl|Nylon|Suede|Denim) {groupNoun:british}",
-    "(Question Mark|Zero|Nobody|X|Johnny Blade|Roky) and the {groupNoun:british}"
+    "(Question Mark|Zero|Nobody|X|Mister X|The Phantom) and the {groupNoun:british}"
   ],
 
   "bandName.garageEarly": [
@@ -119,9 +119,9 @@
     "The {lastName:generic} Singers",
     "The (Mountain|Valley|River|Forest|Prairie|Highland) (Boys|Girls|Folk|Singers|Voices)",
     "The {lastName:generic} (Brothers|Sisters|Family)",
-    "The New (Christy|Lost City|Cumberland|Limelight|Greenbriar) (Minstrels|Ramblers|Singers|Boys)",
+    "The New {adjective:universal} (Minstrels|Ramblers|Singers|Wayfarers)",
     "The {region} (Ramblers|Travelers|Boys|Singers)",
-    "The (Weavers|Seekers|Pilgrims|Wayfarers|Journeymen|Highwaymen)",
+    "The (Wanderers|Pilgrims|Wayfarers|Drovers|Gleaners|Ferrymen|Tinkers|Pathfinders|Riverboatmen)",
     "The {adjective:universal} (Brothers|Sisters|Family|Clan)"
   ],
 
@@ -188,7 +188,7 @@
   ],
 
   "bandName.blues": [
-    "(Muddy|Howlin'|Blind|Big|Little|Sonny Boy|Lightnin'|Slim) {lastName:generic}",
+    "(Blind|Big|Little|Lightnin'|Slim|Smokey|Shakey) {lastName:generic}",
     "{firstName:male,black} {lastName:generic} and the {adjective:soul} (Blues Band|Kings|Wolves|Aces)",
     "The {city:general} Blues Band",
     "{firstName:male,black} \"{nickQuoted}\" {lastName:generic}",
@@ -199,7 +199,7 @@
 
   "bandName.hardRock": [
     "(Iron|Steel|Black|Deep|Heavy|Blue) {noun:psych}",
-    "The (Who|Move|Nice|Cream|Faces|Herd)",
+    "The (Crush|Fuse|Grind|Siege|Wreck|Haze|Rush|Flood)",
     "{adjective:psych} (Thunder|Machine|Purple|Butterfly|Steamroller)",
     "(Blue|Iron|Chrome|Steel|Vanilla) {groupNoun:animals.trimS}",
     "The {adjective:psych} {groupNoun:british}",
@@ -209,7 +209,7 @@
 
   "bandName.bubblegum": [
     "The {city:general} Express",
-    "(1910|1900|1st|New|Ohio) (Fruitgum Company|Express|Edition|Class)",
+    "(1899|1st Avenue|Main Street|Toledo|Dayton) (Candy Company|Express|Bubble Band|Jellybean Brigade)",
     "The {adjective:early60s} {groupNoun:animals}",
     "{firstName:male,white} and the {groupNoun:animals}",
     "The {adjective:universal} (Bunch|Gang|Kids|Crew|Company)",
@@ -218,16 +218,16 @@
 
   "bandName.reggae": [
     "(King|Prince|Sir|Lord) {lastName:generic} and the {adjective:soul} (All-Stars|Sound System)",
-    "The {adjective:soul} (Rulers|Rudies|Kings|Maytals|Vibrations)",
-    "{firstName:male,black} and the {adjective:soul} (Wailers|Upsetters|Vibrations)",
+    "The {adjective:soul} (Rulers|Rudies|Kings|Monarchs|Liberators)",
+    "{firstName:male,black} and the {adjective:soul} (Downbeats|Ruffians|Rhythm Aces)",
     "The {city:general} (Ska|Rocksteady|Reggae) (Kings|All-Stars)",
-    "(Toots|Prince|King|Sir|Lord) {firstName:male,black}",
+    "(Prince|King|Sir|Lord|Count) {firstName:male,black}",
     "The Wailing {groupNoun:musical}"
   ],
 
   "bandName.sunshine": [
     "The {adjective:psych} {groupNoun:gems}",
-    "The (Association|Turtles|Grass Roots|Cowsills|Sandpipers)",
+    "The (Morning Glories|Meadowlarks|Weather Vanes|Kites|Daydreamers|Pinwheels)",
     "The {adjective:early60s} {groupNoun:birds}",
     "{firstName:male,white} and the {adjective:psych} {groupNoun:musical}",
     "The {adjective:psych} (Fountain|Garden|Meadow|Rainbow|Sunshine) {groupNoun:musical}",
@@ -459,8 +459,7 @@
     "Presenting {artist}",
     "{artist} (Live|In Concert|On Stage)",
     "An Evening With {artist}",
-    "{artist} (Sings|Plays|Swings|Rocks)",
-    "{artist} (Goes|Meets|Salutes|Celebrates)"
+    "{artist} Sings"
   ],
 
   "compilationTitle": [
@@ -474,55 +473,93 @@
     "The {artist} Story"
   ],
 
+  "//label": "Label names. No real company names: the historical labels are seeded separately (AILabelFactory templates) and reserved, so a procedural label can never be a second Capitol. {founder} is the founder's surname (a runtime-founded label's real founder, else drawn) and {hq} its home city; {labelWord:...} and {labelSyl} live in lexicon.labels.json. Patterns follow the period: a founder's surname, a short punchy coinage, a two-syllable founders' blend (Vee-Jay style), a hometown name.",
+
   "label.soulFactory": [
-    "{city:general} Sound",
-    "{noun:soul} Records",
-    "{adjective:soul} Records",
-    "{groupNoun:gems} Records",
-    "{noun:soul}",
-    "{city:general} Records"
+    {"w": 3, "t": "{labelWord:soul} Records"},
+    {"w": 2, "t": "{labelWord:soul}"},
+    {"w": 2, "t": "{founder} Records"},
+    {"w": 2, "t": "{labelSyl}-{labelSyl} Records"},
+    {"w": 1, "t": "{hq} Sound"},
+    {"w": 1, "t": "{labelWord:general} Soul"},
+    {"w": 1, "t": "Golden {labelWord:soul} Records"}
+  ],
+
+  "label.gospel": [
+    {"w": 3, "t": "{labelWord:gospel} Records"},
+    {"w": 2, "t": "{founder} Gospel Records"},
+    {"w": 1, "t": "{labelWord:gospel} Gospel"},
+    {"w": 1, "t": "{hq} Gospel Recordings"},
+    {"w": 1, "t": "Voice of (Faith|Zion|Calvary|Glory|Praise|Deliverance|Hope|the Gospel|the Valley) Records"}
   ],
 
   "label.bluesRoots": [
-    "(Atlantic|Pacific|Continental|National|Imperial) Records",
-    "{groupNoun:royalty} Records",
-    "(Stax|Volt|Chess|Duke|Ace) Records",
-    "{adjective:soul} Sound",
-    "{city:general} Sound"
+    {"w": 3, "t": "{labelWord:blues} Records"},
+    {"w": 3, "t": "{founder} Records"},
+    {"w": 2, "t": "{labelSyl}-{labelSyl} Records"},
+    {"w": 2, "t": "{labelWord:blues}"},
+    {"w": 1, "t": "{hq} Blues Recordings"}
   ],
 
   "label.rockRebel": [
-    "(Sun|Moon|Star|Mercury|Saturn) Records",
-    "{city:country} Records",
-    "(Starday|Monument|Plantation|Hickory) Records",
-    "{region} Records",
-    "{adjective:country} Records"
+    {"w": 3, "t": "{labelWord:rock} Records"},
+    {"w": 2, "t": "{labelWord:rock}"},
+    {"w": 2, "t": "{founder} Records"},
+    {"w": 1, "t": "{labelSyl}-{labelSyl}"},
+    {"w": 1, "t": "{hq} Records"}
+  ],
+
+  "label.country": [
+    {"w": 3, "t": "{labelWord:country} Records"},
+    {"w": 2, "t": "{founder} Records"},
+    {"w": 1, "t": "{labelWord:country}"},
+    {"w": 1, "t": "{hq} Records"},
+    {"w": 1, "t": "{labelWord:country} Country Records"}
+  ],
+
+  "label.teen": [
+    {"w": 3, "t": "{labelWord:teen} Records"},
+    {"w": 2, "t": "{labelWord:teen}"},
+    {"w": 2, "t": "{labelSyl}-{labelSyl} Records"},
+    {"w": 1, "t": "{founder} Records"}
+  ],
+
+  "label.folk": [
+    {"w": 3, "t": "{labelWord:folk} Records"},
+    {"w": 2, "t": "{labelWord:folk}"},
+    {"w": 1, "t": "{founder} Recordings"},
+    {"w": 1, "t": "{hq} Folk Recordings"}
+  ],
+
+  "label.jazz": [
+    {"w": 3, "t": "{labelWord:jazz} Records"},
+    {"w": 2, "t": "{labelWord:jazz}"},
+    {"w": 2, "t": "{founder} Jazz Records"},
+    {"w": 1, "t": "{labelWord:general} Jazz"}
   ],
 
   "label.indie": [
-    "{groupNoun:british} Records",
-    "{adjective:psych} Sound",
-    "{noun:psych} Records",
-    "{city:general} Underground",
-    "{lastName:generic} Records",
-    "{groupNoun:psych}"
+    {"w": 4, "t": "{labelWord:general} Records"},
+    {"w": 2, "t": "{labelWord:general}"},
+    {"w": 3, "t": "{founder} Records"},
+    {"w": 2, "t": "{labelSyl}-{labelSyl} Records"},
+    {"w": 1, "t": "{hq} Records"},
+    {"w": 1, "t": "{labelWord:psych} Records"}
   ],
 
   "label.major": [
-    "(Columbia|Capitol|RCA|Decca|Mercury) Records",
-    "(American|National|United|Republic|Liberty) Records",
-    "{lastName:generic} Brothers",
-    "(Victor|Brunswick|Parlophone|HMV)",
-    "{groupNoun:royalty} Records"
+    {"w": 3, "t": "{labelWord:corporate} Records"},
+    {"w": 2, "t": "{labelWord:corporate} Recording Corporation"},
+    {"w": 1, "t": "{labelWord:corporate} Artists Records"},
+    {"w": 1, "t": "{founder} & {lastName:generic} Records"}
   ],
 
   "label.generic": [
-    "{lastName:generic} Records",
-    "{city:general} Records",
-    "{noun:universal} Records",
-    "{adjective:universal} Records",
-    "{groupNoun:musical} Records",
-    "{lastName:generic} & {lastName:generic}"
+    {"w": 3, "t": "{labelWord:general} Records"},
+    {"w": 2, "t": "{founder} Records"},
+    {"w": 1, "t": "{labelWord:general}"},
+    {"w": 1, "t": "{labelSyl}-{labelSyl} Records"},
+    {"w": 1, "t": "{hq} Records"}
   ],
 
   "venue.smallClub": [

@@ -54,7 +54,7 @@ public partial class LabelDetailPanel : Control
 		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
 		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); root.AddChild(chromeLabel);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
-		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6).Decorated(clip: false, ring: true, seed: 11)); root.AddChild(paper);
+		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6).Decorated(clip: false, ring: false, seed: 11)); root.AddChild(paper);
 		var scroll = new ScrollContainer(); paper.AddChild(scroll); content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 12); scroll.AddChild(content);
 	}
 	private void BuildTabs() { Clear(tabs); tabButtons.Clear(); AddTab("OVERVIEW", ShowOverview); AddTab("ROSTER", ShowRoster); AddTab("TRACK RECORD", ShowTrackRecord); ActivateTab(0, ShowOverview); }

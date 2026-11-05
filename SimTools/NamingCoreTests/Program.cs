@@ -28,6 +28,8 @@ public static class Program {
 		TestTemplates();
 		TestBlend();
 		TestNameEngineIntegration();
+		TestLineupBinding();
+		TestTitleSelection();
 		Console.WriteLine($"\n{total - fails}/{total} passed" + (fails == 0 ? "  ALL GREEN" : $"  ({fails} FAILED)"));
 		Environment.Exit(fails == 0 ? 0 : 1);
 	}
@@ -245,14 +247,16 @@ public static class Program {
 		Console.WriteLine("== GenreProfile ==");
 		var lib = new GenreLibrary();
 		var blues = lib.Get("Blues");
-		True("Blues inherits BluesRoot nickname 0.9", Math.Abs(blues.Voice.NicknameDensity - 0.9) < 1e-9);
+		// (BluesRoot's nickname density was lowered 0.9 -> 0.45 on purpose; test the inheritance, not the number)
+		double rootNick = lib.Get("BluesRoot").Voice.NicknameDensity;
+		True("Blues inherits BluesRoot nickname", rootNick > 0 && Math.Abs(blues.Voice.NicknameDensity - rootNick) < 1e-9);
 		True("Blues inherits grit affinity", blues.DomainAffinity.TryGetValue("grit", out var gg) && gg == 3);
 		True("Blues suppresses candy", blues.Suppress.Contains("candy"));
 		// BritishBlues: BluesRoot -> BluesRock (punct .6) -> BritishBlues (UK)
 		var bb = lib.Get("BritishBlues");
 		True("BritishBlues UK orthography", bb.Orthography == Locale.UK);
 		True("BritishBlues inherits punct .6 from BluesRock", Math.Abs(bb.Voice.PunctuationIntensity - 0.6) < 1e-9);
-		True("BritishBlues inherits nickname .9 from root", Math.Abs(bb.Voice.NicknameDensity - 0.9) < 1e-9);
+		True("BritishBlues inherits nickname from root", Math.Abs(bb.Voice.NicknameDensity - rootNick) < 1e-9);
 		// PsychedelicPop overrides archaism back to 0.2 (== neutral) — must NOT inherit PsychFamily 0.5
 		var pp = lib.Get("PsychedelicPop");
 		True("PsychPop archaism override to 0.2", Math.Abs(pp.Voice.ArchaismLevel - 0.2) < 1e-9);
@@ -525,5 +529,134 @@ public static class Program {
 		True("loader parsed constraints", b1.Constraints.Count == 2 && b1.Constraints[1] is DistinctConstraint);
 		True("loader parsed gate", sets["song.bg"][0].GateMinYear == 1968);
 		True("loader parsed same constraint", sets["song.bg"][0].Constraints[0] is SameConstraint);
+	}
+
+	// Act names bound to a real lineup (Systems/Naming/Core/Lineup.cs).
+	static void TestLineupBinding() {
+		Console.WriteLine("== Lineup binding ==");
+		var lex = new Lexicon();
+		AddWords(lex, "firstName", new[]{"Sonny","Buck","Gary"}, "male","white");
+		AddWords(lex, "lastName", new[]{"Smith","Jones"}, "generic");
+		AddWords(lex, "groupNoun", new[]{"Rockets","Comets","Jets","Stars"}, "rocknroll");
+		AddWords(lex, "kinGroup", new[]{"Brothers","Sisters","Family","Singers"}, "musical");
+		string grammarJson = "{ \"g.duo\": [ \"{firstName:male,white} and {firstName:male,white}\" ], \"g.kin\": [ \"The {lastName:generic} (Brothers|Sisters)\", \"The {groupNoun:rocknroll}\" ] }";
+		var eng = new NameEngine(lex, GrammarEngine.ParseGrammar(grammarJson));
+		string tj = @"{ ""band.t"": [
+			{ ""id"":""lead"", ""type"":""band"", ""pattern"":""%firstName#1% and the %groupNoun#1%"", ""slots"":{ ""groupNoun#1"":{""pos"":""groupNoun"",""filter"":""rocknroll""} } },
+			{ ""id"":""pair"", ""type"":""band"", ""pattern"":""%firstName#1% & %firstName#2%"" },
+			{ ""id"":""trio"", ""type"":""band"", ""pattern"":""%firstName#1% %lastName#1% Trio"" },
+			{ ""id"":""bros"", ""type"":""band"", ""pattern"":""The %lastName#1% Brothers"" },
+			{ ""id"":""kin"", ""type"":""band"", ""pattern"":""The %lastName#1% %kinGroup#1%"" },
+			{ ""id"":""head"", ""type"":""band"", ""pattern"":""The %countWord#1% %groupNoun#1%"", ""slots"":{ ""groupNoun#1"":{""pos"":""groupNoun"",""filter"":""rocknroll""} } } ] }";
+		foreach (var kv in ConstraintTemplateLoader.Parse(tj)) eng.AddConstraintSet(kv.Key, kv.Value);
+		var set = ConstraintTemplateLoader.Parse(tj)["band.t"].ToDictionary(t => t.Id);
+		True("cast: 'and the' needs a backing band", set["lead"].Cast.MinSize == 3);
+		True("cast: two-name billing is exactly two", set["pair"].Cast.MinSize == 2 && set["pair"].Cast.MaxSize == 2);
+		True("cast: Trio is three", set["trio"].Cast.MinSize == 3 && set["trio"].Cast.MaxSize == 3);
+		True("cast: Brothers is an all-male family", set["bros"].Cast.Family && set["bros"].Cast.AllGender == "male");
+
+		Lineup Make(bool family, params (string f, string l, bool fem)[] ps) {
+			var l = new Lineup { Family = family };
+			foreach (var p in ps) l.People.Add(new LineupPerson(p.f, p.l, p.fem));
+			return l;
+		}
+		var four = Make(false, ("Dale","Hart",false), ("Ray","Pike",false), ("Lou","Bell",false), ("Tom","Cole",false));
+		var rng = new DeterministicRandom(7UL);
+		bool allBound = true, sizeOk = true;
+		for (int i = 0; i < 60; i++) {
+			var ctx = new NamingContext { Genre = "RockAndRoll", Year = 1962, Rng = rng, ArtistType = "Band", Lineup = four };
+			string n = eng.FillConstraint("band.t", ctx);
+			if (n.Contains("Sonny") || n.Contains("Buck") || n.Contains("Gary") || n.Contains("Smith") || n.Contains("Jones")) allBound = false;
+			if (n.Contains("Trio") || n.Contains("&") || n.Contains("Brothers") || (n.StartsWith("The ") && n.Split(' ').Length == 3 && n.Contains("Three"))) sizeOk = false;
+		}
+		True("person slots bind to members, never the lexicon", allBound);
+		True("size/kin claims never false of a four-piece", sizeOk);
+		var duo = Make(false, ("Inez","Hart",true), ("Charlie","Pike",false));
+		var dctx = new NamingContext { Genre = "Soul", Year = 1963, Rng = new DeterministicRandom(1UL), ArtistType = "Duo", Lineup = duo };
+		string g = eng.ExpandOnce("g.duo", dctx);
+		Eq("grammar binds successive members in order", g, "Inez and Charlie");
+		var sisters = Make(true, ("Ann","Hart",true), ("Joy","Hart",true), ("Kay","Hart",true));
+		bool kinOk = true;
+		for (int i = 0; i < 30; i++) {
+			var kctx = new NamingContext { Genre = "Country", Year = 1962, Rng = rng, ArtistType = "Band", Lineup = sisters };
+			string k = eng.ExpandOnce("g.kin", kctx);
+			if (k.Contains("Brothers")) kinOk = false;
+		}
+		True("grammar option filter: sisters are never Brothers", kinOk);
+		var hctx = new NamingContext { Genre = "DooWop", Year = 1960, Rng = rng, ArtistType = "VocalGroup", Lineup = sisters };
+		bool sawThree = false;
+		for (int i = 0; i < 40; i++) { string h = eng.FillConstraint("band.t", hctx); if (h.StartsWith("The Three ")) sawThree = true; if (h.StartsWith("The Two ") || h.StartsWith("The Four ")) sawThree = false; }
+		True("head count word is the lineup size", sawThree);
+		Eq("polish collapses a doubled article", ActNamePolish.Run("The the Ozarks Players"), "The Ozarks Players");
+		True("no lineup = legacy draw (unbound)", eng.FillConstraint("band.t", new NamingContext { Genre = "RockAndRoll", Year = 1962, Rng = new DeterministicRandom(2UL), ArtistType = "Band" }).Length > 0);
+	}
+
+	static void TestTitleSelection() {
+		Console.WriteLine("== Title selection ==");
+		WordEntry W(string word, string pos, params string[] tags) => new WordEntry { Word = word, Pos = pos, Tags = new HashSet<string>(tags, StringComparer.OrdinalIgnoreCase) };
+		var sing = W("sing", "verb"); var hold = W("hold", "verb", "gObjPerson");
+		True("intransitive verb refused before Me", !TitleSelection.Admits("verb", sing, "You ", " Me", false));
+		True("person-object verb admitted before Me", TitleSelection.Admits("verb", hold, "You ", " Me", false));
+		True("intransitive verb fine without an object", TitleSelection.Admits("verb", sing, "Let's ", "", false));
+		var mercy = W("redemption", "noun", "gAbstract"); var road = W("road", "noun", "gPath"); var wagon = W("wagon", "noun");
+		True("abstract noun refused after 'down the'", !TitleSelection.Admits("noun", mercy, "Mercy Down the ", "", false));
+		True("path noun admitted after 'down the'", TitleSelection.Admits("noun", road, "Down the ", "", false));
+		True("non-path noun refused after 'down the'", !TitleSelection.Admits("noun", wagon, "Down the ", "", false));
+		True("abstract head refused before 'beside the'", !TitleSelection.Admits("noun", W("honor", "noun", "gAbstract"), "", " Beside the Barn", false));
+		var tj = W("Tijuana", "place", "gProper"); var shack = W("shack", "noun");
+		True("proper place refused after 'the'", !TitleSelection.Admits("place", tj, "Down the ", "", false));
+		True("bare count noun refused after 'of'", !TitleSelection.Admits("noun", shack, "Songs of ", "", false));
+		True("bare count noun fine when pluralized", TitleSelection.Admits("noun", shack, "Songs of ", "", true));
+		True("modifier before a capitalised head skips the article rules", TitleSelection.Admits("place", tj, "at the ", " Jazz Festival", false));
+		Eq("polish collapses 'the the'", TitlePolish.Title("Live at the the Riverside Theater"), "Live at the Riverside Theater");
+		Eq("'?' dropped from a non-question", TitlePolish.Title("Meet the Calloways?"), "Meet the Calloways");
+		Eq("'?' kept on a question", TitlePolish.Title("Will You Be Mine?"), "Will You Be Mine?");
+		Eq("plural act takes a plural verb", TitlePolish.Album("The Calloways Sings Their Greatest Hits", "The Calloways", null), "The Calloways Sing Their Greatest Hits");
+		Eq("solo act keeps the singular verb", TitlePolish.Album("Patsy Hart Sings Their Greatest Hits", "Patsy Hart", null), "Patsy Hart Sings the Greatest Hits");
+		Eq("act article lower-case mid-title", TitlePolish.Album("Here's The Dean Brothers", "The Dean Brothers", null), "Here's the Dean Brothers");
+		Eq("lead single kept verbatim", TitlePolish.Album("Lead Single!", "The Calloways", "Lead Single"), "Lead Single");
+		True("a 'n' billing is plural", TitlePolish.IsPluralAct("Elmer 'n' Ray"));
+		Eq("'n' duo takes a plural verb", TitlePolish.Album("Elmer 'n' Ray Sings", "Elmer 'n' Ray", null), "Elmer 'n' Ray Sing");
+
+		Console.WriteLine("== Title templates ==");
+		// shared sets: { "include": ..., "scale": ... } splices scaled copies; the shared set itself is untouched
+		var sets = ConstraintTemplateLoader.Parse(@"{
+			""songTitle._shared"": [ { ""id"": ""sh_a"", ""type"": ""song"", ""pattern"": ""Alpha"", ""weight"": 2 },
+			                         { ""id"": ""sh_b"", ""type"": ""song"", ""pattern"": ""Beta"", ""weight"": 4 } ],
+			""songTitle.x"": [ { ""id"": ""x_own"", ""type"": ""song"", ""pattern"": ""Own"", ""weight"": 1 },
+			                   { ""include"": ""songTitle._shared"", ""scale"": 0.5 } ] }");
+		var x = sets["songTitle.x"];
+		Eq("include splices the shared templates", string.Join(",", x.Select(t => t.Id)), "x_own,sh_a,sh_b");
+		True("include scales the copies", Math.Abs(x[1].Weight - 1.0) < 1e-9 && Math.Abs(x[2].Weight - 2.0) < 1e-9);
+		True("shared set keeps its own weights", Math.Abs(sets["songTitle._shared"][0].Weight - 2.0) < 1e-9);
+		// nested includes resolve whatever the file order (songTitle.rnB splices soul, which splices shared sets)
+		var nested = ConstraintTemplateLoader.Parse(@"{
+			""songTitle.outer"": [ { ""include"": ""songTitle.mid"", ""scale"": 0.5 } ],
+			""songTitle.mid"": [ { ""id"": ""mid_own"", ""type"": ""song"", ""pattern"": ""Mid"", ""weight"": 2 },
+			                     { ""include"": ""songTitle._leaf"", ""scale"": 2 } ],
+			""songTitle._leaf"": [ { ""id"": ""leaf"", ""type"": ""song"", ""pattern"": ""Leaf"", ""weight"": 1 } ],
+			""songTitle.loopA"": [ { ""id"": ""a"", ""type"": ""song"", ""pattern"": ""A"", ""weight"": 1 }, { ""include"": ""songTitle.loopB"" } ],
+			""songTitle.loopB"": [ { ""id"": ""b"", ""type"": ""song"", ""pattern"": ""B"", ""weight"": 1 }, { ""include"": ""songTitle.loopA"" } ] }");
+		var outer = nested["songTitle.outer"];
+		Eq("nested include reaches the inner set", string.Join(",", outer.Select(t => t.Id)), "mid_own,leaf");
+		True("nested include scales multiply", Math.Abs(outer[0].Weight - 1.0) < 1e-9 && Math.Abs(outer[1].Weight - 1.0) < 1e-9);
+		True("an include cycle terminates", nested["songTitle.loopA"].Count >= 2 && nested["songTitle.loopB"].Count >= 2);
+
+		var ont = new TagOntology(); var lib = new GenreLibrary();
+		var tlex = new Lexicon();
+		AddWords(tlex, "clVerb", new[] { "love" }, "clWarm");
+		AddWords(tlex, "clTail", new[] { "just a little bit longer" }, "clLong");
+		tlex.ClassifyAll(ont);
+		var teng = new TemplateEngine(tlex, ont, new MoodGraph(), new Inflection());
+		var tctx = new NamingContext { Genre = "TraditionalPop", Year = 1962, Rng = new DeterministicRandom(7UL) };
+		var paren = new ConstraintTemplate { Id = "t_paren", Type = "song", Pattern = "%clVerb#1% Me (%clTail#1%)" };
+		paren.Compile();
+		Eq("a parenthetical is title-cased as its own title", teng.Fill(paren, tctx, lib.Get("TraditionalPop")), "Love Me (Just a Little Bit Longer)");
+		var shout = new GenreProfile { Id = "Shouty" }; shout.Voice.PunctuationIntensity = 1.0;
+		var q = new ConstraintTemplate { Id = "t_q", Type = "song", Pattern = "Why Do You %clVerb#1% Me" };
+		q.Compile();
+		bool bang = false;
+		for (int k = 0; k < 40; k++) { var s = teng.Fill(q, tctx, shout); if (s != null && s.EndsWith("!")) bang = true; }
+		True("no '!' on a question", !bang);
 	}
 }

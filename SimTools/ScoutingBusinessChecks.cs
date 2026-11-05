@@ -83,11 +83,11 @@ public static class ScoutingBusinessChecks {
         preview = desk.PreviewScoutingBusinessMeeting(act.artistId);
         Check(desk.AskScoutingBusinessHistory(act.artistId, preview.QuoteId, out message), "source acquisition: " + message);
         var dossier = desk.ScoutingDossiers.Single(); var claim = dossier.Observations.Single(o => o.Kind == ScoutingEvidenceKind.ActBusinessClaim);
-        Check(clock.CurrentHour * 60 + clock.CurrentMinute == now + 60 && desk.Label.cashReserves == cash,
-            "one ordinary hour, no conversation fee or parallel listening credit");
+        Check(clock.CurrentHour * 60 + clock.CurrentMinute == now + PlayerDesk.ActHistoryMinutes && desk.Label.cashReserves == cash,
+            "a short conversation, no fee or parallel listening credit");
         Check(desk.CaptureState().ScoutingKnowledge.Visit == null, "substantial conversation ends continuous admission");
         Check(claim.SourceId == preview.SourcePersonId && claim.SourceName == preview.SourceName && claim.Claim == preview.Claim &&
-            claim.OccurredDay == bill.Day && claim.AcquiredMinute == now + 60 && claim.Channel == "post-set act conversation", "statement and receipt retain actual source/time/context");
+            claim.OccurredDay == bill.Day && claim.AcquiredMinute == now + PlayerDesk.ActHistoryMinutes && claim.Channel == "post-set act conversation", "statement and receipt retain actual source/time/context");
         Check(dossier.Observations.Count(o => o.Kind == ScoutingEvidenceKind.Performance) == 1 &&
             desk.ScoutingSummary(act.artistId).Any(l => l.StartsWith("Heard 1 distinct set")), "business account is not another performance sample");
         Check(desk.ScoutingCompetitionSummary(act.artistId).Contains(loser.labelName) &&
@@ -127,6 +127,19 @@ public static class ScoutingBusinessChecks {
         string retained = Json(act.sceneMarketHistory);
         LocalScenes.Configure(new[] { "--disable-scouting-market-history" }); RosterManager.RecordScoutingMarketDecisions(new[] { signed });
         Check(Json(act.sceneMarketHistory) == retained, "history-off control preserves prior events and adds none"); LocalScenes.Configure(Array.Empty<string>());
+        // Numbers (playtest 2026-11-05): with a member's number the same account is reachable by phone the next day,
+        // away from any venue; without one it is not. Numbers survive a state round trip.
+        Check(desk.ActNumber(act.artistId) == null && desk.PhoneBlocked(act.artistId) != null, "no number: no phone");
+        clock.EndDay(); clock.RestoreClock(clock.CurrentDate, 10);
+        Check(desk.PreviewScoutingBusinessMeeting(act.artistId) == null, "next day, no number: unreachable away from a set");
+        var withNumber = desk.CaptureState();
+        withNumber.ScoutingKnowledge.ActNumbers = new() { new() { ArtistId = act.artistId, PersonId = speaker.personId, PersonName = speaker.FullName, Source = "check", Day = 0 } };
+        Check(desk.RestoreState(JsonSerializer.Deserialize<PlayerSaveData>(Json(withNumber), SaveGameService.TestJsonOptions), out message), "restore with number: " + message);
+        Check(desk.ActNumber(act.artistId)?.PersonId == speaker.personId, "number restored");
+        var phoned = desk.PreviewScoutingBusinessMeeting(act.artistId);
+        Check(phoned != null && phoned.SourcePersonId == speaker.personId && desk.PresentRoomId == null, "number reaches the act by phone from anywhere");
+        clock.RestoreClock(clock.CurrentDate, 22);
+        Check(desk.PreviewScoutingBusinessMeeting(act.artistId) == null && desk.PhoneBlocked(act.artistId).Contains("Call between"), "no calls late at night");
         GD.Print($"SCOUTING_BUSINESS_CHECK_PASS checks={checks}");
     }
 }

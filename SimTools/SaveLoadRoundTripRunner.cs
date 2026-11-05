@@ -138,6 +138,7 @@ public partial class SaveLoadRoundTripRunner : Node {
             if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-check")) { ScoutingAudienceChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-check")) { ScoutingOfferPlanningChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-check")) { ScoutingContractContinuityChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--signing-moment-check")) { SigningMomentChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-check")) { ScoutingSessionPromiseChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-outlook-check")) { ScoutingContractOutlookChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-credible-offers-check")) { ScoutingCredibleOffersChecks.Run(); GetTree().Quit(0); return; }

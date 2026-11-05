@@ -42,10 +42,15 @@ public class LabelGenerator {
 	/// </summary>
 	public AILabel GenerateSingleLabel(MarketRegion[] regions, int year, LabelTier tier, bool legacyIdentity) {
 		var label = new AILabel();
-		label.labelName = GenerateUniqueName();
-		label.labelId = "gen_" + label.labelName.Replace(" ", "").ToLower() + "_" + (int)GameRandom.RandRange(1000, 9999);
+		// The legacy prefix/suffix name still draws first, from GameRandom, exactly as before: it seeds the
+		// label id and its draws sit in the global stream. It is no longer the DISPLAY name -- its pools hold
+		// real labels (Capitol, Liberty, Cameo, Dot...) and fall back to "Star 47" when exhausted.
+		string legacyName = GenerateUniqueName();
+		label.labelName = legacyName;
+		label.labelId = "gen_" + legacyName.Replace(" ", "").ToLower() + "_" + (int)GameRandom.RandRange(1000, 9999);
 		label.founderName = GenerateFounderName();
 		label.headquartersCity = cities[(int)GameRandom.RandRange(0, cities.Length - 1)];
+		ApplyGeneratedIdentity(label, year);
 		if (legacyIdentity) label.foundedYear = (int)GameRandom.RandRange(year - 5, year + 1);
 		label.isHistorical = false;
 		label.tier = tier;
@@ -63,8 +68,24 @@ public class LabelGenerator {
 			InitializeTrackRecord(label, tier, yearsActive);
 		}
 
-		usedNames.Add(label.labelName);
+		usedNames.Add(legacyName);
 		return label;
+	}
+
+	/// <summary>
+	/// Display identity from the naming engine (its own act and label streams, never GameRandom): a
+	/// founder with a period-plausible name, and a label name in the founder's voice -- often simply
+	/// "{Founder} Records", the commonest real pattern -- that can never repeat a label already in the
+	/// world or a real company's name (Data/Naming/reserved.json).
+	/// </summary>
+	private static void ApplyGeneratedIdentity(AILabel label, int year) {
+		var namer = NameGenerator.Instance;
+		if (namer == null || !namer.IsReady()) return;
+		var (first, last) = namer.GeneratePersonName(true);
+		label.founderName = $"{first} {last}";
+		var existing = CompetitorManager.Instance?.GetAllLabels();
+		if (existing != null) namer.ReserveLabelNames(existing.Select(l => l.labelName));
+		label.labelName = namer.GenerateLabelName(LabelArchetype.RegionalHustler, last, label.headquartersCity, year);
 	}
 	
 	private string GenerateUniqueName() {

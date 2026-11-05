@@ -67,6 +67,7 @@ public partial class SleeveCard : PanelContainer {
 
 	public void AddVerb(Button button) {
 		button.CustomMinimumSize = new Vector2(Mathf.Max(button.CustomMinimumSize.X, 128f), 34f);
+		button.SizeFlagsHorizontal = SizeFlags.Fill;   // the verb column is one even stack, whatever each word's width
 		verbs.AddChild(button);
 	}
 

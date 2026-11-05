@@ -27,8 +27,13 @@ public partial class PlayerDesk {
     public SceneConversationQuote PreviewScoutingInvitation(string artistId, ScoutingAppointmentActivity activity = ScoutingAppointmentActivity.Conversation) {
         if (!MeetingActionsEnabled) return null;
         var source = InvitationSpeaker(artistId);
-        var quote = source.person == null ? null : LocalSceneRoomService.QuoteConversation(Label, artistId, source.person.personId, source.heard.RoomId, source.heard.EventId, activity);
-        if (quote == null && activity == ScoutingAppointmentActivity.Rehearsal && source.person != null) {
+        bool byPhone = source.person == null;
+        // No member to hand after a set: ring the number you hold (PlayerDesk.ScoutingPresence). A call is its own
+        // source, so a meeting arranged by phone does not use up the heard set's one post-set invitation.
+        if (byPhone) source = PhoneSpeaker(artistId);
+        string sourceEventId = byPhone ? $"phone|{SceneDay}|{source.heard?.EventId}" : source.heard?.EventId;
+        var quote = source.person == null ? null : LocalSceneRoomService.QuoteConversation(Label, artistId, source.person.personId, source.heard.RoomId, sourceEventId, activity);
+        if (quote == null && activity == ScoutingAppointmentActivity.Rehearsal && source.person != null && !byPhone) {
             foreach (var room in SceneRoomCatalog.ForPlace(CurrentCityId).OrderBy(r => r.Id, StringComparer.Ordinal)) {
                 quote = LocalSceneRoomService.QuoteConversation(Label, artistId, source.person.personId, room.Id, source.heard.EventId, activity);
                 if (quote != null) break;
@@ -43,7 +48,8 @@ public partial class PlayerDesk {
     public bool ArrangeScoutingMeeting(string artistId, string quoteId, out string message, ScoutingAppointmentActivity activity = ScoutingAppointmentActivity.Conversation) {
         if (!MeetingActionsEnabled || !Require(0, out message)) { message = "New scouting meetings are unavailable; existing appointment history is retained."; return false; }
         var quote = PreviewScoutingInvitation(artistId, activity);
-        if (quote == null || quote.Id != quoteId) { message = "A free member after a set you heard today and a current proposed slot are required. Review the invitation."; return false; }
+        if (quote == null || quote.Id != quoteId) { message = "A free member after a set you heard today (or a call to a number you hold) and a current proposed slot are required. Review the invitation."; return false; }
+        bool byPhone = InvitationSpeaker(artistId).person == null;
         string invitationRoomId = InvitationSpeaker(artistId).heard?.RoomId;
         var clock = TimeManager.Instance; int now = clock.CurrentHour * 60 + clock.CurrentMinute;
         if (!LocalSceneRoomService.RequestConversation(Label, quote, ScoutingDiscussionCoolingDown(artistId), out var reply, out message)) return false;
@@ -51,10 +57,10 @@ public partial class PlayerDesk {
             LocalSceneRoomService.Bill(scoutingKnowledge.Visit.BillId)?.RoomId == invitationRoomId;
         // A short scheduling exchange creates no simultaneous performance evidence. It may
         // remain part of the same paid visit, unlike the later substantial meeting.
-        SpendMinutes(ScoutingInvitationMinutes);
-        if (continuous) scoutingKnowledge.Visit.EndMinute = clock.CurrentHour * 60 + clock.CurrentMinute;
-        else scoutingKnowledge.Visit = null;
-        RememberScoutingMeeting(reply, "invitation", reply.Response, reply.PersonId, reply.PersonName, "post-set invitation");
+        SpendMinutes(byPhone ? PhoneCallMinutes : ScoutingInvitationMinutes);
+        if (continuous && !byPhone) scoutingKnowledge.Visit.EndMinute = clock.CurrentHour * 60 + clock.CurrentMinute;
+        else if (!byPhone) scoutingKnowledge.Visit = null;
+        RememberScoutingMeeting(reply, "invitation", reply.Response, reply.PersonId, reply.PersonName, byPhone ? "phone call" : "post-set invitation");
         Note(message); Changed?.Invoke(); return true; // A genuine declined invitation is also a completed conversation.
     }
     private SceneConversation OwnScoutingMeeting(string id) {

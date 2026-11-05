@@ -56,6 +56,12 @@ public partial class PlayerDesk : Node {
 	/// the landing roll and any callback are deferred to <see cref="ResolvePendingMailings"/> so the
 	/// player doesn't get told the outcome the instant they click the button -- a mailing was a letter
 	/// dropped in a box, not a phone call.</summary>
+	/// <summary>How many reporter stations in the region don't have this record yet: the most one mailing can send.
+	/// (Playtest 2026-11-04: the form said 25 and the mailing sent 10 without saying why.)</summary>
+	public int MailableStationCount(string recordId, string regionId) =>
+		(ChartManager.Instance?.ReporterStationsInRegion(regionId) ?? Array.Empty<RadioStation>())
+			.Count(s => s != null && !IsServiced(recordId, s.stationId));
+
 	public bool MailPromoCopies(string recordId, string regionId, int count, out string message) {
 		message = null;
 		if (Label == null) { message = "You don't have a label yet."; return false; }

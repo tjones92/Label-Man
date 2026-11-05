@@ -53,8 +53,8 @@ public partial class PlayerDesk {
             UntilDay = considers ? today + DirectApproachAnswerDays : (season + 1) * DirectApproachSeasonDays };
         Approaches.Add(record);
         message = considers
-            ? $"{artist.stageName} aren't looking for a record deal, but they'll think over an offer from a label that came to hear them. Their side will answer by {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}."
-            : $"{artist.stageName} want to keep playing locally this season. You can ask again after {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}.";
+            ? $"{artist.stageName} {ActGrammar.Verb(artist, "isn't", "aren't")} looking for a record deal, but they'll think over an offer from a label that came to hear them. Their side will answer by {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}."
+            : $"{artist.stageName} {ActGrammar.Verb(artist, "wants", "want")} to keep playing locally this season. You can ask again after {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}.";
         Note(message); Changed?.Invoke();
         return true;
     }
@@ -76,10 +76,19 @@ public partial class PlayerDesk {
             var artist = ArtistManager.Instance?.GetArtist(a.ArtistId);
             if (artist == null || !string.IsNullOrEmpty(artist.labelId) || artist.lifecycleStatus != ArtistLifecycleStatus.Active) {
                 a.Status = ScoutingApproachStatus.Lapsed;
-                Note($"{a.ArtistName} are no longer in a position to take your offer.");
+                Note($"{a.ArtistName} {ActGrammar.Verb(artist, "is", "are")} no longer in a position to take your offer.");
             } else if (ArtistManager.Instance.IsEligibleForPopulationSigning(artist, week)) {
                 a.Status = ScoutingApproachStatus.Ready;
-                Note($"{a.ArtistName}'s side: they'll hear an offer from you now. Other labels can hear of it too.");
+                // Terms open from the act's notebook card (TALK TO THEM). The news says how to reach them: by the number
+                // you hold, or at their next set. (Playtest 2026-11-04: the paper said "now" with no way in;
+                // 2026-11-05: a once-a-week venue was the only way to reach an act.)
+                var next = NextReachableScoutingSet(a.ArtistId);
+                string where = ActNumber(a.ArtistId) is { } number
+                    ? $"Open their card in the act notebook to talk terms, or ring {number.PersonName} to set up a meeting."
+                    : next == null
+                    ? "Open their card in the act notebook to talk terms. To meet them, catch a set or ask a booker for their number."
+                    : $"Open their card in the act notebook to talk terms. Their next set: {next.RoomName}, {LocalSceneRoomService.Date(next.Day).ToHeadlineString()}, {next.StartMinute / 60:00}:{next.StartMinute % 60:00}.";
+                Note($"{a.ArtistName}'s side: they'll hear an offer from you now. {where} Other labels can hear of it too.");
             } else if (today > a.UntilDay) {
                 a.Status = ScoutingApproachStatus.Lapsed;
                 Note($"{a.ArtistName} decided to keep playing locally for now. Asking again later is a fresh conversation.");
@@ -97,7 +106,7 @@ public partial class PlayerDesk {
         string when = LocalSceneRoomService.Date(a.Day).ToHeadlineString(), until = LocalSceneRoomService.Date(a.UntilDay).ToHeadlineString();
         return a.Status switch {
             ScoutingApproachStatus.Considering => $"Approach ({when}): they weren't looking for a deal and are thinking yours over; answer due by {until}.",
-            ScoutingApproachStatus.Ready => $"Approach ({when}): they agreed to hear an offer. Other labels can now hear they're available.",
+            ScoutingApproachStatus.Ready => $"Approach ({when}): they agreed to hear an offer -- talk terms from their card. Other labels can now hear they're available.",
             ScoutingApproachStatus.Declined => $"Approach ({when}): they want to keep playing locally this season; ask again after {until}.",
             _ => $"Approach ({when}): it came to nothing; asking again later is a fresh conversation."
         };

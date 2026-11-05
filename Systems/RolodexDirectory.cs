@@ -102,8 +102,8 @@ public static partial class RolodexDirectory {
 				Firm = StudioRoomCatalog.ById(StudioPeople.HomeRoomId(group.Key), out _)?.Name ?? last.RoomName, Place = DistanceModel.GetCityById(last.CityId)?.name, Figure = Portraits.Businessman(group.Key),
 				GoToTab = "ROSTER", GoToLabel = "TAKE AN ACT INTO THE STUDIO" };
 			var acts = visits.Select(v => ArtistManager.Instance?.GetArtist(v.ArtistId)?.stageName ?? "an act no longer on file").Distinct().ToList();
-			card.Facts.Add(($"{visits.Count} date(s) together, last on {last.Date.ToHeadlineString()}: {string.Join(", ", acts)}.", false));
-			card.Facts.Add(($"{visits.Sum(v => v.Passes)} passes; {visits.Count(v => v.Printed)} date(s) printed, {visits.Count(v => !v.Printed)} abandoned.", visits.Any(v => !v.Printed)));
+			card.Facts.Add(($"{Plural.Of(visits.Count, "date")} together, last on {last.Date.ToHeadlineString()}: {string.Join(", ", acts)}.", false));
+			card.Facts.Add(($"{visits.Sum(v => v.Passes)} passes; {Plural.Of(visits.Count(v => v.Printed), "date")} printed, {visits.Count(v => !v.Printed)} abandoned.", visits.Any(v => !v.Printed)));
 			card.Facts.Add(("Ask for this engineer by name when booking the room, or bring them in to another room in town on a quiet day at their own: the same act gets a quicker setup and a closer read of the tape.", false));
 			return card;
 		}).ToList();

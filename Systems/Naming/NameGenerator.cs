@@ -28,6 +28,8 @@ public partial class NameGenerator : Node {
 
 	private NameEngine _engine;
 	private TemplateRouter _router;   // ancestry-driven (kind,genre)->set resolution (replaces the switch)
+	private ActNaming _acts;          // act / label / person naming policy (Godot-free; see ActNaming.cs)
+	private TitleNaming _titles;      // song / album title policy (Godot-free; see TitleNaming.cs)
 	private IRandom _rng;             // dedicated naming stream, isolated from GD.Rand
 	// A SECOND naming stream, for the names of acts and people only.
 	//
@@ -45,11 +47,26 @@ public partial class NameGenerator : Node {
 	// provably inert to the economy -- nothing else draws from it.
 	private IRandom _titleRng;
 
+	// A FOURTH and FIFTH stream: album titles and label names.
+	//
+	// Album titles used to draw from _rng, the same stream as song titles, and the album templates
+	// embed the act's name (%selfTitle%, "Meet the ..."). The post-processor draws per word ("and"
+	// -> "'n'", -ing -> -in'), so the NUMBER of draws an album title took depended on what the act was
+	// called -- and every song title drawn after it, hashed into hook/production/danceability, moved.
+	// Renaming bands therefore reshuffled the chart. Label names (generated at world build) sat on
+	// _rng too, ahead of every title. On their own streams neither touches the title stream, so act
+	// and label naming are inert to the simulation from here on. (Moving them is itself a one-time
+	// reshuffle of the title stream, like a seed change: it re-baselines, it does not calibrate.)
+	private IRandom _albumRng;
+	private IRandom _labelRng;
+
 	internal NamingContinuationSaveData CaptureContinuation() {
 		EnsureLoaded();
 		return new() {
 			Main = ((DeterministicRandom)_rng).CaptureState(), Acts = ((DeterministicRandom)_actRng).CaptureState(),
-			Titles = ((DeterministicRandom)_titleRng).CaptureState(), Uniqueness = _engine.CaptureUniqueness()
+			Titles = ((DeterministicRandom)_titleRng).CaptureState(),
+			Albums = ((DeterministicRandom)_albumRng).CaptureState(), Labels = ((DeterministicRandom)_labelRng).CaptureState(),
+			Uniqueness = _engine.CaptureUniqueness()
 		};
 	}
 
@@ -57,7 +74,9 @@ public partial class NameGenerator : Node {
 		if (saved == null) return;
 		EnsureLoaded();
 		_rng = DeterministicRandom.RestoreState(saved.Main); _actRng = DeterministicRandom.RestoreState(saved.Acts);
-		_titleRng = DeterministicRandom.RestoreState(saved.Titles); _engine.RestoreUniqueness(saved.Uniqueness);
+		_titleRng = DeterministicRandom.RestoreState(saved.Titles);
+		_albumRng = DeterministicRandom.RestoreState(saved.Albums); _labelRng = DeterministicRandom.RestoreState(saved.Labels);
+		_engine.RestoreUniqueness(saved.Uniqueness);
 	}
 
 	// Load in _EnterTree (not _Ready): later autoloads (e.g. ChartManager) generate labels during
@@ -74,49 +93,25 @@ public partial class NameGenerator : Node {
 
 	// ------------------------------------------------------------------ loading
 	private void Load() {
-		string lexJson = ReadFile(LexiconPath);
-		string grammarJson = ReadFile(GrammarPath);
-		if (string.IsNullOrEmpty(lexJson) || string.IsNullOrEmpty(grammarJson)) {
+		_acts = ActNaming.Load(f => ReadFile("res://Data/Naming/" + f), out var models);
+		if (_acts == null) {
 			GD.PushError($"NameGenerator: could not load naming data ({LexiconPath} / {GrammarPath}).");
 			return;
 		}
-		var lexicon = Lexicon.LoadFromJson(lexJson);
-		string ontJson = ReadFile(OntologyLexiconPath);
-		if (!string.IsNullOrEmpty(ontJson)) lexicon.AppendJson(ontJson);   // Layer-3 curated tagged pools
-		string ontBaseJson = ReadFile(OntologyBaseLexiconPath);
-		if (!string.IsNullOrEmpty(ontBaseJson)) lexicon.AppendJson(ontBaseJson); // Layer-3 base-word re-tagging
-		string peopleJson = ReadFile(PeopleLexiconPath);
-		if (!string.IsNullOrEmpty(peopleJson)) lexicon.AppendJson(peopleJson);   // central people pool (hispanic/jewish)
-		string userJson = ReadFile(UserLexiconPath);
-		if (!string.IsNullOrEmpty(userJson)) lexicon.AppendJson(userJson);
-
-		// Build the six-layer model bundle, applying optional JSON overrides atop embedded defaults.
-		var ontology = new TagOntology();       ontology.LoadJson(ReadFile(OntologyPath));
-		var moods = new MoodGraph();            moods.LoadJson(ReadFile(MoodsPath));
-		var inflection = new Inflection();      inflection.LoadJson(ReadFile(InflectionPath));
-		var genres = new GenreLibrary();        genres.LoadJson(ReadFile(GenresPath));
-		var diminutives = new Diminutives();    diminutives.LoadJson(ReadFile(DiminutivesPath));   // Layer: solo-act grooming
-		var models = new NameModels(ontology, moods, inflection, genres, diminutives);
-
-		var grammar = GrammarEngine.ParseGrammar(grammarJson);
-		_engine = new NameEngine(lexicon, grammar, models);
-
-		// Optional Layer-2 constraint-template sets (richer, mood-coherent generators).
-		string templatesJson = ReadFile(TemplatesPath);
-		if (!string.IsNullOrEmpty(templatesJson))
-			foreach (var kv in ConstraintTemplateLoader.Parse(templatesJson)) _engine.AddConstraintSet(kv.Key, kv.Value);
-
-		// Ancestry-driven template routing (docs D/E). Existence spans both layers so it can route to
-		// constraint sets and grammar-only buckets alike.
-		_router = new TemplateRouter(models.Genres, key => _engine.HasNameSet(key));
+		_engine = _acts.Engine;
+		_router = _acts.Router;
+		_titles = new TitleNaming(_acts);
 
 		_rng = new DeterministicRandom(DeriveSeed());
 		_actRng = new DeterministicRandom(DeriveSeed() ^ 0x6163746E616D6573UL); // "actnames"
 		_titleRng = new DeterministicRandom(DeriveSeed() ^ 0x636174616C74746CUL); // "cataltl" -- pre-game catalog titles
+		_albumRng = new DeterministicRandom(DeriveSeed() ^ 0x616C62756D74746CUL); // "albumttl"
+		_labelRng = new DeterministicRandom(DeriveSeed() ^ 0x6C6162656C6E6D73UL); // "labelnms"
+		var moods = models.Moods;
 		var moodIssues = moods.Validate();
 		if (moodIssues.Count > 0) GD.PushWarning($"NameGenerator mood matrix: {string.Join("; ", moodIssues)}");
 		// Per-genre coherence (doc H #4): flag any resolved profile whose affinity moods are
-		// disconnected/isolated at its threshold — those silently deadlock into grammar fallback.
+		// disconnected/isolated at its threshold -- those silently deadlock into grammar fallback.
 		var genreIssues = new List<string>();
 		foreach (var gid in models.Genres.Ids) {
 			var gp = models.Genres.Get(gid);
@@ -124,7 +119,7 @@ public partial class NameGenerator : Node {
 		}
 		if (genreIssues.Count > 0) GD.PushWarning($"NameGenerator genre mood-coherence:\n  {string.Join("\n  ", genreIssues)}");
 		AuditRouting();
-		GD.Print($"NameGenerator ready: {lexicon.Count} words, {grammar.Count} symbols, {models.Genres.Ids.Count()} genre profiles.");
+		GD.Print($"NameGenerator ready: {_engine.Lexicon.Count} words, {_engine.Grammar.Symbols.Count()} symbols, {models.Genres.Ids.Count()} genre profiles.");
 	}
 
 	/// <summary>Seed the naming stream deterministically from the sim seed but on a SEPARATE
@@ -143,158 +138,51 @@ public partial class NameGenerator : Node {
 	public bool IsReady() => _engine != null;
 
 	// ============================================================ ARTIST / BAND
+	/// <param name="lineup">
+	/// The act's members, front person first. With it, every person the name mentions is a member and
+	/// every claim the wording makes (Trio, Brothers, "and His Orchestra", "X and the Ys") is true of
+	/// the lineup -- see Systems/Naming/Core/Lineup.cs. Without it the name is drawn blind, as before.
+	/// </param>
 	public string GenerateArtistName(Genre genre, int year, ArtistType artistType,
-									 string regionId = null, LabelArchetype? labelStyle = null) {
+									 string regionId = null, LabelArchetype? labelStyle = null, Lineup lineup = null) {
 		// Callers must gate on IsReady() rather than relying on this fallback: it is the one
 		// path in the act-naming family that touches the global stream, and ArtistManager's
 		// population path cannot afford a draw from it.
 		if (_engine == null) return $"Artist {GameRandom.Randi()}";
-		var ctx = MakeContext(genre, year, artistType, _actRng);
-		ctx.RegionId = regionId;
-		if (labelStyle.HasValue) ctx.LabelArchetype = labelStyle.Value.ToString();
-
-		string symbol = ChooseArtistSymbol(genre, year, artistType, ctx);
-		// Scoped per genre, not one global "artist" bucket: with a curated (not grammar)
-		// template set per genre family, the cross-genre name space is now small enough that
-		// a shared bucket saturates by a few thousand acts, forcing GenerateUnique to burn
-		// most of its 40 attempts (each a full constraint Fill) on every subsequent draw --
-		// the launch pool's 7,000 acts made this the load-time bottleneck.
-		return _engine.Generate(symbol, ctx, "artist|" + genre, nearDup: true);
+		// Near-duplicates are policed per genre, exact duplicates across all genres (ActNaming).
+		return _acts.GenerateActName(genre, year, artistType, lineup, _actRng, regionId, labelStyle?.ToString());
 	}
 
+	/// <summary>Turn the act into a family act (shared surname) at the period's genre odds; the caller
+	/// copies the surnames back onto its musicians. Act stream only.</summary>
+	public bool RollFamilyAct(Genre genre, Lineup lineup) => _engine != null && ActNaming.RollFamily(genre, lineup, _actRng);
+
 	/// <summary>
-	/// A person's name, shaded by the music they play.
+	/// A person's name, shaded by the music they play. Act stream only.
 	/// <para>
-	/// The genre argument is what stops a doo-wop group being five men called Smith. It was
-	/// hard-coded to <c>{gender, "white"}</c> and <c>{"generic"}</c>, which is the same query for
-	/// every act in the game, so the only variation the lexicon could offer was the draw itself.
-	/// The ethnicity reads mirror <see cref="GenerateBandMemberName"/>, which had this right
-	/// already and has never had a caller.
+	/// The genre argument is what stops a doo-wop group being five men called Smith. Stage-only
+	/// first names (mononyms such as "Cher") are redrawn: they are billing, not a legal name.
 	/// </para>
 	/// </summary>
 	public (string firstName, string lastName) GeneratePersonName(bool isMale,
 		Genre genre = Genre.TraditionalPop, string bandEthnicity = null) {
 		if (_engine == null) return (isMale ? "John" : "Jane", "Doe");
-		var ctx = MakeContext(genre, 1963, isMale ? ArtistType.SoloMale : ArtistType.SoloFemale, _actRng);
-		bool isBlack = bandEthnicity == "black" || (IsAfricanAmericanGenre(genre) && _actRng.Chance(0.8));
-		bool isItalian = bandEthnicity == "italian" || (IsEastCoastGenre(genre) && !isBlack && _actRng.Chance(0.3));
-		bool isBritish = bandEthnicity == "british" || IsBritishGenre(genre);
-		string surnameTag = isItalian ? (_actRng.Chance(0.5) ? "italian" : "generic")
-			: isBritish ? (_actRng.Chance(0.6) ? "british" : "generic") : "generic";
-		string first = _engine.Lexicon.Query("firstName",
-			new[] { isMale ? "male" : "female", isBlack ? "black" : "white" }, ctx);
-		string last = _engine.Lexicon.Query("lastName", new[] { surnameTag }, ctx);
-		return (first, last);
+		return _acts.PersonName(isMale, genre, bandEthnicity, _actRng);
 	}
 
 	/// <summary>
 	/// The ethnicity a whole lineup shares, drawn once per act so its members read as a group
 	/// rather than as five independent draws. Consumes the act stream, never the title stream.
 	/// </summary>
-	public string RollBandEthnicity(Genre genre) {
-		if (_engine == null) return null;
-		if (IsAfricanAmericanGenre(genre) && _actRng.Chance(0.8)) return "black";
-		if (IsBritishGenre(genre)) return "british";
-		if (IsEastCoastGenre(genre) && _actRng.Chance(0.3)) return "italian";
-		return null;
-	}
+	public string RollBandEthnicity(Genre genre) => _engine == null ? null : ActNaming.RollBandEthnicity(genre, _actRng);
 
-	private static bool IsBritishGenre(Genre genre) => genre is Genre.BritishInvasion
-		or Genre.BritishBeat or Genre.BritishPop or Genre.BritishBlues or Genre.Skiffle;
+	/// <summary>Mark existing act names (a loaded world) as taken.</summary>
+	public void ReserveActNames(IEnumerable<string> names) { if (_acts != null) _acts.ReserveActNames(names); }
 
-	/// <summary>Route (genre, year, type) to the artist grammar symbol AND populate the
-	/// demographic tag-sets on <paramref name="ctx"/>. Shared by the game and the tuner; all
-	/// rolls draw from <c>ctx.Rng</c> so a seeded tuner batch is reproducible.</summary>
-	private string ChooseArtistSymbol(Genre genre, int year, ArtistType artistType, NamingContext ctx) {
-		return DetermineIfBand(genre, artistType, ctx.Rng)
-			? ChooseBandSymbol(genre, year, artistType, ctx)
-			: RollSoloDemographics(genre, ctx);
-	}
-
-	private string RollSoloDemographics(Genre genre, NamingContext ctx) {
-		var rng = ctx.Rng;
-		// An explicit SoloMale/SoloFemale selection FORCES the gender; only Unknown rolls by genre.
-		bool isFemale = ctx.ArtistType == ArtistType.SoloFemale.ToString() ? true
-					  : ctx.ArtistType == ArtistType.SoloMale.ToString() ? false
-					  : rng.Chance(GetFemaleChance(genre));
-		bool isBlack = IsAfricanAmericanGenre(genre) && rng.Chance(0.75);
-		bool isHispanic = IsLatinGenre(genre) && !isBlack && rng.Chance(0.6);
-		bool isItalian = IsEastCoastGenre(genre) && !isBlack && !isHispanic && rng.Chance(0.35);
-		bool isCountry = genre == Genre.Country || genre == Genre.CountryRock;
-		bool isJewish = IsBrillBuildingGenre(genre) && !isBlack && !isHispanic && rng.Chance(0.25);
-
-		// firstName ethnicity draws from the central people pool (white/black/hispanic/jewish/country).
-		string ethnicity = isBlack ? "black" : isHispanic ? "hispanic" : isJewish ? "jewish"
-						 : isCountry ? "country" : "white";
-		ctx.TagSets["name"] = new List<string> { isFemale ? "female" : "male", ethnicity };
-
-		string surname;
-		if (isHispanic) surname = "hispanic";
-		else if (isCountry) surname = rng.Chance(0.55) ? "country" : "generic";
-		else if (isItalian) surname = rng.Chance(0.60) ? "italian" : "generic";
-		else if (isJewish) surname = rng.Chance(0.50) ? "jewish" : "generic";
-		else surname = "generic";
-		ctx.TagSets["surname"] = new List<string> { surname };
-
-		// Solo strategy layer (doc B): pick a name strategy weighted by genre (nickname-dominant for
-		// blues/funk, honorific for gospel, credited for easy/classical…), then route to the
-		// soloAct.<genre>.<strategy> set. The set's $name/$surname/$gender slots bind to the demographic
-		// rolled just above. Falls back to the legacy soloName grammar only if nothing resolves.
-		string strategy = PickSoloStrategy(genre, rng);
-		return _router?.ResolveSolo(genre.ToString(), strategy) ?? "soloName";
-	}
-
-	/// <summary>Weighted solo-act name strategy per genre (doc B §2): realName / nickname / mononym /
-	/// honorific / credited. Encodes "nickname density scales with grit" as sampling weights.</summary>
-	private static string PickSoloStrategy(Genre g, IRandom rng) {
-		(double rn, double nk, double mo, double ho, double cr) w = g switch {
-			Genre.DooWop => (0.87, 0.0, 0.0, 0.13, 0.0),
-			Genre.Blues or Genre.BluesRock or Genre.BritishBlues => (0.58, 0.28, 0.09, 0.0, 0.05),
-			Genre.Jazz => (0.80, 0.20, 0.0, 0.0, 0.0),
-			Genre.Soul or Genre.RnB or Genre.Motown => (0.92, 0.0, 0.0, 0.08, 0.0),
-			Genre.Gospel => (0.4, 0.05, 0.0, 0.55, 0.0),
-			Genre.Country or Genre.CountryRock or Genre.RootsRock => (0.85, 0.13, 0.0, 0.0, 0.02),
-			Genre.Folk or Genre.ContemporaryFolk => (0.9, 0.05, 0.05, 0.0, 0.0),
-			Genre.SingerSongwriter => (0.95, 0.0, 0.05, 0.0, 0.0),
-			Genre.TeenPop => (0.90, 0.10, 0.0, 0.0, 0.0),
-			Genre.TraditionalPop => (0.95, 0.0, 0.0, 0.0, 0.05),
-			Genre.EasyListening => (0.35, 0.05, 0.1, 0.0, 0.5),
-			Genre.Funk => (0.3, 0.55, 0.1, 0.05, 0.0),
-			Genre.RockAndRoll => (0.85, 0.10, 0.0, 0.0, 0.05),
-			Genre.Classical => (0.5, 0.0, 0.0, 0.0, 0.5),
-			Genre.Comedy => (0.3, 0.6, 0.1, 0.0, 0.0),
-			Genre.LatinPop or Genre.Boogaloo or Genre.TexMex or Genre.BossaNova => (0.6, 0.15, 0.1, 0.15, 0.0),
-			Genre.Reggae or Genre.Ska or Genre.Rocksteady or Genre.SkaRocksteady => (0.5, 0.35, 0.1, 0.05, 0.0),
-			_ => (0.7, 0.15, 0.05, 0.05, 0.05)
-		};
-		double roll = rng.NextDouble() * (w.rn + w.nk + w.mo + w.ho + w.cr);
-		if ((roll -= w.rn) < 0) return "realName";
-		if ((roll -= w.nk) < 0) return "nickname";
-		if ((roll -= w.mo) < 0) return "mononym";
-		if ((roll -= w.ho) < 0) return "honorific";
-		return "credited";
-	}
-
-	private string ChooseBandSymbol(Genre genre, int year, ArtistType artistType, NamingContext ctx) {
-		var rng = ctx.Rng;
-		// band-leader demographic for $name patterns
-		bool leaderBlack = IsAfricanAmericanGenre(genre) && rng.Chance(0.8);
-		ctx.TagSets["name"] = new List<string> { "male", leaderBlack ? "black" : "white" };
-		ctx.TagSets["surname"] = new List<string> { "generic" };
-
-		// --- genuinely contextual routing (year / artist-type) the genre router can't express ---
-		if (year >= 1967 && IsPsychedelicGenre(genre)) return "bandName.psych";      // late-60s psych era pull
-		if (year >= 1964 && year <= 1966 && genre == Genre.RockAndRoll && rng.Chance(0.35))
-			return "bandName.british";                                              // Merseybeat wave
-		if (genre == Genre.GarageRock && year < 1966) return "bandName.garageEarly"; // pre-fuzz garage
-		if (genre == Genre.Folk || genre == Genre.FolkRock || genre == Genre.ContemporaryFolk) {
-			if (artistType == ArtistType.Duo) return "bandName.folkDuo";
-			if (artistType == ArtistType.Trio) return "bandName.folkTrio";
-		}
-
-		// --- genre -> set via the ancestry-walking router (replaces the old bucket switch) ---
-		return _router.Resolve("bandName", genre.ToString()) ?? "bandName.default";
-	}
+	/// <summary>Route (genre, year, type) to the artist symbol and populate ctx demographics. Shared by
+	/// the game (through ActNaming) and the tuner; all rolls draw from <c>ctx.Rng</c>.</summary>
+	private string ChooseArtistSymbol(Genre genre, int year, ArtistType artistType, NamingContext ctx) =>
+		_acts.ChooseArtistSymbol(genre, year, artistType, ctx);
 
 	/// <summary>Load-time audit (doc E §2.4): report every genre×kind that degrades to the generic set
 	/// or grammar, turning "silently bland genre" into a visible, shrinking authoring checklist.</summary>
@@ -310,21 +198,6 @@ public partial class NameGenerator : Node {
 			}
 		if (lines.Count > 0) GD.Print($"[naming routing audit] {lines.Count} genre/kind(s) below family:\n  " + string.Join("\n  ", lines));
 		else GD.Print("[naming routing audit] every genre reaches a bespoke or family set for song + band.");
-	}
-
-	private bool DetermineIfBand(Genre genre, ArtistType artistType, IRandom rng) {
-		if (artistType == ArtistType.SoloMale || artistType == ArtistType.SoloFemale) return false;
-		if (artistType == ArtistType.Band || artistType == ArtistType.Duo ||
-			artistType == ArtistType.Trio || artistType == ArtistType.VocalGroup) return true;
-
-		float bandChance = genre switch {
-			Genre.RockAndRoll => 0.4f, Genre.GarageRock => 0.92f, Genre.Psychedelic => 0.88f,
-			Genre.SurfRock => 0.85f, Genre.BritishInvasion => 0.85f, Genre.Soul => 0.4f,
-			Genre.RnB => 0.35f, Genre.DooWop => 0.88f, Genre.GirlGroup => 0.98f, Genre.Folk => 0.25f,
-			Genre.Country => 0.12f, Genre.Jazz => 0.35f, Genre.TraditionalPop => 0.08f,
-			Genre.TeenPop => 0.12f, Genre.Gospel => 0.7f, _ => 0.5f
-		};
-		return rng.Chance(bandChance);
 	}
 
 	// =============================================================== SONG TITLES
@@ -343,10 +216,7 @@ public partial class NameGenerator : Node {
 	/// </param>
 	public string GenerateSongTitle(Genre genre, int year, string artistKey = null) {
 		if (_engine == null) return $"Untitled {GameRandom.Randi()}";
-		var ctx = MakeContext(genre, year, ArtistType.Unknown);
-		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
-		string bucket = "song|" + (artistKey ?? "");
-		return _engine.Generate(symbol, ctx, bucket, nearDup: false, attempts: 30);
+		return _titles.SongTitle(genre, year, artistKey, _rng);
 	}
 
 	/// <summary>
@@ -360,10 +230,11 @@ public partial class NameGenerator : Node {
 		if (_engine == null) return null;
 		double unit = LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, "song-title-v1|" + key);
 		var rng = new DeterministicRandom((ulong)(unit * 9007199254740992.0));
-		var ctx = MakeContext(genre, year, ArtistType.Unknown, rng);
-		string title = _engine.ExpandRouted(ChooseSongSymbol(genre, year, rng), ctx);
-		return string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+		return _titles.KeyedSongTitle(genre, year, rng);
 	}
+
+	/// <summary>True for a real hit title in reserved.json's song list (the generator must never mint one).</summary>
+	public bool IsReservedSongTitle(string title) => _acts != null && _acts.IsReservedSong(title);
 
 	/// <summary>
 	/// A song title for a pre-game catalog composition (legacy standard / recent-hit cover). Same
@@ -375,25 +246,10 @@ public partial class NameGenerator : Node {
 	/// </summary>
 	public string GenerateCatalogTitle(Genre genre, int year) {
 		if (_engine == null) return null;
-		var ctx = MakeContext(genre, year, ArtistType.Unknown, _titleRng);
-		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
-		// Scoped per genre (same reasoning as the artist-name bucket): the launch catalog is
-		// ~3,570 standards drawn from a genre-weighted prior that concentrates hard on a few
-		// genres, each with a curated (not grammar) songTitle set. A shared exact-uniqueness
-		// bucket meant every genre's draws exhausted the SAME space instead of each genre
-		// exhausting only its own -- scoping cuts collision-driven retries for the crowded genres.
-		return _engine.Generate(symbol, ctx, "song|catalog|" + genre, nearDup: false, attempts: 30);
-	}
-
-	private string ChooseSongSymbol(Genre genre, int year, IRandom rng) {
-		// Ancestry-driven routing (docs D/E) replaces the old genre->bucket switch. Each genre reaches
-		// its most specific set, then its family, then a set-less genre falls to the era blend below.
-		string key = _router.Resolve("songTitle", genre.ToString());
-		if (key != null) return key;
-		// Ultimate fallback for a genre with no set and no family rung: the legacy era-appropriate blend.
-		if (year < 1964) return "songTitle.early60s";
-		if (year < 1967) return rng.Chance(0.5) ? "songTitle.early60s" : "songTitle.soul";
-		return rng.Next(3) switch { 0 => "songTitle.psych", 1 => "songTitle.soul", _ => "songTitle.early60s" };
+		// Exact uniqueness is scoped per genre (the launch catalog concentrates hard on a few genres,
+		// so a shared exact bucket exhausted the same space for all of them); world-wide reuse is
+		// avoided softly through TitleNaming's world bucket.
+		return _titles.CatalogTitle(genre, year, _titleRng);
 	}
 
 	public string GenerateBSideTitle(Genre genre, int year, string aSideTitle) {
@@ -424,16 +280,7 @@ public partial class NameGenerator : Node {
 	/// </param>
 	public string GenerateAlbumTitle(Genre genre, int year, string artistName, bool isCompilation = false, string leadSingle = null, string artistKey = null) {
 		if (_engine == null) return artistName;
-		var ctx = MakeContext(genre, year, ArtistType.Unknown);
-		ctx.Slots["artist"] = artistName;
-		ctx.Slots["selfTitle"] = artistName;
-		if (!string.IsNullOrWhiteSpace(leadSingle)) { ctx.Slots["leadSingle"] = leadSingle; ctx.Slots["titleTrack"] = leadSingle; }
-		if (isCompilation) return _engine.ExpandOnce("compilationTitle", ctx);
-		double r = _rng.NextDouble();
-		if (r < 0.08) return artistName;                          // self-titled (rare; the sets also self-title)
-		if (r < 0.20) return _engine.ExpandRouted("albumFormat", ctx);
-		string key = _router?.Resolve("albumTitle", genre.ToString()) ?? "albumTitle";
-		return _engine.Generate(key, ctx, "album|" + (artistKey ?? artistName), nearDup: false, attempts: 30);
+		return _titles.AlbumTitle(genre, year, artistName, isCompilation, leadSingle, artistKey, _albumRng);
 	}
 
 	public string GenerateInstrumentalTitle(Genre genre, int year) {
@@ -442,20 +289,18 @@ public partial class NameGenerator : Node {
 	}
 
 	// ================================================================== LABELS
-	public string GenerateLabelName(LabelArchetype archetype) {
+	/// <summary>
+	/// A label name in the archetype's voice, on the label stream. <paramref name="founderSurname"/> and
+	/// <paramref name="city"/> let a runtime-founded label be named after its founder or home town.
+	/// Never a real company's name: reserved.json and <see cref="ReserveLabelNames"/> block them.
+	/// </summary>
+	public string GenerateLabelName(LabelArchetype archetype, string founderSurname = null, string city = null, int year = 1962) {
 		if (_engine == null) return "Records";
-		var ctx = MakeContext(Genre.TraditionalPop, 1962, ArtistType.Unknown);
-		ctx.LabelArchetype = archetype.ToString();
-		string symbol = archetype switch {
-			LabelArchetype.SoulFactory or LabelArchetype.GospelPowerhouse => "label.soulFactory",
-			LabelArchetype.BluesRoots => "label.bluesRoots",
-			LabelArchetype.RockRebel or LabelArchetype.CountrySpecialist => "label.rockRebel",
-			LabelArchetype.CorporateGiant or LabelArchetype.TeenHitMachine => "label.major",
-			LabelArchetype.FolkBoutique or LabelArchetype.JazzPrestige or LabelArchetype.RegionalHustler => "label.indie",
-			_ => "label.generic"
-		};
-		return _engine.Generate(symbol, ctx, "label", nearDup: true);
+		return _acts.GenerateLabelName(archetype, _labelRng, founderSurname, city, year);
 	}
+
+	/// <summary>Names that exist already (historical templates, labels in a loaded world).</summary>
+	public void ReserveLabelNames(IEnumerable<string> names) { if (_acts != null) _acts.ReserveLabelNames(names); }
 
 	// ================================================================== VENUES
 	public string GenerateVenueName(VenueType venueType, string city = null) {
@@ -525,8 +370,8 @@ public partial class NameGenerator : Node {
 	public string GenerateBandMemberName(Genre genre, bool isFemale, string bandEthnicity = null) {
 		if (_engine == null) return "Member";
 		var ctx = MakeContext(genre, 1963, ArtistType.Unknown, _actRng);
-		bool isBlack = bandEthnicity == "black" || (IsAfricanAmericanGenre(genre) && _actRng.Chance(0.8));
-		bool isItalian = bandEthnicity == "italian" || (IsEastCoastGenre(genre) && !isBlack && _actRng.Chance(0.3));
+		bool isBlack = bandEthnicity == "black" || (ActNaming.IsAfricanAmericanGenre(genre) && _actRng.Chance(0.8));
+		bool isItalian = bandEthnicity == "italian" || (ActNaming.IsEastCoastGenre(genre) && !isBlack && _actRng.Chance(0.3));
 		bool isBritish = genre == Genre.BritishInvasion || bandEthnicity == "british";
 		string ethnicity = isBlack ? "black" : "white";
 		ctx.TagSets["name"] = new List<string> { isFemale ? "female" : "male", ethnicity };
@@ -590,7 +435,7 @@ public partial class NameGenerator : Node {
 			case CatArtist:
 				return _engine.ExpandRouted(ChooseArtistSymbol(genre, year, type, ctx), ctx);
 			case CatSong:
-				return _engine.ExpandRouted(ChooseSongSymbol(genre, year, ctx.Rng), ctx);
+				return _engine.ExpandRouted(_titles.ChooseSongSymbol(genre, year, ctx.Rng), ctx);
 			case CatAlbum: {
 				ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
 				ctx.Slots["selfTitle"] = ctx.Slots["artist"];           // %leadSingle% unavailable here -> those templates drop
@@ -724,7 +569,7 @@ public partial class NameGenerator : Node {
 	private string[] SymbolsForCategory(string category, Genre genre, int year, ArtistType type, NamingContext probe) {
 		switch (category) {
 			case CatArtist: return new[] { ChooseArtistSymbol(genre, year, type, probe) };
-			case CatSong:   return new[] { ChooseSongSymbol(genre, year, probe.Rng) };
+			case CatSong:   return new[] { _titles.ChooseSongSymbol(genre, year, probe.Rng) };
 			case CatAlbum:  return new[] { "albumTitle", "albumFormat" };
 			case CatPerson: return new[] { "personName" };
 			default:        return new[] { category };
@@ -917,44 +762,8 @@ public partial class NameGenerator : Node {
 		};
 	}
 
-	private static string StyleTagFor(Genre g) => g switch {
-		Genre.Psychedelic or Genre.AcidRock or Genre.PsychedelicRock or Genre.PsychedelicPop
-			or Genre.ProgressiveRock or Genre.BaroquePop => "psych",
-		Genre.Soul or Genre.RnB or Genre.Motown or Genre.Funk or Genre.Boogaloo => "soul",
-		Genre.Country or Genre.CountryRock or Genre.TexMex => "country",
-		Genre.SurfRock => "surf",
-		Genre.BritishInvasion or Genre.BritishPop or Genre.BritishBeat or Genre.BritishBlues
-			or Genre.Skiffle => "british",
-		Genre.DooWop or Genre.GirlGroup or Genre.TeenPop or Genre.Bubblegum or Genre.TraditionalPop => "early60s",
-		Genre.Folk or Genre.FolkRock or Genre.ContemporaryFolk or Genre.SingerSongwriter => "folk",
-		Genre.Gospel => "gospel",
-		_ => "universal"
-	};
-
-	// ---- genre predicates (ported from the old generator) ----
-	private static bool IsAfricanAmericanGenre(Genre g) => g switch {
-		Genre.Soul or Genre.RnB or Genre.DooWop or Genre.GirlGroup or Genre.Gospel or Genre.Jazz
-			or Genre.Motown or Genre.Funk or Genre.Blues => true,
-		_ => false
-	};
-	private static bool IsEastCoastGenre(Genre g) =>
-		g == Genre.DooWop || g == Genre.GirlGroup || g == Genre.TeenPop;
-	private static bool IsLatinGenre(Genre g) =>
-		g == Genre.LatinPop || g == Genre.Boogaloo || g == Genre.TexMex;
-	private static bool IsBrillBuildingGenre(Genre g) => g switch {
-		Genre.GirlGroup or Genre.TeenPop or Genre.DooWop or Genre.TraditionalPop => true, _ => false
-	};
-	private static bool IsPsychedelicGenre(Genre g) => g switch {
-		Genre.Psychedelic or Genre.GarageRock or Genre.Folk or Genre.AcidRock
-			or Genre.PsychedelicRock or Genre.PsychedelicPop => true,
-		_ => false
-	};
-	private static float GetFemaleChance(Genre g) => g switch {
-		Genre.GirlGroup => 1.0f, Genre.Soul => 0.35f, Genre.RnB => 0.3f, Genre.Country => 0.25f,
-		Genre.TeenPop => 0.3f, Genre.TraditionalPop => 0.35f, Genre.Folk => 0.35f, Genre.Gospel => 0.4f,
-		Genre.DooWop => 0.15f, Genre.RockAndRoll => 0.1f, Genre.SurfRock => 0.05f, Genre.GarageRock => 0.05f,
-		Genre.Psychedelic => 0.1f, Genre.BritishInvasion => 0.08f, _ => 0.2f
-	};
+	private static string StyleTagFor(Genre g) => ActNaming.StyleTagFor(g);
+	private static bool IsBrillBuildingGenre(Genre g) => ActNaming.IsBrillBuildingGenre(g);
 }
 
 // ========================================================================

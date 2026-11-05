@@ -110,24 +110,24 @@ public partial class ScoutingUiChecks : Node {
             Check(invitations.Length == 3 && invitations.All(b => b.SizeFlagsHorizontal == Control.SizeFlags.ShrinkBegin && b.TooltipText.Length > 0), "Meeting requests live in the conversation with compact buttons and help tips");
             await Screenshot("conversation"); conversation.Close(); await Frame();
             Check(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions) == noteState, "Reading notes and opening conversation spends nothing and creates no evidence");
-            await Press("▸  PLAN ANOTHER LISTEN");
+            await Press("PLAN ANOTHER LISTEN");
             var question = Nodes(panel).OfType<OptionButton>().Single();
             question.Select((int)ScoutingQuestion.Vocals);
             question.EmitSignal(OptionButton.SignalName.ItemSelected, (long)ScoutingQuestion.Vocals); await Frame();
             Check(desk.ScoutingDossiers.Single(d => d.ArtistId == first.ArtistId).Question == ScoutingQuestion.Vocals &&
                 desk.ScoutingDossiers.Single(d => d.ArtistId == second.ArtistId).Question == ScoutingQuestion.None, "Listening question belongs only to selected act");
             Check(!Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("REVIEW " + second.ArtistName.ToUpperInvariant())), "Other act review is hidden from main evidence");
-            await Press("▸  OTHER ACTS TO CONSIDER");
+            await Press("OTHER ACTS TO CONSIDER");
             string snapshot = JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions);
             await Press("REVIEW " + second.ArtistName.ToUpperInvariant());
             Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + second.ArtistName)), "Review opens the named act's card");
             var scroll = Nodes(panel).OfType<ScrollContainer>().First();
             Check(scroll.ScrollVertical > 0, "Selected act scrolls into view");
             Check(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions) == snapshot, "Review spends nothing and does not change evidence or pad");
-            await Press("▸  PLAN ANOTHER LISTEN");
+            await Press("PLAN ANOTHER LISTEN");
             question = Nodes(panel).OfType<OptionButton>().Single();
             Check(question.Selected == (int)ScoutingQuestion.None, "Switching acts restores that act's own question");
-            await Press("▸  ASK ABOUT " + second.ArtistName.ToUpperInvariant());
+            await Press("ASK ABOUT " + second.ArtistName.ToUpperInvariant());
             var ask = Nodes(panel).OfType<Button>().Single(b => b.Text.StartsWith("ASK ABOUT " + second.ArtistName.ToUpperInvariant() + " (1h"));
             Check(ask.GetParent().GetParent().GetParent() is VBoxContainer, "Booker controls are nested in act card");
             await Screenshot("expanded");
@@ -138,7 +138,8 @@ public partial class ScoutingUiChecks : Node {
             await Press("FIND A SET");
             await Press("NEXT SETS");
             await Press("LISTEN");
-            Check(Nodes(panel).OfType<Button>().Single(b => b.Text == "ACT NOTEBOOK").Disabled, "Listening opens the notebook automatically");
+            Check(Nodes(panel).OfType<Label>().Any(l => l.Text.StartsWith("A&R NOTEBOOK")) && Nodes(panel).OfType<Button>().Single(b => b.Text == "FIND A SET").FocusMode != Control.FocusModeEnum.None,
+                "Listening opens the notebook automatically");
             Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + desk.Slate.Last().Artist.stageName)), "Newly heard act is expanded");
             await Screenshot("new-listen");
             await Press("TALK TO ACT");

@@ -46,7 +46,7 @@ public partial class PlayerDesk {
             .Count(o => o.BusinessDiscussionId == prospect.BusinessDiscussionId && o.Kind == ScoutingEvidenceKind.BusinessStatement) ?? 0);
 
     public static string ScoutingTermsText(ScoutingStatedTerms terms) =>
-        $"${terms.Advance:N0} advance, {terms.RoyaltyRate:P1} royalty, {terms.TermYears} year(s), {terms.SinglesObligation} sides; " +
+        $"${terms.Advance:N0} advance, {terms.RoyaltyRate:P1} royalty, {Plural.Of(terms.TermYears, "year")}, {terms.SinglesObligation} sides; " +
         (terms.LabelOwnsPublishing ? "label owns publishing" : "artist keeps publishing") + "; " +
         (terms.ArtistCreativeControl ? "artist has creative control." : "label has creative control.");
 

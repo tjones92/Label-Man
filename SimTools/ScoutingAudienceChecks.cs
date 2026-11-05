@@ -35,6 +35,9 @@ public static class ScoutingAudienceChecks {
         var heard = dossier.Observations.Single(o => o.Kind == ScoutingEvidenceKind.Performance);
         Check(heard.BillListedActs == listed && heard.BillAdmissionQuote == quote && heard.PlaceId == room.PlaceId && heard.PlaceName == ScenePlaceRegistry.Get(room.PlaceId)?.Name, "real listening retains posted context");
         clock.EndDay(); clock.RestoreClock(clock.CurrentDate, room.OpenHour);
+        // A new day starts away from every venue; the booker is asked in their own room.
+        Check(!desk.PreviewScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience).Available, "next day: not at the venue yet");
+        Check(desk.GoToSceneRoom(room.Id, out message), "walk to the venue: " + message); clock.RestoreClock(clock.CurrentDate, room.OpenHour);
         var answer = desk.PreviewScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience);
         Check(answer.Available && answer.BillId == bill.Id && answer.BillListedActs == listed, "actual completed-bill answer");
         int minute = clock.CurrentHour * 60 + clock.CurrentMinute;
@@ -42,9 +45,9 @@ public static class ScoutingAudienceChecks {
         dossier = desk.ScoutingDossiers.Single(d => d.ArtistId == plan.ArtistId);
         var sourced = dossier.Observations.Last();
         Check(dossier.Observations.Single(o => o.Kind == ScoutingEvidenceKind.Performance).BillAttendance == heard.BillAttendance, "ordinary bill completion cannot retroactively fill listening notes");
-        Check(sourced.BillListedActs == listed && sourced.BillAdmissionQuote == null && sourced.PlaceId == room.PlaceId && sourced.AcquiredMinute == minute + 60, "source freezes listed bill, occurrence and real receipt, without inventing historical admission");
+        Check(sourced.BillListedActs == listed && sourced.BillAdmissionQuote == null && sourced.PlaceId == room.PlaceId && sourced.AcquiredMinute == minute + PlayerDesk.BookerQuestionMinutes, "source freezes listed bill, occurrence and real receipt, without inventing historical admission");
         Check(ScoutingAudience.Summary(dossier).Contains("1 distinct whole-bill") && !ScoutingAudience.Summary(dossier).Contains("Reports disagree"), "listening and booker are one crowd, not independent bills");
-        Check(!desk.AskScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience, answer.QuoteId, out _) && clock.CurrentHour * 60 + clock.CurrentMinute == minute + 60, "duplicate source acquisition has no time or crowd progress");
+        Check(!desk.AskScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience, answer.QuoteId, out _) && clock.CurrentHour * 60 + clock.CurrentMinute == minute + PlayerDesk.BookerQuestionMinutes, "duplicate source acquisition has no time or crowd progress");
         var fixture = ContextFixture(heard);
         var unfinished = LocalSceneRoomService.Copy(heard);
         unfinished.BillAttendance = null; unfinished.SetPresent = 40; unfinished.BillCapacity = 80;

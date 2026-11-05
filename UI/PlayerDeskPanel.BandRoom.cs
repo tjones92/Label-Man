@@ -181,10 +181,10 @@ public partial class PlayerDeskPanel {
 		string morale = act.morale > 0.08f ? "in good spirits" : act.morale < -0.10f ? "low" : "steady";
 		LineupConstitution kind = BandLifeService.ConstitutionOf(act);
 
-		// The folder: manila, a coffee ring on some of them, the act's name typed on the tab.
+		// The folder: manila, the act's name typed on the tab (the one coffee ring is on the desk page itself).
 		var folder = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		folder.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("dcc088"), 22, 16, 12, new Color("70552c"))
-			.Decorated(clip: false, ring: Portraits.Hash(act.artistId ?? act.stageName) % 3u == 0u, seed: (int)(Portraits.Hash(act.artistId ?? act.stageName) % 97u)));
+			.Decorated(clip: false, ring: false, seed: (int)(Portraits.Hash(act.artistId ?? act.stageName) % 97u)));
 		var file = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		file.AddThemeConstantOverride("separation", 8);
 		folder.AddChild(file);
@@ -218,7 +218,7 @@ public partial class PlayerDeskPanel {
 		if (booking != null && (booking.WeeksRemaining > 0 || booking.TimeOffUntilWeek >= 0))
 			notes.Add($"This year: {booking.ResidencyWeeks} weeks' residency, {booking.TourWeeks} on the road, {booking.WeeksRemaining} still to play" +
 				(booking.TimeOffUntilWeek >= (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) ? " — on a break right now." : "."));
-		if (desk.CutInSongsLeft(act.artistId) > 0) notes.Add($"The label is cut in on the next {desk.CutInSongsLeft(act.artistId)} original(s).");
+		if (desk.CutInSongsLeft(act.artistId) > 0) notes.Add($"The label is cut in on the next {Plural.Of(desk.CutInSongsLeft(act.artistId), "original")}.");
 		string promised = desk.PromisedCreditFor(act.artistId);
 		if (promised != null) notes.Add($"You promised {act.members.FirstOrDefault(m => m.personId == promised)?.firstName ?? "someone"} a song on the next record.");
 		PlayerDesk.SessionPlayerBooking sp = desk.SessionPlayerFor(act.artistId);
@@ -290,6 +290,7 @@ public partial class PlayerDeskPanel {
 				var move = Btn($"PROPOSE FUNDED MOVE TO {ScenePlaceRegistry.Get(room.PlaceId).Name.ToUpperInvariant()}  ({(route ? Money(cost) : "ROUTE UNAVAILABLE")})");
 				move.Disabled = !route;
 				move.TooltipText = "Needs unanimous member agreement, suitable work and no existing engagements. If everyone agrees, the displayed travel and temporary housing cost is paid upfront and the move is arranged.";
+				GreyWhy(move, "There is no way to get them there at the moment.");
 				string programId = program.Id;
 				move.Pressed += () => Act(() => { bool ok = desk.RelocateAct(captured.artistId, programId, out string result); Say(result, ok); return ok; });
 				order.AddChild(move);
@@ -309,6 +310,7 @@ public partial class PlayerDeskPanel {
 		road.AddChild(tour);
 		var cut = Btn("CUT THE LABEL IN");
 		cut.Disabled = desk.CutInSongsLeft(act.artistId) > 0;
+		GreyWhy(cut, $"The label is already cut in on their next {Plural.Of(desk.CutInSongsLeft(act.artistId), "song")}.");
 		cut.Pressed += () => Act(() => { desk.CutInOnSongs(captured, out string m); Say(m); return true; });
 		road.AddChild(cut);
 		order.AddChild(road);

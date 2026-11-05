@@ -117,11 +117,14 @@ namespace LabelMan.Naming {
 		public Dictionary<string, string> Slots = new();
 		public IRandom Rng;
 		public Dictionary<string, string> Extras; // future fields without touching call sites
+		/// <summary>The act's real members, when naming an act. Person slots bind to them and
+		/// lineup-claiming words are checked against them (see Lineup.cs). Null = draw blind.</summary>
+		public Lineup Lineup;
 
 		public NamingContext Clone() => new NamingContext {
 			Genre = Genre, Year = Year, ArtistType = ArtistType, RegionId = RegionId,
 			LabelArchetype = LabelArchetype, StyleTags = new List<string>(StyleTags),
-			TagSets = TagSets, Slots = Slots, Rng = Rng, Extras = Extras
+			TagSets = TagSets, Slots = Slots, Rng = Rng, Extras = Extras, Lineup = Lineup
 		};
 	}
 }

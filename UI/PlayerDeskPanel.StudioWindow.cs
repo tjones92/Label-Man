@@ -423,7 +423,7 @@ public partial class PlayerDeskPanel {
                 : null;
             plan.Text = problem ?? (incremental
                 ? $"Plan: {setup}m setup, then one pass per song ({string.Join(", ", passes.Select(m => m + "m"))}: the song twice, for the take and a listen back, plus a reset) and {PlayerDesk.StudioFinishMinutesPerSide}m finish each — {minimum}m of {hours * 60}m. That leaves {StudioClockStrip.DurationText(hours * 60 - minimum)} for rehearsal, retakes and direction."
-                : $"{songCount} song(s) in {hours} hours.");
+                : $"{Plural.Of(songCount, "song")} in {hours} hours.");
             // Early-game §4.1: say before the money goes if this date leaves the rest of the release unfunded. A warning, never a block.
             string completion = problem == null ? desk.CompletionWarning(roomCost + musicianFee + gas, PlayerDesk.CompletionStageKind.Studio) : null;
             if (completion != null) plan.Text += "\n" + completion;
@@ -431,6 +431,7 @@ public partial class PlayerDeskPanel {
             book.Disabled = problem != null;
             if (driveUp != null) driveUp.Disabled = offer.Locked != null || !desk.AtHome || desk.Label.cashReserves < gas + offer.BandLodging ||
                 time != null && drive * 60 > time.MinutesRemainingWithOvertime;
+                if (driveUp != null) { driveUp.TooltipText = $"Drive the band up now and book the room there tomorrow with a full day. Band motel ${offer.BandLodging:N0} a night, plus your own."; GreyWhy(driveUp, offer.Locked ?? (!desk.AtHome ? "Leave from the office." : desk.Label.cashReserves < gas + offer.BandLodging ? "Not enough cash for the gas and the band's motel." : "Not enough of today left to make the drive.")); }
         }
         hoursInput.ValueChanged += value => { studioHours = (int)value; UpdateCost(); };
         if (daysInput != null) daysInput.ValueChanged += value => { studioDays = (int)value; UpdateCost(); };
@@ -765,16 +766,20 @@ public partial class PlayerDeskPanel {
             var practised = cut.Structure == null ? new List<string>() : cut.Structure.Parts.Where(p => cut.PartRehearsals[(int)p] > 0)
                 .Select(p => cut.PartRehearsals[(int)p] == 1 ? "the " + StudioSongStructures.PartName(p) : $"the {StudioSongStructures.PartName(p)} \u00d7{cut.PartRehearsals[(int)p]}").ToList();
             if (practised.Count > 0) rehearsed += "; worked on " + string.Join(", ", practised);
-            StudioText(sheet, $"{PlayerDesk.ArrangementName(cut.Arrangement)}  ·  {direction}  ·  {rehearsed}", 14, Heard);
+            // One line for the song's state, whatever has been changed: a new balance or key must not insert a row and
+            // push the take buttons down. The full state is on hover when it runs long.
+            var shapeWords = new List<string>();
             if (cut.Work != null) {
-                var shapeWords = new List<string>();
                 if (cut.Work.KeyShift != 0) shapeWords.Add(cut.Work.KeyShift < 0 ? "a step lower" : "a step higher");
                 if (cut.Work.TempoShift != 0) shapeWords.Add(cut.Work.TempoShift > 0 ? "tempo pushed" : "tempo eased");
                 if (cut.Work.Trimmed) shapeWords.Add("short intro, clean ending");
                 if (cut.Work.KeepPickup) shapeWords.Add("with the pickup");
                 if (cut.Work.Balance != StudioBalance.Natural) shapeWords.Add(PlayerDesk.BalanceName(cut.Work.Balance).ToLowerInvariant());
-                if (shapeWords.Count > 0) StudioText(sheet, string.Join("  ·  ", shapeWords), 14, Heard);
             }
+            var state = StudioText(sheet, string.Join("  ·  ", new[] { PlayerDesk.ArrangementName(cut.Arrangement), direction, rehearsed }.Concat(shapeWords)), 14, Heard);
+            state.AutowrapMode = TextServer.AutowrapMode.Off;
+            state.ClipText = true; state.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+            state.TooltipText = state.Text; state.MouseFilter = MouseFilterEnum.Stop;
             if (cut.Structure is { } map) StudioText(sheet, $"Song map ({StudioSongStructures.FormName(map.Form)}, {StudioSongStructures.Length(map.DurationSeconds)}):  " +
                 string.Join("  ›  ", map.Sections.Select(x => x.Label.Replace("the ", ""))), 13, Heard);
         }
@@ -851,6 +856,7 @@ public partial class PlayerDeskPanel {
         delegateChoice.TooltipText = incremental
             ? "Hand the remaining work to the producer under your brief. Same clock, same notes, and your kept choices stay. You still review and print."
             : "The producer picks from the listening notes for the sides you haven't kept.";
+            GreyWhy(delegateChoice, "Every side already has a kept take: review and print.");
         delegateChoice.Pressed += () => {
             if (!incremental) { desk.DelegateTakeSelection(); Say("The producer chose from the listening notes for the unselected sides.", true); Refresh(); return; }
             var dialog = PaperModal.Open(this, "RUN THE REST OF THE DATE", 720);
@@ -890,6 +896,9 @@ public partial class PlayerDeskPanel {
         var desk = PlayerDesk.Instance;
         int left = desk.StudioMinutesLeft(session), held = PlayerDesk.StudioFinishMinutesPerSide * session.Cuts.Count;
         const string OutOfTime = "Not enough room time left beyond what's held for finishing.";
+        // The working buttons come first and in a fixed order, so the notices below (an idea, a call-in, out of tape) can
+        // appear and be answered without moving them under the cursor.
+        var work = StudioFlow(sheet);
         // The producer's suggestion after one member's part keeps falling apart: call a session player in, or don't.
         if (desk.StudioCallIn() is { } callIn) {
             var panel = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -902,6 +911,7 @@ public partial class PlayerDeskPanel {
             var choices = StudioFlow(box);
             var call = Primary($"CALL {callIn.CandidateName.ToUpperInvariant()} IN  ·  ${callIn.Fee:N0}  ·  {callIn.ArrivalMinutes}m");
             call.Disabled = left < callIn.ArrivalMinutes + held;
+            GreyWhy(call, OutOfTime);
             call.Pressed += () => { bool ok = desk.CallInSessionPlayer(callIn.MemberId, callIn.CandidateId, out string m); Say(m, ok); Refresh(); };
             choices.AddChild(call);
             var keep = Btn($"KEEP {callIn.MemberName.ToUpperInvariant()} ON IT");
@@ -921,6 +931,7 @@ public partial class PlayerDeskPanel {
             var choices = StudioFlow(box);
             var call = Primary($"CALL {backing.GroupName.ToUpperInvariant()} IN  ·  ${backing.Fee:N0}  ·  {backing.ArrivalMinutes}m");
             call.Disabled = left < backing.ArrivalMinutes + held;
+            GreyWhy(call, OutOfTime);
             call.Pressed += () => { bool ok = desk.CallInBackingSingers(out string m); Say(m, ok); Refresh(); };
             choices.AddChild(call);
             var keep = Btn("KEEP IT TO THE ACT'S OWN VOICES");
@@ -967,7 +978,6 @@ public partial class PlayerDeskPanel {
                 }
             }
         }
-        var work = StudioFlow(sheet);
         int passMinutes = PlayerDesk.StudioPassMinutes(cut), rehearsalMinutes = PlayerDesk.StudioRehearsalMinutesFor(cut);
         var pass = Primary($"CUT A TAKE  ·  {passMinutes}m");
         pass.Disabled = left < passMinutes + held;
@@ -975,17 +985,6 @@ public partial class PlayerDeskPanel {
             : $"A {StudioSongStructures.Length(cut.Structure.DurationSeconds)} song: count-in, the pass, rewind and a listen back. Earlier takes stay safe.";
         pass.Pressed += () => { bool ok = desk.CutStudioTake(side, out string m); if (ok) studioOpenTakes.Clear(); Say(m, ok); Refresh(); };
         work.AddChild(pass);
-        // The part the last pass fell down in, as the producer heard it, gets a direct button.
-        var lastTake = cut.Takes.Count > 0 ? cut.Takes[^1] : null;
-        if (cut.Structure != null && lastTake?.TroubleSection >= 0 && !lastTake.FalseStart) {
-            var flagged = cut.Structure.Sections[lastTake.TroubleSection].Kind;
-            var target = Btn($"REHEARSE THE {StudioSongStructures.PartName(flagged).ToUpperInvariant()}  ·  {PlayerDesk.StudioPartRehearsalMinutes}m");
-            target.Disabled = left < PlayerDesk.StudioPartRehearsalMinutes + held;
-            target.TooltipText = target.Disabled ? OutOfTime : lastTake.Incomplete ? $"Work the {StudioSongStructures.PartName(flagged)} without tape: take {lastTake.Number} fell apart there."
-                : $"Work the {StudioSongStructures.PartName(flagged)} without tape: the producer heard take {lastTake.Number} fall down there.";
-            target.Pressed += () => { bool ok = desk.RehearseStudioPart(side, flagged, out string m); Say(m, ok); Refresh(); };
-            work.AddChild(target);
-        }
         var rehearse = Btn(cut.Structure == null ? $"REHEARSE  ·  {rehearsalMinutes}m" : "REHEARSE…");
         rehearse.Disabled = left < (cut.Structure == null ? rehearsalMinutes : Math.Min(rehearsalMinutes, PlayerDesk.StudioPartRehearsalMinutes)) + held;
         rehearse.TooltipText = rehearse.Disabled ? OutOfTime : "Run the song, or one part of it, without rolling tape. It tightens the band, but it is tiring.";
@@ -995,6 +994,7 @@ public partial class PlayerDeskPanel {
             dialog.AddText($"Running the whole song tightens the band in general. Working one part fixes where it keeps falling down and helps what that part asks for. Either way the band tires. {left - held} minutes are free before finishing.");
             var song = Primary($"RUN THE WHOLE SONG  ·  {rehearsalMinutes}m");
             song.Disabled = left < rehearsalMinutes + held;
+            GreyWhy(song, OutOfTime);
             song.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
             song.Pressed += () => { dialog.Cancel(); bool ok = desk.RehearseStudio(side, out string m); Say(m, ok); Refresh(); };
             dialog.Body.AddChild(song);
@@ -1004,6 +1004,7 @@ public partial class PlayerDeskPanel {
                 int heard = cut.Takes.Count(t => t.TroubleSection >= 0 && cut.Structure.Sections[t.TroubleSection].Kind == part);
                 var button = Btn($"THE {StudioSongStructures.PartName(part).ToUpperInvariant()}  ·  {PlayerDesk.StudioPartRehearsalMinutes}m" + (heard > 0 ? $"  (flagged {heard}\u00d7)" : ""));
                 button.Disabled = left < PlayerDesk.StudioPartRehearsalMinutes + held;
+                GreyWhy(button, OutOfTime);
                 button.Pressed += () => { dialog.Cancel(); bool ok = desk.RehearseStudioPart(side, chosen, out string m); Say(m, ok); Refresh(); };
                 partRow.AddChild(button);
             }
@@ -1076,11 +1077,25 @@ public partial class PlayerDeskPanel {
                 heading.AddThemeFontOverride("font", PaperTheme.SansBold);
                 heading.AddThemeColorOverride("font_color", Rust);
                 dialog.Body.AddChild(heading);
-                dialog.AddText(desk.StudioArrangementProposal(side, alternative));
+                string unavailable = desk.StudioArrangementUnavailable(side, alternative);
+                string proposal = desk.StudioArrangementProposal(side, alternative);
+                // The reason sits beside the greyed-out button, so the proposal doesn't say it twice.
+                if (unavailable != null) proposal = proposal.Replace("\nNot possible yet: " + unavailable, "");
+                dialog.AddText(proposal);
                 var prepare = Primary("PREPARE: " + PlayerDesk.ArrangementName(alternative).ToUpperInvariant());
                 prepare.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+                // An option the date can't play is greyed out with the reason beside it, not a live red button that only says no after the click.
+                prepare.Disabled = unavailable != null;
+                prepare.TooltipText = unavailable ?? "Prepare this arrangement. Cut a pass to hear it; earlier takes stay safe.";
                 prepare.Pressed += () => { dialog.Cancel(); bool ok = desk.ArrangeStudio(side, chosen, out string m); Say(m, ok); Refresh(); };
-                dialog.Body.AddChild(prepare);
+                var prepareRow = new HBoxContainer(); prepareRow.AddThemeConstantOverride("separation", 12);
+                prepareRow.AddChild(prepare);
+                if (unavailable != null) {
+                    var why = new Label { Text = unavailable, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center };
+                    why.AddThemeColorOverride("font_color", Heard); why.AddThemeFontSizeOverride("font_size", 14);
+                    prepareRow.AddChild(why);
+                }
+                dialog.Body.AddChild(prepareRow);
             }
             if (session.RulesVersion >= 2) {
                 var hires = new HFlowContainer(); hires.AddThemeConstantOverride("h_separation", 8);
@@ -1101,6 +1116,17 @@ public partial class PlayerDeskPanel {
             dialog.AddButton("KEEP WORKING AS WE ARE", null);
         };
         work.AddChild(arrange);
+        // The part the last pass fell down in, as the producer heard it, gets a direct button, last in the row so it never shifts the others.
+        var lastTake = cut.Takes.Count > 0 ? cut.Takes[^1] : null;
+        if (cut.Structure != null && lastTake?.TroubleSection >= 0 && !lastTake.FalseStart) {
+            var flagged = cut.Structure.Sections[lastTake.TroubleSection].Kind;
+            var target = Btn($"REHEARSE THE {StudioSongStructures.PartName(flagged).ToUpperInvariant()}  ·  {PlayerDesk.StudioPartRehearsalMinutes}m");
+            target.Disabled = left < PlayerDesk.StudioPartRehearsalMinutes + held;
+            target.TooltipText = target.Disabled ? OutOfTime : lastTake.Incomplete ? $"Work the {StudioSongStructures.PartName(flagged)} without tape: take {lastTake.Number} fell apart there."
+                : $"Work the {StudioSongStructures.PartName(flagged)} without tape: the producer heard take {lastTake.Number} fall down there.";
+            target.Pressed += () => { bool ok = desk.RehearseStudioPart(side, flagged, out string m); Say(m, ok); Refresh(); };
+            work.AddChild(target);
+        }
     }
 
     /// <summary>One line of the take sheet: the take, what was tried, what people said about it, and keep.</summary>
@@ -1139,9 +1165,14 @@ public partial class PlayerDeskPanel {
         notes.AddThemeConstantOverride("separation", 2);
         line.AddChild(notes);
         string With(string note, string detail) => detail == null ? note : note + " " + detail;
-        var all = new[] { "Engineer: " + With(take.EngineerNote, take.EngineerDetail), "Performer: " + take.PerformerNote, take.BandNote == null ? null : "Band: " + take.BandNote, "Producer: " + With(take.ProducerNote, take.ProducerDetail) }
+        // The producer's chair is the label's own unless someone was hired for it; say whose ear the note is.
+        // (Playtest 2026-11-04: a "Producer" note on every take with no producer booked.)
+        string hiredProducer = PlayerDesk.Instance.Session?.Hires.FirstOrDefault(h => h.Kind == StudioHireKind.Producer)?.Name;
+        string producerLead = hiredProducer != null ? $"Producer ({hiredProducer}): " : "Your read (producing): ";
+        string producerLine = producerLead + With(take.ProducerNote, take.ProducerDetail);
+        var all = new[] { "Engineer: " + With(take.EngineerNote, take.EngineerDetail), "Performer: " + take.PerformerNote, take.BandNote == null ? null : "Band: " + take.BandNote, producerLine }
             .Where(n => n != null).ToArray();
-        foreach (string note in open ? all : all.Where(n => n.StartsWith("Producer: ", StringComparison.Ordinal)))
+        foreach (string note in open ? all : new[] { producerLine })
             StudioText(notes, note, 15, Heard);
         if (take.Work != null) {
             var setup = PlayerDesk.StudioTakeSetup(PlayerDesk.Instance.Session, take).Where(l => l != take.Work.IncidentNote).ToList();

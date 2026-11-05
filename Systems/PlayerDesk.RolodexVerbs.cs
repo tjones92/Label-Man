@@ -56,7 +56,7 @@ public partial class PlayerDesk : Node {
 			// One acetate, no pressing: the only honest verb is to let him hear it. Nothing is promised either way.
 			bool heard = call.entry.acetatesPlayed.Contains(c.baseRecord.recordId);
 			var play = new CallOption {
-				label = inst.TheEar >= 3 ? "Play him the acetate down the phone. Let him hear what it is." : "Play him the acetate",
+				label = inst.TheEar >= 3 ? (c.inPerson ? "Put the acetate on his turntable. Let him hear what it is." : "Play him the acetate down the phone. Let him hear what it is.") : "Play him the acetate",
 				subLabel = $"10 min • no airplay yet, just his honest ear on \"{c.baseRecord.title}\"",
 				voice = inst.TheEar >= 3 ? ExecutiveVoice.Ear : ExecutiveVoice.None,
 				approach = RolodexApproach.PlayTheAcetate,
@@ -71,7 +71,7 @@ public partial class PlayerDesk : Node {
 			// would see regardless is a lie about their own character.
 			var pitch = new CallOption {
 				label = inst.TheEar >= 3
-					? "Play him the chorus down the phone. Let him hear the structure."
+					? (c.inPerson ? "Play him the chorus on the studio deck. Let him hear the structure." : "Play him the chorus down the phone. Let him hear the structure.")
 					: "Pitch the record",
 				subLabel = inst.TheEar >= 3
 					? $"{PersonalPitchMinMinutes}-{PersonalPitchMaxMinutes} min · you know what in it is worth defending"
@@ -178,7 +178,7 @@ public partial class PlayerDesk : Node {
 			return $"Already done. {c.station.callsign} has it in {TierWord(tier)} rotation right now — " +
 				"asking again is how you spend goodwill for nothing.";
 		return weeksLeft > 0
-			? $"He's still arguing for it — {weeksLeft} more playlist meeting(s). It hasn't been picked up yet."
+			? $"He's still arguing for it — {Plural.Of(weeksLeft, "more playlist meeting")}. It hasn't been picked up yet."
 			: "He argued for it and the sheet went another way. Give it a week before you push again.";
 	}
 

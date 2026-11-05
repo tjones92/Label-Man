@@ -100,7 +100,7 @@ public partial class ChartDetailPanel : Control
 		risingColor = new Color("2f6b2a"); fallingColor = new Color("a8322a"); steadyColor = new Color("6b5a3a");
 		newEntryColor = new Color("24457A"); numberOneColor = new Color("9c6a00");
 
-		var sheet = PaperStyleBox.Sheet(new Color("f1e5c8"), 0, 0, 24, new Color("654a27")).Decorated(clip: true, ring: true, seed: 7);
+		var sheet = PaperStyleBox.Sheet(new Color("f1e5c8"), 0, 0, 24, new Color("654a27")).Decorated(clip: true, ring: false, seed: 7);
 		sheet.BorderWidth = 2; sheet.Radius = 3; sheet.ShadowAlpha = 0.55f; sheet.ShadowOffset = new Vector2(0, 10);
 		folder.AddThemeStyleboxOverride("panel", sheet);
 		// The scene fixes the card at 700px tall; let it be as tall as its contents and grow from the middle.

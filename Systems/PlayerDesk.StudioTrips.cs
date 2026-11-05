@@ -98,7 +98,7 @@ public partial class PlayerDesk {
     private void CompleteStudioTrip(PendingSession session) {
         if (studioTrip == null || studioTrip.ArtistId != session.ArtistId) return;
         session.ActionLog.Insert(0, $"Drove {studioTrip.DriveHours}h to {DistanceModel.GetCityById(studioTrip.CityId)?.name} with the band (${studioTrip.Gas:N0} gas)" +
-            (studioTrip.Nights > 0 ? $" and stayed {studioTrip.Nights} night(s) (band motel ${studioTrip.LodgingPaid:N0})." : "; the date started the same day."));
+            (studioTrip.Nights > 0 ? $" and stayed {Plural.Of(studioTrip.Nights, "night")} (band motel ${studioTrip.LodgingPaid:N0})." : "; the date started the same day."));
         studioTrip = null;
     }
 

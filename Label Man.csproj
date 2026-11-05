@@ -13,9 +13,12 @@
     <!-- Research source snapshots are evidence, not game compilation inputs. -->
     <Compile Remove="SimLogs\**\*.cs" />
     <Compile Remove="SimTools\NamingCoreTests\**\*.cs" />
+    <Compile Remove="SimTools\NamingCensus\**\*.cs" />
+    <Compile Remove="SimTools\TitleCensus\**\*.cs" />
     <Compile Remove="SimTools\CounterRngTests\**\*.cs" />
     <Compile Remove="SimTools\PlaylistMeetingTests\**\*.cs" />
     <Compile Remove="SimTools\HeapScan\**\*.cs" />
+    <Compile Remove="SimTools\DescriptorCensus\**\*.cs" />
     <!-- A checkout of another branch can be nested under tmp\; its sources are not this build's. -->
     <Compile Remove="tmp\playtest-ui-ux-fixes\**\*.cs" />
     <Compile Remove="tmp\scouting-unsigned\**\*.cs" />

@@ -145,13 +145,21 @@ public partial class TimeManager : Node {
 		AdvanceToNextDay();
 	}
 
+	/// <summary>True while the calendar turns (day end, week and month close, the next morning). What the desk logs
+	/// then is the world's news; what it logs any other time is the echo of the player's own click.</summary>
+	public bool TurningTheDay => turningDepth > 0;
+	private int turningDepth;
+
 	private void ProcessDayEnd() {
-		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.RoomAdvance))
-			LocalSceneRoomService.Advance(currentDate, 24);
-		OnDayEnded?.Invoke(currentDate);
-		if (currentDate.IsFriday) {
-			OnWeekEnded?.Invoke(currentDate);
-		}
+		turningDepth++;
+		try {
+			using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.RoomAdvance))
+				LocalSceneRoomService.Advance(currentDate, 24);
+			OnDayEnded?.Invoke(currentDate);
+			if (currentDate.IsFriday) {
+				OnWeekEnded?.Invoke(currentDate);
+			}
+		} finally { turningDepth--; }
 	}
 
 	private void ScheduleGrammyAwards() {
@@ -170,6 +178,11 @@ public partial class TimeManager : Node {
 	}
 
 	private void AdvanceToNextDay() {
+		turningDepth++;
+		try { AdvanceToNextDayCore(); } finally { turningDepth--; }
+	}
+
+	private void AdvanceToNextDayCore() {
 		int previousMonth = currentDate.month;
 		int previousYear = currentDate.year;
 
