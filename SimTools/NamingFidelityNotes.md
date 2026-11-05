@@ -342,3 +342,66 @@ but genres between 0.4 and 0.6 now draw it, so their title streams reshuffle (pa
 
 The census now reports "ends !" on its own row. "?" is unchanged and stays low (0.1-0.3% vs 0.63%): it only
 lands on question titles in voices above 0.4.
+
+# Audit pass: "?", band names, one-word and "blues" titles, labels (2026-11-04)
+
+## "?" on questions
+
+On the 1960-64 chart 14% of question titles carry "?" in every genre ("Are You Lonesome To-night?", "What Kind of
+Fool Am I?"). The legacy rule allowed it only above 0.4 intensity, at 0-16%. Now `0.08 + 0.12 x intensity` (10% at
+0.2, 19% at 0.9), still only on a question. Decade mix "?" endings go from ~0.1-0.3% to ~0.6-0.7% (chart 0.63%).
+
+## Late-decade band names
+
+The NamingCensus samples showed the thin band sets (2-6 generic adjective+noun templates) were the weakest names
+left: "Fight Haze", "Lipstick Wind" (hard rock), "The Luminescent Illusion" (psych), "The Angelic Satellites" (sunshine),
+"The Sad Trio" / "The Rain Three" (the folk trio grammar's `{adjective:universal} Trio` / `{noun:universal} Three`).
+Rewritten from period shapes over 54 new `bn*` pools:
+
+| set | shapes |
+|---|---|
+| `bandName.folk` / `folkTrio` / `folkDuo` (template sets now override the grammar) | "The Kingston Trio", "The Highwaymen", "The Rooftop Singers", "The New Christy Minstrels", "Peter, Paul and Mary", "Ian & Sylvia", kin billing |
+| `bandName.folkRock` (new) | "The Byrds" (misspelt bird), "Buffalo Springfield", "The Leaves", "Fairport Convention", "We Five" |
+| `bandName.hardRock` | "Iron Butterfly" / "Blue Cheer" heavy-light pair, "Cream" / "Mountain" / "Steppenwolf", "The Amboy Dukes", "MC5", "Grand Funk Railroad", "Sir Lord Baltimore", "The Jeff Beck Group" |
+| `bandName.psych` | "Strawberry Alarm Clock", "Country Joe and the Fish", "Love", "The Mothers of Invention" |
+| `bandName.sunshine` | "The Yellow Balloon", "The Association", "Spanky and Our Gang", "The 5th Dimension", "Sagittarius" |
+| `bandName.bubblegum` | "The 1910 Fruitgum Company", "The Ohio Express", "The Lemon Pipers", "The Music Explosion" |
+| `bandName.reggae` | "The Clarendonians" / "The Heptones", "The Paragons", "The Righteous Flames", "Desmond Dekker and the Aces" |
+| `bandName.garage` | "The Remains", "The Shadows of Knight", "Sam the Sham and the Pharaohs", "Count Five", "The Music Machine" |
+
+Person slots bind to members as before; counts come from `%countWord%` / `%ensemble%`; leader titles are gender-neutral
+(Country Joe, Captain, Professor). Folk-rock trios no longer route to the folk trio set. `reserved.json` +113 acts (the
+real names each shape could reach, including backing bands: Aces, Pharaohs, Holding Company).
+NamingCensus seeds 1001 / 2002: false head-count / kin claims 0 / 0, duplicates 0, non-member names 2.4 / 2.7%
+(stage diminutives, unchanged). Samples: "The Topanga Convention", "Frozen Lullaby", "The Toledo Wardens", "Mesa",
+"Cinnamon Barometer", "Electric Duane and the Glee Club", "The Tulsa Express", "The 1898 Jellybean Company".
+
+## Titles: one-word, "blues", R&B
+
+* **Instrumental one-word pool** (`instOne`, 70 place and mood words, none a period hit: "Marrakesh", "Portofino",
+  "Moonmist", "Barcarolle") in easy listening, jazz and crooner pop, which had 1.6-6% one-word titles.
+  Decade one-word 6.3-7.0% -> 7.3-8.0% (chart 9.6%).
+* **R&B** routed to the blues set (every 20th R&B title had "Blues"). New `songTitle.rnB` = soul x1 + blues x0.55
+  ("Shop Around", "Hit the Road Jack" read as both). Jazz "Blues" frames and folk's talking blues halved.
+  Decade "blues" 1.3-1.6% -> 1.1-1.2% (chart 0.6%; jazz and blues records are off-chart, so the game's rate is plausible).
+* **Nested includes**: the loader now resolves `include` depth-first, so a set can include a set that has includes
+  (`songTitle.rnB` -> soul -> `_loveClauses`) whatever the file order; cycles terminate. No existing set nested, so
+  earlier output is unchanged. Reserved +26 songs (W.C. Handy blues, instrumental standards: "Exodus", "Moonglow").
+
+## Labels
+
+"Voice of Sanctified Records" (an adjective after "Voice of") now draws a noun list; the major-label
+"Dominion-Meadowlark Records" hyphen join becomes "{corporate} Artists Records" ("United Artists" shape).
+
+## Tests
+
+`NamingCoreTests` 189/189: three new include tests (nesting, scale product, cycle), and the two long-failing
+Blues nickname tests fixed. They hard-coded 0.9, but BluesRoot was deliberately lowered to 0.45, so they now test
+the inheritance instead of the number. TitleCensus decade 1001/2002/3003: lint 1.0 / 0.5 / 0.5, no template fails >20%.
+
+## Still open
+
+* One-word titles 7.3-8.0% vs 9.6%.
+* British (6), protoPunk (4), funk (5) song sets; gospel / girl-group / teen-pop / surf / latin band sets (3 each)
+  are serviceable but small; `bandName.garageEarly` (pre-1966 garage, grammar, 2 rules).
+* Calibration: names and titles are simulation inputs (programme identity, track traits), so this pass re-baselines too.

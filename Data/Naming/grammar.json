@@ -490,7 +490,7 @@
     {"w": 2, "t": "{founder} Gospel Records"},
     {"w": 1, "t": "{labelWord:gospel} Gospel"},
     {"w": 1, "t": "{hq} Gospel Recordings"},
-    {"w": 1, "t": "Voice of {labelWord:gospel} Records"}
+    {"w": 1, "t": "Voice of (Faith|Zion|Calvary|Glory|Praise|Deliverance|Hope|the Gospel|the Valley) Records"}
   ],
 
   "label.bluesRoots": [
@@ -550,7 +550,7 @@
   "label.major": [
     {"w": 3, "t": "{labelWord:corporate} Records"},
     {"w": 2, "t": "{labelWord:corporate} Recording Corporation"},
-    {"w": 1, "t": "{labelWord:corporate}-{labelWord:general} Records"},
+    {"w": 1, "t": "{labelWord:corporate} Artists Records"},
     {"w": 1, "t": "{founder} & {lastName:generic} Records"}
   ],
 

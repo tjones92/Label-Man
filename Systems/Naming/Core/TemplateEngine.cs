@@ -277,14 +277,23 @@ namespace LabelMan.Naming {
 				}
 				result[sym.Name] = list;
 			}
-			foreach (var kv in includes) {
-				var list = result[kv.Key];
+			// Resolved depth-first, so a set may include a set that itself includes others
+			// ("songTitle.rnB" splices soul and blues, which splice the shared clause sets) whatever the file order.
+			var done = new HashSet<string>(StringComparer.Ordinal);
+			void Resolve(string name, HashSet<string> stack) {
+				if (done.Contains(name) || !includes.TryGetValue(name, out var incs)) return;
+				if (!stack.Add(name)) return;   // a cycle: leave the inner reference unspliced
+				var list = result[name];
 				// splice from the back so earlier insertion points stay valid
-				foreach (var (at, from, scale) in kv.Value.OrderByDescending(x => x.at)) {
+				foreach (var (at, from, scale) in incs.OrderByDescending(x => x.at)) {
+					Resolve(from, stack);
 					if (!result.TryGetValue(from, out var shared)) continue;
 					list.InsertRange(at, shared.Select(t => t.Scaled(scale)));
 				}
+				stack.Remove(name);
+				done.Add(name);
 			}
+			foreach (var name in includes.Keys.ToList()) Resolve(name, new HashSet<string>(StringComparer.Ordinal));
 			return result;
 		}
 
@@ -826,8 +835,11 @@ namespace LabelMan.Naming {
 			double floor = sel ? 0.4 : 0.6, slope = sel ? 0.06 : 1.2;
 			if (intensity > floor && rng.Chance((intensity - floor) * slope))
 				return TitleSelection.Enabled && TitlePolish.IsQuestion(s) ? s : s + "!";   // not "Why Did You Go!"
-			// "?" only on a question ("Will You Still Love Me?"), never on "Meet the Calloways?".
-			if (intensity > 0.4 && rng.Chance((intensity - 0.4) * 0.3) && (!TitleSelection.Enabled || TitlePolish.IsQuestion(s))) return s + "?";
+			// "?" only on a question ("Will You Still Love Me?"), never on "Meet the Calloways?". On the 1960-64
+			// chart 14% of question titles carry one, in every genre ("Are You Lonesome To-night?", "What Kind of
+			// Fool Am I?"); the legacy rule gave none below 0.4 intensity. Now 10% (0.2) .. 19% (0.9).
+			if (sel ? rng.Chance(0.08 + 0.12 * intensity) && TitlePolish.IsQuestion(s)
+					: intensity > 0.4 && rng.Chance((intensity - 0.4) * 0.3)) return s + "?";
 			return s;
 		}
 

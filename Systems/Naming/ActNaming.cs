@@ -304,7 +304,8 @@ public sealed class ActNaming {
 		if (genre == Genre.GarageRock && year < 1966) return "bandName.garageEarly";
 		if (genre == Genre.Folk || genre == Genre.FolkRock || genre == Genre.ContemporaryFolk) {
 			if (artistType == ArtistType.Duo || size == 2) return "bandName.folkDuo";
-			if (artistType == ArtistType.Trio || size == 3) return "bandName.folkTrio";
+			// folk-rock trios were bands (the Byrds began as one), not "The Kingston Trio"
+			if ((artistType == ArtistType.Trio || size == 3) && genre != Genre.FolkRock) return "bandName.folkTrio";
 		}
 		return Router.Resolve("bandName", genre.ToString()) ?? "bandName.default";
 	}

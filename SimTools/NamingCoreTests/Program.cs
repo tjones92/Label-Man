@@ -199,14 +199,16 @@ public static class Program {
 		Console.WriteLine("== GenreProfile ==");
 		var lib = new GenreLibrary();
 		var blues = lib.Get("Blues");
-		True("Blues inherits BluesRoot nickname 0.9", Math.Abs(blues.Voice.NicknameDensity - 0.9) < 1e-9);
+		// (BluesRoot's nickname density was lowered 0.9 -> 0.45 on purpose; test the inheritance, not the number)
+		double rootNick = lib.Get("BluesRoot").Voice.NicknameDensity;
+		True("Blues inherits BluesRoot nickname", rootNick > 0 && Math.Abs(blues.Voice.NicknameDensity - rootNick) < 1e-9);
 		True("Blues inherits grit affinity", blues.DomainAffinity.TryGetValue("grit", out var gg) && gg == 3);
 		True("Blues suppresses candy", blues.Suppress.Contains("candy"));
 		// BritishBlues: BluesRoot -> BluesRock (punct .6) -> BritishBlues (UK)
 		var bb = lib.Get("BritishBlues");
 		True("BritishBlues UK orthography", bb.Orthography == Locale.UK);
 		True("BritishBlues inherits punct .6 from BluesRock", Math.Abs(bb.Voice.PunctuationIntensity - 0.6) < 1e-9);
-		True("BritishBlues inherits nickname .9 from root", Math.Abs(bb.Voice.NicknameDensity - 0.9) < 1e-9);
+		True("BritishBlues inherits nickname from root", Math.Abs(bb.Voice.NicknameDensity - rootNick) < 1e-9);
 		// PsychedelicPop overrides archaism back to 0.2 (== neutral) — must NOT inherit PsychFamily 0.5
 		var pp = lib.Get("PsychedelicPop");
 		True("PsychPop archaism override to 0.2", Math.Abs(pp.Voice.ArchaismLevel - 0.2) < 1e-9);
@@ -579,6 +581,18 @@ public static class Program {
 		Eq("include splices the shared templates", string.Join(",", x.Select(t => t.Id)), "x_own,sh_a,sh_b");
 		True("include scales the copies", Math.Abs(x[1].Weight - 1.0) < 1e-9 && Math.Abs(x[2].Weight - 2.0) < 1e-9);
 		True("shared set keeps its own weights", Math.Abs(sets["songTitle._shared"][0].Weight - 2.0) < 1e-9);
+		// nested includes resolve whatever the file order (songTitle.rnB splices soul, which splices shared sets)
+		var nested = ConstraintTemplateLoader.Parse(@"{
+			""songTitle.outer"": [ { ""include"": ""songTitle.mid"", ""scale"": 0.5 } ],
+			""songTitle.mid"": [ { ""id"": ""mid_own"", ""type"": ""song"", ""pattern"": ""Mid"", ""weight"": 2 },
+			                     { ""include"": ""songTitle._leaf"", ""scale"": 2 } ],
+			""songTitle._leaf"": [ { ""id"": ""leaf"", ""type"": ""song"", ""pattern"": ""Leaf"", ""weight"": 1 } ],
+			""songTitle.loopA"": [ { ""id"": ""a"", ""type"": ""song"", ""pattern"": ""A"", ""weight"": 1 }, { ""include"": ""songTitle.loopB"" } ],
+			""songTitle.loopB"": [ { ""id"": ""b"", ""type"": ""song"", ""pattern"": ""B"", ""weight"": 1 }, { ""include"": ""songTitle.loopA"" } ] }");
+		var outer = nested["songTitle.outer"];
+		Eq("nested include reaches the inner set", string.Join(",", outer.Select(t => t.Id)), "mid_own,leaf");
+		True("nested include scales multiply", Math.Abs(outer[0].Weight - 1.0) < 1e-9 && Math.Abs(outer[1].Weight - 1.0) < 1e-9);
+		True("an include cycle terminates", nested["songTitle.loopA"].Count >= 2 && nested["songTitle.loopB"].Count >= 2);
 
 		var ont = new TagOntology(); var lib = new GenreLibrary();
 		var tlex = new Lexicon();
