@@ -319,9 +319,26 @@ no template fails >20% of fills, lint 0.7 / 0.7 / 1.7 (3003's hits are in older 
 
 ## Still open
 
-* **"!"/"?" endings are ~15% in these genres** (Hot 100 1.1%), before and after this pass: the genre voices
-  (GarageRock 0.9, Bubblegum 0.95, HardRock 0.85 `punctuationIntensity`) add them in post-processing, not the templates.
-  It is invisible in the decade mix (1.0-1.3%). Probably wants a cap on that voice dimension for titles.
+* ~~"!" endings ~15% in these genres~~ — fixed, next section.
 * British (6 templates incl. includes), protoPunk (4) and funk (5) song sets are still thin; band-name sets for folk (2),
   reggae/bubblegum/sunshine (2) were out of scope.
 * Calibration: another re-baseline for these genres' track traits.
+
+# Exclamation marks (2026-11-04)
+
+`PostProcessor.Punctuation` added "!" with chance `(punctuationIntensity - 0.6) x 1.2`: 30-42% of titles in the
+loudest voices (HardRock 0.85, GarageRock 0.9, Bubblegum 0.95) and none at all below 0.6. Real rates are low:
+0.4% of 1960-64 Hot 100 titles end in "!", 1% of the 1965-69 sample (2 of 99: "Help!", "Stop! In the Name of
+Love"), and the loud genres' hits mostly did without ("96 Tears", "Yummy Yummy Yummy", "Sugar, Sugar").
+
+Now `(intensity - 0.4) x 0.06` with TitleSelection on (legacy keeps the old rule): rock 'n' roll / teen pop 1.2%,
+soul 0.6%, bubblegum 3.3%, crooners and country 0. The roll still depends only on the genre, never on the wording,
+but genres between 0.4 and 0.6 now draw it, so their title streams reshuffle (part of the same re-baseline).
+
+| ends "!" | Hot 100 | before | now |
+|---|---|---|---|
+| decade mix 1001 / 2002 / 3003 | 0.4% | ~0.9-1.2% (all from loud genres) | 0.4 / 0.2 / 0.5% |
+| late-decade genres (focused census) | | 14.5% | 1.8% |
+
+The census now reports "ends !" on its own row. "?" is unchanged and stays low (0.1-0.3% vs 0.63%): it only
+lands on question titles in voices above 0.4.

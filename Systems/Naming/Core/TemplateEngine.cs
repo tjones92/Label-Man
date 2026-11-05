@@ -817,7 +817,14 @@ namespace LabelMan.Naming {
 
 		private static string Punctuation(string s, double intensity, IRandom rng) {
 			// (the roll is always made, so the draw sequence does not depend on the title's wording)
-			if (intensity > 0.6 && rng.Chance((intensity - 0.6) * 1.2))
+			// "!" was rare even in the loudest genres: 0.4% of 1960-64 Hot 100 titles end in one, 1% of a 1965-69
+			// sample ("Help!"); garage and bubblegum hits mostly did without ("96 Tears", "Yummy Yummy Yummy").
+			// The legacy rule (above 0.6, x1.2) put "!" on 30-42% of the loudest voices' titles and on none below
+			// 0.6. Now a shallow slope from 0.4: rock 'n' roll / teen pop (0.6) 1.2%, soul 0.6%, bubblegum (0.95)
+			// 3.3%, crooners and country 0 -- about 0.4% over the decade mix, as on the chart.
+			bool sel = TitleSelection.Enabled;
+			double floor = sel ? 0.4 : 0.6, slope = sel ? 0.06 : 1.2;
+			if (intensity > floor && rng.Chance((intensity - floor) * slope))
 				return TitleSelection.Enabled && TitlePolish.IsQuestion(s) ? s : s + "!";   // not "Why Did You Go!"
 			// "?" only on a question ("Will You Still Love Me?"), never on "Meet the Calloways?".
 			if (intensity > 0.4 && rng.Chance((intensity - 0.4) * 0.3) && (!TitleSelection.Enabled || TitlePolish.IsQuestion(s))) return s + "?";

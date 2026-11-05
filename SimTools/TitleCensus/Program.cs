@@ -187,6 +187,7 @@ public static class Program {
 		("five+ words", @"^([^ ]+ ){4,}[^ ]+$"),
 		("blues", @"blues"),
 		("ends ! or ?", @"[!?]$"),
+		("ends !", @"!$"),
 		("pronoun-verb-pronoun", @"^(I|You|Don't|Please) [A-Za-z']+ (You|Me)$"),
 		("two capitalised words", @"^[A-Z][a-z]+ [A-Z][a-z]+$"),
 	};
