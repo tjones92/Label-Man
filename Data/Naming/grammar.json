@@ -459,8 +459,7 @@
     "Presenting {artist}",
     "{artist} (Live|In Concert|On Stage)",
     "An Evening With {artist}",
-    "{artist} (Sings|Plays|Swings|Rocks)",
-    "{artist} (Goes|Meets|Salutes|Celebrates)"
+    "{artist} Sings"
   ],
 
   "compilationTitle": [

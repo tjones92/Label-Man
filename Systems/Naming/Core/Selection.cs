@@ -162,7 +162,8 @@ namespace LabelMan.Naming {
 		public static bool IsPluralAct(string act) {
 			if (string.IsNullOrWhiteSpace(act)) return false;
 			string a = act.Trim();
-			if (Regex.IsMatch(a, @"\b(and|&|'n')\b", RegexOptions.IgnoreCase)) return true;
+			// "'n'" needs its own test: there is no \b between a space and an apostrophe
+			if (Regex.IsMatch(a, @"\band\b|&|(?<=\s)'n'(?=\s)", RegexOptions.IgnoreCase)) return true;
 			string last = a.Split(' ').Last();
 			if (Regex.IsMatch(last, @"^(Trio|Quartet|Quintet|Sextet|Duo|Orchestra|Band|Combo|Ensemble|Choir|Chorus|Company|Family)$", RegexOptions.IgnoreCase)) return false;
 			return a.StartsWith("The ", StringComparison.OrdinalIgnoreCase) && last.EndsWith("s") && !last.EndsWith("ss");

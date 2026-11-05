@@ -88,6 +88,15 @@ public static class Program {
 		P($"albums: {albumCounts.Count} distinct shapes of {nAlbums} ({100.0 * albumCounts.Count / nAlbums:F1}%, act name and single masked); "
 		  + $"named after the single {Pct(albums.Count(x => x.t == x.single), nAlbums)}, self-titled {Pct(albums.Count(x => x.t == x.act), nAlbums)}; most common: "
 		  + string.Join(", ", albumCounts.Take(6).Select(x => $"{x.t} x{x.n}")));
+		// The masked count folds every self-titled LP into one shape and every single-named LP into another,
+		// so it understates variety; split the shelf into what the title is built from.
+		bool Bound(string t, string act, string single) => (!string.IsNullOrEmpty(act) && t.Contains(act)) || (!string.IsNullOrEmpty(single) && t.Contains(single));
+		var free = albums.Where(x => !Bound(x.t, x.act, x.single)).ToList();
+		var framed = albums.Where(x => Bound(x.t, x.act, x.single) && x.t != x.act && x.t != x.single).ToList();
+		P($"albums by build: bare single {Pct(albums.Count(x => x.t == x.single), nAlbums)}, bare act {Pct(albums.Count(x => x.t == x.act), nAlbums)}, "
+		  + $"act/single in a frame {Pct(framed.Count, nAlbums)} ({framed.Select(x => Norm(Generic(x.t, x.act, x.single))).Distinct().Count()} frames), "
+		  + $"free {Pct(free.Count, nAlbums)} ({free.Select(x => Norm(x.t)).Distinct().Count()} distinct = {Pct(free.Select(x => Norm(x.t)).Distinct().Count(), free.Count)}); "
+		  + $"literal titles distinct {Pct(albums.Select(x => Norm(x.t)).Distinct().Count(), nAlbums)}");
 
 		// ---- shape vs history
 		var hist = LoadHist(histPath);
@@ -125,10 +134,16 @@ public static class Program {
 		foreach (var gr in albums.GroupBy(x => x.g).OrderByDescending(gr => gr.Count()))
 			P($"{gr.Key,-18} {gr.Select(x => Norm(Generic(x.t, x.act, x.single))).Distinct().Count(),4} / {gr.Count(),-4}  {string.Join(" | ", gr.Take(5).Select(x => x.t))}");
 
+		if (args.Contains("--routing")) {
+			P(); P("== routing (song set 1962 / 1968, album set)");
+			var rr = new DeterministicRandom(seed);
+			foreach (var (g, _) in Mix)
+				P($"{g,-18} {titles.ChooseSongSymbol(g, 1962, rr),-28} {titles.ChooseSongSymbol(g, 1968, rr),-28} {acts.Router.Resolve("albumTitle", g.ToString()) ?? "albumTitle"}");
+		}
 		if (args.Contains("--templates")) {
 			P(); P("== template fill failure (200 fills each, 1965; templates failing >20%)");
 			var drng = new DeterministicRandom(seed ^ 0x74656D706CUL);
-			foreach (var sym in acts.Engine.ConstraintSymbols.Where(s => s.StartsWith("songTitle") || s.StartsWith("albumTitle")).OrderBy(s => s)) {
+			foreach (var sym in acts.Engine.ConstraintSymbols.Where(s => (s.StartsWith("songTitle") || s.StartsWith("albumTitle")) && !s.Contains("._")).OrderBy(s => s)) {
 				var gp = acts.Engine.Models.Genres.Get(SymbolGenre(sym));
 				foreach (var tpl in acts.Engine.ConstraintSet(sym)) {
 					int fails = 0;
@@ -140,6 +155,10 @@ public static class Program {
 					if (fails > 40) P($"{sym,-26} {tpl.Id,-30} w{tpl.Weight,-4} fail {fails / 2.0,5:F1}%  {tpl.Pattern}");
 				}
 			}
+		}
+		if (args.Contains("--dump") && FindUp("SimLogs") is string dumpDir && Directory.Exists(dumpDir)) {
+			File.WriteAllLines(Path.Combine(dumpDir, $"title-census-songs-{seed}.tsv"), songs.Select(s => $"{s.g}\t{s.year}\t{s.t}"));
+			File.WriteAllLines(Path.Combine(dumpDir, $"title-census-albums-{seed}.tsv"), albums.Select(x => $"{x.g}\t{x.act}\t{x.single}\t{x.t}"));
 		}
 		if (samples) {
 			P(); P("== samples");
@@ -225,7 +244,15 @@ public static class Program {
 					_words[e.Word] = _words.TryGetValue(e.Word, out var arr) ? arr.Append(e).ToArray() : new[] { e };
 				}
 			foreach (var e in lex.Pool("verb")) { _verbs.Add(e.Word); if (e.HasTag("gObjPerson")) _objVerbs.Add(e.Word); }
+			// Words a set's own pool writes with their article ("the Tennessee", "the Morning") and dance names
+			// ("Do the Cha-Cha") are correct after "the", whatever the shared noun pool says about the bare word.
+			foreach (var pos in lex.PartsOfSpeech)
+				foreach (var e in lex.Pool(pos)) {
+					if (e.Word.StartsWith("the ", StringComparison.OrdinalIgnoreCase)) _theOk.Add(e.Word.Substring(4));
+					if (pos == "albDance" || pos == "ltDance" || pos == "sfWave") _theOk.Add(e.Word);
+				}
 		}
+		readonly HashSet<string> _theOk = new(StringComparer.OrdinalIgnoreCase);
 
 		bool Noun(string w, Func<WordEntry, bool> pred) => _words.TryGetValue(w, out var arr) && arr.All(pred);
 		bool IsNoun(string w) => _words.ContainsKey(w);
@@ -266,6 +293,7 @@ public static class Program {
 				string w = m.Groups[1].Value, w1 = First(w);
 				bool Bad(string x) => IsNoun(x) && Noun(x, e => e.HasTag("gProper") || e.HasTag("gAdverbial") || e.HasTag("gExclaim") || e.HasTag("gGerund"));
 				if (IsNoun("the " + w) || IsNoun("the " + w1)) continue;   // "the Rio Grande" is how the word is written
+				if (_theOk.Contains(w) || _theOk.Contains(w1)) continue;
 				if (IsNoun(w) ? Bad(w) : (Bad(w1) && !IsNounStart(body, m.Index + 4 + w1.Length))) { Hit(Rules[3]); break; }
 			}
 			foreach (Match m in SpatialHead.Matches(body)) {

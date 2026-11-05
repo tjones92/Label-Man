@@ -565,5 +565,36 @@ public static class Program {
 		Eq("solo act keeps the singular verb", TitlePolish.Album("Patsy Hart Sings Their Greatest Hits", "Patsy Hart", null), "Patsy Hart Sings the Greatest Hits");
 		Eq("act article lower-case mid-title", TitlePolish.Album("Here's The Dean Brothers", "The Dean Brothers", null), "Here's the Dean Brothers");
 		Eq("lead single kept verbatim", TitlePolish.Album("Lead Single!", "The Calloways", "Lead Single"), "Lead Single");
+		True("a 'n' billing is plural", TitlePolish.IsPluralAct("Elmer 'n' Ray"));
+		Eq("'n' duo takes a plural verb", TitlePolish.Album("Elmer 'n' Ray Sings", "Elmer 'n' Ray", null), "Elmer 'n' Ray Sing");
+
+		Console.WriteLine("== Title templates ==");
+		// shared sets: { "include": ..., "scale": ... } splices scaled copies; the shared set itself is untouched
+		var sets = ConstraintTemplateLoader.Parse(@"{
+			""songTitle._shared"": [ { ""id"": ""sh_a"", ""type"": ""song"", ""pattern"": ""Alpha"", ""weight"": 2 },
+			                         { ""id"": ""sh_b"", ""type"": ""song"", ""pattern"": ""Beta"", ""weight"": 4 } ],
+			""songTitle.x"": [ { ""id"": ""x_own"", ""type"": ""song"", ""pattern"": ""Own"", ""weight"": 1 },
+			                   { ""include"": ""songTitle._shared"", ""scale"": 0.5 } ] }");
+		var x = sets["songTitle.x"];
+		Eq("include splices the shared templates", string.Join(",", x.Select(t => t.Id)), "x_own,sh_a,sh_b");
+		True("include scales the copies", Math.Abs(x[1].Weight - 1.0) < 1e-9 && Math.Abs(x[2].Weight - 2.0) < 1e-9);
+		True("shared set keeps its own weights", Math.Abs(sets["songTitle._shared"][0].Weight - 2.0) < 1e-9);
+
+		var ont = new TagOntology(); var lib = new GenreLibrary();
+		var tlex = new Lexicon();
+		AddWords(tlex, "clVerb", new[] { "love" }, "clWarm");
+		AddWords(tlex, "clTail", new[] { "just a little bit longer" }, "clLong");
+		tlex.ClassifyAll(ont);
+		var teng = new TemplateEngine(tlex, ont, new MoodGraph(), new Inflection());
+		var tctx = new NamingContext { Genre = "TraditionalPop", Year = 1962, Rng = new DeterministicRandom(7UL) };
+		var paren = new ConstraintTemplate { Id = "t_paren", Type = "song", Pattern = "%clVerb#1% Me (%clTail#1%)" };
+		paren.Compile();
+		Eq("a parenthetical is title-cased as its own title", teng.Fill(paren, tctx, lib.Get("TraditionalPop")), "Love Me (Just a Little Bit Longer)");
+		var shout = new GenreProfile { Id = "Shouty" }; shout.Voice.PunctuationIntensity = 1.0;
+		var q = new ConstraintTemplate { Id = "t_q", Type = "song", Pattern = "Why Do You %clVerb#1% Me" };
+		q.Compile();
+		bool bang = false;
+		for (int k = 0; k < 40; k++) { var s = teng.Fill(q, tctx, shout); if (s != null && s.EndsWith("!")) bang = true; }
+		True("no '!' on a question", !bang);
 	}
 }

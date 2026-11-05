@@ -242,6 +242,14 @@ namespace LabelMan.Naming {
 			return slotRef;
 		}
 
+		/// <summary>The same template at a different weight (a shared set included into a genre set).
+		/// Shares the compiled segments; the id is unchanged, so the satisfiability cache is shared too.</summary>
+		public ConstraintTemplate Scaled(double scale) {
+			var c = (ConstraintTemplate)MemberwiseClone();
+			c.Weight = Weight * scale;
+			return c;
+		}
+
 		public IReadOnlyList<(string lit, string slotRef)> Segments => _parsed;
 		public bool Compiled => _parsed != null;
 	}
@@ -253,11 +261,29 @@ namespace LabelMan.Naming {
 			if (string.IsNullOrWhiteSpace(json)) return result;
 			using var doc = System.Text.Json.JsonDocument.Parse(json, new System.Text.Json.JsonDocumentOptions {
 				CommentHandling = System.Text.Json.JsonCommentHandling.Skip, AllowTrailingCommas = true });
+			// { "include": "songTitle._loveClauses", "scale": 0.8 } splices a shared set into this one, each
+			// template's weight multiplied by scale (one level deep; shared sets are named "kind._name").
+			var includes = new Dictionary<string, List<(int at, string from, double scale)>>(StringComparer.Ordinal);
 			foreach (var sym in doc.RootElement.EnumerateObject()) {
 				if (sym.Value.ValueKind != System.Text.Json.JsonValueKind.Array) continue;
 				var list = new List<ConstraintTemplate>();
-				foreach (var t in sym.Value.EnumerateArray()) list.Add(ParseOne(t));
+				foreach (var t in sym.Value.EnumerateArray()) {
+					if (t.TryGetProperty("include", out var inc)) {
+						if (!includes.TryGetValue(sym.Name, out var l)) includes[sym.Name] = l = new();
+						l.Add((list.Count, inc.GetString(), Dbl(t, "scale", 1.0)));
+						continue;
+					}
+					list.Add(ParseOne(t));
+				}
 				result[sym.Name] = list;
+			}
+			foreach (var kv in includes) {
+				var list = result[kv.Key];
+				// splice from the back so earlier insertion points stay valid
+				foreach (var (at, from, scale) in kv.Value.OrderByDescending(x => x.at)) {
+					if (!result.TryGetValue(from, out var shared)) continue;
+					list.InsertRange(at, shared.Select(t => t.Scaled(scale)));
+				}
 			}
 			return result;
 		}
@@ -754,7 +780,9 @@ namespace LabelMan.Naming {
 				// path keeps its exact draw sequence (titles are hashed into track traits).
 				else if (w.Equals("and", StringComparison.OrdinalIgnoreCase) && actName && i + 1 < words.Length
 						 && (words[i + 1].Equals("His", StringComparison.OrdinalIgnoreCase) || words[i + 1].Equals("Her", StringComparison.OrdinalIgnoreCase))) continue;
-				else if (w.Equals("and", StringComparison.OrdinalIgnoreCase) && rng.Chance(rate * 0.6))
+				else if (w.Equals("and", StringComparison.OrdinalIgnoreCase) && rng.Chance(rate * 0.6)
+						 // "Moon River and Other Great Hits" is a sleeve line, never "'n' Other"
+						 && !(TitleSelection.Enabled && i + 1 < words.Length && words[i + 1].Equals("Other", StringComparison.OrdinalIgnoreCase)))
 					words[i] = "'n'";
 			}
 			return string.Join(" ", words);
@@ -777,20 +805,30 @@ namespace LabelMan.Naming {
 			var small = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "a","an","the","and","but","or","for","nor","of","in","on","at","to","by","with","from" };
 			for (int i = 0; i < words.Length; i++) {
 				if (words[i].Length == 0) continue;
-				bool first = i == 0 || i == words.Length - 1;
-				words[i] = (!first && small.Contains(words[i])) ? words[i].ToLowerInvariant() : Cap(words[i]);
+				// a parenthetical is its own title: "Stay (Just a Little Bit Longer)", "(I Wanna) Love You"
+				bool paren = TitleSelection.Enabled;
+				bool first = i == 0 || i == words.Length - 1 || (paren && (words[i][0] == '(' || words[i].EndsWith(")")
+							 || (i > 0 && words[i - 1].EndsWith(")"))));
+				string bare = paren ? words[i].Trim('(', ')') : words[i];
+				words[i] = (!first && small.Contains(bare)) ? words[i].ToLowerInvariant() : Cap(words[i]);
 			}
 			return string.Join(" ", words);
 		}
 
 		private static string Punctuation(string s, double intensity, IRandom rng) {
-			if (intensity > 0.6 && rng.Chance((intensity - 0.6) * 1.2)) return s + "!";
+			// (the roll is always made, so the draw sequence does not depend on the title's wording)
+			if (intensity > 0.6 && rng.Chance((intensity - 0.6) * 1.2))
+				return TitleSelection.Enabled && TitlePolish.IsQuestion(s) ? s : s + "!";   // not "Why Did You Go!"
 			// "?" only on a question ("Will You Still Love Me?"), never on "Meet the Calloways?".
 			if (intensity > 0.4 && rng.Chance((intensity - 0.4) * 0.3) && (!TitleSelection.Enabled || TitlePolish.IsQuestion(s))) return s + "?";
 			return s;
 		}
 
-		private static string Cap(string w) => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w.Substring(1);
+		private static string Cap(string w) {
+			if (w.Length == 0) return w;
+			int i = w[0] == '(' && TitleSelection.Enabled ? 1 : 0;   // "(baby)" -> "(Baby)"
+			return i >= w.Length ? w : w.Substring(0, i) + char.ToUpperInvariant(w[i]) + w.Substring(i + 1);
+		}
 		private static string CollapseSpaces(string s) {
 			var sb = new StringBuilder(s.Length); bool sp = false;
 			foreach (char c in s) { if (c == ' ') { if (!sp) sb.Append(' '); sp = true; } else { sb.Append(c); sp = false; } }

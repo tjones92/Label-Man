@@ -167,7 +167,7 @@ mood and topic but not how it can be used.
 `NamingCensus` (acts) is essentially unchanged: non-member names 2.7% -> 2.4%, Roman suffixes 2 -> 4 of 7,000
 (act draws reshuffle because -ing dropping changed for every name).
 
-## What this does NOT fix — the template stage
+## What this did NOT fix — the template stage (addressed in the next section)
 
 * **Title shape.** World uniqueness exposes that the pronoun frames ("I %verb% You", "You %verb% Me",
   "Don't %verb% Me") are a few dozen titles carrying ~13% of the song weight: once spent, draws fall to the
@@ -185,3 +185,89 @@ A one-time re-baseline, like the act-name pass: every title changes, and titles 
 `GetDeterministicTrackTraits` (hook / production / danceability) and so which album tracks become singles.
 Not verified in a Godot run; the census runs the same `TitleNaming` class the adapter calls, and the game
 project builds.
+
+# Title templates: shape, albums, thin genres (2026-11-04, third pass)
+
+The grammar layer could not fix shape because the problem was space: single-slot frames ("I %verb% You")
+are a few dozen titles, so world uniqueness spends them and the draws fall to "Adjective Noun". This pass
+rewrites the template stage instead.
+
+## What was built
+
+* **Shared sets + `include`** (`ConstraintTemplateLoader`): `{ "include": "songTitle._loveClauses", "scale": 0.15 }`
+  splices scaled copies of a shared set (named `kind._name`, never routed to directly) into a genre set.
+  `ConstraintTemplate.Scaled` clones; ids are shared, so the satisfiability cache is too.
+* **`songTitle._loveClauses`** (34 templates) over new parts of speech (`clHead`, `clVerb`, `clTail`, `clLead`
+  in `lexicon.ontology.json`, kept off `verb`/`noun` so phrasal verbs never reach the grammar or old filters):
+  head x verb x object x tail, so the space is thousands ("I Won't Give Up on You (Even Though I Want To)",
+  "Will You Love Me When I'm Old", "Why Can't I Get Over You", "Sherry (Don't Leave Me Now)"). Heads and verbs come in
+  classes that read together (wanting / longing / refusing / leaving / getting over; you-subject; imperative;
+  don't; questions). Tails carry perspective tags (`clMeOk`, `clMeOnly`, `clImpOk`), so "...If You Let Me" never
+  follows a "Me" object and "Not in a Million Years" never follows "Don't". About 17% of clause draws are
+  parenthetical, as on the real chart. It replaces the single-slot pronoun frames in soul, trad pop, R&R, country,
+  doo-wop, teen pop, blues, vocal jazz and British, at 0.1-0.25 scale.
+* **`songTitle._extras`**: one-word titles (adjective / noun / adverb pools), name or word plus subtitle
+  ("Tina (One More Kiss)", "Tonight (I Need You)"), "Love Is ...". Most real parentheticals are of this
+  kind, not clause tails: on the 1960-64 chart, clause titles are 15.6% of titles but only 2.6 points of the 8.8% parentheticals.
+* **The early-60s title-name pool had 6 names** (Johnny, Susie, Donna, Diana, Sherry, Bobby), which is why "Donna x5" and
+  "Bobby x4" led the repeat list; it now has ~80. The country names lost their 1970s hit titles (Jolene, Delta Dawn, Fancy).
+* **Thin genres rewritten from the period's own shapes**, each on its own pools:
+  folk ("The Ballad of Nancy Riley", "The Emigrant's Daughter", "On the Banks of the Sweetwater", "Farewell to
+  Galway", "Talkin' Picket Line Blues", "If I Had a Banjo"); gospel ("Precious Lord, Don't Pass Me By",
+  "Some Glad Morning I'll Wear a Crown", "A Table in My Father's House", "Martha, Don't You Worry", "The Glory
+  Chariot"); surf ("Huntington Pier Stomp", "Shoot the Curl"-type, "Surfer Ronnie", "Roadster Rumble", one-word
+  instrumentals); psych ("Tangerine Kite", "Plastic Piper", "Juniper Lane", "See Rosemary Grow", "Voyage to the
+  Edge of the Mind", "Ten Thousand Light Years Away", "Free Your Mind (Into the Light)"); latin, added because
+  BossaNova outweighs psych and surf in the decade mix ("Carnival in Bahia", "Acapulco Cha-Cha", glossed titles
+  "Corazón Loco (Crazy Heart)"). The old noun-connector-noun frames ("Odyssey Under the Ranch") are gone from these sets.
+* **Albums**: shared `_lpOther` ("<single> and Other Golden Hits", "The Great Ballads of <act>"), `_lpDance`
+  ("Mashed Potato Party", "Do the Watusi with <act>"), `_lpMood` ("Holiday in Lisbon", "Songs for Swingin' Lovers",
+  "Midnight Moods"), included per genre; new album sets for folk, gospel, surf, psych and latin (BossaNova /
+  LatinPop / TexMex had fallen to the generic set). Self-titled template weights halved. The genre-blind
+  `albumFormat` grammar path drops from 12% to 7% of albums (TitleSelection on) and loses its objectless frames
+  ("X Celebrates", "X Goes") and "X Rocks" for any genre.
+* **Fixes found on the way**: the `address` love filter only ever matched "you / the one I love / my baby /
+  everybody" ("Kiss Me, Everybody", "My You Won't Come Home"); address slots now use a `vocative` tag, and
+  `possessed` keeps "My My Love" out. Parentheticals are title-cased as their own title. No "!" on a question
+  (the roll is still made). "Elmer 'n' Ray Sing" (the `'n'` plural test could never match: no `\b` before an
+  apostrophe). "and Other" is never "'n' Other". "Get Up Up, Bobby"; "My Heart Is Give Outing".
+* `reserved.json` +24 titles the new frames can reach ("Love Me Tender", "Do You Love Me", "Love Is Strange",
+  "Itchycoo Park", "See Emily Play", "I'll Fly Away", "Peace in the Valley", "Blame It on the Bossa Nova"...);
+  bare first names stay unreserved, as before.
+* Census: `--routing` (set per genre), `--dump` (all titles to `SimLogs/title-census-{songs,albums}-<seed>.tsv`),
+  and an album split by build (bare single / bare act / act or single in a frame / free). The masked count folds
+  every self-titled LP into one shape, so on its own it understates the shelf. The lint accepts words a set's
+  own pool writes with "the" ("the Tennessee") and dance names ("Do the Cha-Cha").
+
+## Result (TitleCensus, seeds 1001 / 2002 / 3003)
+
+| | Hot 100 1960-64 | before (1001) | now |
+|---|---|---|---|
+| parenthetical | 8.8% | 0.4% | 7.4 / 7.9 / 8.1% |
+| question opener | 4.2% | 0.5% | 3.7 / 3.6 / 3.4% |
+| contains "love" | 9.1% | 3.9% | 7.3 / 7.3 / 7.9% |
+| you/your | 13.3% | 4.2% | 14.7 / 15.0 / 14.8% |
+| I-opener | 6.7% | 2.1% | 6.4 / 6.1 / 6.5% |
+| one word | 9.6% | 2.7% | 7.1 / 7.0 / 6.9% |
+| five+ words | 26.7% | 11.0% | 26.7 / 26.5 / 26.1% |
+| two capitalised words | 17.2% | 32.4% | 19.1 / 18.4 / 19.1% |
+| "blues" | 0.6% | 1.7% | 1.4 / 1.5 / 1.7% |
+| distinct song titles | | 96.9% | 100.0% (0-0.1% share a title) |
+| album shapes, masked | | 34.0% | 49.9 / 47.9 / 46.9% |
+| album named after single / self-titled | | 20.2 / 17.1% | 17.7-20.4 / 11.9-12.5% |
+| lint per 1,000 | | 0.9 | 1.2 / 0.7 / 0.9 |
+| real hit titles reproduced | | 0.7% | 1.0-1.1% (one-word generics: Forever, Maybe, Tonight) |
+
+`NamingCoreTests` 184/186 (7 new: include splicing and scaling, parenthetical casing, no "!" on questions,
+`'n'` plurals; the same 2 pre-existing Blues nickname failures). `NamingCensus` acts unchanged (2.4% non-member,
+0-4 Roman suffixes, 0 false claims). The game project builds. `--legacy` lint is now 76.7, not 110.2, because the
+legacy switch turns off code, not data, and the data changed.
+
+## Still open
+
+* One-word titles stop at ~7% (9.6%): the pools (~300 words with names) run out under world uniqueness, as
+  the pronoun frames used to. "Blues" is ~1.5% because RnB routes to the blues set.
+* FolkRock and ContemporaryFolk share the revival folk set; FolkRock wants its own jingle-jangle/protest shapes.
+  HardRock, reggae, sunshine, bubblegum, garage song sets are still 2-6 templates; HardRock albums use the generic set.
+* Older single-pool oddities remain where nothing replaced them ("Lotuses on the Work", "Vibraphone in Speedoo").
+* Calibration: another re-baseline. Titles feed track traits, so every A/B against earlier runs is a seed change.

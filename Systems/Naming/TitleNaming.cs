@@ -85,7 +85,8 @@ public sealed class TitleNaming {
 		if (isCompilation) return Polish(Engine.ExpandOnce("compilationTitle", ctx));
 		double r = rng.NextDouble();
 		if (r < 0.08) return artistName;                          // self-titled (rare; the sets also self-title)
-		if (r < 0.20) return Polish(Engine.ExpandRouted("albumFormat", ctx));
+		// genre-blind act formulae ("Meet ...", "Here's ...") -- the genre sets carry their own act frames
+		if (r < (TitleSelection.Enabled ? 0.15 : 0.20)) return Polish(Engine.ExpandRouted("albumFormat", ctx));
 		string key = Router?.Resolve("albumTitle", genre.ToString()) ?? "albumTitle";
 		return Engine.Generate(key, ctx, "album|" + (artistKey ?? artistName), nearDup: false, attempts: 30,
 			TitleSelection.Enabled ? new NameEngine.UniqueOptions { Finalize = Polish } : null);

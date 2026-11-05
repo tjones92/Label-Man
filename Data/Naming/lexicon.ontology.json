@@ -336,13 +336,14 @@
       "Up, Up", "Rise Up", "Higher", "Reach Out", "Fly Away", "Onward", "Take Flight"
     ]},
 
-    { "//": "=== LOVE / ADDRESS TERMS — the 'you' being sung to. Gender-soft; adapter may gender-agree. ===",
-      "pos": "love", "tags": ["romantic", "intimate"], "words": [
+    { "//": "=== LOVE / ADDRESS TERMS — the 'you' being sung to. Gender-soft; adapter may gender-agree. 'vocative' marks the words a title can call someone by ('..., Baby'); 'possessed' ones already carry 'my' (never after 'My'). ===",
+      "pos": "love", "tags": ["romantic", "intimate", "vocative"], "words": [
       "baby", "darling", "honey", "sweetheart", "angel", "love", "dear", "sugar", "babe",
-      "my love", "little girl", "little one", "sweet thing", "pretty baby"
+      "little girl", "little one", "sweet thing", "pretty baby"
     ]},
-    { "pos": "love", "tags": ["romantic", "plain"], "words": [
-      "girl", "boy", "mama", "daddy", "my darlin'", "sweet baby", "my angel", "lover"
+    { "pos": "love", "tags": ["romantic", "intimate", "vocative", "possessed"], "words": [ "my love", "my baby", "my darlin'", "my angel" ]},
+    { "pos": "love", "tags": ["romantic", "plain", "vocative"], "words": [
+      "girl", "boy", "mama", "daddy", "sweet baby", "lover"
     ]},
 
     { "//": "=== PHRASE FRAGMENTS — parenthetical subtitles (Motown/soul/easy signature). Full clauses used inside (...). ===",
@@ -567,7 +568,7 @@
     { "pos": "noun", "tags": ["song", "romance", "devotion"], "words": [
       "song", "serenade", "ballad", "tune"
     ]},
-    { "pos": "love", "tags": ["address", "audience", "romantic", "youthful"], "words": [
+    { "pos": "love", "tags": ["address", "audience", "romantic", "youthful", "notVocative"], "words": [
       "you", "the one I love", "my baby", "everybody"
     ]},
 
@@ -698,7 +699,7 @@
     { "pos": "verb", "tags": ["dance", "aroundFrame"], "words": [ "rock", "spin", "travel" ]},
     { "pos": "verb", "tags": ["dance", "rhythmicImperative"], "words": [ "shake", "rattle", "jump", "jive", "bop", "twist" ]},
     { "pos": "verb", "tags": ["dance", "invitation"], "words": [ "swing", "rock", "ride", "go" ]},
-    { "pos": "verb", "tags": ["rouse", "particleUp"], "words": [ "wake", "get up", "rise" ]},
+    { "pos": "verb", "tags": ["rouse", "particleUp"], "words": [ "wake", "rise", "start" ]},
 
     { "//": "=== NOUNS — school/youth/music/technology vocabulary this genre needs and previously had almost none of. ===",
       "pos": "noun", "tags": ["school", "youth", "groupEligible"], "words": [
@@ -720,7 +721,8 @@
 
     { "//": "=== FIRST NAMES — 'titleName' for given-name song titles (Peggy Sue/Johnny/Donna-style); 'historicalName' for the one-off 'Roll Over Beethoven' address-a-composer construction. Tagged 'early60s' so they fade on the real era clock, not a fictional one. ===",
       "pos": "firstName", "tags": ["titleName", "early60s"], "words": [
-      "Johnny", "Susie", "Donna", "Diana", "Sherry", "Bobby"
+      "Johnny", "Susie", "Donna", "Diana", "Sherry", "Bobby", "Linda", "Carol", "Judy", "Patti", "Peggy", "Marcie", "Connie", "Brenda", "Darlene", "Janie", "Joanie", "Sheila", "Gina", "Tina", "Annette", "Sandy", "Wendy", "Debbie", "Bonnie", "Cathy", "Laurie", "Rosalie", "Marianne", "Charlene", "Arlene", "Lucille", "Maybelle", "Paula", "Sharon", "Barbara Ann", "Mary Lou", "Betty Jean", "Roberta", "Dottie", "Jeannie", "Ginny", "Kathy", "Natalie", "Rosemarie", "Valerie", "Loretta", "Theresa", "Angela", "Cindy", "Vicki", "Pam", "Margie", "Eileen", "Tammy",
+      "Ronnie", "Teddy", "Frankie", "Tommy", "Jimmy", "Eddie", "Danny", "Joey", "Billy", "Ricky", "Larry", "Kenny", "Stevie", "Mikey", "Paulie", "Davy", "Lenny", "Richie", "Sonny", "Jerry", "Buddy", "Dickie", "Chuckie", "Gary", "Denny"
     ]},
     { "pos": "firstName", "tags": ["historicalName"], "words": [ "Beethoven", "Mozart", "Chopin", "Bach" ]},
 
@@ -921,7 +923,7 @@
     { "//": "=== HONORIFIC / FIRSTNAME — country's own stagePrefix set (Little/Big/Cowboy), and titleName pools for character-ballad titles (main-set 'country' register vs. story-set 'western' register). ===",
       "pos": "honorific", "tags": ["stagePrefix", "country", "male"], "words": [ "Little", "Big", "Cowboy" ]},
     { "pos": "honorific", "tags": ["stagePrefix", "country", "female"], "words": [ "Little" ]},
-    { "pos": "firstName", "tags": ["titleName", "country"], "words": [ "Billy Joe", "Jesse", "Jolene", "Fancy", "Delta Dawn" ]},
+    { "pos": "firstName", "tags": ["titleName", "country"], "words": [ "Billy Joe", "Jesse", "Lorena", "Bonnie Lou", "Cindy Lou", "Mary Ann", "Jimmy Dale", "Betty Sue", "Bobby Joe", "Willa Mae", "Ruby Lee", "Nellie", "Lula Belle", "Earl", "Luther", "Hank", "Clementine", "Daisy Mae" ]},
     { "pos": "firstName", "tags": ["titleName", "western"], "words": [ "Wyatt", "Reno", "Dallas", "Laredo", "Rio" ]},
 
     { "//": "=== TITLE-CLAUSE phraseFrags — original phrasing, not the doc's own literal examples (it explicitly frames them as construction references). ===",
@@ -942,7 +944,7 @@
       "___": "BLUES v2 additions (naming-genre-templates directive): the bluesModifier eligibility gate ('not every gritty noun naturally precedes Blues'), valency-tagged verbs replacing 'connector', complete-stage-name POS, and curated venue/place vocabulary (an unrestricted club|theater pool otherwise generates 'Live at the Theater')." },
 
     { "//": "=== VERBS — blues' transitivePerson/progressivePredicate/imperativeIntransitive/bareIntransitive/downFrame/sustainedActivity classes. ===",
-      "pos": "verb", "tags": ["pain", "motion", "failure", "departure", "progressivePredicate"], "words": [ "fail", "break", "slip", "fade", "give out" ]},
+      "pos": "verb", "tags": ["pain", "motion", "failure", "departure", "progressivePredicate"], "words": [ "fail", "break", "slip", "fade", "shake" ]},
     { "pos": "verb", "tags": ["departure", "betrayal", "warning", "imperativeIntransitive"], "words": [ "leave", "go", "lie", "cheat" ]},
     { "pos": "verb", "tags": ["betrayal", "romance", "pain", "deception", "transitivePerson"], "words": [ "fool", "deceive", "hurt", "cheat" ]},
     { "pos": "verb", "tags": ["bareIntransitive"], "words": [ "sleep", "rest", "forget", "work", "leave" ]},
@@ -1079,6 +1081,285 @@
       "Every Time You're Near", "How Deep Is the Night", "I Never Knew Love Like This", "Just Say You're Mine",
       "Let There Be You", "Nothing Ever Changes My Love for You", "Once I Loved", "The Nearness of Someone",
       "There's No One but You", "Wherever You Are", "You Came Along at Just the Right Time", "You're the Song I Sing"
-    ]}
+    ]},
+
+    { "//": "=== LOVE-SONG CLAUSES (templates songTitle._loveClauses) — the period's commonest title shape is a pronoun clause ('I Can't Stop Loving You', 'Will You Love Me Tomorrow', 'Don't Make Me Over', 'Tell Me (You're Coming Back)'). Built from four independent slots (head x verb x object x tail) so the space is thousands, not the few dozen a single-slot 'I %verb% You' frame gives before world uniqueness spends it. Own parts of speech (clHead/clVerb/clTail/clLead) so these phrasal verbs never reach the grammar or the older verb filters. Verb classes: clWarm (wanting, holding), clMine (I-subject only: 'my'), clAche (missing, longing), clPart (leaving, hurting), clOver (what I cannot do: get over, live without), clTouch (takes Tight/Tender). ===",
+      "pos": "clVerb", "tags": ["clWarm", "clTouch", "clAche"], "weight": 9, "words": [ "love" ]},
+    { "pos": "clVerb", "tags": ["clWarm", "clAche"], "weight": 3, "words": [ "need", "want" ]},
+    { "pos": "clVerb", "tags": ["clWarm", "clTouch"], "weight": 2, "words": [ "hold", "kiss" ]},
+    { "pos": "clVerb", "tags": ["clWarm", "clTouch"], "words": [ "squeeze", "hug", "dance with", "hold on to" ]},
+    { "pos": "clVerb", "tags": ["clWarm"], "words": [
+      "adore", "thrill", "please", "marry", "call", "trust", "believe", "understand", "walk with", "talk to",
+      "stay with", "run to", "come back to", "sing to", "write to", "get close to", "go steady with", "come home to", "make it up to", "take a chance on", "count on",
+      "wait for", "belong to", "care for", "fall for", "dream about"
+    ]},
+    { "pos": "clVerb", "tags": ["clWarm", "clMine"], "words": [
+      "give my heart to", "give my love to", "save my kisses for", "bring my love to", "tell my troubles to",
+      "give my all to", "save the last waltz for", "spend my life with"
+    ]},
+    { "pos": "clVerb", "tags": ["clAche"], "weight": 2, "words": [ "miss", "remember" ]},
+    { "pos": "clVerb", "tags": ["clAche"], "words": [
+      "think of", "dream of", "long for", "cry for", "pray for", "live for", "hunger for", "reach for", "search for"
+    ]},
+    { "pos": "clVerb", "tags": ["clPart"], "weight": 2, "words": [ "leave", "hurt" ]},
+    { "pos": "clVerb", "tags": ["clPart", "clOver"], "words": [ "lose", "forget", "let go of", "say goodbye to", "give up on" ]},
+    { "pos": "clVerb", "tags": ["clPart"], "words": [
+      "fool", "tease", "lie to", "cheat on", "walk out on", "run out on", "turn away from", "make a fool of",
+      "run away from", "break away from", "hide from", "blame", "push", "rush"
+    ]},
+    { "pos": "clVerb", "tags": ["clOver"], "words": [
+      "get over", "live without", "stop thinking of", "say no to", "stay away from",
+      "keep from loving", "get along without", "turn my back on"
+    ]},
+
+    { "//": "Heads: subject + auxiliary. Each class pairs with the verb classes that read naturally after it.",
+      "pos": "clHead", "tags": ["clIWant"], "weight": 3, "words": [ "I", "I Just", "I Want to", "I Wanna", "I'm Gonna" ]},
+    { "pos": "clHead", "tags": ["clIWant"], "words": [
+      "I Really", "I Only Want to", "I Just Wanna", "I'm Going to", "I Need to", "I'd Like to", "I'd Love to",
+      "Someday I'll", "Tonight I'll", "I Know I", "I Got to", "I've Got to", "I Long to", "I Live to",
+      "I Was Born to", "I Was Made to", "I'll Learn to", "I Never Meant to", "I'm Ready to", "I'm Dying to",
+      "I'll Always", "I'll Be There to", "Let Me", "I Promise to", "I'm Gonna Try to"
+    ]},
+    { "pos": "clHead", "tags": ["clIAche"], "weight": 2, "words": [ "I Still", "I'll Always" ]},
+    { "pos": "clHead", "tags": ["clIAche"], "words": [
+      "I'll Still", "Tonight I", "Every Night I", "Each Night I", "Sometimes I", "Oh How I", "I Guess I'll Always",
+      "I Know I'll Always", "Night After Night I", "I Just Can't Help But", "All Day Long I", "Here I Go Again, I",
+      "Since You Left I", "Every Time It Rains I", "When the Lights Go Low I", "I Can't Help It If I"
+    ]},
+    { "pos": "clHead", "tags": ["clINo"], "weight": 2, "words": [ "I Can't", "I'll Never", "I Won't" ]},
+    { "pos": "clHead", "tags": ["clINo"], "words": [
+      "I Could Never", "I Just Can't", "I Don't Wanna", "I'm Not Gonna", "I Don't Want to", "I Never Could",
+      "I Didn't Mean to", "I Hate to", "I Don't Know How to", "I Can't Bear to", "I Ain't Gonna", "I Refuse to",
+      "I'm Afraid to", "I'll Never Learn to", "I Wasn't Ready to", "I Don't Have the Heart to", "I Never Wanted to",
+      "I'm Not Ready to", "I'd Never", "I Just Couldn't"
+    ]},
+    { "pos": "clHead", "tags": ["clYouWarm"], "weight": 2, "words": [ "You", "Say You'll", "Tell Me You" ]},
+    { "pos": "clHead", "tags": ["clYouWarm"], "words": [
+      "You Really", "You Just", "You Still", "You Know You", "You Used to", "You'll Always", "Promise You'll",
+      "Say You", "I Know You", "Someday You'll", "You Can", "You've Got to", "You Better", "I Want You to",
+      "I Need You to", "I Dare You to", "I'll Make You", "Somebody Has to", "Please Say You'll", "Tell Me You'll"
+    ]},
+    { "pos": "clHead", "tags": ["clYouNo"], "weight": 2, "words": [ "You Don't", "You Can't", "You'll Never" ]},
+    { "pos": "clHead", "tags": ["clYouNo"], "words": [
+      "You Won't", "You Don't Have to", "You Never", "You Don't Really", "You Couldn't", "You Don't Even",
+      "You Didn't Have to", "You Don't Know How to", "You Wouldn't", "You Never Did"
+    ]},
+    { "pos": "clHead", "tags": ["clImp"], "weight": 2, "words": [ "Please", "Just" ]},
+    { "pos": "clHead", "tags": ["clImp"], "words": [
+      "Come On and", "Baby Please", "Darling Please", "Go Ahead and", "Won't You Please", "Always", "Only",
+      "Hurry Back and", "Come Back and", "Try to", "Don't Forget to", "Remember to", "Learn to"
+    ]},
+    { "pos": "clHead", "tags": ["clDont"], "weight": 4, "words": [ "Don't" ]},
+    { "pos": "clHead", "tags": ["clDont"], "words": [
+      "Please Don't", "Don't Ever", "Don't You Ever", "Never", "Baby Don't", "Darling Don't", "Don't You Dare",
+      "Don't Try to", "You Better Not", "It's Not Like You to"
+    ]},
+    { "pos": "clHead", "tags": ["clQYou"], "weight": 2, "words": [ "Will You", "Do You", "Would You" ]},
+    { "pos": "clHead", "tags": ["clQYou"], "words": [
+      "Won't You", "Will You Still", "Do You Really", "Don't You", "Can You", "Could You", "Why Don't You",
+      "Who Will", "Who's Gonna", "Will You Ever", "Did You Ever", "Do You Still", "Would You Still",
+      "Can't You", "Will Anyone", "Does Anybody Want to", "Who Wants to", "Who Can", "Would You Dare to", "Is It Wrong to"
+    ]},
+    { "pos": "clHead", "tags": ["clQWhy"], "weight": 2, "words": [ "Why Do You", "Why Did You" ]},
+    { "pos": "clHead", "tags": ["clQWhy"], "words": [
+      "How Can You", "Why Must You", "How Could You", "Why Would You", "Why'd You Wanna", "What Makes You",
+      "Why Do You Have to", "Who Taught You to", "Why Do You Want to", "Did You Have to"
+    ]},
+    { "pos": "clHead", "tags": ["clQI"], "weight": 2, "words": [ "How Can I", "Why Do I", "Why Can't I" ]},
+    { "pos": "clHead", "tags": ["clQI"], "words": [
+      "Should I", "Can I", "Must I", "How Do I", "How Will I", "What If I", "Why Should I", "How Could I",
+      "When Will I", "Where Can I Go to", "Is It Wrong If I", "How Am I Gonna", "Who Am I to", "Did I Ever"
+    ]},
+    { "pos": "clHead", "tags": ["clQ3"], "words": [
+      "Who's Gonna", "Who Will", "Nobody Can", "No One Will", "Nobody Else Can", "Nobody Could", "No One Can",
+      "Somebody's Gonna", "Somebody Else Will", "Nobody Ever Will", "There's No One to", "Who Else Could"
+    ]},
+
+    { "//": "Tails after the object. clLong tails are full phrases that also stand in parentheses ('Love Me (Like I Love You)'). Perspective: clMeOk tails also read after a 'Me' object; clMeOnly tails read ONLY there ('Love Me With All Your Heart'); the rest are the singer speaking to 'You' ('I Love You Like I Do').",
+      "pos": "clTail", "tags": ["clTWarm", "clMeOk"], "weight": 2, "words": [ "So", "Tonight", "Forever", "So Much" ]},
+    { "pos": "clTail", "tags": ["clTWarm", "clMeOk"], "words": [
+      "More and More", "More Than Ever", "Too Much", "Right Now", "Each Night", "Every Night", "Today", "Now",
+      "Again", "Truly", "Anyway", "Just the Same", "All Over Again", "Some More", "Still", "Someday"
+    ]},
+    { "pos": "clTail", "tags": ["clTWarm", "clLong", "clMeOk"], "words": [
+      "Till the End of Time", "Till the Stars Fall", "Each and Every Day", "Now and Forever", "Night and Day",
+      "Forever and Ever", "A Little Bit More", "Just a Little Bit Longer", "Every Night and Day", "No Matter What They Say",
+      "Right or Wrong", "Come What May", "For Old Times' Sake", "One More Time", "Like the First Time",
+      "Before the Night Is Through", "When the Lights Go Down", "Until the Morning Comes", "All Through the Night",
+      "Like the Song Says", "When the Summer's Gone", "Tonight and Every Night", "Just Once More"
+    ]},
+    { "pos": "clTail", "tags": ["clTWarm", "clLong"], "words": [
+      "Like I Do", "Like Nobody Else", "the Way I Do", "With All My Heart", "Just the Way You Are", "As Long As I Live",
+      "More Than Words Can Say", "Till I Die", "All My Life", "From the Bottom of My Heart", "No Matter What You Do",
+      "Whatever You Do", "Wherever You Go", "If You Want Me To", "If You Let Me", "If It Takes Forever",
+      "Like a Lover Should", "In My Own Way", "The Rest of My Life", "Down to the Last Kiss", "Just Because", "Because I Do"
+    ]},
+    { "pos": "clTail", "tags": ["clTWarm", "clLong", "clMeOk", "clMeOnly"], "words": [
+      "With All Your Heart", "Like I Love You", "The Way I Love You", "Like You Mean It", "Like You Used To",
+      "Like Nobody Else Can", "Like You Did Before", "The Way You Should", "If You Really Care", "While You Can",
+      "Before You Go", "If You Love Me Too", "Like You Said You Would", "Before It's Too Late"
+    ]},
+    { "pos": "clTail", "tags": ["clTAche"], "weight": 2, "words": [ "So", "Tonight", "Still" ]},
+    { "pos": "clTail", "tags": ["clTAche"], "words": [ "Every Night", "Each Night", "Today", "After All", "Again", "So Much" ]},
+    { "pos": "clTail", "tags": ["clTAche", "clLong"], "words": [
+      "After All This Time", "Like Before", "The Same Old Way", "When It Rains", "When the Sun Goes Down",
+      "Every Time I Hear Our Song", "More Than You Know", "When I'm Alone", "On Lonely Nights", "In My Dreams",
+      "Since You've Been Gone", "Across the Miles", "When the Moon Comes Up", "Wherever You Are", "In the Still of the Evening",
+      "Though You're Gone", "With Every Beat of My Heart", "Each Time the Phone Rings"
+    ]},
+    { "pos": "clTail", "tags": ["clTNo", "clImpOk"], "weight": 2, "words": [ "Anymore", "Again", "Now" ]},
+    { "pos": "clTail", "tags": ["clTNo", "clImpOk"], "words": [ "Tonight", "This Time", "Any Longer", "No More", "Like That", "This Way" ]},
+    { "pos": "clTail", "tags": ["clTNo"], "words": [ "at All", "Anyway" ]},
+    { "pos": "clTail", "tags": ["clTNo", "clLong", "clImpOk"], "words": ["Like You Used To", "Not This Time", "Not Anymore", "After All You've Done", "The Way You Did Before", "No Matter What You Say", "Whatever Happens", "Like Before", "Not Even for a Day"]},
+    { "pos": "clTail", "tags": ["clTNo", "clLong"], "words": ["No Matter How I Try", "Even If I Try", "Though I Try", "After What You've Done", "Even If You Ask Me To", "Even If You Go", "As Long As I Live", "If I Live to Be a Hundred", "Not in a Million Years", "No Matter Who You Are", "Without a Fight", "The Way I Want To", "Like I Should", "Even Though I Want To"]},
+    { "pos": "clTail", "tags": ["clTTouch", "clMeOk"], "weight": 2, "words": [ "Tight", "Tender", "Close" ]},
+    { "pos": "clTail", "tags": ["clTTouch", "clMeOk"], "words": [ "Closer", "Gently", "Softly", "Slow", "Again", "Tonight", "Now" ]},
+    { "pos": "clTail", "tags": ["clTTouch", "clLong", "clMeOk"], "words": [
+      "All Night Long", "A Little Longer", "Like You Mean It", "Like You Used To", "One More Time", "Like I Love You",
+      "Till the Music Stops", "Before You Go", "Till the Morning Light", "While the Band Plays", "Like a Baby",
+      "Just Once More", "When the Lights Are Low", "Through the Night", "Like the Last Time", "And Don't Let Go"
+    ]},
+    { "pos": "clTail", "tags": ["clTQ"], "weight": 2, "words": [ "Tomorrow", "Tonight", "Forever" ]},
+    { "pos": "clTail", "tags": ["clTQ"], "words": [ "Too", "Someday", "Still", "Anymore", "Again", "Now" ]},
+    { "pos": "clTail", "tags": ["clTQ", "clLong"], "words": [
+      "Like I Do", "The Way I Love You", "When I'm Old", "When I'm Gone", "After Tonight", "Like Before",
+      "Like You Did Before", "In the Morning", "When the Party's Over", "When Summer's Gone", "Like You Say You Do",
+      "When I'm Far Away", "If I Ask You To", "The Way You Used To", "If I Come Back", "When the Music Ends",
+      "All Over Again", "Till the End of Time", "If I Say Please"
+    ]},
+    { "pos": "clTail", "tags": ["clTWhy"], "weight": 2, "words": [ "Like That", "This Way", "So" ]},
+    { "pos": "clTail", "tags": ["clTWhy"], "words": [ "Now", "Again", "Every Time", "Tonight" ]},
+    { "pos": "clTail", "tags": ["clTWhy", "clLong"], "words": [
+      "When You Know I Love You", "After All I've Done", "When I Need You So", "Every Time I Fall", "In Front of My Friends",
+      "Just When I Need You", "When I'm Down", "When You Know It Hurts", "The Way You Do", "After All These Years",
+      "In the Middle of the Night", "On a Night Like This", "When I'm Trying"
+    ]},
+    { "pos": "clTail", "tags": ["clTOver"], "weight": 2, "words": [ "Now", "Anymore" ]},
+    { "pos": "clTail", "tags": ["clTOver"], "words": [ "Tonight", "This Time", "at All", "No More" ]},
+    { "pos": "clTail", "tags": ["clTOver", "clLong"], "words": [
+      "No Matter How I Try", "After All This Time", "Though I Try", "Even If I Try", "Not Even for a Day",
+      "Since You Went Away", "It's Too Late", "Not After Tonight", "If I Live to Be a Hundred", "Till the Day I Die",
+      "Not in a Million Years", "Though I Know I Should", "Without a Little Help", "The Way I Used To"
+    ]},
+
+    { "//": "Leading parentheticals: '(I Wanna) Love My Life Away', '(Baby) Hully Gully'.",
+      "pos": "clLead", "tags": ["clLead"], "words": [
+      "Baby", "Darling", "I Love You", "You Know", "Oh Baby", "Please", "Come On", "Listen", "Oh Darling",
+      "Say It", "Hey Baby", "I Know", "Baby, Baby", "Tonight", "Sweetheart", "Just Once", "Here I Am", "Little Girl",
+      "Little Boy", "Now and Then", "If You Care", "Honey", "Oh Yeah", "Believe Me", "It's True"
+    ]},
+    { "//": "=== SUBTITLES and ONE-WORD TITLES (songTitle._extras). Most real parentheticals are not clause tails but a name or word plus a sung hook: 'Dream Baby (How Long Must I Dream)', 'Gee Whiz (Look at His Eyes)', 'Tonight (Could Be the Night)'. One-word titles were ~10% of the 1960-64 chart (Lonely, Patches, Somewhere, Bewildered). ===",
+      "pos": "clSub", "tags": ["clSub"], "words": [
+      "I Love You", "Don't Go", "Come Back to Me", "Please Stay", "Hold Me Tight", "You're the One", "My Only Love",
+      "Tell Me Why", "Won't You Be Mine", "I Miss You So", "Where Are You", "Don't Say Goodbye", "Say You Will",
+      "I Need You", "Come Home", "Don't Cry", "Wait for Me", "Answer Me", "Remember Me", "Stay a While",
+      "Be Mine Tonight", "Don't Leave Me Now", "I'll Be True", "Let Me Love You", "You Belong to Me", "Please Come Home",
+      "Don't Break My Heart", "I'm Still Waiting", "Can't You See", "Make Me Cry", "Look at Me", "Please Don't Go",
+      "I Can't Forget", "Tell Me So", "Don't Let Me Down", "Hold On", "I'll Always Care", "Love Me Too",
+      "Here I Am", "Come Dance with Me", "Write Me a Letter", "Every Night", "One More Kiss", "Is It True",
+      "Will You Wait", "My Heart Belongs to You", "I'll Never Let You Go", "Whatever You Do", "Don't You Know",
+      "Just for Tonight", "I'm Coming Home", "Look What You've Done", "That's What I Say", "All Night Long",
+      "I Think of You", "My Heart Is Yours", "Call Me Tonight", "Dance with Me", "Don't Make Me Wait", "I'm Sorry"
+    ]},
+    { "pos": "oneWord", "tags": ["owAdj"], "words": ["Lonely", "Guilty", "Alone", "Impossible", "Crazy", "Heartless", "Faithful", "Restless", "Sorry", "Helpless", "Breathless", "Foolish", "Jealous", "Tempted", "Forgotten", "Lonesome", "Untrue", "Wonderful", "Sentimental", "Tender", "Lucky", "Heartbroken", "Lovesick", "Spellbound", "Bashful", "Devoted", "Sincere", "Careless", "Reckless", "Dizzy", "Fickle", "Shy", "Blue", "Hurtin'", "Wishin'", "Waitin'", "Lovin'", "Weepin'", "Prayin'", "Achin'", "Smilin'", "Twistin'", "Wanderin'", "Heartsick", "Starstruck", "Moonstruck", "Lovelorn", "Wistful", "Bittersweet"] },
+    { "pos": "oneWord", "tags": ["owNoun", "owSub"], "words": ["Teardrops", "Promises", "Kisses", "Memories", "Sweetheart", "Darling", "Angel", "Lover", "Valentine", "Sugar", "Honey", "Moonlight", "Starlight", "Twilight", "Midnight", "Heaven", "Paradise", "Daydreams", "Souvenirs", "Letters", "Whispers", "Secrets", "Heartbeat", "Lullaby", "Tears", "Rainbow", "Keepsakes", "Heartstrings", "Dreamboat"] },
+    { "pos": "oneWord", "tags": ["owNoun"], "words": ["owNoun", "words", "Shadows", "Wishes", "Diamonds", "Moonbeams", "Snowflakes", "Sunshine", "Thunder", "Stranger", "Flirt", "Heartbreaker", "Daydreamer", "Dreamer", "Gambler", "Hurricane", "Avalanche", "Earthquake", "Firecracker", "Lightning", "Echo", "Whirlwind", "Merry-Go-Round", "Carousel", "Romeo", "Casanova", "Lollipop", "Tomboy", "Sweetie", "Butterfly", "Bluebird", "Mockingbird", "Moonglow", "Teenager", "Graduation", "Homework", "Jukebox", "Telephone", "Postcard", "Locket", "Bracelet", "Sweater", "Goosebumps", "Hiccups", "Lipstick", "Perfume", "Kissin'", "Rockin'", "Boppin'", "Trinkets", "Pinwheel", "Weathervane", "Hayride", "Wishbone", "Snapshot", "Lovebird", "Daybreak", "Nightfall", "Sunbeam", "Teacup", "Sugarcane", "Bluebell", "Lamplight", "Hometown", "Wildflower", "Firefly"] },
+    { "pos": "oneWord", "tags": ["owAdv"], "words": [
+      "Somewhere", "Always", "Forever", "Tonight", "Tomorrow", "Maybe", "Someday", "Sometimes", "Again", "Still",
+      "Today", "Yesterday", "Never", "Goodbye", "Hello", "Please", "Anytime", "Everywhere", "Nowhere", "Whenever",
+      "Afterwards", "Meanwhile", "Already", "Suddenly", "Finally", "Anyway", "Together", "Apart"
+    ]},
+    { "pos": "oneWord", "tags": ["owVocable"], "words": [
+      "Sha-La-La", "Doo-Wah", "Bop-Shoo-Bop", "Ooh-Wee", "Rama-Lama", "Ting-a-Ling", "Shoo-Be-Doo", "Ding-Dong",
+      "Ooh-La-La", "Ka-Ding-Dong", "Bom-Bom", "Wah-Watusi", "Dum-Dum-Dee", "Oop-Shoop", "Shimmy-Shimmy", "Hey-Ba-Ba"
+    ]},
+
+    {"//": "=== FOLK (songTitle.folk) — the revival's real shapes: 'The Ballad of ...', a trade's lament, a river or a town left behind, the talking blues, 'If I Had a ...', a hero's name. Own parts of speech so none of it leaks into other sets. ===", "pos": "fkFirst", "tags": ["fk"], "words": ["John", "Willie", "Tom", "Jack", "Sam", "Molly", "Polly", "Mary", "Lizzie", "Jimmy", "Henry", "Jesse", "Peggy", "Maggie", "Nancy", "Johnny", "Annie", "Billy", "Charlie", "Ellen", "Rosie", "Danny", "Katie", "Joe", "Sally", "Barbara", "Matty", "Ned", "Bonnie", "Jenny"]},
+    {"pos": "fkLast", "tags": ["fk"], "words": ["Hardy", "Moore", "Gray", "Cole", "Riley", "Collins", "Dunbar", "Malone", "Barlow", "Kincaid", "Shaw", "Reilly", "McKee", "Parrish", "Logan", "Thorne", "Weaver", "Carver", "Brennan", "Doyle", "Hollis", "McCabe", "Lyle", "Sutter", "Ransom", "Tolliver", "Coyle", "Whitlow", "Burke", "Fenton"]},
+    {"pos": "fkTrade", "tags": ["fk"], "words": ["Miner", "Sailor", "Drover", "Weaver", "Soldier", "Farmer", "Ploughboy", "Gambler", "Railroader", "Hobo", "Shepherd", "Fisherman", "Cowboy", "Lumberjack", "Blacksmith", "Peddler", "Prisoner", "Ferryman", "Mill Girl", "Highwayman", "Boatman", "Logger", "Whaler", "Tinker", "Collier", "Rambler", "Deserter", "Emigrant", "Sharecropper", "Teamster"]},
+    {"pos": "fkTale", "tags": ["fk"], "words": ["Lament", "Farewell", "Song", "Prayer", "Return", "Dream", "Bride", "Daughter", "Grave", "Complaint", "Lullaby", "Hymn", "Wife", "Last Ride", "Holiday", "Wages", "Child", "Story", "Ballad", "Sweetheart", "Goodbye", "Boots", "Hands", "Last Letter", "Homecoming", "Widow"]},
+    {"pos": "fkRiver", "tags": ["fk"], "words": ["the Ohio", "the Wabash", "the Brazos", "the Cumberland", "the Rio Grande", "the Shenandoah", "the Tennessee", "the Missouri", "the Platte", "the Clinch", "the Sweetwater", "the Monongahela", "the Allegheny", "the Big Sandy", "the Kanawha", "the Holston", "the Pecos", "the Yellowstone", "the Delaware", "the Hudson", "the Merrimack", "the Suwannee", "the Tallahatchie", "the Arkansas", "the Cimarron", "the Shannon", "the Clyde", "the Tyne", "the Severn", "the Liffey"]},
+    {"pos": "fkRiverFrame", "tags": ["fk"], "words": ["On the Banks of", "Down by", "Across", "Beyond", "The Shores of", "Where I Crossed", "The Bridge over", "Farewell to", "The Flood on", "The Ferry on", "High Water on", "Mist on", "Moonlight on", "Bound for", "The Girl from", "Down along", "Fishing on", "The Wreck on"]},
+    {"pos": "fkPlace", "tags": ["fk"], "words": ["Galway", "Dublin", "Glasgow", "Kentucky", "Carolina", "Virginia", "Texas", "Tennessee", "Georgia", "Alabama", "Harlan", "Shiloh", "Laredo", "Memphis", "Bristol", "Mobile", "Baltimore", "Newcastle", "Liverpool", "Belfast", "Aberdeen", "Derry", "Cork", "Wexford", "Arkansas", "Oklahoma", "Montana", "Dakota", "Kansas", "Durham", "Lexington", "Wheeling", "Charleston", "Savannah", "Knoxville", "Tipperary", "Donegal", "Kilkenny", "Dundee", "Halifax", "Nova Scotia", "Cheyenne", "Santa Fe", "Cripple Creek", "Bowling Green", "Natchez", "Galveston", "Louisville"]},
+    {"pos": "fkPlaceFrame", "tags": ["fk"], "words": ["Farewell to", "Leaving", "Goodbye,", "Bound for", "The Road to", "The Lights of", "Back to", "The Girl I Left in", "Going Down to", "Home to", "The Hills of", "Coming Home to", "The Last Train to", "Far from", "The Streets of", "Remember", "Sweet", "Long Way to", "Walking to", "The Bells of"]},
+    {"pos": "fkNumber", "tags": ["fk"], "words": ["Five Hundred", "A Thousand", "Nine Hundred", "Ten Thousand", "Two Hundred", "Seven Hundred", "A Hundred", "Three Thousand", "Forty", "Six Hundred"]},
+    {"pos": "fkMiles", "tags": ["fk"], "words": ["Miles", "Miles from Home", "Miles to Go", "Miles Away", "Miles Behind Me", "Miles to Freedom"] },
+    {"pos": "fkThing", "tags": ["fk"], "words": ["Fiddle", "Banjo", "Bell", "Song", "Ship", "Horse", "Dollar", "Home", "Wagon", "Garden", "Plow", "Boat", "Mule", "Shilling", "Penny", "Candle", "Lantern", "Rifle", "Mandolin", "Little Farm", "Feather Bed", "Silver Ring", "Golden Key", "Railroad Car", "Walking Stick"]},
+    {"pos": "fkThingFrame", "tags": ["fk"], "words": ["If I Had a", "Hand Me Down My", "My Old", "Give Me a", "Bring Me a", "Leave Me My", "Sell Me a", "Grandfather's", "Mama's", "The Little"]},
+    {"pos": "fkTalk", "tags": ["fk"], "words": ["Union", "Dust Bowl", "Subway", "Atom", "Draft", "Hard-Times", "Merchant Marine", "Ferry Boat", "Fishing", "Hitchhiking", "Coal Miner", "Bomb Shelter", "Farm", "Folk Singer", "Hootenanny", "Highway", "Crop Duster", "Taxi", "Weather", "Bus Station", "Picket Line", "Rent Strike", "Assembly Line", "Jail House"]},
+    {"pos": "fkPlural", "tags": ["fk"], "words": ["Soldiers", "Sailors", "Young Men", "Children", "Songbirds", "Horses", "Farmers", "Fiddlers", "Wagons", "Ships", "Singers", "Good Times", "Summers", "Rivers", "Lovers", "Ramblers", "Miners", "Mountains", "Old Songs", "Brave Men"]},
+    {"pos": "fkAsk", "tags": ["fk"], "words": ["Come Home", "Marry Me", "Wait for Me", "Come Along", "Take My Hand", "Remember Me", "Sing for Me", "Row the Boat", "Light the Lamp", "Bar the Door", "Don't You Cry", "Fare Thee Well", "Come Down", "Go Tell It", "Don't Go Down", "Mind the Ferry", "Hush Now", "Pass Me By"]},
+    {"pos": "fkWeather", "tags": ["fk"], "words": ["Rain", "Wind", "Snow", "Frost", "Fog", "Dew", "Storm", "Thaw"]},
+    {"pos": "fkTime", "tags": ["fk"], "words": ["Early Morning", "Long Cold", "Hard Winter", "Late Autumn", "Lonesome Evening", "Old Midnight", "Pale Dawn", "Long Summer", "Sunday Morning", "Bitter Winter"]},
+    {"//": "=== GOSPEL (songTitle.gospel) — address and plea ('Precious Lord, Take My Hand'), the promise ('I'll Fly Away'), a refuge in a place ('Peace in the Valley'), 'Jesus Is ...', the Bible names ('Mary, Don't You Weep'), the glory vehicle ('Old Ship of Zion'). ===", "pos": "gsAddress", "tags": ["gs"], "words": ["Lord", "Precious Lord", "Jesus", "Sweet Jesus", "Father", "Savior", "Dear Lord", "Master", "Blessed Savior", "Heavenly Father", "Oh Lord", "My Lord"]},
+    {"pos": "gsPlea", "tags": ["gs"], "words": ["Take My Hand", "Lead Me On", "Hold My Hand", "Lift Me Up", "Guide Me Home", "Walk with Me", "Remember Me", "Keep Me Near", "Carry Me Home", "Search Me", "Don't Leave Me", "Hear My Prayer", "Wash Me Clean", "Use Me", "Stay with Me", "Prepare Me", "Help Me Stand", "Hold Me Close", "Lead Me Home", "Keep Me Safe", "Show Me the Way", "Light My Way", "Make Me Strong", "Give Me Strength", "Come By Here", "Have Mercy", "Touch Me", "Fill My Cup", "Don't Pass Me By", "Lead Me to the Rock"]},
+    {"pos": "gsRefuge", "tags": ["gs"], "words": ["Peace", "Rest", "Joy", "Glory", "a Home", "a Light", "a Fountain", "a Crown", "a Mansion", "a River", "a Rose", "a Song", "Sunshine", "a Shelter", "a Rock", "Victory", "a Table", "Water", "a Welcome", "a Lily", "a Lamp", "Healing"]},
+    {"pos": "gsRefugePlace", "tags": ["gs"], "words": ["the Valley", "the Garden", "the Morning", "the Kingdom", "Zion", "Glory", "the Sky", "the Wilderness", "My Soul", "the Storm", "the Promised Land", "the City", "Heaven", "the Land", "the Hills", "My Father's House", "the Evening", "the Desert"]},
+    {"pos": "gsHead", "tags": ["gs"], "words": ["I'll", "I'm Gonna", "Someday I'll", "One Day I'll", "When I", "Lord, I Want to", "I Know I'll", "Some Glad Morning I'll", "I'm Going to", "We're Gonna", "We Shall", "Soon I Will", "I Believe I'll", "Just Let Me", "Every Day I'll", "Let Me", "Lord, Help Me", "Children, We'll"]},
+    {"pos": "gsAction", "tags": ["gs"], "words": ["Fly Away", "Be Ready", "Lay My Burden Down", "Wear a Crown", "Meet You in the Morning", "Walk That Golden Street", "See My Mother Again", "Cross Over Jordan", "Go Home with Jesus", "Stand on the Rock", "Tell It on the Mountain", "Keep On Holding On", "Rest in His Arms", "Sing with the Angels", "Climb Higher Mountains", "Move On Up", "Walk in the Light", "Shout Hallelujah", "Lift My Voice", "Bow Down", "Praise His Name", "Trust in Him", "Live Again", "Testify", "Be Satisfied", "Make It In", "See His Face", "Ride That Glory Train", "Hold to His Hand", "Rise and Shine", "Never Turn Back", "Carry the Cross", "See the Light", "Go Home", "Shine", "Be Free"]},
+    {"pos": "gsSubject", "tags": ["gs"], "words": ["Jesus", "God", "The Lord", "My Lord", "He", "My Savior"]},
+    {"pos": "gsIs", "tags": ["gs"], "words": ["My Friend", "a Rock in a Weary Land", "the Light", "Coming Soon", "Real to Me", "Listening", "All I Need", "My Captain", "on My Side", "Able", "Watching Over Me", "Waiting", "Near", "Mine", "the Answer", "My Shepherd", "a Shelter in the Storm", "the Way", "Calling", "Here", "My Everything", "Still on the Throne", "a Mighty Good Leader", "the Same Today"]},
+    {"pos": "gsName", "tags": ["gs"], "words": ["Mary", "Martha", "Moses", "Daniel", "Joshua", "Ezekiel", "Jonah", "Noah", "Peter", "Paul", "John", "Elijah", "Samson", "Sister", "Brother", "Mother", "Children", "Sinner", "Pilgrim"]},
+    {"pos": "gsGrief", "tags": ["gs"], "words": ["Weep", "Mourn", "Cry", "Worry", "Fret", "Grieve", "Be Afraid", "Turn Back", "Give Up", "Fall", "Wander", "Doubt"]},
+    {"pos": "gsAdj", "tags": ["gs"], "words": ["Gospel", "Glory", "Heavenly", "Old", "Golden", "Royal", "Morning", "Midnight", "Freedom", "Holy", "Sweet", "Chariot"]},
+    {"pos": "gsVehicle", "tags": ["gs"], "words": ["Train", "Ship", "Chariot", "Highway", "Telephone", "Stairway", "Road", "Gate", "Bell", "Shore", "Band", "Ladder", "Ferry", "Lighthouse", "Lifeboat", "Wheel"]},
+    {"//": "=== SURF & HOT ROD (songTitle.surf) — spot names, '<spot> Stomp', 'Shoot the Curl', 'Surfer Joe', the car, and the one-word instrumental ('Penetration'). ===", "pos": "sfSpot", "tags": ["sf"], "words": ["Baja", "Malibu", "Rincon", "Waimea", "Huntington", "Doheny", "Oceanside", "Makaha", "Redondo", "Laguna", "Trestles", "Sunset Beach", "Pismo", "Zuma", "Cardiff", "Hermosa", "Seal Beach", "Windansea", "Mission Bay", "La Jolla", "Ventura", "Santa Cruz", "Pupukea", "Hanalei", "Waikiki", "Del Mar", "Encinitas", "Dana Point", "Newport", "Huntington Pier", "Point Mugu", "Leo Carrillo", "Steamer Lane", "Haleiwa"]},
+    {"pos": "sfDance", "tags": ["sf"], "words": ["Stomp", "Run", "Party", "Shuffle", "Walk", "Bash", "Bound", "Hop", "Drag", "Cruise", "Shake", "Rumble", "Bop", "Stroll", "Jam", "Special", "Patrol", "Express", "Safari", "Twist", "Holiday"]},
+    {"pos": "sfVerb", "tags": ["sf"], "words": ["Shoot", "Ride", "Catch", "Chase", "Beat", "Run", "Walk", "Climb"] },
+    {"pos": "sfWave", "tags": ["sf"], "words": ["Curl", "Tube", "Wave", "Swell", "Breaker", "Big One", "Tide", "Break", "Shorebreak", "Point", "Wedge", "Lip", "Peak", "Reef", "Crest", "Shoulder", "Last Wave", "Outside Set"]},
+    {"pos": "sfWho", "tags": ["sf"], "words": ["Surfer", "Hodad", "Gremmie", "Racer", "Hot Rod", "Beach", "Little", "Big", "Wild", "Lifeguard", "Woody"]},
+    {"pos": "sfCar", "tags": ["sf"], "words": ["Deuce", "Woody", "Roadster", "Rail", "Dragster", "Stingray", "Coupe", "Hemi", "Stocker", "Hot Rod", "Racer", "Fuelie", "Gasser", "Highboy", "Chopper", "Rat Rod", "Lowboy", "Speedster"]},
+    {"pos": "sfRace", "tags": ["sf"], "words": ["Run", "Race", "Drag", "Rumble", "Special", "Rally", "Grand Prix", "Derby", "Cruise", "Showdown", "Getaway", "Shakedown", "Blast", "Scramble"]},
+    {"pos": "sfInstr", "tags": ["sf"], "words": ["Undertow", "Riptide", "Shockwave", "Tidal Wave", "Avalanche", "Thunderbolt", "Barracuda", "Hammerhead", "Moray", "Typhoon", "Mako", "Manta", "Eruption", "Ricochet", "Torpedo", "Nitro", "Vortex", "Cyclone", "Banzai", "Kahuna", "Jetstream", "Afterburner", "Breakwater", "Firewater", "Tailspin", "Wildfire", "Shark Fin", "Overdrive", "Crosswind", "Comber", "Sidewinder", "Monsoon", "Maelstrom"]},
+    {"pos": "sfMr", "tags": ["sf"], "words": ["Tiki", "Kahuna", "Rio", "Hodad", "Riptide", "Wipeout", "Wheels", "Gremmie", "Woody", "Breaker", "Big Wave", "Surf"]},
+    {"pos": "sfX", "tags": ["sf"], "words": ["Party", "Weekend", "Holiday", "Sunday", "Summer", "Paradise", "Doll", "Fever", "Craze", "Time", "Jamboree", "Down South", "Hawaii", "Tonight", "Again", "Forever", "Baby", "Mania", "Nights", "Season"]},
+    {"//": "=== PSYCHEDELIC (songTitle.psych) — colour + object ('Purple Haze'), material + figure ('Sky Pilot'), the whimsical street ('Itchycoo Park'), 'See Emily Play', the journey ('... to the Center of the Mind'), the distance ('Eight Miles High'), the instruction with its parenthetical ('Break On Through (To the Other Side)'). ===", "pos": "psColor", "tags": ["ps"], "words": ["Purple", "Crimson", "Tangerine", "Violet", "Silver", "Golden", "White", "Scarlet", "Orange", "Indigo", "Lavender", "Emerald", "Magenta", "Amber", "Paisley", "Rainbow", "Turquoise", "Saffron", "Velvet", "Mauve"]},
+    {"pos": "psThing", "tags": ["ps"], "words": ["Rabbit", "Tambourine", "Bicycle", "Telephone", "Balloon", "Umbrella", "Caterpillar", "Butterfly", "Lantern", "Carousel", "Cathedral", "Ship", "Train", "Kite", "Staircase", "Mirror", "Door", "Window", "Garden", "Haze", "Fog", "Rain", "Sunshine", "Shoe", "Hat", "Elephant", "Castle", "Kingdom", "Lady", "Soldier", "Zeppelin", "Airship", "Clock", "Piano", "Dragonfly", "Unicorn", "Peacock", "Mushroom", "Teapot", "Chariot", "Wizard", "Owl", "Fox", "Tiger", "River", "Room", "Tower", "Feather", "Flame", "Sky", "Moon", "Morning", "Afternoon", "Bird", "Rose", "Smoke", "Dream"]},
+    {"pos": "psMaterial", "tags": ["ps"], "words": ["Sunshine", "Rainbow", "Tambourine", "Paper", "Plastic", "Crystal", "Electric", "Mirror", "Candy", "Cloud", "Lemon", "Clockwork", "Velvet", "Cardboard", "Marmalade", "Porcelain", "Glass", "Tin", "Silver", "Toy", "Sky", "Sugar", "Kaleidoscope", "Tangerine"]},
+    {"pos": "psRole", "tags": ["ps"], "words": ["Man", "Lady", "Girl", "King", "Queen", "Pilot", "Soldier", "Prince", "People", "Child", "Children", "Magician", "Piper", "Juggler", "Ringmaster", "Gypsy", "Wizard", "Sailor", "Professor", "Admiral", "Duchess", "Clown", "Captain", "Messenger", "Dancer", "Princess"]},
+    {"pos": "psWhimsy", "tags": ["ps"], "words": ["Rosebury", "Applewood", "Kensal", "Bramble", "Thistle", "Juniper", "Marmalade", "Gingerbread", "Paisley", "Tinker's", "Tangerine", "Lavender", "Sycamore", "Primrose", "Hollyhock", "Buttercup", "Saffron", "Mulberry", "Wishing", "Looking-Glass", "Harlequin", "Pennyroyal", "Cuckoo", "Dandelion", "Moonbeam", "Lollipop", "Peppermint", "Pudding"]},
+    {"pos": "psStreet", "tags": ["ps"], "words": ["Park", "Lane", "Hill", "Gardens", "Road", "Street", "Square", "Fair", "Meadow", "Wood", "Common", "Terrace", "Crescent"]},
+    {"pos": "psTrip", "tags": ["ps"], "words": ["Journey", "Trip", "Voyage", "Ride", "Flight", "Passage", "Excursion", "Escape"]},
+    {"pos": "psEdge", "tags": ["ps"], "words": ["Center", "Edge", "End", "Other Side", "Top", "Heart", "Bottom", "Far Side"] },
+    {"pos": "psBeyond", "tags": ["ps"], "words": ["the Mind", "the Sun", "the Sky", "Time", "Your Mind", "the Rainbow", "Tomorrow", "the Night", "the Universe", "the Dream", "Forever", "the Looking Glass", "the Morning", "My Head", "the World", "the Moon"]},
+    {"pos": "psName", "tags": ["ps"], "words": ["Emily", "Lily", "Matthew", "Annabelle", "Rosemary", "Jennifer", "Penelope", "Julian", "Desmond", "Clementine", "Ophelia", "Amelia", "Rupert", "Percival", "Edwina", "Lucinda", "Barnaby", "Josephine", "Theodore", "Imogen", "Victoria", "Marigold", "Isadora", "Sebastian", "Gwendolyn", "Algernon"]},
+    {"pos": "psVerb", "tags": ["ps"], "words": ["Play", "Fly", "Dream", "Dance", "Smile", "Run", "Shine", "Float", "Wander", "Sing", "Laugh", "Fade", "Glide", "Grow", "Swim", "Paint"]},
+    {"pos": "psNum", "tags": ["ps"], "words": ["Eight", "Nine", "Ten Thousand", "A Million", "Two Thousand", "A Hundred", "Forty", "Seven", "Three Hundred", "Twenty"]},
+    {"pos": "psUnit", "tags": ["ps"], "words": ["Miles", "Light Years", "Years", "Fathoms", "Leagues", "Days", "Moons", "Feet", "Floors", "Steps"]},
+    {"pos": "psFrom", "tags": ["ps"], "words": ["from Home", "from the Sun", "from Tomorrow", "from Nowhere", "Away", "High", "Down", "Below", "from Yesterday", "Out", "Under the Sea", "Above the City", "Behind the Sun"]},
+    {"pos": "psAdj", "tags": ["ps"], "words": ["Strange", "Magic", "Mellow", "Wooden", "Electric", "Crystal", "Mystic", "Velvet", "Cosmic", "Hazy", "Dizzy", "Painted", "Broken", "Sleepy", "Floating", "Melting", "Spinning", "Silent", "Upside-Down", "Faraway", "Secret"]},
+    {"pos": "psDo", "tags": ["ps"], "words": ["Open Your Mind", "Paint the Sky", "Follow the Sun", "Ride the Rainbow", "Count the Stars", "Turn the Key", "Fly Away Home", "Chase the Moon", "Float Downstream", "Drift Away", "Look Inside", "Free Your Mind", "Feel the Colors", "Taste the Rain", "Climb the Mountain", "Leave the City", "Walk Through Walls", "Tell the Truth", "Break the Glass", "Let It Shine", "Close Your Eyes", "Hold the Sun", "Stop the Clock"] },
+    {"pos": "psParen", "tags": ["ps"], "words": ["To the Other Side", "Of the Sun", "In My Mind", "Forever", "Tomorrow", "In the Morning", "Today", "With Me", "Into the Light", "Before It's Gone", "And See", "Once Again", "For a While", "All the Way"]},
+    {"//": "=== LATIN (songTitle.latin: BossaNova, LatinPop, TexMex) — dance + place, the place at a time of day, the Spanish/Portuguese title with its English gloss ('Desafinado (Slightly Out of Tune)'), one-word Spanish. ===", "pos": "ltDance", "tags": ["lt"], "words": ["Samba", "Bossa Nova", "Cha-Cha", "Mambo", "Merengue", "Rumba", "Bolero", "Tango", "Pachanga", "Conga", "Cumbia", "Baião", "Guajira", "Danzón", "Beguine", "Bamba"]},
+    {"pos": "ltPlace", "tags": ["lt"], "words": ["Copacabana", "Bahia", "Rio", "Leblon", "Havana", "Acapulco", "Veracruz", "Tijuana", "San Juan", "Recife", "Guadalajara", "Monterrey", "San Antonio", "Laredo", "El Paso", "Cuernavaca", "Mazatlán", "Santiago", "Caracas", "Salvador", "Ponce", "Juárez", "Matamoros", "Corpus Christi", "Varadero"]},
+    {"pos": "ltTime", "tags": ["lt"], "words": ["Night", "Morning", "Carnival", "Summer", "Moonlight", "Sunday", "Twilight", "Holiday", "Fiesta", "Sunset", "Rain", "Winter", "Noon", "Springtime"]},
+    {"pos": "ltWord", "tags": ["lt"], "words": ["Amor", "Fiesta", "Mañana", "Corazón", "Querida", "Chiquita", "Paloma", "Señorita", "Caramba", "Olé", "Cariño", "Morena", "Lindo", "Vámonos", "Adiós", "Saudade", "Alegria", "Carnaval", "Mariposa", "Luna", "Bonita", "Siempre", "Palomita", "Cielito"]},
+    {"pos": "ltGlossed", "tags": ["lt"], "words": ["Quiéreme Siempre (Love Me Always)", "Te Quiero Tanto (I Love You So)", "Ven Conmigo (Come with Me)", "Dime Que Sí (Tell Me Yes)", "Ojos Negros (Dark Eyes)", "Amor Eterno (Forever Love)", "Corazón Loco (Crazy Heart)", "Solo Tú (Only You)", "Cuando Vuelvas (When You Come Back)", "Cariño Mío (My Darling)", "Dulce Amor (Sweet Love)", "Adiós, Mi Amor (Goodbye, My Love)", "Baila Conmigo (Dance with Me)", "Siempre Tú (Always You)", "Noite Clara (Clear Night)", "Meu Amor (My Love)", "Vem Comigo (Come with Me)", "Céu Azul (Blue Sky)", "Canção Triste (Sad Song)", "Amanhã (Tomorrow)", "Morena Linda (Pretty Girl)", "Mi Cielo (My Heaven)", "Bésame Otra Vez (Kiss Me Again)", "Quédate (Stay)", "Mi Amorcito (My Little Love)", "Volverás (You'll Return)", "Coração Feliz (Happy Heart)", "Noche Clara (Clear Night)", "Luna Llena (Full Moon)"]},
+    {"pos": "ltWho", "tags": ["lt"], "words": ["Girl", "Boy", "Lady", "Dancer", "Stranger", "Señorita", "Lover", "Sailor", "Singer"]},
+    {"pos": "clLoveIs", "tags": ["clLoveIs"], "words": ["Forever", "a Game", "a Stranger", "Where You Find It", "All Around", "Just a Word", "Funny That Way", "a Lonely Road", "the Answer", "a Ball", "Gone", "Blind", "Sweet", "a Merry-Go-Round", "Like Candy", "Kind", "Never Easy", "Everything", "Calling", "Waiting", "a Dangerous Thing", "Like a Rainbow", "Something Else", "a Dream", "Out of Style", "Coming Back", "for Keeps", "No Excuse", "a Funny Thing", "Simple", "Lonesome", "Here Again", "Tricky", "a Heartache", "Not Enough", "Like That"] },
+
+    {"//": "=== ALBUM PROGRAMME WORDS (albumTitle._lpOther/_lpDance/_lpMood) — the period's LP shapes: 'Moon River and Other Great Movie Themes', 'The Golden Hits of ...', 'Twist Party', 'Holiday in Lisbon', 'Songs for Swingin' Lovers', 'Midnight Moods'. ===", "pos": "albAdj", "tags": ["alb"], "words": ["Great", "Golden", "Favorite", "Romantic", "Big", "Tender", "Swinging", "Sentimental", "Dreamy", "Happy", "Lonely", "Greatest", "Wonderful", "Bright", "Moody", "Biggest", "Brand New", "All-Time"]},
+    {"pos": "albProgram", "tags": ["alb"], "words": ["Hits", "Favorites", "Songs", "Ballads", "Love Songs", "Melodies", "Tunes", "Sounds"]},
+    {"pos": "albDance", "tags": ["alb"], "words": ["Twist", "Stomp", "Hully Gully", "Mashed Potato", "Madison", "Pony", "Watusi", "Fly", "Shimmy", "Frug", "Jerk", "Monkey", "Swim", "Limbo", "Bossa Nova", "Cha-Cha", "Bop", "Stroll", "Slop", "Popeye", "Hitch Hike", "Dog", "Shag", "Bristol Stomp", "Freddie", "Locomotion", "Wobble", "Twine", "Bird"] },
+    {"pos": "albMoodFrame", "tags": ["alb"], "words": ["A Night in", "Holiday in", "Moonlight in", "Autumn in", "April in", "Romantic", "Memories of", "Souvenir of", "The Sound of", "Postcard from", "Weekend in", "Starlight over", "Rendezvous in", "Midnight in", "Springtime in", "Return to", "Dancing in", "The Lights of", "Summer in", "Strings over", "Evening in", "Christmas in"]},
+    {"pos": "albPlace", "tags": ["alb"], "words": ["Paris", "Rome", "Vienna", "Capri", "Monte Carlo", "Lisbon", "Madrid", "Hawaii", "Tahiti", "Manhattan", "Havana", "Rio", "the Islands", "Venice", "Naples", "Acapulco", "Tokyo", "Hong Kong", "London", "Berlin", "Athens", "Copenhagen", "Bermuda", "Jamaica", "the Caribbean", "New Orleans", "San Francisco", "Las Vegas", "Hollywood", "Mexico", "Spain", "Italy", "Ireland", "Scotland", "Old Vienna", "Seville", "Barcelona", "Budapest"]},
+    {"pos": "albHead", "tags": ["alb"], "words": ["Songs", "Music", "Melodies", "Ballads", "Dances", "Strings", "Serenades", "Rhythms"]},
+    {"pos": "albPeopleAdj", "tags": ["alb"], "words": ["Swingin'", "Young", "Lonely", "Tired", "Modern", "Starry-Eyed", "Sleepy", "Restless", "Sophisticated", "Bashful", "Happy", "Dancing", "Weekend", "Late-Night", "Sentimental", "Moonstruck", "Bachelor", "Barefoot", "Lazy", "Grown-Up"]},
+    {"pos": "albPeople", "tags": ["alb"], "words": ["Lovers", "Dreamers", "Dancers", "Romantics", "Sweethearts", "Night Owls", "Couples", "Teenagers", "Moderns", "Friends", "Strangers", "Newlyweds", "Travelers", "Sophisticates", "Wallflowers"]},
+    {"pos": "albMoodAdj", "tags": ["alb"], "words": ["Midnight", "Velvet", "Sentimental", "Twilight", "Dreamy", "Moonlight", "Starlight", "Candlelight", "Tender", "Golden", "Lazy", "Smoky", "Sunday", "Rainy-Day", "After-Hours", "Silver", "Satin", "Blue", "Gentle", "Dancing", "Lonely", "Champagne"]},
+    {"pos": "albMoodNoun", "tags": ["alb"], "words": ["Moods", "Sounds", "Melodies", "Strings", "Serenades", "Reveries", "Memories", "Ballads", "Rhythms", "Interludes", "Themes", "Rhapsodies", "Nocturnes", "Waltzes", "Whispers"]},
+    {"pos": "fkVenue", "tags": ["fk"], "words": ["the Lamplighter", "the Blue Lantern", "the Hearth", "the Driftwood", "the Weathervane", "the Lantern House", "the Copper Kettle", "the Turning Point", "the Crossroads Café", "the Second Story", "the Cider Mill", "the Quiet Knight", "the Cellar Stair", "the Old Mill", "Town Hall", "the Folk Festival", "the College Concert"]},
+    {"pos": "fkRegion", "tags": ["fk"], "words": ["the Hills", "the Old West", "the Sea", "the Railroad", "the Mountains", "the South", "the Appalachians", "Ireland", "Scotland", "the Cumberland", "the Prairie", "the Dust Bowl", "the Civil War", "the Working Man", "Freedom", "the Road", "the Canal", "the Coal Fields", "the Cattle Trail", "the Sailing Ships", "the Frontier", "Old England"]},
+    {"pos": "fkKindA", "tags": ["fk"], "words": ["Ballads", "Hymns", "Reels", "Laments", "Lullabies", "Carols"]},
+    {"pos": "fkKindB", "tags": ["fk"], "words": ["Blues", "Work Songs", "Sea Shanties", "Spirituals", "Jigs", "Hollers"]},
+    {"pos": "fkKindC", "tags": ["fk"], "words": ["Love Songs", "Railroad Songs", "Sad Songs", "Talking Blues", "Prison Songs", "Cowboy Songs", "Murder Ballads", "Drinking Songs"]},
+    {"pos": "fkAlbumWord", "tags": ["fk"], "words": ["Ramblin'", "Hard Travelin'", "Movin' On", "Goin' Places", "Make Way", "Sing Out", "Close-Up", "In the Wind", "On the Road", "Here We Go Again", "Back Porch", "Gathering", "Hootenanny", "Campfire", "Open Road", "Across the Land", "From the Hills", "Coming Home", "Home Grown", "Homespun", "Out of the Hills", "Among Friends", "Passing Through", "The Long Road", "Crossroads", "Morning Again", "Plain Songs", "Common Ground", "Wayfaring", "Wanderin'", "Sing Along", "Front Porch", "Old Roads", "New Songs, Old Roads", "Hard Times", "Many Miles"]},
+    {"pos": "gsAlbumKind", "tags": ["gs"], "words": ["Spirituals", "Hymns", "Gospel Favorites", "Songs of Faith", "Songs of Praise", "Old-Time Religion", "Sacred Songs", "Camp Meeting Songs", "Hymns of Glory", "Songs of Inspiration", "Gospel Greats", "Negro Spirituals", "Sunday Songs", "Songs of Zion"]},
+    {"pos": "gsChurch", "tags": ["gs"], "words": ["Greater Bethel Church", "Mount Zion Baptist Church", "New Hope Tabernacle", "Shiloh Temple", "Bethany Chapel", "Greater Mount Olive Church", "Calvary Temple", "St. Paul's Church", "Zion Hill Church", "Pilgrim Rest Church", "the Gospel Tabernacle", "the Camp Meeting"]},
+    {"pos": "sfAlbumNoun", "tags": ["sf"], "words": ["Party", "Beat", "Craze", "Safari", "Spectacular", "Weekend", "Bash", "Fever", "Scene", "Sounds", "Jamboree", "Holiday", "Hits", "Rumble", "Special"]},
+    {"pos": "psAlbumFrame", "tags": ["ps"], "words": ["Through the", "Inside the", "Beyond the", "Music from the", "Songs from the", "Visions of the", "Tales of the", "Pictures of the", "Secrets of the", "The Return of the"]},
+    {"pos": "ltAlbumHead", "tags": ["lt"], "words": ["Jazz", "Soul", "Latin", "Brazilian", "Bossa", "Big Band", "Guitar", "Piano", "Night", "Carnival", "Tropical", "Fiesta"]},
+    {"pos": "albProgramAdult", "tags": ["alb"], "words": ["Movie Themes", "Show Tunes", "Standards", "Sing-Alongs", "Broadway Hits", "Continental Favorites", "Waltzes"]},
+    {"pos": "albProgramTeen", "tags": ["alb"], "words": ["Dance Hits", "Teen Hits", "Party Hits", "Juke Box Hits", "Twist Hits", "Million Sellers", "Sock Hop Favorites"]}
   ]
 }
