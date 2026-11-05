@@ -52,7 +52,7 @@ public partial class PlayerDesk {
             case ScoutingSourceQuestion.BookingHistory:
                 int shows = LocalSceneRoomService.ShowsAt(roomId, artistId);
                 eventId = $"booker-history|{roomId}|{artistId}|{shows}";
-                claim = $"Our retained work record has {shows} completed appearance(s) here. That says nothing about punctuality or audiences in another room.";
+                claim = $"Our retained work record has {Plural.Of(shows, "completed appearance")} here. That says nothing about punctuality or audiences in another room.";
                 break;
             case ScoutingSourceQuestion.BillAudience:
                 var completed = LocalSceneRoomService.LastCompletedBill(roomId, artistId, day, minute);

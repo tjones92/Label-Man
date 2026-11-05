@@ -1168,7 +1168,7 @@ public partial class PlayerDesk : Node {
 				GameOver($"{MaxMonthsInTheRed} months in the red with the bills unpaid. {Label.labelName} folds.");
 				return;
 			}
-			Note($"Another month in the red (${Label.cashReserves:N0}). {MonthsOfGraceLeft} month(s) before the bank closes you.");
+			Note($"Another month in the red (${Label.cashReserves:N0}). {Plural.Of(MonthsOfGraceLeft, "month")} before the bank closes you.");
 		} else if (monthsInTheRed > 0) {
 			monthsInTheRed = 0;
 			Note("Back in the black -- the bank's off your back for now.");
@@ -2140,7 +2140,7 @@ public partial class PlayerDesk : Node {
 			OpenNegotiation(prospect, ReadContractOutlook(prospect.Artist, renewal: false));
 			DiscloseRivalOffer(prospect.Artist.artistId);
 			RememberScoutingNegotiation(prospect);
-			message = $"{prospect.Artist.stageName} have {rivalPaper.RivalLabelName}'s offer in hand now. They want to talk terms.";
+			message = $"{prospect.Artist.stageName} {ActGrammar.Verb(prospect.Artist, "has", "have")} {rivalPaper.RivalLabelName}'s offer in hand now. They want to talk terms.";
 			Changed?.Invoke();
 			return false;
 		}
@@ -2239,7 +2239,7 @@ public partial class PlayerDesk : Node {
 		}
 
 		Note($"{artist.stageName} wrote {string.Join(" / ", titles)}.");
-		message = $"Wrote {written} song(s).";
+		message = $"Wrote {Plural.Of(written, "song")}.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -2593,8 +2593,8 @@ public partial class PlayerDesk : Node {
 		}
 		pendingSession = session;
 
-		Note($"Booked {StudioTierName(tier)} for {hours}h with {artist.stageName}: {cutting.Count} song(s), {takes} take(s) each, ${cost:N0}.");
-		message = $"{takes} take(s) of {cutting.Count} song(s) in the can -- keep the ones you want.";
+		Note($"Booked {StudioTierName(tier)} for {hours}h with {artist.stageName}: {Plural.Of(cutting.Count, "song")}, {Plural.Of(takes, "take")} each, ${cost:N0}.");
+		message = $"{Plural.Of(takes, "take")} of {Plural.Of(cutting.Count, "song")} in the can -- keep the ones you want.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -2667,10 +2667,10 @@ public partial class PlayerDesk : Node {
 			SessionTake take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
 			if (PrintMaster(artist, cut.Choice, take, perMasterCost, pendingSession.Date, year, week, SelectedStudioFinish(cut), StudioStructureOf(cut, take))) printed++;
 		}
-		Note($"Printed {printed} master(s) from the {StudioTierName(pendingSession.Tier)} date with {artist.stageName}.");
+		Note($"Printed {Plural.Of(printed, "master")} from the {StudioTierName(pendingSession.Tier)} date with {artist.stageName}.");
 		RememberStudioVisit(pendingSession, true, masters.Skip(mastersBefore).Select(m => m.Record?.recordId).Where(id => id != null).ToList());
 		pendingSession = null;
-		message = $"{printed} master(s) on the shelf." + AwayFromHomeNote();
+		message = $"{Plural.Of(printed, "master")} on the shelf." + AwayFromHomeNote();
 		Changed?.Invoke();
 		return true;
 	}
@@ -4330,7 +4330,7 @@ public partial class PlayerDesk : Node {
 		ChartManager.Instance?.PlaceProjectPromo(recordId, Label.labelId, picks, effectiveness,
 			ProjectPromoDiscretion, ProjectPromoMobConnection, week, date.year, date.month, ProjectPromoWeeks);
 
-		Note($"Put a promo man on \"{TitleForRecord(recordId)}\" in {region.regionName} for ${cost:N0} -- {stationCount} station(s), about {ProjectPromoWeeks} weeks.");
+		Note($"Put a promo man on \"{TitleForRecord(recordId)}\" in {region.regionName} for ${cost:N0} -- {Plural.Of(stationCount, "station")}, about {ProjectPromoWeeks} weeks.");
 		message = $"Promo man working {region.regionName} for about {ProjectPromoWeeks} weeks (${cost:N0}).";
 		Changed?.Invoke();
 		return true;
@@ -6371,8 +6371,8 @@ public partial class PlayerDesk : Node {
 
 		message = missing == 0
 			? $"Loaded {label.labelName}."
-			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
-		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
+			: $"Loaded {label.labelName} -- {Plural.Of(missing, "roster act")} could not be re-linked.";
+		if (recovered > 0) message += $" Recovered {Plural.Of(recovered, "record")} an older save had dropped.";
 		RestoreScoutingKnowledge(data.ScoutingKnowledge);
         RestoreRenewalDiscussion(data.RenewalDiscussion);
         RestoreContractCommitments(data.ContractCommitments);

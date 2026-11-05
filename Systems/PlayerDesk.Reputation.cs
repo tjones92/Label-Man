@@ -138,7 +138,7 @@ public partial class PlayerDesk {
             if (isBroken) {
                 credit += foundingStory ? FoundingBrokenWordCredit : BrokenWordCredit;
                 stated.Add(foundingStory
-                    ? $"Everybody around {TownName(scene)} knows {other.stageName} were the first name on your label, and that you broke your word to them."
+                    ? $"Everybody around {TownName(scene)} knows {other.stageName} {ActGrammar.Verb(other, "was", "were")} the first name on your label, and that you broke your word to them."
                     : $"{who} knows {other.stageName}'s people. They've heard you broke a promise to them.");
             } else {
                 credit += foundingStory ? FoundingKeptWordCredit : KeptWordCredit;

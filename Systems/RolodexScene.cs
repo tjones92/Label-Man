@@ -147,6 +147,8 @@ public sealed class RolodexCallContext {
 	public float stationAutonomy;
 	public bool managerPressureHigh;
 	public Daypart shift;
+	/// <summary>Standing in his lobby (WAIT FOR HIM) rather than on the phone: picks the lines that fit the room.</summary>
+	public bool inPerson;
 
 	// Servicing facts (directive §3.2): has this station actually been sent a copy of the record
 	// under discussion? Objection.NotServiced and Resolve() both read this -- see PlayerDesk.IsServiced.
@@ -246,12 +248,17 @@ public static class RolodexConditions {
 // --------------------------------------------------------------------------------------------
 
 /// <summary>One authored line, plus the tags that decide when it can be spoken.</summary>
+public enum FragmentMedium { Any, Phone, InPerson }
+
 public sealed class NarrativeFragment {
 	public RolodexSceneBeat beat;
 	public DJArchetype[] archetypes;          // null = any
 	public RapportTier[] tiers;               // null = any
 	public Objection objection = Objection.None;
 	public string[] conditions;               // ALL must hold
+	/// <summary>Phone-only or lobby-only wording ("down the line", "hand over the mouthpiece"). A hard filter that
+	/// does not count toward specificity, so tagging a line never crowds the untagged ones out.</summary>
+	public FragmentMedium medium = FragmentMedium.Any;
 	public int weight = 1;
 	public string text;
 }
@@ -408,8 +415,14 @@ public static class RolodexFragments {
 		// Beats between asks -- the player may still keep him on the line, so these must not assert the
 		// call has ended. The actual hang-up is the player's own button, not an authored line.
 		Add(RolodexSceneBeat.RelationshipAftermath, "He waits, half-listening, to see whether you're done.");
-		Add(RolodexSceneBeat.RelationshipAftermath, "A beat of studio noise down the line while he decides how much of his afternoon you get.");
-		Add(RolodexSceneBeat.RelationshipAftermath, "He says something to somebody in the studio, hand half over the mouthpiece, then comes back to you.");
+		Add(RolodexSceneBeat.RelationshipAftermath, "A beat of studio noise down the line while he decides how much of his afternoon you get.",
+			medium: FragmentMedium.Phone);
+		Add(RolodexSceneBeat.RelationshipAftermath, "He says something to somebody in the studio, hand half over the mouthpiece, then comes back to you.",
+			medium: FragmentMedium.Phone);
+		Add(RolodexSceneBeat.RelationshipAftermath, "The on-air light over the studio door goes off and on again while he decides how much of his afternoon you get.",
+			medium: FragmentMedium.InPerson);
+		Add(RolodexSceneBeat.RelationshipAftermath, "He leans into the studio door, says something to the engineer, then turns back to you.",
+			medium: FragmentMedium.InPerson);
 
 		Add(RolodexSceneBeat.Exit, "\"Call me Thursday,\" he says. \"Not Wednesday. Thursday.\"");
 		Add(RolodexSceneBeat.Exit, "\"And listen -- if it moves, I want to hear it from you first, not from the trades.\"");
@@ -418,10 +431,11 @@ public static class RolodexFragments {
 
 	private static void Add(RolodexSceneBeat beat, string text,
 			DJArchetype[] archetypes = null, RapportTier[] tiers = null,
-			Objection objection = Objection.None, string[] conditions = null, int weight = 1) =>
+			Objection objection = Objection.None, string[] conditions = null, int weight = 1,
+			FragmentMedium medium = FragmentMedium.Any) =>
 		All.Add(new NarrativeFragment {
 			beat = beat, text = text, archetypes = archetypes, tiers = tiers,
-			objection = objection, conditions = conditions, weight = weight,
+			objection = objection, conditions = conditions, weight = weight, medium = medium,
 		});
 
 	/// <summary>Pick a fragment for a beat. Specificity wins: among everything that matches, the
@@ -431,6 +445,7 @@ public static class RolodexFragments {
 		var eligible = All.Where(f =>
 			f.beat == beat
 			&& f.objection == objection
+			&& (f.medium == FragmentMedium.Any || (f.medium == FragmentMedium.InPerson) == c.inPerson)
 			&& (f.archetypes == null || (c.dj != null && f.archetypes.Contains(c.dj.archetype)))
 			&& (f.tiers == null || f.tiers.Contains(c.tier))
 			&& RolodexConditions.MeetsAll(f.conditions, c)).ToList();

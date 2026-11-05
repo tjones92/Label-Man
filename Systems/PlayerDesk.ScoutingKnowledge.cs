@@ -178,9 +178,13 @@ public partial class PlayerDesk {
         var kind = SceneRoomCatalog.Get(last.RoomId)?.Kind;
         string Limit(ScoutingQuestion axis) => kind.HasValue ? SceneRoomCharacter.Masks(kind.Value, axis) : null;
         string Brief(float value, string low, string middle, string high) => value >= .72f ? high : value >= .48f ? middle : low;
+        // One person on stage has no "group" to be uneven as; a singer fronting a band does.
+        var act = ArtistManager.Instance?.GetArtist(artistId);
+        bool alone = act != null && BandLifeService.ConstitutionOf(act) == LineupConstitution.Solo;
         return new[] {
             ("Vocals", read.Vocals.HasValue ? Brief(read.Vocals.Value, "Uncertain singing", "Carried the songs; not always convincing", "Confident and convincing singing") : "No lead vocals heard", Limit(ScoutingQuestion.Vocals)),
-            ("Playing", Brief(read.Execution, "Uneven as a group", "Together, but not always settled", "Assured playing together"), Limit(ScoutingQuestion.Ensemble)),
+            ("Playing", alone ? Brief(read.Execution, "Uneven playing", "Capable, but not always settled", "Assured, sure-handed playing")
+                              : Brief(read.Execution, "Uneven as a group", "Together, but not always settled", "Assured playing together"), Limit(ScoutingQuestion.Ensemble)),
             ("Material", Brief(read.Material, "Songs didn't convince", "Something to offer; hear more songs", "Songs made a strong impression"), Limit(ScoutingQuestion.Material)),
             ("Stage presence", Brief(read.Communication, "Struggled to put the set across", "Put the songs across; presence varied", "Confident presence on stage"), Limit(ScoutingQuestion.Stage))
         };

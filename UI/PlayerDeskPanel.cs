@@ -483,7 +483,7 @@ public partial class PlayerDeskPanel : Control {
 		redInkLabel.Visible = label.cashReserves < 0f;
 		redInkLabel.Text = label.cashReserves < 0f ? $"⚠ IN THE RED {desk.MonthsInTheRed}/3" : string.Empty;
 		redInkLabel.TooltipText = label.cashReserves < 0f
-			? $"Cash is {Money(label.cashReserves)}; the overdraft ceiling is ${-desk.CreditFloor:N0} -- a limit, not money you can borrow. {PlayerDesk.SolvencyRuleText} {desk.MonthsOfGraceLeft} red check(s) remain. Click for the books and CASH OPTIONS: what can bring money in, when, and how sure it is."
+			? $"Cash is {Money(label.cashReserves)}; the overdraft ceiling is ${-desk.CreditFloor:N0} -- a limit, not money you can borrow. {PlayerDesk.SolvencyRuleText} {Plural.Of(desk.MonthsOfGraceLeft, "red check")} {(desk.MonthsOfGraceLeft == 1 ? "remains" : "remain")}. Click for the books and CASH OPTIONS: what can bring money in, when, and how sure it is."
 			: string.Empty;
 
 		Clear(content);
@@ -1530,8 +1530,8 @@ public partial class PlayerDeskPanel : Control {
 		string label = talk.roundsPlayed == 0
 			? $"TABLE OFFER  ({PlayerDesk.NegotiationRoundHours}h)"
 			: $"TABLE AGAIN  ({PlayerDesk.NegotiationRoundHours}h)";
-		Body($"Their ask: ${talk.ask.Advance:N0}, {talk.ask.RoyaltyRate:P1}, {talk.ask.TermYears} year(s), " +
-			$"{talk.ask.SinglesObligation} single(s){(talk.ask.LabelOwnsPublishing ? "" : ", they keep the publishing")}{(talk.ask.ArtistCreativeControl ? ", they hold creative control" : "")}. " +
+		Body($"Their ask: ${talk.ask.Advance:N0}, {talk.ask.RoyaltyRate:P1}, {Plural.Of(talk.ask.TermYears, "year")}, " +
+			$"{Plural.Of(talk.ask.SinglesObligation, "single")}{(talk.ask.LabelOwnsPublishing ? "" : ", they keep the publishing")}{(talk.ask.ArtistCreativeControl ? ", they hold creative control" : "")}. " +
 			$"Each table round costs {PlayerDesk.NegotiationRoundHours} hours.");
 		Body(talk.draftOffer.HasValue ? "The last meeting could not be held; your entered terms are still below." :
 			talk.roundsPlayed == 0 ? "These fields start on your label's standard paper: you keep the publishing and have the final word. Their ask is above; every give you tick is a concession." : "These fields start with your last offer. Change any term before putting it back on the table.");
@@ -2330,7 +2330,7 @@ public partial class PlayerDeskPanel : Control {
 		var creditOwed = desk.PlantCreditOwed;
 		if (creditOwed.HasValue && creditOwed.Value.RecordId == recordId) {
 			var (_, amount, weeksAway) = creditOwed.Value;
-			content.AddChild(FaintLine($"Plant credit outstanding: ${amount:N0} due on \"{title}\" in {weeksAway} week(s) — it collects on schedule whether or not the record's still moving."));
+			content.AddChild(FaintLine($"Plant credit outstanding: ${amount:N0} due on \"{title}\" in {Plural.Of(weeksAway, "week")} — it collects on schedule whether or not the record's still moving."));
 		} else if (!creditOwed.HasValue && desk.PlantCreditEligible(recordId)) {
 			float creditCost = PlayerDesk.PressingCost(PlayerDesk.PlantCreditQuantity, desk.HasBeenPressed(recordId));
 			var creditBtn = Btn($"TAKE THE CREDIT RUN  ({PlayerDesk.PlantCreditHours}h)");
@@ -2897,7 +2897,7 @@ public partial class PlayerDeskPanel : Control {
 				var deal = label.activeDeal;
 				string distName = CompetitorManager.Instance?.GetLabel(deal.distributorId)?.labelName ?? deal.distributorId;
 				int weeksLeft = Mathf.Max(0, deal.signedWeek + deal.termWeeks - (ChartManager.Instance?.GetCurrentChartWeek() ?? 0));
-				Body($"Under contract to {distName} — {deal.marginSkim:P0} skim, {weeksLeft} week(s) left on the term" +
+				Body($"Under contract to {distName} — {deal.marginSkim:P0} skim, {Plural.Of(weeksLeft, "week")} left on the term" +
 					(deal.ownsMasters ? ", masters signed away." : ", masters still yours.") +
 					(deal.unrecoupedAdvance > 0.5f ? $" ${deal.unrecoupedAdvance:N0} of the advance still unrecouped." : ""));
 			} else if (desk.PendingDistributionOffer != null) {
@@ -2944,7 +2944,7 @@ public partial class PlayerDeskPanel : Control {
 				var text = new Label {
 					SizeFlagsHorizontal = SizeFlags.ExpandFill,
 					AutowrapMode = TextServer.AutowrapMode.WordSmart,
-					Text = $"{region.regionName}  —  {houses} house(s) with room  —  " +
+					Text = $"{region.regionName}  —  {Plural.Of(houses, "house")} with room  —  " +
 						(proven ? "they've heard of you here" : "no proof here yet — a cold pitch")
 				};
 				text.AddThemeColorOverride("font_color", proven ? Ink : Rust);
@@ -3180,11 +3180,11 @@ public partial class PlayerDeskPanel : Control {
 
 			// The headline is what the station is ACTUALLY doing, not what you bought.
 			string status = isFlip
-				? (a.expired ? "That window's closed -- he never turned it over." : $"He's listening for it ({weeksLeft} more week(s))")
+				? (a.expired ? "That window's closed -- he never turned it over." : $"He's listening for it ({Plural.Of(weeksLeft, "more week")})")
 				: tier != SpinTier.None
 					? $"ON THE AIR — {PlayerDesk.TierWord(tier)} rotation"
 					: a.expired ? "Not picked up. His argument has run out."
-					: $"Not on yet — he's still arguing for it ({weeksLeft} more meeting(s))";
+					: $"Not on yet — he's still arguing for it ({Plural.Of(weeksLeft, "more meeting")})";
 			var head = new Label { Text = $"  {title} — {status}", AutowrapMode = TextServer.AutowrapMode.WordSmart };
 			head.AddThemeColorOverride("font_color",
 				tier != SpinTier.None ? new Color("4a7a4a") : a.expired ? Rust : Heard);
@@ -3442,11 +3442,11 @@ public partial class PlayerDeskPanel : Control {
 		int known = desk.Rolodex.Count;
 		int total = allReporters.Count;
 		if (known >= total) {
-			Body($"You have leads on all {total} reporter station(s) in your region. Branch out to other markets to grow the book.");
+			Body($"You have leads on all {Plural.Of(total, "reporter station")} in your region. Branch out to other markets to grow the book.");
 			return;
 		}
 		Heading("WORK THE PHONES");
-		Body($"Your region: {known} of {total} reporter station(s) in your book. Cold-calling gets you a " +
+		Body($"Your region: {known} of {Plural.Of(total, "reporter station")} in your book. Cold-calling gets you a " +
 			"name more often than it gets you a man, and it gets you nothing at all more often than either.");
 		int attempts = desk.CallAttemptsToday;
 		if (attempts >= 2) {
@@ -3914,7 +3914,7 @@ public partial class PlayerDeskPanel : Control {
 		foreach (var master in acetates) {
 			string id = master.Record.recordId;
 			var held = desk.AdvanceOrdersFor(id);
-			Body($"\"{master.SongTitle}\": {(held.Accounts == 0 ? "no orders held yet" : $"{held.Copies:N0} copies held across {held.Accounts} account(s), about {Money(held.CodValue)} COD on delivery")}.");
+			Body($"\"{master.SongTitle}\": {(held.Accounts == 0 ? "no orders held yet" : $"{held.Copies:N0} copies held across {Plural.Of(held.Accounts, "account")}, about {Money(held.CodValue)} COD on delivery")}.");
 			var actions = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 			actions.AddThemeConstantOverride("h_separation", 8);
 			actions.AddThemeConstantOverride("v_separation", 6);

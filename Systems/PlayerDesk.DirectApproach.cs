@@ -53,8 +53,8 @@ public partial class PlayerDesk {
             UntilDay = considers ? today + DirectApproachAnswerDays : (season + 1) * DirectApproachSeasonDays };
         Approaches.Add(record);
         message = considers
-            ? $"{artist.stageName} aren't looking for a record deal, but they'll think over an offer from a label that came to hear them. Their side will answer by {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}."
-            : $"{artist.stageName} want to keep playing locally this season. You can ask again after {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}.";
+            ? $"{artist.stageName} {ActGrammar.Verb(artist, "isn't", "aren't")} looking for a record deal, but they'll think over an offer from a label that came to hear them. Their side will answer by {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}."
+            : $"{artist.stageName} {ActGrammar.Verb(artist, "wants", "want")} to keep playing locally this season. You can ask again after {LocalSceneRoomService.Date(record.UntilDay).ToHeadlineString()}.";
         Note(message); Changed?.Invoke();
         return true;
     }
@@ -76,7 +76,7 @@ public partial class PlayerDesk {
             var artist = ArtistManager.Instance?.GetArtist(a.ArtistId);
             if (artist == null || !string.IsNullOrEmpty(artist.labelId) || artist.lifecycleStatus != ArtistLifecycleStatus.Active) {
                 a.Status = ScoutingApproachStatus.Lapsed;
-                Note($"{a.ArtistName} are no longer in a position to take your offer.");
+                Note($"{a.ArtistName} {ActGrammar.Verb(artist, "is", "are")} no longer in a position to take your offer.");
             } else if (ArtistManager.Instance.IsEligibleForPopulationSigning(artist, week)) {
                 a.Status = ScoutingApproachStatus.Ready;
                 Note($"{a.ArtistName}'s side: they'll hear an offer from you now. Other labels can hear of it too.");

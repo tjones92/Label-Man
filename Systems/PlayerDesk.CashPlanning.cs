@@ -175,7 +175,7 @@ public partial class PlayerDesk {
 		if (plan.HasIncome)
 			line += $" Already working for you: {string.Join(", ", new[] {
 				plan.SellableStock > 0 ? $"{plan.SellableStock:N0} copies on hand" : null,
-				plan.PressingsInFlight > 0 ? $"{plan.PressingsInFlight} run(s) at the plant" : null,
+				plan.PressingsInFlight > 0 ? $"{Plural.Of(plan.PressingsInFlight, "run")} at the plant" : null,
 				plan.Receivables > 0.5f ? $"${plan.Receivables:N0} owed to you" : null }.Where(s => s != null))}.";
 		return line;
 	}
@@ -236,7 +236,7 @@ public partial class PlayerDesk {
 			int asked = group.Sum(c => c.RequestedQty);
 			var expires = AddDays(today, Math.Max(0, group.Min(c => c.ExpiresWeek) - week) * 7);
 			bool stocked = onHand > 0 && !IsMasterOut(group.Key);
-			list.Add(new("Deliver called-in orders", $"Deliver \"{TitleForRecord(group.Key)}\"", $"{group.Count()} account(s) asked for {asked:N0}",
+			list.Add(new("Deliver called-in orders", $"Deliver \"{TitleForRecord(group.Key)}\"", $"{Plural.Of(group.Count(), "account")} asked for {asked:N0}",
 				0f, Math.Min(asked, onHand) * DealerPrice, today, CashCertainty.Accepted, stocked,
 				stocked ? $"Dealers asked; COD or consignment on delivery. Calls lapse around {expires.ToShortString()}."
 					: onHand <= 0 ? "Nothing pressed on hand to deliver." : "The master is out."));
@@ -248,7 +248,7 @@ public partial class PlayerDesk {
 			int onHand = StockFor(id)?.Remaining ?? 0;
 			if (onHand <= 0 || IsMasterOut(id)) continue;
 			int accounts = StopsInCity(CurrentCityId ?? home).Count(s => s.Kind is StopKind.Shop or StopKind.Op && s.LastApproachDate != today && !s.PassedRecordIds.Contains(id));
-			list.Add(new("Sell stock on hand", $"Pitch \"{TitleForRecord(id)}\" at the counters", $"{onHand:N0} copies on hand, {accounts} account(s) here not yet tried today",
+			list.Add(new("Sell stock on hand", $"Pitch \"{TitleForRecord(id)}\" at the counters", $"{onHand:N0} copies on hand, {Plural.Of(accounts, "account")} here not yet tried today",
 				0f, 0f, today, CashCertainty.Speculative, accounts > 0, accounts > 0 ? "A buyer can take a handful or pass; nothing is promised." : "Every account here has been worked today or passed."));
 		}
 
@@ -286,7 +286,7 @@ public partial class PlayerDesk {
 		foreach (var n in BookedNightsAhead()) {
 			if (n.Estimate <= 0f) continue;
 			var next = LocalSceneRoomService.Date(n.FirstDay + 1);
-			list.Add(new("Booked engagements", $"{n.Act.stageName} at {n.Room.Name}: {n.Nights} night(s)", $"first {LocalSceneRoomService.Date(n.FirstDay).ToShortString()}",
+			list.Add(new("Booked engagements", $"{n.Act.stageName} at {n.Room.Name}: {Plural.Of(n.Nights, "night")}", $"first {LocalSceneRoomService.Date(n.FirstDay).ToShortString()}",
 				0f, n.Estimate, next, CashCertainty.Accepted, !TooLate(next),
 				$"About ${n.Estimate:N0} in all: {LocalSceneRoomService.BookingCommissionRate:P0} of the act's fee for each night played, paid the morning after. The door sets the fee; a night can fall through." + Late(next)));
 		}

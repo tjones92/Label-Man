@@ -218,7 +218,7 @@ public partial class PlayerDeskPanel {
 		if (booking != null && (booking.WeeksRemaining > 0 || booking.TimeOffUntilWeek >= 0))
 			notes.Add($"This year: {booking.ResidencyWeeks} weeks' residency, {booking.TourWeeks} on the road, {booking.WeeksRemaining} still to play" +
 				(booking.TimeOffUntilWeek >= (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) ? " — on a break right now." : "."));
-		if (desk.CutInSongsLeft(act.artistId) > 0) notes.Add($"The label is cut in on the next {desk.CutInSongsLeft(act.artistId)} original(s).");
+		if (desk.CutInSongsLeft(act.artistId) > 0) notes.Add($"The label is cut in on the next {Plural.Of(desk.CutInSongsLeft(act.artistId), "original")}.");
 		string promised = desk.PromisedCreditFor(act.artistId);
 		if (promised != null) notes.Add($"You promised {act.members.FirstOrDefault(m => m.personId == promised)?.firstName ?? "someone"} a song on the next record.");
 		PlayerDesk.SessionPlayerBooking sp = desk.SessionPlayerFor(act.artistId);

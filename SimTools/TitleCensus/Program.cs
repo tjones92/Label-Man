@@ -60,12 +60,14 @@ public static class Program {
 		Genre PickGenre() { double r = popRng.NextDouble() * wsum; foreach (var x in mix) if ((r -= x.w) < 0) return x.g; return mix[^1].g; }
 
 		// ---- songs: ~5 per act, a decade of years
+		// --catalog draws through CatalogTitle (the pre-game standards a player browses in TEACH A COVER), 1959.
+		bool catalog = args.Contains("--catalog");
 		var songs = new List<(Genre g, int year, string t)>();
 		var t0 = DateTime.UtcNow;
 		for (int i = 0; i < nSongs; i++) {
 			var g = PickGenre();
-			int year = 1960 + i * 10 / Math.Max(1, nSongs);
-			songs.Add((g, year, titles.SongTitle(g, year, "act" + (i / 5), titleRng)));
+			int year = catalog ? 1959 : 1960 + i * 10 / Math.Max(1, nSongs);
+			songs.Add((g, year, catalog ? titles.CatalogTitle(g, year, titleRng) : titles.SongTitle(g, year, "act" + (i / 5), titleRng)));
 		}
 		// ---- albums: a real act name, its lead single, the album title
 		var albums = new List<(Genre g, string act, string single, string t)>();
@@ -102,6 +104,16 @@ public static class Program {
 		  + $"act/single in a frame {Pct(framed.Count, nAlbums)} ({framed.Select(x => Norm(Generic(x.t, x.act, x.single))).Distinct().Count()} frames), "
 		  + $"free {Pct(free.Count, nAlbums)} ({free.Select(x => Norm(x.t)).Distinct().Count()} distinct = {Pct(free.Select(x => Norm(x.t)).Distinct().Count(), free.Count)}); "
 		  + $"literal titles distinct {Pct(albums.Select(x => Norm(x.t)).Distinct().Count(), nAlbums)}");
+
+		// ---- word overuse: share of a genre's titles containing each content word. A browsable list
+		// (the cover catalogue) reads as repetitive long before exact titles repeat ("Altar" x3 in ten rows).
+		P(); P("== most-used content words per genre (% of that genre's song titles)");
+		foreach (var gr in songs.GroupBy(s => s.g).OrderByDescending(gr => gr.Count())) {
+			int n = gr.Count();
+			var top = gr.SelectMany(s => Regex.Matches(s.t, @"[A-Za-z']+").Select(m => m.Value.ToLowerInvariant()).Where(w => w.Length > 3 && !StopWords.Contains(w)).Distinct())
+				.GroupBy(w => w).Select(wg => (w: wg.Key, c: wg.Count())).OrderByDescending(x => x.c).Take(6);
+			P($"{gr.Key,-18} n={n,-5} " + string.Join("  ", top.Select(x => $"{x.w} {100.0 * x.c / n:F1}%")));
+		}
 
 		// ---- shape vs history
 		var hist = LoadHist(histPath);
@@ -165,6 +177,14 @@ public static class Program {
 			File.WriteAllLines(Path.Combine(dumpDir, $"title-census-songs-{seed}.tsv"), songs.Select(s => $"{s.g}\t{s.year}\t{s.t}"));
 			File.WriteAllLines(Path.Combine(dumpDir, $"title-census-albums-{seed}.tsv"), albums.Select(x => $"{x.g}\t{x.act}\t{x.single}\t{x.t}"));
 		}
+		if (args.Contains("--native")) {
+			// CompositionCatalogService.GenerateNativeRepertoire titles: KeyedSongTitle, one fresh rng per song id.
+			P(); P("== native repertoire (keyed titles, 1959)");
+			foreach (var g in new[] { Genre.Folk, Genre.Classical, Genre.Comedy, Genre.Childrens, Genre.LatinPop, Genre.TexMex,
+					Genre.BossaNova, Genre.ContemporaryFolk, Genre.SurfRock, Genre.EasyListening })
+				P($"{g,-18} " + string.Join(" | ", Enumerable.Range(0, 10).Select(i =>
+					titles.KeyedSongTitle(g, 1959, new DeterministicRandom(seed * 7919UL + (ulong)(g.GetHashCode() * 131 + i))) ?? "(null)")));
+		}
 		if (samples) {
 			P(); P("== samples");
 			foreach (var gr in songs.GroupBy(s => s.g).OrderByDescending(gr => gr.Count()))
@@ -223,6 +243,10 @@ public static class Program {
 		return r;
 	}
 
+	static readonly HashSet<string> StopWords = new() {
+		"that", "this", "with", "your", "from", "when", "what", "where", "there", "they", "them", "been", "were",
+		"will", "just", "into", "over", "like", "than", "then", "have", "don't", "can't", "it's", "i'll", "i'm", "you're",
+		"ain't", "won't", "baby", "love" };
 	static string Norm(string s) => Regex.Replace((s ?? "").ToLowerInvariant(), @"[^a-z0-9 ]", "").Trim();
 	static string Pct(int n, int d) => d == 0 ? "-" : $"{100.0 * n / d:F1}%";
 

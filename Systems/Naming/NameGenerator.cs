@@ -214,6 +214,9 @@ public partial class NameGenerator : Node {
 		return _titles.KeyedSongTitle(genre, year, rng);
 	}
 
+	/// <summary>True for a real hit title in reserved.json's song list (the generator must never mint one).</summary>
+	public bool IsReservedSongTitle(string title) => _acts != null && _acts.IsReservedSong(title);
+
 	/// <summary>
 	/// A song title for a pre-game catalog composition (legacy standard / recent-hit cover). Same
 	/// engine and routing as <see cref="GenerateSongTitle"/>, but drawn from the dedicated catalog
