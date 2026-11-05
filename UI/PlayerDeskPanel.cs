@@ -14,7 +14,7 @@ using Godot;
 /// single "put a record out" loop doesn't ping-pong across four tabs.
 /// </summary>
 public partial class PlayerDeskPanel : Control {
-	private Label titleLabel, stockLabel, statusLabel;
+	private Label titleLabel, statusLabel;
 	private RichTextLabel clockLabel;   // BBCode: the whole block is bold and the cash figure carries its own colour
 	private LabelCrest titleCrest;
 	private Button redInkLabel;
@@ -27,6 +27,7 @@ public partial class PlayerDeskPanel : Control {
 	private Label feedbackToastText, feedbackToastBadge;
 	private WallClock deskClock;
 	private TimeCard timeCard;
+	private Control pageStain;   // the coffee ring overlay on the scrolled page
 	private PanelContainer feedbackToast;
 	private Timer feedbackToastTimer;
 	private HBoxContainer tabs, idleRow;
@@ -203,10 +204,15 @@ public partial class PlayerDeskPanel : Control {
 		clockLabel.AddThemeFontSizeOverride("normal_font_size", 17);
 		clockLabel.AddThemeFontSizeOverride("bold_font_size", 17);
 		clockLabel.AddThemeColorOverride("default_color", Ink);
-		root.AddChild(clockLabel);
-		stockLabel = new Label { ClipText = true, CustomMinimumSize = new Vector2(0, 22) };
-		stockLabel.AddThemeColorOverride("font_color", HeaderFade);
-		root.AddChild(stockLabel);
+		clockLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		clockLabel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		clockLabel.ClipContents = true;
+		// Playtest 2026-11-04: the header was ~270px. It is now three rows -- the title with the clock, one line of date,
+		// place, cash and acts with the wait buttons beside it, and NEXT UP. Stock moved to the Catalog tab.
+		var alertRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 34) };
+		alertRow.AddThemeConstantOverride("separation", 12);
+		root.AddChild(alertRow);
+		alertRow.AddChild(clockLabel);
 		nextUpLabel = Btn("");
 		nextUpLabel.CustomMinimumSize = new Vector2(0, 30);
 		nextUpLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -221,13 +227,6 @@ public partial class PlayerDeskPanel : Control {
 		});
 		nextUpLabel.AddThemeColorOverride("font_color", Ink);
 		nextUpLabel.Pressed += OpenNextUp;
-		root.AddChild(nextUpLabel);
-
-		// One fixed-height row for the last action's result and the ways to pass time: the red-ink chip (only in the
-		// red), the result, then the wait buttons on the right. It used to be two rows; the header was ~270px.
-		var alertRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 34) };
-		alertRow.AddThemeConstantOverride("separation", 12);
-		root.AddChild(alertRow);
 		redInkLabel = new Button { Flat = true, Visible = false, FocusMode = FocusModeEnum.None, MouseDefaultCursorShape = CursorShape.PointingHand };
 		redInkLabel.AddThemeColorOverride("font_color", Rust);
 		redInkLabel.AddThemeColorOverride("font_hover_color", Colors.Black);
@@ -236,12 +235,9 @@ public partial class PlayerDeskPanel : Control {
 		redInkLabel.Pressed += () => GoToTab(4, PageFinances);
 		alertRow.AddChild(redInkLabel);
 
-		// Action feedback stays on one line. The tooltip retains the full message when it is longer
-		// than the header can show.
-		statusLabel = new Label { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			CustomMinimumSize = new Vector2(0, 24), VerticalAlignment = VerticalAlignment.Center, MouseFilter = MouseFilterEnum.Stop };
-		statusLabel.AddThemeFontSizeOverride("font_size", 16);
-		statusLabel.AddThemeColorOverride("font_color", Rust);
+		// The last action's result is said once, on the pop-up slip; this line only keeps it for code that reads it back
+		// (playtest 2026-11-04: the green header line repeated every slip word for word). It is never shown.
+		statusLabel = new Label { Visible = false };
 		alertRow.AddChild(statusLabel);
 
 		// Passing time without working, so you can wait out the clock -- the clubs don't open till evening
@@ -271,25 +267,42 @@ public partial class PlayerDeskPanel : Control {
 		skip.Pressed += () => UIManager.Instance?.OpenCalendarSkipOptionsFromDesk();
 		idleRow.AddChild(skip);
 		alertRow.AddChild(idleRow);
+		root.AddChild(nextUpLabel);
 
 		tabs = new HBoxContainer();
 		tabs.AddThemeConstantOverride("separation", -2);   // trapezoid tabs meet at the foot and open out at the shoulders
 		root.AddChild(tabs);
 
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(Paper, 26, 22, 6).Decorated(clip: true, ring: true, seed: 8));
+		// The coffee ring is not part of the frame: it is drawn on the scrolled page below, so it moves with the paper.
+		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(Paper, 26, 22, 6).Decorated(clip: true, ring: false, seed: 8));
 		root.AddChild(paper);
 
 		contentScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
 		paper.AddChild(contentScroll);
 		// A right gutter keeps full-width buttons from running under the scrollbar.
-		var contentGutter = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var contentGutter = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
 		contentGutter.AddThemeConstantOverride("margin_right", 14);
 		contentScroll.AddChild(contentGutter);
 		content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		content.AddThemeConstantOverride("separation", 10);
 		contentGutter.AddChild(content);
 		contentRoot = content;
+		// A mug was set down on some of the department's pages (not all), each in its own place. The ring is on the
+		// scrolled page, over whatever paper is there, so it moves with the page; it never takes the mouse.
+		var stain = pageStain = new Control { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
+		stain.Draw += () => {
+			int tab = Mathf.Max(0, currentTab);
+			if (tab % 3 == 1) return;
+			float half = CoffeeStain.Size / 2f;
+			float y = Mathf.Min(240f + (tab * 97) % 380, stain.Size.Y - half + 30f);
+			if (y < half) return;   // a page too short to have been under a mug
+			bool right = (tab * 7) % 2 == 0;
+			float x = right ? stain.Size.X - half - 10f - (tab * 23) % 60 : half + 10f + (tab * 41) % 80;
+			CoffeeStain.Draw(stain.GetCanvasItem(), new Vector2(x, y), 8 + tab * 13);
+		};
+		stain.Resized += stain.QueueRedraw;
+		contentGutter.AddChild(stain);
 
 		feedbackToast = new PanelContainer {
 			Name = "ActionFeedbackToast", Visible = false, ZIndex = 25,
@@ -405,7 +418,7 @@ public partial class PlayerDeskPanel : Control {
 		// Founding, save/load and game-over have no stock, next step or red-ink state; an empty bordered
 		// NEXT UP bar over the founding form read as a broken input.
 		bool inGame = desk.HasLabel && !desk.IsGameOver && !browsingSaves;
-		stockLabel.Visible = nextUpLabel.Visible = inGame;
+		nextUpLabel.Visible = inGame;
 		if (!inGame) redInkLabel.Visible = false;
 		deskClock.Visible = timeCard.Visible = false;   // the in-game desk shows them again below
 
@@ -444,7 +457,7 @@ public partial class PlayerDeskPanel : Control {
 			return;
 		}
 		if (studioMode) {
-			tabs.Hide(); idleRow.Hide(); stockLabel.Hide(); nextUpLabel.Hide(); redInkLabel.Hide();
+			tabs.Hide(); idleRow.Hide(); nextUpLabel.Hide(); redInkLabel.Hide();
 			titleLabel.Text = "THE STUDIO";
 			clockLabel.Text = $"{time?.CurrentDate.ToHeadlineString()}  •  {time?.GetTimeString()}  •  {CashMarkup(desk.Label.cashReserves)} cash";
 			Clear(content); RenderStudioWindow(desk); return;
@@ -485,16 +498,34 @@ public partial class PlayerDeskPanel : Control {
 				overtime ? $"{time.OvertimeRemainingText} O.T. left" : $"{time.RegularTimeRemainingText} left");
 		}
 		deskClock.Visible = timeCard.Visible = time != null;
+		// One line: date and time, where, cash, acts. The full place and towns worked are on the hover.
+		string place = desk.AtHome ? $"{(string.IsNullOrEmpty(label.headquartersCity) ? region : label.headquartersCity)} office" : $"on the road, {desk.CurrentCity?.name ?? "town"}";
 		clockLabel.Text =
-			$"{time?.CurrentDate.ToLongString()}  •  {time?.GetTimeString()}" + (overtime ? "  •  on overtime" : "") + "\n" +
-			$"{where}  |  {CashMarkup(label.cashReserves)} cash  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts  |  " +
-			$"{desk.WorkedCities.Count()} {CountWord(desk.WorkedCities.Count(), "town")} worked";
+			$"{time?.CurrentDate.DayName[..3]} {time?.CurrentDate.ToHeadlineString()}  {time?.GetTimeString()}" + (overtime ? " (overtime)" : "") +
+			$"  |  {place}  |  {CashMarkup(label.cashReserves)}  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts";
 		deskClock.TooltipText = timeCard.TooltipText = time == null ? string.Empty
 			: $"{time.GetTimeString()}. {time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime}. " +
 			  "There is no overtime surcharge. Each action must finish by the hard stop.";
 		clockLabel.TooltipText = time == null ? string.Empty
-			: $"{time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime} ({time.GetDayStatus()}). " +
+			: $"{time.CurrentDate.ToLongString()}, {where}. {Plural.Of(desk.WorkedCities.Count(), "town")} worked.\n" +
+			  $"{time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime} ({time.GetDayStatus()}). " +
 			  $"Overtime can carry jobs to the {time.HardStopTime} hard stop. There is no overtime surcharge. Each action must finish by the hard stop.";
+		// A running tab is survivable, but the bank is watching. Spell out the credit line and the clock on it.
+		redInkLabel.Visible = label.cashReserves < 0f;
+		redInkLabel.Text = label.cashReserves < 0f ? $"⚠ IN THE RED {desk.MonthsInTheRed}/3" : string.Empty;
+		redInkLabel.TooltipText = label.cashReserves < 0f
+			? $"Cash is {Money(label.cashReserves)}; the overdraft ceiling is ${-desk.CreditFloor:N0} -- a limit, not money you can borrow. {PlayerDesk.SolvencyRuleText} {Plural.Of(desk.MonthsOfGraceLeft, "red check")} {(desk.MonthsOfGraceLeft == 1 ? "remains" : "remain")}. Click for the books and CASH OPTIONS: what can bring money in, when, and how sure it is."
+			: string.Empty;
+
+		Clear(content);
+		(currentPage ?? PageAandR)();
+		pageStain?.QueueRedraw();   // the page's coffee ring belongs to the open tab
+		UpdateTabBadges(desk);
+	}
+
+	/// <summary>What is on the shelf, record by record, for the top of the Catalog tab (it used to be a header row on
+	/// every tab). Low and sold-out records are flagged in rust.</summary>
+	private void StockLine(PlayerDesk desk) {
 		var stockNotes = desk.ReleasedRecords
 			.Where(record => record?.baseRecord != null)
 			.Select(record => {
@@ -512,21 +543,14 @@ public partial class PlayerDeskPanel : Control {
 				return note;
 			})
 			.Where(note => !string.IsNullOrEmpty(note)).ToList();
-		stockLabel.Text = stockNotes.Count == 0 ? "STOCK  •  no released records on hand" : "STOCK  •  " + string.Join("   |   ", stockNotes);
 		// Before the first pressing there is no stock to report; the line arrives with the records.
-		stockLabel.Visible = inGame && stockNotes.Count > 0;
-		stockLabel.TooltipText = stockLabel.Text;
-		stockLabel.AddThemeColorOverride("font_color", stockNotes.Any(note => note.Contains("LOW", StringComparison.Ordinal) || note.Contains("SOLD OUT", StringComparison.Ordinal)) ? Rust : HeaderFade);
-		// A running tab is survivable, but the bank is watching. Spell out the credit line and the clock on it.
-		redInkLabel.Visible = label.cashReserves < 0f;
-		redInkLabel.Text = label.cashReserves < 0f ? $"⚠ IN THE RED {desk.MonthsInTheRed}/3" : string.Empty;
-		redInkLabel.TooltipText = label.cashReserves < 0f
-			? $"Cash is {Money(label.cashReserves)}; the overdraft ceiling is ${-desk.CreditFloor:N0} -- a limit, not money you can borrow. {PlayerDesk.SolvencyRuleText} {Plural.Of(desk.MonthsOfGraceLeft, "red check")} {(desk.MonthsOfGraceLeft == 1 ? "remains" : "remain")}. Click for the books and CASH OPTIONS: what can bring money in, when, and how sure it is."
-			: string.Empty;
-
-		Clear(content);
-		(currentPage ?? PageAandR)();
-		UpdateTabBadges(desk);
+		if (stockNotes.Count == 0) return;
+		bool short_ = stockNotes.Any(note => note.Contains("LOW", StringComparison.Ordinal) || note.Contains("SOLD OUT", StringComparison.Ordinal));
+		var line = new Label { Text = "ON THE SHELF  •  " + string.Join("   |   ", stockNotes), AutowrapMode = TextServer.AutowrapMode.WordSmart,
+			SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		line.AddThemeFontSizeOverride("font_size", 15);
+		line.AddThemeColorOverride("font_color", short_ ? Rust : HeaderFade);
+		content.AddChild(line);
 	}
 
 	/// <summary>An hour as a time card prints it: "9:00", "6:00", no AM/PM.</summary>
@@ -1313,10 +1337,12 @@ public partial class PlayerDeskPanel : Control {
 				$"{(potential != null ? "\n    " + potential : "")}{status}");
 			var actions = new HBoxContainer();
 			actions.AddThemeConstantOverride("separation", 10);
-			var revisit = Btn("BRING BACK TO THE PAD");
-			revisit.Disabled = signedElsewhere || signedByYou;
-			revisit.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.RevisitNotebookAct(artist.artistId, out string message); Say(message, ok); return ok; });
-			actions.AddChild(revisit);
+			// A signed act can't be brought back, so the button is left off rather than greyed (playtest 2026-11-04).
+			if (!signedElsewhere) {
+				var revisit = Btn("BRING BACK TO THE PAD");
+				revisit.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.RevisitNotebookAct(artist.artistId, out string message); Say(message, ok); return ok; });
+				actions.AddChild(revisit);
+			}
 			if (!signedElsewhere && !signedByYou) {
 				// Time instead of cash: shake on it and a rival cannot sign them for a week.
 				bool canHold = desk.CanHoldWithHandshake(entry, out string holdWhy);
@@ -1358,6 +1384,7 @@ public partial class PlayerDeskPanel : Control {
         approach.Disabled = !askFirst && (!PlayerDesk.SceneDealAvailable(prospect) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId)));
         approach.TooltipText = askFirst ? "They aren't looking for a record deal. Their side may think it over and answer within about a week, or say no for this season. No money or time spent."
             : PlayerDesk.SceneDealDescription(prospect);
+        GreyWhy(approach, PlayerDesk.SceneDealAvailable(prospect) ? "Hear them play first: terms are talked over once you have something to go on." : "They aren't ready to talk terms.");
         approach.Pressed += () => { beforeConversationAction?.Invoke(); bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
         row.AddChild(approach); content.AddChild(row);
     }
@@ -1924,7 +1951,7 @@ public partial class PlayerDeskPanel : Control {
 		} else if (desk.IsCommissioning(artist.artistId)) {
 			var pending = Btn("WRITER AT WORK…");
 			pending.CustomMinimumSize = new Vector2(240, 40);
-			pending.Disabled = true;
+			pending.Disabled = true; pending.TooltipText = "A writer is working on a song for them; it arrives on the roster when it is finished.";
 			actions.AddChild(pending);
 		} else {
 			var commission = Btn($"COMMISSION A SONG (${PlayerDesk.CommissionFee:N0})");
@@ -2094,6 +2121,7 @@ public partial class PlayerDeskPanel : Control {
 		dialog.AddButton("SET THIS ASIDE", () => Choose("shelve"));
 		var own = dialog.AddButton("USE THEIR OWN MATERIAL", () => Choose("own"));
 		own.Disabled = !checks.Any(c => c.Choice.Kind == PlayerDesk.MaterialKind.Original);
+		GreyWhy(own, "They have no songs of their own ready to record.");
 		var insist = dialog.AddButton(artist.artistCreativeControl ? "THEIR CALL — CAN'T INSIST" : "INSIST — BOOK THE ROOM", () => {
 			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true, brief: brief, roomId: roomId, engineerId: engineerId, backingSingers: backingSingers, options: options);
 			Say(message, ok); Refresh();
@@ -2152,6 +2180,7 @@ public partial class PlayerDeskPanel : Control {
 
 	private void PageCatalog() {
 		PlayerDesk desk = PlayerDesk.Instance;
+		StockLine(desk);
 		PipelineBoard(desk);
 		MarketBoard(desk);
 	}
@@ -2946,7 +2975,7 @@ public partial class PlayerDeskPanel : Control {
 				bool ready = CompetitorManager.Instance?.PlayerDealReadiness(label, out notYet) ?? false;
 				var pitchBtn = Btn($"PITCH FOR A DEAL ({PlayerDesk.SignHours}h)");
 				pitchBtn.CustomMinimumSize = new Vector2(220, 40);
-				pitchBtn.Disabled = !ready;
+				pitchBtn.Disabled = !ready; GreyWhy(pitchBtn, notYet ?? "Not ready for a distribution deal yet.");
 				pitchBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PursueDistributionDeal(out string message); Say(message, ok); return ok; });
 				content.AddChild(pitchBtn);
 				if (!ready && !string.IsNullOrEmpty(notYet)) content.AddChild(FaintLine(notYet));
@@ -3703,10 +3732,12 @@ public partial class PlayerDeskPanel : Control {
 		everyone.AddThemeConstantOverride("v_separation", 6);
 		var all = Btn($"PUT ALL {eligible.Count} ON HIS ROUTE");
 		all.Disabled = onRoute == eligible.Count;
+		GreyWhy(all, "Every account he can work is already on his route.");
 		all.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.SetRunnerRoute(eligible.Select(s => s.StopId), true, out string message); Say(message, ok); return ok; });
 		everyone.AddChild(all);
 		var none = Btn("CLEAR HIS ROUTE");
 		none.Disabled = onRoute == 0;
+		GreyWhy(none, "His route is already empty.");
 		none.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.SetRunnerRoute(eligible.Select(s => s.StopId), false, out string message); Say(message, ok); return ok; });
 		everyone.AddChild(none);
 		content.AddChild(everyone);
@@ -3721,10 +3752,12 @@ public partial class PlayerDeskPanel : Control {
 			head.AddChild(townLabel);
 			var townAll = Btn("ALL");
 			townAll.Disabled = townOn == stops.Count;
+			GreyWhy(townAll, "Every account in this town is already on his route.");
 			townAll.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.SetRunnerRoute(stops.Select(s => s.StopId), true, out string message); Say(message, ok); return ok; });
 			head.AddChild(townAll);
 			var townNone = Btn("NONE");
 			townNone.Disabled = townOn == 0;
+			GreyWhy(townNone, "None of this town is on his route.");
 			townNone.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.SetRunnerRoute(stops.Select(s => s.StopId), false, out string message); Say(message, ok); return ok; });
 			head.AddChild(townNone);
 			content.AddChild(head);
@@ -4026,7 +4059,7 @@ public partial class PlayerDeskPanel : Control {
 				var play = Btn($"{stop.DisplayName}{(holding ? " — holding" : passed ? " — passed" : worked ? " — tomorrow" : $" ({PlayerDesk.StopVisitEstimate(stop.Kind)})")}");
 				play.Disabled = passed || holding || worked;
 				play.TooltipText = passed ? "He heard it and passed; that stands until it catches on somewhere."
-					: holding ? "Already holding copies for the pressing." : "Play the acetate and ask him to hold copies.";
+					: holding ? "Already holding copies for the pressing." : worked ? "You've worked this counter today. Come back tomorrow." : "Play the acetate and ask him to hold copies.";
 				play.Pressed += () => Act(() => {
 					bool ok = PlayerDesk.Instance.PitchAcetateAtStop(stop.StopId, id, out string message);
 					Say(message, ok);
@@ -4136,6 +4169,7 @@ public partial class PlayerDeskPanel : Control {
 		var payOff = Btn($"PAY HIM ${Mathf.Min(owedNow, Mathf.Max(0f, desk.Label.cashReserves)):N2}");
 		payOff.Disabled = desk.Label.cashReserves <= 0f;
 		payOff.TooltipText = "Interest first, then anything overdue, then principal ahead of schedule. Never more than you owe or have.";
+		GreyWhy(payOff, "You have no cash to pay him with.");
 		payOff.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.RepayBacker(owedNow, out string m); Say(m, ok); return ok; });
 		content.AddChild(payOff);
 	}
@@ -4583,6 +4617,14 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	private static OptionButton Option() => new OptionButton();
+
+	/// <summary>A greyed-out button says why (playtest 2026-11-04: SERVICE was grey on every row with no reason). When
+	/// <paramref name="button"/> is disabled, <paramref name="reason"/> leads its tooltip; an enabled button is untouched.</summary>
+	private static void GreyWhy(BaseButton button, string reason) {
+		if (button == null || !button.Disabled || string.IsNullOrEmpty(reason)) return;
+		if (button.TooltipText?.StartsWith(reason, StringComparison.Ordinal) == true) return;
+		button.TooltipText = string.IsNullOrEmpty(button.TooltipText) ? reason : reason + "\n" + button.TooltipText;
+	}
 
 	private static ImageTexture noArrows;
 

@@ -312,6 +312,7 @@ public partial class PlayerDeskPanel {
                 hear.Disabled = next.Playing && desk.Label.cashReserves < next.Admission;
                 hear.TooltipText = "Follow this announced appearance. Waiting advances ordinary expenses and decisions; it does not listen, charge admission or reserve the act. Availability is checked again when you act.";
                 ScoutingTimeRisk(desk, hear, next.Day, next.Playing ? next.EndMinute : next.StartMinute);
+                GreyWhy(hear, "Not enough cash for the admission.");
                 hear.Pressed += () => Act(() => {
                     string result;
                     bool ok = next.Playing ? desk.ListenSceneAppearance(next.BillId, next.EventId, out result) :

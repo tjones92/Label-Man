@@ -431,6 +431,7 @@ public partial class PlayerDeskPanel {
             book.Disabled = problem != null;
             if (driveUp != null) driveUp.Disabled = offer.Locked != null || !desk.AtHome || desk.Label.cashReserves < gas + offer.BandLodging ||
                 time != null && drive * 60 > time.MinutesRemainingWithOvertime;
+                if (driveUp != null) { driveUp.TooltipText = $"Drive the band up now and book the room there tomorrow with a full day. Band motel ${offer.BandLodging:N0} a night, plus your own."; GreyWhy(driveUp, offer.Locked ?? (!desk.AtHome ? "Leave from the office." : desk.Label.cashReserves < gas + offer.BandLodging ? "Not enough cash for the gas and the band's motel." : "Not enough of today left to make the drive.")); }
         }
         hoursInput.ValueChanged += value => { studioHours = (int)value; UpdateCost(); };
         if (daysInput != null) daysInput.ValueChanged += value => { studioDays = (int)value; UpdateCost(); };
@@ -855,6 +856,7 @@ public partial class PlayerDeskPanel {
         delegateChoice.TooltipText = incremental
             ? "Hand the remaining work to the producer under your brief. Same clock, same notes, and your kept choices stay. You still review and print."
             : "The producer picks from the listening notes for the sides you haven't kept.";
+            GreyWhy(delegateChoice, "Every side already has a kept take: review and print.");
         delegateChoice.Pressed += () => {
             if (!incremental) { desk.DelegateTakeSelection(); Say("The producer chose from the listening notes for the unselected sides.", true); Refresh(); return; }
             var dialog = PaperModal.Open(this, "RUN THE REST OF THE DATE", 720);
@@ -909,6 +911,7 @@ public partial class PlayerDeskPanel {
             var choices = StudioFlow(box);
             var call = Primary($"CALL {callIn.CandidateName.ToUpperInvariant()} IN  ·  ${callIn.Fee:N0}  ·  {callIn.ArrivalMinutes}m");
             call.Disabled = left < callIn.ArrivalMinutes + held;
+            GreyWhy(call, OutOfTime);
             call.Pressed += () => { bool ok = desk.CallInSessionPlayer(callIn.MemberId, callIn.CandidateId, out string m); Say(m, ok); Refresh(); };
             choices.AddChild(call);
             var keep = Btn($"KEEP {callIn.MemberName.ToUpperInvariant()} ON IT");
@@ -928,6 +931,7 @@ public partial class PlayerDeskPanel {
             var choices = StudioFlow(box);
             var call = Primary($"CALL {backing.GroupName.ToUpperInvariant()} IN  ·  ${backing.Fee:N0}  ·  {backing.ArrivalMinutes}m");
             call.Disabled = left < backing.ArrivalMinutes + held;
+            GreyWhy(call, OutOfTime);
             call.Pressed += () => { bool ok = desk.CallInBackingSingers(out string m); Say(m, ok); Refresh(); };
             choices.AddChild(call);
             var keep = Btn("KEEP IT TO THE ACT'S OWN VOICES");
@@ -990,6 +994,7 @@ public partial class PlayerDeskPanel {
             dialog.AddText($"Running the whole song tightens the band in general. Working one part fixes where it keeps falling down and helps what that part asks for. Either way the band tires. {left - held} minutes are free before finishing.");
             var song = Primary($"RUN THE WHOLE SONG  ·  {rehearsalMinutes}m");
             song.Disabled = left < rehearsalMinutes + held;
+            GreyWhy(song, OutOfTime);
             song.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
             song.Pressed += () => { dialog.Cancel(); bool ok = desk.RehearseStudio(side, out string m); Say(m, ok); Refresh(); };
             dialog.Body.AddChild(song);
@@ -999,6 +1004,7 @@ public partial class PlayerDeskPanel {
                 int heard = cut.Takes.Count(t => t.TroubleSection >= 0 && cut.Structure.Sections[t.TroubleSection].Kind == part);
                 var button = Btn($"THE {StudioSongStructures.PartName(part).ToUpperInvariant()}  ·  {PlayerDesk.StudioPartRehearsalMinutes}m" + (heard > 0 ? $"  (flagged {heard}\u00d7)" : ""));
                 button.Disabled = left < PlayerDesk.StudioPartRehearsalMinutes + held;
+                GreyWhy(button, OutOfTime);
                 button.Pressed += () => { dialog.Cancel(); bool ok = desk.RehearseStudioPart(side, chosen, out string m); Say(m, ok); Refresh(); };
                 partRow.AddChild(button);
             }

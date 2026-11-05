@@ -73,30 +73,15 @@ public partial class PaperStyleBox : StyleBox {
 
 	private static float Wobble(int seed, int i) => ((Portraits.Hash($"decal{seed}:{i}") % 200u) / 100f - 1f);
 
-	/// <summary>A mug stood on the sheet: a broken ring in coffee brown, heavier on one side where the rim sat, with a
-	/// fainter second ring and a few spatters.</summary>
+	/// <summary>A mug stood on the sheet, in its lower corner. Sheets that scroll (the office desk) leave this off and draw
+	/// <see cref="CoffeeStain"/> on the scrolled page instead, so the stain moves with the paper, not the frame.</summary>
 	private void DrawRing(Rid canvas, Rect2 inner) {
+		// A small sheet has no empty corner for a mug; the ring would sit on the text.
+		if (inner.Size.Y < CoffeeStain.Size * 2f || inner.Size.X < CoffeeStain.Size * 3f) return;
 		bool right = Wobble(DecalSeed, 0) > 0f;
-		float radius = 64f + Wobble(DecalSeed, 1) * 8f;
-		Vector2 centre = new(right ? inner.End.X - radius - 34f : inner.Position.X + radius + 34f, inner.End.Y - radius - 30f);
-		float start = Wobble(DecalSeed, 2) * Mathf.Pi, sweep = Mathf.Pi * (1.55f + Wobble(DecalSeed, 3) * 0.2f);
-		for (int pass = 0; pass < 2; pass++) {
-			var points = new Vector2[41];
-			for (int i = 0; i < points.Length; i++) {
-				float a = start + sweep * i / (points.Length - 1);
-				float r = radius + pass * 6f + Wobble(DecalSeed + pass * 7, 10 + i) * 1.4f;
-				points[i] = centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
-			}
-			Color coffee = pass == 0 ? new Color(0.36f, 0.21f, 0.07f, 0.36f) : new Color(0.36f, 0.21f, 0.07f, 0.17f);
-			var colours = new Color[points.Length];
-			for (int i = 0; i < colours.Length; i++) colours[i] = coffee;
-			RenderingServer.CanvasItemAddPolyline(canvas, points, colours, pass == 0 ? 5f : 2.4f, true);
-		}
-		RenderingServer.CanvasItemAddCircle(canvas, centre, radius - 3f, new Color(0.36f, 0.21f, 0.07f, 0.05f));
-		for (int i = 0; i < 4; i++) {
-			float a = start + Wobble(DecalSeed, 30 + i) * 3f, d = radius + 12f + (Wobble(DecalSeed, 40 + i) + 1f) * 11f;
-			RenderingServer.CanvasItemAddCircle(canvas, centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d, 2.2f + (Wobble(DecalSeed, 50 + i) + 1f) * 1.4f, new Color(0.36f, 0.21f, 0.07f, 0.32f));
-		}
+		float half = CoffeeStain.Size / 2f;
+		Vector2 centre = new(right ? inner.End.X - half - 10f : inner.Position.X + half + 10f, inner.End.Y - half - 8f);
+		CoffeeStain.Draw(canvas, centre, DecalSeed);
 	}
 
 	/// <summary>A gem paper clip: three nested loops of steel wire with a shadow beneath and a glint along the wire,
@@ -140,6 +125,109 @@ public partial class PaperStyleBox : StyleBox {
 		box.ContentMarginLeft = marginX; box.ContentMarginRight = marginX;
 		box.ContentMarginTop = marginY; box.ContentMarginBottom = marginY;
 		return box;
+	}
+}
+
+/// <summary>
+/// A coffee ring as a bitmap rather than a clean polyline (playtest 2026-11-05: "too clean"). The rim wobbles at low
+/// frequency, is darkest at its outer edge where the coffee dried (the coffee-ring effect) and thins to gaps on the side
+/// the mug barely touched; inside is a blotchy, uneven wash; a fainter second ring sits off-centre where the mug was put
+/// down again; and a few soft-edged drips land outside. One texture per seed, built once.
+/// </summary>
+public static class CoffeeStain {
+	public const int Size = 230;
+	private static readonly Dictionary<int, ImageTexture> cache = new();
+
+	public static ImageTexture Texture(int seed) {
+		if (!cache.TryGetValue(seed, out var texture)) cache[seed] = texture = Build(seed);
+		return texture;
+	}
+
+	/// <summary>Draws the stain centred on <paramref name="centre"/>.</summary>
+	public static void Draw(Rid canvas, Vector2 centre, int seed) {
+		var rect = new Rect2(centre - new Vector2(Size, Size) / 2f, new Vector2(Size, Size));
+		RenderingServer.CanvasItemAddTextureRect(canvas, rect, Texture(seed).GetRid(), false, Colors.White);
+	}
+
+	private static float Hash(int seed, int x, int y) {
+		uint h = (uint)(seed * 374761393 + x * 668265263 + y * 2147483647);
+		h = (h ^ (h >> 13)) * 1274126177u;
+		return ((h ^ (h >> 16)) & 0xFFFFFF) / (float)0xFFFFFF;
+	}
+
+	/// <summary>Smooth value noise on a <paramref name="cell"/>-pixel lattice, 0..1.</summary>
+	private static float Noise(int seed, float x, float y, float cell) {
+		float fx = x / cell, fy = y / cell;
+		int x0 = Mathf.FloorToInt(fx), y0 = Mathf.FloorToInt(fy);
+		float tx = fx - x0, ty = fy - y0;
+		tx = tx * tx * (3f - 2f * tx); ty = ty * ty * (3f - 2f * ty);
+		return Mathf.Lerp(Mathf.Lerp(Hash(seed, x0, y0), Hash(seed, x0 + 1, y0), tx), Mathf.Lerp(Hash(seed, x0, y0 + 1), Hash(seed, x0 + 1, y0 + 1), tx), ty);
+	}
+
+	private static ImageTexture Build(int seed) {
+		var rng = new RandomNumberGenerator { Seed = (ulong)(seed * 7919 + 17) };
+		var image = Image.CreateEmpty(Size, Size, false, Image.Format.Rgba8);
+		Vector2 c = new(Size / 2f, Size / 2f);
+		float baseR = 70f + rng.RandfRange(-6f, 6f);
+		float heavy = rng.RandfRange(0f, Mathf.Tau);                 // where the rim sat hardest
+		Vector2 second = c + new Vector2(rng.RandfRange(-16f, 16f), rng.RandfRange(-14f, 14f));
+		float secondArc = rng.RandfRange(0f, Mathf.Tau);
+		float[] phase = { rng.RandfRange(0f, Mathf.Tau), rng.RandfRange(0f, Mathf.Tau), rng.RandfRange(0f, Mathf.Tau) };
+		Color dark = new(0.30f, 0.16f, 0.05f), wash = new(0.42f, 0.26f, 0.10f);
+
+		float Rim(Vector2 p, Vector2 centre, float radius, float strengthAt0, float arcCentre, float arcWidth, int s) {
+			Vector2 d = p - centre;
+			float dist = d.Length(), angle = Mathf.Atan2(d.Y, d.X);
+			// Noise is sampled on a circle (cos, sin), so it has no seam and no corners where the angle wraps.
+			float cx = Mathf.Cos(angle) * 34f + 200f, cy = Mathf.Sin(angle) * 34f + 200f;
+			// low-frequency wobble of the radius: the mug's foot isn't round and the paper isn't flat
+			float r = radius + 1.8f * Mathf.Sin(angle * 2f + phase[0]) + 4.5f * (Noise(seed + s, cx, cy, 11f) - 0.5f) + 1.5f * (Noise(seed + 3 + s, cx, cy, 4f) - 0.5f);
+			float edge = dist - r;
+			float profile = edge > 0f ? Mathf.Exp(-edge * edge / 1.1f)          // a sharp outer edge where it dried
+				: Mathf.Exp(edge / 2.4f) * 0.95f + Mathf.Exp(edge / 11f) * 0.14f; // fading inward
+			float along = 0.5f + 0.5f * Mathf.Cos(Mathf.Wrap(angle - arcCentre, -Mathf.Pi, Mathf.Pi) / arcWidth);
+			float strength = Mathf.Clamp(strengthAt0 * (0.3f + 0.95f * along) + (Noise(seed + 50 + s, cx, cy, 8f) - 0.5f) * 1.1f, 0f, 1f);
+			return profile * strength;
+		}
+
+		for (int y = 0; y < Size; y++)
+			for (int x = 0; x < Size; x++) {
+				var p = new Vector2(x, y);
+				float rim = Rim(p, c, baseR, 1f, heavy, 1.1f, 0);
+				float rim2 = Rim(p, second, baseR * 0.97f, 0.45f, secondArc, 0.55f, 9);
+				float dist = (p - c).Length();
+				// the dried wash inside the main ring: blotchy, uneven, strongest toward the heavy side
+				float inside = Mathf.Clamp((baseR - dist) / 6f, 0f, 1f);
+				float blot = Noise(seed + 100, x, y, 22f) * 0.65f + Noise(seed + 101, x, y, 7f) * 0.35f;
+				// patchy, not a disc: most of the inside is clean paper, with a few tide marks where it pooled
+				float washA = inside * 0.11f * Mathf.Clamp((blot - 0.55f) / 0.3f, 0f, 1f);
+				float grain = 0.72f + 0.56f * Hash(seed + 7, x, y);
+				float rimA = Mathf.Clamp((rim * 0.78f + rim2 * 0.45f) * grain, 0f, 0.74f);
+				float a = Mathf.Clamp(rimA + washA * grain, 0f, 0.78f);
+				if (a < 0.004f) continue;
+				Color col = wash.Lerp(dark, Mathf.Clamp(rimA / Mathf.Max(a, 0.001f), 0f, 1f));
+				image.SetPixel(x, y, new Color(col, a));
+			}
+
+		// Drips and splashes: soft-edged blots outside the rim, mostly toward the heavy side.
+		int drops = rng.RandiRange(3, 6);
+		for (int i = 0; i < drops; i++) {
+			float angle = heavy + rng.RandfRange(-1.4f, 1.4f), dist = baseR + rng.RandfRange(10f, 34f);
+			Vector2 at = c + Vector2.FromAngle(angle) * dist;
+			float r = rng.RandfRange(1.6f, 4.8f);
+			for (int y = (int)(at.Y - r - 2); y <= at.Y + r + 2; y++)
+				for (int x = (int)(at.X - r - 2); x <= at.X + r + 2; x++) {
+					if (x < 0 || y < 0 || x >= Size || y >= Size) continue;
+					float d = (new Vector2(x, y) - at).Length();
+					float edgeA = Mathf.Clamp((r - d) / 1.2f + 0.5f, 0f, 1f);
+					float ringA = Mathf.Exp(-(d - r + 0.6f) * (d - r + 0.6f) / 0.8f) * 0.12f;   // a filled drop, a touch darker at its edge
+					float a = Mathf.Clamp(edgeA * 0.38f + ringA, 0f, 0.5f) * (0.8f + 0.4f * Hash(seed + 9, x, y));
+					if (a < 0.01f) continue;
+					Color under = image.GetPixel(x, y);
+					image.SetPixel(x, y, new Color(dark, Mathf.Max(under.A, a)));
+				}
+		}
+		return ImageTexture.CreateFromImage(image);
 	}
 }
 

@@ -107,6 +107,7 @@ public partial class PlayerDeskPanel {
                 : option.Playing ? $"Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}."
                 : $"Waiting charges no admission. Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}. Future expenses and income may change this amount.";
             action.TooltipText = $"{option.WaitingMinutes}min wait on the set day. {costs}\nWaiting advances ordinary expenses and other labels' decisions. Check the bill and price on arrival.";
+            GreyWhy(action, SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId) ? "This room is in another town: drive there first." : "Not enough cash for the admission.");
             card.TooltipText = action.TooltipText;
             var clock = TimeManager.Instance;
             ScoutingTimeRisk(desk, action, circuit ? LocalSceneRoomService.Day(clock.CurrentDate) : option.Day,
@@ -176,6 +177,7 @@ public partial class PlayerDeskPanel {
                 clock.CurrentHour * 60 + clock.CurrentMinute < room.OpenHour * 60 ||
                 clock.CurrentHour * 60 + clock.CurrentMinute + 60 > room.CloseHour * 60 || !clock.CanAffordMinutes(60);
             meet.TooltipText = "1h · no fee. Ask for an announced set worth hearing; this creates no listening evidence.";
+            GreyWhy(meet, "Only in this town, while the room is open with an hour to spare, and with an hour left in your day.");
             meet.Pressed += () => Act(() => { bool ok = desk.AskSceneBooker(room.Id, out string result); Say(result, ok); refill(); return ok; });
         } else {
             meet.Disabled = !desk.CanIntroduceSceneBooker(room.Id, out string reason);
