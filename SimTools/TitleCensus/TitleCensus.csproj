@@ -1,0 +1,23 @@
+<!-- Title census: runs the game's song/album title policy (Systems/Naming/TitleNaming.cs + Core)
+     against the real Data/Naming files and scores it against the 1960-64 Hot 100.
+     Run:  dotnet run -c Release (project SimTools/TitleCensus) with args: songs albums seed [legacy] [samples] [hist path] (each flag with a double-dash prefix)
+     Not part of "Label Man.sln"; the game build excludes this folder via a Compile Remove. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>TitleCensus</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Systems/Naming/Core/**/*.cs" />
+    <Compile Include="../../Systems/Naming/ActNaming.cs" />
+    <Compile Include="../../Systems/Naming/TitleNaming.cs" />
+    <Compile Include="../../Data/Genre.cs" />
+    <Compile Include="../../Data/ContactEnums.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

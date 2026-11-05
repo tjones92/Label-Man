@@ -24,7 +24,7 @@ public static class ScoutingAudience {
         return fullness >= .85 ? "nearly full" : fullness >= .6 ? "roughly three-quarters full" : fullness >= .35 ? "about half full" : "sparsely occupied";
     }
     private static string Context(ScoutingObservation o) =>
-        (o.BillListedActs > 0 ? $"{o.BillListedActs} listed act(s)" : "bill size not recorded") + "; " +
+        (o.BillListedActs > 0 ? $"{Plural.Of(o.BillListedActs ?? 0, "listed act")}" : "bill size not recorded") + "; " +
         (o.BillAdmissionQuote is >= 0 && float.IsFinite(o.BillAdmissionQuote.Value)
             ? $"${o.BillAdmissionQuote:0.00} posted admission at your visit" : "admission not recorded");
     private static bool Disagree(IEnumerable<ScoutingObservation> reports) {
@@ -69,7 +69,7 @@ public static class ScoutingAudience {
         int rooms = linked.SelectMany(g => g).Select(o => o.RoomId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count();
         int places = linked.SelectMany(g => g).Select(o => o.PlaceId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count();
         bool conflict = linked.Any(g => Disagree(g));
-        return $"Audience: {linked.Length} distinct whole-bill record(s), {rooms} recorded room(s), {places} recorded town(s). " +
+        return $"Audience: {Plural.Of(linked.Length, "distinct whole-bill record")}, {Plural.Of(rooms, "recorded room")}, {Plural.Of(places, "recorded town")}. " +
             (conflict ? "Reports disagree on at least one bill; review the sources. " : "") +
             "Crowd size includes the other acts and room context; individual draw and portable following remain unknown.";
     }
@@ -133,7 +133,7 @@ public static class ScoutingAudience {
                 lines.Add($"{Room(o)} · {Date(o.OccurredDay)} · your eyes: {Arrivals(o.SetArrivals.Value, o.SetPresent ?? 0)}; {Stayed(o.SetStayedShare ?? 0f)}" +
                     (o.SetRequests > 0 ? "; people called out for songs of theirs" : "") + ". One night in one room.");
             else
-                lines.Add($"{Room(o)} · {o.SourceName ?? "the booker"}, received {Date(o.AcquiredDay)}: about {o.SetArrivals} a night come in for them over {o.DrawNights} night(s) there. Their count, their room.");
+                lines.Add($"{Room(o)} · {o.SourceName ?? "the booker"}, received {Date(o.AcquiredDay)}: about {o.SetArrivals} a night come in for them over {Plural.Of(o.DrawNights ?? 0, "night")} there. Their count, their room.");
         }
         int rooms = reports.Where(o => o.SetArrivals > 0).Select(o => o.RoomId).Where(id => id != null).Distinct(StringComparer.Ordinal).Count();
         int towns = reports.Where(o => o.SetArrivals > 0).Select(o => o.PlaceId).Where(id => id != null).Distinct(StringComparer.Ordinal).Count();

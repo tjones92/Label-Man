@@ -15,6 +15,7 @@ public enum DJArchetype {
 /// cultivable asset the break-claim reputation system (Phase 4) pays out to.
 /// </summary>
 [GlobalClass]
+[System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Populate)]
 public partial class Deejay : Resource {
 	[Export] public string djId;
 	[Export] public string djName;

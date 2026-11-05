@@ -376,7 +376,7 @@ public static partial class MediaAtmosphereService {
 			Fact(lead, EvidenceSource.RegionalSales, warm > 1 ? $"selling near the top in {warm} regional markets" : "selling near the top of the local reports", today);
 			if (fs.Letters > 0) Fact(lead, EvidenceSource.BroadcastAiring, $"about {RoundLetters(fs.Letters):N0} letters to the television programs it has played", today, firsthand: false, confidence: 0.7f);
 			int families = MediaPress.FamiliesCovering(state, fs.ArtistId, today - 42, today);
-			if (families > 0) Fact(lead, EvidenceSource.OtherPublication, $"written up in {families} kind(s) of paper in the last six weeks", today, firsthand: false);
+			if (families > 0) Fact(lead, EvidenceSource.OtherPublication, $"written up in {Plural.Of(families, "kind")} of paper in the last six weeks", today, firsthand: false);
 			switch (s) {
 				case FanEpisodeState.LocalExcitement:
 				case FanEpisodeState.RegionalFavorite:

@@ -56,7 +56,7 @@ public static partial class RolodexDirectory {
 		};
 		string host = string.IsNullOrEmpty(program.HostName) ? "" : $" Host: {program.HostName}.";
 		string slot = syndicated
-			? $"On tape here, {program.Syndication.First(m => m.CityId == city).DelayWeeks} week(s) behind its home station, Saturdays at {MediaText.Clock(program.Syndication.First(m => m.CityId == city).LocalStartMinute)}."
+			? $"On tape here, {Plural.Of(program.Syndication.First(m => m.CityId == city).DelayWeeks, "week")} behind its home station, Saturdays at {MediaText.Clock(program.Syndication.First(m => m.CityId == city).LocalStartMinute)}."
 			: MediaText.SlotIn(program, version, city) + (local ? "." : " in " + (DistanceModel.GetCityById(city)?.name ?? "your town") + ".");
 		card.Facts.Add((slot + host, false));
 		card.Facts.Add(("What they book: " + MediaText.ProducerWants(program), false));
@@ -126,7 +126,7 @@ public static partial class RolodexDirectory {
 		var subs = desk.TradeSubmissions;
 		int picks = subs.Count(s => s.Outcome is TradeOutcome.Spotlight or TradeOutcome.FourStar);
 		int pending = subs.Count(s => s.Outcome == TradeOutcome.Pending);
-		card.Facts.Add(($"{subs.Count} record(s) sent for review; {picks} made a pick" + (pending > 0 ? $", {pending} still on the desk." : "."), false));
+		card.Facts.Add(($"{Plural.Of(subs.Count, "record")} sent for review; {picks} made a pick" + (pending > 0 ? $", {pending} still on the desk." : "."), false));
 		card.Facts.Add(("A pick talks to the trade: distributors, one-stops and programmers. It never buys a review, and an ad on the same record says much the same thing to the same readers.", false));
 		PressOutlet rival = MediaOutletCatalog.Press.FirstOrDefault(p => p.Id == (today < new GameDate(1964, 10, 1) ? "music_vendor" : "record_world"));
 		if (rival != null) card.Facts.Add(($"The other trades this season: Billboard and {rival.Name}.", false));

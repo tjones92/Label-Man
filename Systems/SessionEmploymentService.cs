@@ -40,6 +40,19 @@ public static class SessionEmploymentService {
 	private static readonly Dictionary<string, List<Musician>> community = new(StringComparer.Ordinal);
 	private static int communityYear = int.MinValue;
 
+	internal static SessionContinuationSaveData CaptureContinuation() => new() {
+		LoadWeek = loadWeek, WeekLoad = new(weekLoad), CommunityYear = communityYear,
+		Communities = community.ToDictionary(p => p.Key, p => p.Value.Select(m => m.personId).ToList(), StringComparer.Ordinal)
+	};
+	internal static void RestoreContinuation(SessionContinuationSaveData saved) {
+		if (saved == null) return;
+		weekLoad.Clear(); community.Clear(); loadWeek = saved.LoadWeek; communityYear = saved.CommunityYear;
+		foreach (var p in saved.WeekLoad) weekLoad.Add(p.Key, p.Value);
+		foreach (var p in saved.Communities) community.Add(p.Key, p.Value.Select(id =>
+			ArtistManager.Instance.GetMusician(id) ?? PersonPool.Get(id)?.person ??
+			throw new InvalidOperationException("Saved session community musician is unavailable: " + id)).ToList());
+	}
+
 	// Diagnostics, not saved.
 	public static int RecordsCrewed { get; private set; }
 	public static int RecordsUncrewed { get; private set; }

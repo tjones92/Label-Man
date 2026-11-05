@@ -13,11 +13,12 @@ public static class AILabelFactory {
 	
 	// 1960 tiers, not mid-decade ones. Atlantic, Chess and King were already
 	// national independents in 1960. Motown was months old with no national hit,
-	// and Stax was still Satellite, a Memphis storefront operation -- both must earn
+	// and Stax was still Satellite, a Memphis storefront operation (renamed Stax in 1961), so it trades
+	// under Satellite here -- both must earn
 	// MidTier through the promotion ladder rather than start there.
 	private static readonly LabelTemplate[] soulFactoryTemplates = {
 		new LabelTemplate("Motown", "Detroit", LabelArchetype.SoulFactory, new[] { Genre.Soul, Genre.RnB, Genre.GirlGroup }, LabelTier.Independent),
-		new LabelTemplate("Stax", "Memphis", LabelArchetype.BluesRoots, new[] { Genre.Soul, Genre.RnB, Genre.Gospel }, LabelTier.Independent),
+		new LabelTemplate("Satellite", "Memphis", LabelArchetype.BluesRoots, new[] { Genre.Soul, Genre.RnB, Genre.Gospel }, LabelTier.Independent),
 		new LabelTemplate("Atlantic", "New York", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul, Genre.Jazz }),
 		new LabelTemplate("Chess", "Chicago", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul }),
 		new LabelTemplate("King", "Cincinnati", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul, Genre.Funk }),
@@ -166,6 +167,9 @@ public static class AILabelFactory {
 		}
 
 		int remaining = targetCount - labels.Count;
+		// The historical labels just created keep their names to themselves: no procedural label may
+		// be a second Capitol or a "Chess Sound". Naming-stream only; no sim draw.
+		NameGenerator.Instance?.ReserveLabelNames(labels.Select(l => l.labelName));
 		for (int i = 0; i < remaining; i++) labels.Add(GenerateProceduralLabel(ref idCounter));
 		if (deferredBritish != null) labels.RemoveAll(deferredBritish.Contains);
 
@@ -216,7 +220,7 @@ public static class AILabelFactory {
 		string city = GetRandomCity(archetype);
 		
 		label.labelId = $"label_{idCounter:D4}";
-		label.labelName = GenerateLabelName(archetype);
+		label.labelName = GenerateLabelName(archetype, city);
 		label.headquartersCity = city;
 		label.homeRegion = CityToRegion(city);
 		label.archetype = archetype;
@@ -335,10 +339,10 @@ public static class AILabelFactory {
 		label.artistLoyalty = Mathf.Clamp(label.artistLoyalty + (float)GameRandom.RandRange(-0.1, 0.1), 0f, 1f);
 	}
 	
-	private static string GenerateLabelName(LabelArchetype archetype) {
+	private static string GenerateLabelName(LabelArchetype archetype, string city) {
 		// Require a loaded engine, not just a live singleton: an unready engine returns the literal
 		// "Records" fallback, so drop to the local prefix/suffix pool instead when it isn't ready yet.
-		if (NameGenerator.Instance != null && NameGenerator.Instance.IsReady()) return NameGenerator.Instance.GenerateLabelName(archetype);
+		if (NameGenerator.Instance != null && NameGenerator.Instance.IsReady()) return NameGenerator.Instance.GenerateLabelName(archetype, null, city, 1960);
 		string[] prefixes = { "Royal", "Golden", "Silver", "Crown", "Diamond", "Star", "Sun", "Moon", "Atlantic", "Pacific", "National", "American", "Imperial", "Liberty", "Freedom", "Victory", "Triumph", "Glory", "Ace", "Duke", "King", "Queen" };
 		string[] suffixes = { "Records", "Recording Co.", "Music", "Sound", "Productions", "Disc" };
 		return $"{prefixes[(int)GameRandom.RandRange(0, prefixes.Length - 1)]} {suffixes[(int)GameRandom.RandRange(0, suffixes.Length - 1)]}";

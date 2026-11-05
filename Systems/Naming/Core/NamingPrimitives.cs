@@ -18,11 +18,31 @@ namespace LabelMan.Naming {
 
 	public sealed class DeterministicRandom : IRandom {
 		private readonly Random _rng;
-		public DeterministicRandom(int seed) { _rng = new Random(seed); }
+		private readonly int _seed;
+		private long _samples;
+		public DeterministicRandom(int seed) { _seed = seed; _rng = new Random(seed); }
 		public DeterministicRandom(ulong seed)
 			: this(unchecked((int)(seed ^ (seed >> 32)))) { }
-		public int Next(int maxExclusive) => maxExclusive <= 0 ? 0 : _rng.Next(maxExclusive);
-		public double NextDouble() => _rng.NextDouble();
+		public int Next(int maxExclusive) {
+			if (maxExclusive <= 0) return 0;
+			_samples++; return _rng.Next(maxExclusive);
+		}
+		public double NextDouble() { _samples++; return _rng.NextDouble(); }
+		public DeterministicRandomState CaptureState() => new() { Seed = _seed, Samples = _samples };
+		public static DeterministicRandom RestoreState(DeterministicRandomState state) {
+			if (state == null || state.Samples < 0) throw new ArgumentException("Invalid naming random state.");
+			var result = new DeterministicRandom(state.Seed);
+			// Seeded System.Random's compatibility implementation consumes one sample for either API above.
+			// Replay the samples rather than depending on private runtime fields.
+			for (long i = 0; i < state.Samples; i++) result._rng.NextDouble();
+			result._samples = state.Samples;
+			return result;
+		}
+	}
+
+	public sealed class DeterministicRandomState {
+		public int Seed { get; set; }
+		public long Samples { get; set; }
 	}
 
 	public static class RandomExtensions {
@@ -97,11 +117,14 @@ namespace LabelMan.Naming {
 		public Dictionary<string, string> Slots = new();
 		public IRandom Rng;
 		public Dictionary<string, string> Extras; // future fields without touching call sites
+		/// <summary>The act's real members, when naming an act. Person slots bind to them and
+		/// lineup-claiming words are checked against them (see Lineup.cs). Null = draw blind.</summary>
+		public Lineup Lineup;
 
 		public NamingContext Clone() => new NamingContext {
 			Genre = Genre, Year = Year, ArtistType = ArtistType, RegionId = RegionId,
 			LabelArchetype = LabelArchetype, StyleTags = new List<string>(StyleTags),
-			TagSets = TagSets, Slots = Slots, Rng = Rng, Extras = Extras
+			TagSets = TagSets, Slots = Slots, Rng = Rng, Extras = Extras, Lineup = Lineup
 		};
 	}
 }

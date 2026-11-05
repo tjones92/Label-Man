@@ -70,6 +70,10 @@ public partial class DistanceModel : Node {
 
 	public static IReadOnlyList<MarketCity> GetCities() => citiesById.Values.ToList();
 
+	/// <summary>A town's real latitude and longitude, recovered from its map coordinates (for drawing it on the atlas map).</summary>
+	public static (float Latitude, float Longitude) LatLon(MarketCity city) =>
+		(city.mapCoords.Y / ProjectionScale, city.mapCoords.X / (ProjectionCosine * ProjectionScale));
+
 	public static IEnumerable<(MarketCity From, MarketCity To, float Distance)> GetDistanceMatrixRows() {
 		var cities = citiesById.Values.ToList();
 		for (int from = 0; from < cities.Count; from++) {

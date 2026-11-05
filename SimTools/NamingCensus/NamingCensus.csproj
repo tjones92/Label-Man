@@ -1,0 +1,22 @@
+<!-- Name-fidelity census: runs the game's act/label naming policy (Systems/Naming/ActNaming.cs + Core)
+     against the real Data/Naming files with synthetic lineups and reports the plausibility failures.
+     Run:  dotnet run -c Release (project SimTools/NamingCensus) with args: acts labels seed [samples]
+     Not part of "Label Man.sln"; the game build excludes this folder via a Compile Remove. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>NamingCensus</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Systems/Naming/Core/**/*.cs" />
+    <Compile Include="../../Systems/Naming/ActNaming.cs" />
+    <Compile Include="../../Data/Genre.cs" />
+    <Compile Include="../../Data/ContactEnums.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

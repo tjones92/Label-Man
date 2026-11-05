@@ -17,6 +17,16 @@ public partial class PlayerDesk {
         if (!Require(0, out message)) return false;
         var clock = TimeManager.Instance; var date = clock.CurrentDate;
         int now = clock.CurrentHour * 60 + clock.CurrentMinute;
+        if (!IsAtSceneRoom(roomId)) {
+            // Going to hear a set means going to the venue. Walk only if something you came for is still on when you arrive.
+            int arrive = now + CrossTownMinutes;
+            var onAtArrival = LocalSceneRoomService.Calendar(CurrentCityId, date).FirstOrDefault(b => b.RoomId == roomId && b.Day == LocalSceneRoomService.Day(date)
+                && b.Status == SceneBillStatus.Scheduled && b.StartHour * 60 <= arrive && b.EndHour * 60 > arrive &&
+                b.Appearances.Any(a => a.Status == SceneBillStatus.Scheduled && a.EndHour * 60 > arrive && (eventId == null || ScenePerformanceService.EventId(b, a) == eventId)));
+            if (onAtArrival == null) { message = $"It's {CrossTownMinutes} minutes across town to {room.Name}; the set would be over by the time you got there."; return false; }
+            if (!WalkToRoomFor(room, out _)) { message = "No time left today to get across town."; return false; }
+            now = clock.CurrentHour * 60 + clock.CurrentMinute;
+        }
         var bill = LocalSceneRoomService.Calendar(CurrentCityId, date).FirstOrDefault(b => b.RoomId == roomId && b.Day == LocalSceneRoomService.Day(date)
             && b.Status == SceneBillStatus.Scheduled && b.StartHour * 60 <= now && b.EndHour * 60 > now);
         if (bill == null) { message = "No set or listening appointment is open now. Wait for an announced appearance."; return false; }
@@ -45,6 +55,7 @@ public partial class PlayerDesk {
         AdoptLegacyDiscoveries(); Label.cashReserves -= admission + consultation; Label.monthlyExpenses += consultation;
         clock.SpendMinutes(duration);
         scoutingKnowledge.Visit = new() { BillId = bill.Id, Day = bill.Day, EndMinute = end, AdmissionPaid = admission, ListenerIds = admittedListeners };
+        MarkAtSceneRoom(room.Id);
         var resolved = LocalSceneRoomService.Bill(bill.Id);
         slate.Clear(); SlateDate = date;
         foreach (var booked in slots) {
@@ -72,7 +83,7 @@ public partial class PlayerDesk {
                 SetArrivals = coverage >= .5f ? slot.Performance.Audience?.ArrivedFor : null,
                 SetStayedShare = coverage >= .5f ? slot.Performance.Audience?.StayedShare : null,
                 SetRequests = coverage >= .5f ? slot.Performance.Audience?.Requests : null,
-                Conditions = $"{slot.Role}; {SceneRoomCharacter.KindName(room.Kind)}; {(slot.Residency ? "regular engagement" : "announced booking")}. Repertoire is the scheduled set; partial coverage does not identify every song heard." });
+                Conditions = $"{slot.Role}; {SceneRoomCharacter.KindName(room.Kind)}; {(slot.Residency ? "regular engagement" : "announced booking")}." + (coverage >= .9 ? "" : " You caught part of the set, so not every scheduled song was heard.") });
             if (listener != null) RememberScoutingListener(dossier, dossier.Observations.Last(), slot.Performance, listener);
             var prospect = new Prospect { Artist = artist, Venue = room.Category, CityId = CurrentCityId, SceneRoomId = room.Id, SceneBillId = bill.Id,
                 AskingAdvance = VenueAdvanceAsk(artist, room.Category, AskScaleFor(CurrentCityId)), Note = $"Heard the {slot.Role} at {room.Name}." };
@@ -111,7 +122,11 @@ public partial class PlayerDesk {
         bool staying = scoutingKnowledge.Visit?.BillId == bill.Id && scoutingKnowledge.Visit.Day == bill.Day &&
             scoutingKnowledge.Visit.EndMinute == clock.CurrentHour * 60 + clock.CurrentMinute;
         int minutes = slot.StartHour * 60 - (clock.CurrentHour * 60 + clock.CurrentMinute);
-        if (minutes > 0 && !clock.SpendMinutes(minutes)) { message = "The start cannot be reached within today's time budget."; return false; }
+        // Waiting for a set is waiting at the venue: the walk over comes out of the wait, or makes you late if it's longer.
+        bool away = !IsAtSceneRoom(bill.RoomId);
+        int spend = away ? Math.Max(minutes, CrossTownMinutes) : minutes;
+        if (spend > 0 && !clock.SpendMinutes(spend)) { message = "The start cannot be reached within today's time budget."; return false; }
+        if (away) { if (!staying) scoutingKnowledge.Visit = null; MarkAtSceneRoom(bill.RoomId); }
         if (staying) scoutingKnowledge.Visit.EndMinute = slot.StartHour * 60;
         var current = LocalSceneRoomService.Bill(billId);
         message = current?.Appearances.Any(a => ScenePerformanceService.EventId(current, a) == eventId && a.Status == SceneBillStatus.Scheduled) == true

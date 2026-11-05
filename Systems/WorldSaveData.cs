@@ -15,10 +15,11 @@ using Godot;
 /// and is simply overwritten by a load. This mirrors how the player layer already restores
 /// (<see cref="PlayerDesk.RestoreState"/> mutates in place, no scene reload).</para>
 ///
-/// <para>Determinism target is <b>reload-determinism</b>, not byte-for-byte identity with a never-saved run:
-/// the ~113 direct global <c>GD.Rand*</c> draws in the weekly economy can't be snapshotted, so on load we
-/// reseed the global RNG deterministically from <c>(worldSeed, chartWeek)</c>. Reloading the same save
-/// therefore always continues the same way. Hash-seeded streams reproduce from the saved world seed alone.</para>
+/// <para>Ordinary saves target <b>reload-determinism</b>, reseeding the global RNG from
+/// <c>(worldSeed, chartWeek)</c>. The explicit persisted-stature experiment additionally snapshots the managed
+/// global stream and causal research runtime state in <see cref="ShadowContinuationSaveData"/> so its
+/// serialized checkpoint can be compared against uninterrupted continuation. Hash-seeded streams reproduce
+/// from the saved world seed alone.</para>
 ///
 /// <para><b>Player/world boundary.</b> The world excludes everything the player layer already owns --
 /// player-owned artists, the player's label, and (in <see cref="ChartManager.RestorePlayerRecords"/>) the
@@ -26,6 +27,9 @@ using Godot;
 /// re-link against the restored world.</para>
 /// </summary>
 public sealed class WorldSaveData {
+	// Opt-in observation checkpoints retain causal runtime inputs as well as the shadow itself.
+	// Ordinary saves keep the existing reload behavior and omit this section.
+	public ShadowContinuationSaveData ShadowContinuation { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public double? LpDemandScale { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -310,6 +314,21 @@ public static class WorldStateService {
 		LocalScenePersistenceService.CaptureWorld(world);
         LocalSceneRoomService.CaptureWorld(world);
         SceneEcosystemService.CaptureWorld(world);
+		if (MediaAtmosphereService.PersistExperimentalStature) {
+			world.ShadowContinuation = new ShadowContinuationSaveData {
+				GlobalRng = GameRandom.State,
+				MasterPickupEvidence = AiMasterDeals.CapturePickupEvidence(),
+				CityReach = CityReach.CaptureContinuation(),
+				PendingLiveCrowds = MediaAtmosphereService.CapturePendingLiveCrowds(),
+				Naming = NameGenerator.Instance?.CaptureContinuation(),
+				Culture = CulturalMemoryService.CaptureContinuation(),
+				Sessions = SessionEmploymentService.CaptureContinuation(),
+				Projects = CompetitorManager.Instance?.CaptureProjectContinuation(),
+				Radio = ChartManager.Instance?.CaptureShadowRadio(),
+				Retail = LocalRetailExposure.CaptureContinuation(),
+				Listening = LocalRadioConsumptionProbe.CaptureContinuation(world.Records)
+			};
+		}
 		return world;
 	}
 
@@ -318,6 +337,8 @@ public static class WorldStateService {
 	/// Order matters: artists first, then labels (whose rosters relink to those artists), then the lifecycle
 	/// (whose active list is the very same object as the label list).</summary>
 	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
+		if (world?.ShadowContinuation is { Version: not 1 })
+			throw new System.InvalidOperationException("Unsupported experimental shadow continuation version.");
 		LpDemandCalibration.RequireSaved(world?.LpDemandScale);
 		RetailPurchaseEnvelope.RequireSaved(world?.RetailPurchasePolicy);
 		ProfessionalWritingMarket.RequireSaved(world?.Composition?.WritingMarket);
@@ -366,6 +387,18 @@ public static class WorldStateService {
 		GameRandom.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
 		if (!deferSceneRelink) LocalSceneIdentityService.CompleteRestore();
 		RegionalSalesRandom.Restore(world.RegionalSalesRngVersion, world.RegionalSalesRngSeed, worldSeed);
+		if (world.ShadowContinuation is { } continuation) {
+			AiMasterDeals.RestorePickupEvidence(continuation.MasterPickupEvidence);
+			CityReach.RestoreContinuation(continuation.CityReach);
+			MediaAtmosphereService.RestorePendingLiveCrowds(continuation.PendingLiveCrowds);
+			NameGenerator.Instance?.RestoreContinuation(continuation.Naming);
+			CulturalMemoryService.RestoreContinuation(continuation.Culture);
+			SessionEmploymentService.RestoreContinuation(continuation.Sessions);
+			ChartManager.Instance?.RestoreShadowRadio(continuation.Radio);
+			LocalRetailExposure.RestoreContinuation(continuation.Retail);
+			LocalRadioConsumptionProbe.RestoreContinuation(continuation.Listening, world.Records);
+			GameRandom.State = continuation.GlobalRng;
+		}
 	}
 
 	/// <summary>SplitMix64-style mix of the world seed and the resumed week into a stable global RNG seed.</summary>

@@ -1070,7 +1070,7 @@ public partial class PlayerDesk {
 		message = room != null
 			? $"{room.ContactName} gives {a.stageName} {residencyWeeks} weeks at {room.Name}: {nightCount} nights from {LocalSceneRoomService.Date(Math.Max(0, firstNight)).ToShortString()}. " +
 				$"The door is the band's; the label takes {LocalSceneRoomService.BookingCommissionRate:P0} of each night they play, about ${b.ResidencyWeeklyCommission:N0} a week."
-			: tourWeeks > 0 ? $"{a.stageName} are booked on the road. The money is theirs: the label books no dates it could bill." : $"{a.stageName} are booked.";
+			: tourWeeks > 0 ? $"{a.stageName} {ActGrammar.Verb(a, "is", "are")} booked on the road. The money is theirs: the label books no dates it could bill." : $"{a.stageName} {ActGrammar.Verb(a, "is", "are")} booked.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -1306,7 +1306,7 @@ public partial class PlayerDesk {
 			};
 			song.Title = NameGenerator.Instance?.GenerateSongTitle(song.Genre, date.year, a.artistId) ?? $"Untitled {counter}";
 			songs.Add(song);
-			Note($"{a.stageName} have a new one from the writing session: \"{song.Title}\".");
+			Note($"{a.stageName} {ActGrammar.Verb(a, "has", "have")} a new one from the writing session: \"{song.Title}\".");
 		}
 	}
 

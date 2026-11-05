@@ -5172,22 +5172,39 @@ public partial class CompetitorManager : Node {
 	/// should be spent finding that out) from "you made the rounds and nobody bit" (a real pitch that
 	/// costs the sit-down either way) -- mirrors the anyHouseAvailable split in PlacePlayerLine (§5.1).
 	/// </summary>
+	/// <summary>
+	/// Whether a P&amp;D pitch would even get a sit-down, and in words why not: the pre-checks and the evidence test
+	/// <see cref="PursueDistributionDeal"/> runs, read-only and with no roll. The desk's PITCH button, the morning
+	/// paper and the pitch itself all ask this, so the paper can never again promise a door the pitch then shuts
+	/// (playtest 2026-11-04: "A P&amp;D house would hear this one out" -> "you don't have the regional proof").
+	/// </summary>
+	public bool PlayerDealReadiness(AILabel client, out string reason) =>
+		PlayerDealReadiness(client, client == null ? null : ChartManager.Instance?.GetRecordsForLabel(client.labelId),
+			regionalBreakoutDealThreshold, out reason);
+
+	internal static bool PlayerDealReadiness(AILabel client, IEnumerable<RecordRuntimeData> records, float threshold, out string reason) {
+		reason = null;
+		if (client == null) { reason = "No label."; return false; }
+		if (client.activeDeal != null) { reason = "You're already under a distribution deal -- ride it out or let it lapse first."; return false; }
+		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier)) {
+			reason = "You've outgrown a P&D contract -- distributors negotiate around you now, not for you.";
+			return false;
+		}
+		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(records, client.labelId, client.strongRegions, threshold);
+		if (IsPullDealTrigger(client, evidence)) return true;
+		reason = RegionalHitDealGate.Enabled
+			? "Nobody's biting yet. A P&D house wants a regional hit selling right now -- one market where a record of yours " +
+			  $"is breaking out at full pace inside the last {RegionalHitDealGate.RecentWeeks} weeks. Being heard in a few markets isn't that."
+			: "Nobody's biting -- you don't have the regional proof to bring to this table yet.";
+		return false;
+	}
+
 	public DistributionDeal PursueDistributionDeal(AILabel client, out bool consulted, out string message) {
 		consulted = false;
 		message = null;
-		if (client == null) { message = "No label."; return null; }
-		if (client.activeDeal != null) { message = "You're already under a distribution deal -- ride it out or let it lapse first."; return null; }
-		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier)) {
-			message = "You've outgrown a P&D contract -- distributors negotiate around you now, not for you.";
-			return null;
-		}
-
+		if (!PlayerDealReadiness(client, out message)) return null;
 		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
 			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
-		if (!IsPullDealTrigger(client, evidence)) {
-			message = "Nobody's biting -- you don't have the regional proof to bring to this table yet.";
-			return null;
-		}
 
 		consulted = true; // from here on you made the rounds -- it costs the sit-down whether or not anyone bites
 		AILabel distributor = SelectDistributor(client, DealOrigin.LabelSought);
@@ -5483,10 +5500,19 @@ public partial class CompetitorManager : Node {
 
 		albumProjects.Clear(); albumProjects.AddRange(c.AlbumProjects ?? new List<AlbumProject>());
 		pendingAlbumProjects.Clear(); pendingAlbumProjects.AddRange(c.PendingAlbumProjects ?? new List<AlbumProject>());
+		var projectContinuation = w.ShadowContinuation?.Projects;
+		if (projectContinuation != null) {
+			generatedProjectCounter = projectContinuation.Counter;
+			// Pending work is the same project object as its history/index entry, not a second mutable copy.
+			var canonical = albumProjects.ToDictionary(p => p.projectId, System.StringComparer.Ordinal);
+			for (int i = 0; i < pendingAlbumProjects.Count; i++)
+				if (canonical.TryGetValue(pendingAlbumProjects[i].projectId, out var project)) pendingAlbumProjects[i] = project;
+		}
 
 		// A project's Record refs: relink released records to the shared allRecords object (identity); a pending
 		// project's record isn't in allRecords, so its deserialized copy stays.
-		foreach (AlbumProject project in albumProjects.Concat(pendingAlbumProjects)) RelinkProjectRecords(project);
+		foreach (AlbumProject project in albumProjects.Concat(pendingAlbumProjects))
+			RelinkProjectRecords(project, projectContinuation?.Records.GetValueOrDefault(project.projectId));
 
 		var projectByProjectId = albumProjects.Concat(pendingAlbumProjects)
 			.Where(p => !string.IsNullOrEmpty(p.projectId))
@@ -5556,13 +5582,13 @@ public partial class CompetitorManager : Node {
 		return highest;
 	}
 
-	private static void RelinkProjectRecords(AlbumProject project) {
+	private static void RelinkProjectRecords(AlbumProject project, ProjectRecordLinksSaveData links = null) {
 		if (project == null) return;
-		if (project.albumRecord?.recordId != null) {
+		if (project.albumRecord?.recordId != null && (links == null || links.AlbumIsLive)) {
 			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.albumRecord.recordId);
 			if (live?.baseRecord != null) project.albumRecord = live.baseRecord;
 		}
-		if (project.promoSingleRecord?.recordId != null) {
+		if (project.promoSingleRecord?.recordId != null && (links == null || links.PromoIsLive)) {
 			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.promoSingleRecord.recordId);
 			if (live?.baseRecord != null) project.promoSingleRecord = live.baseRecord;
 		}

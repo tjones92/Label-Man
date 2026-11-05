@@ -188,7 +188,7 @@ public partial class PlayerDesk {
         if (!string.IsNullOrEmpty(room.EngineerName))
             session.ActionLog.Add($"Engineer: {room.EngineerName}{(room.EngineerHomeRoomId != null ? ", " + StudioPeople.RoleText(room) : room.CapabilityVersion >= 4 ? room.EngineerHouse ? ", the chief" : ", the second engineer" : room.EngineerHouse ? "" : ", relief for the house engineer")}" +
                 $"{(room.EngineerRequested ? $", asked for by name{(room.EngineerPremium > 0 ? $" (${room.EngineerPremium:N0} an hour more)" : "")}" : "")}" +
-                $"{(room.FamiliarDates > 0 ? $", who has worked {room.FamiliarDates} earlier date(s) with this act" : "")}.");
+                $"{(room.FamiliarDates > 0 ? $", who has worked {Plural.Of(room.FamiliarDates, "earlier date")} with this act" : "")}.");
         foreach (var hire in session.Hires.Where(h => h.Kind == StudioHireKind.Replacement)) session.ActionLog.Add($"Session player: {hire.Name} on {RoleWord(hire.Role).ToLowerInvariant()}, in place of {hire.ReplacesName}.");
         if (house != null && house.Reason != null) session.ActionLog.Add("Owner: " + house.Reason);
         SeatHousePlayers(session, artist, house);
@@ -202,7 +202,7 @@ public partial class PlayerDesk {
         CompleteStudioTrip(session);
         pendingSession = session;
         KeepSessionPromises(artist);
-        Note($"Started a {hours}h paid date at {session.Room.Name} with {artist.stageName}, {choices.Count} side(s), ${session.Cost:N0}.");
+        Note($"Started a {hours}h paid date at {session.Room.Name} with {artist.stageName}, {Plural.Of(choices.Count, "side")}, ${session.Cost:N0}.");
         message = "The room is set. Rehearse, give a direction, or cut the first pass.";
         Changed?.Invoke(); return true;
     }

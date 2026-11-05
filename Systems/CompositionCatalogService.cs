@@ -1052,11 +1052,13 @@ public static class CompositionCatalogService {
 	}
 	private static void GenerateNativeRepertoire(int startYear) {
 		// A separate keyed stream: extending supply never consumes the established catalogue or global RNG.
+		var nativeTitles=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach(var scene in PolarRepertoireTable.Current.Supply)for(int i=0;i<scene.Count;i++) {
 			string id=$"song_native_{scene.Genre}_{i:D4}";
 			float U(string salt)=>RepertoireTaxonomy.Unit(id+"|"+salt);
 			int year=scene.FromYear+(int)(U("year")*(scene.ToYear-scene.FromYear+1));
-			var song=new SongComposition {songId=id,title=$"{scene.Family} {i+1}",primaryGenre=Enum.Parse<Genre>(scene.Genre),secondaryGenre=Enum.Parse<Genre>(scene.Secondary),
+			string title=NativeTitle(Enum.Parse<Genre>(scene.Genre),Math.Clamp(year,1920,startYear),id,nativeTitles)??$"{scene.Family} {i+1}";
+			var song=new SongComposition {songId=id,title=title,primaryGenre=Enum.Parse<Genre>(scene.Genre),secondaryGenre=Enum.Parse<Genre>(scene.Secondary),
 				originYear=year,originKind=scene.Traditional?SongOriginKind.Traditional:SongOriginKind.PreGameCatalog,
 				compositionQuality=.50f+U("craft")*.30f,melodicStrength=.50f+U("melody")*.30f,lyricQuality=.45f+U("lyric")*.30f,
 				commercialHook=.40f+U("hook")*.35f,rhythmicAppeal=.40f+U("rhythm")*.35f,adaptability=.50f+U("adaptability")*.20f,
@@ -1069,6 +1071,26 @@ public static class CompositionCatalogService {
 			song.credits.Add(new SongwriterCredit {writerType=scene.Traditional?WriterEntityType.Traditional:WriterEntityType.HouseCredit,writerName=scene.Traditional?"Traditional":"Catalogue Writer",share=1});
 			Register(song);RegisterCoverableHit(song);RepertoireProvenance.Admit(song,"seedFamily",scene.Family,startYear);
 		}
+	}
+	/// <summary>
+	/// A native-repertoire title keyed on the song id: a pure function of the world seed that draws from no title stream
+	/// and fills no engine bucket, so it cannot move the catalogue or AI titles. Keyed titles carry no uniqueness of
+	/// their own (a small set like Comedy repeated "The Monster" three times in ten) and skip the reserved-hit filter,
+	/// so the next key variant is tried while a title is taken or real. Null without the naming autoload; the caller
+	/// then falls back to the family label ("Folk Standards 133"), which only headless tools should ever show.
+	/// </summary>
+	private static string NativeTitle(Genre genre,int year,string id,HashSet<string> taken) {
+		var names=NameGenerator.Instance;
+		if(names==null)return null;
+		string first=null;
+		for(int k=0;k<12;k++) {
+			string t=names.KeyedSongTitle(genre,year,k==0?id:$"{id}|{k}");
+			if(string.IsNullOrWhiteSpace(t))continue;
+			if(names.IsReservedSongTitle(t))continue;
+			first??=t;
+			if(taken.Add(t))return t;
+		}
+		return first;
 	}
 	internal static void ApplyRepertoireAuditPhase(int phase,int startYear) {
 		if(phase!=LiveRepertoire.AuditPhase+1)throw new InvalidOperationException("Causal probe phases must advance sequentially");

@@ -406,6 +406,8 @@ public sealed class PlayerSaveData {
 	public int UnreadLogCount { get; set; }
 	public List<ProspectNotebookSaveData> Notebook { get; set; } = new();
 	public Dictionary<string, int> AcetateCopies { get; set; } = new();
+	// The label's signing order (artistId -> 1, 2, 3...) behind its catalogue numbers, LR-001 onward.
+	public Dictionary<string, int> CatalogNumbers { get; set; } = new();
 	public List<WeekBookSaveData> Books { get; set; } = new();
 
 	// Player-layer completion: the whole working state of the desk.

@@ -199,12 +199,14 @@ public static class PaperTheme {
 	private static void BuildButtons() {
 		Color disabledInk = new(Ink, 0.42f);
 
-		// Secondary: a ruled outline on paper; the highlighter swipe on hover; a hairline, faded face when off.
+		// Secondary: a square-cut printed tab, not a rounded web outline (period pass 2026-11-05) -- a hairline rule on
+		// three sides and a heavier bottom edge, the way ChoiceButton's pressed face reads; the highlighter swipe on hover.
 		theme.SetFont("font", "Button", sansSemi);
 		theme.SetFontSize("font_size", "Button", 15);
-		theme.SetStylebox("normal", "Button", Box(new Color("f0e3bd"), Ink, 2, 3, 3));
-		theme.SetStylebox("hover", "Button", Box(Highlighter, Ink, 2, 3, 3));
-		theme.SetStylebox("pressed", "Button", Box(new Color("e2c95f"), Ink, 2, 3, 2));
+		Color rule = new("70552c");
+		theme.SetStylebox("normal", "Button", Box(new Color("efe1b6"), rule, 1, 0, 3));
+		theme.SetStylebox("hover", "Button", Box(Highlighter, rule, 1, 0, 3));
+		theme.SetStylebox("pressed", "Button", Box(new Color("e2c95f"), rule, 1, 0, 1));
 		theme.SetStylebox("disabled", "Button", Box(new Color(Paper, 0.55f), new Color(Ink, 0.35f), 1, 3, 1));
 		theme.SetStylebox("focus", "Button", FocusRing());
 		SetColors("Button", Ink, Ink, Ink, disabledInk,

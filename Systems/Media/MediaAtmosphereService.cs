@@ -174,6 +174,8 @@ public sealed class MediaSaveData {
 	// Celebrity fanbase Phase 4 (--observe-follower-demand shadow, --follower-demand causal).
 	/// <summary>Open launch books by recordId: each release's follower intent for its first three clearing weeks (§2.4).</summary>
 	public Dictionary<string, FollowerLaunch> FollowerLaunches { get; set; } = new();
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public StatureWeeklyShadow ExperimentalStature { get; set; }
 	/// <summary>Releases already looked at for a book, by recordId, with the day of the look; pruned after eight weeks.</summary>
 	public Dictionary<string, int> FollowerLaunchSeen { get; set; } = new();
 }
@@ -188,6 +190,10 @@ public sealed class MediaSaveData {
 /// </para>
 /// </summary>
 public static partial class MediaAtmosphereService {
+	private static StatureWeeklyShadow transientStatureShadow = new();
+	internal static bool PersistExperimentalStature;
+	internal static StatureWeeklyShadow ExperimentalStatureShadow() => PersistExperimentalStature
+		? state.ExperimentalStature ??= new StatureWeeklyShadow() : transientStatureShadow;
 	private const int HistoryWeeks = 26;
 	private const int MaxNationalPerActPerWeek = 2;
 	/// <summary>Weeks before a name booked on standing returns to the same primetime variety hour. Of 823 Sullivan returns
@@ -1350,8 +1356,8 @@ public static partial class MediaAtmosphereService {
 	// ---- persistence ------------------------------------------------------------------------------------------------
 
 	public static void CaptureWorld(WorldSaveData world) { if (world != null) world.Media = state; }
-	public static void RehydrateWorld(WorldSaveData world) { state = world?.Media ?? new MediaSaveData(); RestoreVehicles(); }
-	internal static void ResetForProbe() { state = new MediaSaveData(); RestoreVehicles(); }
+	public static void RehydrateWorld(WorldSaveData world) { state = world?.Media ?? new MediaSaveData(); transientStatureShadow = new(); RestoreVehicles(); }
+	internal static void ResetForProbe() { state = new MediaSaveData(); transientStatureShadow = new(); RestoreVehicles(); }
 
 	public static GameDate FromDayIndex(int day) {
 		DateTime d = new DateTime(1960, 1, 1).AddDays(day);

@@ -23,6 +23,7 @@ public partial class PlayerDeskPanel {
             together.TooltipText = "Both hear the same remaining set. Pay each visitor's admission once per continuous visit. A hired musician charges the displayed consultation fee for each set; a roster companion charges no consultation fee. No additional action time. Availability and the quote are checked again. Time and agreed costs are consumed if the set cancels during the visit.";
             string risk = desk.ScoutingAppointmentRiskText(bill.Day, bill.Appearances.First(a => ScenePerformanceService.EventId(bill, a) == eventId).EndHour * 60);
             if (risk != null) { together.Text += " · PASSES APPOINTMENT START"; prices.Text += "\n" + risk; together.TooltipText += "\n" + risk; }
+            GreyWhy(together, $"Not enough cash: {Money(total)} for both of you.");
         }
         select.ItemSelected += _ => Update();
         together.Pressed += () => Act(() => {

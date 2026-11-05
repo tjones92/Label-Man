@@ -201,7 +201,7 @@ public static partial class MediaAtmosphereService {
 			var lead = NewLead("aipitch|" + pitch.Id, outlet.Family == PressFamily.RockCriticism ? StoryAngle.Review : angle, r, today, interest, evidence);
 			Fact(lead, EvidenceSource.LabelStatement, $"the label's press sheet on \"{r.baseRecord.title}\"", pitch.Day, firsthand: true, confidence: 0.6f);
 			int broke = evidence.BrokeCount(r);
-			if (broke > 0) Fact(lead, EvidenceSource.RegionalSales, $"selling in {broke} regional market(s) on dealers' reports", today);
+			if (broke > 0) Fact(lead, EvidenceSource.RegionalSales, $"selling in {Plural.Of(broke, "regional market")} on dealers' reports", today);
 			if (r.currentPosition > 0) Fact(lead, EvidenceSource.NationalChart, $"No. {r.currentPosition} on the national chart", today);
 			if (outlet.Family == PressFamily.RockCriticism) Fact(lead, EvidenceSource.RecordItself, "the record", today, confidence: ReviewCraft(r));
 			lead.Outlets.Add(outlet.Id);

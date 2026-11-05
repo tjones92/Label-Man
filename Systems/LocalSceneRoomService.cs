@@ -594,6 +594,12 @@ public static partial class LocalSceneRoomService {
         return (slots, booked.Length, booked.Select(a => a.ArtistId).Distinct().Count(), recurring);
     }
     // Room scheduling conservatively keeps a person in one room per day until travel is modeled.
+    /// <summary>On stage somewhere in that window (any room). Unlike HasPersonBooking, a booking elsewhere that day
+    /// outside the window does not count.</summary>
+    public static bool IsOnStage(string personId, int day, int startMinute, int endMinute) =>
+        (state?.Bills ?? new()).Where(b => b.Day == day && b.Status != SceneBillStatus.Cancelled)
+            .Any(b => b.Appearances.Any(a => a.Status != SceneBillStatus.Cancelled && a.StartHour * 60 < endMinute && a.EndHour * 60 > startMinute &&
+                (a.PersonIds.Contains(personId) || (a.BackingPersonIds?.Contains(personId) ?? false))));
     public static bool HasPersonBooking(string personId, int day, int startMinute, int endMinute, string roomId) =>
         HasPerformanceBooking(personId, day, startMinute, endMinute, roomId) || ConversationBooking(personId, day, startMinute, endMinute, roomId);
     private static bool HasPerformanceBooking(string personId, int day, int startMinute, int endMinute, string roomId) =>

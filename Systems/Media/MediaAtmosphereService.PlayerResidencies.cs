@@ -131,7 +131,7 @@ public static partial class MediaAtmosphereService {
 		bool counter = !terms.Same(producer);
 		if (counter && o.Countered) { message = $"{contact.Name} already said no to changing the terms. Take theirs or leave it."; return false; }
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(o.ArtistId);
-		if (artist == null || !artist.isActive || artist.labelId != desk?.Label?.labelId) { message = $"{o.ArtistName} aren't yours to sign up any more."; return false; }
+		if (artist == null || !artist.isActive || artist.labelId != desk?.Label?.labelId) { message = $"{o.ArtistName} {ActGrammar.Verb(o.ArtistId, "isn't", "aren't")} yours to sign up any more."; return false; }
 
 		// When does it start? A regular joins at the first original episode not yet booked; a vehicle premieres in September.
 		int from, to;
@@ -177,7 +177,7 @@ public static partial class MediaAtmosphereService {
 		contact.Trust = Math.Min(1f, contact.Trust + 0.05f);
 		contact.Remember(today, $"Signed {o.ArtistName} for {o.ShowName}" + (counter ? " on changed terms." : "."));
 		float scale = MediaResidencies.ScalePerEpisode(o.Daily) * terms.FeeMultiple;
-		message = $"{o.ArtistName} are on {o.ShowName} from {FromDayIndex(from).ToShortString()} to {FromDayIndex(to).ToShortString()}" +
+		message = $"{o.ArtistName} {ActGrammar.Verb(artist, "is", "are")} on {o.ShowName} from {FromDayIndex(from).ToShortString()} to {FromDayIndex(to).ToShortString()}" +
 			(counter ? $" ({contact.Name} agreed to your terms)" : "") + $". Scale ${scale:N0} a performer an episode, paid by the production to the band. " +
 			$"{(terms.ShowSongs ? "They sing the show's songs." : "They plug their own records.")} The taping takes {DiaryNote(o, terms.Blocks)}." +
 			(cancelled > 0 ? $" {cancelled} weeks of touring this year are cancelled to make room." : "") +
@@ -199,7 +199,7 @@ public static partial class MediaAtmosphereService {
 		TvProgram program = vehicle ? null : MediaOutletCatalog.Get(programId);
 		if (!vehicle && (program == null || MediaResidencies.Chairs.All(c => c.ProgramId != programId))) { message = "That show has no regulars' chair."; return false; }
 		if (state.ResidencyPitches.Any(p => p.ArtistId == artistId && p.ProgramId == programId && p.Status is ResidencyPitchStatus.Sent or ResidencyPitchStatus.Listed && day <= p.ExpiresDay)) {
-			message = $"{artist.stageName} are already in front of {(vehicle ? "the networks" : program.Name)}."; return false;
+			message = $"{artist.stageName} {ActGrammar.Verb(artist, "is", "are")} already in front of {(vehicle ? "the networks" : program.Name)}."; return false;
 		}
 		MarkCausalBoundary(today);
 		bool charged = InCausalWindow(day);

@@ -27,6 +27,7 @@ public readonly struct CulturalEvent {
 	/// <summary>Merit x recognition x earliness: how hard it landed on the people who heard it.</summary>
 	public readonly float Strength;
 
+	[System.Text.Json.Serialization.JsonConstructor]
 	public CulturalEvent(long sequence, string artistId, string labelId, Genre genre, int year,
 		CulturalEventType type, float merit, float recognition, float strength) {
 		Sequence = sequence; ArtistId = artistId; LabelId = labelId; Genre = genre; Year = year;
@@ -97,13 +98,33 @@ public static class CulturalMemoryService {
 	private static readonly Dictionary<string, int> InfluenceCounts = new();
 
 	/// <summary>Per-label read cursor. Held here rather than on AILabel so the feature stays revertible.</summary>
-	private sealed class LabelMemory {
+	public sealed class LabelMemory {
 		public long Cursor;
 		public Genre WantedGenre;
 		public float WantedStrength;
 		public int WantedYear = -1;
 	}
 	private static readonly Dictionary<string, LabelMemory> LabelMemories = new();
+
+	internal static CulturalContinuationSaveData CaptureContinuation() => new() {
+		Sequence = sequence, Ledger = (CulturalEvent[])Ledger.Clone(), InfluenceCounts = new(InfluenceCounts),
+		Labels = CopyLabelMemories(LabelMemories)
+	};
+	private static Dictionary<string, LabelMemory> CopyLabelMemories(Dictionary<string, LabelMemory> source) {
+		var result = new Dictionary<string, LabelMemory>();
+		foreach (var p in source) result.Add(p.Key, new LabelMemory {
+			Cursor = p.Value.Cursor, WantedGenre = p.Value.WantedGenre, WantedStrength = p.Value.WantedStrength, WantedYear = p.Value.WantedYear
+		});
+		return result;
+	}
+	internal static void RestoreContinuation(CulturalContinuationSaveData saved) {
+		if (saved == null) return;
+		if (saved.Ledger.Length != LedgerCapacity) throw new InvalidOperationException("Invalid cultural memory ledger capacity.");
+		Array.Copy(saved.Ledger, Ledger, LedgerCapacity); sequence = saved.Sequence;
+		InfluenceCounts.Clear(); LabelMemories.Clear();
+		foreach (var p in saved.InfluenceCounts) InfluenceCounts.Add(p.Key, p.Value);
+		foreach (var p in CopyLabelMemories(saved.Labels)) LabelMemories.Add(p.Key, p.Value);
+	}
 
 	/// <summary>Diagnostic tap. Nothing in the simulation subscribes; the audit runner does.</summary>
 	public static event Action<CulturalEvent> OnEventPublished;

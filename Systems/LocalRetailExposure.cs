@@ -38,7 +38,7 @@ using System.Linq;
 /// <c>--local-retail-exposure-trade-jukebox</c> the rank exposure weight (rack and jukebox slots) reads λt as well.
 /// The floors and the visibility signal keep λ. Without the trade flag every term reads λ.
 /// </para>
-/// Fresh worlds only: the local list is recomputed weekly and is not saved.
+/// Fresh-world research by default; persisted-shadow checks also retain the weekly mass counterfactual.
 /// </summary>
 public static class LocalRetailExposure {
 	public const string Flag = "--local-retail-exposure";
@@ -103,6 +103,19 @@ public static class LocalRetailExposure {
 	private static readonly Dictionary<string, double> nationalMass = new(StringComparer.Ordinal), localMass = new(StringComparer.Ordinal);
 	private static readonly Dictionary<string, float> scales = new(StringComparer.Ordinal);
 	private static int weeks;
+
+	internal static LocalRetailContinuationSaveData CaptureContinuation() => !Enabled ? null : new() {
+		NationalMass = new(nationalMass), LocalMass = new(localMass), Scales = new(scales), Weeks = weeks, Seeded = seeded
+	};
+
+	internal static void RestoreContinuation(LocalRetailContinuationSaveData saved) {
+		nationalMass.Clear(); localMass.Clear(); scales.Clear(); weeks = 0; seeded = false;
+		if (saved == null) return;
+		foreach (var p in saved.NationalMass) nationalMass[p.Key] = p.Value;
+		foreach (var p in saved.LocalMass) localMass[p.Key] = p.Value;
+		foreach (var p in saved.Scales) scales[p.Key] = p.Value;
+		weeks = saved.Weeks; seeded = saved.Seeded;
+	}
 
 	/// <summary>This week's scale on the region's single conversion; 1 before the first observed week.</summary>
 	public static float Scale(string regionId) => scales.TryGetValue(regionId, out float scale) ? scale : 1f;

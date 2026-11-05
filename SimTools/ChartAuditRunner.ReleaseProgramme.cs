@@ -1,5 +1,6 @@
 using System.IO;
 using System.Globalization;
+using System.Linq;
 
 public partial class ChartAuditRunner {
 	private StreamWriter releaseSlateWriter;
@@ -92,6 +93,7 @@ public partial class ChartAuditRunner {
 		Csv(r.SlotId), Csv(r.ArtistId), r.Format, F(r.Cash), F(r.Overhead), F(r.NegativeFlowHold), F(r.PlantPayables), F(r.TaxAndService), F(r.OtherProgrammeHolds),
 		F(r.Production), F(r.Marketing), F(r.Pressing), F(r.Receivables), F(r.Factored), F(r.TaxPayable), F(r.UnprovidedTax), F(r.CommercialHold)));
 	private void WriteProgrammeChoice(ProgrammeChoiceAudit r) {
+		var statureLabel = statureDecisionWriter == null ? null : CompetitorManager.Instance.GetAllLabels().FirstOrDefault(x => x != null && x.labelId == r.LabelId);
 		void Row(ProgrammeCandidateAudit a) {
 			string N(int n) => n.ToString(CultureInfo.InvariantCulture);
 			string Read(float value) => a?.Eligible == true ? value.ToString("R", CultureInfo.InvariantCulture) : "";
@@ -105,6 +107,27 @@ public partial class ChartAuditRunner {
 				a?.Eligible == true ? a.AttachedAudienceAtAudit.ToString("R", CultureInfo.InvariantCulture) : "",
 				a?.Eligible == true ? (a.FollowUpScheduling ? "1" : "0") : "", Read(a?.WaitingPriority ?? 0),
 				Read(a?.AudienceOrders ?? 0), Read(a?.NationalAudienceOrders ?? 0)));
+			if (statureDecisionWriter != null && r.Format == ReleaseFormat.Album && a != null) {
+				var gameDate = TimeManager.Instance.CurrentDate;
+				var decisionDate = new System.DateTime(gameDate.year, gameDate.month, gameDate.day);
+				var parsed = System.Enum.TryParse(a.CareerState, out CareerState current);
+				var actualArtist = statureLabel?.roster?.FirstOrDefault(x => x != null && x.artistId == a.ArtistId);
+				StatureWeeklyShadow.Snapshot snapshot = null;
+				if (!string.IsNullOrEmpty(a.ArtistId)) MediaAtmosphereService.ExperimentalStatureShadow().Snapshots.TryGetValue(a.ArtistId, out snapshot);
+				var read = StatureDecisionSnapshot.Resolve(snapshot, decisionDate, current,
+					statureLabel?.isPlayerOwned == true || actualArtist?.isPlayerOwned == true,
+					actualArtist?.lifecycleStatus ?? ArtistLifecycleStatus.Inactive);
+				bool eligible = a.Eligible && parsed && actualArtist != null && statureLabel != null;
+				bool live = ChartManager.Instance?.IsGenreMarketV2Live == true || AlbumPriorRecalibration.IsLive;
+				float old = eligible ? CompetitorManager.GetAlbumPriorCareerMultiplier(current, live) : 0;
+				string proposed = eligible && read.Status == StatureDecisionSnapshot.Status.Available
+					? F(CompetitorManager.GetAlbumPriorCareerMultiplier(read.CareerState, live)) : "";
+				statureDecisionWriter.WriteLine(string.Join(",", Csv(gameDate.ToShortString()), N(r.Week), Csv(r.LabelId), Csv(r.Tier), Csv(r.SlotId),
+					Csv(a.ArtistId), eligible ? "1" : "0", a.Selected ? "1" : "0", Csv(a.CareerState),
+					actualArtist?.careerStateBeforeDrop.ToString() ?? "", statureLabel != null ? F(statureLabel.cashReserves) : "",
+					snapshot?.Date.ToString("yyyy-MM-dd") ?? "", snapshot?.Band.ToString() ?? "", eligible ? read.Status.ToString() : "Ineligible",
+					eligible ? F(old) : "", proposed, eligible ? F(old) : "", eligible ? F(a.ExpectedNet) : ""));
+			}
 		}
 		if (r.Candidates.Count == 0) Row(null);
 		else foreach (var candidate in r.Candidates) Row(candidate);

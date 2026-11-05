@@ -190,6 +190,7 @@ public partial class PlayerDesk : Node {
 		djReachedToday.Add(entry.djId);
 
 		RolodexCallContext ctx = BuildCallContext(entry, recordId);
+		ctx.inPerson = true;
 		var call = new RolodexCall { entry = entry, ctx = ctx, recordId = recordId, stage = CallStage.Open, inPersonBonus = WaitForHimInPersonBonus };
 		call.Say(RolodexSceneBeat.Opening, $"He takes the record out of your hand and looks at the label before he looks at you. \"All right,\" he says. \"You drove out here, so I'm listening. What is it?\"");
 		ActiveCall = call;
