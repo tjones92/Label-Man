@@ -51,8 +51,13 @@ public static class Program {
 		var albumRng = new DeterministicRandom(seed ^ 0x616C62756D74746CUL);
 		var actRng = new DeterministicRandom(seed ^ 0x6163746E616D6573UL);
 		var popRng = new DeterministicRandom(seed);
-		double wsum = Mix.Sum(x => x.w);
-		Genre PickGenre() { double r = popRng.NextDouble() * wsum; foreach (var x in Mix) if ((r -= x.w) < 0) return x.g; return Mix[^1].g; }
+		// --genres A,B,... measures only those genres, equally weighted (small sets are a rounding error in the decade mix)
+		int gi = Array.IndexOf(args, "--genres");
+		var mix = gi >= 0 && gi + 1 < args.Length
+			? args[gi + 1].Split(',').Select(s => (g: Enum.Parse<Genre>(s.Trim(), true), w: 1.0)).ToArray()
+			: Mix;
+		double wsum = mix.Sum(x => x.w);
+		Genre PickGenre() { double r = popRng.NextDouble() * wsum; foreach (var x in mix) if ((r -= x.w) < 0) return x.g; return mix[^1].g; }
 
 		// ---- songs: ~5 per act, a decade of years
 		var songs = new List<(Genre g, int year, string t)>();
@@ -137,7 +142,7 @@ public static class Program {
 		if (args.Contains("--routing")) {
 			P(); P("== routing (song set 1962 / 1968, album set)");
 			var rr = new DeterministicRandom(seed);
-			foreach (var (g, _) in Mix)
+			foreach (var (g, _) in mix)
 				P($"{g,-18} {titles.ChooseSongSymbol(g, 1962, rr),-28} {titles.ChooseSongSymbol(g, 1968, rr),-28} {acts.Router.Resolve("albumTitle", g.ToString()) ?? "albumTitle"}");
 		}
 		if (args.Contains("--templates")) {

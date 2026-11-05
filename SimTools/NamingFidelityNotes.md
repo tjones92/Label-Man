@@ -267,7 +267,61 @@ legacy switch turns off code, not data, and the data changed.
 
 * One-word titles stop at ~7% (9.6%): the pools (~300 words with names) run out under world uniqueness, as
   the pronoun frames used to. "Blues" is ~1.5% because RnB routes to the blues set.
-* FolkRock and ContemporaryFolk share the revival folk set; FolkRock wants its own jingle-jangle/protest shapes.
-  HardRock, reggae, sunshine, bubblegum, garage song sets are still 2-6 templates; HardRock albums use the generic set.
+* ~~FolkRock shares the revival folk set; HardRock, reggae, sunshine, bubblegum, garage are 2-6 templates~~ — done, next section.
 * Older single-pool oddities remain where nothing replaced them ("Lotuses on the Work", "Vibraphone in Speedoo").
 * Calibration: another re-baseline. Titles feed track traits, so every A/B against earlier runs is a seed change.
+
+# Late-decade genre sets: FolkRock, HardRock, sunshine, bubblegum, garage, Caribbean (2026-11-04, fourth pass)
+
+The last thin sets, rewritten the same way as folk/psych/surf: period shapes over their own parts of speech
+(129 new pools in `lexicon.ontology.json`, prefixes `fr` `hr` `sn` `bg` `gr` `rg`), so nothing leaks into other sets.
+
+| set | routes | before | now | shapes |
+|---|---|---|---|---|
+| `songTitle.folkRock` (new) | FolkRock | shared revival folk | 15 + clauses/extras | "Eve of Destruction", "Universal Soldier", "California Dreamin'", "Like a Rolling Stone", "It Ain't Me, Babe", "Summer in the City", "Elusive Butterfly", "Standin' in the Rain", the imperative, the plain line |
+| `albumTitle.folkRock` (new) | FolkRock | revival folk | 11 | "Wednesday Morning, 3 A.M.", "Parsley, Sage..." lists, "Songs from Big Sur", one-word LPs |
+| `songTitle.hardRock` | HardRock, ProtoMetal | 2 | 14 + | "Born to Be Wild", "Black Magic Woman", "Bad Moon Rising", "Crosstown Traffic", "Dazed and Confused", "Good Times, Bad Times", "Kick Out the Jams", "Spirit in the Sky", "I'm a Man", one-word riff titles |
+| `albumTitle.hardRock` (new) | HardRock, ProtoMetal | generic `albumTitle` | 9 | "Wheels of Fire", "Cheap Thrills", "Are You Experienced", "Heavy", "Live at the Fillmore" |
+| `songTitle.sunshine` | SunshinePop, BaroquePop, PopRock | 2 | 12 + | "Windy", "Walk Away Renée", "Pretty Ballerina", "Kites Are Fun", "Pleasant Valley Sunday", "Incense and Peppermints", "Groovin'", "Sunshine Girl", "A Beautiful Morning", the invitation |
+| `albumTitle.sunshine` | same | 2 | 10 + mood/other | "The Magic Garden", "Pisces, Aquarius, Capricorn...", "Along Comes ...", one-word LPs |
+| `songTitle.bubblegum` | Bubblegum | 3 | 17 + | "Sugar, Sugar", "Yummy Yummy Yummy", "Goody Goody Gumdrops", "Simon Says", "1, 2, 3, Red Light", "Gimme Gimme Good Lovin'", "Sugar and Spice", "Bubble Gum Music", "Down at Lulu's" |
+| `songTitle.garage` | GarageRock | 6 | 12 + | "96 Tears", "Psychotic Reaction", "Liar, Liar", the taunt, "Pushin' Too Hard", "Hey Little Girl", "Mr. Pharmacist", "The Witch" |
+| `songTitle.reggae` | Ska, Rocksteady, Reggae | 2 | 17 + | "Train to Skaville", "Shanty Town", "Tougher Than Tough", "Rudy, a Message to You", "Oh Carolina", "Rivers of Babylon", "Return of Django" (1966+), "Rock Steady ..." (1966+), "Johnny Too Bad", "Dancing Mood" |
+| `albumTitle.reggae` (new) | same | generic | 9 | "Ska Authentic", "Reggae ..." (1968+), "Battle of the ...", "Tougher Than Tough" |
+
+Garage and bubblegum albums grew from 2-4 to 7-8 templates. The old generic adjective-noun frames stay at low weight;
+the noun-connector-noun frames ("Sheriff Beside the Wanderer", "Queen in the Cowgirl") are gone from these sets.
+`reserved.json` +170 real titles the new frames can reach (both "-in'" and "-ing" spellings, since the match is letters-only);
+`features.json` tags "war" abstract ("Rumors of War", and no more "Under the War").
+
+`TitleCensus --genres A,B,...` measures only the named genres, equally weighted: these sets are ~2% of the decade mix,
+too small to see there.
+
+## Result
+
+Focused census (`--genres FolkRock,HardRock,ProtoMetal,SunshinePop,BaroquePop,Bubblegum,GarageRock,Ska,Rocksteady,Reggae`,
+2,400 songs / 1,200 albums, seed 1001), committed data vs now:
+
+| | Hot 100 1960-64 | before | now |
+|---|---|---|---|
+| two capitalised words | 17.2% | 45.3% | 17.2% |
+| parenthetical | 8.8% | 0.1% | 6.1% |
+| five+ words | 26.7% | 5.8% | 21.8% |
+| you/your | 13.3% | 2.5% | 15.6% |
+| lint per 1,000 | | 0.6 | 0.0 |
+| album shapes / free albums distinct | | 49.6% / 92.9% | 44.9% / 77.4% |
+
+The album "distinct" figures fall because the new sets use a few fixed-phrase pools ("Funhouse", "Weathervane").
+The old numbers came from free adjective+noun draws ("Cerulean Eclipse") that were unique but read as random.
+Decade mix, seeds 1001/2002/3003: shape metrics within ±0.5 pt of the third pass, songs still 100% distinct,
+no template fails >20% of fills, lint 0.7 / 0.7 / 1.7 (3003's hits are in older shared frames, reshuffled). `NamingCoreTests`
+184/186 (the same 2 pre-existing failures). Game project builds.
+
+## Still open
+
+* **"!"/"?" endings are ~15% in these genres** (Hot 100 1.1%), before and after this pass: the genre voices
+  (GarageRock 0.9, Bubblegum 0.95, HardRock 0.85 `punctuationIntensity`) add them in post-processing, not the templates.
+  It is invisible in the decade mix (1.0-1.3%). Probably wants a cap on that voice dimension for titles.
+* British (6 templates incl. includes), protoPunk (4) and funk (5) song sets are still thin; band-name sets for folk (2),
+  reggae/bubblegum/sunshine (2) were out of scope.
+* Calibration: another re-baseline for these genres' track traits.
