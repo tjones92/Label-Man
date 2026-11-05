@@ -75,6 +75,23 @@ public partial class PlayerDesk {
         return $"{idea}\n{response}{(blocked != null ? "\nNot possible yet: " + blocked : "")}\n{minutes} minutes to prepare, then {StudioPassMinutes(cut)} minutes for a pass; no extra fee within the booked date. {StudioMinutesLeft(session)} minutes remain, with {FinishMinutes(session)} reserved for finishing. {protectedRead}";
     }
 
+    /// <summary>Why <see cref="ArrangeStudio"/> would refuse this arrangement right now, or null when it can be prepared.
+    /// The same checks in the same order, without spending anything, so the button can be greyed out before the click.</summary>
+    public string StudioArrangementUnavailable(int side, StudioArrangement arrangement) {
+        if (!Enum.IsDefined(arrangement)) return "Unknown arrangement.";
+        if (!StudioSide(side, out var session, out var cut, out string message)) return message;
+        if (!StudioArrangementOptions(session).Contains(arrangement)) return RulesV2Needed;
+        if (arrangement == cut.Arrangement) return "That arrangement is already prepared.";
+        var artist = ArtistManager.Instance.GetArtist(session.ArtistId);
+        var (_, resists) = StudioRulesV2(session) ? StudioStance(artist, arrangement) : (new System.Collections.Generic.List<string>(), new System.Collections.Generic.List<string>());
+        if (artist.artistCreativeControl && session.Tension > .55f && arrangement != StudioArrangement.Live || arrangement != StudioArrangement.Live && StudioRefuses(artist, session, resists))
+            return "The act won't play it: their contract gives them the choice.";
+        if (ArrangementBlocked(session, artist, cut, arrangement) is { } blocked) return blocked;
+        if (StudioMinutesLeft(session) < ArrangementMinutes(arrangement) + StudioPassMinutes(cut) + FinishMinutes(session))
+            return "Not enough time left to prepare it and still cut a pass.";
+        return null;
+    }
+
     public bool ArrangeStudio(int side, StudioArrangement arrangement, out string message) {
         if (!Enum.IsDefined(arrangement)) { message = "Unknown arrangement."; return false; }
         if (!StudioSide(side, out var session, out var cut, out message)) return false;

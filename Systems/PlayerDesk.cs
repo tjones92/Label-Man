@@ -1057,6 +1057,32 @@ public partial class PlayerDesk : Node {
 		skipStops.Add((title, type));
 	}
 
+	/// <summary>Released, sellable copies sitting in the office while nobody works an account: no shop or operator
+	/// approached since <paramref name="idleDays"/> days ago and no runner on a route. 0 when someone is working them.
+	/// (Playtest 2026-11-04: a 14-day skip with 725 records in the office raised no flag and sold nothing.)</summary>
+	public int UnworkedOfficeCopies(out int idleDays) {
+		idleDays = 0;
+		if (Label == null || runner?.RouteStopIds.Count > 0) return 0;
+		var released = ReleasedRecords.Where(r => r?.baseRecord != null).ToDictionary(r => r.baseRecord.recordId, r => r.baseRecord.releaseDate, StringComparer.Ordinal);
+		var sitting = inventory.Where(kv => kv.Value.Remaining > 0 && released.ContainsKey(kv.Key)).ToList();
+		if (sitting.Count == 0) return 0;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		GameDate since = sitting.Select(kv => released[kv.Key]).Where(d => d.year > 0).DefaultIfEmpty(today).Aggregate((a, b) => a < b ? a : b);
+		foreach (PlayerStop stop in EnsureStops().Values)
+			if (stop.LastApproachDate.year > 0 && stop.LastApproachDate > since) since = stop.LastApproachDate;
+		idleDays = Math.Max(0, (new DateTime(today.year, today.month, today.day) - new DateTime(since.year, since.month, since.day)).Days);
+		return sitting.Sum(kv => kv.Value.Remaining);
+	}
+
+	public const int UnworkedStockStopDays = 7;
+
+	/// <summary>A skip stops once a week while stock sits unworked, so a long skip can't quietly sell nothing.</summary>
+	private void FlagUnworkedStock() {
+		int copies = UnworkedOfficeCopies(out int idle);
+		if (copies > 0 && idle > 0 && idle % UnworkedStockStopDays == 0)
+			FlagSkipStop($"{copies:N0} records in the office and nobody has worked an account for {idle} days", EventType.Reminder);
+	}
+
 	private (string Title, EventType Type)? ProbeSkipStop() {
 		if (skipStops.Count == 0) return null;
 		// The vinyl and the ship date outrank a phone call when several land on the same morning.
@@ -1127,7 +1153,12 @@ public partial class PlayerDesk : Node {
 		if (Instance == this) Instance = null;
 	}
 
-	private void OnHourChanged(int hour) { AnnounceDueCallbacks(); Changed?.Invoke(); }
+	private bool announcingCallbacks;
+	private void OnHourChanged(int hour) {
+		announcingCallbacks = true;
+		try { AnnounceDueCallbacks(); } finally { announcingCallbacks = false; }
+		Changed?.Invoke();
+	}
 
 	private void OnRivalTalentMarketAppointment(RosterManager.DailyTalentMarketAppointment appointment) {
 		if (appointment?.SelectedArtist == null || appointment.Label == null || appointment.Label.isPlayerOwned) return;
@@ -3728,6 +3759,21 @@ public partial class PlayerDesk : Node {
 				if (lot.Remaining > 0) yield return (CityName(stop.CityId), stop.DisplayName, TitleForRecord(recordId), lot.Remaining);
 	}
 
+	/// <summary>One record's sell-through for its catalog card: copies on shop shelves, copies sold (settled weeks plus
+	/// this week's trunk units), and roughly what the shops holding it owe. A stop's balance is not kept per record, so
+	/// it is shared out by each record's placed copies there.</summary>
+	public (int OnShelves, int Sold, float Owed) RecordSellThrough(string recordId) {
+		int shelves = 0; float owed = 0f;
+		foreach (PlayerStop stop in EnsureStops().Values) {
+			if (!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot)) continue;
+			shelves += Math.Max(0, lot.Remaining);
+			int placedAll = stop.OnHand.Values.Sum(l => Math.Max(0, l.Placed));
+			if (stop.OpenBalance > 0f && placedAll > 0) owed += stop.OpenBalance * Math.Max(0, lot.Placed) / placedAll;
+		}
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		return (shelves, (rec?.totalUnitsSold ?? 0) + PendingTrunkUnits(recordId), owed);
+	}
+
 	// ========================================================================
 	// INBOUND DEMAND -- "they called me" (directive §4). Today, trunk is 100% player-push; this is the
 	// seam that lets a title with real local demand pull the player back to a shelf instead of dying at
@@ -3807,41 +3853,70 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	private void CheckWeeklyBreakoutNotices() {
 		if (Label == null || CompetitorManager.Instance == null) return;
-		float bar = CompetitorManager.Instance.RegionalBreakoutDealThreshold;
+		var cm = CompetitorManager.Instance;
+		float bar = cm.RegionalBreakoutDealThreshold;
+		// The paper only promises what the doors will say: "a house would take the line" is the wholesale gate's own
+		// proof (HasProvenBreakoutIn, what TAKE THE MEETING reads), and "a P&D house would hear this out" is the pitch's
+		// own readiness check. Below those bars the record is news, not an open door, and the line says what the
+		// door is waiting for. (Playtest 2026-11-04: the paper fired on the running .20 peak while both doors refused.)
+		bool dealReady = cm.PlayerDealReadiness(Label, out _);
 
 		foreach (RecordRuntimeData rec in ReleasedRecords) {
 			if (rec?.baseRecord == null || rec.regionalData == null) continue;
 			string recordId = rec.baseRecord.recordId;
 			string title = TitleForRecord(recordId);
-			int provenUncovered = 0;
+			var heardOnly = new List<string>();
+			int heardUncovered = 0;
 
 			foreach (var pair in rec.regionalData) {
 				string regionId = pair.Key;
 				if ((pair.Value?.peakBreakoutScore ?? 0f) < bar) continue;
 				if (Label.HasDistributionInRegion(regionId)) continue; // already selling there through a line or a deal
-				provenUncovered++;
-				if (!breakoutNoticesShown.Add($"{recordId}|{regionId}")) continue;
-
+				heardUncovered++;
 				string regionName = ChartManager.Instance?.GetRegionById(regionId)?.regionName ?? regionId;
+				if (!cm.HasProvenBreakoutIn(Label, regionId)) {
+					if (breakoutNoticesShown.Add($"{recordId}|{regionId}|heard")) heardOnly.Add(regionName);
+					continue;
+				}
+				if (!breakoutNoticesShown.Add($"{recordId}|{regionId}")) continue;
 				// Point at a door that's actually open. A market with no house with room is still news --
 				// it's what a P&D pitch is built on -- but it isn't a trip worth taking this week.
-				bool houseHasRoom = CompetitorManager.Instance.GetIndependentDistributorsInRegion(regionId)
+				bool houseHasRoom = cm.GetIndependentDistributorsInRegion(regionId)
 					.Any(house => house.HasCapacity && !house.CarriesLabel(Label.labelId));
 				Note(houseHasRoom
-					? $"{regionName} has heard \"{title}\" -- a house would take the line there now. ({DistributionHours}h to go place it.)"
-					: $"{regionName} has heard \"{title}\", but no house there has room for another line right now.");
+					? $"{regionName} has been buying \"{title}\" week after week -- a house would take the line there now. "
+						+ $"(DISTRIBUTION, wholesale houses: {DistributionHours}h to go place it.)"
+					: $"{regionName} has been buying \"{title}\" week after week, but no house there has room for another line right now.");
 			}
 
-			// The national read. Proof in this many uncovered markets at once is the record outgrowing the
-			// trunk: every one of those markets is turning its demand into backorder because nothing restocks
-			// a player record where the label has no coverage.
-			if (provenUncovered >= NationalBreakoutRegionCount && Label.activeDeal == null
-				&& breakoutNoticesShown.Add($"{recordId}|NATIONAL")) {
-				Note($"\"{title}\" is breaking in {provenUncovered} markets you don't cover -- that demand is "
-					+ "sitting as backorder, not sales. A P&D house would hear this one out.");
+			if (heardOnly.Count > 0)
+				Note($"\"{title}\" is getting heard in {JoinRegions(heardOnly)} -- not proof yet. A wholesale house there wants "
+					+ (WholesaleSpreadGate.Enabled ? $"about {WholesaleSpreadGate.SustainedTractionWeeks} straight weeks of it selling" : "it to break out")
+					+ " before it'll take your line; until then a pitch is a cold gamble.");
+
+			// The national read. Demand in this many uncovered markets at once is the record outgrowing the trunk:
+			// those markets turn it into backorder because nothing restocks a player record where the label has no
+			// coverage. Whether a P&D house would sit down is the pitch's own check, not this count.
+			if (Label.activeDeal != null) continue;
+			bool hitNow = !RegionalHitDealGate.Enabled
+				|| rec.regionalData.Values.Any(d => RegionalHitDealGate.IsRecent(d, rec.weeksSinceRelease));
+			if (dealReady && hitNow && breakoutNoticesShown.Add($"{recordId}|PND")) {
+				Note($"\"{title}\" is a regional hit right now -- a P&D house would hear this one out. "
+					+ $"(DISTRIBUTION, P&D deal: {SignHours}h to make the rounds.)");
+			} else if (!dealReady && heardUncovered >= NationalBreakoutRegionCount && breakoutNoticesShown.Add($"{recordId}|NATIONAL")) {
+				Note($"\"{title}\" is being asked for in {heardUncovered} markets you don't cover -- that demand is sitting as "
+					+ "backorder, not sales. A P&D house won't sit down on rumours, though: it wants one market where the record "
+					+ "is a hit right now.");
 			}
 		}
 	}
+
+	private static string JoinRegions(IReadOnlyList<string> names) => names.Count switch {
+		0 => "",
+		1 => names[0],
+		2 => $"{names[0]} and {names[1]}",
+		_ => string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1],
+	};
 
 	/// <summary>Directive §7's other unlock path: "inbound calls in two cities the same week." Reads what
 	/// GenerateInboundCalls just added rather than tracking a parallel counter.</summary>
@@ -4756,6 +4831,7 @@ public partial class PlayerDesk : Node {
 		ProcessMasterDealsDawn(date);
 		ProcessSongPlacementsDawn();
 		ProcessTrunkDay();
+		FlagUnworkedStock();
 		CheckWeeklyInboundCalls();
 		CheckWeeklyRunner();
 		CheckWeeklyFlip();
@@ -5578,7 +5654,10 @@ public partial class PlayerDesk : Node {
 		GameDate date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		log.Insert(0, $"{date.ToShortString()}  {entry}");
 		if (log.Count > 60) log.RemoveAt(log.Count - 1);
-		UnreadLogCount = Mathf.Min(UnreadLogCount + 1, log.Count);
+		// The LEDGER badge is for news, not for echoes of what the player just clicked (playtest 2026-11-04: it reached 60,
+		// nearly all "Waited until the announced start" and the like, and the player stopped reading it).
+		if (TimeManager.Instance?.TurningTheDay == true || announcingCallbacks)
+			UnreadLogCount = Mathf.Min(UnreadLogCount + 1, log.Count);
 		GD.Print($"[Desk] {entry}");
 	}
 

@@ -138,7 +138,8 @@ public partial class ScoutingUiChecks : Node {
             await Press("FIND A SET");
             await Press("NEXT SETS");
             await Press("LISTEN");
-            Check(Nodes(panel).OfType<Button>().Single(b => b.Text == "ACT NOTEBOOK").Disabled, "Listening opens the notebook automatically");
+            Check(Nodes(panel).OfType<Label>().Any(l => l.Text.StartsWith("A&R NOTEBOOK")) && Nodes(panel).OfType<Button>().Single(b => b.Text == "FIND A SET").FocusMode != Control.FocusModeEnum.None,
+                "Listening opens the notebook automatically");
             Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + desk.Slate.Last().Artist.stageName)), "Newly heard act is expanded");
             await Screenshot("new-listen");
             await Press("TALK TO ACT");

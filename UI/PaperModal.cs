@@ -108,6 +108,51 @@ public partial class PaperModal : CanvasLayer {
 		buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
 		buttons.AddThemeConstantOverride("separation", 10);
 		column.AddChild(buttons);
+
+		this.card = card;
+		Body.MinimumSizeChanged += QueueFit;
+		root.Resized += QueueFit;
+		QueueFit();
+	}
+
+	// ---- fitting the window -----------------------------------------------------------------------
+	// A modal taller than the window ran its buttons off the bottom of the screen. When the card would overflow, the
+	// body moves into a scroll area sized to what is left after the title and buttons; the buttons stay on screen.
+	// A modal that fits keeps its plain layout (no scroll area at all).
+
+	private const float ScreenMargin = 24;
+	private PanelContainer card;
+	private ScrollContainer bodyScroll;
+	private bool fitQueued;
+
+	private void QueueFit() {
+		if (fitQueued || closed || !IsInsideTree()) { if (!IsInsideTree()) Callable.From(QueueFit).CallDeferred(); return; }
+		fitQueued = true;
+		// Next frame, after the containers have laid the card out: wrapped text measured before the card has its
+		// width reads many times too tall and would wrap a short modal in a scroll it doesn't need.
+		GetTree().Connect(SceneTree.SignalName.ProcessFrame, Callable.From(Fit), (uint)ConnectFlags.OneShot);
+	}
+
+	private void Fit() {
+		fitQueued = false;
+		if (closed || !IsInstanceValid(card) || !card.IsInsideTree()) return;
+		if (card.Size.X < card.CustomMinimumSize.X - 1) { QueueFit(); return; }
+		float screen = card.GetViewportRect().Size.Y - 2 * ScreenMargin;
+		float content = Body.GetCombinedMinimumSize().Y;
+		if (bodyScroll == null) {
+			if (card.GetCombinedMinimumSize().Y <= screen) return;
+			var column = Body.GetParent();
+			int at = Body.GetIndex();
+			bodyScroll = new ScrollContainer { Name = "ModalBodyScroll", HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+			column.RemoveChild(Body);
+			bodyScroll.AddChild(Body);
+			column.AddChild(bodyScroll);
+			column.MoveChild(bodyScroll, at);
+		}
+		float chrome = card.GetCombinedMinimumSize().Y - bodyScroll.GetCombinedMinimumSize().Y;
+		float height = Mathf.Max(160, Mathf.Min(content, screen - chrome));
+		if (!Mathf.IsEqualApprox(bodyScroll.CustomMinimumSize.Y, height)) bodyScroll.CustomMinimumSize = new Vector2(0, height);
 	}
 
 	/// <summary>Wrapped body text in the office's ink.</summary>

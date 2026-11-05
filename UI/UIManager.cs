@@ -1000,7 +1000,15 @@ public partial class UIManager : Control
 				: $"Skip to next event ({nextEvent.title}, {nextEvent.date.ToHeadlineString()})";
 		nextButton.Disabled = nextEvent == null && ownEvent == null;
 		nextButton.TooltipText = "Stops early for the vinyl landing, a ship date, or a call at the office while you are there.";
-		calendarPopup.PopupCentered(new Vector2I(500, 300));
+		// Skipping sells nothing out of the office; say so before the player picks, not after a fortnight of nothing.
+		var warning = calendarPopup.GetNode<Label>("Margin/Options/StockWarning");
+		int idleDays = 0;
+		int unworked = PlayerDesk.Instance != null ? PlayerDesk.Instance.UnworkedOfficeCopies(out idleDays) : 0;
+		warning.Visible = unworked > 0;
+		warning.Text = unworked <= 0 ? "" :
+			$"{unworked:N0} records are sitting in the office and nobody is working them" + (idleDays > 0 ? $" (no account worked in {idleDays} {(idleDays == 1 ? "day" : "days")})" : "") +
+			$". Skipping sells nothing from the office: take copies to the shops on the DISTRIBUTION tab first, or hire a runner. A skip stops every {PlayerDesk.UnworkedStockStopDays} days while they sit.";
+		calendarPopup.PopupCentered(new Vector2I(500, unworked > 0 ? 370 : 300));
 	}
 
 	private bool StudioBlocksCalendar(bool oneDay = false) {
@@ -1030,6 +1038,10 @@ public partial class UIManager : Control
 		title.AddThemeFontOverride("font", PaperTheme.SansBold);
 		title.AddThemeColorOverride("font_color", PaperTheme.Rust);
 		options.AddChild(title);
+		var stockWarning = new Label { Name = "StockWarning", Visible = false, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(456, 0) };
+		stockWarning.AddThemeFontSizeOverride("font_size", 15);
+		stockWarning.AddThemeColorOverride("font_color", PaperTheme.Rust);
+		options.AddChild(stockWarning);
 
 		var friday = new Button { Text = "Skip to Friday" };
 		friday.Pressed += () => RunCalendarSkip(() => TimeManager.Instance.SkipToFriday());
@@ -1058,7 +1070,7 @@ public partial class UIManager : Control
 		string reason = interruptedBy == null ? "" : $" (stopped for {interruptedBy.title})";
 		GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}{reason}.");
 		// The vinyl landing already raises its own banner; the rest would otherwise stop the skip silently.
-		if (interruptedBy != null && interruptedBy.eventType is EventType.IncomingCall or EventType.RecordRelease)
+		if (interruptedBy != null && interruptedBy.eventType is EventType.IncomingCall or EventType.RecordRelease or EventType.Reminder)
 			ShowAnnouncement($"SKIP STOPPED  —  {interruptedBy.title}");
 	}
 

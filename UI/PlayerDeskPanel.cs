@@ -199,9 +199,8 @@ public partial class PlayerDeskPanel : Control {
 		nextUpLabel.CustomMinimumSize = new Vector2(0, 30);
 		nextUpLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		nextUpLabel.Alignment = HorizontalAlignment.Left;
-		// A long hint trims with an ellipsis (full text in the tooltip) instead of stretching the folder.
-		nextUpLabel.ClipText = true;
-		nextUpLabel.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		// Playtest 2026-11-04: the most useful line on the desk was cut off with "…". It wraps to a second line instead.
+		nextUpLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		nextUpLabel.TooltipText = "Open the department for the next suggested step.";
 		nextUpLabel.AddThemeStyleboxOverride("normal", new StyleBoxFlat {
 			BgColor = new Color("ead8ad"), BorderColor = new Color("8a7048"),
@@ -212,9 +211,9 @@ public partial class PlayerDeskPanel : Control {
 		nextUpLabel.Pressed += OpenNextUp;
 		root.AddChild(nextUpLabel);
 
-		// One fixed-height alert row: the red-ink chip (only in the red) sits left of the last action's
-		// result. The row's height never changes, so neither appearing nor clearing moves anything below it.
-		var alertRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 24) };
+		// One fixed-height row for the last action's result and the ways to pass time: the red-ink chip (only in the
+		// red), the result, then the wait buttons on the right. It used to be two rows; the header was ~270px.
+		var alertRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 34) };
 		alertRow.AddThemeConstantOverride("separation", 12);
 		root.AddChild(alertRow);
 		redInkLabel = new Button { Flat = true, Visible = false, FocusMode = FocusModeEnum.None, MouseDefaultCursorShape = CursorShape.PointingHand };
@@ -227,7 +226,8 @@ public partial class PlayerDeskPanel : Control {
 
 		// Action feedback stays on one line. The tooltip retains the full message when it is longer
 		// than the header can show.
-		statusLabel = new Label { ClipText = true, SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 24) };
+		statusLabel = new Label { ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, SizeFlagsHorizontal = SizeFlags.ExpandFill,
+			CustomMinimumSize = new Vector2(0, 24), VerticalAlignment = VerticalAlignment.Center, MouseFilter = MouseFilterEnum.Stop };
 		statusLabel.AddThemeFontSizeOverride("font_size", 16);
 		statusLabel.AddThemeColorOverride("font_color", Rust);
 		alertRow.AddChild(statusLabel);
@@ -236,9 +236,6 @@ public partial class PlayerDeskPanel : Control {
 		// and there's no other way to move the day forward from the desk.
 		idleRow = new HBoxContainer();
 		idleRow.AddThemeConstantOverride("separation", 8);
-		var idleLabel = new Label { Text = "Nothing doing?" };
-		idleLabel.AddThemeColorOverride("font_color", Ink);
-		idleRow.AddChild(idleLabel);
 		var wait1 = Btn("WAIT 1h");
 		wait1.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PassTime(1, out string m); Say(m, ok); return ok; });
 		idleRow.AddChild(wait1);
@@ -261,7 +258,7 @@ public partial class PlayerDeskPanel : Control {
 		skip.TooltipText = "Choose a date or upcoming event to skip to.";
 		skip.Pressed += () => UIManager.Instance?.OpenCalendarSkipOptionsFromDesk();
 		idleRow.AddChild(skip);
-		root.AddChild(idleRow);
+		alertRow.AddChild(idleRow);
 
 		tabs = new HBoxContainer();
 		tabs.AddThemeConstantOverride("separation", -2);   // trapezoid tabs meet at the foot and open out at the shoulders
@@ -349,6 +346,8 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>Switches the desk to a macro tab, dropping any open MANAGE/cover-browse sub-state.</summary>
 	private void GoToTab(int index, Action page) {
+		bool switching = index != currentTab;
+		if (switching && contentScroll != null) tabScroll[currentTab] = contentScroll.ScrollVertical;
 		currentTab = index;
 		currentPage = page;
 		managingArtistId = null;
@@ -356,6 +355,16 @@ public partial class PlayerDeskPanel : Control {
 		// Leaving the tab hangs up: you cannot hold a man on the line while you go and read the books.
 		if (index != RolodexTab) { PlayerDesk.Instance?.EndCall(PlayerDesk.Instance.ActiveCall); rolodexPitchRecordId = null; }
 		Refresh();
+		// Coming back to a tab puts you where you left it (open sections are remembered separately); a first visit opens at the top.
+		if (switching) RestoreScroll(tabScroll.TryGetValue(index, out int kept) ? kept : 0);
+	}
+
+	private readonly Dictionary<int, int> tabScroll = new();
+
+	private void RestoreScroll(int value) {
+		if (contentScroll == null) return;
+		contentScroll.ScrollVertical = value;
+		GetTree().CreateTimer(0.03).Timeout += () => { if (IsInstanceValid(contentScroll)) contentScroll.ScrollVertical = value; };
 	}
 
 	// ========================================================================
@@ -436,7 +445,11 @@ public partial class PlayerDeskPanel : Control {
 			waitEveningButton.TooltipText = eveningStarted ? "Evening scouting hours have begun." : "Pass time until 5 PM, when clubs begin opening.";
 		}
 
-		if (tabButtons.Count == 0) { BuildTabs(); currentTab = 0; currentPage = PageAandR; }
+		if (tabButtons.Count == 0) {
+			BuildTabs(); currentTab = 0; currentPage = PageAandR; tabScroll.Clear();
+			// The founding form was a long scroll; the first desk opens at the top of A&R, not wherever that left off.
+			Callable.From(() => { if (IsInstanceValid(contentScroll)) contentScroll.ScrollVertical = 0; }).CallDeferred();
+		}
 		tabs.Visible = true;
 		for (int index = 0; index < tabButtons.Count; index++)
 			StyleFolderTab(tabButtons[index], index == currentTab);
@@ -452,13 +465,16 @@ public partial class PlayerDeskPanel : Control {
 		string home = string.IsNullOrEmpty(label.headquartersCity) ? region : $"{label.headquartersCity}, {region}";
 		string where = desk.AtHome ? $"at the office in {home}" : $"on the road in {desk.CurrentCity?.name ?? "town"}";
 		clockLabel.Text =
+			// The workday in one short clause; the overtime rule is in the tooltip, not the header.
 			$"{time?.CurrentDate.ToLongString()}  •  {time?.GetTimeString()}  •  " +
-			$"{time?.RegularTimeRemainingText ?? "0m"} regular until {time?.RegularWorkdayEndTime ?? "6:00 PM"} + " +
-			$"{time?.OvertimeRemainingText ?? "0m"} overtime to {time?.HardStopTime ?? "9:00 PM"}, no overtime fee ({time?.GetDayStatus()})\n" +
+			(time?.RegularTimeRemainingText is { } regular && regular != "0m"
+				? $"{regular} left in the workday"
+				: $"overtime until {time?.HardStopTime ?? "9:00 PM"}") + "\n" +
 			$"{where}  |  {CashMarkup(label.cashReserves)} cash  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts  |  " +
 			$"{desk.WorkedCities.Count()} {CountWord(desk.WorkedCities.Count(), "town")} worked";
 		clockLabel.TooltipText = time == null ? string.Empty
-			: $"Regular workday ends at {time.RegularWorkdayEndTime}; overtime can carry jobs to the {time.HardStopTime} hard stop. There is no overtime surcharge. Each action must finish by the hard stop.";
+			: $"{time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime} ({time.GetDayStatus()}). " +
+			  $"Overtime can carry jobs to the {time.HardStopTime} hard stop. There is no overtime surcharge. Each action must finish by the hard stop.";
 		var stockNotes = desk.ReleasedRecords
 			.Where(record => record?.baseRecord != null)
 			.Select(record => {
@@ -477,6 +493,8 @@ public partial class PlayerDeskPanel : Control {
 			})
 			.Where(note => !string.IsNullOrEmpty(note)).ToList();
 		stockLabel.Text = stockNotes.Count == 0 ? "STOCK  •  no released records on hand" : "STOCK  •  " + string.Join("   |   ", stockNotes);
+		// Before the first pressing there is no stock to report; the line arrives with the records.
+		stockLabel.Visible = inGame && stockNotes.Count > 0;
 		stockLabel.TooltipText = stockLabel.Text;
 		stockLabel.AddThemeColorOverride("font_color", stockNotes.Any(note => note.Contains("LOW", StringComparison.Ordinal) || note.Contains("SOLD OUT", StringComparison.Ordinal)) ? Rust : HeaderFade);
 		// A running tab is survivable, but the bank is watching. Spell out the credit line and the clock on it.
@@ -494,7 +512,8 @@ public partial class PlayerDeskPanel : Control {
 	private void UpdateTabBadges(PlayerDesk desk) {
 		for (int i = 0; i < tabButtons.Count; i++) {
 			string title = tabTitles[i];
-			int count = title switch {
+			// The open tab never wears a badge: the player is already looking at what it would announce.
+			int count = i == currentTab && title is "LEDGER" or "ROLODEX" ? 0 : title switch {
 				"LEDGER" => desk.UnreadLogCount,
 				"OFFICE" => desk.PendingCalls().Count(),
 				"CATALOG" => desk.PendingPressings().Count(),
@@ -867,7 +886,7 @@ public partial class PlayerDeskPanel : Control {
 
 	private void ShowFoundingCities(List<MarketCity> cities, List<MarketRegion> regions) {
 		if (foundingCityPopup != null) foundingCityPopup.QueueFree();
-		foundingCityPopup = new PopupPanel { Size = new Vector2I(1000, 680) };
+		foundingCityPopup = new PopupPanel { Size = new Vector2I(1540, 760) };
 		var popup = foundingCityPopup;
 		var regionName = regions.ToDictionary(region => region.regionId, region => region.regionName);
 		popup.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
@@ -895,7 +914,24 @@ public partial class PlayerDeskPanel : Control {
 			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1 });
 		cityList.AddThemeStyleboxOverride("selected", new StyleBoxFlat { BgColor = Rust });
 		cityList.AddThemeStyleboxOverride("selected_focus", new StyleBoxFlat { BgColor = Rust });
+		// The hovered row was white text on near-white; hover is a highlighter swipe with ink text.
+		cityList.AddThemeColorOverride("font_hovered_color", Ink);
+		cityList.AddThemeStyleboxOverride("hovered", new StyleBoxFlat { BgColor = new Color(PaperTheme.Highlighter, 0.55f) });
 		selection.AddChild(cityList);
+		// The atlas: every town where it really is, its region tinted; click a town to read about it.
+		var atlas = new UsMap { CustomMinimumSize = new Vector2(720, 460), SizeFlagsVertical = SizeFlags.ShrinkBegin };
+		atlas.CityNote = id => {
+			var town = DistanceModel.GetCityById(id);
+			return town == null ? null : $"{regionName.GetValueOrDefault(town.parentRegionId, town.parentRegionId)}{(town.isRegionalHub ? " · regional hub" : "")}";
+		};
+		var atlasColumn = new VBoxContainer();
+		atlasColumn.AddThemeConstantOverride("separation", 6);
+		atlasColumn.AddChild(atlas);
+		var atlasKey = new Label { Text = "Click a town on the map or in the list. Shaded areas are the sales regions; bold towns are regional hubs." , AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(720, 0) };
+		atlasKey.AddThemeFontSizeOverride("font_size", 13);
+		atlasKey.AddThemeColorOverride("font_color", Heard);
+		atlasColumn.AddChild(atlasKey);
+		selection.AddChild(atlasColumn);
 		var detail = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		detail.AddThemeConstantOverride("separation", 12);
 		selection.AddChild(detail);
@@ -921,6 +957,7 @@ public partial class PlayerDeskPanel : Control {
 			if (index < 0 || index >= filteredCities.Count) return;
 			MarketCity city = filteredCities[index];
 			popupCityId = city.cityId;
+			atlas.SelectedCityId = city.cityId; atlas.HighlightRegionId = city.parentRegionId;
 			MarketRegion region = regions.FirstOrDefault(candidate => candidate.regionId == city.parentRegionId);
 			cityName.Text = city.name.ToUpperInvariant();
 			location.Text = $"{region?.regionName ?? city.parentRegionId}{(city.isRegionalHub ? "  •  REGIONAL HUB" : "")}";
@@ -947,10 +984,16 @@ public partial class PlayerDeskPanel : Control {
 			select.Disabled = filteredCities.Count == 0;
 		}
 		cityList.ItemSelected += item => { index = (int)item; popupCityId = filteredCities[index].cityId; ShowCard(); };
+		atlas.CityPressed += id => {
+			if (filteredCities.All(c => c.cityId != id)) { popupCityId = id; search.Text = ""; FilterCities(""); }
+			index = filteredCities.FindIndex(c => c.cityId == id);
+			if (index < 0) return;
+			popupCityId = id; cityList.Select(index); cityList.EnsureCurrentIsVisible(); ShowCard();
+		};
 		search.TextChanged += FilterCities;
 		select.Pressed += () => { if (index < 0 || index >= filteredCities.Count) return; selectedFoundingCityId = popupCityId; popup.Hide(); Refresh(); };
 		FilterCities(search.Text);
-		popup.PopupCentered(new Vector2I(1000, 680));
+		popup.PopupCentered(new Vector2I(1540, 760));
 	}
 
 	// ========================================================================
@@ -1142,15 +1185,20 @@ public partial class PlayerDeskPanel : Control {
 
 		Heading("A&R — WORK THE SCENE");
 		var scoutingTabs = new HFlowContainer();
+		scoutingTabs.AddThemeConstantOverride("h_separation", 6);
 		foreach (string view in new[] { "FIND A SET", "ACT NOTEBOOK" }) {
-			var tab = Btn(view); tab.Disabled = scoutingView == view;
-			tab.Pressed += () => { scoutingView = view; Refresh(); };
+			var tab = ChoiceButton(view, scoutingView == view, () => { scoutingView = view; Refresh(); });
+			tab.CustomMinimumSize = new Vector2(150, 36);
 			scoutingTabs.AddChild(tab);
 		}
 		content.AddChild(scoutingTabs);
 		if (scoutingView == "ACT NOTEBOOK") { ScoutingActsPage(desk); return; }
+		// A first-day player needs the one idea the page is built on; after the first listen it is a plain prompt.
+		bool firstListen = desk.ScoutingDossiers.Count == 0 && !desk.Roster.Any();
 		Body(LocalScenes.Rooms
-            ? "Find a set to hear, or explore a venue's calendar."
+            ? firstListen
+				? "Every signing starts in a club. Go and hear a set: what you notice is saved to your ACT NOTEBOOK, and if you like an act, you talk to them after their set."
+				: "Pick a set to hear, or browse the venues' posted calendars."
             : $"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only draws a crowd at its own hours. Your ear shapes the impression; judging the act is your decision.");
 		if (LocalScenes.Rooms) SceneRoomsBoard(desk);
         else {
@@ -1214,13 +1262,15 @@ public partial class PlayerDeskPanel : Control {
 				if (!desk.ScoutingDossiers.Any(d => d.ArtistId == prospect.Artist.artistId)) ProspectCard(prospect);
 		}
 
-		Heading($"A&R NOTEBOOK  ({desk.ScoutingDossiers.Count} recorded acts)");
+		int scoutingActs = desk.ScoutingDossiers.Count(d => !SignedByPlayer(desk, d.ArtistId));
+		Heading($"A&R NOTEBOOK  ({scoutingActs} {(scoutingActs == 1 ? "act" : "acts")})");
 		ScoutingNotebook(desk);
 		foreach (PlayerDesk.WatchNote entry in desk.Notebook.ToList()) {
             if (desk.ScoutingDossiers.Any(d => d.ArtistId == entry.Artist?.artistId)) continue;
 			SimulatedArtist artist = entry.Artist;
 			if (artist == null) continue;
 			bool signedByYou = !string.IsNullOrEmpty(artist.labelId) && artist.labelId == desk.Label?.labelId;
+			if (signedByYou) continue;
 			bool signedElsewhere = !string.IsNullOrEmpty(artist.labelId) && !signedByYou;
 			string labelName = signedElsewhere ? ChartManager.Instance?.GetLabelName(artist.labelId) ?? "another label" : null;
 			GameDate today = TimeManager.Instance?.CurrentDate ?? entry.LastSeen;
@@ -2128,7 +2178,13 @@ public partial class PlayerDeskPanel : Control {
 			StageCard($"\"{record.baseRecord.title}\" — {record.baseRecord.artistName}", stockLine,
 				(record.peakPosition > 0 ? $"peak #{record.peakPosition}, {record.weeksOnChart} {CountWord(record.weeksOnChart, "week")} on the chart" : "has not charted") +
 				$"  •  {record.weeksSinceRelease} {CountWord(record.weeksSinceRelease, "week")} out",
-				() => PressingControls(desk, id, false), "Repress requisition", order != null ? "ON ORDER" : null, RubberStamp.Blue);
+				() => {
+					// Playtest 2026-11-04: no per-record sales figure anywhere; the per-store rows were the only readout.
+					(int shelves, int sold, float owed) = desk.RecordSellThrough(id);
+					content.AddChild(WorkOrder.Typed("SELL-THROUGH", $"{stock?.Remaining ?? 0:N0} in the office  ·  {shelves:N0} on shop shelves  ·  " +
+						$"{sold:N0} sold  ·  {(owed >= 0.5f ? $"about ${owed:N0} owed to you" : "nothing owed")}", 0f, true));
+					PressingControls(desk, id, false);
+				}, "Repress requisition", order != null ? "ON ORDER" : null, RubberStamp.Blue);
 		}
 	}
 
@@ -2415,6 +2471,8 @@ public partial class PlayerDeskPanel : Control {
 	// DISTRIBUTION
 	// ========================================================================
 
+	private const int DistributionMailStageDays = 3, DistributionHouseStageDays = 14;
+
 	private void DistributionBody() {
 		PlayerDesk desk = PlayerDesk.Instance;
 		AILabel label = desk.Label;
@@ -2426,6 +2484,24 @@ public partial class PlayerDeskPanel : Control {
 		bool hasReleased = desk.ReleasedRecords.Any(record => record?.baseRecord != null);
 		if (!hasReleased)
 			Body("More of this desk — the mailing, the trades, distribution deals and the wholesale houses — opens once your first single is out.");
+		// Playtest 2026-11-04: release day opened about thirteen sections at once after a month of gentle unlocks. The
+		// desk now opens in three stages: the town first; the mail-order work once copies are out (or after a few
+		// days); the houses, deals and buy-ins once a record has two weeks behind it or has broken out somewhere.
+		GameDate todayDist = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		var releasedDates = desk.ReleasedRecords.Where(r => r?.baseRecord != null && r.baseRecord.releaseDate.year > 0).Select(r => r.baseRecord.releaseDate).ToList();
+		GameDate firstOut = releasedDates.Count > 0 ? releasedDates.OrderBy(d => d.year).ThenBy(d => d.month).ThenBy(d => d.day).First() : todayDist;
+		int daysOut = Mathf.Max(0, DaysBetween(firstOut, todayDist));
+		bool copiesOut = desk.StopStock().Any() || desk.OpenBalancesByStop().Any();
+		bool brokeOut = desk.ReleasedRecords.Any(r => r?.baseRecord != null && desk.BreakoutRegionNames(r.baseRecord.recordId).Any());
+		bool stageMail = hasReleased && (copiesOut || daysOut >= DistributionMailStageDays);
+		bool stageHouses = hasReleased && (daysOut >= DistributionHouseStageDays || brokeOut);
+		if (hasReleased && !stageHouses) {
+			string Day(int days) => LocalSceneRoomService.Date(LocalSceneRoomService.Day(firstOut) + days).ToHeadlineString();
+			Body(!stageMail
+				? $"Start in town: place copies with a shop, or take one to a station. The mailing, the trades and the press desk open once copies are out (or on {Day(DistributionMailStageDays)}); " +
+				  $"distribution deals and the wholesale houses on {Day(DistributionHouseStageDays)}, or sooner if a record breaks out."
+				: $"Distribution deals, the wholesale houses and artist buy-ins open on {Day(DistributionHouseStageDays)}, or sooner if a record breaks out somewhere.");
+		}
 
 		// --- WHERE YOU ARE + DRIVING ---
 		MarketCity here = desk.CurrentCity;
@@ -2465,7 +2541,30 @@ public partial class PlayerDeskPanel : Control {
 				return true;
 			});
 			driveRow.AddChild(drive);
+			// The road map: where you are, home, the towns you've worked, and every town you can drive to today.
+			// Clicking a town picks it in the list above; DRIVE THERE still commits the hours and gas.
+			var reachIds = reach.Select(c => c.cityId).ToHashSet();
+			var roadMap = new UsMap {
+				CustomMinimumSize = new Vector2(0, 400), SizeFlagsHorizontal = SizeFlags.ExpandFill,
+				HereCityId = desk.CurrentCityId, HomeCityId = desk.Label?.homeCityId, HighlightRegionId = here?.parentRegionId,
+				Marked = desk.WorkedCities.ToHashSet(),
+				Unavailable = DistanceModel.GetCities().Select(c => c.cityId).Where(id => id != desk.CurrentCityId && !reachIds.Contains(id)).ToHashSet(),
+				CityNote = id => {
+					if (id == desk.CurrentCityId) return "You are here.";
+					if (!reachIds.Contains(id)) return "Too far for one drive: go through a neighbouring region first.";
+					(int h, float g) = desk.DriveQuote(desk.CurrentCityId, id);
+					return $"{h}h drive, ${g:N0} gas" + (desk.WorkedCities.Contains(id) ? " · worked before" : "");
+				}
+			};
+			roadMap.CityPressed += id => {
+				int at = reach.FindIndex(c => c.cityId == id);
+				if (at < 0) return;
+				cityPicker.Select(at + 1); drive.Disabled = false; roadMap.SelectedCityId = id;
+			};
+			cityPicker.ItemSelected += index => roadMap.SelectedCityId = index > 0 ? reach[(int)index - 1].cityId : null;
 			content.AddChild(driveRow);
+			content.AddChild(roadMap);
+			content.AddChild(FaintLine("Flag: you are here  ·  square: home office  ·  green ring: towns you've worked  ·  hollow dots: too far for one drive."));
 		}
 
 		// --- STOPS IN THIS TOWN: named shops and jukebox operators, each with its own relationship,
@@ -2549,7 +2648,7 @@ public partial class PlayerDeskPanel : Control {
 				header.CustomMinimumSize = new Vector2(360, 36);
 				header.Pressed += () => {
 					if (!expandedStopKinds.Remove(kind)) expandedStopKinds.Add(kind);
-					Refresh();
+					RefreshKeepingScroll();
 				};
 				content.AddChild(header);
 				if (!expanded) continue;
@@ -2591,17 +2690,16 @@ public partial class PlayerDeskPanel : Control {
 							// only once he's EARNED that (worked the counter, or asked at the station whose
 							// survey it feeds). "That is the information the early game is actually about,"
 							// so it is not printed free on a shop nobody has walked into.
-							+ (desk.KnowsWhoReports(stop.StopId) ? " — reports" : ""),
+							+ (desk.KnowsWhoReports(stop.StopId) ? " — reports" : "")
+							+ (workedToday ? "  ·  worked today, back tomorrow" : ""),
 						SizeFlagsHorizontal = SizeFlags.ExpandFill,
-						AutowrapMode = TextServer.AutowrapMode.WordSmart
+						// One line, always: a result must never insert a row and shove the next account's buttons down.
+						ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
+						CustomMinimumSize = new Vector2(0, 24), MouseFilter = MouseFilterEnum.Stop
 					};
-					stopLabel.AddThemeColorOverride("font_color", Ink);
+					stopLabel.TooltipText = stopLabel.Text.Trim();
+					stopLabel.AddThemeColorOverride("font_color", workedToday ? Heard : Ink);
 					row.AddChild(stopLabel);
-					if (workedToday) {
-						var tomorrow = new Label { Text = "Worked today — available tomorrow.", AutowrapMode = TextServer.AutowrapMode.WordSmart };
-						tomorrow.AddThemeColorOverride("font_color", Heard);
-						row.AddChild(tomorrow);
-					}
 					row.AddChild(actions);
 
 					var pitch = Btn($"PITCH ({estHours})");
@@ -2736,7 +2834,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		// --- THE MAILING (office only, directive §5): the only way to touch a market you can't drive to ---
-		if (promoOnHand.Count > 0) {
+		if (promoOnHand.Count > 0 && stageMail) {
 			SectionHeading("mailing", "THE MAILING", false,
 				$"Office only. {ActionCosts.Planning}h for up to {PlayerDesk.MailingFreePieces} pieces, plus an hour per further " +
 				$"{PlayerDesk.MailingPiecesPerExtraHour}. About ${PlayerDesk.MailerCostPerCopy:F2}/copy for the mailer and postage. " +
@@ -2784,7 +2882,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		// --- THE TRADES (office only, directive §6.1/§6.3): the review desk and the breakout column ---
-		if (hasReleased) {
+		if (stageMail) {
 			SectionHeading("trades", "THE TRADES", false,
 				$"One submission per record, {ActionCosts.Paperwork}h and one promo copy plus ${PlayerDesk.TradeReviewPostage:F2} postage. " +
 				"A week or two later you hear back — most records got nothing. A real pick talks to distributors " +
@@ -2865,10 +2963,10 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		// --- PRESS & TELEVISION (media directive Phase 2): producers, editors, standards, reporters on deadline ---
-		MediaSection(desk);
+		if (!hasReleased || stageMail) MediaSection(desk);
 
 		// --- ARTIST BUY-IN (office only): an act buys a run of its own pressed single outright, cash now ---
-		ArtistBuyInSection(desk);
+		if (stageHouses) ArtistBuyInSection(desk);
 
 		// --- STOCK OUT IN THE TOWNS ---
 		var stopStock = desk.StopStock().OrderBy(s => s.CityName).ThenBy(s => s.StopName).ToList();
@@ -2888,7 +2986,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		// --- P&D DISTRIBUTION DEAL (directive §9) ---
-		if (hasReleased || label.activeDeal != null || desk.PendingDistributionOffer != null) {
+		if (stageHouses || label.activeDeal != null || desk.PendingDistributionOffer != null) {
 			SectionHeading("pnd", "P&D DISTRIBUTION DEAL", label.activeDeal != null || desk.PendingDistributionOffer != null,
 				"A pressing-and-distribution deal covers the whole catalog for the term, not one title: an advance " +
 				"(maybe), a real cut of everything, and often the masters, in trade for a distributor's own national " +
@@ -2919,15 +3017,20 @@ public partial class PlayerDeskPanel : Control {
 				offerRow.AddChild(declineBtn);
 				content.AddChild(offerRow);
 			} else {
+				// Ask the pitch's own readiness check before the click, so a closed door says why up front.
+				string notYet = null;
+				bool ready = CompetitorManager.Instance?.PlayerDealReadiness(label, out notYet) ?? false;
 				var pitchBtn = Btn($"PITCH FOR A DEAL ({PlayerDesk.SignHours}h)");
 				pitchBtn.CustomMinimumSize = new Vector2(220, 40);
+				pitchBtn.Disabled = !ready;
 				pitchBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PursueDistributionDeal(out string message); Say(message, ok); return ok; });
 				content.AddChild(pitchBtn);
+				if (!ready && !string.IsNullOrEmpty(notYet)) content.AddChild(FaintLine(notYet));
 			}
 		}
 
 		// --- WHOLESALE HOUSES (the gamble) ---
-		if (hasReleased) {
+		if (stageHouses) {
 			SectionHeading("wholesale", "WHOLESALE HOUSES — THE GAMBLE", false,
 				"Some markets are too far to drive a line to. Hand it to a wholesale house out there and they'll press " +
 				"it into shops you'll never reach — but they pay on their own terms months later, skim their cut, and " +
@@ -2945,7 +3048,10 @@ public partial class PlayerDeskPanel : Control {
 					SizeFlagsHorizontal = SizeFlags.ExpandFill,
 					AutowrapMode = TextServer.AutowrapMode.WordSmart,
 					Text = $"{region.regionName}  —  {Plural.Of(houses, "house")} with room  —  " +
-						(proven ? "they've heard of you here" : "no proof here yet — a cold pitch")
+						(proven ? "they've heard of you here"
+							: WholesaleSpreadGate.Enabled
+								? $"no proof here yet — a cold pitch ({WholesaleSpreadGate.SustainedTractionWeeks} straight weeks selling here makes it a sure thing)"
+								: "no proof here yet — a cold pitch")
 				};
 				text.AddThemeColorOverride("font_color", proven ? Ink : Rust);
 				row.AddChild(text);
@@ -4158,16 +4264,12 @@ public partial class PlayerDeskPanel : Control {
 		bool workedToday = PlayerDesk.Instance.HasWorkedStopToday(stop.StopId);
 
 		var stopLabel = new Label {
-			Text = $"    {stop.DisplayName} ({relWord})",
-			CustomMinimumSize = new Vector2(400, 32)
+			Text = $"    {stop.DisplayName} ({relWord})" + (workedToday ? "  ·  worked today" : ""),
+			CustomMinimumSize = new Vector2(400, 32), VerticalAlignment = VerticalAlignment.Center,
+			ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
 		};
-		stopLabel.AddThemeColorOverride("font_color", Ink);
+		stopLabel.AddThemeColorOverride("font_color", workedToday ? Heard : Ink);
 		row.AddChild(stopLabel);
-		if (workedToday) {
-			var tomorrow = new Label { Text = "Worked today — available tomorrow.", AutowrapMode = TextServer.AutowrapMode.WordSmart };
-			tomorrow.AddThemeColorOverride("font_color", Heard);
-			row.AddChild(tomorrow);
-		}
 
 		// Early-game F1: where the town's rooms sell, tables run on their show nights (venues board), not here.
 		if (!PlayerDesk.RoomTablesActive(stop.CityId)) {
@@ -4293,6 +4395,17 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>Tab / filter-chip state as real styles instead of alpha: the selected one is dark with
 	/// light text, the others are light paper with full-contrast ink (alpha-faded text measured ~2:1).</summary>
+	/// <summary>One option of a two-or-three-way choice. The chosen one is the dark, pressed-in face (not a greyed-out
+	/// disabled button, which read as "unavailable"); pressing it again does nothing.</summary>
+	private static Button ChoiceButton(string text, bool selected, Action choose) {
+		var button = Btn(text);
+		StyleToggle(button, selected);
+		button.CustomMinimumSize = new Vector2(0, 34);
+		if (selected) { button.FocusMode = FocusModeEnum.None; button.MouseDefaultCursorShape = CursorShape.Arrow; }
+		else button.Pressed += choose;
+		return button;
+	}
+
 	private static void StyleToggle(Button button, bool active) {
 		StyleBoxFlat Box(Color fill) => new() {
 			BgColor = fill, BorderColor = new Color("70552c"),
