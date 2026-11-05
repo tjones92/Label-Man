@@ -120,6 +120,7 @@ public partial class UIManager : Control
 		BuildDeskProps();
 		BuildMainHud();
 		BuildMorningPaper();
+		WatchCover(deskPanel);
 		ScreenGrade.Install(this);
 		if (PlayerDesk.Instance != null) {
 			PlayerDesk.Instance.Changed += UpdateMainHud;
@@ -266,19 +267,17 @@ public partial class UIManager : Control
 		mainHud.CustomMinimumSize = new Vector2(510, 0);
 		mainHud.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.96f, 0.91f, 0.78f, 0.91f), ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 8, ContentMarginBottom = 8 });
 		var stack = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-		Label Line(Font font, int size, Color color, int maxLines = 0) {
+		Label Line(Font font, int size, Color color, bool wrap = false) {
 			var label = new Label { MouseFilter = Control.MouseFilterEnum.Ignore, ClipText = true, CustomMinimumSize = new Vector2(480, 0) };
 			if (font != null) label.AddThemeFontOverride("font", font);
 			label.AddThemeFontSizeOverride("font_size", size);
 			label.AddThemeColorOverride("font_color", color);
-			if (maxLines > 0) {
-				label.ClipText = false; label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-				label.MaxLinesVisible = maxLines; label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-			}
+			// The next step is the one line the player acts on: it wraps in full rather than trailing off in "…".
+			if (wrap) { label.ClipText = false; label.AutowrapMode = TextServer.AutowrapMode.WordSmart; }
 			return label;
 		}
 		hudDate = Line(null, 17, new Color("2b2115"));
-		hudNextUp = Line(PaperTheme.TypedBold, 15, GreaseRed, 2);
+		hudNextUp = Line(PaperTheme.TypedBold, 15, GreaseRed, wrap: true);
 		hudTicker = Line(null, 15, new Color("6b3a1c"));
 		foreach (Label label in new[] { hudDate, hudNextUp, hudTicker }) stack.AddChild(label);
 		mainHud.AddChild(stack);
@@ -320,14 +319,17 @@ public partial class UIManager : Control
 
 	private void UpdateMainHud() {
 		if (hudDate == null) return;
-		mainHud.Visible = !isUIOpen;
-		if (isUIOpen) { propTagTicket++; propTag.Visible = false; }
+		// Judge "covered" by what is actually on screen as well as the flag: a panel opened or restored by a path
+		// that never set isUIOpen (a load, a reopen after the menu) must still put the desk widgets away.
+		bool covered = DeskCovered();
+		mainHud.Visible = !covered;
+		if (covered) { propTagTicket++; propTag.Visible = false; }
 		if (recordJacket != null) {
 			recordJacket.Refresh(PlayerDesk.Instance);
-			if (isUIOpen) recordJacket.Visible = false;
+			if (covered) recordJacket.Visible = false;
 		}
-		foreach (Button prop in deskProps) prop.Visible = !isUIOpen;
-		if (billboardButton != null) billboardButton.Visible = !isUIOpen;
+		foreach (Button prop in deskProps) prop.Visible = !covered;
+		if (billboardButton != null) billboardButton.Visible = !covered;
 		TimeManager time = TimeManager.Instance;
 		PlayerDesk desk = PlayerDesk.Instance;
 		paintedRecords?.Set(desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName);
@@ -352,6 +354,18 @@ public partial class UIManager : Control
 	}
 
 	public void RefreshMainHud() => UpdateMainHud();
+
+	private bool DeskCovered() =>
+		isUIOpen
+		|| deskPanel?.Visible == true || gameMenu?.Visible == true || studioWindow?.Visible == true
+		|| morningPaper?.Visible == true
+		|| ledgerPanel?.Visible == true || dialoguePanel?.Visible == true || chartPanel?.Visible == true
+		|| artistDetailPanel?.Visible == true || labelDetailPanel?.Visible == true;
+
+	/// <summary>Re-judges the desk widgets whenever a covering panel shows or hides, however it was opened.</summary>
+	private void WatchCover(Control panel) {
+		if (panel != null) panel.VisibilityChanged += () => Callable.From(UpdateMainHud).CallDeferred();
+	}
 
 	private void OnClockRestored(GameDate date) {
 		paintedGold?.Forget();
@@ -727,6 +741,7 @@ public partial class UIManager : Control
 		if (gameMenu == null) {
 			gameMenu = new PlayerDeskPanel { Name = "GameMenu", ZIndex = 50 };
 			AddChild(gameMenu);
+			WatchCover(gameMenu);
 			gameMenu.MenuClosed = () => {
 				if (officeBeforeMenu) deskPanel?.Open();
 				if (studioBeforeMenu) studioWindow?.Open();
@@ -745,6 +760,7 @@ public partial class UIManager : Control
 		if (studioWindow == null) {
 			studioWindow = new PlayerDeskPanel { Name = "StudioWindow", ZIndex = 30 };
 			AddChild(studioWindow);
+			WatchCover(studioWindow);
 			studioWindow.StudioClosed = () => {
 				if (officeBeforeStudio) deskPanel?.Open();
 				isUIOpen = officeBeforeStudio; UpdateMainHud();
