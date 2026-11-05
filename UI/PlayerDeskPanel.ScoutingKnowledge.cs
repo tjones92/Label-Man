@@ -40,8 +40,7 @@ public partial class PlayerDeskPanel {
     private void ScoutingSection(string key, string title, bool defaultOpen, Action build) {
         var parent = content;
         bool open = sectionOpen.TryGetValue(key, out bool chosen) ? chosen : defaultOpen;
-        var toggle = Band((open ? "▾  " : "▸  ") + title);
-        toggle.Alignment = HorizontalAlignment.Left;
+        var toggle = FoldHeading(title, open, size: 14);
         toggle.Pressed += () => { sectionOpen[key] = !open; RefreshKeepingScroll(); };
         parent.AddChild(toggle);
         if (!open) return;
@@ -168,6 +167,7 @@ public partial class PlayerDeskPanel {
             talk.TooltipText = "They're under contract, but you can still ask about their past label decisions.";
             talk.Pressed += () => OpenScoutingConversation(desk, dossier); content.AddChild(talk);
         }
+        ScoutingNotebookStrip(desk, dossier, artist);
         ScoutingSection("scout-listen:" + dossier.ArtistId, "PLAN ANOTHER LISTEN", false, () => {
             var question = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill };
             foreach (var value in Enum.GetValues<ScoutingQuestion>()) question.AddItem(PlayerDesk.ScoutingQuestionText(value), (int)value);
@@ -179,7 +179,7 @@ public partial class PlayerDeskPanel {
             if (next != null) ScoutingSetPreview(desk, next);
             else ScoutingText("No unheard local date posted. Browse venues or ask a booker.", 14, Heard);
         });
-        ScoutingSection("scout-more:" + dossier.ArtistId, "MORE  —  ASK AROUND  ·  OTHER ACTS  ·  NOTEBOOK", false, () => {
+        ScoutingSection("scout-more:" + dossier.ArtistId, "MORE  —  ASK AROUND  ·  OTHER ACTS", false, () => {
             if (dossier.Observations.Any(o => o.Kind is ScoutingEvidenceKind.RivalInterest or ScoutingEvidenceKind.PublicReport))
                 ScoutingText(desk.ScoutingCompetitionSummary(dossier.ArtistId), 14, ScoutingVenueInk);
             ScoutingSection("scout-questions:" + dossier.ArtistId, "ASK A BOOKER ABOUT " + dossier.ArtistName.ToUpperInvariant(), false, () => {
@@ -190,26 +190,57 @@ public partial class PlayerDeskPanel {
                     Body(alternatives);
                     ScoutingLossFollowThrough(desk, dossier.ArtistId);
                 });
-            var row = new HFlowContainer();
-            row.AddThemeConstantOverride("h_separation", 6);
-            if (artist == null || string.IsNullOrEmpty(artist.labelId) || artist.labelId != desk.Label.labelId) {
-                // Watch / pursue / archive is one choice: the act's place in the notebook. The current one is the pressed-in button.
-                row.AddChild(FaintLine("Notebook:"));
-                foreach (var priority in new[] { ScoutingPriority.Watch, ScoutingPriority.Pursue, ScoutingPriority.Archived }) {
-                    var chosen = priority;
-                    var button = ChoiceButton(priority == ScoutingPriority.Archived ? "ARCHIVE" : priority.ToString().ToUpperInvariant(), dossier.Priority == priority,
-                        () => RefreshAnchored(dossier.ArtistId, () => desk.SetScoutingPriority(dossier.ArtistId, chosen)));
-                    button.TooltipText = priority switch {
-                        ScoutingPriority.Watch => "Keep this act on your radar. A rival label that moves on a watched act has to come and compete for them, not sign them quietly.",
-                        ScoutingPriority.Pursue => "As WATCH, and this act sorts to the top of your notebook and of other acts to consider.",
-                        _ => "File the notes away. Archived acts leave the notebook until you show archived notes."
-                    };
-                    row.AddChild(button);
-                }
-                row.AddChild(new Control { CustomMinimumSize = new Vector2(12, 0) });
-            }
-            ScoutingDossierExtras(desk, dossier, row);
         });
+    }
+
+    /// <summary>The card's secondary tier, directly under its primary verb (playtest 049: five equal buttons). WATCH /
+    /// PURSUE are small toggle chips (the act's place in the notebook; the current one is the pressed-in face); ARCHIVE
+    /// and the two read-only views are quiet ink links, because none of them moves the act forward.</summary>
+    private void ScoutingNotebookStrip(PlayerDesk desk, ScoutingDossier dossier, SimulatedArtist artist) {
+        var row = new HFlowContainer();
+        row.AddThemeConstantOverride("h_separation", 8);
+        row.AddThemeConstantOverride("v_separation", 4);
+        if (artist == null || string.IsNullOrEmpty(artist.labelId) || artist.labelId != desk.Label.labelId) {
+            void SetPriority(ScoutingPriority chosen) => RefreshAnchored(dossier.ArtistId, () => desk.SetScoutingPriority(dossier.ArtistId, chosen));
+            foreach (var priority in new[] { ScoutingPriority.Watch, ScoutingPriority.Pursue }) {
+                var chosen = priority;
+                var chip = ChoiceButton(priority.ToString().ToUpperInvariant(), dossier.Priority == priority, () => SetPriority(chosen));
+                chip.CustomMinimumSize = new Vector2(64, 26);
+                chip.AddThemeFontSizeOverride("font_size", 13);
+                chip.TooltipText = priority == ScoutingPriority.Watch
+                    ? "Keep this act on your radar. A rival label that moves on a watched act has to come and compete for them, not sign them quietly."
+                    : "As WATCH, and this act sorts to the top of your notebook and of other acts to consider.";
+                row.AddChild(chip);
+            }
+            row.AddChild(new Control { CustomMinimumSize = new Vector2(10, 0) });
+            bool archived = dossier.Priority == ScoutingPriority.Archived;
+            var archive = ScoutingQuietLink(archived ? "UN-ARCHIVE" : "ARCHIVE");
+            archive.TooltipText = archived ? "Put this act back on the notebook as WATCH."
+                : "File the notes away. Archived acts leave the notebook until you show archived notes.";
+            archive.Pressed += () => SetPriority(archived ? ScoutingPriority.Watch : ScoutingPriority.Archived);
+            row.AddChild(archive);
+            row.AddChild(ScoutingLinkDot());
+        }
+        ScoutingDossierExtras(desk, dossier, row);
+    }
+
+    /// <summary>A secondary verb set as ink, not as a button face: no box, small type, rust on hover.</summary>
+    private static Button ScoutingQuietLink(string text) {
+        var link = new Button { Text = text, Flat = true, SizeFlagsHorizontal = SizeFlags.ShrinkBegin, SizeFlagsVertical = SizeFlags.ShrinkCenter,
+            FocusMode = FocusModeEnum.None, MouseDefaultCursorShape = CursorShape.PointingHand };
+        link.AddThemeFontSizeOverride("font_size", 13);
+        foreach (string state in new[] { "normal", "hover", "pressed", "focus" })   // no box padding: the ink sits on the card's text edge
+            link.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginTop = 3, ContentMarginBottom = 3 });
+        link.AddThemeColorOverride("font_color", Heard);
+        link.AddThemeColorOverride("font_hover_color", Rust);
+        link.AddThemeColorOverride("font_pressed_color", Rust);
+        link.AddThemeColorOverride("font_hover_pressed_color", Rust);
+        return link;
+    }
+    private static Label ScoutingLinkDot() {
+        var dot = new Label { Text = "·", SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        dot.AddThemeColorOverride("font_color", Heard);
+        return dot;
     }
 
     /// <summary>The card's one primary verb: talk to the act, which is where an offer is made. Opening it also looks up the
@@ -251,12 +282,13 @@ public partial class PlayerDeskPanel {
 
     /// <summary>The two read-only views of an act's notes, at the foot of its card.</summary>
     private void ScoutingDossierExtras(PlayerDesk desk, ScoutingDossier dossier, HFlowContainer row) {
-        var audience = Btn("ROOM IMPRESSION"); audience.Pressed += () => {
+        var audience = ScoutingQuietLink("ROOM IMPRESSION"); audience.Pressed += () => {
             var modal = PaperModal.Open(this, dossier.ArtistName + " · ROOM IMPRESSION", 680);
             WithinScouting(modal.Body, () => { foreach (string line in ScoutingAudience.RoomImpression(dossier)) ScoutingText(line, 17, Ink); });
             modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
         }; row.AddChild(audience);
-        var details = Btn("SOURCES & COVERAGE"); details.Pressed += () => {
+        row.AddChild(ScoutingLinkDot());
+        var details = ScoutingQuietLink("SOURCES & COVERAGE"); details.Pressed += () => {
             var modal = PaperModal.OpenClipboard(this, dossier.ArtistName + " — EVIDENCE", 850);
             var scroll = ComparisonScroll();
             var notes = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };

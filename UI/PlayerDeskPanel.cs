@@ -25,6 +25,8 @@ public partial class PlayerDeskPanel : Control {
 	private int studioSide;
 	private Button nextUpLabel;
 	private Label feedbackToastText, feedbackToastBadge;
+	private WallClock deskClock;
+	private TimeCard timeCard;
 	private PanelContainer feedbackToast;
 	private Timer feedbackToastTimer;
 	private HBoxContainer tabs, idleRow;
@@ -48,6 +50,7 @@ public partial class PlayerDeskPanel : Control {
 	private bool browsingCovers;
 	private string polarCatalogSong;   // the catalog cover whose slip is open (TEACH, and the comparison under Polar)
 	private string selectedStopId;     // the account whose counter slip is open; null = pick a default, "" = none
+	private string selectedDriveCityId;   // the picked line in the destination list (and the map), or null
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
 	private PopupPanel foundingCityPopup;
@@ -180,7 +183,15 @@ public partial class PlayerDeskPanel : Control {
 		titleLabel.AddThemeColorOverride("font_color", Ink);   // was the default near-white on manila (~1.8:1)
 		header.AddChild(titleLabel);
 
+		// The workday as objects on the wall, not a payroll sentence (period pass 2026-11-05).
+		deskClock = new WallClock { Visible = false };
+		header.AddChild(deskClock);
+		timeCard = new TimeCard { Visible = false };
+		header.AddChild(timeCard);
+		header.AddChild(new Control { CustomMinimumSize = new Vector2(6, 0) });
+
 		var close = Btn("CLOSE  ×");
+		close.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		close.Pressed += ClosePanel;
 		header.AddChild(close);
 
@@ -396,6 +407,7 @@ public partial class PlayerDeskPanel : Control {
 		bool inGame = desk.HasLabel && !desk.IsGameOver && !browsingSaves;
 		stockLabel.Visible = nextUpLabel.Visible = inGame;
 		if (!inGame) redInkLabel.Visible = false;
+		deskClock.Visible = timeCard.Visible = false;   // the in-game desk shows them again below
 
 		if (browsingSaves) {
 			tabs.Hide();
@@ -465,14 +477,21 @@ public partial class PlayerDeskPanel : Control {
 		string region = ChartManager.Instance?.GetRegionById(label.homeRegion)?.regionName ?? label.homeRegion;
 		string home = string.IsNullOrEmpty(label.headquartersCity) ? region : $"{label.headquartersCity}, {region}";
 		string where = desk.AtHome ? $"at the office in {home}" : $"on the road in {desk.CurrentCity?.name ?? "town"}";
+		// The workday lives on the wall clock and the time card beside CLOSE; the line keeps only the date and time.
+		bool overtime = time?.RegularTimeRemainingText is not { } regularLeft || regularLeft == "0m";
+		if (time != null) {
+			deskClock.Set(time.CurrentHour, time.CurrentMinute, time.RegularWorkdayEndHour);
+			timeCard.Set(ShortClock(time.WorkdayStartHour), ShortClock(time.RegularWorkdayEndHour), ShortClock(time.HardStopHour),
+				overtime ? $"{time.OvertimeRemainingText} O.T. left" : $"{time.RegularTimeRemainingText} left");
+		}
+		deskClock.Visible = timeCard.Visible = time != null;
 		clockLabel.Text =
-			// The workday in one short clause; the overtime rule is in the tooltip, not the header.
-			$"{time?.CurrentDate.ToLongString()}  •  {time?.GetTimeString()}  •  " +
-			(time?.RegularTimeRemainingText is { } regular && regular != "0m"
-				? $"{regular} left in the workday"
-				: $"overtime until {time?.HardStopTime ?? "9:00 PM"}") + "\n" +
+			$"{time?.CurrentDate.ToLongString()}  •  {time?.GetTimeString()}" + (overtime ? "  •  on overtime" : "") + "\n" +
 			$"{where}  |  {CashMarkup(label.cashReserves)} cash  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts  |  " +
 			$"{desk.WorkedCities.Count()} {CountWord(desk.WorkedCities.Count(), "town")} worked";
+		deskClock.TooltipText = timeCard.TooltipText = time == null ? string.Empty
+			: $"{time.GetTimeString()}. {time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime}. " +
+			  "There is no overtime surcharge. Each action must finish by the hard stop.";
 		clockLabel.TooltipText = time == null ? string.Empty
 			: $"{time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime} ({time.GetDayStatus()}). " +
 			  $"Overtime can carry jobs to the {time.HardStopTime} hard stop. There is no overtime surcharge. Each action must finish by the hard stop.";
@@ -510,6 +529,9 @@ public partial class PlayerDeskPanel : Control {
 		UpdateTabBadges(desk);
 	}
 
+	/// <summary>An hour as a time card prints it: "9:00", "6:00", no AM/PM.</summary>
+	private static string ShortClock(int hour) { int h = hour % 12; return $"{(h == 0 ? 12 : h)}:00"; }
+
 	private void UpdateTabBadges(PlayerDesk desk) {
 		for (int i = 0; i < tabButtons.Count; i++) {
 			string title = tabTitles[i];
@@ -522,8 +544,9 @@ public partial class PlayerDeskPanel : Control {
 				"ROLODEX" => desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended ? 1 : 0,
 				_ => 0
 			};
-			tabButtons[i].Text = title;
-			TabStamp.Apply(tabButtons[i], count);
+			tabButtons[i].Text = title + TabStamp.Room(count, title == "LEDGER");
+			tabButtons[i].TooltipText = count <= 0 ? "" : title == "LEDGER" ? $"{Plural.Of(count, "new entry")} on the spindle." : $"{count} waiting.";
+			TabStamp.Apply(tabButtons[i], count, asSpindle: title == "LEDGER");
 		}
 	}
 
@@ -1415,36 +1438,37 @@ public partial class PlayerDeskPanel : Control {
 		grid.AddThemeConstantOverride("v_separation", 8);
 		form.AddChild(grid);
 
-		grid.AddChild(FormLabel("Advance ($)"));
+		// Period pass 2026-11-05: the terms are typed into blanks on the agreement, not spun on number widgets.
+		grid.AddChild(FormLabel("Advance"));
 		// Step of 5, not 25 -- a coarse step silently snapped a typed $35 down to $25 on finalize.
 		var advance = Spin(0, 100000, 1, Mathf.Round(prefill.Advance));
-		grid.AddChild(advance);
+		grid.AddChild(TypedBlank(advance, "$", ""));
 
-		grid.AddChild(FormLabel("Royalty (%)"));
+		grid.AddChild(FormLabel("Royalty"));
 		// Opens on what they expect. You may write it lower -- down to half a point -- but the further
 		// under their number you go, the likelier they push back on it.
 		var royalty = Spin(PlayerDesk.PlayerRoyaltyFloor * 100f, 15, 0.25,
 			Mathf.Round(prefill.RoyaltyRate * 4000f) / 40f);
-		grid.AddChild(royalty);
+		grid.AddChild(TypedBlank(royalty, "", "%"));
 
-		grid.AddChild(FormLabel("Term (years)"));
+		grid.AddChild(FormLabel("Term"));
 		var term = Spin(1, 7, 1, prefill.TermYears);
-		grid.AddChild(term);
+		grid.AddChild(TypedBlank(term, "", "years"));
 
-		grid.AddChild(FormLabel("Deliverables (singles)"));
+		grid.AddChild(FormLabel("Deliverables"));
 		// 2-3 singles a year is the period norm for a new act, tapering to none once a career is
 		// established -- the default already reflects that; this just lets the player move off it.
 		var singles = Spin(0, 30, 1, prefill.SinglesObligation);
-		grid.AddChild(singles);
+		grid.AddChild(TypedBlank(singles, "", "singles"));
 
 		var publishingLabel = FormLabel("Publishing");
 		grid.AddChild(publishingLabel);
-		var labelPub = Check("Label keeps the publishing", prefill.LabelOwnsPublishing);
+		var labelPub = TypedCheck("Label keeps the publishing", prefill.LabelOwnsPublishing);
 		grid.AddChild(labelPub);
 
 		var controlLabel = FormLabel("Creative control");
 		grid.AddChild(controlLabel);
-		var artistControl = Check("Artist has creative control", prefill.ArtistCreativeControl);
+		var artistControl = TypedCheck("Artist has creative control", prefill.ArtistCreativeControl);
 		grid.AddChild(artistControl);
 
 		// The two gives are not free, but the price lives in a hover rather than on the page: the long-tail cost
@@ -2536,33 +2560,66 @@ public partial class PlayerDeskPanel : Control {
 			.ThenBy(c => c.name)
 			.ToList();
 		if (reach.Count > 0) {
-			var driveRow = new HBoxContainer();
-			driveRow.AddThemeConstantOverride("separation", 10);
-			var cityPicker = Option();
-			cityPicker.CustomMinimumSize = new Vector2(500, 36);
-			cityPicker.AddItem("Choose a town to drive to…");
+			// Period pass 2026-11-05: the destinations are typed out like a timetable, not hidden in a drop-down. Clicking a
+			// line (or a town on the map) picks it; DRIVE THERE, on the picked line, commits the hours and gas.
+			if (selectedDriveCityId != null && reach.All(c => c.cityId != selectedDriveCityId)) selectedDriveCityId = null;
+			// One typed column per region, side by side, so a long reach reads like a timetable page rather than a scroll.
+			var destinations = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			destinations.AddThemeConstantOverride("h_separation", 22);
+			destinations.AddThemeConstantOverride("v_separation", 10);
+			VBoxContainer column = null; string columnRegion = null;
 			foreach (MarketCity c in reach) {
 				(int h, float g) = desk.DriveQuote(desk.CurrentCityId, c.cityId);
 				string region = ChartManager.Instance?.GetRegionById(c.parentRegionId)?.regionName ?? c.parentRegionId;
-				cityPicker.AddItem($"{c.name} — {region}  ({h}h, ${g:N0} gas)");
+				if (region != columnRegion) {
+					columnRegion = region;
+					column = new VBoxContainer { CustomMinimumSize = new Vector2(330, 0) };
+					column.AddThemeConstantOverride("separation", 0);
+					var caption = new Label { Text = region.ToUpperInvariant() };
+					caption.AddThemeFontOverride("font", PaperTheme.TypedBold);
+					caption.AddThemeFontSizeOverride("font_size", 13);
+					caption.AddThemeColorOverride("font_color", Rust);
+					column.AddChild(caption);
+					destinations.AddChild(column);
+				}
+				bool picked = c.cityId == selectedDriveCityId;
+				var line = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+				line.AddThemeConstantOverride("separation", 4);
+				Label Typed(string text, Color color) {
+					var label = new Label { Text = text, VerticalAlignment = VerticalAlignment.Center };
+					label.AddThemeFontOverride("font", picked ? PaperTheme.TypedBold : PaperTheme.Typed);
+					label.AddThemeFontSizeOverride("font_size", 15);
+					label.AddThemeColorOverride("font_color", color);
+					return label;
+				}
+				line.AddChild(Typed(c.name + (desk.WorkedCities.Contains(c.cityId) ? " ✓" : ""), Ink));
+				line.AddChild(new DotLeader());
+				line.AddChild(Typed($"{h} hrs · ${g:N0}", Ink));
+				string id = c.cityId;
+				var row = ClickRow(line, picked, () => { selectedDriveCityId = picked ? null : id; RefreshKeepingScroll(); },
+					$"{c.name}, {region}: {h}h drive, ${g:N0} gas" + (desk.WorkedCities.Contains(c.cityId) ? ". Worked before." : "."));
+				column.AddChild(row);
+				if (!picked) continue;
+				var drive = Btn($"DRIVE TO {c.name.ToUpperInvariant()}");
+				drive.TooltipText = $"{h} hours on the road and ${g:N0} in gas. The office and studio are out of reach until you drive back.";
+				drive.Pressed += () => Act(() => {
+					bool ok = PlayerDesk.Instance.DriveTo(id, out string message);
+					if (ok) selectedDriveCityId = null;
+					Say(message, ok);
+					return true;
+				});
+				var driveLine = new MarginContainer();
+				driveLine.AddThemeConstantOverride("margin_left", 12);
+				driveLine.AddThemeConstantOverride("margin_top", 4);
+				driveLine.AddThemeConstantOverride("margin_bottom", 6);
+				driveLine.AddChild(drive);
+				column.AddChild(driveLine);
 			}
-			driveRow.AddChild(cityPicker);
-			var drive = Btn("DRIVE THERE");
-			drive.CustomMinimumSize = new Vector2(160, 36);
-			drive.Disabled = true;
-			cityPicker.ItemSelected += index => drive.Disabled = index <= 0;
-			drive.Pressed += () => Act(() => {
-				if (cityPicker.Selected <= 0) return false;
-				bool ok = PlayerDesk.Instance.DriveTo(reach[Mathf.Clamp(cityPicker.Selected - 1, 0, reach.Count - 1)].cityId, out string message);
-				Say(message, ok);
-				return true;
-			});
-			driveRow.AddChild(drive);
 			// The road map: where you are, home, the towns you've worked, and every town you can drive to today.
-			// Clicking a town picks it in the list above; DRIVE THERE still commits the hours and gas.
+			// Clicking a town picks it in the list above; DRIVE TO still commits the hours and gas.
 			var reachIds = reach.Select(c => c.cityId).ToHashSet();
 			var roadMap = new UsMap {
-				CustomMinimumSize = new Vector2(0, 400), SizeFlagsHorizontal = SizeFlags.ExpandFill,
+				CustomMinimumSize = new Vector2(0, 400), SizeFlagsHorizontal = SizeFlags.ExpandFill, SelectedCityId = selectedDriveCityId,
 				HereCityId = desk.CurrentCityId, HomeCityId = desk.Label?.homeCityId, HighlightRegionId = here?.parentRegionId,
 				Marked = desk.WorkedCities.ToHashSet(),
 				Unavailable = DistanceModel.GetCities().Select(c => c.cityId).Where(id => id != desk.CurrentCityId && !reachIds.Contains(id)).ToHashSet(),
@@ -2574,12 +2631,10 @@ public partial class PlayerDeskPanel : Control {
 				}
 			};
 			roadMap.CityPressed += id => {
-				int at = reach.FindIndex(c => c.cityId == id);
-				if (at < 0) return;
-				cityPicker.Select(at + 1); drive.Disabled = false; roadMap.SelectedCityId = id;
+				if (!reachIds.Contains(id)) return;
+				selectedDriveCityId = id; RefreshKeepingScroll();
 			};
-			cityPicker.ItemSelected += index => roadMap.SelectedCityId = index > 0 ? reach[(int)index - 1].cityId : null;
-			content.AddChild(driveRow);
+			content.AddChild(destinations);
 			content.AddChild(roadMap);
 			content.AddChild(FaintLine("Flag: you are here  ·  square: home office  ·  green ring: towns you've worked  ·  hollow dots: too far for one drive."));
 		}
@@ -2663,8 +2718,8 @@ public partial class PlayerDeskPanel : Control {
 				List<PlayerDesk.PlayerStop> kindStops = kindGroup.ToList();
 				bool expanded = expandedStopKinds.Contains(kind);
 
-				var header = Band($"{(expanded ? "▾" : "▸")}  {StopKindLabel(kind).ToUpperInvariant()}  ({kindStops.Count})");
-				header.CustomMinimumSize = new Vector2(360, 36);
+				var header = FoldHeading(StopKindLabel(kind), expanded,
+					$"{Plural.Of(kindStops.Count, "account")}  {(expanded ? "· close" : "›")}", 13);
 				header.Pressed += () => {
 					if (!expandedStopKinds.Remove(kind)) expandedStopKinds.Add(kind);
 					RefreshKeepingScroll();
@@ -3804,25 +3859,61 @@ public partial class PlayerDeskPanel : Control {
 	// stages that have something to do right now; whatever the player toggles is remembered.
 	private readonly Dictionary<string, bool> sectionOpen = new();
 
+	private static FontVariation spacedCaps;
+
+	/// <summary>A fold-open section heading as a printed form sets one (period pass 2026-11-05): letter-spaced rust capitals
+	/// on a ruled line, no box and no ▸/▾ triangle. The right end says, in typewriter, whether the file is open;
+	/// <paramref name="note"/> replaces that with a short count ("8 accounts").</summary>
+	private static Button FoldHeading(string title, bool open, string note = null, int size = 14) {
+		if (spacedCaps == null) {
+			// SansBold is itself a weighted FontVariation; wrapping it would drop the weight, so copy it and add spacing.
+			spacedCaps = (FontVariation)PaperTheme.SansBold.Duplicate();
+			spacedCaps.SpacingGlyph = 2;
+		}
+		var header = new Button { Text = title.ToUpperInvariant(), SizeFlagsHorizontal = SizeFlags.ExpandFill, Alignment = HorizontalAlignment.Left,
+			FocusMode = FocusModeEnum.None, MouseDefaultCursorShape = CursorShape.PointingHand, CustomMinimumSize = new Vector2(0, 32) };
+		header.TooltipText = open ? "Click to fold this section away." : "Click to open this section.";
+		StyleBoxFlat Rule(Color fill) => new() {
+			BgColor = fill, BorderColor = Ink, BorderWidthBottom = 1,
+			ContentMarginLeft = 0, ContentMarginRight = 110, ContentMarginTop = 6, ContentMarginBottom = 3
+		};
+		header.AddThemeStyleboxOverride("normal", Rule(new Color(0, 0, 0, 0)));
+		header.AddThemeStyleboxOverride("hover", Rule(new Color(PaperTheme.Highlighter, 0.35f)));
+		header.AddThemeStyleboxOverride("pressed", Rule(new Color(PaperTheme.Highlighter, 0.5f)));
+		header.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		header.AddThemeFontOverride("font", spacedCaps);
+		header.AddThemeFontSizeOverride("font_size", size);
+		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" })
+			header.AddThemeColorOverride(name, Rust);
+		var state = new Label { Text = note ?? (open ? "close file" : "open file ›"), MouseFilter = MouseFilterEnum.Ignore,
+			HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+		state.AddThemeFontOverride("font", PaperTheme.Typed);
+		state.AddThemeFontSizeOverride("font_size", 13);
+		state.AddThemeColorOverride("font_color", Heard);
+		state.SetAnchorsAndOffsetsPreset(LayoutPreset.RightWide);
+		state.OffsetLeft = -200; state.OffsetBottom = -3;
+		header.AddChild(state);
+		return header;
+	}
+
 	private Button SectionHeading(string key, string title, bool defaultOpen, string help = null) {
 		content = contentRoot;   // close the previous section: later rows belong to this one
 		bool open = sectionOpen.TryGetValue(key, out bool chosen) ? chosen : defaultOpen;
-		var header = Band($"{(open ? "▾" : "▸")}  {title}");
-		header.Alignment = HorizontalAlignment.Left;
-		header.CustomMinimumSize = new Vector2(0, 36);
-		header.TooltipText = open ? "Click to collapse this stage." : "Click to open this stage.";
-		StyleBoxFlat Box(Color fill) => new() {
-			BgColor = fill, BorderColor = Rust,
-			BorderWidthBottom = 2, ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 4, ContentMarginBottom = 4
-		};
-		header.AddThemeStyleboxOverride("normal", formDepth > 0 ? WorkOrder.SectionBand() : Box(new Color("e4d09f")));
-		header.AddThemeStyleboxOverride("hover", formDepth > 0 ? WorkOrder.SectionBand(true) : Box(new Color("f1e2b8")));
-		header.AddThemeStyleboxOverride("pressed", formDepth > 0 ? WorkOrder.SectionBand() : Box(new Color("e4d09f")));
-		header.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" })
-			header.AddThemeColorOverride(name, formDepth > 0 ? WorkOrder.FormInk : Rust);
-		header.AddThemeFontSizeOverride("font_size", formDepth > 0 ? 15 : 18);
-		if (formDepth > 0) header.AddThemeFontOverride("font", PaperTheme.SansBold);
+		Button header;
+		if (formDepth > 0) {
+			header = Band(title);
+			header.Alignment = HorizontalAlignment.Left;
+			header.CustomMinimumSize = new Vector2(0, 36);
+			header.TooltipText = open ? "Click to fold this section away." : "Click to open this section.";
+			header.AddThemeStyleboxOverride("normal", WorkOrder.SectionBand());
+			header.AddThemeStyleboxOverride("hover", WorkOrder.SectionBand(true));
+			header.AddThemeStyleboxOverride("pressed", WorkOrder.SectionBand());
+			header.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" })
+				header.AddThemeColorOverride(name, WorkOrder.FormInk);
+			header.AddThemeFontSizeOverride("font_size", 15);
+			header.AddThemeFontOverride("font", PaperTheme.SansBold);
+		} else header = FoldHeading(title, open, size: 15);
 		header.Pressed += () => {
 			int keep = contentScroll.ScrollVertical;
 			sectionOpen[key] = !open;
@@ -4492,6 +4583,73 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	private static OptionButton Option() => new OptionButton();
+
+	private static ImageTexture noArrows;
+
+	/// <summary>A typed blank on a printed form (period pass 2026-11-05): the spin box loses its arrow pads and field box
+	/// and becomes typewriter figures on an underline, with an optional printed word either side and small − / + nudges.
+	/// The SpinBox itself is unchanged, so callers keep reading <c>Value</c> and <c>ValueChanged</c>.</summary>
+	private static HBoxContainer TypedBlank(SpinBox spin, string before, string after) {
+		noArrows ??= ImageTexture.CreateFromImage(Image.CreateEmpty(1, 1, false, Image.Format.Rgba8));
+		foreach (string icon in new[] { "updown", "up", "up_hover", "up_pressed", "up_disabled", "down", "down_hover", "down_pressed", "down_disabled" })
+			spin.AddThemeIconOverride(icon, noArrows);
+		foreach (string side in new[] { "up", "down" })
+			foreach (string state in new[] { "_background", "_hover_background", "_pressed_background", "_disabled_background" })
+				spin.AddThemeStyleboxOverride(side + state, new StyleBoxEmpty());
+		spin.AddThemeConstantOverride("buttons_width", 0);
+		spin.AddThemeConstantOverride("set_min_buttons_width_from_icons", 0);
+		spin.AddThemeConstantOverride("field_and_buttons_separation", 0);
+		spin.CustomMinimumSize = new Vector2(96, 30);
+		spin.Alignment = HorizontalAlignment.Center;
+		LineEdit field = spin.GetLineEdit();
+		StyleBoxFlat Blank(Color line, Color fill) => new() { BgColor = fill, BorderColor = line, BorderWidthBottom = 1,
+			ContentMarginLeft = 4, ContentMarginRight = 4, ContentMarginTop = 2, ContentMarginBottom = 2 };
+		field.AddThemeStyleboxOverride("normal", Blank(Ink, new Color(0, 0, 0, 0)));
+		field.AddThemeStyleboxOverride("focus", Blank(Rust, new Color(PaperTheme.Highlighter, 0.45f)));
+		field.AddThemeStyleboxOverride("read_only", Blank(new Color(Ink, 0.4f), new Color(0, 0, 0, 0)));
+		field.AddThemeFontOverride("font", PaperTheme.Typed);
+		field.AddThemeFontSizeOverride("font_size", 17);
+		field.AddThemeColorOverride("font_color", Ink);
+
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 6);
+		Label Printed(string text) {
+			var label = new Label { Text = text, VerticalAlignment = VerticalAlignment.Center };
+			label.AddThemeFontOverride("font", PaperTheme.Typed);
+			label.AddThemeFontSizeOverride("font_size", 16);
+			label.AddThemeColorOverride("font_color", Ink);
+			return label;
+		}
+		if (!string.IsNullOrEmpty(before)) row.AddChild(Printed(before));
+		row.AddChild(spin);
+		if (!string.IsNullOrEmpty(after)) row.AddChild(Printed(after));
+		foreach ((string mark, int sign) in new[] { ("−", -1), ("+", 1) }) {
+			var nudge = ScoutingQuietLink(mark);
+			nudge.AddThemeFontOverride("font", PaperTheme.Typed);
+			nudge.AddThemeFontSizeOverride("font_size", 16);
+			nudge.TooltipText = sign < 0 ? $"Lower by {spin.Step:G}." : $"Raise by {spin.Step:G}.";
+			nudge.Pressed += () => spin.Value += sign * spin.Step;
+			row.AddChild(nudge);
+		}
+		return row;
+	}
+
+	/// <summary>A tick box typed on the form: "☒ Label keeps the publishing", no widget face.</summary>
+	private static CheckBox TypedCheck(string text, bool pressed) {
+		var c = new CheckBox { Text = text, ButtonPressed = pressed, FocusMode = FocusModeEnum.None, MouseDefaultCursorShape = CursorShape.PointingHand };
+		ImageTexture off = TypedBox.Icon(false), on = TypedBox.Icon(true);
+		c.AddThemeIconOverride("unchecked", off); c.AddThemeIconOverride("unchecked_disabled", off);
+		c.AddThemeIconOverride("checked", on); c.AddThemeIconOverride("checked_disabled", on);
+		var none = new StyleBoxEmpty { ContentMarginLeft = 0, ContentMarginRight = 6, ContentMarginTop = 2, ContentMarginBottom = 2 };
+		var hover = new StyleBoxFlat { BgColor = new Color(PaperTheme.Highlighter, 0.4f), ContentMarginLeft = 0, ContentMarginRight = 6, ContentMarginTop = 2, ContentMarginBottom = 2 };
+		foreach (string state in new[] { "normal", "pressed", "focus", "disabled" }) c.AddThemeStyleboxOverride(state, none);
+		c.AddThemeStyleboxOverride("hover", hover); c.AddThemeStyleboxOverride("hover_pressed", hover);
+		c.AddThemeFontOverride("font", PaperTheme.Typed);
+		c.AddThemeFontSizeOverride("font_size", 16);
+		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" })
+			c.AddThemeColorOverride(name, Ink);
+		return c;
+	}
 
 	private static SpinBox Spin(double min, double max, double step, double value) =>
 		new SpinBox {

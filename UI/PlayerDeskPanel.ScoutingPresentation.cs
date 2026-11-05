@@ -64,7 +64,7 @@ public partial class PlayerDeskPanel {
         if (PlayerDesk.ScoutingRoomGap(dossier, samples) is { } gap) {
             var hint = ScoutingText("Try a different room for a clearer read", 13, ScoutingVenueInk); hint.TooltipText = gap;
         }
-        var details = ScoutingSmallButton("FULL NOTES & HISTORY");
+        var details = ScoutingQuietLink("FULL NOTES & HISTORY");
         details.TooltipText = "Sources, audience, recording evidence, past conversations and competition reports. Missing evidence does not imply availability.";
         details.Pressed += () => OpenScoutingFullNotes(desk, dossier); content.AddChild(details);
     }
