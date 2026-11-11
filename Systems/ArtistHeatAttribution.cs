@@ -15,7 +15,9 @@ public static class ArtistHeatAttribution {
 	public static bool TraceEnabled { get; private set; }
 	public static bool SinglesWithoutAlbums { get; private set; }
 	public static bool SinglesWithCurrentAlbums { get; private set; }
-	public static bool AdjustsSingles => SinglesWithoutAlbums || SinglesWithCurrentAlbums;
+	public const string NoRetainedLpRadioSwitch = "--single-radio-no-retained-lp-heat";
+	public static bool SinglesRadioWithoutRetainedLpHeat { get; private set; }
+	public static bool AdjustsSingles => SinglesWithoutAlbums || SinglesWithCurrentAlbums || SinglesRadioWithoutRetainedLpHeat;
 	private static StreamWriter heatWriter, launchWriter;
 	private static bool configured;
 
@@ -25,7 +27,9 @@ public static class ArtistHeatAttribution {
 		TraceEnabled = args.Contains("--head-hit-attribution");
 		SinglesWithoutAlbums = args.Contains("--single-artist-heat-no-albums");
 		SinglesWithCurrentAlbums = args.Contains("--single-artist-heat-current-albums");
-		if (SinglesWithoutAlbums && SinglesWithCurrentAlbums)
+		SinglesRadioWithoutRetainedLpHeat = args.Contains(NoRetainedLpRadioSwitch);
+		if ((SinglesWithoutAlbums && SinglesWithCurrentAlbums) ||
+			(SinglesRadioWithoutRetainedLpHeat && (SinglesWithoutAlbums || SinglesWithCurrentAlbums)))
 			throw new ArgumentException("Choose only one singles' artist-heat diagnostic.");
 		configured = true;
 	}
@@ -48,11 +52,18 @@ public static class ArtistHeatAttribution {
 
 	public readonly struct HeatSplit {
 		public readonly float SingleCurrent, SinglePeak, AlbumCurrent, AlbumPeak, Original, SinglesOnly, CurrentAlbums;
+		private readonly float currentAlbumsSum;
 		public readonly int SingleHits, AlbumHits;
-		public HeatSplit(float sc, float sp, float ac, float ap, int sh, int ah, float original, float singlesOnly, float currentAlbums) {
+		public HeatSplit(float sc, float sp, float ac, float ap, int sh, int ah, float original, float singlesOnly, float currentAlbumsSum) {
 			SingleCurrent = sc; SinglePeak = sp; AlbumCurrent = ac; AlbumPeak = ap;
-			SingleHits = sh; AlbumHits = ah; Original = original; SinglesOnly = singlesOnly; CurrentAlbums = currentAlbums;
+			SingleHits = sh; AlbumHits = ah; Original = original; SinglesOnly = singlesOnly;
+			this.currentAlbumsSum = currentAlbumsSum;
+			CurrentAlbums = SelfExcludedArtistHeat.Heat(currentAlbumsSum, sh);
 		}
+
+		// Remove the single before applying either cap, just as the authored calculation does.
+		internal float CurrentAlbumsExcluding(int position, int peak) =>
+			SelfExcludedArtistHeat.Excluding(currentAlbumsSum, SingleHits, position, peak);
 	}
 
 	public static HeatSplit Describe(IEnumerable<RecordRuntimeData> records, float authoredRawHeat) {
@@ -80,8 +91,7 @@ public static class ArtistHeatAttribution {
 		if (Mathf.Abs(reconstructed - authoredRawHeat) > 0.0001f * Mathf.Max(1f, Mathf.Abs(authoredRawHeat)))
 			throw new InvalidOperationException("Artist heat attribution does not reconcile with the authored calculation.");
 		singleRaw += Mathf.Min(sh * 0.05f, 0.3f);
-		currentAlbumsRaw += Mathf.Min(sh * 0.05f, 0.3f);
-		return new HeatSplit(sc, sp, ac, ap, sh, ah, Mathf.Clamp(authoredRawHeat, 0f, 1f), Mathf.Clamp(singleRaw, 0f, 1f), Mathf.Clamp(currentAlbumsRaw, 0f, 1f));
+		return new HeatSplit(sc, sp, ac, ap, sh, ah, Mathf.Clamp(authoredRawHeat, 0f, 1f), Mathf.Clamp(singleRaw, 0f, 1f), currentAlbumsRaw);
 	}
 
 	public static float SelectHeat(ReleaseFormat format, float authoredHeat, float singlesOnlyHeat, float currentAlbumsHeat, bool live) {

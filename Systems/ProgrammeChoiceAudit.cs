@@ -10,6 +10,7 @@ public sealed class ProgrammeCandidateAudit {
 	public double AttachedAudienceAtAudit;
 	public bool FollowUpScheduling;
 	public float WaitingPriority, AudienceOrders, NationalAudienceOrders;
+	public float? AppliedAlbumPriorMultiplier;
 }
 
 public sealed class ProgrammeChoiceAudit {

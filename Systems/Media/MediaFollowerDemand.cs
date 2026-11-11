@@ -43,11 +43,30 @@ public sealed class FollowerLaunch {
 public static class MediaFollowerDemand {
 	public const string ShadowSwitch = "--observe-follower-demand";
 	public const string CausalSwitch = "--follower-demand";
+	public const string NoAdvanceStockSwitch = "--follower-demand-no-advance-stock";
+	public const string NoPurchaseIntentSwitch = "--follower-demand-no-purchase-intent";
+	public const string FrontLoadSinglesSwitch = "--follower-singles-front-load";
+	public const string RecruitFromNewSingleBuyersSwitch = "--follower-singles-recruit-from-new-buyers";
+	/// <summary>Both formats: units the act's own followers bought recruit no one (FanbaseEfficacyEvidence.md action 2).</summary>
+	public const string RecruitFromNewBuyersSwitch = "--follower-recruit-from-new-buyers";
+	internal static bool SinglesFrontLoaded { get; private set; }
+	internal static bool SinglesRecruitFromNewBuyers { get; private set; }
+	internal static bool AlbumsRecruitFromNewBuyers { get; private set; }
+	internal static bool RecruitFromNewBuyers => SinglesRecruitFromNewBuyers || AlbumsRecruitFromNewBuyers;
+	/// <summary>
+	/// Experimental (FanbaseEfficacyEvidence.md, part A): extra yearly loss of adult followers once an act that had a hit
+	/// (a national Top 40 single or Top 40 LP) has gone <see cref="ColdDays"/> without one, whether or not it still
+	/// releases. It replaces, not adds to, the silence loss. 0 is off; acts that never had a hit are never cold.
+	/// </summary>
+	public const string ColdAdultYearPrefix = "--follower-cold-adult-year=";
+	public static float ColdAdultYear { get; private set; }
+	public const int ColdDays = 730;
 	/// <summary>Experimental singles-only calibration; 1 retains the screened 0.35 / 0.10 rates.</summary>
 	public static float SingleScale { get; private set; } = 1f;
 
 	/// <summary>Launch intent by clearing week: most fans buy in the first week, the rest as the record reaches them.</summary>
 	public static readonly float[] WeekShare = { 0.5f, 0.3f, 0.2f };
+	private static readonly float[] FrontLoadedWeekShare = { 0.75f, 0.20f, 0.05f };
 	public static int Weeks => WeekShare.Length;
 	/// <summary>A launch book is kept only when the followers would ask for at least this many copies in all.</summary>
 	public const float BookFloor = 100f;
@@ -56,27 +75,46 @@ public static class MediaFollowerDemand {
 	/// <summary>§2.2: the room is where die-hards are made. Share of an act's crowd who join its following.</summary>
 	public const float CLive = 0.15f;
 
-	private static bool configured, shadow, causal;
+	private static bool configured, shadow, causal, noAdvanceStock, noPurchaseIntent;
 	/// <summary>Books, live joiners and telemetry; the economy reads nothing.</summary>
 	public static bool Shadow => shadow && !causal && MediaFollowing.Active;
-	/// <summary>Follower intent clears, dealers stock the advance and rooms count the followers.</summary>
+	/// <summary>The causal follower feature is enabled, including live draw and programme audience reads.</summary>
 	public static bool Causal => causal && MediaAtmosphere.Causal && MediaFollowing.Active;
 	public static bool Active => Shadow || Causal;
+	public static bool AdvanceStockCausal => Causal && !noAdvanceStock;
+	public static bool PurchaseIntentCausal => Causal && !noPurchaseIntent;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		foreach (string argument in arguments ?? Array.Empty<string>()) {
 			if (argument == ShadowSwitch) shadow = true;
 			if (argument == CausalSwitch) causal = true;
+			if (argument == NoAdvanceStockSwitch) noAdvanceStock = true;
+			if (argument == NoPurchaseIntentSwitch) noPurchaseIntent = true;
+			if (argument == FrontLoadSinglesSwitch) SinglesFrontLoaded = true;
+			if (argument == RecruitFromNewSingleBuyersSwitch) SinglesRecruitFromNewBuyers = true;
+			if (argument == RecruitFromNewBuyersSwitch) SinglesRecruitFromNewBuyers = AlbumsRecruitFromNewBuyers = true;
 			if (argument.StartsWith("--follower-single-scale=", StringComparison.Ordinal)) {
 				if (!float.TryParse(argument["--follower-single-scale=".Length..], NumberStyles.Float,
 					CultureInfo.InvariantCulture, out float scale) || !float.IsFinite(scale) || scale < 0f || scale > 2f)
 					throw new ArgumentException("--follower-single-scale must be finite and between 0 and 2.");
 				SingleScale = scale;
 			}
+			if (argument.StartsWith(ColdAdultYearPrefix, StringComparison.Ordinal)) {
+				if (!float.TryParse(argument[ColdAdultYearPrefix.Length..], NumberStyles.Float,
+					CultureInfo.InvariantCulture, out float cold) || !float.IsFinite(cold) || cold < 0f || cold > 0.5f)
+					throw new ArgumentException($"{ColdAdultYearPrefix} must be finite and between 0 and 0.5.");
+				ColdAdultYear = cold;
+			}
 		}
+		if (ColdAdultYear > 0f && !MediaFollowing.Active)
+			throw new ArgumentException($"{ColdAdultYearPrefix} changes followings; it requires {MediaFollowing.ObserveSwitch}.");
 		if (SingleScale != 1f && !causal && !shadow)
 			throw new ArgumentException("--follower-single-scale requires follower demand or its shadow.");
+		if ((noAdvanceStock || noPurchaseIntent) && !causal)
+			throw new ArgumentException($"{NoAdvanceStockSwitch} and {NoPurchaseIntentSwitch} require {CausalSwitch}.");
+		if ((SinglesFrontLoaded || RecruitFromNewBuyers) && (!causal || noPurchaseIntent))
+			throw new ArgumentException("Singles follower timing and recruitment probes require causal follower purchase intent.");
 		if (causal && shadow)
 			throw new ArgumentException($"{CausalSwitch} and {ShadowSwitch} cannot be used together; the causal run prints the same telemetry.");
 		if (causal && !MediaAtmosphere.Causal)
@@ -86,7 +124,17 @@ public static class MediaFollowerDemand {
 		configured = true;
 	}
 
-	internal static void SetForChecks(bool on, bool writeCausal = false) { shadow = on && !writeCausal; causal = on && writeCausal; configured = true; }
+	internal static void SetForChecks(bool on, bool writeCausal = false) {
+		shadow = on && !writeCausal; causal = on && writeCausal; configured = true;
+		noAdvanceStock = noPurchaseIntent = false;
+		SinglesFrontLoaded = SinglesRecruitFromNewBuyers = AlbumsRecruitFromNewBuyers = false;
+		ColdAdultYear = 0f;
+	}
+
+	internal static void SetColdAdultYearForChecks(float rate) => ColdAdultYear = rate;
+
+	/// <summary>True once an act's last hit (single or LP, day index; -1 for none) is more than <see cref="ColdDays"/> old.</summary>
+	public static bool ColdSinceHit(int lastHitDay, int today) => lastHitDay >= 0 && today - lastHitDay > ColdDays;
 
 	/// <summary>A region's three-week intent from its followers: young × the young rate + adult × the adult rate (§2.4).</summary>
 	public static float RegionIntent(float young, float adult, ReleaseFormat format) => RegionIntent(young, adult, format, SingleScale);
@@ -101,8 +149,10 @@ public static class MediaFollowerDemand {
 	/// This clearing week's share of a book's intent: <see cref="WeekShare"/>[week], and after the first week only the
 	/// followers the record didn't disappoint. Zero before the launch week or after the third.
 	/// </summary>
-	public static float WeekFactor(int week, float loss) =>
-		week < 0 || week >= WeekShare.Length ? 0f : WeekShare[week] * (week == 0 ? 1f : 1f - Math.Clamp(loss, 0f, 1f));
+	public static float WeekFactor(int week, float loss, ReleaseFormat format = ReleaseFormat.Album) {
+		var shares = format == ReleaseFormat.Single && SinglesFrontLoaded ? FrontLoadedWeekShare : WeekShare;
+		return week < 0 || week >= shares.Length ? 0f : shares[week] * (week == 0 ? 1f : 1f - Math.Clamp(loss, 0f, 1f));
+	}
 
 	/// <summary>Fan intent added to a title's serviceable intent: never past the title's physical limit that week.</summary>
 	public static int Grant(int serviceable, int physicalLimit, float fanIntent) {
@@ -135,6 +185,13 @@ public static class MediaFollowerDemand {
 		for (int i = 0; i < n; i++) result[i] = kept[i] + fanUnits[i];
 		return (result, kept, granted);
 	}
+
+	/// <summary>
+	/// The share of a title's serviceable intent that is its followers' purchase once <see cref="ConserveAlbumIntent"/> has
+	/// run: new intent less the title's own buyers kept. It clears in proportion with the rest of the title's intent.
+	/// </summary>
+	public static float FanShare(int serviceable, int kept) =>
+		serviceable <= 0 ? 0f : Math.Clamp((serviceable - kept) / (float)serviceable, 0f, 1f);
 
 	/// <summary>Followers who come to a bill: <see cref="LiveNightShare"/> of the act's followers in the room's region.</summary>
 	public static int LiveHeads(float regionalFollowers) => (int)MathF.Floor(Math.Max(0f, regionalFollowers) * LiveNightShare);

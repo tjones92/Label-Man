@@ -866,9 +866,15 @@ public partial class AILabel : Resource {
 		LabelTier.Small => 150f, LabelTier.Boutique => 300f, _ => 300f
 	};
 
-	public float GetMarketingBudget(SimulatedArtist artist) {
+	public float GetMarketingBudget(SimulatedArtist artist) => MarketingBudgetForCareer(artist.careerState);
+
+	/// <summary>Own-roster release decisions only; acquisition and player callers retain GetMarketingBudget.</summary>
+	public float GetReleaseMarketingBudget(SimulatedArtist artist, string context, GameDate? decisionDate = null) =>
+		ArtistStature.ReleaseMarketingBudget(this, artist, decisionDate ?? TimeManager.Instance?.CurrentDate ?? GameDate.StartDate, context);
+
+	internal float MarketingBudgetForCareer(CareerState career) {
 		float baseBudget = MarketingBaseBudget;
-		float artistMult = artist.careerState switch {
+		float artistMult = career switch {
 			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 			CareerState.Rising => 1.2f, CareerState.NewSigning => 0.8f, _ => 0.5f
 		};

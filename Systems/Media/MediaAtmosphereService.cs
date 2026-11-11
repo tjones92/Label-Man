@@ -176,6 +176,8 @@ public sealed class MediaSaveData {
 	public Dictionary<string, FollowerLaunch> FollowerLaunches { get; set; } = new();
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public StatureWeeklyShadow ExperimentalStature { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public StatureReaderSaveData StatureReader { get; set; }
 	/// <summary>Releases already looked at for a book, by recordId, with the day of the look; pruned after eight weeks.</summary>
 	public Dictionary<string, int> FollowerLaunchSeen { get; set; } = new();
 }
@@ -194,6 +196,10 @@ public static partial class MediaAtmosphereService {
 	internal static bool PersistExperimentalStature;
 	internal static StatureWeeklyShadow ExperimentalStatureShadow() => PersistExperimentalStature
 		? state.ExperimentalStature ??= new StatureWeeklyShadow() : transientStatureShadow;
+	internal static StatureWeeklyShadow.Snapshot StatureSnapshotFor(string artistId) {
+		var shadow = PersistExperimentalStature ? state.ExperimentalStature : transientStatureShadow;
+		return artistId != null && shadow?.Snapshots?.TryGetValue(artistId, out var snapshot) == true ? snapshot : null;
+	}
 	private const int HistoryWeeks = 26;
 	private const int MaxNationalPerActPerWeek = 2;
 	/// <summary>Weeks before a name booked on standing returns to the same primetime variety hour. Of 823 Sullivan returns
@@ -302,7 +308,7 @@ public static partial class MediaAtmosphereService {
 	/// performance. Only the booked record sung on the air counts; a standard or another act's hit asks for nothing. Causal:
 	/// only airings inside the causal window. Repeats and syndicated tapes add only their fresh share.
 	/// </summary>
-	private static void DemandDeposit(MediaAppearance a, MediaAiring airing, double fresh) {
+	private static void DemandDeposit(MediaAppearance a, MediaAiring airing, GameDate weekEnd, double fresh) {
 		if (a.Song != PerformedSong.Record || a.RecordId == null || airing.Exposure?.ReachByRegion == null || airing.Exposure.UniqueReach <= 0) return;
 		if (MediaDemand.Causal && !InCausalWindow(BroadcastExposure.DayIndex(airing.Date))) return;
 		float perf = MediaDemand.PerformanceFactor(a.Performance);
@@ -314,6 +320,7 @@ public static partial class MediaAtmosphereService {
 			if (population <= 0 || reach <= 0) continue;
 			float q = (float)(MediaDemand.Gain * perf * freshShare * reach / population);
 			byRegion[regionId] = byRegion.GetValueOrDefault(regionId) + q;
+			MediaDemandTrace.Deposit(a, airing, weekEnd, regionId, q);
 		}
 	}
 
@@ -1086,7 +1093,7 @@ public static partial class MediaAtmosphereService {
 				double fresh = airing.Exposure.UniqueReach * (returning ? newShare : 1.0);
 				t.EstimatedReach = BroadcastExposure.CombineReach(t.EstimatedReach, fresh, population);
 				if (MediaRecognition.Active && !a.Cut) RecognitionDeposit(a, airing, t, fresh, population);
-				if (MediaDemand.Active && !a.Cut) DemandDeposit(a, airing, fresh);
+				if (MediaDemand.Active && !a.Cut) DemandDeposit(a, airing, weekEnd, fresh);
 				FollowingAiring(a, airing, fresh);
 				ResidentAiring(a, airing);
 				if (MediaMemberFame.Active && !a.Cut) MemberFameAiring(a, airing, t, fresh, population);
@@ -1355,8 +1362,20 @@ public static partial class MediaAtmosphereService {
 
 	// ---- persistence ------------------------------------------------------------------------------------------------
 
-	public static void CaptureWorld(WorldSaveData world) { if (world != null) world.Media = state; }
-	public static void RehydrateWorld(WorldSaveData world) { state = world?.Media ?? new MediaSaveData(); transientStatureShadow = new(); RestoreVehicles(); }
+	public static void CaptureWorld(WorldSaveData world) {
+		if (world == null) return;
+		state.StatureReader = ArtistStature.ProgrammeAlbumReader || ArtistStature.CareerDisplay || ArtistStature.MarketingReader
+			? new StatureReaderSaveData { Calibration = StatureObservation.ShadowConfig,
+				ProgrammeAlbumReader = ArtistStature.ProgrammeAlbumReader, CareerDisplay = ArtistStature.CareerDisplay,
+				MarketingReader = ArtistStature.MarketingReader, MarketingBlend = ArtistStature.MarketingBlend,
+				LegacyCampaignShare = ArtistStature.LegacyCampaignShare } : null;
+		world.Media = state;
+	}
+	public static void RehydrateWorld(WorldSaveData world) {
+		state = world?.Media ?? new MediaSaveData();
+		ArtistStature.RestoreReader(state.StatureReader);
+		transientStatureShadow = new(); RestoreVehicles();
+	}
 	internal static void ResetForProbe() { state = new MediaSaveData(); transientStatureShadow = new(); RestoreVehicles(); }
 
 	public static GameDate FromDayIndex(int day) {

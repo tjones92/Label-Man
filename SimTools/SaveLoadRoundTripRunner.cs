@@ -20,6 +20,11 @@ using Godot;
 public partial class SaveLoadRoundTripRunner : Node {
 	public override void _Ready() {
 		try {
+			if (OS.GetCmdlineUserArgs().Contains("--opening-following-check")) { OpeningFollowingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-marketing-check")) { StatureMarketingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-career-display-check")) { StatureCareerDisplayChecks.Run(this); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-game-reader-check")) { StatureGameReaderChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-continuation-check")) { StatureContinuationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--simulation-arguments-check")) { SimulationArgumentsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--regional-sales-rng-check")) { RegionalSalesRandomChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--simulation-optimization-check")) { SimulationOptimizationChecks.Run(); GetTree().Quit(0); return; }
@@ -202,8 +207,11 @@ public partial class SaveLoadRoundTripRunner : Node {
 
 			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-market-roundtrip")) ProfessionalWritingMarketChecks.StageRoundTrip();
 			if (RunStatureFreshContinuation(weeks, replayWeeks, statureRoundtrip, traceWorldReplay)) return;
+			StatureMarketingChecks.BeginLiveObservation();
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
 			ProfessionalWritingMarketChecks.CheckLiveState();
+			StatureMarketingChecks.CheckLiveState();
+			StatureCareerDisplayChecks.CheckLiveState();
 
 			if (integration) { RunIntegration(weeks); return; }
 
@@ -398,10 +406,13 @@ public partial class SaveLoadRoundTripRunner : Node {
 					GD.Print("PROFESSIONAL_WRITING_MARKET_RESUME passed");
 				}
 				if (LabelReleaseProgramme.Enabled) {
-					var lastStatureDate = statureRoundtrip == null ? default : MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate;
+					bool liveStature = StatureObservation.ShadowConfig != null;
+					var lastStatureDate = !liveStature ? default : MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate;
 					AdvanceOneChartWeek();
-					if (statureRoundtrip != null && MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate != lastStatureDate.AddDays(7))
+					if (liveStature && MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate != lastStatureDate.AddDays(7))
 						throw new InvalidOperationException("Live stature clock did not continue after world restore.");
+					StatureCareerDisplayChecks.CheckLiveState();
+					StatureMarketingChecks.CheckLiveState();
 					LabelReleaseProgrammeChecks.CheckLiveState();
 					GD.Print("LABEL_RELEASE_PROGRAMME_RESUME passed");
 					HitActFitSupportChecks.CheckLiveState();
@@ -440,8 +451,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 		}
 		if (left.ValueKind == JsonValueKind.Array) {
 			if (left.GetArrayLength() != right.GetArrayLength()) return $"{path}: array lengths {left.GetArrayLength()} vs {right.GetArrayLength()}";
+			var leftItems = left.EnumerateArray(); var rightItems = right.EnumerateArray();
 			for (int i = 0; i < left.GetArrayLength(); i++) {
-				string difference = FirstJsonDifference(left[i], right[i], $"{path}[{i}]");
+				leftItems.MoveNext(); rightItems.MoveNext();
+				string difference = FirstJsonDifference(leftItems.Current, rightItems.Current, $"{path}[{i}]");
 				if (difference != null) return difference;
 			}
 			return null;

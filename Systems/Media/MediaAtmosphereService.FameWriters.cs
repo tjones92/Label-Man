@@ -75,6 +75,7 @@ public static partial class MediaAtmosphereService {
 		float youngKeep = 1f - Math.Clamp(c.Severity * MediaFollowing.ControversyYoungLoss, 0f, 1f);
 		float before = fs.YoungTotal() + fs.AdultTotal();
 		foreach (FollowingRegion fr in fs.Regions.Values) {
+			fr.OpeningOrigin?.Scale(youngKeep, adultKeep);
 			foreach (int cohort in fr.Young.Keys.ToList()) fr.Young[cohort] *= youngKeep;
 			fr.Adult *= adultKeep;
 		}

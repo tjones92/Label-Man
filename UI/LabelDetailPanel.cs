@@ -72,7 +72,10 @@ public partial class LabelDetailPanel : Control
 		// Each signing is a 45 sleeve, as on the player's own roster: the publicity photo, the name typed across the top, and this
 		// label's disc showing through the die-cut window.
 		foreach (var artist in label.roster.Where(a => a != null)) {
-			var sleeve = new SleeveCard().Set(artist, label, $"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Format(artist.careerState)}", false);
+			var sleeve = new SleeveCard().Set(artist, label,
+				$"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Format(ArtistStature.DisplayCareer(artist, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate))}", false);
+			string contract = ArtistStature.ContractContext(artist);
+			if (contract != null) sleeve.AddFact(contract);
 			sleeve.AddFact($"{artist.totalReleases} {(artist.totalReleases == 1 ? "release" : "releases")}   •   {artist.top40Hits} Top 40");
 			string id = artist.artistId;
 			var open = new Button { Text = "DOSSIER" };

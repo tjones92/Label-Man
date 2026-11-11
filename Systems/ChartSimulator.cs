@@ -393,12 +393,12 @@ public static class ChartSimulator {
 	// MAIN UPDATE
 	// =======================================================================
 	
-	public static void UpdateRecord(RecordRuntimeData record, AILabel label, float genreAcceptance, float artistHeat) {
+	public static void UpdateRecord(RecordRuntimeData record, AILabel label, float genreAcceptance, float artistHeat, float? radioArtistHeat = null) {
 		record.artistHeat = artistHeat;
 		float quality = record.GetQuality();
 		
 		UpdateLabelPush(record, label);
-		UpdateRadioHeat(record, label, quality, genreAcceptance);
+		UpdateRadioHeat(record, label, quality, genreAcceptance, radioArtistHeat ?? artistHeat);
 		UpdateAwareness(record, quality);
 		UpdateWordOfMouth(record, quality);
 	}
@@ -941,14 +941,14 @@ public static class ChartSimulator {
 	// RADIO HEAT
 	// =======================================================================
 		
-	private static void UpdateRadioHeat(RecordRuntimeData record, AILabel label, float quality, float genreAcceptance) {
+	private static void UpdateRadioHeat(RecordRuntimeData record, AILabel label, float quality, float genreAcceptance, float radioArtistHeat) {
 		float qualityFactor = Mathf.Pow(quality, 1.8f) * RADIO_QUALITY_WEIGHT; 
 		// KnownActAirplay is a probe on this read only; it returns currentLabelPush unless --known-act-airplay is named.
 		float pushFactor = KnownActAirplay.ForRadio(record) * RADIO_LABEL_WEIGHT;
 		float momentumFactor = Mathf.Max(0, record.momentum) * RADIO_MOMENTUM_WEIGHT;
 		
 		float targetHeat = (qualityFactor + pushFactor + momentumFactor) * genreAcceptance;
-		targetHeat += record.artistHeat * 0.12f;
+		targetHeat += radioArtistHeat * 0.12f;
 		// The record-wide half of the target (song, campaign, momentum, the act), which a region's own
 		// heat reuses with its own chart standing and fatigue (regional audience 3c).
 		record.radioHeatBaseTargetThisWeek = targetHeat;

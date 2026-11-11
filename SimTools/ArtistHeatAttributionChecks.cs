@@ -17,11 +17,18 @@ public static class ArtistHeatAttributionChecks {
 			Check(ArtistHeatAttribution.SelectHeat(ReleaseFormat.Single, split.Original, split.SinglesOnly, split.CurrentAlbums, true) == split.SinglesOnly, "the full ablation changes singles' input");
 			ArtistHeatAttribution.SetPolicyForChecks(false, true);
 			Check(Math.Abs(split.CurrentAlbums - 0.6f) < 1e-6f, "current Top 10 album hype retains its full 0.30 contribution");
+			Check(Math.Abs(split.CurrentAlbumsExcluding(single.currentPosition, single.peakPosition) - 0.3f) < 1e-6f,
+				"the radio diagnostic retains the LP's current heat and excludes the single's position, peak and hit credit");
 			Check(ArtistHeatAttribution.SelectHeat(ReleaseFormat.Single, split.Original, split.SinglesOnly, split.CurrentAlbums, true) == split.CurrentAlbums, "the narrower diagnostic retains current album hype");
 			Check(ArtistHeatAttribution.SelectHeat(ReleaseFormat.Album, split.Original, split.SinglesOnly, split.CurrentAlbums, true) == split.Original, "albums keep the authored heat");
 			Check(ArtistHeatAttribution.SelectHeat(ReleaseFormat.Single, split.Original, split.SinglesOnly, split.CurrentAlbums, false) == split.Original, "prewarm keeps the authored heat");
 			var oldAlbum = new RecordRuntimeData { baseRecord = new Record { format = ReleaseFormat.Album }, currentPosition = 0, peakPosition = 5 };
 			Check(ArtistHeatAttribution.Describe(new[] { oldAlbum }, 0.15f).CurrentAlbums == 0f, "past album peaks leave durable recognition to its existing service");
+			var saturated = ArtistHeatAttribution.Describe(new[] { single, album, album, album }, 1.65f);
+			Check(saturated.CurrentAlbums == 1f && Math.Abs(saturated.CurrentAlbumsExcluding(20, 5) - 0.9f) < 1e-6f,
+				"self-exclusion precedes the heat clamp even when current albums saturate it");
+			var manyHits = ArtistHeatAttribution.Describe(new[] { single, single, single, single, single, single, single, oldAlbum }, 2.15f);
+			Check(manyHits.CurrentAlbumsExcluding(20, 5) == 1f, "other singles can keep the heat clamped after both exclusions");
 			float rawSingleHeat = 0.15f + 0.1f + 0.05f;
 			Check(ArtistHeatAttribution.Describe(new[] { single }, rawSingleHeat).SinglesOnly == rawSingleHeat, "a single-only catalog retains the authored addition order");
 		} finally { ArtistHeatAttribution.SetPolicyForChecks(was, wasCurrent); }

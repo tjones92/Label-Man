@@ -70,6 +70,10 @@ public static class ArtistRecognitionService {
 	public static float LaunchRecognition(SimulatedArtist artist) =>
 		SeniorCooling.Enabled ? EffectiveRecognition(artist) * SeniorCooling.LaunchFactor(artist) : EffectiveRecognition(artist);
 
+	/// <summary>What a launch would read now, without seeding the senior-cooling clock.</summary>
+	internal static float ObserveLaunchRecognition(SimulatedArtist artist) =>
+		SeniorCooling.Enabled ? EffectiveRecognition(artist) * SeniorCooling.ObserveLaunchFactor(artist) : EffectiveRecognition(artist);
+
 	// ---- gains, with diminishing returns on every deposit --------------------------------------
 	// The anti-monopoly core: a #1 does not mint a permanent franchise. Each gain buys less the
 	// higher the stock already is, so recognition saturates rather than compounds.

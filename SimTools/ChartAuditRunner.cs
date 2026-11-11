@@ -501,6 +501,7 @@ public partial class ChartAuditRunner : Node {
 
 			FlushPolarResearch();
 			SavePolarCheckpoint("complete");
+			MediaDemandTrace.ValidateTvOverrideCompleted();
 			if (!string.IsNullOrWhiteSpace(saveWorldAtEndName)) SaveAuditWorld(saveWorldAtEndName);
 			demandObservationCompleted = true;
 			FlushAndClose();

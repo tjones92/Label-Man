@@ -49,6 +49,13 @@ def validate(calibration):
                 raise ValueError('Missing reach weight')
             if previous and weight < previous['reachWeight'][route]:
                 raise ValueError('Higher bands cannot require less reach')
+        eligible = band.get('eligibleRoutes')
+        if eligible is not None and (not isinstance(eligible, list) or len(eligible) != 3
+                                    or any(type(v) is not bool for v in eligible) or not any(eligible)):
+            raise ValueError('Each band requires three route eligibility flags and at least one eligible route')
+        if previous and any(before is False and after is True for before, after in
+                            zip(previous.get('eligibleRoutes') or [True] * 3, eligible or [True] * 3)):
+            raise ValueError('Higher bands cannot re-enable a route excluded from a lower band')
         if previous and (entry < previous['entry'] or exit_ < previous['exit']):
             raise ValueError('Higher bands cannot have lower boundaries')
         previous = band
@@ -74,7 +81,10 @@ def evaluate(evidence, calibration, observation_date, previous_band=None):
         band = calibration['bands'][band_name]
         boundary = band['exit'] if index <= previous_index else band['entry']
         route_results = {}
-        for route in ROUTES:
+        for route_index, route in enumerate(ROUTES):
+            if band.get('eligibleRoutes') is not None and not band['eligibleRoutes'][route_index]:
+                route_results[route] = {'lower': 0., 'upper': 0.}
+                continue
             inputs = evidence[route]
             response, draw, reach = (_bounds(inputs[key]) for key in ('response', 'draw', 'reach'))
             low = max(response[0], draw[0])

@@ -96,24 +96,32 @@ public partial class CompetitorManager {
 		finally { preparingSlateItem = null; }
 	}
 	private bool PrepareSlateMasterCore(AILabel label, SimulatedArtist artist, GameDate date, ReleaseSlateItem item) {
+		bool trace = StatureReplayDiagnostics.Observer != null && label.labelId == "label_0001";
+		if (trace) StatureReplayDiagnostics.Mark("prepare:begin:" + item.Id + ":" + artist.artistId);
 		if (LabelReleaseProgramme.MaterialSearchEnabled) {
 			AdvanceProgrammeMaterial(item, label, artist, date, pipelineWeek);
+			if (trace) StatureReplayDiagnostics.Mark("prepare:material:" + item.Id + ":" + item.MaterialSearch?.State);
 			if (item.MaterialSearch?.State == ProgrammeMaterialState.Pending && !LabelReleaseProgramme.ProjectJudgementEnabled) return false;
 		}
-		if (!ReviewProgrammeProject(label, artist, date, item)) return false;
+		bool projectApproved = ReviewProgrammeProject(label, artist, date, item);
+		if (trace) StatureReplayDiagnostics.Mark("prepare:review:" + item.Id + ":" + projectApproved + ":" + item.ProjectReview?.Action);
+		if (!projectApproved) return false;
 		issuingSlateItem = item;
 		try {
 			float reserve = ProgrammeCommitmentReserve(label);
 			if (label.cashReserves - reserve < item.ReservedProduction + item.ReservedMarketing) return false;
 			var selection = ChooseEnabledGenreSupply(label, artist, date.year);
+			if (trace) StatureReplayDiagnostics.Mark("prepare:genre:" + item.Id + ":" + selection.Genre);
 			var decisionArtist = CreateProjectDecisionArtist(artist, selection.Genre, artist.primaryGenre);
 			var decision = BuildDecisionContext(label, decisionArtist, date.year, date.month);
 			PrepareAnnualFormatCapacity(date.year);
 			var plan = DecideRelease(label, decisionArtist, date.year, decision, singleProgrammeOnly: item.Format == ReleaseFormat.Single);
+			if (trace) StatureReplayDiagnostics.Mark($"prepare:plan:{item.Id}:{plan.strategy}:album={plan.projectedAlbumNet:R}:single={plan.projectedSingleNet:R}");
 			plan.format = item.Format;
 			plan.strategy = item.Format == ReleaseFormat.Single ? ReleaseStrategy.OrphanSingle : ReleaseStrategy.AlbumStandalone;
 			if (item.Format == ReleaseFormat.Album && LabelReleaseProgramme.LpAssemblyEnabled) {
 				item.LpAssembly = BuildLpAssembly(label, artist, decisionArtist, date.year, decision, item);
+				if (trace) StatureReplayDiagnostics.Mark($"prepare:assembly:{item.Id}:net={item.LpAssembly.ProjectedNet:R}");
 				plan.projectedAlbumStandaloneNet = item.LpAssembly.ProjectedNet;
 				// The assembly prior carries no portfolio credit, so there is none for the gate to remove; nor does it
 				// carry the expected campaign that DecideRelease takes off the album prior, so take that off here.
@@ -125,6 +133,7 @@ public partial class CompetitorManager {
 			if (item.Format == ReleaseFormat.Album) plan.projectedAlbumNet = plan.projectedAlbumStandaloneNet;
 			if (!PassesReleaseProfitGate(label, artist, date.year, selection.Genre, plan)) return false;
 			Record master = GenerateRecordFromArtist(label, artist, date.year, item.Format, judgedOrphan: item.Format == ReleaseFormat.Single);
+			if (trace) StatureReplayDiagnostics.Mark("prepare:record:" + item.Id + ":" + master?.recordId);
 			if (master == null) return false;
 			ApplyProjectGenre(master, selection.Genre, artist.primaryGenre);
 			float production = CalculateProductionCost(label, master, date);
@@ -240,7 +249,7 @@ public partial class CompetitorManager {
 		if (spend > 0f && booked + spend > ProgrammePromotionPool(label) + .1f)
 			throw new InvalidOperationException($"Programme promotion overbooked for {label.labelId}: {booked} + {spend}.");
 		ProgrammeState.Campaigns.Add(new ProgrammeCampaign { LabelId = label.labelId, RecordId = record.recordId, Week = pipelineWeek,
-			Spend = spend, Share = Math.Clamp(spend / Math.Max(1f, artist == null ? label.GetStandardMarketingBudget() : label.GetMarketingBudget(artist)), 0, 1) });
+			Spend = spend, Share = Math.Clamp(spend / Math.Max(1f, artist == null ? label.GetStandardMarketingBudget() : label.GetReleaseMarketingBudget(artist, ArtistStature.CampaignShareContext)), 0, 1) });
 		programmeCampaignByRecord.Clear();
 	}
 
@@ -305,8 +314,9 @@ public partial class CompetitorManager {
 							float obligations = format == ReleaseFormat.Single ? Math.Max(0, a.contractSinglesObligation - a.contractReleases) : 0;
 							var context = BuildDecisionContext(label, a, intended.year, intended.month);
 							context.careerBand = GetCareerBandIndex(a.careerState, out _);
+							float? appliedAlbumMultiplier = null;
 							float net = format == ReleaseFormat.Single ? SinglePriorNetAtBookedPrice(context) :
-								CalculateAlbumPriorNet(label, a, intended.year, context, CalculateCompilationCostWeight(a.primaryGenre, intended.year), ResolveHitInventory(a), out _);
+								CalculateProgrammeAlbumPriorNet(label, a, date, intended.year, context, out appliedAlbumMultiplier);
 							float contribution = Math.Clamp(net / Math.Max(1f, context.singleProductionCost), -1f, 1f);
 							float attention = due ? 10 : 0;
 							// Hit urgency remains useful, but cannot swamp material and all other business evidence.
@@ -323,7 +333,8 @@ public partial class CompetitorManager {
 								QualityEstimate = context.qualityEstimate, Priority = a.GetCareerPriority(), Momentum = a.momentum,
 								Obligations = obligations, AttachedAudienceAtAudit = ArtistFanbase.Heads(a.fanbase),
 								FollowUpScheduling = followUpScheduling, WaitingPriority = waitingPriority, AudienceOrders = audienceOrders,
-								NationalAudienceOrders = followUpScheduling ? nationalSingleOrders : 0f
+								NationalAudienceOrders = followUpScheduling ? nationalSingleOrders : 0f,
+								AppliedAlbumPriorMultiplier = appliedAlbumMultiplier
 							};
 							return (Artist: a, Score: score, Due: due, Age: age, Obligations: obligations, Net: net, Audit: read,
 								WaitingPriority: waitingPriority, AudienceOrders: audienceOrders);
@@ -405,10 +416,12 @@ public partial class CompetitorManager {
 		// A label's first horizon starts this week: the opening world, or a newly founded label, already has work in
 		// hand, as under the control, rather than idling through the preparation lead.
 		if (!ProgrammeState.PlannedThrough.ContainsKey(label.labelId)) PlanProgramme(label, date, pipelineWeek);
+		if (StatureReplayDiagnostics.Observer != null && label.labelId == "label_0001") StatureReplayDiagnostics.Mark("programme:planned");
 		SeedOpeningCatalogue();
 		PlanBreakoutFollowUps(label);
 		ProfessionalWritingMarket.ReconsiderPlanReminders(label, date, pipelineWeek);
 		ReviewProgrammeMaterialSearches(label, date);
+		if (StatureReplayDiagnostics.Observer != null && label.labelId == "label_0001") StatureReplayDiagnostics.Mark("programme:material-reviewed");
 		var remainingSlots = new Dictionary<ReleaseFormat, int>();
 		var preparationSlots = new Dictionary<ReleaseFormat, int>();
 		var preparedNow = new HashSet<ReleaseSlateItem>();
@@ -520,7 +533,7 @@ public partial class CompetitorManager {
 		var decision = BuildDecisionContext(label, artist, date.year, date.month);
 		float production = item.PreparedRecord != null ? 0 : item.Format == ReleaseFormat.Single ? decision.singleProductionCost : CalculateAlbumPriorCost(label, artist, date.year, decision);
 		float pressing = item.PreparedRecord == null ? 0 : InitialRunReserve(label, item.PreparedRecord);
-		float marketing = label.GetMarketingBudget(artist);
+		float marketing = label.GetReleaseMarketingBudget(artist, "programme-reserve", date);
 		if (LabelReleaseProgramme.CapacityEnabled) {
 			var rates = LabelReleaseProgramme.MonthlyCapacity(label);
 			marketing = Math.Min(marketing, Math.Min(AvailableProgrammeCampaign(label, campaignWeek ?? Math.Max(item.DueWeek, pipelineWeek), item),

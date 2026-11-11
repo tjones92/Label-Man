@@ -38,7 +38,7 @@ public static partial class MediaAtmosphereService {
 	}
 
 	/// <summary>The campaign's allocation view, created once from the label's existing envelope when the record first matters to media.</summary>
-	private static AiMediaAllocation AllocationFor(RecordRuntimeData r, int day) {
+	private static AiMediaAllocation AllocationFor(RecordRuntimeData r, int day, string episodeId = null) {
 		Record rec = r?.baseRecord;
 		if (rec?.recordId == null || rec.isPlayerOwned) return null;
 		if (state.AiAllocations.TryGetValue(rec.recordId, out var a)) return a;
@@ -47,7 +47,9 @@ public static partial class MediaAtmosphereService {
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.artistId);
 		a = AiMediaPlanner.Allocate(rec.recordId, label.labelId, rec.artistId, AiMediaPlanner.PolicyFor(label, artist, InControversy(rec.artistId, day)),
 			AiMediaPlanner.EnvelopeEstimate(label, artist), day);
+		MediaDemandTrace.ApplyTvOverride(a, episodeId);
 		state.AiAllocations[rec.recordId] = a;
+		MediaDemandTrace.Allocated(a, episodeId);
 		Ledger("policy-" + a.Policy);
 		return a;
 	}
@@ -64,13 +66,14 @@ public static partial class MediaAtmosphereService {
 		if (c.Pitch != null) return true;
 		Record rec = c.Record.baseRecord;
 		int day = BroadcastExposure.DayIndex(date);
-		AiMediaAllocation alloc = AllocationFor(c.Record, day);
+		AiMediaAllocation alloc = AllocationFor(c.Record, day, episodeId);
 		if (alloc == null) return true;
 		string receipt = "tv|" + episodeId;
 		if (alloc.Receipts.ContainsKey(receipt)) return true;
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.artistId);
 		MediaPolicy policy = InControversy(rec.artistId, day) ? MediaPolicy.CautiousCrisis : alloc.Policy;
 		if (!AiMediaPlanner.Considers(program, policy, artist, rec.primaryGenre, day, out string reason)) {
+			MediaDemandTrace.Booking(alloc, episodeId, reason);
 			alloc.Declined++; episodeDeclines++; Ledger("decline-" + reason); return false;
 		}
 		string city = evidence.CityOf(rec.artistId);
@@ -81,7 +84,11 @@ public static partial class MediaAtmosphereService {
 			prep = MediaPreparation.Minimal;
 			cost = AiMediaPlanner.AppearanceCents(program, date, city, members, prep);
 		}
-		if (cost > alloc.TvRemaining) { alloc.Declined++; episodeDeclines++; Ledger("decline-budget"); return false; }
+		if (cost > alloc.TvRemaining) {
+			MediaDemandTrace.Booking(alloc, episodeId, "budget", prep, cost);
+			alloc.Declined++; episodeDeclines++; Ledger("decline-budget"); return false;
+		}
+		MediaDemandTrace.Booking(alloc, episodeId, "accepted", prep, cost);
 		c.Prep = prep;
 		alloc.Receipts[receipt] = cost;
 		alloc.TvReservedCents += cost;

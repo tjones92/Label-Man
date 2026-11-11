@@ -1785,6 +1785,20 @@ public partial class MediaAtmosphereChecks : Node {
 			&& own[0] == 950 && own[1] == 2_850 && 10_000 - own.Sum() == moved
 			&& flood.Sum() == 300 && capped == 300 && flood[0] == 300 && flood[1] == 0,
 			$"Fans move LP buyers, not add them: 500 fan copies keep the region's 10,000 LP intent ({string.Join("/", lps)}); fans asking past the region's whole LP intent take all of it ({string.Join("/", flood)})");
+		Check(Math.Abs(MediaFollowerDemand.FanShare(lps[0], own[0]) - 500f / 1_450f) < 1e-6f
+			&& MediaFollowerDemand.FanShare(lps[1], own[1]) == 0f && MediaFollowerDemand.FanShare(0, 0) == 0f,
+			$"An LP's follower share is its fan copies over its new intent (500 of {lps[0]}); a title without fans has none, so its buyers all recruit");
+		Check(!MediaFollowerDemand.ColdSinceHit(-1, 5_000) && !MediaFollowerDemand.ColdSinceHit(5_000 - MediaFollowerDemand.ColdDays, 5_000)
+			&& MediaFollowerDemand.ColdSinceHit(5_000 - MediaFollowerDemand.ColdDays - 1, 5_000) && MediaFollowerDemand.ColdAdultYear == 0f,
+			"An act is cold only once its last hit is over two years old; an act that never had a hit is never cold, and the cold loss is off by default");
+		int[] wants = { 1_000, 100, 10, 0 };
+		double[] flat = SinglesRationExponent.Shares(wants, 222, 1f), steep = SinglesRationExponent.Shares(wants, 222, 1.5f),
+			full = SinglesRationExponent.Shares(wants, 1_110, 1.5f), tight = SinglesRationExponent.Shares(wants, 1_050, 2f);
+		Check(Math.Abs(flat[0] - 200) < 1e-6 && Math.Abs(flat[2] - 2) < 1e-6 && Math.Abs(steep.Sum() - 222) < 1e-6
+			&& steep[0] > 200 && steep[2] < 2 && steep[3] == 0 && full.Zip(wants, (a, b) => Math.Abs(a - b)).Max() < 1e-6
+			&& tight[0] == 1_000 && Math.Abs(tight.Sum() - 1_050) < 1e-6 && tight[1] < 100 && SinglesRationExponent.Exponent == 1f,
+			$"A steeper singles ration gives the most-wanted title more of the same purse ({steep[0]:F0} of 222, against 200), "
+			+ $"never more than its intent ({tight[0]:F0} of 1,000 capped), and the exponent is 1 by default");
 		var spentLp = new RegionalRecordData("r") { unitsSoldTotal = 300, fanDisplacedBuyerUnitsTotal = 200 };
 		float spentPenetration = AlbumSimulator.CalculateEffectiveRegionalPenetration(spentLp, 300, 1_000f, false);
 		var restoredLp = RegionalRecordSaveData.From(spentLp).ToRegional();

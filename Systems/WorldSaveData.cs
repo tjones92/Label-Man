@@ -317,13 +317,23 @@ public static class WorldStateService {
 		if (MediaAtmosphereService.PersistExperimentalStature) {
 			world.ShadowContinuation = new ShadowContinuationSaveData {
 				GlobalRng = GameRandom.State,
+				PlayerLabelIndex = ChartManager.Instance?.CapturePlayerLabelIndex(),
+				PlayerRecordPositions = ChartManager.Instance?.CapturePlayerRecordPositions(),
+				PlayerOperatingRosterTarget = PlayerDesk.Instance?.Label?.operatingRosterTarget,
+				LabelGeneratorNames = LabelLifecycleManager.Instance?.CaptureGeneratorNames(),
 				MasterPickupEvidence = AiMasterDeals.CapturePickupEvidence(),
 				CityReach = CityReach.CaptureContinuation(),
 				PendingLiveCrowds = MediaAtmosphereService.CapturePendingLiveCrowds(),
 				Naming = NameGenerator.Instance?.CaptureContinuation(),
 				Culture = CulturalMemoryService.CaptureContinuation(),
 				Sessions = SessionEmploymentService.CaptureContinuation(),
+				RoomBacking = LocalSceneRoomService.CaptureBackingContinuation(),
 				Projects = CompetitorManager.Instance?.CaptureProjectContinuation(),
+				TrackAliases = TrackContinuation.Capture(world),
+				Economy = CompetitorManager.Instance?.CaptureEconomyContinuation(),
+				Population = ArtistManager.Instance?.CapturePopulationContinuation(),
+				OffChartMomentum = MajorOffChartSingles.CaptureMomentum(),
+				RecordClubMomentum = RecordClubChannel.CaptureMomentum(),
 				Radio = ChartManager.Instance?.CaptureShadowRadio(),
 				Retail = LocalRetailExposure.CaptureContinuation(),
 				Listening = LocalRadioConsumptionProbe.CaptureContinuation(world.Records)
@@ -359,11 +369,14 @@ public static class WorldStateService {
         SceneEcosystemService.ValidateRestore(world.SceneEcosystem);
 		LocalSceneIdentityService.BeginRestore(world.SceneIdentity, worldSeed);
 		LocalScenePersistenceService.BeginRestore(world.ScenePersistence);
-        LocalSceneRoomService.BeginRestore(world.SceneRooms);
+        LocalSceneRoomService.BeginRestore(world.SceneRooms, world.ShadowContinuation?.RoomBacking);
         SceneEcosystemService.BeginRestore(world.SceneEcosystem);
 
 		TimeManager.Instance?.RestoreClock(date, world.Hour, world.Minute);
+		// Weekly label decisions run before the next chart pass sets this derived region flag.
+		if (world.ShadowContinuation != null) ChartManager.Instance?.RestoreShadowRegionalMode(world.ChartWeek, date.year);
 		ArtistManager.Instance?.RehydrateWorld(world);
+		TrackContinuation.Restore(world, world.ShadowContinuation?.TrackAliases);
 		ChartManager.Instance?.RehydrateLabels(world);
 		LabelLifecycleManager.Instance?.RehydrateLifecycle(world, ChartManager.Instance?.GetAllLabels());
 		ChartManager.Instance?.RehydrateRecords(world);
@@ -388,6 +401,11 @@ public static class WorldStateService {
 		if (!deferSceneRelink) LocalSceneIdentityService.CompleteRestore();
 		RegionalSalesRandom.Restore(world.RegionalSalesRngVersion, world.RegionalSalesRngSeed, worldSeed);
 		if (world.ShadowContinuation is { } continuation) {
+			LabelLifecycleManager.Instance?.RestoreGeneratorNames(continuation.LabelGeneratorNames);
+			CompetitorManager.Instance?.RestoreEconomyContinuation(continuation.Economy);
+			ArtistManager.Instance?.RestorePopulationContinuation(continuation.Population);
+			MajorOffChartSingles.RestoreMomentum(continuation.OffChartMomentum);
+			RecordClubChannel.RestoreMomentum(continuation.RecordClubMomentum);
 			AiMasterDeals.RestorePickupEvidence(continuation.MasterPickupEvidence);
 			CityReach.RestoreContinuation(continuation.CityReach);
 			MediaAtmosphereService.RestorePendingLiveCrowds(continuation.PendingLiveCrowds);

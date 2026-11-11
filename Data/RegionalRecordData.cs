@@ -57,6 +57,9 @@ public class RegionalRecordData {
 	// Sales Tracking
 	public int unitsSoldThisWeek;
 	public int unitsSoldTotal;
+	// Estimated share of settled units bought by existing followers this clearing week.
+	[System.Text.Json.Serialization.JsonIgnore]
+	internal float settledFollowerUnits;
 	// Directive 5 acceptance is evaluated during the sales pass and reused by
 	// the later radio pass. These values are transient, week-local simulation
 	// state; they do not change audit output or the acceptance calculation.

@@ -16,7 +16,9 @@ from stature_shadow_policy import BANDS, ROUTES, evaluate
 from stature_shadow_trace import number, max_known
 
 
-def fit(components, regional, output, effective, mode='rung-median'):
+def fit(components, regional, output, effective, mode='rung-median', score_field='peerScore'):
+    if score_field not in ('peerScore', 'fixedScore'):
+        raise ValueError('Unknown score field')
     reaches = {}
     with regional.open(newline='', encoding='utf-8-sig') as source:
         for row in csv.DictReader(source):
@@ -37,7 +39,7 @@ def fit(components, regional, output, effective, mode='rung-median'):
             if key not in reaches:
                 return
             region = reaches[key]
-            scores = {k: number(v['peerScore']) for k, v in rows.items()}
+            scores = {k: number(v[score_field]) for k, v in rows.items()}
             regional_response = number(region['regionalScore'])
             regional_draw = number(region['regionalDraw'])
             rs = {r: number(region[r + 'Reach']) for r in ROUTES}
@@ -66,7 +68,7 @@ def fit(components, regional, output, effective, mode='rung-median'):
     counts = {name: len(selected[name]) for name in BANDS}
     report = {'counts': counts, 'componentsSha256': file_digest(components), 'regionalSha256': file_digest(regional),
               'effectiveDate': effective, 'training': 'fit artist partition before effective date, complete observations only',
-              'mode': mode, 'caveat': 'Experimental mapping; not a recommendation or a causal policy.'}
+              'mode': mode, 'scoreField': score_field, 'caveat': 'Experimental mapping; not a recommendation or a causal policy.'}
     if min(counts.values()) < 30:
         report['status'] = 'insufficient_complete_observations'
         with output.open('x', encoding='utf-8') as target:
@@ -94,7 +96,8 @@ def fit(components, regional, output, effective, mode='rung-median'):
     if any(bands[a]['entry'] >= bands[b]['entry'] for a, b in zip(BANDS, BANDS[1:])):
         report['status'] = 'degenerate_overlapping_boundaries'
     else:
-        report['calibration'] = {'version': f'experimental-{mode}-peer-v1', 'effectiveDate': effective, 'bands': bands}
+        reference = 'peer' if score_field == 'peerScore' else 'fixed'
+        report['calibration'] = {'version': f'experimental-{mode}-{reference}-v1', 'effectiveDate': effective, 'bands': bands}
     with output.open('x', encoding='utf-8') as target:
         json.dump(report, target, indent=2, sort_keys=True); target.write('\n')
 
@@ -104,4 +107,5 @@ if __name__ == '__main__':
     p.add_argument('components', type=Path); p.add_argument('regional', type=Path); p.add_argument('output', type=Path)
     p.add_argument('--effective-date', required=True)
     p.add_argument('--mode', choices=('rung-median', 'pooled-quantiles'), default='rung-median')
-    a = p.parse_args(); fit(a.components, a.regional, a.output, a.effective_date, a.mode)
+    p.add_argument('--score', choices=('peerScore', 'fixedScore'), default='peerScore')
+    a = p.parse_args(); fit(a.components, a.regional, a.output, a.effective_date, a.mode, a.score)

@@ -118,7 +118,7 @@ public partial class ChartAuditRunner {
 					statureLabel?.isPlayerOwned == true || actualArtist?.isPlayerOwned == true,
 					actualArtist?.lifecycleStatus ?? ArtistLifecycleStatus.Inactive);
 				bool eligible = a.Eligible && parsed && actualArtist != null && statureLabel != null;
-				bool live = ChartManager.Instance?.IsGenreMarketV2Live == true || AlbumPriorRecalibration.IsLive;
+				bool live = (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true) || AlbumPriorRecalibration.IsLive;
 				float old = eligible ? CompetitorManager.GetAlbumPriorCareerMultiplier(current, live) : 0;
 				string proposed = eligible && read.Status == StatureDecisionSnapshot.Status.Available
 					? F(CompetitorManager.GetAlbumPriorCareerMultiplier(read.CareerState, live)) : "";
@@ -126,7 +126,7 @@ public partial class ChartAuditRunner {
 					Csv(a.ArtistId), eligible ? "1" : "0", a.Selected ? "1" : "0", Csv(a.CareerState),
 					actualArtist?.careerStateBeforeDrop.ToString() ?? "", statureLabel != null ? F(statureLabel.cashReserves) : "",
 					snapshot?.Date.ToString("yyyy-MM-dd") ?? "", snapshot?.Band.ToString() ?? "", eligible ? read.Status.ToString() : "Ineligible",
-					eligible ? F(old) : "", proposed, eligible ? F(old) : "", eligible ? F(a.ExpectedNet) : ""));
+					eligible ? F(old) : "", proposed, eligible && a.AppliedAlbumPriorMultiplier.HasValue ? F(a.AppliedAlbumPriorMultiplier.Value) : "", eligible ? F(a.ExpectedNet) : ""));
 			}
 		}
 		if (r.Candidates.Count == 0) Row(null);

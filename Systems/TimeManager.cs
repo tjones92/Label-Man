@@ -151,13 +151,16 @@ public partial class TimeManager : Node {
 	private int turningDepth;
 
 	private void ProcessDayEnd() {
+		StatureReplayDiagnostics.Mark("day-end:start");
 		turningDepth++;
 		try {
 			using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.RoomAdvance))
 				LocalSceneRoomService.Advance(currentDate, 24);
 			OnDayEnded?.Invoke(currentDate);
+			StatureReplayDiagnostics.Mark("day-end:subscribers-complete");
 			if (currentDate.IsFriday) {
 				OnWeekEnded?.Invoke(currentDate);
+				StatureReplayDiagnostics.Mark("week-end:subscribers-complete");
 			}
 		} finally { turningDepth--; }
 	}
@@ -193,7 +196,14 @@ public partial class TimeManager : Node {
 		currentHour = wake / 60;
 		currentMinute = wake % 60;
 
-		if (currentDate.month != previousMonth) OnMonthChanged?.Invoke(currentDate);
+		if (currentDate.month != previousMonth) {
+			if (StatureReplayDiagnostics.Observer == null) OnMonthChanged?.Invoke(currentDate);
+			else if (OnMonthChanged != null) foreach (Action<GameDate> subscriber in OnMonthChanged.GetInvocationList()) {
+				StatureReplayDiagnostics.Mark("month:before:" + subscriber.Method.DeclaringType?.Name + "." + subscriber.Method.Name);
+				subscriber(currentDate);
+				StatureReplayDiagnostics.Mark("month:after:" + subscriber.Method.DeclaringType?.Name + "." + subscriber.Method.Name);
+			}
+		}
 		if (currentDate.year != previousYear) OnYearChanged?.Invoke(currentDate);
 
 		if (IsGameOver) {
@@ -207,6 +217,7 @@ public partial class TimeManager : Node {
 			LocalSceneRoomService.EnsureCalendar(currentDate);
 		TriggerEventsForDate(currentDate);
 		OnDayStarted?.Invoke(currentDate);
+		StatureReplayDiagnostics.Mark("day-start:subscribers-complete");
 	}
 
 	public ScheduledEvent SkipToDate(GameDate targetDate, EventPriority minimumInterruptPriority = EventPriority.High) {

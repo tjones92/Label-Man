@@ -5,6 +5,11 @@ using Godot;
 // Changed from MonoBehaviour to a plain C# class
 public class LabelGenerator {
 	private HashSet<string> usedNames = new HashSet<string>();
+	internal List<string> CaptureUsedNames() => usedNames.OrderBy(name => name, System.StringComparer.Ordinal).ToList();
+	internal void RestoreUsedNames(IEnumerable<string> names) {
+		if (names == null) return; // Older experimental checkpoints have no generator state.
+		usedNames = new HashSet<string>(names, System.StringComparer.Ordinal);
+	}
 	
 	private readonly string[] prefixes = { 
 		"Blue", "Red", "Gold", "Golden", "Silver", "Black", "White", "Royal", "King", "Crown", "Star", "Sun", "Moon", "Atomic", "Velvet", "Iron", 

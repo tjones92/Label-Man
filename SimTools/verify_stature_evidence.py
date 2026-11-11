@@ -9,8 +9,18 @@ def verify(path):
     seen, markets, observed = set(), {}, defaultdict(float)
     dates, artists = set(), set()
     measures = ('singleYoungUnits', 'singleAdultUnits', 'albumYoungUnits', 'albumAdultUnits')
+    joins = tuple(source + 'Join' + age for source in ('buy', 'tv', 'press', 'series', 'live') for age in ('Young', 'Adult'))
+    follower = tuple(prefix + suffix for suffix in ('FollowerIntent', 'FollowerStockGrant', 'FollowerClearedUpperBound')
+                     for prefix in ('single', 'album'))
     with open(path, newline='', encoding='utf-8-sig') as stream:
-        for row in csv.DictReader(stream):
+        reader = csv.DictReader(stream)
+        present = set(joins) & set(reader.fieldnames or ())
+        if present and len(present) != len(joins):
+            raise ValueError('incomplete booked-join columns')
+        follower_present = set(follower + ('followerLaunchMode',)) & set(reader.fieldnames or ())
+        if follower_present and len(follower_present) != len(follower) + 1:
+            raise ValueError('incomplete follower-launch columns')
+        for row in reader:
             key = (row['date'], row['artistId'], row['regionId'])
             if key in seen:
                 raise ValueError(f'duplicate act-region-week: {key}')
@@ -41,6 +51,24 @@ def verify(path):
                 value = float(row[field])
                 if not math.isfinite(value) or value < 0:
                     raise ValueError(f'invalid {field}: {key}')
+            for field in joins if present else ():
+                value = float(row[field])
+                if not math.isfinite(value) or value < 0:
+                    raise ValueError(f'invalid {field}: {key}')
+            if follower_present:
+                mode = row['followerLaunchMode']
+                if mode not in ('inactive', 'shadow', 'causal'):
+                    raise ValueError(f'invalid follower-launch mode: {key}')
+                for field in follower:
+                    value = float(row[field])
+                    if not math.isfinite(value) or value < 0:
+                        raise ValueError(f'invalid {field}: {key}')
+                for prefix in ('single', 'album'):
+                    upper = float(row[prefix + 'FollowerClearedUpperBound'])
+                    grant = float(row[prefix + 'FollowerStockGrant'])
+                    sales = float(row[prefix + 'YoungUnits']) + float(row[prefix + 'AdultUnits'])
+                    if upper > grant + 0.01 or upper > sales + max(0.01, sales * 1e-6) or (mode != 'causal' and upper != 0):
+                        raise ValueError(f'invalid {prefix} follower-cleared bound: {key}')
             if row['followingStatus'] not in ('observed', 'no_following_record'):
                 raise ValueError(f'invalid following status: {key}')
             if row['followingStatus'] == 'no_following_record' and (young != 0 or adult != 0):

@@ -93,10 +93,12 @@ public static class MajorOffChartSingles {
 	// The status review's "Rising" bar reads trailing cash flow as release momentum. A back catalog is steady
 	// division profit, not momentum: a period Major's singles schedule followed its A&R organization, not its
 	// catalog receipts (ReleaseJudgementDirective §6). The base's own net is therefore kept in the same
-	// three-month window and taken out of that one test; solvency still counts it. Not saved: a resumed
-	// world counts the base toward Rising until the window refills.
+	// three-month window and taken out of that one test; solvency still counts it. Ordinary saves omit
+	// this window; explicit persisted-shadow checkpoints preserve it for continuation.
 	private static readonly Dictionary<string, double> monthNet = new(StringComparer.Ordinal);
 	private static readonly Dictionary<string, List<double>> recentMonthNets = new(StringComparer.Ordinal);
+	internal static LabelMomentumContinuationSaveData CaptureMomentum() => LabelMomentumContinuationSaveData.Capture(monthNet, recentMonthNets);
+	internal static void RestoreMomentum(LabelMomentumContinuationSaveData saved) => LabelMomentumContinuationSaveData.Restore(saved, monthNet, recentMonthNets);
 	public const int MomentumWindowMonths = 3;
 
 	/// <summary>Closes this label's month (once per status review) and returns the base's trailing mean monthly

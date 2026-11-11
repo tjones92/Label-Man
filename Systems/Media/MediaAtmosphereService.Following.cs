@@ -25,7 +25,14 @@ public static partial class MediaAtmosphereService {
 	private static readonly Dictionary<string, double> followingLedger = new(StringComparer.Ordinal);
 	private static void FollowingLedger(string key, double amount) => followingLedger[key] = followingLedger.GetValueOrDefault(key) + amount;
 	/// <summary>Joiners since each act's last CSV row (buyers, viewers), print-only.</summary>
-	private static readonly Dictionary<string, (double Buy, double Tv)> followingSinceRow = new(StringComparer.Ordinal);
+	/// <summary>
+	/// Flows since the act's last monthly row (observe-only, FanbaseEfficacyEvidence.md action 3): joiners from buyers and
+	/// television, young members who aged out to adult and those lost at age-out, adult and young standing losses (drift,
+	/// silence, switching), and the buyer joiners that came from the act's own followers' purchases (young, adult).
+	/// </summary>
+	private static readonly Dictionary<string, double[]> followingSinceRow = new(StringComparer.Ordinal);
+	private const int FlowBuy = 0, FlowTv = 1, FlowAgeToAdult = 2, FlowAgedLost = 3, FlowAdultLoss = 4, FlowYoungLoss = 5,
+		FlowSelfYoung = 6, FlowSelfAdult = 7, FlowCount = 8;
 	private static readonly List<string> followingTransitions = new();
 	private static float yearTopLead, yearTopSalience;
 	private static string yearTopName;
@@ -53,6 +60,7 @@ public static partial class MediaAtmosphereService {
 				if (e.year < start.year - 5 || e.peakPosition <= 0) continue;
 				float units = e.peakPosition == 1 ? 1_000_000f : e.peakPosition <= 10 ? 500_000f : e.peakPosition <= 40 ? 200_000f : 50_000f;
 				float people = units * MediaFollowing.CBuy * MediaFollowing.HeatFactor(0.5f) * (float)Math.Pow(0.75, Math.Max(0, start.year - e.year));
+				if (MediaFollowing.ObserveOpeningGeography) OpeningGeographyDiagnostics.RecordRelease(a, e, people * young, people * (1f - young));
 				youngByYear[e.year] = youngByYear.GetValueOrDefault(e.year) + people * young;
 				adult += people * (1f - young);
 			}
@@ -62,9 +70,11 @@ public static partial class MediaAtmosphereService {
 				float w = (float)(region.population / totalPop);
 				var fr = new FollowingRegion { Adult = adult * w };
 				foreach (var (year, n) in youngByYear) fr.Young[year] = n * w;
+				if (MediaFollowing.ObserveOpeningOrigin) OpeningFollowingOrigin.Seed(fr);
 				fs.Regions[region.regionId] = fr;
 			}
 			state.Following[a.artistId] = fs;
+			if (MediaFollowing.ObserveOpeningOrigin) OpeningFollowingDiagnostics.RecordSeed(a, fs, start);
 		}
 	}
 
@@ -82,6 +92,8 @@ public static partial class MediaAtmosphereService {
 		double[] adultPop = regions.Select(x => Math.Max(1.0, x.population * 1e6 * adultShare)).ToArray();
 		float wYoung = youngShare / (youngShare + adultShare);
 		float[] Row(Dictionary<string, float[]> map, string id) { if (!map.TryGetValue(id, out var v)) map[id] = v = new float[r]; return v; }
+		// Diagnostic only: same proportional source allocation used by the following ledger, before pruning.
+		var statureJoins = StatureObservation.Log == null ? null : new Dictionary<(string, string), double[]>();
 
 		// Attention last week: each act above the sensation bar takes its excess from everyone else's registration.
 		var excess = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -96,11 +108,17 @@ public static partial class MediaAtmosphereService {
 		// Buyers: every record's units this week, by region, split young and adult by genre and format.
 		var buyYoung = new Dictionary<string, float[]>(StringComparer.Ordinal);
 		var buyAdult = new Dictionary<string, float[]>(StringComparer.Ordinal);
+		bool recruitFromNewBuyers = MediaFollowerDemand.RecruitFromNewBuyers;
+		var adultSales = recruitFromNewBuyers ? new Dictionary<string, float[]>(StringComparer.Ordinal) : buyAdult;
+		// Observe-only: the units the act's own followers bought, young and adult, whether or not they recruit.
+		var selfYoung = new Dictionary<string, float[]>(StringComparer.Ordinal);
+		var selfAdult = new Dictionary<string, float[]>(StringComparer.Ordinal);
 		// Attention units (§7.1): the same buyers with an LP counted at a third of a single, national per act (young, adult).
 		var attentionUnits = new Dictionary<string, double[]>(StringComparer.Ordinal);
 		var releases = new List<RecordRuntimeData>();
 		var top40 = new HashSet<string>(StringComparer.Ordinal);
 		var charting = new HashSet<string>(StringComparer.Ordinal);
+		var albumTop40 = new HashSet<string>(StringComparer.Ordinal);
 		var latestRelease = new Dictionary<string, int>(StringComparer.Ordinal);
 		foreach (RecordRuntimeData rec in evidence.All) {
 			Record b = rec?.baseRecord;
@@ -112,16 +130,30 @@ public static partial class MediaAtmosphereService {
 			}
 			if (b.format == ReleaseFormat.Single && rec.currentPosition is >= 1 and <= 40) top40.Add(b.artistId);
 			if (b.format == ReleaseFormat.Single && rec.currentPosition is >= 1 and <= 100) charting.Add(b.artistId);
+			if (b.format == ReleaseFormat.Album && rec.currentPosition is >= 1 and <= 40) albumTop40.Add(b.artistId);
 			if (rec.regionalData == null) continue;
 			float y = MediaFollowing.YoungBuyerShare(b.primaryGenre, b.format);
 			float weight = b.format == ReleaseFormat.Single ? 1f : MediaFollowing.AlbumAttentionWeight;
 			double[] att = null;
 			float[] yr = null, ar = null;
+			float[] adultSalesByRegion = null;
 			foreach (var (regionId, rd) in rec.regionalData) {
 				if (rd == null || rd.unitsSoldThisWeek <= 0 || !index.TryGetValue(regionId, out int i)) continue;
 				yr ??= Row(buyYoung, b.artistId); ar ??= Row(buyAdult, b.artistId);
-				yr[i] += rd.unitsSoldThisWeek * y;
-				ar[i] += rd.unitsSoldThisWeek * (1f - y);
+				float recruitmentUnits = rd.unitsSoldThisWeek;
+				float followerUnits = Math.Clamp(rd.settledFollowerUnits, 0f, rd.unitsSoldThisWeek);
+				if (followerUnits > 0f) {
+					Row(selfYoung, b.artistId)[i] += followerUnits * y;
+					Row(selfAdult, b.artistId)[i] += followerUnits * (1f - y);
+				}
+				if (recruitFromNewBuyers) {
+					if (b.format == ReleaseFormat.Single ? MediaFollowerDemand.SinglesRecruitFromNewBuyers : MediaFollowerDemand.AlbumsRecruitFromNewBuyers)
+						recruitmentUnits -= rd.settledFollowerUnits;
+					adultSalesByRegion ??= Row(adultSales, b.artistId);
+					adultSalesByRegion[i] += rd.unitsSoldThisWeek * (1f - y);
+				}
+				yr[i] += recruitmentUnits * y;
+				ar[i] += recruitmentUnits * (1f - y);
 				att ??= attentionUnits.TryGetValue(b.artistId, out var existing) ? existing : attentionUnits[b.artistId] = new double[2];
 				att[0] += rd.unitsSoldThisWeek * y * weight;
 				att[1] += rd.unitsSoldThisWeek * (1f - y) * weight;
@@ -243,7 +275,7 @@ public static partial class MediaAtmosphereService {
 		// Adult purchase standing: each region's top acts by adult buyers this week, on the attachment's 1 - k/20 scale.
 		var adultRank = new Dictionary<string, float[]>(StringComparer.Ordinal);
 		for (int i = 0; i < r; i++) {
-			var ranked = buyAdult.Where(p => p.Value[i] > 0f).OrderByDescending(p => p.Value[i]).ThenBy(p => p.Key, StringComparer.Ordinal).Take(AdultRankDepth).ToList();
+			var ranked = adultSales.Where(p => p.Value[i] > 0f).OrderByDescending(p => p.Value[i]).ThenBy(p => p.Key, StringComparer.Ordinal).Take(AdultRankDepth).ToList();
 			for (int k = 0; k < ranked.Count; k++) Row(adultRank, ranked[k].Key)[i] = 1f - k / (float)AdultRankDepth;
 		}
 
@@ -258,6 +290,7 @@ public static partial class MediaAtmosphereService {
 			.ToDictionary(g => g.Key, g => g.OrderBy(x => BroadcastExposure.DayIndex(x.baseRecord.releaseDate)).ThenBy(x => x.baseRecord.recordId, StringComparer.Ordinal).ToList(), StringComparer.Ordinal);
 		float driftYoung = MediaFollowing.Weekly(MediaFollowing.YoungDriftYear), driftAdult = MediaFollowing.Weekly(MediaFollowing.AdultDriftYear);
 		float silenceYoung = MediaFollowing.Weekly(MediaFollowing.SilenceYoungYear), silenceAdult = MediaFollowing.Weekly(MediaFollowing.SilenceAdultYear);
+		float coldAdult = MediaFollowerDemand.ColdAdultYear > 0f ? MediaFollowing.Weekly(MediaFollowerDemand.ColdAdultYear) : 0f;
 		bool monthRow = weekEnd.day <= 7;
 
 		foreach (string id in acts) {
@@ -285,6 +318,7 @@ public static partial class MediaAtmosphereService {
 			fs.ArtistName = artist?.stageName ?? fs.ArtistName;
 			if (latestRelease.TryGetValue(id, out int last)) fs.LastReleaseDay = Math.Max(fs.LastReleaseDay, last);
 			if (top40.Contains(id)) fs.LastTop40Day = today;
+			if (albumTop40.Contains(id)) fs.LastAlbumTop40Day = today;
 
 			// Releases first: a disappointing record loses followers before its own buyers can join.
 
@@ -302,6 +336,7 @@ public static partial class MediaAtmosphereService {
 						if (loss > 0f) {
 							FollowingLedger("disappointment", (young + adult) * loss);
 							foreach (FollowingRegion fr in fs.Regions.Values) {
+								fr.OpeningOrigin?.Scale(1f - loss, 1f - loss);
 								foreach (int c in fr.Young.Keys.ToList()) fr.Young[c] *= 1f - loss;
 								fr.Adult *= 1f - loss;
 							}
@@ -330,28 +365,43 @@ public static partial class MediaAtmosphereService {
 			// The following itself: losses on the standing stock, then this week's joiners (§2.2, §2.3).
 			bool silent = fs.LastReleaseDay < 0 || today - fs.LastReleaseDay > MediaFollowing.SilenceDays;
 			float switching = MediaFollowing.Weekly(MediaFollowing.SwitchingPerSalienceYear * (switchingSalience - sensations.GetValueOrDefault(id)));
-			float youngLoss = driftYoung + (silent ? silenceYoung : 0f) + switching, adultLoss = driftAdult + (silent ? silenceAdult : 0f);
+			// Part A probe: a once-hit act gone cold loses adults at the cold rate instead of (not on top of) the silence rate.
+			bool cold = coldAdult > 0f && MediaFollowerDemand.ColdSinceHit(Math.Max(fs.LastTop40Day, fs.LastAlbumTop40Day), today);
+			float adultExtra = Math.Max(silent ? silenceAdult : 0f, cold ? coldAdult : 0f);
+			float youngLoss = driftYoung + (silent ? silenceYoung : 0f) + switching, adultLoss = driftAdult + adultExtra;
 			double joinBuy = 0, joinTv = 0, joinPress = 0, joinSeries = 0, joinLive = 0;
+			selfYoung.TryGetValue(id, out float[] selfY); selfAdult.TryGetValue(id, out float[] selfA);
+			if (!followingSinceRow.TryGetValue(id, out double[] flow)) followingSinceRow[id] = flow = new double[FlowCount];
 			for (int i = 0; i < r; i++) {
 				string region = regions[i].regionId;
 				if (!fs.Regions.TryGetValue(region, out FollowingRegion fr)) fr = new FollowingRegion();
 				float youngBefore = 0f, aged = 0f;
-				foreach (int c in fr.Young.Keys.ToList()) {
+				double originAged = 0;
+				foreach (int c in fr.Young.Keys.OrderBy(c => c).ToList()) {
 					float n = fr.Young[c];
 					youngBefore += n;
 					float out_ = n * MediaFollowing.AgeOutThisWeek((today - BroadcastExposure.DayIndex(new GameDate(c, 7, 1))) / 365.25);
 					n -= out_; aged += out_;
 					n *= 1f - youngLoss;
+					if (fr.OpeningOrigin != null) originAged += fr.OpeningOrigin.AgeCohort(c, fr.Young[c], out_, n);
 					if (n < 1f) fr.Young.Remove(c); else fr.Young[c] = n;
 				}
 				FollowingLedger("ageOut", aged);
 				FollowingLedger("drift", (youngBefore - aged) * driftYoung + fr.Adult * driftAdult);
-				if (silent) FollowingLedger("silence", (youngBefore - aged) * silenceYoung + fr.Adult * silenceAdult);
+				if (silent) FollowingLedger("silence", (youngBefore - aged) * silenceYoung + fr.Adult * (cold ? 0f : silenceAdult));
+				if (cold) FollowingLedger("cold", fr.Adult * adultExtra);
 				FollowingLedger("switching", (youngBefore - aged) * switching);
+				flow[FlowAgeToAdult] += aged * MediaFollowing.AgeOutToAdult;
+				flow[FlowAgedLost] += aged * (1f - MediaFollowing.AgeOutToAdult);
+				flow[FlowYoungLoss] += (youngBefore - aged) * youngLoss;
+				flow[FlowAdultLoss] += fr.Adult * adultLoss;
 				fr.Adult = fr.Adult * (1f - adultLoss);
 				double fitPopA = adultPop[i] * fitA, fitPopY = youngPop[i] * fitY;
 				float toAdult = aged * MediaFollowing.AgeOutToAdult;
+				double adultBeforeCap = (double)fr.Adult + toAdult;
 				fr.Adult = (float)Math.Min(fitPopA, fr.Adult + toAdult);
+				if (fr.OpeningOrigin != null) fr.OpeningOrigin.SettleAdult(fr.OpeningOrigin.Adult * (1f - adultLoss),
+					originAged * MediaFollowing.AgeOutToAdult, fr.Adult, adultBeforeCap);
 				FollowingLedger("ageToAdult", toAdult);
 
 				float heatY = MediaFollowing.HeatFactor(fans != null && fans.Attachment.TryGetValue(region, out float att) ? att : 0f);
@@ -369,12 +419,22 @@ public static partial class MediaAtmosphereService {
 				// Joiners are booked by source in proportion to what each offered; saturation scales them all alike.
 				double Room(float before, float after, float offered) => offered > 0f ? (after - before) / offered : 0.0;
 				double ry = Room(youngNow, youngAfter, offeredY), ra = Room(fr.Adult, adultAfter, offeredA);
+				if (statureJoins != null && (offeredY > 0f || offeredA > 0f))
+					statureJoins[(id, region)] = new[] { buyJoinY * ry, buyJoinA * ra, tvJoinY * ry, tvJoinA * ra,
+						readJoinY * ry, readJoinA * ra, seriesJoinY * ry, seriesJoinA * ra, liveJoinY * ry, liveJoinA * ra };
 				joinBuy += buyJoinY * ry + buyJoinA * ra;
+				// Joiners the followers' own purchases offer at this week's heat and room (whether or not they are counted).
+				flow[FlowSelfYoung] += (selfY?[i] ?? 0f) * MediaFollowing.CBuy * heatY * ry;
+				flow[FlowSelfAdult] += (selfA?[i] ?? 0f) * MediaFollowing.CBuy * heatA * ra;
 				joinTv += tvJoinY * ry + tvJoinA * ra;
 				joinPress += readJoinY * ry + readJoinA * ra;
 				joinSeries += seriesJoinY * ry + seriesJoinA * ra;
 				joinLive += liveJoinY * ry + liveJoinA * ra;
 				fr.Adult = adultAfter;
+				if (fr.OpeningOrigin != null) {
+					fr.OpeningOrigin.Adult = Math.Min(fr.OpeningOrigin.Adult, Math.Max(0, fr.Adult));
+					fr.OpeningOrigin.Validate(fr);
+				}
 				if (fr.Young.Count == 0 && fr.Adult < 1f) fs.Regions.Remove(region); else fs.Regions[region] = fr;
 			}
 			FollowingLedger("joinBuy", joinBuy);
@@ -383,8 +443,8 @@ public static partial class MediaAtmosphereService {
 			FollowingLedger("joinSeries", joinSeries);
 			FollowingLedger("joinLive", joinLive);
 			FollowerDemandLedger("joinLive", joinLive);
-			var since = followingSinceRow.GetValueOrDefault(id);
-			followingSinceRow[id] = (since.Buy + joinBuy, since.Tv + joinTv);
+			flow[FlowBuy] += joinBuy;
+			flow[FlowTv] += joinTv;
 
 			// This week's attention shares (§7.1), smoothed.
 			attentionUnits.TryGetValue(id, out double[] at);
@@ -406,8 +466,8 @@ public static partial class MediaAtmosphereService {
 			if (total > fs.PeakFollowing) { fs.PeakFollowing = total; fs.PeakFollowingDay = today; }
 			if (by != null || gy != null || roots != null || seriesY != null || liveY != null) fs.LastActiveDay = today;
 			if (monthRow && total >= FollowingLogFloor) {
-				var j = followingSinceRow.GetValueOrDefault(id);
-				FollowingRow("act", weekEnd, fs, genre, $"{j.Buy:F0}|{j.Tv:F0}", artist?.labelId ?? "");
+				// value: buy|tv|ageToAdult|agedLost|adultLoss|youngLoss|selfYoung|selfAdult (the first two as before).
+				FollowingRow("act", weekEnd, fs, genre, string.Join("|", flow.Select(x => x.ToString("F0", CultureInfo.InvariantCulture))), artist?.labelId ?? "");
 				followingSinceRow.Remove(id);
 			}
 		}
@@ -446,7 +506,7 @@ public static partial class MediaAtmosphereService {
 			}
 		}
 		if (StatureObservation.Log != null || StatureObservation.ShadowConfig != null)
-			StatureObservation.WriteWeek(weekEnd, evidence.All, regions, regYoung, regAdult);
+			StatureObservation.WriteWeek(weekEnd, evidence.All, regions, regYoung, regAdult, statureJoins);
 	}
 
 	private static string Csv(string s) => string.IsNullOrEmpty(s) ? "" : s.Replace(',', ' ').Replace('"', '\'');

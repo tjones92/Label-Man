@@ -170,6 +170,8 @@ public partial class LabelLifecycleManager : Node {
 	[Export] private MarketRegion[] regions;
 	
 	private LabelGenerator generator = new LabelGenerator();
+	internal List<string> CaptureGeneratorNames() => generator.CaptureUsedNames();
+	internal void RestoreGeneratorNames(List<string> names) => generator.RestoreUsedNames(names);
 	
 	public int TotalActiveLabels => activeLabels.Count(l => l.IsActive);
 	public int MajorLabels => activeLabels.Count(l => l.tier == LabelTier.Major && l.IsActive);
@@ -406,13 +408,17 @@ public partial class LabelLifecycleManager : Node {
 		if (currentYear >= 1964 && currentYear <= 1966) adjustedChance = Mathf.Min(1f, adjustedChance * 1.3f);
 		int attempts = Mathf.Min(maxMonthlyBirths, Mathf.Max(1, Mathf.CeilToInt((targetCount - currentCount) / 12f)));
 		for (int attempt = 0; attempt < attempts && TotalActiveLabels < targetCount; attempt++) {
+			StatureReplayDiagnostics.Mark("label-birth:before:" + attempt);
 			if (GameRandom.Randf() < adjustedChance) SpawnNewLabel();
+			StatureReplayDiagnostics.Mark("label-birth:after:" + attempt);
 		}
 	}
 	
 	private void SpawnNewLabel() {
 		LabelTier tier = SelectRuntimeFoundingTier(GameRandom.Randf(), runtimeSmallFoundingShare);
+		StatureReplayDiagnostics.Mark("label-birth:tier:" + tier);
 		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier, legacyIdentity: !ArtistPopulationLifecycle.Enabled);
+		StatureReplayDiagnostics.Mark("label-birth:generated:" + newLabel.labelName);
 		if (ArtistPopulationLifecycle.Enabled) {
 			GameDate birthDate = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1);
 			newLabel.populationOrigin = LabelPopulationOrigin.RuntimeFounded;

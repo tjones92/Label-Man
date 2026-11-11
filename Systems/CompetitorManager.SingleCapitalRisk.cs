@@ -23,7 +23,7 @@ public partial class CompetitorManager {
 		int band = GetMemoryCareerBand(artist.careerState, null);
 		var memory = label.GetOrCreateRevenueMemory(RevenueEstimatorLane.OrphanSingle);
 		float expectedCampaign = ReleaseAllInEconomics.IsLive
-			? ReleaseAllInEconomics.ExpectedCampaign(label.GetMarketingBudget(artist), decision.qualityEstimate) : 0;
+			? ReleaseAllInEconomics.ExpectedCampaign(label.GetReleaseMarketingBudget(artist, "single-risk-forecast"), decision.qualityEstimate) : 0;
 		float prior = SinglePriorNetAtBookedPrice(decision) - expectedCampaign, forecast = prior;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true) {
 			var responsive = GetResponsiveMemory(memory, pipelineWeek, CareerBandedFormatMemory.Enabled ? band : -1);

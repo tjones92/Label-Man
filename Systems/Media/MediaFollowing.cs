@@ -10,7 +10,12 @@ public sealed class FollowingRegion {
 	/// <summary>Young followers by the year they joined, when they were about 16 (§2.3). Each cohort ages out by about 22.</summary>
 	public Dictionary<int, float> Young = new();
 	public float Adult;
-	public float YoungTotal() { float t = 0f; foreach (float v in Young.Values) t += v; return t; }
+	// Optional measurement metadata. Audience mechanisms never read this lineage.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public OpeningFollowingOrigin OpeningOrigin;
+	// Dictionary free-slot reuse is lost in JSON. Sum by cohort/region key so subsequent
+	// removals and insertions cannot change rounding (and programme allocation scores).
+	public float YoungTotal() { float t = 0f; foreach (var p in Young.OrderBy(p => p.Key)) t += p.Value; return t; }
 }
 
 /// <summary>
@@ -40,6 +45,8 @@ public sealed class MediaFollowingState {
 	public int PeakFollowingDay = -1;
 	/// <summary>Day index of the act's latest release seen in the market, and of its last week in the national top 40.</summary>
 	public int LastReleaseDay = -1, LastTop40Day = -1;
+	/// <summary>Day index of the act's last week with an LP in the album chart's top 40 (-1 for none).</summary>
+	public int LastAlbumTop40Day = -1;
 	/// <summary>Quality of the act's recent releases by format (newest last, at most <see cref="MediaFollowing.QualityMemory"/>).</summary>
 	public List<float> RecentSingles = new(), RecentAlbums = new();
 	/// <summary>Releases already counted for disappointment and would-be advance orders.</summary>
@@ -53,8 +60,8 @@ public sealed class MediaFollowingState {
 		for (int f = 0; f < MediaFollowing.Families; f++) s += MediaFollowing.FamilyWeight[f] * Family[f];
 		return s;
 	}
-	public float YoungTotal() { float t = 0f; foreach (FollowingRegion r in Regions.Values) t += r.YoungTotal(); return t; }
-	public float AdultTotal() { float t = 0f; foreach (FollowingRegion r in Regions.Values) t += r.Adult; return t; }
+	public float YoungTotal() { float t = 0f; foreach (var p in Regions.OrderBy(p => p.Key, StringComparer.Ordinal)) t += p.Value.YoungTotal(); return t; }
+	public float AdultTotal() { float t = 0f; foreach (var p in Regions.OrderBy(p => p.Key, StringComparer.Ordinal)) t += p.Value.Adult; return t; }
 }
 
 /// <summary>
@@ -68,13 +75,19 @@ public static class MediaFollowing {
 	public const string ObserveSwitch = "--observe-following";
 	private static bool configured, observe;
 	public static bool Active => observe && MediaAtmosphere.Observing;
+	public static bool ObserveOpeningOrigin { get; private set; }
+	public static bool ObserveOpeningGeography { get; private set; }
 
 	/// <summary>Per-act rows (monthly, at releases, weekly salience leaders), opened by the audit runner. Print-only.</summary>
 	public static System.IO.TextWriter Log;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		foreach (string argument in arguments ?? Array.Empty<string>())
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		ObserveOpeningGeography = args.Contains("--observe-opening-geography");
+		ObserveOpeningOrigin = ObserveOpeningGeography || args.Contains("--observe-opening-following-origin");
+		OpeningFollowingDiagnostics.Reset();
+		foreach (string argument in args)
 			if (argument == ObserveSwitch) observe = true;
 		configured = true;
 	}

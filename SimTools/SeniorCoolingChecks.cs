@@ -35,6 +35,27 @@ public static class SeniorCoolingChecks {
 			Check(SeniorCooling.WeeksSinceTop40(hit, 10) == 10 + 78, "a 1958 Top 40 seeds 78 weeks before week 0");
 			var fresh = new SimulatedArtist();
 			Check(SeniorCooling.WeeksSinceTop40(fresh, 30) == 0 && SeniorCooling.WeeksSinceTop40(fresh, 31) == 1, "no history starts the clock at first read");
+			var observed = new SimulatedArtist { publicRecognition = .5f };
+			Check(SeniorCooling.ObserveWeeksSinceTop40(observed, 30) == 0 && SeniorCooling.ObserveWeeksSinceTop40(observed, 80) == 0 &&
+				observed.seniorCoolingLastTop40Week == SeniorCooling.Unset, "diagnostic clock reads do not seed a fresh act");
+			var normal = new SimulatedArtist { publicRecognition = .5f };
+			Check(ArtistRecognitionService.ObserveLaunchRecognition(observed) == ArtistRecognitionService.LaunchRecognition(normal) &&
+				observed.seniorCoolingLastTop40Week == SeniorCooling.Unset, "diagnostic launch recognition matches a real read without writing");
+			Check(SeniorCooling.WeeksSinceTop40(observed, 100) == 0, "the first real read, not an earlier observation, seeds the clock");
+			var observedHistory = new SimulatedArtist();
+			observedHistory.publicHistory.Add(new PublicReleaseEntry { year = 1958, peakPosition = 12 });
+			Check(SeniorCooling.ObserveWeeksSinceTop40(observedHistory, 10) == 88 &&
+				observedHistory.seniorCoolingLastTop40Week == SeniorCooling.Unset &&
+				SeniorCooling.WeeksSinceTop40(observedHistory, 10) == 88, "diagnostic historical clock matches the eventual seeded read");
+			var oldDiagnostic = new SimulatedArtist { careerState = CareerState.NewSigning };
+			var newDiagnostic = new SimulatedArtist { careerState = CareerState.NewSigning };
+			SeniorCooling.WeeksSinceTop40(oldDiagnostic, 1); // Former logging path seeded at observation time.
+			SeniorCooling.ObserveWeeksSinceTop40(newDiagnostic, 1);
+			oldDiagnostic.careerState = newDiagnostic.careerState = CareerState.Established;
+			SeniorCooling.CoolOne(oldDiagnostic, 10); SeniorCooling.CoolOne(newDiagnostic, 10);
+			SeniorCooling.CoolOne(oldDiagnostic, 54); SeniorCooling.CoolOne(newDiagnostic, 54);
+			Check(oldDiagnostic.careerState == CareerState.Declining && newDiagnostic.careerState == CareerState.Established,
+				"reproduces a diagnostic clock seed changing the later ladder despite identical early reads");
 			SeniorCooling.OnTop40(hit, 100);
 			Check(SeniorCooling.WeeksSinceTop40(hit, 120) == 20, "a Top 40 resets the clock");
 

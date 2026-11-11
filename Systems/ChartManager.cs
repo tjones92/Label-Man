@@ -308,6 +308,8 @@ public partial class ChartManager : Node {
 		public RegionalRecordData Data;
 		public int Serviceable, SpilloverCleared;
 		public int Cleared, FanGranted, FanDisplaced;
+		public int ObservedFollowerGrant;
+		public float ObservedFollowerIntent, FollowerPurchaseShare;
 		public float Fraction;
 	}
 	// These private scratch objects never leave a clearing pass. Reuse them rather
@@ -395,6 +397,7 @@ public partial class ChartManager : Node {
 		LpDemandProbe.Configure(SimulationArguments.Get());
 		LpDemandCalibration.Configure(SimulationArguments.Get());
 		RetailPurchaseEnvelope.Configure(SimulationArguments.Get());
+		SinglesRationExponent.Configure(SimulationArguments.Get());
 		BritishLabelDeferral.Configure(SimulationArguments.Get());
 		MidTierNationalAr.Configure(SimulationArguments.Get());
 		MidTierGoingConcernCash.Configure(SimulationArguments.Get());
@@ -418,6 +421,7 @@ public partial class ChartManager : Node {
 		MediaRecognition.Configure(SimulationArguments.Get());
 		MediaDemand.Configure(SimulationArguments.Get());
 		MediaFollowing.Configure(SimulationArguments.Get());
+		ArtistStature.Configure(SimulationArguments.Get());
 		MediaFollowerDemand.Configure(SimulationArguments.Get());
 		MediaMemberFame.Configure(SimulationArguments.Get());
 		MediaCritics.Configure(SimulationArguments.Get());
@@ -635,6 +639,19 @@ public partial class ChartManager : Node {
 		LocalSceneIdentityService.EnsureLabel(label);
 	}
 
+	internal int? CapturePlayerLabelIndex() {
+		int index = aiLabels?.FindIndex(label => label != null && label.isPlayerOwned) ?? -1;
+		return index < 0 ? null : index;
+	}
+
+	internal void RestorePlayerLabelIndex(AILabel label, int? index) {
+		if (index == null) return; // Older experimental checkpoints did not retain the position.
+		if (label == null || aiLabels == null || !aiLabels.Contains(label) || index < 0 || index >= aiLabels.Count)
+			throw new InvalidOperationException("Invalid player label position in continuation state.");
+		aiLabels.Remove(label);
+		aiLabels.Insert(index.Value, label);
+	}
+
 	// ========================================================================
 	// FULL-WORLD SAVE -- the AI label registry (the player's own label is excluded; the player layer owns it).
 	// ========================================================================
@@ -732,6 +749,21 @@ public partial class ChartManager : Node {
 		artistHeatAttributionCache.TryGetValue(artistId, out var attribution);
 		baseHeat = ArtistHeatAttribution.SelectHeat(format, baseHeat,
 			attribution.SinglesOnly, attribution.CurrentAlbums, IsGenreMarketV2Live);
+		return ApplyArtistHeatAura(artistId, baseHeat);
+	}
+
+	private float SinglesRadioArtistHeat(RecordRuntimeData record, float artistHeat) {
+		string artistId = record.baseRecord.artistId;
+		if (!ArtistHeatAttribution.SinglesRadioWithoutRetainedLpHeat || !IsGenreMarketV2Live ||
+			!artistHeatAttributionCache.TryGetValue(artistId, out var attribution) || attribution.AlbumHits == 0)
+			return artistHeat;
+		float radioHeat = SelfExcludedArtistHeat.Enabled
+			? attribution.CurrentAlbumsExcluding(record.currentPosition, record.peakPosition)
+			: attribution.CurrentAlbums;
+		return ApplyArtistHeatAura(artistId, radioHeat);
+	}
+
+	private static float ApplyArtistHeatAura(string artistId, float baseHeat) {
 		// The Shark's promotion machine adds a standing push (Scouting Mechanic Phase 5), reaching even
 		// a not-yet-charting act the cache above omits. Inert (None -> +0) when managers are off.
 		SimulatedArtist heatArtist = ArtistManager.Instance?.GetArtist(artistId);
@@ -794,6 +826,7 @@ public partial class ChartManager : Node {
 	// ========================================================================
 
 	private void OnWeekEnded(GameDate date) {
+		StatureReplayDiagnostics.Mark("chart:start");
 		currentChartWeek++;
 		// Fired on the Friday day-end; the chart it produces is dated to the week-ending Saturday.
 		chartWeekEndingDate = date.AddDays(1);
@@ -804,6 +837,7 @@ public partial class ChartManager : Node {
 			allRegions, currentChartWeek, date.year);
 
 		SimulateWeek(triggerEvents: true);
+		StatureReplayDiagnostics.Mark("chart:sales-complete");
 		PolarSongBehavior.ObserveCompletedWeek(currentChart, currentChartWeek);
 		ProfessionalWritingMarket.ObserveChart(currentChart);
 		if (GenreMarketV2.Enabled) {
@@ -1146,7 +1180,7 @@ public partial class ChartManager : Node {
 				AlbumSimulator.UpdateAlbum(record, label, artistHeat, substitutionPropensity);
 				SimulationPerformanceProfiler.EndAlbumUpdate(albumProfileStart);
 			}
-			else ChartSimulator.UpdateRecord(record, label, genreAcceptance, artistHeat);
+			else ChartSimulator.UpdateRecord(record, label, genreAcceptance, artistHeat, SinglesRadioArtistHeat(record, artistHeat));
 		}
 
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RecordState, stateProfileStart);
@@ -1350,11 +1384,14 @@ public partial class ChartManager : Node {
 		lastMarketSpilloverTransfers.Clear();
 		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(allRecords.Count), StringComparer.Ordinal);
 		BudgetLpChannel.Prepare(allRecords, GetLabelById, currentChartWeek);
+		bool applyFollowerIntent = MediaFollowerDemand.PurchaseIntentCausal;
+		bool evaluateFollowerGrant = applyFollowerIntent || MediaFollowerDemand.Shadow;
 		if (MediaFollowerDemand.Active)
 			MediaAtmosphereService.PrepareFollowerDemand(allRecords, currentChartWeek, TimeManager.Instance?.CurrentDate ?? new GameDate(year, month, 1));
 		int intentCount = 0;
 		// Demand evaluation deliberately retains record-major / region-minor order so
 		// the existing sales jitter consumes precisely the same RNG sequence.
+		StatureObservation.BeginFollowerLaunchWeek();
 		var demandProfileStart = SimulationPerformanceProfiler.Begin();
 		foreach (RecordRuntimeData record in allRecords) {
 			float quality = record.GetQuality();
@@ -1387,13 +1424,16 @@ public partial class ChartManager : Node {
 				// Followers buy on sight (CelebrityFanbaseDesign.md §2.4): their launch intent joins the title's, inside
 				// its physical limit, before the format budgets clear. Shadow only books what they asked for. An LP's
 				// grant waits for the region's LP intent to be known, then displaces other LP buyers (below).
-				int fanGranted = 0;
+				int fanGranted = 0, observedFollowerGrant = 0;
+				float observedFollowerIntent = 0f;
 				if (MediaFollowerDemand.Active) {
 					float fans = MediaAtmosphereService.FollowerIntent(record.baseRecord.recordId, region.regionId);
+					observedFollowerIntent = fans;
 					if (fans > 0f) {
-						int granted = MediaFollowerDemand.Grant(serviceable, physicalLimit, fans);
+						int granted = evaluateFollowerGrant ? MediaFollowerDemand.Grant(serviceable, physicalLimit, fans) : 0;
+						observedFollowerGrant = granted;
 						MediaAtmosphereService.RecordFollowerGrant(record.baseRecord.recordId, fans, granted);
-						if (MediaFollowerDemand.Causal) {
+						if (applyFollowerIntent) {
 							if (isAlbum) fanGranted = granted;
 							else serviceable += granted;
 						}
@@ -1409,6 +1449,11 @@ public partial class ChartManager : Node {
 				intentCount++;
 				intent.Record = record; intent.Data = data; intent.Serviceable = serviceable;
 				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f; intent.FanGranted = fanGranted; intent.FanDisplaced = 0;
+				intent.ObservedFollowerIntent = observedFollowerIntent; intent.ObservedFollowerGrant = observedFollowerGrant;
+				// Always estimated under causal intent: the following ledger logs follower self-recruitment either way, and
+				// subtracts these units from recruiting only under the recruit-from-new-buyers switches.
+				intent.FollowerPurchaseShare = applyFollowerIntent && !isAlbum && serviceable > 0
+					? (float)observedFollowerGrant / serviceable : 0f;
 				intentsByRegion[region.regionId].Add(intent);
 			}
 		}
@@ -1416,7 +1461,7 @@ public partial class ChartManager : Node {
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalDemand, demandProfileStart);
 		// Drop unused tails immediately so a shrinking market cannot pin retired records.
 		if (marketIntentScratch.Count > intentCount) marketIntentScratch.RemoveRange(intentCount, marketIntentScratch.Count - intentCount);
-		if (MediaFollowerDemand.Causal) ApplyFollowerAlbumIntent(intentsByRegion);
+		if (applyFollowerIntent) ApplyFollowerAlbumIntent(intentsByRegion);
 		// Media's one demand writer (§12.3): after serviceable intent and physical limits, before format budgets.
 		if (MediaDemand.Active && MediaAtmosphereService.HasDemandRequests) ApplyMediaDemand(intentsByRegion, year);
 		var clearingProfileStart = SimulationPerformanceProfiler.Begin();
@@ -1469,7 +1514,7 @@ public partial class ChartManager : Node {
 			summary.EffectiveAlbumIntent = budget.EffectiveAlbum;
 			summary.AlbumOverlapPressure = CalculateAlbumIntentOverlapPressure(albumChannelMaturity);
 			AllocateProportionalLocal(intents.Where(intent =>
-				intent.Record.baseRecord.format == ReleaseFormat.Single).ToList(), budget.Single);
+				intent.Record.baseRecord.format == ReleaseFormat.Single).ToList(), budget.Single, SinglesRationExponent.Exponent);
 			AllocateProportionalLocal(intents.Where(intent =>
 				intent.Record.baseRecord.format == ReleaseFormat.Album).ToList(), budget.Album);
 			foreach (MarketIntent intent in intents) {
@@ -1567,11 +1612,14 @@ public partial class ChartManager : Node {
 					summary.InventoryViolationCount++;
 				intent.Data.unitsInStores = Mathf.Max(0, intent.Data.unitsInStores - intent.Cleared);
 				intent.Data.unitsSoldThisWeek = intent.Cleared;
+				intent.Data.settledFollowerUnits = intent.Cleared * intent.FollowerPurchaseShare;
+				StatureObservation.RecordFollowerLaunch(intent.Record.baseRecord, region.regionId, intent.ObservedFollowerIntent,
+					intent.ObservedFollowerGrant, intent.Cleared, applyFollowerIntent);
 				ReplayDemandObserver?.Invoke("after-clearing", intent.Record, region, intent.Data, intent.Cleared);
 				intent.Data.unitsSoldTotal += intent.Cleared;
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
-			if (MediaFollowerDemand.Causal) BookFanDisplacedBuyers(intents, summary);
+			if (applyFollowerIntent) BookFanDisplacedBuyers(intents, summary);
 			if (LpCapacityScreen.Audit && summary.ClearedSingleUnits != summary.SingleBeforeLpAddition)
 				throw new InvalidOperationException("LP-only purchasing changed same-state single allocation.");
 			if (summary.LocalClearedUnits > summary.PurchaseCapacity || summary.ExportedCapacity > summary.ExportBudget ||
@@ -1706,6 +1754,8 @@ public partial class ChartManager : Node {
 				albums[i].FanDisplaced = Math.Max(0, albums[i].Serviceable - kept[i]);
 				albums[i].Serviceable = serviceable[i];
 				albums[i].Data.serviceableIntentThisWeek = serviceable[i];
+				// The title's fan units are its new intent less its own buyers kept; they clear in proportion with the rest.
+				albums[i].FollowerPurchaseShare = MediaFollowerDemand.FanShare(serviceable[i], kept[i]);
 			}
 			MediaAtmosphereService.RecordFollowerAlbumDisplacement(displaced);
 		}
@@ -1787,11 +1837,23 @@ public partial class ChartManager : Node {
 			.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining);
 	}
 
-	private static void AllocateProportionalLocal(List<MarketIntent> intents, int budget) {
+	private static void AllocateProportionalLocal(List<MarketIntent> intents, int budget, float exponent = 1f) {
 		int total = intents.Sum(intent => intent.Serviceable);
 		int allocated = Mathf.Min(Mathf.Max(0, budget), total);
 		if (allocated == 0 || total == 0) return;
 		int assigned = 0;
+		if (exponent != 1f) {
+			// SinglesRationExponent: the most-wanted titles keep more of their intent; same purse, same largest remainders.
+			double[] exacts = SinglesRationExponent.Shares(intents.Select(intent => intent.Serviceable).ToList(), allocated, exponent);
+			for (int i = 0; i < intents.Count; i++) {
+				intents[i].Cleared = Math.Min(intents[i].Serviceable, (int)Math.Floor(exacts[i] + 1e-9));
+				intents[i].Fraction = (float)(exacts[i] - intents[i].Cleared);
+				assigned += intents[i].Cleared;
+			}
+			int left = allocated - assigned;
+			foreach (MarketIntent intent in LargestRemainders(intents.Where(x => x.Cleared < x.Serviceable).ToList(), left)) intent.Cleared++;
+			return;
+		}
 		foreach (MarketIntent intent in intents) {
 			float exact = intent.Serviceable * (float)allocated / total;
 			intent.Cleared = Mathf.FloorToInt(exact);
@@ -2960,6 +3022,27 @@ public partial class ChartManager : Node {
 		RebuildRecordIndex();
 	}
 
+	internal Dictionary<string, int> CapturePlayerRecordPositions() {
+		var positions = new Dictionary<string, int>(StringComparer.Ordinal);
+		for (int i = 0; i < allRecords.Count; i++) {
+			var record = allRecords[i]?.baseRecord;
+			if (record?.isPlayerOwned == true) positions.Add(record.recordId, i);
+		}
+		return positions.Count == 0 ? null : positions;
+	}
+
+	internal void RestorePlayerRecordPositions(Dictionary<string, int> positions) {
+		if (positions == null) return;
+		var players = allRecords.Where(r => r?.baseRecord?.isPlayerOwned == true)
+			.ToDictionary(r => r.baseRecord.recordId, StringComparer.Ordinal);
+		if (players.Count != positions.Count || positions.Any(p => !players.ContainsKey(p.Key) || p.Value < 0 || p.Value >= allRecords.Count) ||
+			positions.Values.Distinct().Count() != positions.Count)
+			throw new InvalidOperationException("Invalid player record positions in continuation state.");
+		allRecords.RemoveAll(r => r?.baseRecord?.isPlayerOwned == true);
+		foreach (var position in positions.OrderBy(p => p.Value)) allRecords.Insert(position.Value, players[position.Key]);
+		RebuildRecordIndex();
+	}
+
 	// ========================================================================
 	// FULL-WORLD SAVE -- the AI records and the chart runtime state. Player records are excluded (the player
 	// layer owns them and re-injects via RestorePlayerRecords, which runs after this).
@@ -3018,6 +3101,13 @@ public partial class ChartManager : Node {
 	public void RebuildRadioForLoad() => BuildRadioPanel(TimeManager.Instance?.CurrentDate.year ?? 1960);
 
 	internal StationContinuationSaveData CaptureShadowRadio() => stationNetwork?.CaptureContinuation();
+	internal void RestoreShadowRegionalMode(int savedChartWeek, int year) {
+		UpdateBaseZeitgeist(year);
+		foreach (var region in allRegions) {
+			region.InitializeRuntimeState(year);
+			region.SetGenreMarketV2Live(savedChartWeek > 0);
+		}
+	}
 	internal void RestoreShadowRadio(StationContinuationSaveData saved) {
 		if (saved != null) stationNetwork.RestoreContinuation(saved, allRegions);
 	}

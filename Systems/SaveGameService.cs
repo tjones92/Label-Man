@@ -316,7 +316,13 @@ public static class SaveGameService {
 		try {
 			WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed, deferSceneRelink: true);
 			restored = PlayerDesk.Instance.RestoreState(envelope.Player, out message);
-			if (restored) { LocalSceneIdentityService.CompleteRestore(); CurrentSlot = slot; }
+			if (restored) {
+				if (envelope.World?.ShadowContinuation?.PlayerOperatingRosterTarget is int target)
+					PlayerDesk.Instance.Label.operatingRosterTarget = target;
+				ChartManager.Instance?.RestorePlayerLabelIndex(PlayerDesk.Instance.Label, envelope.World?.ShadowContinuation?.PlayerLabelIndex);
+				ChartManager.Instance?.RestorePlayerRecordPositions(envelope.World?.ShadowContinuation?.PlayerRecordPositions);
+				LocalSceneIdentityService.CompleteRestore(); CurrentSlot = slot;
+			}
 			else LocalSceneIdentityService.CancelRestore();
 		} catch (Exception error) {
 			LocalSceneIdentityService.CancelRestore();
@@ -354,6 +360,8 @@ public sealed class PlayerSaveData {
     public List<RoomTableSaveData> RoomTables { get; set; }
     /// <summary>Optional: the early-game backer agreement, its ledger, an open offer or a standing refusal. Older saves hold none.</summary>
     public BackerSaveData Backer { get; set; }
+    /// <summary>Inner-life Phase 1: the New Year's Eve lien. Null in older saves.</summary>
+    public LienSaveData Lien { get; set; }
     /// <summary>Optional: paid demo bookings (held deposits, outcomes) and standing refusals. Older saves hold none.</summary>
     public DemoSaveData Demos { get; set; }
     /// <summary>Optional: master-deal offers, signed deals and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
