@@ -83,10 +83,17 @@ public static class ProfessionalWritingMarket {
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.RecordExpense(label, fee, LabelCashKind.OtherOperating);
 		else { LabelCompanyAccounts.ChangeCash(label, -fee, LabelCashKind.OtherOperating); label.monthlyExpenses += fee; }
 	}
-	private static float Rate(string writer, bool commission) {
+	// Pending orders per writer, counted in one pass over the order book for callers that price every supplier.
+	private static Dictionary<string, int> PendingWorkloads() {
+		var pending = new Dictionary<string, int>(StringComparer.Ordinal);
+		foreach (var o in State.Orders)
+			if (o.Status == WritingOrderStatus.Pending && o.WriterId != null) pending[o.WriterId] = pending.GetValueOrDefault(o.WriterId) + 1;
+		return pending;
+	}
+	private static float Rate(string writer, bool commission, Dictionary<string, int> pending = null) {
 		if (State == null || writer == null || !State.Suppliers.TryGetValue(writer, out var s)) return float.PositiveInfinity;
 		// All inputs are observable career evidence or outstanding demand, independent of the song's true hook.
-		int workload = State.Orders.Count(o => o.WriterId == writer && o.Status == WritingOrderStatus.Pending);
+		int workload = pending != null ? pending.GetValueOrDefault(writer) : State.Orders.Count(o => o.WriterId == writer && o.Status == WritingOrderStatus.Pending);
 		float demand = Math.Min(1, s.Assignments / 20f);
 		float fee = (commission ? 100 : 55) * (1 + 2.5f * s.Reputation + .5f * demand + .25f * workload);
 		return (float)Math.Ceiling(fee / 5) * 5;
@@ -101,13 +108,14 @@ public static class ProfessionalWritingMarket {
 	public static IReadOnlyList<WritingOffer> Offers(AILabel label, SimulatedArtist artist) {
 		if (!Enabled || State == null || label == null || artist == null) return Array.Empty<WritingOffer>();
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		var pending = PendingWorkloads();
 		return State.Suppliers.Values.Where(s => ActiveSupplier(s.WriterId, year)).Select(s => {
 			var c = Contract(s.WriterId, Week);
 			var p = Partnership(label.labelId, artist.artistId, s.WriterId);
-			float fee = Rate(s.WriterId, true);
+			float fee = Rate(s.WriterId, true, pending);
 			return new WritingOffer { WriterId = s.WriterId, Name = SupplierName(s.WriterId), Reputation = s.Reputation,
 				CommissionFee = c?.LabelId == label.labelId ? fee * (c.Kind == WritingContractKind.Exclusive ? .2f : .8f) : fee,
-				LicenseFee = ProfessionalSongBalance.RoyaltyLicences ? 0 : Rate(s.WriterId, false), PreferredRetainer = fee * .75f, ExclusiveRetainer = fee * 2.5f,
+				LicenseFee = ProfessionalSongBalance.RoyaltyLicences ? 0 : Rate(s.WriterId, false, pending), PreferredRetainer = fee * .75f, ExclusiveRetainer = fee * 2.5f,
 				DeliveryWeeks = Members(s.WriterId).Average(w => w.reliability) >= .65f ? 2 : 3,
 				PreviousAssignments = p?.Assignments ?? 0, PreviousHits = p?.Hits ?? 0,
 				Available = s.BusyUntilWeek <= Week && (c == null || c.LabelId == label.labelId || c.Kind != WritingContractKind.Exclusive) };
@@ -132,11 +140,33 @@ public static class ProfessionalWritingMarket {
 		if (!Enabled || State == null || pool == null) return pool;
 		return pool.Where(s => CanLicense(s, label, artist) && (!State.Demos.TryGetValue(s.songId, out var d) || d.Status != WritingDemoStatus.Recorded)).ToArray();
 	}
+	// The demos whose Status is Licensed: a few dozen against every office song ever written. Kept in step at each
+	// place Status enters or leaves Licensed (SetStatus), and rebuilt whenever State is replaced (new world, resume).
+	private static HashSet<WritingDemo> licensedDemos;
+	private static ProfessionalWritingMarketState licensedFor;
+	private static HashSet<WritingDemo> LicensedDemos() {
+		if (!ReferenceEquals(licensedFor, State) || licensedDemos == null) {
+			licensedFor = State;
+			licensedDemos = State == null ? new HashSet<WritingDemo>() : State.Demos.Values.Where(d => d.Status == WritingDemoStatus.Licensed).ToHashSet();
+		}
+		return licensedDemos;
+	}
+	private static void SetStatus(WritingDemo demo, WritingDemoStatus status) {
+		var licensed = LicensedDemos();
+		demo.Status = status;
+		if (status == WritingDemoStatus.Licensed) licensed.Add(demo); else licensed.Remove(demo);
+	}
 	internal static SongComposition OwnedDelivery(AILabel label, SimulatedArtist artist) {
 		if (!Enabled || State == null || label == null || artist == null) return null;
-		return State.Demos.Values.Where(d => d.Status == WritingDemoStatus.Licensed && d.LabelId == label.labelId && d.ArtistId == artist.artistId &&
-			d.HoldUntilWeek >= Week && d.AvailableWeek <= Week).OrderBy(d => d.AvailableWeek).ThenBy(d => d.SongId, StringComparer.Ordinal)
-			.Select(d => CompositionCatalogService.GetSong(d.SongId)).FirstOrDefault();
+		// Earliest AvailableWeek, then ordinal SongId: the same pick as the former sort, independent of set order.
+		WritingDemo best = null;
+		foreach (var d in LicensedDemos()) {
+			if (d.Status != WritingDemoStatus.Licensed || d.LabelId != label.labelId || d.ArtistId != artist.artistId ||
+				d.HoldUntilWeek < Week || d.AvailableWeek > Week) continue;
+			if (best == null || d.AvailableWeek < best.AvailableWeek ||
+				d.AvailableWeek == best.AvailableWeek && string.CompareOrdinal(d.SongId, best.SongId) < 0) best = d;
+		}
+		return best == null ? null : CompositionCatalogService.GetSong(best.SongId);
 	}
 	public static bool TryLicense(SongComposition song, AILabel label, SimulatedArtist artist, out string message) {
 		message = "";
@@ -153,7 +183,7 @@ public static class ProfessionalWritingMarket {
 		State.Suppliers[demo.WriterId].LicenseFees += fee;
 		bool first = demo.Status != WritingDemoStatus.Licensed && demo.Status != WritingDemoStatus.Recorded || demo.HoldUntilWeek < Week;
 		demo.LabelId = label.labelId; demo.ArtistId = artist.artistId; demo.FeePaid += fee;
-		if (demo.Status != WritingDemoStatus.Recorded) { demo.Status = WritingDemoStatus.Licensed; demo.HoldUntilWeek = Week + LicenseHoldWeeks; }
+		if (demo.Status != WritingDemoStatus.Recorded) { SetStatus(demo, WritingDemoStatus.Licensed); demo.HoldUntilWeek = Week + LicenseHoldWeeks; }
 		if (first) {
 			Partnership(label.labelId, artist.artistId, demo.WriterId, true).Assignments++;
 			State.Suppliers[demo.WriterId].Assignments++;
@@ -198,11 +228,11 @@ public static class ProfessionalWritingMarket {
 		item.IntendedWeek >= week + deliveryWeeks &&
 		item.MaterialSearch?.State is not (ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready);
 	private static ReleaseSlateItem CommissionPlan(AILabel label, SimulatedArtist artist, int deliveryWeeks) =>
-		CompetitorManager.Instance?.GetReleaseSlate().Where(i => EligibleCommissionPlan(i, label, artist, Week, deliveryWeeks))
+		CompetitorManager.Instance?.GetReleaseSlateForArtist(artist.artistId).Where(i => EligibleCommissionPlan(i, label, artist, Week, deliveryWeeks))
 			.OrderBy(i => i.ReadyWeek).ThenBy(i => i.Id, StringComparer.Ordinal).FirstOrDefault();
 	internal static void RememberPlanlessArrival(AILabel label, SimulatedArtist artist, int week) {
 		if (!PlanRemindersEnabled || State?.Reminders == null || label == null || artist == null || week <= 0) return;
-		if (CompetitorManager.Instance.GetReleaseSlate().Any(i => i.LabelId == label.labelId && i.ArtistId == artist.artistId &&
+		if (CompetitorManager.Instance.GetReleaseSlateForArtist(artist.artistId).Any(i => i.LabelId == label.labelId && i.ArtistId == artist.artistId &&
 			i.ContractSequence == artist.contractSequence && i.Format == ReleaseFormat.Single)) return;
 		if (State.Reminders.Any(r => r.LabelId == label.labelId && r.ArtistId == artist.artistId && r.ContractSequence == artist.contractSequence && r.ExpiresWeek >= week)) return;
 		State.Reminders.Add(new WritingPlanReminder { LabelId = label.labelId, ArtistId = artist.artistId, ContractSequence = artist.contractSequence,
@@ -220,7 +250,7 @@ public static class ProfessionalWritingMarket {
 				OnPlanReminderAudit?.Invoke(week, reminder.LabelId, reminder.ArtistId, reminder.ContractSequence, reminder.CreatedWeek, "discarded", "client-unavailable", null, null);
 				continue;
 			}
-			var plan = CompetitorManager.Instance.GetReleaseSlate().Where(i => !i.WritingReminderAttempted && !i.WritingReminderMaterialReviewed && i.MaterialSearch == null &&
+			var plan = CompetitorManager.Instance.GetReleaseSlateForArtist(artist.artistId).Where(i => !i.WritingReminderAttempted && !i.WritingReminderMaterialReviewed && i.MaterialSearch == null &&
 				EligibleCommissionPlan(i, label, artist, Week, 2)).OrderBy(i => i.ReadyWeek).ThenBy(i => i.Id, StringComparer.Ordinal).FirstOrDefault();
 			if (plan == null) continue;
 			State.Reminders.Remove(reminder);
@@ -322,7 +352,7 @@ public static class ProfessionalWritingMarket {
 	internal static void MarkRecorded(SongComposition song, string artistId) {
 		if (!Enabled || State == null || song == null || !State.Demos.TryGetValue(song.songId, out var d) ||
 			d.Status != WritingDemoStatus.Licensed || artistId != null && d.ArtistId != artistId) return;
-		d.Status = WritingDemoStatus.Recorded;
+		SetStatus(d, WritingDemoStatus.Recorded);
 		Partnership(d.LabelId, d.ArtistId, d.WriterId, true).Recordings++;
 	}
 	internal static void ObserveChart(IEnumerable<RecordRuntimeData> chart) {
@@ -346,8 +376,9 @@ public static class ProfessionalWritingMarket {
 			var song = CompositionCatalogService.WriteOfficeSong(Writer(order.WriterId).publisherId, new[] { order.Genre }, date.year,
 				order.WriterId, true, Math.Min(1, (p?.Recordings ?? 0) / 5f), artist.members?.FirstOrDefault(m => m.personId == order.CoWriterPersonId));
 			order.SongId = song.songId; order.Status = WritingOrderStatus.Delivered;
-			State.Demos[song.songId] = new WritingDemo { SongId = song.songId, WriterId = order.WriterId, LabelId = order.LabelId, ArtistId = order.ArtistId,
-				Status = WritingDemoStatus.Licensed, AvailableWeek = order.DeliveryWeek, HoldUntilWeek = order.DeliveryWeek + LicenseHoldWeeks, FeePaid = order.Fee };
+			var delivered = State.Demos[song.songId] = new WritingDemo { SongId = song.songId, WriterId = order.WriterId, LabelId = order.LabelId, ArtistId = order.ArtistId,
+				AvailableWeek = order.DeliveryWeek, HoldUntilWeek = order.DeliveryWeek + LicenseHoldWeeks, FeePaid = order.Fee };
+			SetStatus(delivered, WritingDemoStatus.Licensed);
 			if (DeliveryOffersEnabled && !label.isPlayerOwned) AiRepertoireService.OfferWritingDelivery(label, artist, order, date);
 		}
 	}
@@ -370,8 +401,8 @@ public static class ProfessionalWritingMarket {
 		Deliver(date);
 		if (DeliveryOffersEnabled) foreach (var o in State.Orders.Where(o => o.Status == WritingOrderStatus.Delivered && !o.DeliveryOffered).ToArray())
 			AiRepertoireService.OfferWritingDelivery(ChartManager.Instance?.GetLabelById(o.LabelId), ArtistManager.Instance?.GetArtist(o.ArtistId), o, date);
-		foreach (var d in State.Demos.Values.Where(d => d.Status == WritingDemoStatus.Licensed && d.HoldUntilWeek < week)) {
-			d.Status = WritingDemoStatus.Available; d.LabelId = null; d.ArtistId = null; d.PriorityUntilWeek = 0;
+		foreach (var d in LicensedDemos().Where(d => d.Status == WritingDemoStatus.Licensed && d.HoldUntilWeek < week).ToArray()) {
+			SetStatus(d, WritingDemoStatus.Available); d.LabelId = null; d.ArtistId = null; d.PriorityUntilWeek = 0;
 		}
 		foreach (var s in State.Suppliers.Values.OrderBy(s => s.WriterId, StringComparer.Ordinal)) {
 			if (!ActiveSupplier(s.WriterId, date.year) || week < s.NextWritingWeek || week <= s.BusyUntilWeek) continue;
@@ -394,7 +425,7 @@ public static class ProfessionalWritingMarket {
 			var label = ChartManager.Instance?.GetLabelById(p.LabelId);
 			var artist = ArtistManager.Instance?.GetArtist(p.ArtistId);
 			if (label?.IsActive != true || label.isPlayerOwned || artist?.labelId != p.LabelId || !CanAiCommission(label, artist)) continue;
-			if (State.Demos.Values.Any(d => d.ArtistId == p.ArtistId && d.Status == WritingDemoStatus.Licensed && d.HoldUntilWeek >= Week)) continue;
+			if (LicensedDemos().Any(d => d.ArtistId == p.ArtistId && d.Status == WritingDemoStatus.Licensed && d.HoldUntilWeek >= Week)) continue;
 			var offer = Offers(label, artist).FirstOrDefault(o => o.WriterId == p.WriterId);
 			if (offer == null || !offer.Available || label.cashReserves < offer.CommissionFee * 8) continue;
 			if (PlannedAssignmentsEnabled && CommissionPlan(label, artist, offer.DeliveryWeeks) == null) continue;

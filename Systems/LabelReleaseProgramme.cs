@@ -262,6 +262,21 @@ public sealed class SlateItemList : List<ReleaseSlateItem> {
 	public new void Clear() { Structural(); base.Clear(); }
 }
 
+/// <summary>Campaign bookings, saved exactly as a plain list; versioned like <see cref="SlateItemList"/> for the index.</summary>
+public sealed class ProgrammeCampaignList : List<ProgrammeCampaign> {
+	internal int Version, StructuralVersion;
+	private void Structural() { Version++; StructuralVersion++; }
+	public new ProgrammeCampaign this[int index] { get => base[index]; set { Structural(); base[index] = value; } }
+	public new void Add(ProgrammeCampaign item) { Version++; base.Add(item); }
+	public new void AddRange(IEnumerable<ProgrammeCampaign> items) { Structural(); base.AddRange(items); }
+	public new void Insert(int index, ProgrammeCampaign item) { Structural(); base.Insert(index, item); }
+	public new bool Remove(ProgrammeCampaign item) { Structural(); return base.Remove(item); }
+	public new void RemoveAt(int index) { Structural(); base.RemoveAt(index); }
+	public new void RemoveRange(int index, int count) { Structural(); base.RemoveRange(index, count); }
+	public new int RemoveAll(Predicate<ProgrammeCampaign> match) { Structural(); return base.RemoveAll(match); }
+	public new void Clear() { Structural(); base.Clear(); }
+}
+
 public sealed class ReleaseProgrammeState {
 	public bool CampaignsInitialized;
 	public SlateItemList Items = new();
@@ -306,7 +321,42 @@ public sealed class ReleaseProgrammeState {
 		return itemsByArtist.TryGetValue(artistId ?? NullKey, out var found) ? found : Array.Empty<ReleaseSlateItem>();
 	}
 	public Dictionary<string, ProgrammeClock> Clocks = new(StringComparer.Ordinal);
-	public List<ProgrammeCampaign> Campaigns = new();
+	public ProgrammeCampaignList Campaigns = new();
+	// Runtime index over Campaigns, never saved; same contract as the slate index above. Each label's list keeps the
+	// global order, so a filter or Sum over it matches the same filter over Campaigns. A campaign's LabelId and
+	// RecordId are fixed at creation (a transfer removes and re-adds). The record map holds the first booking in list
+	// order, as FirstOrDefault did.
+	private Dictionary<string, List<ProgrammeCampaign>> campaignsByLabel;
+	private Dictionary<string, ProgrammeCampaign> campaignByRecord;
+	private ProgrammeCampaignList indexedCampaigns;
+	private int campaignVersion, campaignStructuralVersion, campaignCount;
+	private void EnsureCampaignIndex() {
+		if (campaignsByLabel != null && ReferenceEquals(indexedCampaigns, Campaigns) && campaignVersion == Campaigns.Version && campaignCount == Campaigns.Count) return;
+		int start = 0;
+		if (campaignsByLabel != null && ReferenceEquals(indexedCampaigns, Campaigns) && campaignStructuralVersion == Campaigns.StructuralVersion &&
+			Campaigns.Count - campaignCount == Campaigns.Version - campaignVersion && Campaigns.Count > campaignCount) start = campaignCount;
+		else {
+			campaignsByLabel ??= new Dictionary<string, List<ProgrammeCampaign>>(StringComparer.Ordinal);
+			campaignByRecord ??= new Dictionary<string, ProgrammeCampaign>(StringComparer.Ordinal);
+			campaignsByLabel.Clear(); campaignByRecord.Clear();
+		}
+		for (int i = start; i < Campaigns.Count; i++) {
+			var campaign = Campaigns[i];
+			string label = campaign.LabelId ?? NullKey;
+			if (!campaignsByLabel.TryGetValue(label, out var list)) campaignsByLabel[label] = list = new List<ProgrammeCampaign>();
+			list.Add(campaign);
+			campaignByRecord.TryAdd(campaign.RecordId ?? NullKey, campaign);
+		}
+		indexedCampaigns = Campaigns; campaignVersion = Campaigns.Version; campaignStructuralVersion = Campaigns.StructuralVersion; campaignCount = Campaigns.Count;
+	}
+	internal IReadOnlyList<ProgrammeCampaign> CampaignsForLabel(string labelId) {
+		EnsureCampaignIndex();
+		return campaignsByLabel.TryGetValue(labelId ?? NullKey, out var found) ? found : Array.Empty<ProgrammeCampaign>();
+	}
+	internal ProgrammeCampaign CampaignForRecord(string recordId) {
+		EnsureCampaignIndex();
+		return campaignByRecord.TryGetValue(recordId ?? NullKey, out var found) ? found : null;
+	}
 	public Dictionary<string, int> PlannedThrough = new(StringComparer.Ordinal);
 	public Dictionary<string, string> LabelIdentities = new(StringComparer.Ordinal);
 	// LP assembly only; null otherwise so earlier programme worlds keep their exact shape.

@@ -845,7 +845,7 @@ public partial class CompetitorManager : Node {
 					SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
 					float spend = (artist != null ? label.GetReleaseMarketingBudget(artist, "follow-up-tranche") : label.GetStandardMarketingBudget()) * RecordCampaignSpend.TrancheShare;
 					if (LabelReleaseProgramme.CapacityEnabled) spend = CapExternalProgrammeMarketing(label, spend);
-					if (LabelReleaseProgramme.CapacityEnabled && ProgrammeState?.Campaigns.FirstOrDefault(c => c.RecordId == recordId) is { } oldCampaign &&
+					if (LabelReleaseProgramme.CapacityEnabled && ProgrammeState?.CampaignForRecord(recordId) is { } oldCampaign &&
 						pipelineWeek >= oldCampaign.Week + LabelReleaseProgramme.CampaignWeeks) continue;
 					float reserve = label.GetMonthlyOverhead() * RecordCampaignSpend.ReserveMonths
 						+ (float)LabelCorporateModel.TaxAndServiceReserve(label);
@@ -855,7 +855,7 @@ public partial class CompetitorManager : Node {
 					if (labelFinancials.TryGetValue(label.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += spend;
 					if (record.sunkMarketingCost.HasValue) record.sunkMarketingCost += spend;
 					if (LabelReleaseProgramme.CapacityEnabled) {
-						var booking = ProgrammeState?.Campaigns.FirstOrDefault(c => c.RecordId == recordId);
+						var booking = ProgrammeState?.CampaignForRecord(recordId);
 						if (booking != null) { booking.Spend += spend; booking.Share = Mathf.Min(1f, booking.Share + spend / Mathf.Max(1f, label.GetStandardMarketingBudget())); }
 					}
 					record.campaignPushFactor = Mathf.Min(RecordCampaignSpend.MaxFactor, factor * RecordCampaignSpend.TrancheLift);
@@ -4361,9 +4361,27 @@ public partial class CompetitorManager : Node {
 	}
 
 	public IReadOnlyList<AlbumProject> GetAlbumProjects() => albumProjects;
-	internal bool HasOpenFounderCommitments(string labelId) => albumProjects.Concat(pendingAlbumProjects)
-		.Any(p => p.currentLabelId == labelId && p.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd)
-		|| aiLabels.Any(l => l.aiMasterLeases?.Any(lease => lease.BuyerLabelId == labelId) == true);
+	// The album projects still pending, out of every project ever started. albumProjects only grows by appends and a
+	// project never returns to pending, so each call adds the new tail and drops the ones since released or cancelled.
+	// Loading a world or a probe removal resets it.
+	private readonly List<AlbumProject> openAlbumProjects = new();
+	private int openAlbumProjectsScanned;
+	private void ResetOpenAlbumProjects() { openAlbumProjects.Clear(); openAlbumProjectsScanned = 0; }
+	internal bool HasOpenFounderCommitments(string labelId) {
+		if (openAlbumProjectsScanned > albumProjects.Count) ResetOpenAlbumProjects();
+		for (; openAlbumProjectsScanned < albumProjects.Count; openAlbumProjectsScanned++)
+			if (albumProjects[openAlbumProjectsScanned].terminalState == AlbumProjectTerminalState.PendingAtAuditEnd)
+				openAlbumProjects.Add(albumProjects[openAlbumProjectsScanned]);
+		openAlbumProjects.RemoveAll(p => p.terminalState != AlbumProjectTerminalState.PendingAtAuditEnd);
+		foreach (AlbumProject p in openAlbumProjects) if (p.currentLabelId == labelId) return true;
+		foreach (AlbumProject p in pendingAlbumProjects)
+			if (p.currentLabelId == labelId && p.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd) return true;
+		foreach (AILabel l in aiLabels) {
+			if (l.aiMasterLeases == null) continue;
+			foreach (var lease in l.aiMasterLeases) if (lease.BuyerLabelId == labelId) return true;
+		}
+		return false;
+	}
 	public AlbumProject GetAlbumProject(string projectId) => !string.IsNullOrEmpty(projectId) &&
 		projectById.TryGetValue(projectId, out AlbumProject project) ? project : null;
 	public bool HasPendingProjectForArtist(string artistId) => pendingAlbumProjects.Any(project => project.artistId == artistId);
@@ -5513,7 +5531,6 @@ public partial class CompetitorManager : Node {
 		if (!LabelReleaseProgramme.MaterialSearchEnabled && ProgrammeState?.Items.Any(i => i.MaterialSearch?.State is
 			ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready) == true)
 			throw new System.InvalidOperationException("Resume outstanding material work with --anticipatory-material-search enabled.");
-		programmeCampaignByRecord.Clear();
 		issuingSlateItem = null; programmeCampaignBudget = null;
 
 		// The label list is the same object ChartManager rebuilt in place; re-point defensively.
@@ -5521,6 +5538,7 @@ public partial class CompetitorManager : Node {
 		settlementLabelLookup = null;   // rebuilt lazily against the restored labels
 
 		albumProjects.Clear(); albumProjects.AddRange(c.AlbumProjects ?? new List<AlbumProject>());
+		ResetOpenAlbumProjects();
 		pendingAlbumProjects.Clear(); pendingAlbumProjects.AddRange(c.PendingAlbumProjects ?? new List<AlbumProject>());
 		var projectContinuation = w.ShadowContinuation?.Projects;
 		if (projectContinuation != null) {

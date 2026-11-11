@@ -10,7 +10,6 @@ public partial class CompetitorManager {
 	private float? programmeCampaignBudget;
 	private bool programmeAdvanceSlot;
 	private string programmeAdvanceSingleId;
-	private readonly Dictionary<string, ProgrammeCampaign> programmeCampaignByRecord = new(StringComparer.Ordinal);
 	private ReleaseProgrammeState followingSnapshotProgramme;
 	private int followingSnapshotWeek = int.MinValue;
 	private float followingSnapshotOrders;
@@ -19,7 +18,10 @@ public partial class CompetitorManager {
 	public event Action<ProgrammeCashShortfall> OnProgrammeCashShortfall;
 	public event Action<ProgrammeChoiceAudit> OnProgrammeChoiceReview;
 	public IReadOnlyList<ReleaseSlateItem> GetReleaseSlate() => ProgrammeState?.Items ?? (IReadOnlyList<ReleaseSlateItem>)Array.Empty<ReleaseSlateItem>();
-	internal void SetProgrammeForChecks(ReleaseProgrammeState state) { ProgrammeState = state; programmeCampaignByRecord.Clear(); }
+	/// <summary>One act's slate items, in slate order: the same items a filter on ArtistId over the whole slate yields.</summary>
+	internal IReadOnlyList<ReleaseSlateItem> GetReleaseSlateForArtist(string artistId) =>
+		ProgrammeState?.ItemsForArtist(artistId) ?? (IReadOnlyList<ReleaseSlateItem>)Array.Empty<ReleaseSlateItem>();
+	internal void SetProgrammeForChecks(ReleaseProgrammeState state) { ProgrammeState = state; }
 
 	internal float ProgrammeCashReserved(string labelId) => ProgrammeState?.ItemsForLabel(labelId)
 		.Where(i => LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem)
@@ -59,7 +61,7 @@ public partial class CompetitorManager {
 			DueFollowUps = due.Count, UnplannedFollowUps = due.Count(a => !ProgrammeState.ItemsForArtist(a.artistId).Any(i => i.Format == ReleaseFormat.Single && LabelReleaseProgramme.IsOpen(i))),
 			CashReserved = ProgrammeCashReserved(label.labelId), PromotionPool = ProgrammePromotionPool(label),
 			PromotionCommittedPeak = ProgrammePromotionCommittedPeak(label.labelId),
-			PromotionBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend),
+			PromotionBooked = ProgrammeState.CampaignsForLabel(label.labelId).Where(c => c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend),
 			SingleWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Single), AlbumWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Album),
 			RosterActs = label.CurrentRosterSize, ReleaseEligibleActs = LabelReleaseProgramme.ReleaseEligibleActs(label),
 			ProgrammeCapacityActive = LabelReleaseProgramme.CapacityEnabled,
@@ -178,7 +180,9 @@ public partial class CompetitorManager {
 		if (!LabelReleaseProgramme.CapacityEnabled) return float.PositiveInfinity;
 		float remaining = ProgrammePromotionPool(label);
 		// Filter once, in list order, so each week's Sum visits the same values in the same order as a full scan.
-		var campaigns = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId).ToList();
+		// Only bookings whose four weeks touch the window can count; the rest of the label's history is skipped.
+		var campaigns = ProgrammeState.CampaignsForLabel(label.labelId)
+			.Where(c => c.Week > week - LabelReleaseProgramme.CampaignWeeks && c.Week < week + LabelReleaseProgramme.CampaignWeeks).ToList();
 		var holds = ProgrammeState.ItemsForLabel(label.labelId).Where(i => LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem && i != exclude).ToList();
 		for (int w = week; w < week + LabelReleaseProgramme.CampaignWeeks; w++) {
 			float booked = campaigns.Where(c => c.Week <= w && w < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
@@ -198,7 +202,7 @@ public partial class CompetitorManager {
 			changes[start] = changes.GetValueOrDefault(start) + amount;
 			changes[end] = changes.GetValueOrDefault(end) - amount;
 		}
-		foreach (var campaign in ProgrammeState.Campaigns.Where(c => c.LabelId == labelId)) Add(campaign.Week, campaign.Spend);
+		foreach (var campaign in ProgrammeState.CampaignsForLabel(labelId)) Add(campaign.Week, campaign.Spend);
 		foreach (var item in ProgrammeState.ItemsForLabel(labelId).Where(i => LabelReleaseProgramme.IsOpen(i))) Add(item.DueWeek, item.ReservedMarketing);
 		double running = 0, peak = 0;
 		foreach (double change in changes.Values) { running += change; peak = Math.Max(peak, running); }
@@ -215,11 +219,7 @@ public partial class CompetitorManager {
 
 	internal float ProgrammePushFactor(RecordRuntimeData record) {
 		if (!LabelReleaseProgramme.CapacityEnabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned || ProgrammeState == null) return 1f;
-		if (programmeCampaignByRecord.Count != ProgrammeState.Campaigns.Count) {
-			programmeCampaignByRecord.Clear();
-			foreach (var c in ProgrammeState.Campaigns) programmeCampaignByRecord[c.RecordId] = c;
-		}
-		programmeCampaignByRecord.TryGetValue(record.baseRecord.recordId, out var campaign);
+		var campaign = ProgrammeState.CampaignForRecord(record.baseRecord.recordId);
 		return campaign == null ? 1f : pipelineWeek < campaign.Week + LabelReleaseProgramme.CampaignWeeks ? campaign.Share : 0f;
 	}
 
@@ -232,25 +232,23 @@ public partial class CompetitorManager {
 
 	private void TransferProgrammeCampaign(RecordRuntimeData record, AILabel to) {
 		if (!LabelReleaseProgramme.CapacityEnabled || ProgrammeState == null) return;
-		var booking = ProgrammeState.Campaigns.FirstOrDefault(c => c.RecordId == record.baseRecord.recordId);
+		var booking = ProgrammeState.CampaignForRecord(record.baseRecord.recordId);
 		if (booking != null) ProgrammeState.Campaigns.Remove(booking);
 		// Buying an existing master does not buy the selling label's promotion department. A new paid campaign
 		// must draw from the buyer's pool; no new marketing payment is made by the ownership transfer itself.
 		if (!to.isPlayerOwned) ProgrammeState.Campaigns.Add(new ProgrammeCampaign { LabelId = to.labelId,
 			RecordId = record.baseRecord.recordId, Week = pipelineWeek, Spend = 0, Share = 0 });
-		programmeCampaignByRecord.Clear();
 	}
 
 	internal void BookProgrammeCampaign(Record record, SimulatedArtist artist, AILabel label, float spend) {
 		if (!LabelReleaseProgramme.CapacityEnabled || label.isPlayerOwned || ProgrammeState == null) return;
-		if (ProgrammeState.Campaigns.Any(c => c.RecordId == record.recordId)) return;
-		float booked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
+		if (ProgrammeState.CampaignForRecord(record.recordId) != null) return;
+		float booked = ProgrammeState.CampaignsForLabel(label.labelId).Where(c => c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
 		// A demotion shrinks the pool under bookings made at the old tier; a zero spend cannot add to that.
 		if (spend > 0f && booked + spend > ProgrammePromotionPool(label) + .1f)
 			throw new InvalidOperationException($"Programme promotion overbooked for {label.labelId}: {booked} + {spend}.");
 		ProgrammeState.Campaigns.Add(new ProgrammeCampaign { LabelId = label.labelId, RecordId = record.recordId, Week = pipelineWeek,
 			Spend = spend, Share = Math.Clamp(spend / Math.Max(1f, artist == null ? label.GetStandardMarketingBudget() : label.GetReleaseMarketingBudget(artist, ArtistStature.CampaignShareContext)), 0, 1) });
-		programmeCampaignByRecord.Clear();
 	}
 
 	private bool CanProgrammeArtist(AILabel label, SimulatedArtist artist, ReleaseFormat format, int week) {
@@ -647,12 +645,12 @@ public partial class CompetitorManager {
 				var label = GetLabel(group.Key);
 				if (label == null || label.isPlayerOwned) continue;
 				var recent = group.Where(r => r.weeksSinceRelease < LabelReleaseProgramme.CampaignWeeks).ToList();
-				float alreadyBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek &&
+				float alreadyBooked = ProgrammeState.CampaignsForLabel(label.labelId).Where(c => c.Week <= pipelineWeek &&
 					pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
-				int unbooked = recent.Count(r => !ProgrammeState.Campaigns.Any(c => c.RecordId == r.baseRecord.recordId));
+				int unbooked = recent.Count(r => ProgrammeState.CampaignForRecord(r.baseRecord.recordId) == null);
 				float share = Math.Max(0, ProgrammePromotionPool(label) - alreadyBooked) / Math.Max(1, unbooked);
 				foreach (var record in group) {
-					if (ProgrammeState.Campaigns.Any(c => c.RecordId == record.baseRecord.recordId)) continue;
+					if (ProgrammeState.CampaignForRecord(record.baseRecord.recordId) != null) continue;
 					float spend = recent.Contains(record) ? share : 0;
 					ProgrammeState.Campaigns.Add(new ProgrammeCampaign { LabelId = label.labelId, RecordId = record.baseRecord.recordId,
 						Week = pipelineWeek - record.weeksSinceRelease, Spend = spend,
@@ -678,8 +676,7 @@ public partial class CompetitorManager {
 		// Keep terminal reviews for 52 weeks; campaigns retain only scalar history needed by live records.
 		ProgrammeState.Items.RemoveAll(i => !LabelReleaseProgramme.IsOpen(i) && pipelineWeek - i.LastReviewWeek > 52);
 		var active = ChartManager.Instance.GetAllRecords().Select(r => r.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
-		if (ProgrammeState.Campaigns.RemoveAll(c => !active.Contains(c.RecordId) && pipelineWeek >= c.Week + LabelReleaseProgramme.CampaignWeeks) > 0)
-			programmeCampaignByRecord.Clear();
+		ProgrammeState.Campaigns.RemoveAll(c => !active.Contains(c.RecordId) && pipelineWeek >= c.Week + LabelReleaseProgramme.CampaignWeeks);
 		var artists = aiLabels.SelectMany(l => l.roster).Select(a => a.artistId).ToHashSet(StringComparer.Ordinal);
 		foreach (string id in ProgrammeState.Clocks.Keys.Where(id => !artists.Contains(id)).ToList()) ProgrammeState.Clocks.Remove(id);
 	}

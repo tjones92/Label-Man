@@ -17,6 +17,25 @@ using Godot;
 /// </summary>
 public static class CompositionCatalogService {
 	private static readonly Dictionary<string, SongComposition> songs = new(StringComparer.Ordinal);
+	// How many song ids start with each office prefix WriteOfficeSong has asked about. The first ask counts the
+	// catalogue once; after that AddSong keeps the count in step, so a new office song no longer rescans every id.
+	// Songs are never removed singly, only cleared wholesale (which clears this too).
+	private static readonly Dictionary<string, int> officePrefixCounts = new(StringComparer.Ordinal);
+	private static readonly List<string> officePrefixes = new();
+	private static void ClearSongs() { songs.Clear(); officePrefixCounts.Clear(); officePrefixes.Clear(); }
+	private static void AddSong(SongComposition song) {
+		if (officePrefixes.Count > 0 && !songs.ContainsKey(song.songId))
+			foreach (string prefix in officePrefixes)
+				if (song.songId.StartsWith(prefix, StringComparison.Ordinal)) officePrefixCounts[prefix]++;
+		songs[song.songId] = song;
+	}
+	private static int OfficePrefixCount(string prefix) {
+		if (!officePrefixCounts.TryGetValue(prefix, out int count)) {
+			officePrefixCounts[prefix] = count = songs.Keys.Count(k => k.StartsWith(prefix, StringComparison.Ordinal));
+			officePrefixes.Add(prefix);
+		}
+		return count;
+	}
 	private static readonly Dictionary<Genre, List<SongComposition>> standardsByGenre = new();
 	private static readonly Dictionary<Genre, List<SongComposition>> catalogByGenre = new();
 	// Curated selectable pools for material selection. Kept SEPARATE from artist-originals: an
@@ -88,7 +107,7 @@ public static class CompositionCatalogService {
 		PolarSongBehavior.ResetTaste();
 		PolarSongBehavior.ResetTaste();
 		ResetEstablishment();
-		songs.Clear();
+		ClearSongs();
 		standardsByGenre.Clear();
 		catalogByGenre.Clear();
 		professionalByGenre.Clear();
@@ -180,7 +199,7 @@ public static class CompositionCatalogService {
 			song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.HouseCredit, writerName = "Legacy Writer", share = 1f });
 			if(LiveRepertoire.AuditPhase>=1)RepertoireTaxonomy.Assign(song, family, maxYear + 1);
 			PolarSongMetadataService.EnsureComposition(song);
-			songs[song.songId] = song;
+			AddSong(song);
 			RegisterCoverableHit(song);
 			RepertoireProvenance.Admit(song, "seededRecentHit", family);
 		}
@@ -442,7 +461,7 @@ public static class CompositionCatalogService {
 		MusicPublisher pub = publishers.FirstOrDefault(p => p.publisherId == publisherId);
 		if (pub == null || focus == null || focus.Length == 0) return null;
 		string prefix = $"song_{publisherId}_";
-		int serial = songs.Keys.Count(k => k.StartsWith(prefix, StringComparison.Ordinal)) + 1;
+		int serial = OfficePrefixCount(prefix) + 1;
 		var r = new PcgRandom { Seed = BandLife.WorldSeed ^ 0x6f6666696365UL ^ ((ulong)serial * 0x9E3779B97F4A7C15UL) ^ ProfessionalSongBalance.OfficeSalt(publisherId) };
 		float N(float mean, float sd) {
 			float u1 = Mathf.Max(.000001f, r.Randf()), u2 = r.Randf();
@@ -717,7 +736,7 @@ public static class CompositionCatalogService {
 		// Song-only registration: an artist-original is reachable by id but is NOT a selectable cover
 		// candidate. It enters coverableHitsByGenre only if it charts (Phase 4).
 		PolarSongMetadataService.EnsureComposition(song);
-		songs[song.songId] = song;
+		AddSong(song);
 		IndexControllerLabel(song);
 		return song;
 	}
@@ -731,7 +750,7 @@ public static class CompositionCatalogService {
 
 	private static void Register(SongComposition song) {
 		PolarSongMetadataService.EnsureComposition(song);
-		songs[song.songId] = song;
+		AddSong(song);
 		AddToPool(catalogByGenre, song.primaryGenre, song);
 		GenreFamily fam = FamilyOf(song.primaryGenre);
 		if(song.isStandard || song.isTraditional) LiveRepertoire.Index(song);
@@ -1168,7 +1187,7 @@ public static class CompositionCatalogService {
 		PolarSongBehavior.RestoreTaste(c.PolarTaste);
 
 		ResetEstablishment();
-		songs.Clear();
+		ClearSongs();
 		foreach (var kv in c.Songs ?? new Dictionary<string, SongComposition>()) if (kv.Value != null) songs[kv.Key] = kv.Value;
 		if(c.RepertoireSchemaVersion<2){MigrateComedyRepertoire(songs.Values);c.RepertoireSchemaVersion=2;}
 		PolarSongMetadataService.Restore(c.PolarMasters);

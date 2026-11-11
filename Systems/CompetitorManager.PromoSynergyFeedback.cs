@@ -40,7 +40,7 @@ public partial class CompetitorManager {
 
 	internal void InvalidatePromoSynergyCacheForProbe() => promoFeedbackVersion++;
 	internal void AddAlbumProjectForProbe(AlbumProject project) { albumProjects.Add(project); promoFeedbackVersion++; }
-	internal void RemoveAlbumProjectForProbe(AlbumProject project) { albumProjects.Remove(project); promoFeedbackVersion++; }
+	internal void RemoveAlbumProjectForProbe(AlbumProject project) { albumProjects.Remove(project); ResetOpenAlbumProjects(); promoFeedbackVersion++; }
 
 	private void AttachPromoSynergyEvidence(AlbumProject project, AILabel label, SimulatedArtist artist, ReleasePlan plan) {
 		if (!plan.promoFeedbackEvaluated || project.strategy != ReleaseStrategy.AlbumWithPromo || project.promoSingleRecord == null) return;
