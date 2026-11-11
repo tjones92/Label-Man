@@ -40,6 +40,9 @@ public static class LabelReleaseProgramme {
 		if (args.Any(a => a.StartsWith(LpAssembly.PackageGapSwitch, StringComparison.Ordinal)) && !LpAssemblyEnabled)
 			throw new ArgumentException(LpAssembly.PackageGapSwitch + " requires " + LpAssembly.Switch);
 		SingleFloor = (int)Read(args, "--slate-single-floor=", 6, 1, 13);
+		ColdActGapWeeks = (int)Read(args, ColdActGapSwitch, 0, 7, 52);
+		if (args.Any(a => a.StartsWith(ColdActGapSwitch, StringComparison.Ordinal)) && !AllocationEnabled)
+			throw new ArgumentException(ColdActGapSwitch + " requires " + AllocationSwitch);
 		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 16);
 		MajorAlbumsPerMonth = Read(args, "--programme-major-albums=", 5, 0, 12);
 		if (args.Any(a => a.StartsWith("--programme-major-", StringComparison.Ordinal)) && !CapacityEnabled)
@@ -78,6 +81,21 @@ public static class LabelReleaseProgramme {
 		if (BreakoutPlanningEnabled && HitFollowUpFinanceEnabled)
 			throw new ArgumentException(BreakoutPlanningSwitch + " uses existing work only; drop " + HitFollowUpFinanceSwitch);
 	}
+	// --slate-cold-act-gap=W: an AI act with no Top 40 entry in the last ColdActRecentWeeks waits W weeks between singles;
+	// an act with a recent Top 40 keeps SingleFloor. Tier-blind. Under the work budget a non-Major label has ~5 eligible
+	// acts per single slot, so any act past the 6-week floor is issued and Established acts there release 3.4-5.7
+	// singles a year against the Majors' 2.4 (history: Big-5 hit acts 3.28 Hot 100 debuts a year, others 2.18).
+	// A probe, not a sourced interval. Off (0): SingleFloor for every act and no hit-clock read.
+	// cadence-inv-v1 (seed 2002, 265 weeks, full-bundle flags, W=17): not adopted. Independent Established cadence barely
+	// moved (most such acts had a Top 40 in 26 weeks); the cut fell on never-charted newcomers (indie launches -15%) and
+	// Major Top 10 share rose (1962-64 ~62% against 42-59%).
+	public const string ColdActGapSwitch = "--slate-cold-act-gap=";
+	public const int ColdActRecentWeeks = 26;
+	public static int ColdActGapWeeks { get; private set; }
+	internal static void SetColdActGapForChecks(int weeks) => ColdActGapWeeks = weeks;
+	internal static int SingleGapWeeks(SimulatedArtist artist, int week) =>
+		ColdActGapWeeks <= 0 || artist == null || HitActCadence.WeeksSinceTop40(artist, week) <= ColdActRecentWeeks
+			? SingleFloor : Math.Max(SingleFloor, ColdActGapWeeks);
 	public const string BreakoutPlanningSwitch = "--slate-breakout-planning";
 	public static bool BreakoutPlanningEnabled { get; private set; }
 	// --slate-going-concern-reserve: a work-budget MidTier tests its slate reservations against a going-concern reserve.
@@ -142,7 +160,7 @@ public static class LabelReleaseProgramme {
 		string value = args.SingleOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
 		if (value == null) return fallback;
 		if (!float.TryParse(value[prefix.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) ||
-			!float.IsFinite(x) || x < min || x > max || (prefix == "--slate-single-floor=" || prefix == LpAssembly.GreatestHitsSwitch || prefix == LpAssembly.PackageGapSwitch) && x != MathF.Truncate(x))
+			!float.IsFinite(x) || x < min || x > max || (prefix == "--slate-single-floor=" || prefix == ColdActGapSwitch || prefix == LpAssembly.GreatestHitsSwitch || prefix == LpAssembly.PackageGapSwitch) && x != MathF.Truncate(x))
 			throw new ArgumentException($"{prefix} requires a value between {min} and {max}.");
 		return x;
 	}

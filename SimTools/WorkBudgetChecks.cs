@@ -36,6 +36,26 @@ public static class WorkBudgetChecks {
 			LabelReleaseProgramme.Configure(new[] { slate, capacity });
 			Check(LabelReleaseProgramme.WorkBudgetMidTierSingles == 0f, "the MidTier budget defaults to off");
 
+			// --slate-cold-act-gap: integer 7-52, requires the slate; off is SingleFloor; hot acts keep the floor.
+			Check(Rejects(capacity, "--slate-cold-act-gap=17"), "the cold-act gap requires the slate");
+			Check(Rejects(slate, capacity, "--slate-cold-act-gap=6"), "rejects a gap below 7");
+			Check(Rejects(slate, capacity, "--slate-cold-act-gap=17.5"), "rejects a fractional gap");
+			LabelReleaseProgramme.Configure(new[] { slate, capacity });
+			Check(LabelReleaseProgramme.ColdActGapWeeks == 0, "the cold-act gap defaults to off");
+			var act = labels.SelectMany(l => l.roster).First();
+			int savedTop40 = act.hitCadenceLastTop40Week;
+			try {
+				act.hitCadenceLastTop40Week = 100;
+				Check(LabelReleaseProgramme.SingleGapWeeks(act, 200) == LabelReleaseProgramme.SingleFloor, "off: a cold act keeps the floor");
+				LabelReleaseProgramme.Configure(new[] { slate, capacity, "--slate-cold-act-gap=17" });
+				Check(LabelReleaseProgramme.ColdActGapWeeks == 17, "parses the cold-act gap");
+				Check(LabelReleaseProgramme.SingleGapWeeks(act, 200) == 17, "a cold act waits the gap");
+				Check(LabelReleaseProgramme.SingleGapWeeks(act, 100 + LabelReleaseProgramme.ColdActRecentWeeks) == LabelReleaseProgramme.SingleFloor,
+					"an act with a Top 40 inside the recent window keeps the floor");
+				Check(LabelReleaseProgramme.SingleGapWeeks(act, 101 + LabelReleaseProgramme.ColdActRecentWeeks) == 17, "the window is inclusive");
+			} finally { act.hitCadenceLastTop40Week = savedTop40; LabelReleaseProgramme.Configure(new[] { slate, capacity }); }
+			Check(LabelReleaseProgramme.ColdActGapWeeks == 0, "reconfiguring clears the gap");
+
 			var off = LabelReleaseProgramme.MonthlyCapacity(label);
 			Check(!LabelReleaseProgramme.UsesWorkBudget(label) && off.Singles == label.releasesPerMonth * .67f, "off keeps the .67 single envelope");
 			foreach (LabelStatus status in Enum.GetValues<LabelStatus>()) {

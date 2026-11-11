@@ -257,14 +257,14 @@ public partial class CompetitorManager {
 		if (!GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist) || artist.labelId != label.labelId || artist.members?.Count is not > 0) return false;
 		ProgrammeClock clock = ProgrammeClockFor(artist);
 		return week - (format == ReleaseFormat.Single ? clock.SingleWeek : clock.AlbumWeek) >=
-			(format == ReleaseFormat.Single ? LabelReleaseProgramme.SingleFloor : LabelReleaseProgramme.AlbumFloor) &&
+			(format == ReleaseFormat.Single ? LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek) : LabelReleaseProgramme.AlbumFloor) &&
 			(format != ReleaseFormat.Album || !HasPendingProjectForArtist(artist.artistId));
 	}
 
 	// An act may hold several open single intentions when they are spaced by the single floor; one open LP at most.
 	private bool HasConflictingIntention(SimulatedArtist artist, ReleaseFormat format, int week) =>
 		ProgrammeState.ItemsForArtist(artist.artistId).Any(i => i.Format == format && LabelReleaseProgramme.IsOpen(i) &&
-			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleFloor));
+			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek)));
 
 	private void PlanProgramme(AILabel label, GameDate date, int? from = null) {
 		// Snapshot today's national following once; future intentions must not read future audiences.
