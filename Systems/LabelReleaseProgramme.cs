@@ -50,6 +50,9 @@ public static class LabelReleaseProgramme {
 		if (args.Any(a => a.StartsWith("--slate-single-floor=", StringComparison.Ordinal)) && !AllocationEnabled)
 			throw new ArgumentException("The single floor requires " + AllocationSwitch);
 		HitFollowUpFinanceEnabled = args.Contains(HitFollowUpFinanceSwitch);
+		HitFollowUpFactoringEnabled = args.Contains(HitFollowUpFactoringSwitch);
+		if (HitFollowUpFactoringEnabled && !CapacityEnabled)
+			throw new ArgumentException(HitFollowUpFactoringSwitch + " requires " + CapacitySwitch);
 		if (HitFollowUpFinanceEnabled && !(AllocationEnabled && CapacityEnabled))
 			throw new ArgumentException(HitFollowUpFinanceSwitch + " requires " + AllocationSwitch + " and " + CapacitySwitch);
 		HitFollowUpSinglesPerYear = Read(args, HitFollowUpSinglesSwitch, 2, 0, 6);
@@ -106,7 +109,9 @@ public static class LabelReleaseProgramme {
 	public const int GoingConcernTaxMonths = 2;
 	public static bool GoingConcernReserveEnabled { get; private set; }
 	internal static void SetGoingConcernReserveForChecks(bool value) => GoingConcernReserveEnabled = value;
-	internal static bool UsesGoingConcernReserve(AILabel label) => GoingConcernReserveEnabled && UsesWorkBudget(label) && label.tier == LabelTier.MidTier;
+	// --slate-going-concern-reserve-all-tiers (ProgrammeFundingRelief): every work-budget label, not only MidTiers.
+	internal static bool UsesGoingConcernReserve(AILabel label) => GoingConcernReserveEnabled && UsesWorkBudget(label) &&
+		(label.tier == LabelTier.MidTier || ProgrammeFundingRelief.AllTiers);
 	// --slate-work-budget=S: a non-Major label's planned intentions are its whole work budget, S singles a month per unit of
 	// releasesPerMonth (LPs keep .33). Preparation and issue take no further dated draws, so planned work is lost only to
 	// cash, material, economics or the window. A Struggling label keeps its slots and halves its campaign spend instead
@@ -151,6 +156,12 @@ public static class LabelReleaseProgramme {
 	public const string HitFollowUpSinglesSwitch = "--hit-follow-up-finance-singles=";
 	public static bool HitFollowUpFinanceEnabled { get; private set; }
 	public static float HitFollowUpSinglesPerYear { get; private set; } = 2f;
+	// --hit-follow-up-factoring: the funding half of --hit-follow-up-finance alone -- a cash-short release by a non-Major
+	// label's act with a recent Top 40 may factor the label's receivables -- with no extra single work, so it runs beside
+	// --slate-breakout-planning. A label with a hit borrowed against what it was owed to press the next one.
+	public const string HitFollowUpFactoringSwitch = "--hit-follow-up-factoring";
+	public static bool HitFollowUpFactoringEnabled { get; private set; }
+	internal static void SetHitFollowUpFactoringForChecks(bool value) => HitFollowUpFactoringEnabled = value;
 	internal static void SetHitFollowUpFinanceForChecks(bool value, float singlesPerYear = 2f) {
 		HitFollowUpFinanceEnabled = value; HitFollowUpSinglesPerYear = singlesPerYear;
 	}

@@ -58,7 +58,12 @@ public static class AlbumSimulator {
 		record.currentLabelPush = campaign * campaignAge;
 		record.totalLabelInvestment += record.currentLabelPush;
 		float chartDiscovery = record.currentPosition > 0 ? Mathf.Clamp((201f - record.currentPosition) / 200f, 0f, 1f) * 0.025f : 0f;
-		float organicRate = 0.004f + appeal * 0.012f + artistHeat * 0.008f + record.currentLabelPush * 0.03f + chartDiscovery;
+		float unconditional = 0.004f + appeal * 0.012f;
+		// --lp-earned-discovery: an act nobody knows keeps only a share of the unconditional term. Off: never read.
+		if (LpEarnedDiscovery.Enabled && !string.IsNullOrEmpty(record.baseRecord.artistId))
+			unconditional *= LpEarnedDiscovery.Factor(artistHeat,
+				ArtistManager.Instance?.GetArtist(record.baseRecord.artistId)?.GetNewReleaseAwarenessBonus() ?? 0f);
+		float organicRate = unconditional + artistHeat * 0.008f + record.currentLabelPush * 0.03f + chartDiscovery;
 		float organic = organicRate * (1f - record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness + organic, 0f, 1f);
 		// A5 counterfactual: the same headroom-proportional growth from the bonus-free start.

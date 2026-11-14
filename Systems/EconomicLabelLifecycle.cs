@@ -31,6 +31,13 @@ public static class EconomicLabelLifecycle {
 		// Cash below zero represents bills already paid on the firm's overdraft. One monthly
 		// review is allowed for existing records/receivables to pay it back; two consecutive
 		// negative month ends exhaust that grace. Receivables are never treated as spendable cash.
+		// --receivable-backed-overdraft: an overdraft covered by what the houses owe is carried, at a charge. Off: never true.
+		if (ReceivableBackedOverdraft.Carries(label.cashReserves, label.outstandingWholesaleReceivables)) {
+			LabelCompanyAccounts.ChangeCash(label, label.cashReserves * ReceivableBackedOverdraft.MonthlyCharge, LabelCashKind.OtherOperating);
+			label.insolventMonthEnds = 0;
+			label.status = LabelStatus.Struggling;
+			return;
+		}
 		if (label.cashReserves < 0f) {
 			label.status = allowBankruptcy && !label.isPlayerOwned && label.insolventMonthEnds >= 2
 				? LabelStatus.Bankrupt : LabelStatus.Dying;

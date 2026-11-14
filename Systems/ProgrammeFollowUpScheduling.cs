@@ -33,20 +33,21 @@ public static class ProgrammeFollowUpScheduling {
 	// One additional score point per overdue quarter lets an established act overtake a slightly higher-scoring
 	// labelmate while it retains current draw. Audience evidence is continuous;
 	// it does not open an order book or change the launch-demand rates.
-	internal static float WaitingPriority(ReleaseFormat format, int gap, bool hot, float audienceStrength) =>
+	// due: the label's due interval (HitActCadence.DueWeeksFor); 13 unless --hit-act-due-weeks-field.
+	internal static float WaitingPriority(ReleaseFormat format, int gap, bool hot, float audienceStrength, int due = HitActCadence.DueWeeks) =>
 		format != ReleaseFormat.Single ? 0f :
-			Math.Max(0f, (gap - HitActCadence.DueWeeks) / (float)HitActCadence.DueWeeks) *
+			Math.Max(0f, (gap - due) / (float)due) *
 			Math.Max(hot ? 1f : 0f, Math.Clamp(audienceStrength, 0f, 1f));
-	internal static float WorkPriority(int gap, bool hot, float audienceStrength) => gap < HitActCadence.DueWeeks ? 0f :
+	internal static float WorkPriority(int gap, bool hot, float audienceStrength, int due = HitActCadence.DueWeeks) => gap < due ? 0f :
 		Math.Max(hot ? 1f : 0f, Math.Clamp(audienceStrength, 0f, 1f)) +
-		WaitingPriority(ReleaseFormat.Single, gap, hot, audienceStrength);
+		WaitingPriority(ReleaseFormat.Single, gap, hot, audienceStrength, due);
 
 	// Use the existing own-session fallback in time for a due follow-up's ordinary one-week master lead.
 	// An ordered commission still gets its delivery; the rule never records an LP or a future/unproven act early.
 	internal static bool RoutineFollowUpDue(ReleaseSlateItem item, int week, int gap, bool hot,
-		bool established, float audienceOrders) => item.Format == ReleaseFormat.Single &&
+		bool established, float audienceOrders, int due = HitActCadence.DueWeeks) => item.Format == ReleaseFormat.Single &&
 		item.ReadyWeek <= week && week + 1 >= item.IntendedWeek &&
-		week < item.IntendedWeek + LabelReleaseProgramme.Horizon && gap + 1 >= HitActCadence.DueWeeks &&
+		week < item.IntendedWeek + LabelReleaseProgramme.Horizon && gap + 1 >= due &&
 		item.MaterialSearch?.State != ProgrammeMaterialState.Pending &&
 		(hot || established && audienceOrders >= MediaFollowerDemand.BookFloor);
 

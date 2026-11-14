@@ -46,6 +46,26 @@ public static class HitActCadenceChecks {
 			hot.weeksSinceLastRelease = HitActCadence.DueWeeks - 1;
 			Check(!HitActCadence.IsDue(hot, 110), "12 weeks since a release is not due");
 
+			// --hit-act-due-weeks-field: non-Major AI labels read N; Majors, the player and off read 13.
+			var fieldLabel = new AILabel { labelId = "field", tier = LabelTier.Independent };
+			var majorLabel = new AILabel { labelId = "major", tier = LabelTier.Major };
+			var playerLabel = new AILabel { labelId = "player", tier = LabelTier.Independent, isPlayerOwned = true };
+			HitActCadence.SetFieldDueForChecks(0);
+			Check(HitActCadence.DueWeeksFor(fieldLabel) == HitActCadence.DueWeeks, "off, a field label reads 13");
+			HitActCadence.SetFieldDueForChecks(10);
+			Check(HitActCadence.DueWeeksFor(fieldLabel) == 10 && HitActCadence.DueWeeksFor(majorLabel) == HitActCadence.DueWeeks &&
+				HitActCadence.DueWeeksFor(playerLabel) == HitActCadence.DueWeeks && HitActCadence.DueWeeksFor(null) == HitActCadence.DueWeeks,
+				"on, only a non-Major AI label reads N");
+			hot.weeksSinceLastRelease = 10;
+			Check(HitActCadence.IsDue(hot, 110, HitActCadence.DueWeeksFor(fieldLabel)) && !HitActCadence.IsDue(hot, 110, HitActCadence.DueWeeksFor(majorLabel)),
+				"10 weeks since a release is due at a field label only");
+			Check(ProgrammeFollowUpScheduling.WorkPriority(10, true, 0f, 10) > 0f && ProgrammeFollowUpScheduling.WorkPriority(10, true, 0f) == 0f,
+				"the work queue reads the label's due interval");
+			Check(Math.Abs(ProgrammeFollowUpScheduling.WaitingPriority(ReleaseFormat.Single, 20, true, 0f, 10) - 1f) < 1e-6f,
+				"waiting priority counts overdue intervals of N");
+			HitActCadence.SetFieldDueForChecks(0);
+			hot.weeksSinceLastRelease = HitActCadence.DueWeeks - 1;
+
 			// The pick: the longest wait wins, ties go to the lower artist id, none due falls through.
 			var b = new SimulatedArtist { artistId = "b", weeksSinceLastRelease = 20 };
 			var a = new SimulatedArtist { artistId = "a", weeksSinceLastRelease = 20 };

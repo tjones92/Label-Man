@@ -297,7 +297,9 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void UpdateLabelHealth(AILabel label) {
 		label.monthsActive++;
-		label.momentumScore = Mathf.Lerp(label.momentumScore, CalculateMomentum(label), 0.3f);
+		if (EarnedCampaignImpact.Enabled)
+			EarnedCampaignImpact.Update(label, CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0);
+		label.momentumScore =Mathf.Lerp(label.momentumScore, CalculateMomentum(label), 0.3f);
 	}
 	
 	private float CalculateMomentum(AILabel label) => Mathf.Clamp(label.reputation + (label.top40Hits * 0.05f), 0f, 1f);
@@ -681,7 +683,8 @@ public partial class LabelLifecycleManager : Node {
 				return TryPromoteIndependentLabel(label, chartingLastYear);
 			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold &&
 				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label) &&
-				!HeadScaleTemplates.HoldsMajorPromotion(label) && !StudioParentLabels.HoldsMajorPromotion(label):
+				!HeadScaleTemplates.HoldsMajorPromotion(label) && !StudioParentLabels.HoldsMajorPromotion(label) &&
+				MajorScaleGate.Passes(label, activeLabels):
 				PromoteLabel(label, LabelTier.Major);
 				return true;
 			default:

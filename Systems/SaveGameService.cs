@@ -622,6 +622,7 @@ public sealed class LabelSaveData {
 	public float riskTolerance { get; set; }
 	public float artistLoyalty { get; set; }
 	public float payolaWillingness { get; set; }
+	public float earnedCampaignShare { get; set; }
 	public float releasesPerMonth { get; set; }
 	public int totalReleases { get; set; }
 	public int top40Hits { get; set; }
@@ -663,7 +664,7 @@ public sealed class LabelSaveData {
 		nationalReach = l.nationalReach, ownedReach = l.ownedReach, distributionStrength = l.distributionStrength,
 		budgetLevel = l.budgetLevel, scoutingAbility = l.scoutingAbility, productionQuality = l.productionQuality,
 		marketingPower = l.marketingPower, riskTolerance = l.riskTolerance, artistLoyalty = l.artistLoyalty,
-		payolaWillingness = l.payolaWillingness, releasesPerMonth = l.releasesPerMonth,
+		payolaWillingness = l.payolaWillingness, earnedCampaignShare = l.earnedCampaignShare, releasesPerMonth = l.releasesPerMonth,
 		totalReleases = l.totalReleases, top40Hits = l.top40Hits, numberOneHits = l.numberOneHits,
 		monthsActive = l.monthsActive,
 		founderLastReleasePeriod = l.founderLastReleasePeriod, founderLastReviewPeriod = l.founderLastReviewPeriod,
@@ -692,7 +693,7 @@ public sealed class LabelSaveData {
 		l.nationalReach = nationalReach; l.ownedReach = ownedReach; l.distributionStrength = distributionStrength;
 		l.budgetLevel = budgetLevel; l.scoutingAbility = scoutingAbility; l.productionQuality = productionQuality;
 		l.marketingPower = marketingPower; l.riskTolerance = riskTolerance; l.artistLoyalty = artistLoyalty;
-		l.payolaWillingness = payolaWillingness; l.releasesPerMonth = releasesPerMonth;
+		l.payolaWillingness = payolaWillingness; l.earnedCampaignShare = earnedCampaignShare; l.releasesPerMonth = releasesPerMonth;
 		l.totalReleases = totalReleases; l.top40Hits = top40Hits; l.numberOneHits = numberOneHits;
 		l.monthsActive = monthsActive;
 		l.founderLastReleasePeriod = founderLastReleasePeriod; l.founderLastReviewPeriod = founderLastReviewPeriod;
@@ -1253,6 +1254,7 @@ public sealed class RuntimeRecordSaveData {
 	public float perceivedQualityMultiplier { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public float? hitActFitFloorAtLaunch { get; set; }
+	public float? actChartRecordAtLaunch { get; set; }
 	// Regional sync §9u relive log; absent when off.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public List<int> fitRelivePositions { get; set; }
@@ -1285,7 +1287,7 @@ public sealed class RuntimeRecordSaveData {
 		currentLabelPush = r.currentLabelPush, totalLabelInvestment = r.totalLabelInvestment, peakMomentum = r.peakMomentum,
 		weeksPositive = r.weeksPositive, weeksNegative = r.weeksNegative, isGrammyNominated = r.isGrammyNominated,
 		isGrammyWinner = r.isGrammyWinner, weeksOfGrammyBump = r.weeksOfGrammyBump, initialLaunchStock = r.initialLaunchStock,
-		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, fanAudience = r.fanAudience,
+		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, actChartRecordAtLaunch = r.actChartRecordAtLaunch, fanAudience = r.fanAudience,
 		fitRelivePositions = r.fitRelivePositions != null ? new List<int>(r.fitRelivePositions) : null,
 		fitReliveAwareness = r.fitReliveAwareness != null ? new List<float>(r.fitReliveAwareness) : null
 	};
@@ -1312,7 +1314,7 @@ public sealed class RuntimeRecordSaveData {
 			currentLabelPush = currentLabelPush, totalLabelInvestment = totalLabelInvestment, peakMomentum = peakMomentum,
 			weeksPositive = weeksPositive, weeksNegative = weeksNegative, isGrammyNominated = isGrammyNominated,
 			isGrammyWinner = isGrammyWinner, weeksOfGrammyBump = weeksOfGrammyBump, initialLaunchStock = initialLaunchStock,
-			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, fanAudience = fanAudience,
+			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, actChartRecordAtLaunch = actChartRecordAtLaunch, fanAudience = fanAudience,
 			fitRelivePositions = fitRelivePositions != null ? new List<int>(fitRelivePositions) : null,
 			fitReliveAwareness = fitReliveAwareness != null ? new List<float>(fitReliveAwareness) : null
 		};

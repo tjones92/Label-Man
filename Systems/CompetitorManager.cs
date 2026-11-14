@@ -474,19 +474,9 @@ public partial class CompetitorManager : Node {
 	/// so a record distributed this way is attributable to nobody.
 	/// </summary>
 	private void PursueIndependentDistribution(AILabel label) {
-		if (label == null || !label.IsActive || independentDistributors.Count == 0) return;
-		// The player places their own lines, one market at a time, from the desk.
-		if (label.isPlayerOwned) return;
-		// A Major runs its own branch distribution and does not place its line with a
-		// regional wholesaler.
-		if (label.tier == LabelTier.Major) return;
-		// Under a P&D contract the distributor presses and ships; the label is not also
-		// building wholesale relationships. Markets it already holds stay held -- they are
-		// its own asset and are still there when the contract ends.
-		if (label.activeDeal != null || label.IsSubsidiary) return;
-		// Section 27: a dependent hitmaker leans on its distributor rather than building
-		// its own network, which is what keeps it a high-dependency absorption target.
-		if (label.distributionDependentHitmaker) return;
+		if (!CanPursueIndependentDistribution(label)) return;
+		// --chart-proven-wholesale: a record on the national chart is proof in every market, and the houses call.
+		if (PlaceChartProvenLines(label)) return;
 
 		var proven = GetProvenBreakoutRegions(label);
 		// WholesaleSpreadGate: a hop to a bordering market needs a regional hit in the source market, so the hop
@@ -500,7 +490,63 @@ public partial class CompetitorManager : Node {
 
 		IndependentDistributor house = SelectIndependentHouse(label, target, currentWeek);
 		if (house == null || !house.AddClient(label.labelId)) return;
+		RecordIndependentLine(label, house, target, proven.Contains(target), currentWeek);
+	}
 
+	/// <summary>--chart-proven-wholesale-weekly: the houses' call for a chart-proven label is checked at every week end,
+	/// not only at the monthly close. Off: nothing.</summary>
+	private void PlaceChartProvenLinesWeekly() {
+		if (!ChartProvenWholesale.Enabled || !ChartProvenWholesale.Weekly) return;
+		foreach (AILabel label in aiLabels)
+			if (CanPursueIndependentDistribution(label)) PlaceChartProvenLines(label);
+	}
+
+	private bool CanPursueIndependentDistribution(AILabel label) {
+		if (label == null || !label.IsActive || independentDistributors.Count == 0) return false;
+		// The player places their own lines, one market at a time, from the desk.
+		if (label.isPlayerOwned) return false;
+		// A Major runs its own branch distribution and does not place its line with a
+		// regional wholesaler.
+		if (label.tier == LabelTier.Major) return false;
+		// Under a P&D contract the distributor presses and ships; the label is not also
+		// building wholesale relationships. Markets it already holds stay held -- they are
+		// its own asset and are still there when the contract ends.
+		if (label.activeDeal != null || label.IsSubsidiary) return false;
+		// Section 27: a dependent hitmaker leans on its distributor rather than building
+		// its own network, which is what keeps it a high-dependency absorption target.
+		if (label.distributionDependentHitmaker) return false;
+		return true;
+	}
+
+	/// <summary>
+	/// --chart-proven-wholesale: a label with a record inside the national proof depth has its line taken this month by an
+	/// open house in each market it does not yet cover (up to ChartProvenWholesale.Markets), skipping the monthly roll --
+	/// distributors read the trade charts and called. Ordinary placements: capacity, reach credit, receivables. Returns
+	/// whether any line was placed. Off, or with no chart-proven record, places nothing and returns false.
+	/// </summary>
+	private bool PlaceChartProvenLines(AILabel label) {
+		if (!ChartProvenWholesale.Enabled) return false;
+		if (!ChartProvenWholesale.IsChartProven(ChartManager.Instance?.GetRecordsForLabel(label.labelId))) return false;
+		var regions = ChartManager.Instance?.GetAllRegions();
+		if (regions == null) return false;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		var targets = regions.Select(region => region.regionId)
+			.Where(regionId => CanPlaceLineIn(label, regionId))
+			.OrderBy(regionId => GetDeterministicIndependentDistributionRoll(label.labelId, "chart" + regionId, currentWeek))
+			.ThenBy(regionId => regionId, System.StringComparer.Ordinal)
+			.Take(ChartProvenWholesale.Markets)
+			.ToList();
+		bool placed = false;
+		foreach (string target in targets) {
+			IndependentDistributor house = SelectIndependentHouse(label, target, currentWeek);
+			if (house == null || !house.AddClient(label.labelId)) continue;
+			RecordIndependentLine(label, house, target, true, currentWeek);
+			placed = true;
+		}
+		return placed;
+	}
+
+	private void RecordIndependentLine(AILabel label, IndependentDistributor house, string target, bool provenInRegion, int currentWeek) {
 		label.independentDistributionRegions.Add(target);
 		float coveredShare = ChartManager.Instance?.GetNationalMarketShareForRegions(label.AllCoveredRegions()) ?? 0f;
 		float before = label.ownedReach;
@@ -522,7 +568,7 @@ public partial class CompetitorManager : Node {
 			distributorId = house.distributorId,
 			distributorName = house.distributorName,
 			regionId = target,
-			provenInRegion = proven.Contains(target),
+			provenInRegion = provenInRegion,
 			coveredRegionCount = label.independentDistributionRegions.Count,
 			coveredMarketShare = coveredShare,
 			ownedReachBefore = before,
@@ -827,6 +873,7 @@ public partial class CompetitorManager : Node {
 		if (RecordCampaignSpend.Enabled) ProcessRecordCampaigns();
 		AiMasterDeals.ProcessWeek(this, date);
 		AiBackers.ProcessWeek(this, date);
+		PlaceChartProvenLinesWeekly();
 		StatureReplayDiagnostics.Mark("competitor:complete");
 	}
 
@@ -949,6 +996,8 @@ public partial class CompetitorManager : Node {
 			// Billings against a wholesale house are booked but not banked: the house pays on
 			// its own terms, and only for what it admits it sold.
 			float deferred = DeferWholesaleBillings(label, settlement, weeklyRevenue);
+			// --uncovered-sales-terms: markets the label does not ship to pay on one-stop terms too. 0 when off.
+			deferred += DeferUncoveredBillings(label, settlement, weeklyRevenue);
 			weeklyRevenue -= deferred;
 			float collected = CollectMaturedWholesaleReceivables(label);
 			weeklyRevenue += collected;
@@ -1058,6 +1107,33 @@ public partial class CompetitorManager : Node {
 			label.wholesaleReceivables.Add(new WholesaleReceivable(
 				currentWeek + house.paymentTermWeeks, house.distributorId, receivable));
 			label.outstandingWholesaleReceivables += receivable;
+		}
+		return deferred;
+	}
+
+	/// <summary>
+	/// --uncovered-sales-terms: this week's revenue earned in markets the label has no distribution in (for the record)
+	/// becomes a one-stop receivable -- billed at UncoveredSalesTerms.Honesty, due in UncoveredSalesTerms.Weeks -- instead
+	/// of cash. Returns the amount deferred (billed). Off, or for the player, returns 0 and touches nothing.
+	/// </summary>
+	private float DeferUncoveredBillings(AILabel label, ChartManager.CompletedWeekSettlement settlement, float weeklyRevenue) {
+		if (!UncoveredSalesTerms.AppliesTo(label) || weeklyRevenue <= 0f || settlement?.Entries == null) return 0f;
+		var cleared = new List<(string, string, int)>();
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.EntriesForLabel(label.labelId)) {
+			if (entry.Regions == null) continue;
+			foreach (ChartManager.CompletedWeekSettlementRegion region in entry.Regions)
+				cleared.Add((entry.RecordId, region.RegionId, region.FinalCleared));
+		}
+		var split = UncoveredSalesTerms.Split(label, weeklyRevenue, cleared,
+			(regionId, recordId) => label.HasDistributionInRegionForRecord(regionId, recordId));
+		if (split.Count == 0) return 0f;
+		int dueWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + UncoveredSalesTerms.Weeks;
+		float deferred = 0f;
+		foreach (var pair in split.OrderBy(pair => pair.Key, System.StringComparer.Ordinal)) {
+			deferred += pair.Value.Billed;
+			label.lifetimeWholesaleWriteOffs += pair.Value.Billed - pair.Value.Collectable;
+			label.wholesaleReceivables.Add(new WholesaleReceivable(dueWeek, UncoveredSalesTerms.DistributorPrefix + pair.Key, pair.Value.Collectable));
+			label.outstandingWholesaleReceivables += pair.Value.Collectable;
 		}
 		return deferred;
 	}
@@ -3887,7 +3963,8 @@ public partial class CompetitorManager : Node {
 		float baseQuality = SingleStudioModifier.BaseQuality(artistQuality, studioMod);
 		
 		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.55f) + (baseQuality * 0.35f) + (float)GameRandom.RandRange(-0.12, 0.18), 0f, 1f);
-		record.productionQuality = Mathf.Clamp((label.productionQuality * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
+		// --label-craft-floor / --hit-act-craft-floor: a single reads the label's craft lifted toward the Major reference. Off: the stored value.
+		record.productionQuality = Mathf.Clamp((FootprintCraftSoftening.Craft(label.productionQuality, format, label, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0) * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
 		record.originality = Mathf.Clamp(artist.members.Max(m => m.creativity) * 0.7f + (float)GameRandom.RandRange(0f, 0.3f), 0f, 1f);
 		record.danceability = (float)GameRandom.RandRange(0.3, 0.95);
 		record.controversy = (float)GameRandom.RandRange(0f, 0.2f);
@@ -4389,16 +4466,22 @@ public partial class CompetitorManager : Node {
 	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult) {
 		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
 		if (runtimeData == null) return;
+		// --label-blind-launch=foot: the launch-footprint reads below see a reference label for a live AI single. Off: inert.
+		using LabelBlindLaunch.FootScope blindFoot = LabelBlindLaunch.Launch(runtimeData, label, artist,
+			ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		BookProgrammeCampaign(record, artist, label, marketingBudget);
 		AttributeReleaseCampaign(runtimeData, marketingBudget);
 		bool isAlbum = record.format == ReleaseFormat.Album;
+		// --act-earned-campaign-impact: fixes this single's earned share before any launch read of campaign impact. Off: nothing.
+		ActEarnedCampaignImpact.NoteLaunch(record, label, artist);
 		
 		float quality = runtimeData.GetQuality();
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
 		// --hit-act-hype: a recency lift for an act with a recent Top 10 / Top 40. Off: not read.
 		if (HitActHype.Enabled && !isAlbum) artistAwareness += HitActHype.AwarenessLift(artist);
-		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
-		float labelAwareness = label.reputation * 0.1f;
+		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label, record.recordId, runtimeData);
+		// --label-blind-launch=promo: reference reputation for a live AI single. Off: label.reputation.
+		float labelAwareness = LabelBlindLaunch.Reputation(runtimeData, label) * 0.1f;
 		float programmeShare = ProgrammePushFactor(runtimeData);
 		if (LabelReleaseProgramme.CapacityEnabled) labelAwareness *= programmeShare;
 		// --hit-act-cadence (§17y): a single launched while the act already has singles on the Hot 100 shares the act's
@@ -4418,8 +4501,9 @@ public partial class CompetitorManager : Node {
 
 		float baseRadio = quality * 0.3f;
 		// LaunchPushSaturation is a probe on the launch reads of campaign impact only; identity unless named.
-		float pushRadio = LaunchPushSaturation.Apply(ChartSimulator.GetCampaignImpact(label)) * 0.3f;
-		float payolaRadio = label.payolaWillingness * 0.15f;
+		float pushRadio = LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
+			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), runtimeData, label), record.recordId), label) * 0.3f;
+		float payolaRadio = LabelBlindLaunch.Payola(runtimeData, label) * 0.15f;
 		if (LabelReleaseProgramme.CapacityEnabled) { pushRadio *= programmeShare; payolaRadio *= programmeShare; }
 		// Phase D: a small programmer-confidence lift for recognized acts. Singles only, weaker than
 		// the awareness lift, and it rides the same /radioDifficulty regional divide downstream.
@@ -4499,6 +4583,9 @@ public partial class CompetitorManager : Node {
 			foreach (RegionalRecordData data in runtimeData.regionalData.Values) data.unitsInStores = LaunchStocking.ScaleLaunch(data.unitsInStores);
 		// Dealers' advance orders (CelebrityFanbaseDesign.md §2.4): a followed act ships with its fans' copies on the shelves.
 		if (MediaFollowerDemand.Active) MediaAtmosphereService.StockAdvanceOrders(runtimeData);
+		if (LaunchStockTrace.Enabled) LaunchStockTrace.Emit(runtimeData, label, regions, initialStock,
+			runtimeData.regionalData.ToDictionary(pair => pair.Key, pair => pair.Value.unitsInStores, System.StringComparer.Ordinal),
+			perceivedQualityMult, TimeManager.Instance?.CurrentDate.year ?? 1960);
 
 		runtimeData.initialLaunchAwareness = runtimeData.awareness;
 		runtimeData.initialLaunchStock =runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
@@ -4524,8 +4611,9 @@ public partial class CompetitorManager : Node {
 		return Mathf.Clamp((Mathf.Log(1 + normalized * 9) / Mathf.Log(10)) / 1.5f, 0f, 1f);
 	}
 
-	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label) {
-		float campaignImpact = LaunchPushSaturation.Apply(ChartSimulator.GetCampaignImpact(label));
+	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label, string recordId = null, RecordRuntimeData blindRecord = null) {
+		float campaignImpact = LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
+			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), blindRecord, label), recordId), label);
 		if (!MarketSeasonality.Enabled) return BudgetToImpact(marketingBudget, label.tier) * campaignImpact * 0.35f;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
@@ -5819,7 +5907,9 @@ public partial class CompetitorManager : Node {
 	/// path. Exposed read-only for the player's house-line proof gate (directive §5.1); no new
 	/// calibration, just the same regionalData reused instead of a parallel bar.</summary>
 	public bool HasProvenBreakoutIn(AILabel label, string regionId) =>
-		label != null && !string.IsNullOrEmpty(regionId) && GetProvenBreakoutRegions(label).Contains(regionId);
+		label != null && !string.IsNullOrEmpty(regionId) && (GetProvenBreakoutRegions(label).Contains(regionId) ||
+			// --chart-proven-wholesale: a record on the national chart is proof in every market (false when off).
+			ChartProvenWholesale.IsChartProven(ChartManager.Instance?.GetRecordsForLabel(label.labelId)));
 
 	/// <summary>The same regional-breakout bar <see cref="GetProvenBreakoutRegions"/> applies, exposed
 	/// read-only for the promo mechanic directive's §6.3 breakout listing -- a per-RECORD read of

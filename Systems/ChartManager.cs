@@ -383,12 +383,27 @@ public partial class ChartManager : Node {
 		RadioPushSpread.Configure(SimulationArguments.Get());
 		AirplayRotationCeiling.Configure(SimulationArguments.Get());
 		ChartInertiaProbe.Configure(SimulationArguments.Get());
+		TrajectoryShapeProbe.Configure(SimulationArguments.Get());
+		SingleAppealDrift.Configure(SimulationArguments.Get());
 		ChartEntryFeedbackProbe.Configure(SimulationArguments.Get());
 		ChartTailProbe.Configure(SimulationArguments.Get());
 		HitActHype.Configure(SimulationArguments.Get());
 		ArtistFanbase.Configure(SimulationArguments.Get());
 		LabelHoldCapacity.Configure(SimulationArguments.Get());
 		HeadScaleTemplates.Configure(SimulationArguments.Get());
+		LaunchStockSpread.Configure(SimulationArguments.Get());
+		LaunchCapScope.Configure(SimulationArguments.Get());
+		MajorScaleGate.Configure(SimulationArguments.Get());
+		IndieDistributorAccess.Configure(SimulationArguments.Get());
+		EarnedIndieCoverage.Configure(SimulationArguments.Get());
+		ChartProvenWholesale.Configure(SimulationArguments.Get());
+		UncoveredSalesTerms.Configure(SimulationArguments.Get());
+		ProgrammeFundingRelief.Configure(SimulationArguments.Get());
+		ActEarnedCampaignImpact.Configure(SimulationArguments.Get());
+		LabelFootprintParity.Configure(SimulationArguments.Get());
+		LabelBlindLaunch.Configure(SimulationArguments.Get());
+		LaunchStockTrace.Configure(SimulationArguments.Get());
+		EarnedCampaignImpact.Configure(SimulationArguments.Get());
 		WorkloadStaffing.Configure(SimulationArguments.Get());
 		EarnedRosterCapacity.Configure(SimulationArguments.Get());
 		SingleForecastRealization.Configure(SimulationArguments.Get());
@@ -463,6 +478,7 @@ public partial class ChartManager : Node {
 		StationRegionalSupport.Configure(SimulationArguments.Get());
 		StationPicks.Configure(SimulationArguments.Get());
 		RegionalFitExposure.Configure(SimulationArguments.Get());
+		FootprintCraftSoftening.Validate();
 		LocalRetailExposure.Configure(SimulationArguments.Get());
 		LocalRadioConsumptionProbe.Configure(SimulationArguments.Get());
 		BoundedAudienceProbe.Configure(SimulationArguments.Get());
@@ -992,6 +1008,8 @@ public partial class ChartManager : Node {
 		var runtimeData = new RecordRuntimeData(record);
 		if (HitActFitSupport.Enabled) HitActFitSupport.CaptureLaunch(runtimeData,
 			ArtistManager.Instance?.GetArtist(record.artistId), currentChartWeek);
+		if (SingleCommercialFit.ActRecordWeight > 0f) SingleCommercialFit.CaptureActRecord(runtimeData,
+			ArtistManager.Instance?.GetArtist(record.artistId), currentChartWeek);
 		if (ArtistFanbase.Enabled) ArtistFanbase.CaptureLaunch(runtimeData,
 			ArtistManager.Instance?.GetArtist(record.artistId), allRegions, currentChartWeek, record.releaseDate.year);
 		if (ArtistPopulationLifecycle.Enabled) {
@@ -1104,6 +1122,8 @@ public partial class ChartManager : Node {
 			if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data))
 				data.unitsInStores = allocatedStock.GetValueOrDefault(region.regionId);
 		}
+		LaunchStockTrace.Emit(record, label, allRegions, initialStock, allocatedStock, perceivedQualityMult,
+			TimeManager.Instance?.CurrentDate.year ?? 1960);
 
 		record.initialLaunchAwareness = record.awareness;
 		record.initialLaunchStock = record.regionalData.Values.Sum(data => data.unitsInStores);
@@ -1992,6 +2012,8 @@ public partial class ChartManager : Node {
 				// Regional sync 5a: nothing ships to a region the record has not reached; its held stock lands on arrival.
 				if (data.awaitingArrival) continue;
 
+				// --earned-indie-coverage: a charted non-Major record's uncovered regions move toward covered service. 0 when off.
+				float earnedCoverage = isCovered ? 0f : EarnedIndieCoverage.For(label, record.currentPosition);
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				// LocalRetailExposure: one-stops and rack jobbers reorder a single on their own territory's sales list.
 				int retailPosition = LocalRetailExposure.Enabled && IsGenreMarketV2Live && record.baseRecord.format != ReleaseFormat.Album
@@ -2025,7 +2047,7 @@ public partial class ChartManager : Node {
 					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered, retailPosition);
 					data.breakoutMaxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
-						: 0.20f));
+						: EarnedIndieCoverage.Blend(0.20f, 0.55f + label.distributionStrength * 0.65f, earnedCoverage)));
 					data.breakoutCapacityCapped = false;
 				}
 
@@ -2046,6 +2068,8 @@ public partial class ChartManager : Node {
 					if (!isCovered && rackService > 0f)
 						serviceLevel = Mathf.Max(serviceLevel, rackService * ChartSimulator.RackServiceShareOfDistributed *
 							(0.70f + (label.distributionStrength * 0.80f)));
+					if (earnedCoverage > 0f)
+						serviceLevel = EarnedIndieCoverage.Blend(serviceLevel, 0.70f + (label.distributionStrength * 0.80f), earnedCoverage);
 					// DISTANCE-4B: neutral in 4a; 4b applies city-distance reach to restock service.
 					serviceLevel *= DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(region.regionId));
 					int restockAmount = CalculateRestockAmount(data.rawDemandThisWeek, data.unitsBackordered,
@@ -2056,7 +2080,7 @@ public partial class ChartManager : Node {
 					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered, retailPosition);
 					int maxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
-						: 0.20f));
+						: EarnedIndieCoverage.Blend(0.20f, 0.55f + label.distributionStrength * 0.65f, earnedCoverage)));
 					restockAmount = Mathf.Min(restockAmount, maxCapacity - data.unitsInStores);
 					if (captureBreakoutDiagnostic) {
 						data.breakoutRequestedRestock = requestedRestock;

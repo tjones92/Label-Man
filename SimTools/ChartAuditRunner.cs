@@ -2233,7 +2233,29 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private static StreamWriter CreateWriter(string path) =>
-		new(path, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), 64 * 1024);
+		SkipTelemetry(path)
+			? new StreamWriter(Stream.Null, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+			: new(path, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), 64 * 1024);
+
+	/// <summary>
+	/// --skip-telemetry=a,b,...: a CSV whose name ends in -a.csv (or -a.jsonl) is not written; its writer discards every
+	/// row. Telemetry only, so the simulation is unchanged. For screens that read none of those files, such as the
+	/// Major-share chase, which never reads stature-shadow (a third of a lean run).
+	/// </summary>
+	private const string SkipTelemetrySwitch = "--skip-telemetry=";
+	private static HashSet<string> skipTelemetry;
+	private static bool SkipTelemetry(string path) {
+		skipTelemetry ??= new HashSet<string>(OS.GetCmdlineUserArgs()
+			.Where(a => a.StartsWith(SkipTelemetrySwitch, StringComparison.Ordinal))
+			.SelectMany(a => a.Substring(SkipTelemetrySwitch.Length).Split(',', StringSplitOptions.RemoveEmptyEntries)),
+			StringComparer.Ordinal);
+		if (skipTelemetry.Count == 0) return false;
+		string name = Path.GetFileName(path);
+		foreach (string skip in skipTelemetry)
+			if (name.EndsWith("-" + skip + ".csv", StringComparison.Ordinal) || name.EndsWith("-" + skip + ".jsonl", StringComparison.Ordinal))
+				return true;
+		return false;
+	}
 
 	private void InitializeObservedState() {
 		foreach (RecordRuntimeData record in ChartManager.Instance.GetAllRecords().Where(record => record.baseRecord.format == ReleaseFormat.Single)) {

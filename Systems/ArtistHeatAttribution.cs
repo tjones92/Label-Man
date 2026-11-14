@@ -40,7 +40,8 @@ public static class ArtistHeatAttribution {
 		heatWriter = new StreamWriter(prefix + "-artist-heat-attribution.csv");
 		launchWriter = new StreamWriter(prefix + "-single-launch-attribution.csv");
 		heatWriter.WriteLine("week,year,artistId,labelId,singleCurrentHeat,singlePeakHeat,albumCurrentHeat,albumPeakHeat,singleHits,albumHits,originalHeat,singlesOnlyHeat,albumCausedHeatDelta,currentAlbumsHeat,retainedAlbumHeatDelta");
-		launchWriter.WriteLine("week,year,singleId,labelId,artistId,artistName,strategy,genre,quality,hook,production,dance,career,openingArchetype,formedYear,initialStock,initialAwareness,effectiveRecognition,recognitionRadioLift,originalCampaignImpact,spreadCampaignImpact,labelProduction,labelMarketing,labelBudget,labelPayola,artistMomentum,artistReputation,labelReputation,launchCampaignImpact");
+		launchWriter.WriteLine("week,year,singleId,labelId,artistId,artistName,strategy,genre,quality,hook,production,dance,career,openingArchetype,formedYear,initialStock,initialAwareness,effectiveRecognition,recognitionRadioLift,originalCampaignImpact,spreadCampaignImpact,labelProduction,labelMarketing,labelBudget,labelPayola,artistMomentum,artistReputation,labelReputation,launchCampaignImpact"
+			+ (SingleCommercialFit.ActRecordWeight > 0f ? ",actChartRecordAtLaunch" : ""));
 	}
 
 	public static void Close() {
@@ -128,7 +129,8 @@ public static class ArtistHeatAttribution {
 			Csv(artist?.careerState.ToString()), Csv(artist?.openingArchetype.ToString()), (artist?.formedYear ?? 0).ToString(),
 			runtime.initialLaunchStock.ToString(), F(runtime.initialLaunchAwareness), F(runtime.launchEffectiveRecognition), F(runtime.launchRecognitionRadioLift),
 			F(impact), F(RadioPushSpread.Apply(impact)), F(label?.productionQuality ?? 0f), F(label?.marketingPower ?? 0f), F(label?.budgetLevel ?? 0f), F(label?.payolaWillingness ?? 0f),
-			F(artist?.momentum ?? 0f), F(artist?.reputation ?? 0f), F(label?.reputation ?? 0f), F(LaunchPushSaturation.Apply(impact)) }));
+			F(artist?.momentum ?? 0f), F(artist?.reputation ?? 0f), F(label?.reputation ?? 0f), F(LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(impact, id), label)) })
+			+ (SingleCommercialFit.ActRecordWeight > 0f ? "," + F(runtime.actChartRecordAtLaunch ?? 0f) : ""));
 	}
 
 	private static string F(float value) => value.ToString("R", CultureInfo.InvariantCulture);

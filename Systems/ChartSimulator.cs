@@ -534,6 +534,8 @@ public static class ChartSimulator {
 			conversionRate *= UnchartedSingleExposure.Multiplier(internalChartPosition, regionalDiscovery, record.weeksSinceRelease,
 				record.weeksSincePeakUnits);
 		if (stagedLiveDemand) conversionRate *= SingleCommercialFit.Multiplier(record, region.regionId, label);
+		// --single-appeal-drift: a persistent, bounded, keyed per-record fortune. Exactly 1 (and no draw) when off.
+		if (stagedLiveDemand && SingleAppealDrift.Enabled) conversionRate *= SingleAppealDrift.Multiplier(record);
 		// === 6. RELEASE RAMP ===
 		conversionRate *= GetReleaseRampWeight(reliveAge > 0 ? reliveAge : record.weeksSinceRelease, record.currentLabelPush) *
 			RELEASE_RAMP_UNIT_RENORMALIZATION;
@@ -552,7 +554,8 @@ public static class ChartSimulator {
 			: record.weeksSinceRelease;
 		if (demandAge > 8) {
 			int weeksOverThreshold = demandAge - 8;
-			conversionRate *= Mathf.Pow(DEMAND_AGE_DECAY_RATE, weeksOverThreshold);
+			// TrajectoryShapeProbe: --demand-age-decay=R replaces the rate; the authored value when off.
+			conversionRate *= Mathf.Pow(TrajectoryShapeProbe.AgeDecay(DEMAND_AGE_DECAY_RATE), weeksOverThreshold);
 		}
 		float tailMultiplier = 1f, nationalTailMultiplier = 1f;
 		if (ChartTailProbe.Enabled) {
@@ -730,7 +733,7 @@ public static class ChartSimulator {
 	/// label ceiling while allowing earned reach to change outcomes.
 	/// </summary>
 	internal static float GetLiveLabelDemandScale(AILabel label) =>
-		label == null ? 1f : CalculateLiveLabelDemandScale(label.distributionStrength, label.effectiveNationalReach);
+		label == null ? 1f : LabelFootprintParity.Demand(CalculateLiveLabelDemandScale(label.distributionStrength, label.effectiveNationalReach));
 
 	/// <summary>
 	/// Demand scale for one release. A distribution deal carries the record that
@@ -738,8 +741,9 @@ public static class ChartSimulator {
 	/// sells on the label's own reach rather than the distributor's borrowed network.
 	/// </summary>
 	internal static float GetLiveLabelDemandScale(AILabel label, string recordId) =>
-		label == null ? 1f : CalculateLiveLabelDemandScale(
-			label.DistributionStrengthForRecord(recordId), label.EffectiveNationalReachForRecord(recordId));
+		// --label-demand-parity: moves the scale toward 1 (LabelFootprintParity). Identity when off.
+		label == null ? 1f : LabelFootprintParity.Demand(CalculateLiveLabelDemandScale(
+			label.DistributionStrengthForRecord(recordId), label.EffectiveNationalReachForRecord(recordId)));
 
 	internal static float CalculateLiveLabelDemandScale(float distributionStrength, float nationalReach) =>
 		Mathf.Clamp(0.45f + Mathf.Clamp(distributionStrength, 0f, 1f) * 0.55f +
@@ -972,7 +976,8 @@ public static class ChartSimulator {
 	}
 
 	internal static float GetRadioFatigue(int weeksSincePeak) =>
-		weeksSincePeak > 0 ? Mathf.Pow(RADIO_FATIGUE_DECAY, weeksSincePeak) : 1f;
+		// TrajectoryShapeProbe: --radio-fatigue-decay=F replaces the rate; the authored value when off.
+		weeksSincePeak > 0 ? Mathf.Pow(TrajectoryShapeProbe.Fatigue(RADIO_FATIGUE_DECAY), weeksSincePeak) : 1f;
 
 	/// <summary>
 	/// Regional audience 3c: the heat a region's own programmers would give a record -- the record-wide target, the
@@ -1055,7 +1060,8 @@ public static class ChartSimulator {
 		// Budget sustains and broadens campaigns; marketing controls spend efficiency.
 		// Distribution is deliberately absent: it fulfills demand rather than creating it.
 		float spendCapacity = 0.45f + (label.budgetLevel * 0.55f);
-		return Mathf.Clamp(label.marketingPower * spendCapacity, 0f, 1f);
+		// --earned-campaign-impact: promotion capacity a charting label has earned on top of its founding draw. Identity when off.
+		return EarnedCampaignImpact.Apply(Mathf.Clamp(label.marketingPower * spendCapacity, 0f, 1f), label);
 	}
 
 	/// <summary>
@@ -1094,28 +1100,38 @@ public static class ChartSimulator {
 
 	public static float GetRegionalLaunchFactor(AILabel label, string regionId, string recordId = null) {
 		if (label == null) return 1f;
+		// --label-blind-launch=foot: a live AI single launches as a covered region at the reference reach everywhere.
+		if (LabelBlindLaunch.InFactor) return 0.55f + LabelBlindLaunch.ReferenceReach * 0.45f;
 		bool strong = label.strongRegions?.Contains(regionId) ?? false;
 		bool covered = label.HasDistributionInRegionForRecord(regionId, recordId);
 		float reach = label.EffectiveNationalReachForRecord(recordId);
 		if (strong) return 1.35f;
-		if (covered) return 0.55f + (reach * 0.45f);
-		return 0.12f + (reach * 0.18f);
+		// --covered-launch-parity: a non-Major's covered-region factor moves toward 1 (LabelFootprintParity). Identity when off.
+		// --label-blind-launch-dose: an opened region reads at least the reference covered factor. Identity when off.
+		if (covered) return LabelBlindLaunch.DoseFactor(regionId, LabelFootprintParity.CoveredLaunch(0.55f + (reach * 0.45f), label));
+		return LabelBlindLaunch.DoseFactor(regionId, 0.12f + (reach * 0.18f));
 	}
 
 	public static int CalculateInitialRegionalStock(AILabel label, string regionId, float careerScale, float perceivedQualityMultiplier, string recordId = null) {
 		if (label == null) return 0;
-		bool strong = label.strongRegions?.Contains(regionId) ?? false;
-		bool covered = label.HasDistributionInRegionForRecord(regionId, recordId);
-		bool isHome = !string.IsNullOrEmpty(label.homeRegion) && label.homeRegion == regionId;
-		float reachForRecord = label.DistributionStrengthForRecord(recordId);
-		float access = covered ? 1f : 0.18f;
+		// --label-blind-launch=foot: covered everywhere, never strong or home, at the reference distribution strength.
+		bool blindFoot = LabelBlindLaunch.InStock;
+		bool strong = !blindFoot && (label.strongRegions?.Contains(regionId) ?? false);
+		bool covered = blindFoot || label.HasDistributionInRegionForRecord(regionId, recordId);
+		bool isHome = !blindFoot && !string.IsNullOrEmpty(label.homeRegion) && label.homeRegion == regionId;
+		// --launch-stock-spread: compresses launch depth above the knee (LaunchStockSpread). Identity when off.
+		float reachForRecord = LaunchStockSpread.Apply(blindFoot ? LabelBlindLaunch.ReferenceReach : label.DistributionStrengthForRecord(recordId),
+			label.isPlayerOwned || !LaunchCapScope.Applies(label));
+		// --indie-distributor-access: a non-Major's uncovered-region access (IndieDistributorAccess). 0.18 when off.
+		float access = covered ? 1f : IndieDistributorAccess.UncoveredAccess(label);
 		float localDepth = isHome || strong
 			? 0.25f + (reachForRecord * 0.75f)
 			: 0.10f + (reachForRecord * 0.75f);
 		float strongDepth = strong ? 1.45f : 1f;
 		float noise = (float)GameRandom.RandRange(0.85, 1.15);
 		// DISTANCE-4B: neutral in 4a; 4b turns regional reach into real stock friction.
-		float reachFactor = DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(regionId));
+		// --label-blind-launch=foot: the label's nearest distribution node is a footprint read too; 1 inside the scope.
+		float reachFactor = blindFoot ? 1f : DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(regionId));
 		int raw = Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise * reachFactor);
 		int floor = isHome || strong ? 100 : 0;
 		return Mathf.Max(floor, raw);
@@ -1193,7 +1209,9 @@ public static class ChartSimulator {
 		}
 		
 		// RadioPushSpread is a probe on this weekly radio push only; identity unless --radio-push-spread is named.
-		float basePush = RadioPushSpread.Apply(GetCampaignImpact(label));
+		// --label-blind-launch=promo: a live AI single's weekly push reads the reference campaign impact. Identity when off.
+		float basePush = RadioPushSpread.Apply(ActEarnedCampaignImpact.Apply(
+			LabelBlindLaunch.Impact(GetCampaignImpact(label), record, label), record.baseRecord?.recordId));
 		// --record-campaign-spend: the record's own campaign; exactly 1 for any record launched without it.
 		basePush *= RecordCampaignSpend.PushFactor(record);
 		if (LabelReleaseProgramme.CapacityEnabled) basePush *= CompetitorManager.Instance?.ProgrammePushFactor(record) ?? 1f;
@@ -1381,7 +1399,8 @@ public static class ChartSimulator {
 				// AirplayRotationCeiling is a probe on this payout only; identity unless --airplay-rotation-ceiling is named.
 				float ownRotation = AirplayRotationCeiling.Apply(convexRadio / access);
 				float rotation = AIRPLAY_REFERENCE_PLAY *
-					Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, AIRPLAY_CONVEXITY) * access;
+					// TrajectoryShapeProbe: --airplay-convexity=K replaces the exponent; the authored value when off.
+					Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, TrajectoryShapeProbe.Convexity(AIRPLAY_CONVEXITY)) * access;
 				if (panelLinear) rotation += StationRegionalSupport.PanelLinearWeight * data.panelRadioPlay;
 				airplayPoints += rotation * region.media.radioReach * region.population *
 					AIRPLAY_POINTS_PER_MILLION_REACHED;
@@ -1410,7 +1429,7 @@ public static class ChartSimulator {
 	/// </summary>
 	internal static float GetSurveySigma(float unitsThisWeek) =>
 		Mathf.Min(SURVEY_MAX_SIGMA,
-			SURVEY_NOISE_SCALE / Mathf.Sqrt(Mathf.Max(1f, GetSurveyReportingOutlets(unitsThisWeek))));
+			TrajectoryShapeProbe.SurveyNoise(SURVEY_NOISE_SCALE) / Mathf.Sqrt(Mathf.Max(1f, GetSurveyReportingOutlets(unitsThisWeek))));
 
 	/// <summary>
 	/// One week's survey draw for one record: a lognormal multiplier with a mean of exactly 1, so the

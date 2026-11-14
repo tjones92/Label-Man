@@ -26,6 +26,11 @@ public partial class CompetitorManager {
 	internal bool HitFollowUpFinanceApplies(AILabel label) =>
 		LabelReleaseProgramme.HitFollowUpFinanceEnabled && label != null && !label.isPlayerOwned && label.tier != LabelTier.Major;
 
+	/// <summary>Factoring for a hot act's release: on under --hit-follow-up-finance or --hit-follow-up-factoring.</summary>
+	internal bool HitFollowUpFactoringApplies(AILabel label) =>
+		(LabelReleaseProgramme.HitFollowUpFinanceEnabled || LabelReleaseProgramme.HitFollowUpFactoringEnabled) &&
+		label != null && !label.isPlayerOwned && label.tier != LabelTier.Major;
+
 	internal bool IsHotProgrammeAct(SimulatedArtist artist, int week) =>
 		artist != null && HitActCadence.WeeksSinceTop40(artist, week) <= HitActCadence.HotWindowWeeks;
 
@@ -44,7 +49,7 @@ public partial class CompetitorManager {
 	internal float FactorForHitFollowUp(AILabel label, SimulatedArtist artist, float shortfall) {
 		// A cent over the need, so float rounding cannot leave a sale that still fails the reservation.
 		shortfall += .01f;
-		if (!HitFollowUpFinanceApplies(label) || !IsHotProgrammeAct(artist, pipelineWeek) || shortfall <= .01f ||
+		if (!HitFollowUpFactoringApplies(label) || !IsHotProgrammeAct(artist, pipelineWeek) || shortfall <= .01f ||
 			label.wholesaleReceivables.Count == 0) return 0f;
 		float available = label.wholesaleReceivables.Sum(r => r.Amount * LabelReleaseProgramme.FactorRate(HouseReliability(r.DistributorId)));
 		// Selling only part of what is needed buys nothing: the slot would still be short.

@@ -21,13 +21,23 @@ public static class HeadScaleTemplates {
 	private static bool enabled;
 	public static bool Enabled => enabled;
 
+	// --head-scale-upgrades: only the three in-place upgrades (Cameo-Parkway at head scale, Liberty and Vee-Jay as standard
+	// MidTiers), seeding no new firm. It is the companion of --studio-parent-labels, which now seeds MGM, ABC-Paramount and
+	// Warner Bros. (with parents and at the standard envelope), so the two run together. The full switch implies it.
+	public const string UpgradesSwitch = "--head-scale-upgrades";
+	private static bool upgradesOnly;
+	public static bool UpgradesEnabled => enabled || upgradesOnly;
+
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		enabled = (arguments ?? Array.Empty<string>()).Any(arg => arg == Switch);
+		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		enabled = args.Contains(Switch);
+		upgradesOnly = args.Contains(UpgradesSwitch);
 		configured = true;
 	}
 
 	internal static void SetEnabledForChecks(bool value) { configured = true; enabled = value; }
+	internal static void SetUpgradesForChecks(bool value) { configured = true; upgradesOnly = value; }
 
 	// STAND-IN, NOT THE FIX (§17s). In the §17r screen Liberty promoted MidTier -> Major at week 48 of 1960 in all five
 	// seeds, and Warner Bros. in two (two more in 1962). Neither was a historical major. The MidTier -> Major gate's
@@ -38,6 +48,7 @@ public static class HeadScaleTemplates {
 	internal const int MajorPromotionHoldMonths = 12;
 
 	internal static bool HoldsMajorPromotion(AILabel label) =>
-		enabled && label != null && label.isHistorical && label.monthsActive < MajorPromotionHoldMonths &&
-		AILabelFactory.IsHeadScaleProbeTemplate(label.labelName);
+		label != null && label.isHistorical && label.monthsActive < MajorPromotionHoldMonths &&
+		(enabled ? AILabelFactory.IsHeadScaleProbeTemplate(label.labelName)
+			: upgradesOnly && AILabelFactory.IsHeadScaleUpgradeTemplate(label.labelName));
 }

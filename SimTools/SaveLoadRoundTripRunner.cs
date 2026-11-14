@@ -88,12 +88,23 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--chart-tail-check")) { ChartTailChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-hype-check")) { HitActHypeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-fit-support-check")) { HitActFitSupportChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--single-commercial-fit-shape-check")) { SingleCommercialFitShapeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-fanbase-check")) { ArtistFanbaseChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-hold-capacity-check")) { LabelHoldCapacityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-heat-attribution-check")) { ArtistHeatAttributionChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--seed-head-templates-check")) { HeadScaleTemplatesChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--midtier-opening-realism-check")) { MidTierOpeningRealismChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--launch-push-saturation-check")) { LaunchPushSaturationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--launch-stock-spread-check")) { LaunchStockSpreadChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-scale-gate-check")) { MajorScaleGateChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-footprint-parity-check")) { LabelFootprintParityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-blind-launch-check")) { LabelBlindLaunchChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--footprint-craft-softening-check")) { FootprintCraftSofteningChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--chart-proven-wholesale-check")) { ChartProvenWholesaleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--uncovered-sales-terms-check")) { UncoveredSalesTermsChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-funding-relief-check")) { ProgrammeFundingReliefChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--gamey-audit-switches-check")) { GameyAuditSwitchChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--earned-campaign-impact-check")) { EarnedCampaignImpactChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-momentum-half-life-check")) { ArtistMomentumHalfLifeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--senior-cooling-check")) { SeniorCoolingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-cadence-check")) { HitActCadenceChecks.Run(); GetTree().Quit(0); return; }

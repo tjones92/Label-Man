@@ -53,7 +53,8 @@ public partial class CompetitorManager {
 		LabelReleaseProgramme.Roll(ProgrammeLabelKey(label), artist == null ? "" : ProgrammeClockFor(artist).Identity, slot, week, domain);
 
 	private void EmitProgrammeResources(AILabel label, GameDate date, int attempts, int successes) {
-		var due = label.roster.Where(a => pipelineWeek - ProgrammeClockFor(a).SingleWeek >= HitActCadence.DueWeeks &&
+		int dueWeeks = HitActCadence.DueWeeksFor(label);
+		var due = label.roster.Where(a => pipelineWeek - ProgrammeClockFor(a).SingleWeek >= dueWeeks &&
 			HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks).ToList();
 		OnProgrammeResources?.Invoke(new ProgrammeResourceTelemetry { Week = pipelineWeek, Year = date.year, LabelId = label.labelId, Tier = label.tier.ToString(),
 			Attempts = WeeklyReleaseRollsFired - attempts, Successes = WeeklySuccessfulReleases - successes,
@@ -308,7 +309,7 @@ public partial class CompetitorManager {
 								LabelReleaseProgramme.IsOpen(i) && i.IntendedWeek < week)) last = Math.Max(last, open.IntendedWeek);
 							int age = week - last;
 							bool hot = HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks;
-							bool due = format == ReleaseFormat.Single && hot && age >= HitActCadence.DueWeeks;
+							bool due = format == ReleaseFormat.Single && hot && age >= HitActCadence.DueWeeksFor(label);
 							float obligations = format == ReleaseFormat.Single ? Math.Max(0, a.contractSinglesObligation - a.contractReleases) : 0;
 							var context = BuildDecisionContext(label, a, intended.year, intended.month);
 							context.careerBand = GetCareerBandIndex(a.careerState, out _);
@@ -322,7 +323,7 @@ public partial class CompetitorManager {
 							bool followUpScheduling = ProgrammeFollowUpScheduling.Enabled && format == ReleaseFormat.Single;
 							float audienceOrders = followUpScheduling && MediaFollowerDemand.Causal ? ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(a.artistId)) : 0f;
 							float audienceStrength = ProgrammeFollowUpScheduling.AudienceStrength(audienceOrders, nationalSingleOrders);
-							float waitingPriority = followUpScheduling ? ProgrammeFollowUpScheduling.WaitingPriority(format, age, hot, audienceStrength) : 0f;
+							float waitingPriority = followUpScheduling ? ProgrammeFollowUpScheduling.WaitingPriority(format, age, hot, audienceStrength, HitActCadence.DueWeeksFor(label)) : 0f;
 							float score = attention + waitingPriority + a.GetCareerPriority() + a.momentum + a.contractRegionalBreakouts * .1f + contribution +
 								Math.Min(1f, age / 52f) + obligations * .1f + (float)ProgrammeRoll(label, a, id, week, 1) * (.5f - label.scoutingAbility * .25f);
 							var read = audit == null ? null : new ProgrammeCandidateAudit {
@@ -383,7 +384,7 @@ public partial class CompetitorManager {
 			bool hot = HitActCadence.WeeksSinceTop40(artist, pipelineWeek) <= HitActCadence.HotWindowWeeks;
 			float audience = MediaFollowerDemand.Causal ? ProgrammeFollowUpScheduling.AudienceStrength(
 				ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(artist.artistId)), national) : 0f;
-			return ProgrammeFollowUpScheduling.WorkPriority(gap, hot, audience);
+			return ProgrammeFollowUpScheduling.WorkPriority(gap, hot, audience, HitActCadence.DueWeeksFor(label));
 		}, idle);
 	}
 
@@ -547,6 +548,9 @@ public partial class CompetitorManager {
 		float factored = 0f;
 		if (unreserved < production + marketing + pressing)
 			unreserved += factored = FactorForHitFollowUp(label, artist, production + marketing + pressing - unreserved);
+		// --programme-overdraft-funding: a hot act's release may draw the label's unused receivable-backed overdraft. 0 when off.
+		if (unreserved < production + marketing + pressing && ProgrammeFundingRelief.OverdraftFunding && IsHotProgrammeAct(artist, pipelineWeek))
+			unreserved += ProgrammeFundingRelief.Draw(production + marketing + pressing - unreserved, label.cashReserves, label.outstandingWholesaleReceivables);
 		if (unreserved < production + marketing + pressing) {
 			var parts = OnProgrammeCashShortfall != null ? LabelCorporateModel.TaxAndServiceParts(label) : default;
 			if (OnProgrammeCashShortfall != null && LabelReleaseProgramme.UsesWorkBudget(label))

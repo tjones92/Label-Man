@@ -39,6 +39,20 @@ public static class SingleCommercialFit {
 	public const string PushWeightPrefix = "--single-commercial-fit-push-weight=";
 	/// <summary>Campaign push of a typical Independent, where the hit share applies as given.</summary>
 	public const float PushReference = .35f;
+	/// <summary>How far the act's own recent chart record moves the kink, in standard deviations (MajorShareRootCauseHandoff.md).
+	/// The record is the recency of the act's last Top 40, 0.5^(weeks / <see cref="ActRecordHalfLifeWeeks"/>), zero past
+	/// <see cref="ActRecordWindowWeeks"/>; captured at launch and saved, so a proven hitmaker's follow-up is a safer bet
+	/// without counting label and campaign awareness a second time. Off (0) captures and reads nothing.</summary>
+	public const string ActRecordWeightPrefix = "--single-commercial-fit-act-record-weight=";
+	public const int ActRecordHalfLifeWeeks = 26;
+	public const int ActRecordWindowWeeks = 104;
+	/// <summary>With the act-record weight: the act record raises only the odds of connecting. A connected draw's size is
+	/// measured from the kink without the act term, so a draw between the two kinks sells at the just-connected level.
+	/// Without it, the whole kink moves, which under a wide upside also multiplies every connected draw (fit208-v2).</summary>
+	public const string ActRecordOddsOnlySwitch = "--single-commercial-fit-act-record-odds-only";
+	/// <summary>Most a draw above the kink can lift the national log, so luck decides which records connect but not how far
+	/// past a just-connected record they sell. Off (0) leaves the upside unbounded as before.</summary>
+	public const string UpsideCapPrefix = "--single-commercial-fit-upside-cap=";
 	private const uint NationalDecision = 0x43460000U;
 	private const uint RegionalDecision = 0x43460100U;
 	private const string NationalKey = "national";
@@ -52,6 +66,9 @@ public static class SingleCommercialFit {
 	public static float PushWeight { get; private set; }
 	public static float Floor { get; private set; }
 	public static float OwnNormalization { get; private set; }
+	public static float ActRecordWeight { get; private set; }
+	public static float UpsideCap { get; private set; }
+	public static bool ActRecordOddsOnly { get; private set; }
 	private static double kink, logNormalizer;
 	/// <summary>Regional sync §9s: the most an unexposed region reads of the national log, the reference launch's median
 	/// draw, so a connected record sells there at the flop level and a flop is unchanged.</summary>
@@ -72,6 +89,15 @@ public static class SingleCommercialFit {
 		PushWeight = Read(args, PushWeightPrefix, 0f, 0f, 20f);
 		Floor = Read(args, FloorPrefix, 0f, 0f, 1f);
 		OwnNormalization = Read(args, OwnNormalizationPrefix, 0f, 0f, 1f);
+		ActRecordWeight = Read(args, ActRecordWeightPrefix, 0f, 0f, 5f);
+		UpsideCap = Read(args, UpsideCapPrefix, 0f, 0f, 10f);
+		if ((ActRecordWeight > 0f || UpsideCap > 0f) && HitShare >= 1f)
+			throw new ArgumentException(ActRecordWeightPrefix + " and " + UpsideCapPrefix + " need the kinked fit (" + HitSharePrefix + ").");
+		ActRecordOddsOnly = args.Contains(ActRecordOddsOnlySwitch);
+		if (ActRecordOddsOnly && (ActRecordWeight <= 0f || OwnNormalization > 0f))
+			throw new ArgumentException(ActRecordOddsOnlySwitch + " needs " + ActRecordWeightPrefix + " and no own-normalization.");
+		if (ActRecordWeight > 0f && !HitActCadence.ClockEnabled)
+			throw new ArgumentException(ActRecordWeightPrefix + " reads the hit-act Top 40 clock (--known-act-airplay or a hit-act cadence switch).");
 		if (!Enabled && (Scale != 1f || HitShare != 1f))
 			throw new ArgumentException(ScalePrefix + " and " + HitSharePrefix + " require " + SigmaPrefix + ".");
 		Prepare();
@@ -79,9 +105,10 @@ public static class SingleCommercialFit {
 	}
 
 	internal static void SetForChecks(float sigma, float regionalSigma, float scale, ulong checkSeed, float hitShare = 1f, float upside = 0f,
-		float launchWeight = 0f, float pushWeight = 0f, float floor = 0f, float ownNormalization = 0f) {
+		float launchWeight = 0f, float pushWeight = 0f, float floor = 0f, float ownNormalization = 0f, float actRecordWeight = 0f, float upsideCap = 0f, bool actRecordOddsOnly = false) {
 		configured = true; Sigma = sigma; RegionalSigma = regionalSigma; Scale = scale; seed = checkSeed;
-		HitShare = hitShare; UpsideSigma = upside; LaunchWeight = launchWeight; PushWeight = pushWeight; Floor = floor; OwnNormalization = ownNormalization; Prepare();
+		HitShare = hitShare; UpsideSigma = upside; LaunchWeight = launchWeight; PushWeight = pushWeight; Floor = floor; OwnNormalization = ownNormalization;
+		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; Prepare();
 	}
 
 	/// <summary>Kink at the (1 - hit share) normal quantile for a launch at the reference awareness.</summary>
@@ -97,8 +124,15 @@ public static class SingleCommercialFit {
 		if (Floor > 0f) UnexposedCapLog = Math.Max(UnexposedCapLog, Math.Log(Floor));
 	}
 
-	private static double LogMean(double k) => Math.Log(Math.Exp(-Sigma * k + .5d * Sigma * Sigma) * NormalCdf(k - Sigma)
-		+ Math.Exp(-UpsideSigma * k + .5d * UpsideSigma * UpsideSigma) * (1d - NormalCdf(k - UpsideSigma)));
+	private static double LogMean(double k) {
+		if (UpsideCap <= 0f || UpsideSigma <= 0f) return Math.Log(Math.Exp(-Sigma * k + .5d * Sigma * Sigma) * NormalCdf(k - Sigma)
+			+ Math.Exp(-UpsideSigma * k + .5d * UpsideSigma * UpsideSigma) * (1d - NormalCdf(k - UpsideSigma)));
+		// Capped upside: exp(U (z - k)) up to z = k + cap / U, exp(cap) beyond.
+		double top = k + UpsideCap / UpsideSigma;
+		return Math.Log(Math.Exp(-Sigma * k + .5d * Sigma * Sigma) * NormalCdf(k - Sigma)
+			+ Math.Exp(-UpsideSigma * k + .5d * UpsideSigma * UpsideSigma) * (NormalCdf(top - UpsideSigma) - NormalCdf(k - UpsideSigma))
+			+ Math.Exp(UpsideCap) * (1d - NormalCdf(top)));
+	}
 
 	/// <summary>
 	/// Log of the national factor. A stronger launch (artist recognition, campaign, label standing, all in launch
@@ -110,11 +144,15 @@ public static class SingleCommercialFit {
 	/// reference normalizer alone moved a fifth to a third of small labels' units to Majors; own-normalization
 	/// blends the two in log space.
 	/// </summary>
-	internal static double National(double z, float launchAwareness, float push) {
+	internal static double National(double z, float launchAwareness, float push, float actRecord = 0f) {
 		if (HitShare >= 1f) return Lognormal(Sigma, z);
 		double k = kink - LaunchWeight * (launchAwareness - LaunchReference) - PushWeight * (push - PushReference);
+		double sizeKink = k;
+		if (ActRecordWeight > 0f) { k -= ActRecordWeight * actRecord; if (!ActRecordOddsOnly) sizeKink = k; }
 		double normalizer = OwnNormalization > 0f ? logNormalizer + OwnNormalization * (LogMean(k) - logNormalizer) : logNormalizer;
-		double log = (z < k ? Sigma * (z - k) : UpsideSigma * (z - k)) - normalizer;
+		double above = UpsideSigma * Math.Max(0d, z - sizeKink);
+		if (UpsideCap > 0f) above = Math.Min(above, UpsideCap);
+		double log = (z < k ? Sigma * (z - k) : above) - normalizer;
 		return Floor > 0f ? Math.Max(log, Math.Log(Floor)) : log;
 	}
 
@@ -152,11 +190,28 @@ public static class SingleCommercialFit {
 	/// awareness. Keyed, so reading it draws nothing.</summary>
 	public static (double Z, float Push) NationalInputs(RecordRuntimeData record, AILabel label) =>
 		(Normal(record.baseRecord.recordId, NationalKey, NationalDecision),
-			ChartSimulator.GetCampaignImpact(label) * RecordCampaignSpend.PushFactor(record));
+			ActEarnedCampaignImpact.Apply(ChartSimulator.GetCampaignImpact(label), record.baseRecord.recordId) * RecordCampaignSpend.PushFactor(record));
 
 	private static double RawNationalLog(RecordRuntimeData record, AILabel label) {
-		float push = ChartSimulator.GetCampaignImpact(label) * RecordCampaignSpend.PushFactor(record);
-		return National(Normal(record.baseRecord.recordId, NationalKey, NationalDecision), record.initialLaunchAwareness, push);
+		float push = ActEarnedCampaignImpact.Apply(ChartSimulator.GetCampaignImpact(label), record.baseRecord.recordId) * RecordCampaignSpend.PushFactor(record);
+		return National(Normal(record.baseRecord.recordId, NationalKey, NationalDecision), record.initialLaunchAwareness, push,
+			record.actChartRecordAtLaunch ?? 0f);
+	}
+
+	/// <summary>Recency of the act's last Top 40 at <paramref name="week"/>: 1 that week, halving every
+	/// <see cref="ActRecordHalfLifeWeeks"/>, 0 past <see cref="ActRecordWindowWeeks"/> or never. An opening career's last
+	/// pre-1960 Top 40 counts from mid-year (<see cref="HitActCadence.WeeksSinceTop40"/>).</summary>
+	internal static float ActRecord(SimulatedArtist artist, int week) {
+		if (artist == null) return 0f;
+		int age = HitActCadence.WeeksSinceTop40(artist, week);
+		return age > ActRecordWindowWeeks ? 0f : (float)Math.Pow(.5d, age / (double)ActRecordHalfLifeWeeks);
+	}
+
+	/// <summary>Freezes the act's chart record on a live AI single at launch; off, or already captured, does nothing.</summary>
+	public static void CaptureActRecord(RecordRuntimeData record, SimulatedArtist artist, int week) {
+		if (ActRecordWeight <= 0f || record?.baseRecord == null || record.actChartRecordAtLaunch.HasValue) return;
+		if (record.baseRecord.format != ReleaseFormat.Single || !Applies(record) || week <= 0) return;
+		record.actChartRecordAtLaunch = ActRecord(artist, week);
 	}
 
 	private static float Evaluate(RecordRuntimeData record, string regionId, AILabel label, bool applyHitSupport) {

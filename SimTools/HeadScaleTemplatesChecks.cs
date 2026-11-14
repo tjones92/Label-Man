@@ -7,7 +7,8 @@ using Godot;
 public static class HeadScaleTemplatesChecks {
 	public static void Run() {
 		void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("Head-scale templates: " + why); }
-		bool was = HeadScaleTemplates.Enabled;
+		bool was = HeadScaleTemplates.Enabled, studioWas = StudioParentLabels.Enabled;
+		StudioParentLabels.SetEnabledForChecks(false);
 		string[] added = { "MGM", "ABC-Paramount", "Warner Bros." };
 		string[] head = { "MGM", "ABC-Paramount", "Warner Bros.", "Cameo-Parkway" };
 		List<AILabel> Generate(bool on) { HeadScaleTemplates.SetEnabledForChecks(on); GameRandom.Seed(17017); return AILabelFactory.GenerateAllLabels(600); }
@@ -80,9 +81,44 @@ public static class HeadScaleTemplatesChecks {
 				veeJay.distributionRegions.Length <= 5, $"Vee-Jay must be a standard MidTier ({(veeJay == null ? "missing" : Traits(veeJay))})");
 			Check(on.Count(l => l.tier == LabelTier.Major && l.isHistorical) == off.Count(l => l.tier == LabelTier.Major && l.isHistorical),
 				"the switch must not add a Major");
+			// --head-scale-upgrades with --studio-parent-labels: the three upgrades exactly as under the full switch, the studio
+			// firms at their own standard envelope with parents, nothing else changed.
+			HeadScaleTemplates.SetEnabledForChecks(false);
+			StudioParentLabels.SetEnabledForChecks(true);
+			GameRandom.Seed(17017); var studio = AILabelFactory.GenerateAllLabels(600);
+			HeadScaleTemplates.SetUpgradesForChecks(true);
+			GameRandom.Seed(17017); var upgraded = AILabelFactory.GenerateAllLabels(600);
+			Check(upgraded.Count == 600, "upgrades must keep 600 labels");
+			for (int i = 0; i < 5; i++) Check(Traits(upgraded[i]) == Traits(studio[i]), $"upgrades must leave the Big-5 ({studio[i].labelName}) unchanged");
+			AILabel Upgrade(List<AILabel> labels, string name) => labels.SingleOrDefault(l => l.isHistorical &&
+				(l.labelName == name || l.labelName.StartsWith(name + " ", StringComparison.Ordinal)));
+			string Kind(AILabel l) => $"{l.tier}|{l.archetype}|{string.Join(",", l.preferredGenres)}|{l.distributionRegions.Length}";
+			foreach (string name in new[] { "Cameo-Parkway", "Liberty", "Vee-Jay" })
+				Check(Upgrade(upgraded, name) != null && Kind(Upgrade(upgraded, name)) == Kind(Named(on, name)),
+					$"{name} must take the same upgrade as under the full switch");
+			AILabel cameo = Upgrade(upgraded, "Cameo-Parkway");
+			Check(cameo.budgetLevel >= 0.78f && cameo.nationalReach >= 0.75f && cameo.distributionRegions.Length >= 6,
+				$"Cameo-Parkway must draw the head envelope ({Traits(cameo)})");
+			foreach (string name in new[] { "MGM", "ABC-Paramount", "Warner Bros.", "United Artists", "Dot" }) {
+				AILabel s = Upgrade(upgraded, name);
+				Check(s != null && s.studioParent != null && s.tier == LabelTier.MidTier && s.distributionRegions.Length <= 5,
+					$"{name} must stay a standard-envelope studio label with a parent");
+			}
+			Check(!AILabelFactory.IsHeadScaleUpgradeTemplate(Upgrade(upgraded, "MGM").labelName), "MGM is not an upgrade template");
+			AILabel lib2 = Upgrade(upgraded, "Liberty"), mgm2 = Upgrade(upgraded, "MGM");
+			int libMonths = lib2.monthsActive, mgm2Months = mgm2.monthsActive;
+			try {
+				lib2.monthsActive = 0; mgm2.monthsActive = 0;
+				Check(HeadScaleTemplates.HoldsMajorPromotion(lib2), "an upgraded firm must be held in its first year");
+				Check(!HeadScaleTemplates.HoldsMajorPromotion(mgm2), "the upgrade hold must not cover the studio firms (they have their own)");
+				HeadScaleTemplates.SetUpgradesForChecks(false);
+				Check(!HeadScaleTemplates.HoldsMajorPromotion(lib2), "the hold must be off with the upgrades off");
+			} finally { lib2.monthsActive = libMonths; mgm2.monthsActive = mgm2Months; }
 			GD.Print("HEAD_SCALE_TEMPLATES_CHECK passed");
 		} finally {
 			HeadScaleTemplates.SetEnabledForChecks(was);
+			HeadScaleTemplates.SetUpgradesForChecks(false);
+			StudioParentLabels.SetEnabledForChecks(studioWas);
 		}
 	}
 }

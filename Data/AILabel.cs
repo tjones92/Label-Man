@@ -257,6 +257,9 @@ public partial class AILabel : Resource {
 	/// can grow into the capacity its promotion granted. That was measured at 522 weeks and
 	/// breaches the album-project gate — see D7LabelPopulationChartCapacityHandoff.</summary>
 	public bool hasEarnedTierPromotion;
+	/// <summary>--earned-campaign-impact (EarnedCampaignImpact): the share of the gap between the label's founding campaign
+	/// impact and the earned ceiling that its recent chart record has bought, 0-1. Zero when the switch is off.</summary>
+	public float earnedCampaignShare;
 	public int runtimeBirthWeek;
 	public int runtimeBirthYear;
 	public int runtimeBirthMonth;
@@ -581,7 +584,7 @@ public partial class AILabel : Resource {
 		if (roster == null || roster.Count == 0) return null;
 		// --hit-act-cadence (§17x): a hit act due its follow-up single takes the roll ahead of the lottery. Off: never read.
 		if (HitActCadence.LaneEnabled && !isPlayerOwned) {
-			SimulatedArtist due = HitActCadence.PickDue(roster.Where(a => IsEligibleForRelease(a, currentYear)));
+			SimulatedArtist due = HitActCadence.PickDueFor(roster.Where(a => IsEligibleForRelease(a, currentYear)), HitActCadence.DueWeeksFor(this));
 			HitActCadence.MarkPick(due != null);
 			if (due != null) return due;
 		}

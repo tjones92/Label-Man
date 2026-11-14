@@ -164,6 +164,8 @@ public class RecordRuntimeData {
 	// Optional launch-time state for --hit-act-fit-floor. Null on old saves/off; 0 is a captured cold launch.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public float? hitActFitFloorAtLaunch;
+	/// <summary>SingleCommercialFit act-record kink: recency of the act's last Top 40 at launch; null when off.</summary>
+	public float? actChartRecordAtLaunch;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public FanReleaseAudience fanAudience;
 

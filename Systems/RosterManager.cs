@@ -436,7 +436,7 @@ public partial class RosterManager : Node {
 		// seeded roster does not reach its expiry cliff all at once. signedYear is already
 		// backdated up to five years above.
 		artist.contractExpiresYear = Mathf.Max(year + 1, artist.signedYear + artist.contractLength);
-		artist.contractExpiresWeek = (artist.contractExpiresYear - year) * 52;
+		artist.contractExpiresWeek = StaggeredOpeningContracts.ExpiryWeek(artist.artistId, artist.contractExpiresYear, year);
 		artist.weeksSinceLastRelease = (int)GameRandom.RandRange(0, 52);
 		
 		if (GameRandom.Randf() < 0.3f) {

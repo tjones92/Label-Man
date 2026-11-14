@@ -121,7 +121,8 @@ public static class RegionalAudience {
 		int age = Math.Max(1, record.weeksSinceRelease);
 		foreach (var pair in record.regionalData) {
 			RegionalRecordData data = pair.Value;
-			if (label.HasDistributionInRegionForRecord(pair.Key, record.baseRecord.recordId) ||
+			// --label-blind-launch=foot: no region is held. Off: InFoot is false.
+			if (LabelBlindLaunch.InHold || LabelBlindLaunch.Opened(pair.Key) || label.HasDistributionInRegionForRecord(pair.Key, record.baseRecord.recordId) ||
 				(label.strongRegions != null && Array.IndexOf(label.strongRegions, pair.Key) >= 0) || pair.Key == home) {
 				// A caller may reseed promotion after the initial chart registration.
 				// The current seed replaces the previous one; stale held state must not survive it.
@@ -208,10 +209,12 @@ public static class RegionalAudience {
 		if (data == null || !data.awaitingArrival) return;
 		int trigger =
 			label?.HasDistributionInRegionForRecord(data.regionId, record.baseRecord?.recordId) == true ? 4
-			: record.currentPosition >= 1 && record.currentPosition <= ArrivalChartDepth ? 0
+			: record.currentPosition >= 1 && record.currentPosition <= LabelFootprintParity.ArrivalChartDepth ? 0
 			: data.neighboringMarketTestStrength >= ArrivalTestMarketStrength ? 1
 			: data.breakoutScore > ArrivalBreakoutScore ? 2
 			: ChartSimulator.GetRackJobberAccess(0, data.peakBreakoutScore) > 0f ? 3
+			// --connected-arrival: a connected single reaches a fit-exposed region on a distributor's lag. Off: never fires.
+			: FootprintCraftSoftening.Arrives(record, data, label) ? 5
 			: -1;
 		if (trigger < 0) return;
 		int age = Math.Max(1, record.weeksSinceRelease);
@@ -229,12 +232,13 @@ public static class RegionalAudience {
 	}
 	// Console diagnostics only (no CSV reads them).
 	private static int arrivedAtLaunch, held;
-	private static readonly int[] arrivalsByTrigger = new int[5];
+	private static readonly int[] arrivalsByTrigger = new int[6];
 	private static long arrivalAgeSum;
-	private static int ArrivalCount() => arrivalsByTrigger[0] + arrivalsByTrigger[1] + arrivalsByTrigger[2] + arrivalsByTrigger[3] + arrivalsByTrigger[4];
+	private static int ArrivalCount() => arrivalsByTrigger[0] + arrivalsByTrigger[1] + arrivalsByTrigger[2] + arrivalsByTrigger[3] + arrivalsByTrigger[4] + arrivalsByTrigger[5];
 	private static void PrintArrival() =>
 		Godot.GD.Print($"REGIONAL_ARRIVAL atLaunch={arrivedAtLaunch} held={held} chart={arrivalsByTrigger[0]} " +
 			$"test={arrivalsByTrigger[1]} breakout={arrivalsByTrigger[2]} rack={arrivalsByTrigger[3]} distribution={arrivalsByTrigger[4]} " +
+			(FootprintCraftSoftening.ConnectedArrival ? $"connected={arrivalsByTrigger[5]} " : "") +
 			$"meanAge={arrivalAgeSum / (double)Math.Max(1, ArrivalCount()):F2}");
 
 	public static void ApplyLaunchProbe(RecordRuntimeData record, AILabel label) {

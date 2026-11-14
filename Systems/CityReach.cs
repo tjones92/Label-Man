@@ -66,7 +66,8 @@ public static class CityReach {
 		var state = new State { Exposure = new float[places.Count] };
 		for (int i = 0; i < places.Count; i++) {
 			string region = places[i].RegionId;
-			bool territory = label.HasDistributionInRegionForRecord(region, record.baseRecord.recordId) ||
+			// --label-blind-launch=foot: every city is in the launch territory. Off: InFoot is false.
+			bool territory = LabelBlindLaunch.InCity || LabelBlindLaunch.Opened(region) || label.HasDistributionInRegionForRecord(region, record.baseRecord.recordId) ||
 				(label.strongRegions != null && Array.IndexOf(label.strongRegions, region) >= 0);
 			bool near = home != null && (places[i].CityId == home ||
 				DistanceModel.GetRoadMilesBetween(home, places[i].CityId) <= LaunchRadiusMiles);

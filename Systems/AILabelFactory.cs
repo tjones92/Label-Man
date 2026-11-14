@@ -156,6 +156,11 @@ public static class AILabelFactory {
 				GD.Print($"HEAD_SCALE_TEMPLATE id={label.labelId} name={label.labelName} tier={label.tier} archetype={label.archetype} " +
 					$"impact={ChartSimulator.GetCampaignImpact(label):F3} reach={label.nationalReach:F3} distribution={label.distributionStrength:F3} " +
 					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
+		} else if (HeadScaleTemplates.UpgradesEnabled) {
+			foreach (var label in labels.Where(l => l.isHistorical && IsHeadScaleUpgradeTemplate(l.labelName)))
+				GD.Print($"HEAD_SCALE_UPGRADE id={label.labelId} name={label.labelName} tier={label.tier} archetype={label.archetype} " +
+					$"impact={ChartSimulator.GetCampaignImpact(label):F3} reach={label.nationalReach:F3} distribution={label.distributionStrength:F3} " +
+					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
 		}
 
 		if (StudioParentLabels.SeedsTemplates) {
@@ -182,8 +187,13 @@ public static class AILabelFactory {
 		!string.IsNullOrEmpty(labelName) && headScaleTemplates.Select(t => t.baseName).Concat(headScaleUpgrades.Keys)
 			.Any(name => labelName == name || labelName.StartsWith(name + " ", System.StringComparison.Ordinal));
 
+	/// <summary>True for the three templates --head-scale-upgrades changes in place (Cameo-Parkway, Liberty, Vee-Jay).</summary>
+	internal static bool IsHeadScaleUpgradeTemplate(string labelName) =>
+		!string.IsNullOrEmpty(labelName) && headScaleUpgrades.Keys
+			.Any(name => labelName == name || labelName.StartsWith(name + " ", System.StringComparison.Ordinal));
+
 	private static AILabel CreateFromTemplate(LabelTemplate template, LabelTier defaultTier, ref int idCounter) {
-		if (HeadScaleTemplates.Enabled && headScaleUpgrades.TryGetValue(template.baseName, out var upgrade)) template = upgrade;
+		if (HeadScaleTemplates.UpgradesEnabled && headScaleUpgrades.TryGetValue(template.baseName, out var upgrade)) template = upgrade;
 		var label = new AILabel();
 		LabelTier tier = template.tier ?? defaultTier;
 		idCounter++;
@@ -260,6 +270,9 @@ public static class AILabelFactory {
 		};
 		if (headScale) (budgetMin, budgetMax, marketingMin, marketingMax, distributionMin, distributionMax, reachMin, reachMax) =
 			(0.78f, 1.00f, 0.70f, 0.98f, 0.75f, 1.00f, 0.75f, 1.00f);
+		// --major-craft-parity: a Major draws scouting and production from the MidTier envelope. Same draws, off: unchanged.
+		if (LabelFootprintParity.CraftParity && tier == LabelTier.Major)
+			(scoutingMin, scoutingMax, productionMin, productionMax) = (0.54f, 0.90f, 0.55f, 0.90f);
 
 		label.budgetLevel = (float)GameRandom.RandRange(budgetMin, budgetMax);
 		label.marketingPower = (float)GameRandom.RandRange(marketingMin, marketingMax);
