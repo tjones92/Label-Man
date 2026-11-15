@@ -43,6 +43,13 @@ public static class GameyAuditSwitchChecks {
 				Check(fresh >= 105 && fresh <= 156 && (fresh - w) % 52 == 0, "a 1960 signing is dated in the year before the opening");
 			}
 
+			// LP buyer word of mouth.
+			LpBuyerWordOfMouth.SetForChecks(0f);
+			Check(!LpBuyerWordOfMouth.Enabled && LpBuyerWordOfMouth.Reach(0) == 1f, "off must leave word of mouth whole");
+			LpBuyerWordOfMouth.SetForChecks(10000f);
+			Check(LpBuyerWordOfMouth.Reach(0) == 0f && Near(LpBuyerWordOfMouth.Reach(10000), 0.5f) && LpBuyerWordOfMouth.Reach(1000000) > 0.98f, "no buyers no talk; K buyers half");
+			LpBuyerWordOfMouth.SetForChecks(0f);
+
 			// Renewal earned option.
 			Check(!RenewalEarnedOption.Decide(5000f, 0, 1f, 1000f), "an act never released under the deal lapses");
 			Check(RenewalEarnedOption.Decide(0f, 2, 0f, 1000f) && RenewalEarnedOption.Decide(1f, 1, 0f, 0f), "a deal that broke even or paid is renewed");

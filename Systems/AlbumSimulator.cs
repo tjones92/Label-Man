@@ -69,7 +69,10 @@ public static class AlbumSimulator {
 		// A5 counterfactual: the same headroom-proportional growth from the bonus-free start.
 		if (record.promoShadowAwareness is float shadow)
 			record.promoShadowAwareness = Mathf.Clamp(shadow + organicRate * (1f - shadow), 0f, 1f);
-		float targetWom = Mathf.Pow(appeal, 2f) * 0.62f + record.momentum * 0.25f;
+		float appealTalk = Mathf.Pow(appeal, 2f) * 0.62f;
+		// --lp-buyer-word-of-mouth: talk comes from people who bought it. Off: not read.
+		if (LpBuyerWordOfMouth.Enabled) appealTalk *= LpBuyerWordOfMouth.Reach(record.totalUnitsSold);
+		float targetWom = appealTalk + record.momentum * 0.25f;
 		record.wordOfMouth = Mathf.Lerp(record.wordOfMouth, Mathf.Max(0f, targetWom), 0.12f);
 		// Album demand is not radio-led; retain only a small promotional proxy.
 		record.radioHeat = Mathf.Lerp(record.radioHeat, 0.05f * campaign, 0.18f);

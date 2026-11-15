@@ -252,3 +252,30 @@ public static class RenewalEarnedOption {
 		artist.contractNetStartWeek = currentWeek;
 	}
 }
+
+/// <summary>
+/// --lp-buyer-word-of-mouth=K (audit §2.4 follow-up). An LP's word of mouth targets appeal² x 0.62 + momentum x 0.25
+/// (AlbumSimulator.UpdateAlbum) whether or not anyone has bought it, and it lifts both the purchase conversion
+/// (0.72 + wom x 0.45) and regional awareness growth. With the switch on the appeal term is scaled by the LP's buyer reach,
+/// units / (units + K): an LP nobody bought makes no talk, and one that has sold K copies makes half. Momentum (already
+/// sales-driven) is untouched. Off: never read.
+/// </summary>
+public static class LpBuyerWordOfMouth {
+	public const string Switch = "--lp-buyer-word-of-mouth";
+	private static bool read;
+	private static float halfReach;
+	public static bool Enabled { get { Read(); return halfReach > 0f; } }
+	private static void Read() {
+		if (read) return;
+		halfReach = GameyAuditArguments.Value(Switch, 1f, 10000000f) ?? 0f;
+		read = true;
+	}
+	internal static void SetForChecks(float value) { read = true; halfReach = value; }
+
+	public static float Reach(long unitsSold) {
+		Read();
+		if (halfReach <= 0f) return 1f;
+		double units = Math.Max(0L, unitsSold);
+		return (float)(units / (units + halfReach));
+	}
+}

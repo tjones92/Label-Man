@@ -227,8 +227,98 @@ Control `cand-v1-{2002,1001}-off` = the adopted candidate (`candidate-request.js
     switch it lets those acts go, cannot afford to sign anyone, and folds. That fits *closures must be earned*.
   - It is not renewal advances: labels that later went bankrupt renewed 3 / 2 acts under the switch against 15 / 25
     in the control.
-- **Verdict: adoptable.** Recheck exits in the decade A/B.
+- **Adopted 2026-11-15** (in `candidate-request.json`). Recheck exits in the decade A/B.
 - Major-family chart share moves −3 / +6 points in 1961, which is reshuffle noise.
+
+### 2.7 Hit LPs against the 0.5–2M No. 1 LP anchor (2026-11-15) — the full-price hit side is inside it
+
+Analysis only, on `rg10-v1-{2002,1001}` (208 weeks), LPs launched in the run (opening catalogue excluded). Per title:
+store units (`release-outcomes` / `live-records-snapshot`), rack units (`rack-title-weekly` `units`) and budget
+reissues of the title's own master (`budget-product-catalogue`, `sourceId`). Record clubs are logged by label only, so
+are not in a title's total.
+
+- **Full-price sales are inside the anchor.** The biggest launched LPs sell 450–550k in stores and 230–280k on racks,
+  so 0.7–0.8M at full price, inside 0.5–2M. The "top LP 204–207k a year" in finding 2 counted stores only, so the
+  hit side does not need raising for the anchor. (Finding 2's flat top-10% share still stands.)
+- **Budget reissues of current hits (new finding).** `BudgetLpChannel` offers a budget edition of any own master at
+  `HoldbackWeeks` = 52, ranked by `Appeal = record.totalUnitsSold`. Every hit master (store ≥ 100k, 390 / 407 titles)
+  is reissued exactly 51 weeks after launch. The biggest budget editions sell 1.6–2.0M, up to 4× their full-price
+  LP, and budget products total 58–61M units over four years. Budget lines (Camden, Harmony, Pickwick) reissued
+  catalogue several years old and kept current hits at full price, so these are not period-faithful.
+  Pattern 4/5 (a gate at 52 weeks with a hit-proportional draw).
+- **Racks sell Classical at 4–10× store sales.** The top rack titles on both seeds are Classical (one at 2.85M rack
+  against 337k in stores, one at 3.1M against 577k). Racks carry 25 hits and 50 catalogue titles a region ranked by store
+  sales (`RackJobberChannel`), so a long-lived catalogue title keeps a rack slot for years. Traced in 2.8.
+- **Consequence for the LP screens.** Any recalibration of LP volume should hold stores plus racks on the full-price
+  product and leave the budget and rack anomalies to their own fixes; otherwise lost store units would be made up from
+  budget reissues of hits.
+
+### 2.8 LP model against period sources (2026-11-15)
+
+Research pass on the LP channels. Model figures are `rg10-v1-{2002,1001}` unless named.
+
+**Channel totals are close.** 1961: stores 66M, front-line racks 34M, budget 17M, clubs 45M = 162M, against
+Billboard's 173M (stores 68, racks 60, clubs and mail order 45; memory `billboard-1966-buyers-guide-market-totals`).
+Clubs are exact. Racks plus budget are 51M against 60M.
+
+**A. Budget reissues of current hits — not period practice (high).**
+- Sources:
+  - [Budget album (Wikipedia)](https://en.wikipedia.org/wiki/Budget_album): Harmony "seldom issued material that had not
+    been previously released". RCA Camden re-released "older recordings by currently popular artists" and "vintage
+    material from previous decades". Pickwick licensed Capitol's "secondary and noncurrent titles". Crown, Tops and
+    Somerset used pseudonymous studio groups and sound-alikes.
+  - A 1958 Harmony LP reissued a 1954 Columbia choir LP (ARSC list, via the
+    [Harmony Records](https://en.wikipedia.org/wiki/Harmony_Records) search).
+  - The Capitol Pickwick series of 1966–70 ([bsnpubs](https://mail.bsnpubs.com/capitol/previews/pickwick-capitol.pdf))
+    repackaged Sinatra's 1953–61 Capitol material and Wayne Newton's 1963–65 sides "in sliced and diced form", not the
+    hit LP as issued. The Sinatra and Newton dates are the author's knowledge, not the PDF's.
+  - Budget LPs were 21% of NARM members' LP dollars in 1962 (`SimTools/RackJobberChannelDesign.md`).
+- No source found states a holdback rule. The pattern is noncurrent, secondary or several-years-old material,
+  repackaged, priced at $1.49–1.98 against $3.98.
+- Model: `BudgetLpChannel.HoldbackWeeks` = 52 and product appeal = the source LP's lifetime units, both labelled scenario
+  assumptions in `SimTools/BudgetLpProducts.md`. Every hit master is reissued 51 weeks after launch, and the biggest
+  budget editions outsell their full-price LP up to 4×. Total budget volume (about 15–20M a year) is about right; the
+  selection is wrong.
+- Proposed fix: budget products draw on noncurrent catalogue (a multi-year holdback, and no title still selling at
+  full price), weighted toward secondary titles rather than the best sellers. This needs an author decision on the
+  holdback (3 years is the shortest age the sources support).
+
+**B. Racks sell Classical at 4–10× store sales — implausible (high).**
+- Sources:
+  - [Cliburn's Tchaikovsky concerto](https://en.wikipedia.org/wiki/Tchaikovsky_Piano_Concerto_No._1_(Van_Cliburn_1958_recording)),
+    a 1958 No. 1 LP and a national event, was the first classical LP to reach 1M, in December 1961
+    ([Time](https://time.com/archive/6812043/records-hot-classic), [Real Time 1960s](https://realtime1960s.com/post/van-cliburn-record-goes-gold)),
+    and about 2.5M by the end of the decade.
+  - Billboard 1965 (via search) has racks carrying classical, mostly budget classics at $1.98. Rack space was about a
+    third best sellers.
+- Model: single launched Classical LPs sell 2.85M and 3.1M through racks in about two years, against 337k and 577k in
+  stores. Classical is 10.5% of rack LP units in 1962 on 2.2% of the same titles' store units.
+- Mechanism: rack demand per title is `ShopperPool × GenreWeight × exposure × conversion`, with conversion ∝ quality^2.5,
+  and each racked title sells to its own rack-shopper exhaustion ledger. The catalogue tier takes past-peak titles
+  ranked by this week's store units, so a steady high-quality title gets a slot and then sells to an unexhausted pool,
+  bounded by neither its store popularity nor a shared pool. Both are act-blind.
+- Proposed fix: bound a title's rack sales by its store standing (rack units as a share of its store units, or a
+  shared rack exhaustion ledger, as `--rack-shared-exhaustion` already offers for the budget pool), and check which
+  Classical titles racks carried (budget classics, per the 1965 source).
+
+**C. Folk over-share (known, high).** Folk is 30–42% of store LP units and 25–31% of rack units in 1960–62. The
+Kingston Trio, the boom's biggest act, was about 15–22% of Capitol's sales at its 1959–62 peak
+([folksongindex](https://folksongindex.fandom.com/wiki/The_Kingston_Trio), sources conflict). The author's year-end
+benchmark puts Folk at about 13% of the album top 50 (memory `folk-bossa-untouched-album-affinity`). The probe
+`--album-affinity=Folk=0.48,BossaNova=0.40,Jazz=0.30` cut share error on five seeds and was never adopted.
+
+**D. 1960 store LPs are a warm-up (medium).** Store LP units are 37M in 1960 against 66M in 1961; Billboard's 1961 is
+68M, and LP dollars grew modestly 1960–61. The 1960 shortfall is the empty opening catalogue.
+
+**E. Soul LP releases in 1960 (known, medium).** Soul has the most LP launches of any genre in 1960 (240), with RnB 46
+and Blues 78. Memory `soul-album-is-segment-pool-bound` and `soul-over-share-predates-rotation` cover it.
+
+**Checked, not a finding:** the LP-to-single release ratio. Independents issue 0.35–0.5 LPs per single in the model.
+Vee-Jay ran about 70 main-series LPs 1957–63 plus jazz and gospel series against about 40–50 singles a year
+([bsnpubs](https://bsnpubs.com/veejay/veejay100-1070.html)), so the ratio is plausible for an established independent.
+
+Not found and still open: classical's share of 1960 LP sales (Schickel 1960 implies about 20% of record dollars,
+unverified), Billboard's 1960 year-end LP list by genre, and budget LP unit share.
 
 ## 3. Checked and found sound
 
