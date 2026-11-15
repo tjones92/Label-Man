@@ -111,7 +111,7 @@ public static class AlbumSimulator {
 			region.GetAlbumOpportunityWeight(record.baseRecord.primaryGenre, year, genreMarketLive), genreMarketLive);
 		conversion *= formatTilt;
 		conversion *= 1f - region.distribution.difficulty * 0.25f;
-		if (genreMarketLive) conversion *= GetLiveLabelDemandScale(label?.tier);
+		if (genreMarketLive) conversion *= LpLabelDemandParity.Apply(GetLiveLabelDemandScale(label?.tier));
 		else if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;
 

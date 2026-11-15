@@ -1,0 +1,53 @@
+param(
+    [string]$Godot = 'C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe',
+    [ValidatePattern('^[a-zA-Z0-9-]+$')][string]$RunPrefix = 'lpe-v1',
+    [ValidateRange(27, 522)][int]$Weeks = 208,
+    [int]$Seed = 2002,
+    [string]$Reference = 'SimLogs/writing-calibration/rg10-v1-2002-lw0up1_ao2_lh1_he095-request.json',
+    [string[]]$Arms = @('le', 'lep')
+)
+# LP earned-demand screen (GameyBehaviorAudit.md finding 1 and 9) on the rg10 Top 10 candidate.
+# The reference is the rg10 RUN request (it carries the lw0up1/ao2/lh1/he095 arm flags the reference request lacks).
+# off = reference as is (inertness, and the control for contract-expiry telemetry), le = --lp-earned-discovery=0
+# --lp-earned-launch, lep = le + --lp-label-demand-parity, an = --anniversary-opening-contracts,
+# rc = --receivable-overdraft-charge=0.0125 (the adopted 1.25% a month against rg10's 1.5%).
+# re = --renewal-live-evidence (count live records at renewal; AI deals mature on the date only).
+# All arms in -Arms start at once and are awaited; run two at a time on a low-RAM machine.
+$ErrorActionPreference = 'Stop'
+# -File passes 'base,gap' as one string; split it and check each arm.
+$Arms = @($Arms | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're')) { throw "Unknown arm: $a" } }
+$root = Split-Path -Parent $PSScriptRoot
+Set-Location $root
+$dir = Join-Path $root 'SimLogs/writing-calibration'
+$referenceRequest = Get-Content -Raw -LiteralPath $Reference | ConvertFrom-Json
+if (@($referenceRequest.flags).Count -lt 100) { throw "Reference flags missing." }
+$assembly = Join-Path $root '.godot/mono/temp/bin/Debug/Label Man.dll'
+$assemblyHash = (Get-FileHash -LiteralPath $assembly).Hash
+$revision = (git rev-parse HEAD).Trim()
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
+$procs = @()
+foreach ($arm in $Arms) {
+    $name = "$RunPrefix-$Seed-$arm"
+    if (Get-ChildItem -LiteralPath (Join-Path $root 'SimLogs') -Filter "$name-*.csv*" | Select-Object -First 1) { throw "Run exists: $name" }
+    $flags = @($referenceRequest.flags | ForEach-Object {
+        if ($_ -like '--run=*') { "--run=$name" } elseif ($_ -like '--seed=*') { "--seed=$Seed" } elseif ($_ -like '--weeks=*') { "--weeks=$Weeks" } else { $_ }
+    })
+    if ($arm -in @('le', 'lep')) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
+    if ($arm -eq 'lep') { $flags += '--lp-label-demand-parity' }
+    if ($arm -eq 'an') { $flags += '--anniversary-opening-contracts' }
+    if ($arm -eq 'rc') { $flags += '--receivable-overdraft-charge=0.0125' }
+    if ($arm -eq 're') { $flags += '--renewal-live-evidence' }
+    $userData = Join-Path $dir "userdata-$name"
+    New-Item -ItemType Directory -Force -Path $userData | Out-Null
+    @{ flags=$flags; sourceRevision=$revision; assemblySha256=$assemblyHash; startedUtc=[datetime]::UtcNow.ToString('o') } |
+        ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dir "$name-request.json")
+    $env:APPDATA = $userData
+    if (@($flags + $root + $dir | Where-Object { $_ -match '\s' }).Count) { throw 'An argument contains whitespace.' }
+    $argList = (@('--headless', '--path', [string]$root, '--log-file', [string](Join-Path $dir "$name-engine.log"),
+        'SimTools/ChartAuditRunner.tscn', '--') + @($flags | ForEach-Object { [string]$_ })) -join ' '
+    $procs += @{ name=$name; p=(Start-Process -FilePath $Godot -ArgumentList $argList -WorkingDirectory $root -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput (Join-Path $dir "$name.log") -RedirectStandardError (Join-Path $dir "$name-errors.log")) }
+    Write-Host "Started $name"
+}
+foreach ($x in $procs) { $x.p.WaitForExit(); Write-Host "$($x.name) exit=$($x.p.ExitCode)" }

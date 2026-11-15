@@ -4330,7 +4330,7 @@ public partial class CompetitorManager : Node {
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float labelAwareness = label.reputation * 0.1f;
 		if (LabelReleaseProgramme.CapacityEnabled) labelAwareness *= ProgrammePushFactor(runtime);
-		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + labelAwareness;
+		float baseAwareness = LpEarnedLaunch.Base(0.04f, snapshot.artistAwareness) + snapshot.artistAwareness + marketingAwareness + labelAwareness;
 		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
 		// A5: the same launch without the promo's awareness bonus.
 		if (trackPromoShadow) { runtime.promoShadowAwareness = Mathf.Clamp(baseAwareness, 0f, 1f); runtime.promoShadowDemand = 0d; }
@@ -4497,7 +4497,7 @@ public partial class CompetitorManager : Node {
 		// Keep the original arithmetic when off, including its floating-point addition order.
 		runtimeData.awareness = HitActCadence.AwarenessSplitEnabled && share < 1f
 			? HitActCadence.LaunchAwareness(0.08f, artistAwareness, marketingAwareness, labelAwareness, share)
-			: Mathf.Clamp((isAlbum ? 0.04f : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
+			: Mathf.Clamp((isAlbum ? LpEarnedLaunch.Base(0.04f, artistAwareness) : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
 
 		float baseRadio = quality * 0.3f;
 		// LaunchPushSaturation is a probe on the launch reads of campaign impact only; identity unless named.

@@ -12,7 +12,11 @@ public partial class ChartAuditRunner {
 	private StreamWriter programmeChoiceWriter;
 	private StreamWriter programmeProjectWriter;
 	private StreamWriter programmeIssueRefusalWriter;
+	private StreamWriter contractExpiryWriter;
 	private void OpenReleaseProgrammeOutputs(string directory) {
+		contractExpiryWriter = CreateWriter(Path.Combine(directory, $"{runName}-contract-expiry.csv"));
+		contractExpiryWriter.WriteLine("week,year,labelId,tier,artistId,careerState,matured,outcome,wanted,renewed,contractStartWeek,contractLength,contractReleases,contractSinglesObligation,contractTop40Hits,contractChartedRecords,contractRegionalBreakouts,consecutiveFlops,weeksSinceLastRelease,top40Hits,loyalty,momentum,unrecoupedAdvance,recouped,liveEvidence");
+		RosterManager.OnContractExpiry += WriteContractExpiry;
 		if (!LabelReleaseProgramme.Enabled) return;
 		if (LabelReleaseProgramme.ProjectJudgementEnabled) {
 			programmeProjectWriter = CreateWriter(Path.Combine(directory, $"{runName}-programme-projects.csv"));
@@ -89,6 +93,10 @@ public partial class ChartAuditRunner {
 	private void WriteProgrammeResources(ProgrammeResourceTelemetry r) => programmeResourceWriter.WriteLine(string.Join(",", r.Week, r.Year,
 		Csv(r.LabelId), Csv(r.Tier), r.Attempts, r.Successes, r.OpenItems, F(r.CashReserved), F(r.PromotionPool), F(r.PromotionBooked), F(r.SingleWeeklyRate), F(r.AlbumWeeklyRate), r.DueFollowUps, r.UnplannedFollowUps, F(r.PromotionCommittedPeak),
 		r.RosterActs, r.ReleaseEligibleActs, r.ProgrammeCapacityActive ? 1 : 0, F(r.NominalSingleMonthlyCapacity), F(r.NominalAlbumMonthlyCapacity), F(r.StaffCoverage), F(r.SlotStatusFactor), F(r.SeasonalAvailability)));
+	private void WriteContractExpiry(ContractExpiryDecision r) => contractExpiryWriter?.WriteLine(string.Join(",", r.Week, r.Year, Csv(r.LabelId), r.Tier, Csv(r.ArtistId),
+		r.CareerState, r.Matured, r.Outcome, r.Wanted ? 1 : 0, r.Renewed ? 1 : 0, r.ContractStartWeek, r.ContractLength, r.ContractReleases, r.ContractSinglesObligation,
+		r.ContractTop40Hits, r.ContractChartedRecords, r.ContractRegionalBreakouts, r.ConsecutiveFlops, r.WeeksSinceLastRelease, r.Top40Hits, F(r.Loyalty), F(r.Momentum),
+		F(r.UnrecoupedAdvance), r.Recouped ? 1 : 0, r.LiveEvidence ? 1 : 0));
 	private void WriteProgrammeCashShortfall(ProgrammeCashShortfall r) => programmeCashShortfallWriter.WriteLine(string.Join(",", r.Week, Csv(r.LabelId), r.Tier, r.Status,
 		Csv(r.SlotId), Csv(r.ArtistId), r.Format, F(r.Cash), F(r.Overhead), F(r.NegativeFlowHold), F(r.PlantPayables), F(r.TaxAndService), F(r.OtherProgrammeHolds),
 		F(r.Production), F(r.Marketing), F(r.Pressing), F(r.Receivables), F(r.Factored), F(r.TaxPayable), F(r.UnprovidedTax), F(r.CommercialHold)));
@@ -144,6 +152,8 @@ public partial class ChartAuditRunner {
 		programmeIssueRefusalWriter.WriteLine(string.Join(",", week, Csv(item.Id), Csv(item.LabelId), Csv(item.ArtistId), item.Format,
 			Csv(item.Source), item.IntendedWeek, item.PaidProduction.ToString("R", CultureInfo.InvariantCulture), Csv(gate)));
 	private void CloseReleaseProgrammeOutputs() {
+		RosterManager.OnContractExpiry -= WriteContractExpiry;
+		contractExpiryWriter?.Dispose(); contractExpiryWriter = null;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnMaterialFunnelAudit -= WriteMaterialFunnel;
 		materialFunnelWriter?.Dispose(); materialFunnelWriter = null;
 		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnProgrammeIssueRefused -= WriteProgrammeIssueRefusal;

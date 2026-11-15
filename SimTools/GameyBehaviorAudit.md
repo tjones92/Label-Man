@@ -93,6 +93,97 @@ A label whose overdraft is within 75% of its outstanding wholesale receivables i
 - No other closure class moves, so this is not a blanket rescue.
 - **Verdict: adoptable as a mechanism fix.** The share (0.75) and the charge (1.5% a month) are scenario values (open question 4). It should be re-screened with `--chart-proven-wholesale`, whose failure was this same squeeze.
 
+### 2.4 `--lp-earned-discovery=0 --lp-earned-launch` (`le`) and `+ --lp-label-demand-parity` (`lep`) on the rg10 candidate (2026-11-15)
+
+New switches in `Systems/GameyAuditSwitches.cs`: `--lp-earned-launch` scales the LP launch base (0.04, both LP launch paths
+in `CompetitorManager`) by how known the act is; `--lp-label-demand-parity` moves the LP tier constant toward 1 by the
+`--label-demand-parity` share. Runner `SimTools/run_lp_earned_screen.ps1`; control `rg10-v1-{2002,1001}` (208 weeks; the
+off arm `lpe-v1-2002-off` matches it byte for byte over 104 weeks). Lifetime units at week 208 of LPs launched weeks
+1–52 (release-outcomes `pressingBookSold` for retired titles, `live-records-snapshot` for live ones). Seed 2002 / 1001.
+
+| Metric | Control | `le` | `lep` |
+|---|---|---|---|
+| Median LP units, act's best single under 1k | 17.6k / 18.9k | **9.8k / 10.9k** | 15.0k / 18.3k |
+| Median LP units, act's best single 100k+ | 37.8k / 36.8k | 31.6k / 33.5k | 37.6k / 37.1k |
+| Median LP units, Major / Small | 96k / 10.0k; 91k / 9.4k | 64k / 4.8k; 59k / 4.2k | 38k / 9.2k; 37k / 8.6k |
+| Top 10% share of LP units | 44.3 / 43.6 | 52.8 / 50.2 | 45.7 / 44.1 |
+| Small-label share of LP units | 32.4 / 32.9 | 27.6 / 29.1 | 44.4 / 46.8 |
+| LPs losing money | 0.0% / 0.1% | 1.5% / 2.6% | 1.4% / 0.8% |
+| LP units, cohort total | 69.2M / 69.0M | 53.6M / 54.4M | 59.9M / 60.1M |
+| Record gross, 1960–63 ($M) | 364/472/499/464; 369/468/498/463 | 340/419/458/426; 343/414/467/438 | 349/429/463/437; 355/431/472/441 |
+| Bankruptcies (log) | 116 / 126 | 129 / 143 | 112 / 117 |
+
+- **`le` works in the right direction on both seeds.** It cuts an unknown act's LP by 42–44% and a hit act's by
+  9–16%, so the gap between them widens from 2.1× to 3.1–3.2×, and LP units become more concentrated (top 10% share +7–9 points).
+- **It is still not enough.** An unknown act's LP still sells about 10k and only 1.5–2.6% of LPs lose money. What is
+  left is label-side and act-blind: label reputation × 0.1 at launch, label push × 0.03 a week, regional word of mouth
+  from appeal alone (`AlbumSimulator.UpdateRegionalState`), and the purchase rate.
+- **It costs 22% of LP units and 7–11% of record gross** (the LP market is demand-led, see §2.1), and 10–14% more
+  bankruptcies. Adopting it needs the hit side raised in the same change.
+- **`lep` is rejected.** Removing the LP tier constant moves units to small labels: Major median LP −60%, small-label
+  share 44–47%, and an unknown act's LP back to 15–18k. On the LP side the tier constant is offsetting the act-blind
+  terms, not double-counting distribution.
+- **Next:** take word of mouth from buyers, not appeal, plus a decade-scale check of hit LPs against the 0.5–2M
+  No. 1 LP anchor before recalibrating volume.
+
+### 2.5 Contract expiry: telemetry and `--anniversary-opening-contracts` (2026-11-15)
+
+Observe-only `*-contract-expiry.csv` (`Systems/ContractExpiryDecision.cs`): one row per matured AI contract with the
+evidence the renewal rule read and its outcome. Byte-inert (`lpe-v1-2002-off`). Note: `re-signing` rows in
+`artist-population-events` are signings to a new label after a prior contract, not renewals, so this audit's earlier
+"97% of maturing deals are dropped" was wrong.
+
+Control `lpe-v1-2002-off`, 104 weeks, 1,358 maturities:
+- 443 renewed (33%), 822 not wanted, 87 unaffordable, 6 studio-parent bids. Renewal follows units under the deal:
+  89% of acts with 200k+ renewed, 50% at 50–200k, 16% at 10–50k.
+- **The renewal rule reads stale evidence.** 560 of the 822 non-renewals are the first-contract flop rule
+  (`RosterManager.ShouldResignArtist`: two or more sides, no Top 40, no charted record, no breakout, not recouped).
+  A record counts as charted only when its chart run ends (`SimulatedArtist.CompleteChartRun`), so a single still climbing
+  counts as nothing: acts with 430–550k-unit singles released in the last 12 weeks are dropped as flops.
+- **Delivery maturity decides too early.** A deal also matures the week its singles obligation is delivered
+  (`RosterManager.IsContractMatured`): 245 maturities, every one with a release under 12 weeks old. Example: a Major's
+  1960 signing shipped its 4th side in week 104 and was dropped in week 105, and the single peaked at #2 in week 113
+  with 864k.
+- 87 unaffordable renewals include a Star with 1.48M units under the deal.
+- **Fix screened: `--renewal-live-evidence`.** A record under the deal that is charting now, has charted, or has broken out
+  counts as evidence against the flop rule, and an AI deal matures on its date only. Runs `lpe-v1-{2002,1001}-re` against
+  `lpe-v1-{2002,1001}-off` (104 weeks; `lpe-v1-1001-off` matches `rg10-v1-1001` byte for byte, so the telemetry is inert).
+
+  | Seed 2002 / 1001 | Control | `re` |
+  |---|---|---|
+  | Maturities (deals decided) | 1,358 / 1,261 | 1,123 / 1,056 |
+  | Delivery-only maturities | 244 / 210 | 0 / 0 |
+  | Renewed | 32.6% / 31.7% | 36.2% / 31.6% |
+  | Renewed, 10–50k units under the deal | 16% / 14% | 22% / 22% |
+  | Renewed, 200k+ | 89% / 89% | 93% / 82% |
+  | Flop-rule non-renewals | 560 / – | 381 / 283 |
+  | Drops (all reasons) | 1,432 / 1,456 | 1,234 / 1,328 |
+  | Singles launched 1961 | 4,382 / 4,104 | 4,492 / 4,119 |
+  | Bankruptcies | 85 / 101 | 84 / 97 |
+
+  - Both mechanisms do what they should: no deal is decided the week its last side ships, and no act with a record on
+    the chart is dropped as a flop. Drops fall 9–14% and 1961 singles rise 0.4–2.5%; bankruptcies do not move.
+  - The 200k+ renewal rate moves −7 points on seed 1001 on about 150 acts; read as noise until a second look.
+  - **Adopted 2026-11-15** (in `candidate-request.json`). The effect is modest because two other paths remain: the loyalty
+    roll (249 / 319 non-renewals; an act that is not a flop is renewed with probability `artistLoyalty`, 0.28–0.78,
+    whatever it sold) and the cash gate (81 / 115 unaffordable, almost all first-contract acts at Independent,
+    Boutique and Small labels). The roll is the next candidate: renewal should follow recoupment or sales under
+    the deal, not a coin.
+
+`--anniversary-opening-contracts` (author's design): a seeded deal gets a signing week from the act's id and matures on
+its anniversary after its term; a deal past its term is on its yearly option and comes due on its 1960 anniversary.
+Run `lpe-v1-2002-an`, 104 weeks:
+
+| | Control | Anniversary |
+|---|---|---|
+| Busiest drop day | 746 (1 Jan 1961) | 147 (1 Aug 1960, monthly review) |
+| Maturities by quarter | almost all in one quarter | 120–240 every quarter |
+| Renewal rate | 32.6% | 29.9% |
+| Singles launched 1960 / 1961 | 4,398 / 4,382 | 4,311 / 4,297 |
+
+It costs 2% of 1960 singles, against 4–8% for `--staggered-opening-contracts`, because live deals are no longer pulled a
+year early. **Adopted 2026-11-15** (in `candidate-request.json`); supersedes 2.2.
+
 ## 3. Checked and found sound
 
 - **P&D advances are repaid under the bundle.** `--distribution-advance-recoupment` withheld $438k of $515k advanced (seed 2002) and $408k of $475k (seed 1001) inside two years; 4–6% was forgiven. The "never repaid" item is closed for the reference bundle.
@@ -128,5 +219,28 @@ A label whose overdraft is within 75% of its outstanding wholesale receivables i
 2. **What share of LP units did the smaller labels hold in 1960–61?** The model gives Independent, Boutique and Small labels 40–42% of in-run LP units. If the answer is near 15–25%, finding 1 is the main lever on Major LP share as well.
 3. **Should an unknown act's LP sell at all without a hit?** `--lp-earned-discovery=F` leaves a share F. Jazz, classical, folk and comedy LPs sold without singles, so F may need to vary by genre.
 4. **Receivable-backed overdraft: who carries it and at what price?** The screen uses 1.5% a month and 75% of receivables. A sourced factoring or plant-credit term would replace both.
+   - *Sourced (2026-11-15)* from Saulnier & Jacoby, *Accounts Receivable Financing* (NBER, 1943), read from the chapter
+     PDFs' text layer (nber.org/system/files/chapters/c4591 and c4593). Figures are for 1940–41.
+   - **Advance share.** Non-notification lenders (the receivable is pledged, the customer is not told) advanced "from 70
+     to 90 percent" of face value; only 42 of 357 clients in a mid-1941 survey got less than 70%. The worked example is
+     80%. The margin must absorb returns and allowances, and the advance is "generally set so as to advance no more than
+     the client's costs of goods sold" (ch. 5, pp. 84–86). Delinquent accounts are taken back 30–60 days past due.
+   - **Charge.** Commercial finance companies charged 1/50 to 1/25 of 1% a day on the gross receivables held, most at
+     1/40 of 1%. On money actually in use this is 9.7–19.5% a year at a 75% advance; 1/40 of 1% at 75% is 12.2% a
+     year. Their estimate of the real range is about 9% a year for the best clients to 20% for the riskiest (ch. 7,
+     pp. 132–133).
+   - **Mapping to the switch.** The overdraft is the money in use, so the charge is **about 1.0% a month** (12.2% a year)
+     and 0.75–1.7% across the range. The screen's 1.5% sits at the risky end. A record label's receivables carry heavy
+     returns, which argues for the low end of the advance range: **0.70–0.75** is supported, 0.75 as screened is
+     inside it. The cost-of-goods cap is not modelled.
+   - Rates are 1940 rates. The prime rate was about 1.5% then and 4.5–5% in 1960, so a 1960 charge is likely higher than
+     the 1940 one, which also points to the 1.0–1.5% a month end.
+   - **Adopted 2026-11-15** at 0.75 and **1.25% a month**: `--receivable-overdraft-charge=0.0125` (the flag defaults to
+     the screened 1.5% so older runs reproduce), in `SimLogs/writing-calibration/candidate-request.json`. Re-screen
+     `lpe-v1-2002-rc` against `lpe-v1-2002-off` (104 weeks): bankruptcies 85 → 81, other operating cost (where the
+     charge is booked) +5% / +20% in 1960 / 1961. Record gross −0.7% / −2.7% and Major-family chart share 0.50 / 0.59 →
+     0.50 / 0.54 are within single-seed reshuffle noise (a cash change reshuffles later decisions).
+   - No source on record-label distributor terms or pressing-plant credit turned up; Vee-Jay's "could not pay to press
+     *Sherry*" (NPR, 2007) confirms the squeeze, not the terms.
 5. **Is the yearly band-life pass a deliberate simplification?** Moving it to anniversaries changes keyed RNG ids, so it needs its own inertness plan.
 6. **Major cash:** should a corporate division sweep surplus to its parent, and should anything a Major does be cash-limited?

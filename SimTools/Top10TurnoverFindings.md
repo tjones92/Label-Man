@@ -1407,9 +1407,12 @@ Run `rk25-v1-2002`: candidate + K 25, one seed, 104 weeks (read direction only):
 **Recommendation:** adopt `--singles-ration-exponent=1.0` on the candidate (top 0.92, top rank 10, ρ 0.8, L 0.3). The
 knee stays as a probe in case a later year needs the priority back at the top.
 
-**Adopted 2026-11-15.** The candidate reference is now `SimLogs/writing-calibration/rg10-reference-request.json`
-(the `rrl3` reference with `--singles-ration-exponent=1.0`; that is the only flag difference). New screens on the
-candidate use it as their control; `rrl3` runs stay valid as the g 1.35 comparison.
+**Adopted 2026-11-15.** The candidate is now `SimLogs/writing-calibration/candidate-request.json`: the flags of the
+`rg10-v1-2002-lw0up1_ao2_lh1_he095` *run* request, plus `--receivable-overdraft-charge=0.0125` (GameyBehaviorAudit.md
+open question 4). Use the run request, not `rg10-reference-request.json`: the reference request lacks the seven
+`lw0up1_ao2_lh1_he095` arm flags (commercial-fit launch weight 0, upside 1, act-record weight 2 odds-only,
+label-blind launch dose 1 / hot acts / exposure 0.95), so a run from it does not reproduce `rg10`. `rg10-v1-*` runs are
+the controls at the old 1.5% overdraft charge; `rrl3` runs stay valid as the g 1.35 comparison.
 
 **Owed:** score seed 3003 (`rg10-v1-3003`, finished, 208 weeks); a decade A/B, since 1.35 was adopted on decade evidence (teen-cohort
 persistence, late-decade #1 size); a look at whether fewer label exits is wanted.

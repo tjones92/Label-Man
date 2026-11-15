@@ -437,6 +437,10 @@ public partial class RosterManager : Node {
 		// backdated up to five years above.
 		artist.contractExpiresYear = Mathf.Max(year + 1, artist.signedYear + artist.contractLength);
 		artist.contractExpiresWeek = StaggeredOpeningContracts.ExpiryWeek(artist.artistId, artist.contractExpiresYear, year);
+		if (AnniversaryOpeningContracts.Enabled) {
+			artist.contractExpiresWeek = AnniversaryOpeningContracts.ExpiryWeek(artist.artistId, artist.signedYear, artist.contractLength, year);
+			artist.contractExpiresYear = year + (artist.contractExpiresWeek - 1) / 52;
+		}
 		artist.weeksSinceLastRelease = (int)GameRandom.RandRange(0, 52);
 		
 		if (GameRandom.Randf() < 0.3f) {
@@ -1386,14 +1390,21 @@ public partial class RosterManager : Node {
 		return termMatured || deliveryMatured;
 	}
 
+	/// <summary>Observe-only: one row per matured AI contract (ContractExpiryDecision). Null unless the audit runner subscribes.</summary>
+	public static event System.Action<ContractExpiryDecision> OnContractExpiry;
+	internal static void RaiseContractExpiry(ContractExpiryDecision d) => OnContractExpiry?.Invoke(d);
+
 	private void ProcessContractExpirations(AILabel label, GameDate date) {
 		int year = date.year;
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		var expiring = label.roster.Where(a => IsContractMatured(a, year, currentWeek)).ToList();
+		var expiring = label.roster.Where(a => RenewalLiveEvidence.Enabled ? RenewalLiveEvidence.TermMatured(a, year, currentWeek) : IsContractMatured(a, year, currentWeek)).ToList();
 		foreach (var artist in expiring) {
-			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) continue;
+			ContractExpiryDecision decision = OnContractExpiry == null ? null : ContractExpiryDecision.Before(label, artist, year, currentWeek);
+			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) { decision?.Emit("bidder", false, false); continue; }
 			bool wantToResign = ShouldResignArtist(label, artist);
-			if (HitActRenewalFinance.CanAfford(label, artist, wantToResign, date)) {
+			bool renew = HitActRenewalFinance.CanAfford(label, artist, wantToResign, date);
+			decision?.Emit(renew ? "renewed" : wantToResign ? "unaffordable" : "not-wanted", wantToResign, renew);
+			if (renew) {
 				float newAdvance = label.CalculateAdvanceOffer(artist);
 				// --cross-collateralized-renewal carries the old balance into the new deal (audit B7).
 				artist.unrecoupedAdvance = CrossCollateralizedRenewal.RenewedBalance(artist.unrecoupedAdvance, newAdvance);
@@ -1461,7 +1472,7 @@ public partial class RosterManager : Node {
 		// not lifetime releases.
 		if (artist.careerState == CareerState.NewSigning && artist.contractReleases >= 2 &&
 			artist.top40Hits == 0 && artist.contractChartedRecords == 0 && artist.contractRegionalBreakouts == 0 &&
-			!artist.HasRecoupedCurrentContract()) return false;
+			!artist.HasRecoupedCurrentContract() && !(RenewalLiveEvidence.Enabled && RenewalLiveEvidence.HasLiveEvidence(artist))) return false;
 		return GameRandom.Randf() < label.artistLoyalty;
 	}
 	
