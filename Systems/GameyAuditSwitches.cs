@@ -201,3 +201,54 @@ public static class RenewalLiveEvidence {
 	public static bool TermMatured(SimulatedArtist artist, int year, int currentWeek) =>
 		artist != null && (artist.contractExpiresWeek > 0 ? currentWeek >= artist.contractExpiresWeek : artist.contractExpiresYear <= year);
 }
+
+/// <summary>
+/// --renewal-earned-option (audit §2.5, the coin flip). After the career rules and the flop rule, an AI label renewed any
+/// other act with probability artistLoyalty (0.28-0.78), whatever the act had earned it. With the switch on the option is
+/// taken up when the deal paid: the label's realized net on records released under this deal (retired records banked in
+/// <see cref="SimulatedArtist.contractRealizedNet"/>, live ones at net to date) plus a loyalty allowance of
+/// artistLoyalty x the next advance must be at least zero. A loyal label carries a small loss; nobody carries a large one.
+/// An act the label never released under the deal lapses. A deal with positive net is also exempt from the first-contract
+/// flop rule: an off-chart act that paid the label is not dropped for chart position. No random draw.
+/// </summary>
+public static class RenewalEarnedOption {
+	public const string Switch = "--renewal-earned-option";
+	private static bool read, enabled;
+	public static bool Enabled { get { if (!read) { enabled = GameyAuditArguments.Has(Switch); read = true; } return enabled; } }
+	internal static void SetForChecks(bool value) { read = true; enabled = value; }
+
+	public static bool Decide(float dealNet, int releasesUnderDeal, float loyalty, float nextAdvance) =>
+		releasesUnderDeal > 0 && dealNet + Math.Clamp(loyalty, 0f, 1f) * Math.Max(0f, nextAdvance) >= 0f;
+
+	/// <summary>Banked net of retired records under the deal plus live records' net to date.</summary>
+	public static float DealNet(SimulatedArtist artist) {
+		float net = artist.contractRealizedNet;
+		ChartManager chart = ChartManager.Instance;
+		if (chart == null || artist.releaseHistory == null) return net;
+		int count = artist.releaseHistory.Count, take = Math.Min(Math.Max(0, artist.contractReleases), count);
+		for (int i = count - take; i < count; i++) {
+			RecordRuntimeData record = chart.GetRecordRuntimeData(artist.releaseHistory[i]);
+			if (record != null) net += record.lifetimeLabelNet - record.SunkReleaseCost;
+		}
+		return net;
+	}
+
+	public static bool Renew(AILabel label, SimulatedArtist artist) =>
+		Decide(DealNet(artist), artist.contractReleases, label.artistLoyalty, label.CalculateAdvanceOffer(artist));
+
+	/// <summary>Banks a retired record's realized net against the act's current deal. Off: nothing.</summary>
+	public static void OnRetired(RecordRuntimeData record, int currentWeek) {
+		if (!Enabled || record?.baseRecord == null) return;
+		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
+		if (artist == null || artist.labelId != record.baseRecord.labelId) return;
+		if (currentWeek - Math.Max(0, record.weeksSinceRelease) < artist.contractNetStartWeek) return;
+		artist.contractRealizedNet += record.lifetimeLabelNet - record.SunkReleaseCost;
+	}
+
+	/// <summary>A new or renewed deal starts with nothing banked. Off: nothing.</summary>
+	public static void StartDeal(SimulatedArtist artist, int currentWeek) {
+		if (!Enabled || artist == null) return;
+		artist.contractRealizedNet = 0f;
+		artist.contractNetStartWeek = currentWeek;
+	}
+}

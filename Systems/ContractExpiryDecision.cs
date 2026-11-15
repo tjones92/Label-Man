@@ -7,7 +7,7 @@ public sealed class ContractExpiryDecision {
 	public int Week, Year, ContractStartWeek, ContractLength, ContractReleases, ContractSinglesObligation, ContractTop40Hits,
 		ContractChartedRecords, ContractRegionalBreakouts, ConsecutiveFlops, WeeksSinceLastRelease, Top40Hits;
 	public string LabelId, Tier, ArtistId, CareerState, Matured, Outcome;
-	public float Loyalty, Momentum, UnrecoupedAdvance;
+	public float Loyalty, Momentum, UnrecoupedAdvance, DealNet, NextAdvance;
 	public bool Recouped, Wanted, Renewed, LiveEvidence;
 
 	internal static ContractExpiryDecision Before(AILabel label, SimulatedArtist artist, int year, int currentWeek) {
@@ -22,7 +22,8 @@ public sealed class ContractExpiryDecision {
 			ContractRegionalBreakouts = artist.contractRegionalBreakouts, ConsecutiveFlops = artist.consecutiveFlops,
 			WeeksSinceLastRelease = artist.weeksSinceLastRelease, Top40Hits = artist.top40Hits, Loyalty = label.artistLoyalty,
 			Momentum = artist.momentum, UnrecoupedAdvance = artist.unrecoupedAdvance, Recouped = artist.HasRecoupedCurrentContract(),
-			LiveEvidence = RenewalLiveEvidence.HasLiveEvidence(artist)
+			LiveEvidence = RenewalLiveEvidence.HasLiveEvidence(artist), DealNet = RenewalEarnedOption.DealNet(artist),
+			NextAdvance = label.CalculateAdvanceOffer(artist)
 		};
 	}
 

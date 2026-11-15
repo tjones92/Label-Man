@@ -43,6 +43,12 @@ public static class GameyAuditSwitchChecks {
 				Check(fresh >= 105 && fresh <= 156 && (fresh - w) % 52 == 0, "a 1960 signing is dated in the year before the opening");
 			}
 
+			// Renewal earned option.
+			Check(!RenewalEarnedOption.Decide(5000f, 0, 1f, 1000f), "an act never released under the deal lapses");
+			Check(RenewalEarnedOption.Decide(0f, 2, 0f, 1000f) && RenewalEarnedOption.Decide(1f, 1, 0f, 0f), "a deal that broke even or paid is renewed");
+			Check(RenewalEarnedOption.Decide(-400f, 2, 0.5f, 1000f) && !RenewalEarnedOption.Decide(-600f, 2, 0.5f, 1000f), "loyalty carries a loss up to loyalty x the next advance");
+			Check(!RenewalEarnedOption.Decide(-1f, 3, 0f, 5000f), "a label with no loyalty carries no loss");
+
 			// Renewal live evidence.
 			Check(RenewalLiveEvidence.IsEvidence(55, 0, 0) && RenewalLiveEvidence.IsEvidence(0, 40, 0) && RenewalLiveEvidence.IsEvidence(0, 0, 1),
 				"charting now, charted, or broken out each count");

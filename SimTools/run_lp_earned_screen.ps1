@@ -12,11 +12,13 @@ param(
 # --lp-earned-launch, lep = le + --lp-label-demand-parity, an = --anniversary-opening-contracts,
 # rc = --receivable-overdraft-charge=0.0125 (the adopted 1.25% a month against rg10's 1.5%).
 # re = --renewal-live-evidence (count live records at renewal; AI deals mature on the date only).
+# eo = --renewal-earned-option (renew on the deal's realized net plus a loyalty allowance, not a loyalty roll).
+# Run eo against -Reference SimLogs/writing-calibration/candidate-request.json with -RunPrefix cand-v1.
 # All arms in -Arms start at once and are awaited; run two at a time on a low-RAM machine.
 $ErrorActionPreference = 'Stop'
 # -File passes 'base,gap' as one string; split it and check each arm.
 $Arms = @($Arms | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're')) { throw "Unknown arm: $a" } }
+foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo')) { throw "Unknown arm: $a" } }
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $dir = Join-Path $root 'SimLogs/writing-calibration'
@@ -38,6 +40,7 @@ foreach ($arm in $Arms) {
     if ($arm -eq 'an') { $flags += '--anniversary-opening-contracts' }
     if ($arm -eq 'rc') { $flags += '--receivable-overdraft-charge=0.0125' }
     if ($arm -eq 're') { $flags += '--renewal-live-evidence' }
+    if ($arm -eq 'eo') { $flags += '--renewal-earned-option' }
     $userData = Join-Path $dir "userdata-$name"
     New-Item -ItemType Directory -Force -Path $userData | Out-Null
     @{ flags=$flags; sourceRevision=$revision; assemblySha256=$assemblyHash; startedUtc=[datetime]::UtcNow.ToString('o') } |

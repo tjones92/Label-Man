@@ -15,7 +15,7 @@ public partial class ChartAuditRunner {
 	private StreamWriter contractExpiryWriter;
 	private void OpenReleaseProgrammeOutputs(string directory) {
 		contractExpiryWriter = CreateWriter(Path.Combine(directory, $"{runName}-contract-expiry.csv"));
-		contractExpiryWriter.WriteLine("week,year,labelId,tier,artistId,careerState,matured,outcome,wanted,renewed,contractStartWeek,contractLength,contractReleases,contractSinglesObligation,contractTop40Hits,contractChartedRecords,contractRegionalBreakouts,consecutiveFlops,weeksSinceLastRelease,top40Hits,loyalty,momentum,unrecoupedAdvance,recouped,liveEvidence");
+		contractExpiryWriter.WriteLine("week,year,labelId,tier,artistId,careerState,matured,outcome,wanted,renewed,contractStartWeek,contractLength,contractReleases,contractSinglesObligation,contractTop40Hits,contractChartedRecords,contractRegionalBreakouts,consecutiveFlops,weeksSinceLastRelease,top40Hits,loyalty,momentum,unrecoupedAdvance,recouped,liveEvidence,dealNet,nextAdvance");
 		RosterManager.OnContractExpiry += WriteContractExpiry;
 		if (!LabelReleaseProgramme.Enabled) return;
 		if (LabelReleaseProgramme.ProjectJudgementEnabled) {
@@ -96,7 +96,7 @@ public partial class ChartAuditRunner {
 	private void WriteContractExpiry(ContractExpiryDecision r) => contractExpiryWriter?.WriteLine(string.Join(",", r.Week, r.Year, Csv(r.LabelId), r.Tier, Csv(r.ArtistId),
 		r.CareerState, r.Matured, r.Outcome, r.Wanted ? 1 : 0, r.Renewed ? 1 : 0, r.ContractStartWeek, r.ContractLength, r.ContractReleases, r.ContractSinglesObligation,
 		r.ContractTop40Hits, r.ContractChartedRecords, r.ContractRegionalBreakouts, r.ConsecutiveFlops, r.WeeksSinceLastRelease, r.Top40Hits, F(r.Loyalty), F(r.Momentum),
-		F(r.UnrecoupedAdvance), r.Recouped ? 1 : 0, r.LiveEvidence ? 1 : 0));
+		F(r.UnrecoupedAdvance), r.Recouped ? 1 : 0, r.LiveEvidence ? 1 : 0, F(r.DealNet), F(r.NextAdvance)));
 	private void WriteProgrammeCashShortfall(ProgrammeCashShortfall r) => programmeCashShortfallWriter.WriteLine(string.Join(",", r.Week, Csv(r.LabelId), r.Tier, r.Status,
 		Csv(r.SlotId), Csv(r.ArtistId), r.Format, F(r.Cash), F(r.Overhead), F(r.NegativeFlowHold), F(r.PlantPayables), F(r.TaxAndService), F(r.OtherProgrammeHolds),
 		F(r.Production), F(r.Marketing), F(r.Pressing), F(r.Receivables), F(r.Factored), F(r.TaxPayable), F(r.UnprovidedTax), F(r.CommercialHold)));

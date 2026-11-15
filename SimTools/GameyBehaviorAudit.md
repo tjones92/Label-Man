@@ -184,6 +184,42 @@ Run `lpe-v1-2002-an`, 104 weeks:
 It costs 2% of 1960 singles, against 4–8% for `--staggered-opening-contracts`, because live deals are no longer pulled a
 year early. **Adopted 2026-11-15** (in `candidate-request.json`); supersedes 2.2.
 
+### 2.6 `--renewal-earned-option`: renewal on what the deal earned, not a loyalty roll (2026-11-15)
+
+The last line of `RosterManager.ShouldResignArtist` renewed any act that got past the career and flop rules with
+probability `artistLoyalty`. With the switch on:
+- The label renews when the deal paid: its realized net on records released under the deal (retired records are banked
+  in the new `SimulatedArtist.contractRealizedNet`, live ones count at net to date), plus a loyalty allowance of
+  `artistLoyalty × next advance`, must be at least 0. An act never released under the deal lapses. No random draw.
+- A deal with positive net is exempt from the first-contract flop rule. Without this exemption (first arm, `cand-v1-*-eo`),
+  95 / 82 deals that made the label $10–150k were dropped for never charting and not having recouped the act's own
+  advance. One Major act made $124k.
+
+Control `cand-v1-{2002,1001}-off` = the adopted candidate (`candidate-request.json`); arm `cand-v2-{2002,1001}-eo`.
+104 weeks; contract-expiry telemetry now carries `dealNet` and `nextAdvance`.
+
+| Seed 2002 / 1001 | Control | `eo` |
+|---|---|---|
+| Renewed, deal lost more than $1k | 29% / 29% | 3% / 0% |
+| Renewed, deal lost up to $1k | 30% / 34% | 2% / 3% |
+| Renewed, deal made $0–10k | 21% / 23% | **81% / 79%** |
+| Renewed, deal made $10k+ | 44% / 45% | **89% / 83%** |
+| Renewed overall | 31.5% / 34.6% | 35.5% / 32.1% |
+| Net of profitable deals walked away from | $7.8M / $6.9M | $3.3M / $3.2M |
+| Unaffordable renewals | 140 / 140 | 78 / 84 |
+| Drops (all reasons) | 1,409 / 1,481 | 1,354 / 1,543 |
+| Singles launched 1961 | 4,343 / 4,212 | 4,369 / 4,240 |
+| Bankruptcies | 87 / 98 | 96 / 104 |
+
+- In the control the roll ignored money: a deal that made $10k+ was renewed less often than one that lost money did on a
+  good roll. Under the switch renewal follows the deal on both seeds, at about the same overall rate.
+- What is still walked away from ($3.2–3.3M) is the cash gate and studio-parent bids.
+- **Cost to watch:** bankruptcies +9 / +6, the same sign on both seeds, all at Small and Boutique labels (+3 / +3 and
+  +6 / 0). It is not renewal advances: labels that later went bankrupt renewed 3 / 2 acts under the switch against
+  15 / 25 in the control. Untraced. Candidates: a losing label now loses its roster at expiry instead of keeping
+  acts on a roll, or reshuffle noise (±6 bankruptcies is inside single-seed spread). The decade A/B should check it.
+- Major-family chart share moves −3 / +6 points in 1961, which is reshuffle noise.
+
 ## 3. Checked and found sound
 
 - **P&D advances are repaid under the bundle.** `--distribution-advance-recoupment` withheld $438k of $515k advanced (seed 2002) and $408k of $475k (seed 1001) inside two years; 4–6% was forgiven. The "never repaid" item is closed for the reference bundle.

@@ -1413,6 +1413,7 @@ public partial class RosterManager : Node {
 				artist.contractExpiresWeek = currentWeek + artist.contractLength * 52;
 				artist.contractSinglesObligation = label.CalculateContractSinglesObligation(artist, year);
 				artist.contractReleases = 0;
+				RenewalEarnedOption.StartDeal(artist, currentWeek);
 				artist.royaltyRate = label.CalculateRoyaltyRate(artist);
 				CompetitorManager.Instance?.RecordExpense(label, newAdvance, LabelCashKind.ArtistAdvances);
 				HitActRenewalFinance.RecordPaid(label, artist, newAdvance);
@@ -1472,7 +1473,10 @@ public partial class RosterManager : Node {
 		// not lifetime releases.
 		if (artist.careerState == CareerState.NewSigning && artist.contractReleases >= 2 &&
 			artist.top40Hits == 0 && artist.contractChartedRecords == 0 && artist.contractRegionalBreakouts == 0 &&
-			!artist.HasRecoupedCurrentContract() && !(RenewalLiveEvidence.Enabled && RenewalLiveEvidence.HasLiveEvidence(artist))) return false;
+			!artist.HasRecoupedCurrentContract() && !(RenewalLiveEvidence.Enabled && RenewalLiveEvidence.HasLiveEvidence(artist)) &&
+			!(RenewalEarnedOption.Enabled && RenewalEarnedOption.DealNet(artist) > 0f)) return false;
+		// --renewal-earned-option: renew on what the deal earned, not on a loyalty roll. Off: the roll.
+		if (RenewalEarnedOption.Enabled) return RenewalEarnedOption.Renew(label, artist);
 		return GameRandom.Randf() < label.artistLoyalty;
 	}
 	

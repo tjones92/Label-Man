@@ -1933,6 +1933,7 @@ public partial class CompetitorManager : Node {
 		string labelId = runtimeData.baseRecord.labelId;
 		string recordId = runtimeData.baseRecord.recordId;
 		LabelCompanyAccounts.RetireInventory(GetLabel(labelId), recordId);
+		RenewalEarnedOption.OnRetired(runtimeData, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		if (!string.IsNullOrEmpty(labelId) && !string.IsNullOrEmpty(recordId) &&
 			labelActiveRecords.TryGetValue(labelId, out var recordIds)) recordIds.Remove(recordId);
 		if (!string.IsNullOrEmpty(labelId)) {

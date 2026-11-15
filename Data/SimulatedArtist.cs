@@ -85,6 +85,10 @@ public class SimulatedArtist {
 	// that historically kept an act employed and carried a new sound to national notice.
 	public int contractChartedRecords;
 	public int contractRegionalBreakouts;
+	/// <summary>--renewal-earned-option: the label's realized net on retired records released under this deal.</summary>
+	public float contractRealizedNet;
+	/// <summary>--renewal-earned-option: the week the current deal (or its last renewal) began, for banking retired records.</summary>
+	public int contractNetStartWeek;
 	public CareerState careerStateBeforeDrop = CareerState.Unsigned;
 	public CareerState contractEntryCareerState = CareerState.Unsigned;
 	public bool contractUsesExperiencedComebackPolicy;

@@ -1706,6 +1706,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			artist.contractChartedRecords = 0;
 			artist.contractRegionalBreakouts = 0;
 			artist.contractReleases = 0;
+			RenewalEarnedOption.StartDeal(artist, currentWeek);
 		}
 		// A dropped artist with no completed prior contract is a legacy/repair
 		// boundary case: it remains a repeat signing for telemetry, but only an
