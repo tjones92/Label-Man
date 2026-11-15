@@ -230,6 +230,31 @@ Control `cand-v1-{2002,1001}-off` = the adopted candidate (`candidate-request.js
 - **Adopted 2026-11-15** (in `candidate-request.json`). Recheck exits in the decade A/B.
 - Major-family chart share moves −3 / +6 points in 1961, which is reshuffle noise.
 
+### 2.6b `--lp-buyer-word-of-mouth=10000` on top of `le` (2026-11-15)
+
+LP word of mouth's appeal term (`appeal² × 0.62`) is scaled by `units / (units + K)`, K = 10,000. Runs
+`cand-v3-{2002,1001}-{off,le,lw}`, the adopted candidate, 208 weeks, LPs launched weeks 1–52 (lifetime at week 208).
+
+| Seed 2002 / 1001 | Control | `le` | `lw` (`le` + word of mouth) |
+|---|---|---|---|
+| Median LP units, act's best single under 1k | 17.4k / 18.5k | 9.8k / 10.8k | **7.3k / 8.6k** |
+| Median LP units, act's best single 100k+ | 41.2k / 36.2k | 35.4k / 32.5k | 36.9k / 35.7k |
+| LPs losing money | 0.1% / 0.1% | 1.8% / 1.8% | 7.1% / 5.6% |
+| Top 10% share of LP units | 43.8 / 43.5 | 52.7 / 50.6 | 54.8 / 52.8 |
+| Store LP units 1961 (Billboard 68M) | 65M / 66M | 45M / 49M | 41M / 42M |
+| Record gross 1961 ($M) | 468 / 461 | 415 / 428 | 396 / 397 |
+| Bankruptcies | 124 / 124 | 133 / 138 | **159 / 177** |
+
+- Word of mouth from buyers works as intended. It takes a further 13–26% off an unknown act's LP, leaves hit acts' LPs
+  where `le` had them (slightly up), and the hit-to-unknown gap reaches 4.2–5.1× (control 2.0–2.4×). LPs start to
+  lose money.
+- **It is not adoptable alone.** Store LPs fall to 41–42M against Billboard's 68M, gross falls 14–15%, and
+  bankruptcies rise 28–43%. Under the old model labels lived on act-blind LP income (finding 6); taking it away
+  without putting the volume back where history had it closes labels for the wrong reason.
+- **Next:** restore store LP volume with a global LP purchase scale (hit LPs have room under the 0.5–2M anchor:
+  0.7–0.8M full price now). Because demand is now concentrated on known acts, a global scale returns the volume to
+  them. Re-screen with that scale at 104 weeks and check unknown-act LPs, the anchor and bankruptcies together.
+
 ### 2.7 Hit LPs against the 0.5–2M No. 1 LP anchor (2026-11-15) — the full-price hit side is inside it
 
 Analysis only, on `rg10-v1-{2002,1001}` (208 weeks), LPs launched in the run (opening catalogue excluded). Per title:
