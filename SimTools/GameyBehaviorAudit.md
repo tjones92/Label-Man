@@ -308,7 +308,10 @@ Clubs are exact. Racks plus budget are 51M against 60M.
   full price), weighted toward secondary titles rather than the best sellers. This needs an author decision on the
   holdback (3 years is the shortest age the sources support).
 
-**B. Racks sell Classical at 4–10× store sales — implausible (high).**
+**B. Racks sell Classical at 4–10× store sales — implausible (high).** *Correction (2026-11-15): the
+over-selling titles are artistless soundtrack and cast-album LPs (`ProcessWeeklySoundtrackOrigination`). They are
+about 1.5% of LP launches and take 10–19% of launched-LP rack units. Classical by roster acts is not over-sold on
+racks. See `SimTools/LpChannelFableHandoff.md` issue 2.*
 - Sources:
   - [Cliburn's Tchaikovsky concerto](https://en.wikipedia.org/wiki/Tchaikovsky_Piano_Concerto_No._1_(Van_Cliburn_1958_recording)),
     a 1958 No. 1 LP and a national event, was the first classical LP to reach 1M, in December 1961
