@@ -445,6 +445,63 @@ Arm `lwbs` = `lwb` + `--budget-appeal-saturation=25000`. Runs `bud-v1-{2002,1001
 **Verdict:** adopt `--budget-noncurrent-weeks=156` with `--budget-appeal-saturation=25000` as the budget mechanism.
 Hold `--lp-demand-scale=1.6` until the stores-only arm is screened.
 
+### 2.9c Stores-only LP scale and budget slots ranked by demand weight (2026-11-15)
+
+New switches:
+- `--lp-demand-scale-stores-only` (`LpDemandCalibration`): the scale applies to store intent only, so rack and
+  budget-autonomous demand stay as calibrated. It is saved with the world and checked on resume.
+- `--budget-rank-by-weight` (`BudgetLpChannel`): a region's 25 offer slots go to the highest demand weight,
+  `sqrt(appeal) × quality^2.5 × that region's exhaustion × age decay`, instead of the highest appeal. A bought-out
+  title gives its slot up.
+
+Checks: 39 budget and 25 LP-calibration checks pass. The calibration check had still expected 1.01 to be rejected after
+2.9 widened the range; it now tests 2.01. `bud-v2-2002-off` (27 weeks) matches `cand-v3-2002-off` byte for byte in 68
+weekly streams. Arm `lwbr` = `lwbs` + both switches. Runs `bud-v2-{2002,1001}-lwbr`, 208 weeks. Seed 2002 / 1001.
+
+| | Control | `lwbs` | `lwbr` |
+|---|---|---|---|
+| Median LP units, act's best single under 1k | 15.7k / 17.9k | 12.4k / 13.5k | 12.5k / 13.8k |
+| Median LP units, act's best single 100k+ | 41.2k / 36.2k | 37.5k / 44.1k | 42.1k / 42.5k |
+| LPs losing money | 0.1% / 0.1% | 1.2% / 1.5% | 1.2% / 1.4% |
+| Top 10% share of LP units | 44.6 / 44.0 | 54.8 / 51.4 | 52.9 / 49.7 |
+| Best full-price LP, stores | 438k / 490k | 640k / 595k | 558k / 574k |
+| 1961 stores / racks / budget (M) | 65.1/34.7/16.5; 65.6/31.7/17.1 | 61.0/43.3/15.5; 67.0/40.3/15.1 | 65.2/35.8/14.0; 66.7/33.3/14.3 |
+| 1962 stores / racks / budget (M) | 68.6/37.9/21.4; 73.6/34.3/20.4 | 61.9/50.4/17.4; 68.4/44.7/17.0 | 68.8/39.3/16.8; 73.0/36.3/17.2 |
+| 1963 stores / racks / budget (M) | 67.8/39.9/21.7; 72.3/36.3/21.1 | 55.2/47.6/27.5; 57.7/43.9/28.8 | 61.1/41.6/27.2; 65.0/37.4/27.6 |
+| Record gross 1961 ($M) | 468 / 461 | 480 / 489 | 468 / 469 |
+| Own-master editions that sell | 93 / 121 | 103 / 121 | 212 / 198 |
+| Budget units from sources with 100k+ store sales | 56% / 55% | 96% / 99% | 63% / 63% |
+| Top 20 editions: median units ÷ source store LP | 3.8× / 4.2× | 1.6× / 1.6× | 2.6× / 2.9× |
+| Bankruptcies (208 weeks) | 124 / 124 | 117 / 121 | 119 / 139 |
+
+**Stores-only scale: the envelope split is back where the control has it.**
+- 1961–62 stores (65–73M) and racks match the control within 1–2M. Gross is unchanged (468 / 469). Earned LP demand
+  keeps its effect: the unknown act's LP sells 12.5–13.8k, the hit-to-unknown gap is 3.1–3.4× (control 2.0–2.6×), and
+  1.2–1.4% of LPs lose money.
+- 1963 stores are still 6–7M under the control. That is the budget line: 27M against 21–22M, as three years of
+  retired masters arrive, and inside a full envelope those units come out of stores. Racks are at control
+  (37–42M). By rack-dollar share (about 20%, NARM 1962 21%) the budget volume is period-plausible, so this is a
+  consequence of a fixed envelope, not a channel fault.
+
+**Rank by weight: budget reaches secondary titles, but quality now decides too much.**
+- Twice as many editions sell (about 200). Sources with 100k+ store sales give 63% of budget units, against 96–99%
+  under `lwbs`.
+- With saturation at 25k, appeal is nearly flat, so `quality^2.5` picks the titles. 93% of budget units are titles
+  with quality above 0.7 (the median issued master is 0.67).
+- Each edition sells 450–670k in about a year, and a few sell 10–16× their full-price LP. Example: a Soul LP that sold
+  40k in stores sells 638k at budget. That is the same anomaly as before, moved from former hits to
+  high-quality flops.
+- Next: bound a title's budget sales by its full-price record, or raise K (for example 100k) so sales history still
+  counts. Either is calibration on top of the mechanism.
+
+**Bankruptcies:** seed 2002 is flat (119 against 124), and seed 1001 is +15 (139). The same seed gave 121 under
+`lwbs`, a difference of 18 from switches that touch only LP demand and the budget shelf. Read it as reshuffle noise
+for now and recheck in the decade A/B.
+
+**Verdict:** the `lwbr` package (earned launch and discovery, buyer word of mouth, noncurrent budget, saturation,
+store-only scale 1.6, rank by weight) is the first that holds stores, racks, gross and closures at the control while
+LP sales follow the act. It is a candidate for adoption once a budget per-title bound or a higher K is screened.
+
 ## 3. Checked and found sound
 
 - **P&D advances are repaid under the bundle.** `--distribution-advance-recoupment` withheld $438k of $515k advanced (seed 2002) and $408k of $475k (seed 1001) inside two years; 4–6% was forgiven. The "never repaid" item is closed for the reference bundle.

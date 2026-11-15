@@ -112,6 +112,16 @@ public static class BudgetLpChecks {
 			Check(noncurrent.ReleaseWeek == 316 && Math.Abs(noncurrent.Appeal - 9000) < 1e-9, "noncurrent: holdback from release and saturated appeal");
 			var cfg = BudgetLpChannel.Capture(); cfg.NoncurrentWeeks = 0;
 			Check(Refuses(() => BudgetLpChannel.Restore(cfg)), "resume refuses a different noncurrent holdback");
+			// --budget-rank-by-weight: a strong secondary title wins a slot that appeal ranking gives to a weak former hit.
+			bool Offered(bool rank) {
+				BudgetLpChannel.ResetForChecks(true); BudgetLpChannel.SetNoncurrentForChecks(0, 0, rank); BudgetLpChannel.Prepare(System.Array.Empty<RecordRuntimeData>(), Owner, 0);
+				BudgetLpChannel.State.Products.Clear();
+				for (int i = 0; i < BudgetLpChannel.OfferSlots; i++)
+					BudgetLpChannel.State.Products["hit" + i] = new() { Id = "hit" + i, OwnerId = "owner", Genre = Genre.TraditionalPop, Quality = .3, Appeal = 200000 };
+				BudgetLpChannel.State.Products["second"] = new() { Id = "second", OwnerId = "owner", Genre = Genre.TraditionalPop, Quality = .9, Appeal = 20000 };
+				return BudgetLpChannel.Offers(region, 50, 1961, 6, false, Owner, stores).Any(o => o.Product.Id == "second");
+			}
+			Check(!Offered(false) && Offered(true), "rank by weight admits a strong secondary title");
 			BudgetLpChannel.ResetForChecks();
 			bool shortRejects = false;
 			try { BudgetLpChannel.Configure(new[] { "--budget-noncurrent-weeks=156" }); } catch (ArgumentException) { shortRejects = true; }

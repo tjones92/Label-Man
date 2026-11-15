@@ -8,7 +8,7 @@ public static class LpDemandCalibrationChecks {
 		void Check(bool condition, string name) { if (!condition) throw new InvalidOperationException("LP calibration: " + name); checks++; }
 		void Set(params string[] args) { LpDemandCalibration.ResetForChecks(); LpDemandCalibration.Configure(args); }
 		try {
-			foreach (string value in new[] { "0", ".899", "1.01", "NaN", "Infinity", "bad" }) {
+			foreach (string value in new[] { "0", ".899", "2.01", "NaN", "Infinity", "bad" }) {
 				bool rejected = false;
 				try { Set(LpDemandCalibration.Switch + value); } catch (ArgumentException) { rejected = true; }
 				Check(rejected, "invalid factor " + value);
@@ -47,6 +47,20 @@ public static class LpDemandCalibrationChecks {
 			try { LpDemandCalibration.RequireSaved(.96); } catch (InvalidOperationException) { missing = true; }
 			Check(missing, "active save requires its factor on resume");
 			LpDemandCalibration.RequireSaved(null);
+			// --lp-demand-scale-stores-only: store intent scales; rack and budget-autonomous demand do not.
+			bool orphan = false;
+			try { Set(LpDemandCalibration.StoresOnlySwitch); } catch (ArgumentException) { orphan = true; }
+			Check(orphan, "stores-only needs an active scale");
+			Set(LpDemandCalibration.Switch + "1.6");
+			Check(LpDemandCalibration.ApplyNonStore(100d) == 160 && LpDemandCalibration.BudgetDemand(100, 25) == 185, "above-one scale lifts every channel");
+			Set(LpDemandCalibration.Switch + "1.6", LpDemandCalibration.StoresOnlySwitch);
+			Check(AlbumSimulator.CalculateRawDemandBeforeCannibalization(2000, .4f, .095f) == (float)(original * 1.6) &&
+				LpDemandCalibration.ApplyNonStore(100f) == 100f && LpDemandCalibration.BudgetDemand(100, 25) == 125, "stores-only leaves rack and budget demand");
+			Check(WorldStateService.Capture().LpDemandScaleStoresOnly == true, "stores-only is captured");
+			bool mismatch = false;
+			try { LpDemandCalibration.RequireSaved(1.6); } catch (InvalidOperationException) { mismatch = true; }
+			Check(mismatch, "resume refuses a save without stores-only");
+			LpDemandCalibration.RequireSaved(1.6, true);
 		} finally { LpDemandCalibration.ResetForChecks(); LpDemandCalibration.Configure(OS.GetCmdlineUserArgs()); }
 		GD.Print($"LP_DEMAND_CALIBRATION_CHECKS_OK {checks}");
 	}

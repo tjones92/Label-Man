@@ -241,7 +241,7 @@ public static class RackJobberChannel {
 				penetration += BudgetLpChannel.SourcePurchases(c.Record.baseRecord.recordId, region.regionId) / Mathf.Max(1f, titlePool);
 				c.Demand = titlePool * Exposure(c.Tier, c.Rank, c.Record.awareness) * Conversion(c.Record, year, month, liveTick) *
 					AlbumSimulator.CalculateAlbumExhaustion(penetration);
-				c.Demand = LpDemandCalibration.Apply(c.Demand);
+				c.Demand = LpDemandCalibration.ApplyNonStore(c.Demand);
 				racked.Add(c);
 				c.AutonomousDemand = c.Demand;
 			}

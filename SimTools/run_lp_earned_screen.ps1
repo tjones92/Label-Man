@@ -19,12 +19,13 @@ param(
 # bns = bn + --budget-appeal-saturation=25000 (secondary titles weigh like former hits on the budget shelf).
 # lwb = lw + bn + --lp-demand-scale=$LpScale (earned LP demand, volume restored by a global LP purchase scale,
 # budget editions from noncurrent catalogue). lwbs = lwb + --budget-appeal-saturation=25000.
+# lwbr = lwbs + --lp-demand-scale-stores-only + --budget-rank-by-weight (2.9b next arm).
 # Run eo against -Reference SimLogs/writing-calibration/candidate-request.json with -RunPrefix cand-v1.
 # All arms in -Arms start at once and are awaited; run two at a time on a low-RAM machine.
 $ErrorActionPreference = 'Stop'
 # -File passes 'base,gap' as one string; split it and check each arm.
 $Arms = @($Arms | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw', 'bn', 'bns', 'lwb', 'lwbs')) { throw "Unknown arm: $a" } }
+foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw', 'bn', 'bns', 'lwb', 'lwbs', 'lwbr')) { throw "Unknown arm: $a" } }
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $dir = Join-Path $root 'SimLogs/writing-calibration'
@@ -41,16 +42,17 @@ foreach ($arm in $Arms) {
     $flags = @($referenceRequest.flags | ForEach-Object {
         if ($_ -like '--run=*') { "--run=$name" } elseif ($_ -like '--seed=*') { "--seed=$Seed" } elseif ($_ -like '--weeks=*') { "--weeks=$Weeks" } else { $_ }
     })
-    if ($arm -in @('le', 'lep', 'lw', 'lwb', 'lwbs')) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
-    if ($arm -in @('lw', 'lwb', 'lwbs')) { $flags += '--lp-buyer-word-of-mouth=10000' }
+    if ($arm -in @('le', 'lep', 'lw', 'lwb', 'lwbs', 'lwbr')) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
+    if ($arm -in @('lw', 'lwb', 'lwbs', 'lwbr')) { $flags += '--lp-buyer-word-of-mouth=10000' }
     if ($arm -eq 'lep') { $flags += '--lp-label-demand-parity' }
     if ($arm -eq 'an') { $flags += '--anniversary-opening-contracts' }
     if ($arm -eq 'rc') { $flags += '--receivable-overdraft-charge=0.0125' }
     if ($arm -eq 're') { $flags += '--renewal-live-evidence' }
     if ($arm -eq 'eo') { $flags += '--renewal-earned-option' }
-    if ($arm -in @('bn', 'bns', 'lwb', 'lwbs')) { $flags += '--budget-noncurrent-weeks=156' }
-    if ($arm -in @('lwb', 'lwbs')) { $flags += "--lp-demand-scale=$($LpScale.ToString([Globalization.CultureInfo]::InvariantCulture))" }
-    if ($arm -in @('bns', 'lwbs')) { $flags += '--budget-appeal-saturation=25000' }
+    if ($arm -in @('bn', 'bns', 'lwb', 'lwbs', 'lwbr')) { $flags += '--budget-noncurrent-weeks=156' }
+    if ($arm -in @('lwb', 'lwbs', 'lwbr')) { $flags += "--lp-demand-scale=$($LpScale.ToString([Globalization.CultureInfo]::InvariantCulture))" }
+    if ($arm -in @('bns', 'lwbs', 'lwbr')) { $flags += '--budget-appeal-saturation=25000' }
+    if ($arm -eq 'lwbr') { $flags += @('--lp-demand-scale-stores-only', '--budget-rank-by-weight') }
     $userData = Join-Path $dir "userdata-$name"
     New-Item -ItemType Directory -Force -Path $userData | Out-Null
     @{ flags=$flags; sourceRevision=$revision; assemblySha256=$assemblyHash; startedUtc=[datetime]::UtcNow.ToString('o') } |
