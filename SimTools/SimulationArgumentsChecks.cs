@@ -28,6 +28,10 @@ public static class SimulationArgumentsChecks {
         var overridden = SimulationArguments.Resolve(explicitArgs, true);
         Check(overridden.Count(a => a.StartsWith("--lp-demand-scale=")) == 1 && overridden.Contains(explicitArgs[1]) &&
             overridden.Contains(explicitArgs[0]), "Explicit parameters override profile values");
+        var negated = SimulationArguments.Resolve(new[] { "--no-regional-radio-build-clock" }, true);
+        Check(ordinary.Contains("--regional-radio-build-clock") && !negated.Contains("--regional-radio-build-clock") &&
+            negated.Contains("--no-regional-radio-build-clock") && negated.Length == ordinary.Length,
+            "An explicit --no-X switches off the profile's --X");
         Check(SimulationArguments.Resolve(new[] { SimulationArguments.LegacySwitch }.Concat(explicitArgs), true)
             .SequenceEqual(new[] { SimulationArguments.LegacySwitch }.Concat(explicitArgs)), "Legacy comparison bypasses profile");
         bool rejected = false;

@@ -28,7 +28,9 @@ from analyze_studio_parent import HISTORY_BIG5
 ROOT = Path(__file__).resolve().parent.parent / "SimLogs"
 B5 = {f"label_000{i}" for i in range(1, 6)}
 LAST = 208
-SEEDS = (2002, 1001)
+# --seeds=2002,1001,3003 overrides; every arm must have run every seed named.
+SEEDS = next((tuple(int(x) for x in a.split("=", 1)[1].split(",")) for a in sys.argv[1:] if a.startswith("--seeds=")),
+             (2002, 1001))
 HISTORY_LABEL_BIG5 = {"Columbia", "RCA Victor", "Capitol", "Decca", "Mercury"}
 OWNER = "--owner" in sys.argv
 ARMS = {"base": "fit208-v1-{s}-base", "lw0up1": "fit208-v1-{s}-lw0up1", "ao2": "fit208-v3-{s}-lw0up1_ao2",
@@ -178,7 +180,7 @@ def run_arm(name, fmt):
 
 
 def main():
-    arms = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a) or ARMS
+    arms = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a and not a.startswith("--")) or ARMS
     h, matched = history()
     print(f"history Top 10 records matched to an owner: {100 * matched:.1f}%")
     frames = {"history": (h, 1)}

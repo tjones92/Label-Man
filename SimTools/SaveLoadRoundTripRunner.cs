@@ -86,6 +86,9 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--chart-inertia-base-check")) { ChartInertiaProbeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--chart-entry-feedback-check")) { ChartEntryFeedbackChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--chart-tail-check")) { ChartTailChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--survey-panel-persistence-check")) { SurveyPanelPersistenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--regional-radio-rise-check")) { RegionalRadioRiseChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--singles-ration-knee-check")) { SinglesRationKneeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-hype-check")) { HitActHypeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-fit-support-check")) { HitActFitSupportChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--single-commercial-fit-shape-check")) { SingleCommercialFitShapeChecks.Run(); GetTree().Quit(0); return; }

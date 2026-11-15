@@ -384,6 +384,11 @@ public partial class ChartManager : Node {
 		AirplayRotationCeiling.Configure(SimulationArguments.Get());
 		ChartInertiaProbe.Configure(SimulationArguments.Get());
 		TrajectoryShapeProbe.Configure(SimulationArguments.Get());
+		SurveyPanelPersistence.Configure(SimulationArguments.Get());
+		RegionalRadioRise.Configure(SimulationArguments.Get());
+		RegionalRadioBuildObserve.Configure(SimulationArguments.Get());
+		RestockObserve.Configure(SimulationArguments.Get());
+		PostRationStockClip.Configure(SimulationArguments.Get());
 		SingleAppealDrift.Configure(SimulationArguments.Get());
 		ChartEntryFeedbackProbe.Configure(SimulationArguments.Get());
 		ChartTailProbe.Configure(SimulationArguments.Get());
@@ -1322,6 +1327,7 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 4: Calculate chart points ===
+		RegionalRadioBuildObserve.Flush();
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalState, regionalStateProfileStart);
 		var rankingProfileStart = SimulationPerformanceProfiler.Begin();
 		// The week's survey is drawn first and cached on each record. Billboard polled about 110
@@ -1330,7 +1336,7 @@ public partial class ChartManager : Node {
 		// mid-chart exit log and the audit telemetry all looking at the same numbers.
 		var chartPoints = new Dictionary<RecordRuntimeData, float>();
 		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
-			record.surveySampleThisWeek = ChartSimulator.DrawSurveySample(record.unitsThisWeek);
+			record.surveySampleThisWeek = ChartSimulator.DrawSurveySample(record.unitsThisWeek, record);
 		}
 		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
 			float points = ChartSimulator.CalculateChartPoints(record, allRegions);
@@ -1439,7 +1445,9 @@ public partial class ChartManager : Node {
 					: ChartSimulator.CalculateRegionalSales(record, region, data, quality, blendedAcceptance, year, month,
 					triggerEvents, GetInternalPreviousPosition(record), label,
 					record.cohortOpportunityColdStartFallback ? singleOpportunityNormalization : record.cohortOpportunityNormalizer);
-				int physicalLimit = Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek);
+				int physicalLimit = PostRationStockClip.SkipsShelfCap(!isAlbum) ? int.MaxValue
+					: PostRationStockClip.SkipsIntentClip(!isAlbum) ? data.storeCapacityThisWeek
+					: Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek);
 				serviceable = Mathf.Clamp(serviceable, 0, Mathf.Max(0, physicalLimit));
 				// Followers buy on sight (CelebrityFanbaseDesign.md §2.4): their launch intent joins the title's, inside
 				// its physical limit, before the format budgets clear. Shadow only books what they asked for. An LP's
@@ -1560,6 +1568,22 @@ public partial class ChartManager : Node {
 		// Donors and recipients are disjoint after local clearing, so no capacity can
 		// be forwarded through an intermediate market in the same week.
 		ApplyBoundedRegionalSpillover(intentsByRegion, summariesByRegion);
+		// PostRationStockClip: a single's units, not its intent, are bounded by the copies on the shelves. Singles are
+		// settled once local clearing and spillover are done, so the clip runs here, before any LP step reads them.
+		if (PostRationStockClip.Enabled)
+			foreach (var pair in summariesByRegion)
+				foreach (MarketIntent intent in intentsByRegion[pair.Key]) {
+					if (intent.Record.baseRecord.format == ReleaseFormat.Album) continue;
+					int local = intent.Data.localClearedThisWeek, spillBefore = intent.SpilloverCleared;
+					int removed = PostRationStockClip.ClipCleared(ref intent.Cleared, ref intent.SpilloverCleared, ref local,
+						ref intent.Data.unitsBackordered,
+						PostRationStockClip.UnitLimit(intent.Data.unitsInStores, intent.Data.storeCapacityThisWeek));
+					if (removed == 0) continue;
+					int spill = spillBefore - intent.SpilloverCleared, localRemoved = intent.Data.localClearedThisWeek - local;
+					intent.Data.localClearedThisWeek = local;
+					pair.Value.SpilloverClearedUnits -= spill;
+					pair.Value.LocalClearedSingleUnits -= localRemoved; pair.Value.LocalClearedUnits -= localRemoved;
+				}
 		if (LpCapacityScreen.Audit) foreach (var pair in summariesByRegion) ApplyAdditionalLpCapacity(intentsByRegion[pair.Key], pair.Value);
 
 		if (BudgetLpChannel.Enabled) {
@@ -1658,6 +1682,7 @@ public partial class ChartManager : Node {
 			if (record.baseRecord.format != ReleaseFormat.Album) ChartSimulator.UpdateSaturation(record, allRegions);
 		}
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.MarketClearing, clearingProfileStart);
+		PostRationStockClip.Report(currentChartWeek);
 	}
 
 	private sealed class SpilloverFlowEdge {
@@ -1864,7 +1889,8 @@ public partial class ChartManager : Node {
 		int assigned = 0;
 		if (exponent != 1f) {
 			// SinglesRationExponent: the most-wanted titles keep more of their intent; same purse, same largest remainders.
-			double[] exacts = SinglesRationExponent.Shares(intents.Select(intent => intent.Serviceable).ToList(), allocated, exponent);
+			double[] exacts = SinglesRationExponent.Shares(intents.Select(intent => intent.Serviceable).ToList(), allocated, exponent,
+				SinglesRationExponent.KneeRank);
 			for (int i = 0; i < intents.Count; i++) {
 				intents[i].Cleared = Math.Min(intents[i].Serviceable, (int)Math.Floor(exacts[i] + 1e-9));
 				intents[i].Fraction = (float)(exacts[i] - intents[i].Cleared);
@@ -2051,6 +2077,10 @@ public partial class ChartManager : Node {
 					data.breakoutCapacityCapped = false;
 				}
 
+				// RestockObserve (observation only, no draws): the pieces of this region's restock.
+				int obsStockBefore = data.unitsInStores, obsBackorders = data.unitsBackordered;
+				int obsRequested = 0, obsMax = -1, obsAfterCeiling = 0, obsShipped = 0;
+				float obsSignal = 0f, obsService = 0f;
 				if (needsRestock) {
 					float demandSignal = CalculateRestockDemandSignal(data.rawDemandThisWeek,
 						data.unitsSoldThisWeek, data.unitsBackordered, livePhysicalBackorder);
@@ -2082,6 +2112,8 @@ public partial class ChartManager : Node {
 						? 0.55f + label.distributionStrength * 0.65f
 						: EarnedIndieCoverage.Blend(0.20f, 0.55f + label.distributionStrength * 0.65f, earnedCoverage)));
 					restockAmount = Mathf.Min(restockAmount, maxCapacity - data.unitsInStores);
+					obsSignal = demandSignal; obsService = serviceLevel; obsRequested = requestedRestock;
+					obsMax = maxCapacity; obsAfterCeiling = restockAmount;
 					if (captureBreakoutDiagnostic) {
 						data.breakoutRequestedRestock = requestedRestock;
 						data.breakoutAppliedRestock = Mathf.Max(0, restockAmount);
@@ -2095,10 +2127,16 @@ public partial class ChartManager : Node {
 						}
 						data.unitsInStores += restockAmount;
 						data.unitsBackordered = Mathf.Max(0, data.unitsBackordered - restockAmount);
+						obsShipped = restockAmount;
 					}
 				}
+				if (RestockObserve.Wants(record, data))
+					RestockObserve.Row(currentChartWeek, TimeManager.Instance?.CurrentDate.year ?? 1960, record, region, data,
+						isCovered, label.distributionStrength, needsRestock, livePhysicalBackorder, obsStockBefore, obsBackorders,
+						obsSignal, obsService, obsRequested, obsMax, obsAfterCeiling, obsShipped);
 			}
 		}
+		RestockObserve.Flush();
 	}
 
 	/// <summary>
@@ -2231,6 +2269,9 @@ public partial class ChartManager : Node {
 			// Computed exactly as before into `tail`; data.radioPlay remains the weekly accumulator
 			// (it is read above and re-derived below) and the value the rest of the pipeline reads.
 			float tail;
+			// RegionalRadioBuildObserve (observation only, no draws): the pieces of this week's rotation update.
+			float obsStart = data.radioPlay, obsBuild = 0f, obsHeat = 0f, obsReach = 1f, obsTarget = 0f, obsReporter = 0f;
+			int obsBuildAge = -1;
 			if (data.stationsDropped) {
 				// Off the playlist. Skipping the lerp entirely is the whole point of the mechanic --
 				// what it replaces was an exponential, and an exponential is what a drop is not -- and
@@ -2261,7 +2302,15 @@ public partial class ChartManager : Node {
 				// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to
 				// 0.68 a week with the target at zero -- faster than sales, so no plateau. 0.92/0.15
 				// settles to 0.78. These were never load-bearing before airplay reached the ranking.
-				tail = Mathf.Lerp(data.radioPlay * RegionalRadioHold, targetRegionalRadio, RegionalRadioLerp);
+				// RegionalRadioRise: --regional-radio-rise-lerp=L speeds the climb to the same settle level; identical when off.
+				tail = RegionalRadioRise.Next(data.radioPlay, targetRegionalRadio, RegionalRadioHold, RegionalRadioLerp);
+				if (RegionalRadioBuildObserve.Enabled) {
+					obsBuildAge = RegionalAudience.RadioBuildAge(record.weeksSinceRelease, data);
+					obsBuild = radioBuild;
+					obsHeat = seasonalRadio ? regionHeat / radioDifficulty * radioOpportunity * genreRadio : regionHeat / radioDifficulty * genreRadio;
+					obsReach = CityReach.Enabled && genreMarketLive ? CityReach.Fraction(record, region.regionId) : 1f;
+					obsTarget = targetRegionalRadio;
+				}
 			}
 			data.tailRadioPlay = tail;
 
@@ -2275,9 +2324,13 @@ public partial class ChartManager : Node {
 				float reporterRadioPlay = stationNetwork.ReporterRadioPlay(record.baseRecord.recordId, region.regionId);
 				data.radioPlay = Mathf.Lerp(tail, reporterRadioPlay, reporterPanelWeight);
 				if (StationRegionalSupport.PanelLinear) data.panelRadioPlay = reporterRadioPlay;
+				obsReporter = reporterRadioPlay;
 			} else {
 				data.radioPlay = tail;
 			}
+			if (RegionalRadioBuildObserve.Wants(record, data))
+				RegionalRadioBuildObserve.Row(currentChartWeek, year, record, region, data, obsBuildAge, obsBuild, obsHeat, obsReach,
+					obsTarget, obsStart, tail, reporterPanelWeight > 0f && stationNetwork != null ? reporterPanelWeight : 0f, obsReporter);
 
 			// Big-5 handoff probe: both tail branches are linear in last week's radioPlay, so the panel's share of
 			// it carries forward the same way; what is left is the rotation with no panel blend in any week.

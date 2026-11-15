@@ -676,7 +676,9 @@ public static class ChartSimulator {
 		// label without its own network in a region is now carried by the coverage model and
 		// by the rack channel above.
 
-		if (regionalData.unitsInStores < rawSales) {
+		// PostRationStockClip: --post-ration-stock-clip clips the units after the ration instead; identical when off.
+		bool liveSingle = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		if (!PostRationStockClip.SkipsIntentClip(liveSingle) && regionalData.unitsInStores < rawSales) {
 			regionalData.unitsBackordered += Mathf.RoundToInt(rawSales - regionalData.unitsInStores);
 			rawSales = regionalData.unitsInStores;
 		}
@@ -684,7 +686,7 @@ public static class ChartSimulator {
 			regionalData.breakoutBackordersBeforeRestock = regionalData.unitsBackordered;
 		}
 		
-		rawSales = Mathf.Min(rawSales, totalCapacity);
+		if (!PostRationStockClip.SkipsShelfCap(liveSingle)) rawSales = Mathf.Min(rawSales, totalCapacity);
 		rawSales *= RegionalSalesRandom.Multiplier(record, region, 0.96, 1.04);
 		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) {
 			// Frozen disabled/prewarm behavior, including the historical post-jitter
@@ -695,7 +697,9 @@ public static class ChartSimulator {
 		// Jitter is deliberately drawn in the legacy order.  The live caller may
 		// subsequently ration this serviceable intent against the common market.
 		regionalData.serviceableIntentThisWeek = Mathf.Clamp(Mathf.RoundToInt(rawSales), 0,
-			Mathf.Min(regionalData.unitsInStores, regionalData.storeCapacityThisWeek));
+			PostRationStockClip.SkipsShelfCap(true) ? int.MaxValue
+			: PostRationStockClip.SkipsIntentClip(true) ? regionalData.storeCapacityThisWeek
+				: Mathf.Min(regionalData.unitsInStores, regionalData.storeCapacityThisWeek));
 		return regionalData.serviceableIntentThisWeek;
 	}
 		
@@ -885,7 +889,7 @@ public static class ChartSimulator {
 	/// GetChartVisibilityMultiplier and must not be charged twice.
 	/// </summary>
 	internal static float GetChartExposureWeight(int position) =>
-		RawChartExposure(position <= 0 ? 100 : position) / ChartExposureMean;
+		RawChartExposure(position <= 0 || position > 100 ? 100 : ChartEntryFeedbackProbe.ApplyTail(position)) / ChartExposureMean;
 
 	/// <summary>The top-10 and top-40 awareness floors; a reached-share floor under city reach.</summary>
 	private static float ApplyAwarenessFloor(float awareness, int position, bool noFloors, float cityReach) {
@@ -1380,37 +1384,39 @@ public static class ChartSimulator {
 		float airplayPoints = 0f;
 		foreach (var region in regions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
-			var data = record.regionalData[region.regionId];
-
-			if (region.media != null) {
-				// Convexity is there to separate a heavily rotated record from a lightly rotated one.
-				// It must not also cube the genre's radio access. Acceptance already enters rotation
-				// twice -- once through radioHeat, once through the regional radio opportunity -- so
-				// raising the product to a power compounded a genre disadvantage to roughly the sixth
-				// power. Measured at 1960 that moved the top three genres from 52.6% to 66.6% of the
-				// chart and left Soul holding 0.9% of chart weeks against 5.8% of units. Access is
-				// divided back out, the record's own rotation carries the exponent, and access is then
-				// paid back linearly.
-				float access = data.genreRadioOpportunityThisWeek > 0f ? data.genreRadioOpportunityThisWeek : 1f;
-				// Big-5 handoff lead 2 (off unless --station-regional-support-panel-linear): the exponent takes the
-				// rotation with no panel blend, and the panel is paid beside it, linearly.
-				bool panelLinear = StationRegionalSupport.PanelLinear;
-				float convexRadio = panelLinear ? Mathf.Max(0f, data.radioPlay - data.panelExcessRadio) : data.radioPlay;
-				// AirplayRotationCeiling is a probe on this payout only; identity unless --airplay-rotation-ceiling is named.
-				float ownRotation = AirplayRotationCeiling.Apply(convexRadio / access);
-				float rotation = AIRPLAY_REFERENCE_PLAY *
-					// TrajectoryShapeProbe: --airplay-convexity=K replaces the exponent; the authored value when off.
-					Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, TrajectoryShapeProbe.Convexity(AIRPLAY_CONVEXITY)) * access;
-				if (panelLinear) rotation += StationRegionalSupport.PanelLinearWeight * data.panelRadioPlay;
-				airplayPoints += rotation * region.media.radioReach * region.population *
-					AIRPLAY_POINTS_PER_MILLION_REACHED;
-			}
+			airplayPoints += RegionAirplayPoints(record.regionalData[region.regionId], region);
 		}
 
 		// The published score, not the true one: surveySampleThisWeek is the week's panel draw, cached
 		// on the record so this method stays a pure function of stored state and the audit telemetry
 		// reproduces the ranking byte for byte.
 		return (salesPoints + (airplayPoints * GetAirplayEraWeight(year))) * record.surveySampleThisWeek;
+	}
+
+	/// <summary>One region's airplay points before the era weight; 0 for a region without media.</summary>
+	internal static float RegionAirplayPoints(RegionalRecordData data, MarketRegion region) {
+		if (region.media == null) return 0f;
+		// Convexity is there to separate a heavily rotated record from a lightly rotated one.
+		// It must not also cube the genre's radio access. Acceptance already enters rotation
+		// twice -- once through radioHeat, once through the regional radio opportunity -- so
+		// raising the product to a power compounded a genre disadvantage to roughly the sixth
+		// power. Measured at 1960 that moved the top three genres from 52.6% to 66.6% of the
+		// chart and left Soul holding 0.9% of chart weeks against 5.8% of units. Access is
+		// divided back out, the record's own rotation carries the exponent, and access is then
+		// paid back linearly.
+		float access = data.genreRadioOpportunityThisWeek > 0f ? data.genreRadioOpportunityThisWeek : 1f;
+		// Big-5 handoff lead 2 (off unless --station-regional-support-panel-linear): the exponent takes the
+		// rotation with no panel blend, and the panel is paid beside it, linearly.
+		bool panelLinear = StationRegionalSupport.PanelLinear;
+		float convexRadio = panelLinear ? Mathf.Max(0f, data.radioPlay - data.panelExcessRadio) : data.radioPlay;
+		// AirplayRotationCeiling is a probe on this payout only; identity unless --airplay-rotation-ceiling is named.
+		float ownRotation = AirplayRotationCeiling.Apply(convexRadio / access);
+		float rotation = AIRPLAY_REFERENCE_PLAY *
+			// TrajectoryShapeProbe: --airplay-convexity=K replaces the exponent; the authored value when off.
+			Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, TrajectoryShapeProbe.Convexity(AIRPLAY_CONVEXITY)) * access;
+		if (panelLinear) rotation += StationRegionalSupport.PanelLinearWeight * data.panelRadioPlay;
+		return rotation * region.media.radioReach * region.population *
+			AIRPLAY_POINTS_PER_MILLION_REACHED;
 	}
 
 	/// <summary>
@@ -1437,13 +1443,16 @@ public static class ChartSimulator {
 	/// ChartManager and cached on the record -- never call this from CalculateChartPoints, which the
 	/// audit telemetry re-invokes and which must reproduce the ranking exactly.
 	/// </summary>
-	public static float DrawSurveySample(float unitsThisWeek) {
+	public static float DrawSurveySample(float unitsThisWeek, RecordRuntimeData record = null) {
 		float sigma = GetSurveySigma(unitsThisWeek);
 		if (sigma <= 0f) return 1f;
 		// Box-Muller off the seeded global RNG, so the draw stays reproducible under --seed.
 		float u1 = Mathf.Max(1e-7f, (float)GameRandom.RandRange(0.0, 1.0));
 		float u2 = (float)GameRandom.RandRange(0.0, 1.0);
 		float standardNormal = Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(Mathf.Tau * u2);
+		// SurveyPanelPersistence: --survey-panel-persistence=ρ carries the record's panel error across weeks (AR(1),
+		// same marginal sigma, same draw count); the fresh draw itself when off.
+		standardNormal = SurveyPanelPersistence.Persist(record, standardNormal);
 		// -sigma^2/2 keeps E[exp(X)] at 1, so noise reorders the chart without inflating it.
 		return Mathf.Exp(standardNormal * sigma - sigma * sigma * 0.5f);
 	}
