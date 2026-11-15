@@ -405,6 +405,46 @@ closures near the control while making LP sales follow the act. Before adopting 
   scale so racks are not lifted with stores;
 - the decade A/B.
 
+### 2.9b `--budget-appeal-saturation=25000` on `lwb`, and why stores thin in 1963 (2026-11-15)
+
+Arm `lwbs` = `lwb` + `--budget-appeal-saturation=25000`. Runs `bud-v1-{2002,1001}-lwbs`, 208 weeks. Seed 2002 / 1001.
+
+| | `lwb` | `lwbs` |
+|---|---|---|
+| Own-master editions that sell at all (of about 1,700 issued) | 70 / 70 | 103 / 121 |
+| Top 20 editions: median units | 865k / 903k | 575k / 567k |
+| Top 20 editions: median units ÷ source full-price store LP | 3.4× / 3.4× | 1.6× / 1.6× |
+| Biggest edition / its store LP | 1.22M / 254k; 1.22M / 316k | 0.89M / 640k; 0.80M / 281k |
+| Budget units from sources with 100k+ store sales | 95% / 98% | 96% / 99% |
+| Budget units 1963 (M) | 27.1 / 26.8 | 27.5 / 28.8 |
+| 1961 stores / racks / budget (M) | 60.9/45.6/15.6; 63.7/41.6/14.9 | 61.0/43.3/15.5; 67.0/40.3/15.1 |
+| Record gross 1961 ($M) | 486 / 483 | 480 / 489 |
+| Bankruptcies (208 weeks) | 118 / 139 | 117 / 121 |
+
+- **Saturation halves the outsized editions.** The top budget editions now sell about 1.6× their full-price LP, not
+  3.4×, and units spread over half as many titles again. Nothing outside the budget line moves beyond noise.
+- **It cannot bring in secondary titles.** Saturation is monotonic, so the 25 offer slots a region has still go to the
+  highest-appeal masters. 95–99% of budget units still come from former hits, and only 70–120 of about 1,700 issued
+  editions ever sell. To reach secondary titles, the slots would have to be ranked by the same weight that splits demand
+  (`sqrt(appeal) × quality^2.5`, with saturation), so a strong secondary title can win a slot.
+- **Correction to 2.9: the 1963 budget volume is not an overshoot against history.** Valued at $3.98 front-line and
+  $1.75 budget, budget is 20% of rack LP dollars in 1963 under `lwbs` and 19% in the control. The NARM 1962 figure is 21%.
+  The real gap is 1962: 13% under `lwbs` against 20% in the control, because no in-run master is old enough yet and the
+  opening baskets are exhausted.
+
+**Why stores thin in 1963: the retail purchase envelope binds.**
+- `RetailPurchaseEnvelope` gives stores and racks a joint 131.9M LPs a year: the single purse × the period LP:single
+  ratio, held before 1966. In both arms unspent capacity is 3M in 1962 and 0.0–0.2M in 1963, so from 1962 the scale
+  cannot add volume.
+- `--lp-demand-scale` lifts rack and budget-autonomous demand along with store intent, so racks take the envelope. In
+  1963, racks plus budget-autonomous units are 63M against the control's 49M, and stores get what is left.
+- In 1963 store intent is about the same as the control's (111M vs 109M), but stores are allocated only 69M against 82M.
+- **Next arm:** apply the scale to store intent only, leaving rack and budget-autonomous demand as calibrated, so the
+  envelope split stays where the control has it. Pair it with slot ranking by demand weight.
+
+**Verdict:** adopt `--budget-noncurrent-weeks=156` with `--budget-appeal-saturation=25000` as the budget mechanism.
+Hold `--lp-demand-scale=1.6` until the stores-only arm is screened.
+
 ## 3. Checked and found sound
 
 - **P&D advances are repaid under the bundle.** `--distribution-advance-recoupment` withheld $438k of $515k advanced (seed 2002) and $408k of $475k (seed 1001) inside two years; 4–6% was forgiven. The "never repaid" item is closed for the reference bundle.
