@@ -505,6 +505,177 @@ for now and recheck in the decade A/B.
 store-only scale 1.6, rank by weight) is the first that holds stores, racks, gross and closures at the control while
 LP sales follow the act. It is a candidate for adoption once a budget per-title bound or a higher K is screened.
 
+### 2.10 Rack bound by store standing, and the budget per-title bound (2026-11-15, LP channel handoff issues 2–3)
+
+New switches, all off by default:
+- `--rack-store-standing-bound=K` (`RackJobberChannel`): a racked title's own weekly rack demand in a region is at most
+  K times its store units there that week. No saved state.
+- `--budget-source-bound=M` (`BudgetLpChannel`): an own-master edition sells, in each region, at most M times its
+  full-price LP's store units there. The source's regional store units are kept on the product at retirement, the
+  edition's demand weight tapers linearly to zero at the bound, and a bought-out edition gives its slot up. Opening
+  baskets have no source and are not bound. Saved with the world and checked on resume.
+- `--album-chart-history` (`ChartAuditRunner`): writes the weekly album chart under `--calibration`. Telemetry only.
+
+Checks: 45 budget, 53 rack and 25 LP-calibration checks pass. `fh-v1-2002-off` (27 weeks) matches `cand-v3-2002-off`
+byte for byte in 94 weekly streams (`compare_weekly_streams.py`); five more differ only in rows each run writes at
+close. Arms are on `lwbr`: `lref` (`lwbr` + chart telemetry), `rk` (K = 2), `bb` (M = 1), `bk` (saturation 100k).
+
+**Issue 2. Why artistless LPs over-sell on racks.** An artistless soundtrack or cast album sells 4–14× its same-week
+store units on racks. Act titles sell 0.8–2.5× (Easy Listening 1.8–2.5, Country 1.4–1.6, TradPop 1.3–1.5, Folk
+0.8–1.05). Three terms, all in `RackJobberChannel`:
+- `SoundtrackGenreWeight` is 0.9. An act title's weight is `baseline × segment tilt`, about 0.13 for Classical and
+  0.4–0.6 for TradPop and Easy Listening.
+- Exposure is `max(display, awareness)`. A soundtrack lives for years, its awareness climbs to 1.0, and its
+  catalogue-tier exposure goes from 0.35 to 0.7–1.0 (act titles average 0.49).
+- Rack conversion has no age decay, and exhaustion is `1 / (1 + 4 × penetration)` with a floor of 0.15. A title holding
+  a slot sells about 0.9% of the region's rack-shopper pool every week without end. The control's top title sold about
+  20k a week for 150 weeks against 4k a week in stores. `--rack-shared-exhaustion` only adds store units to the
+  penetration, which is already past the floor.
+
+K = 2 puts a soundtrack at the top of the act-title range (Easy Listening). Runs `fh-v1-{2002,1001}-{lref,rk}`,
+104 weeks, seed 2002 / 1001:
+
+| | `lref` | `rk` |
+|---|---|---|
+| Artistless share of launched-LP rack units | 20.0% / 18.4% | 13.5% / 15.5% |
+| Artistless rack units (M) | 11.2 / 9.7 | 6.8 / 7.8 |
+| Top rack title, rack / store (k) | 975 / 237; 1,172 / 242 | 401 / 146; 769 / 263 |
+| Classical rack ÷ store (all titles 0.5) | 1.05 / 0.50 | 0.48 / 0.48 |
+| Front-line racks 1961 (M) | 35.0 / 32.6 | 31.2 / 30.9 |
+| Stores 1961 (M) | 65.2 / 66.7 | 63.5 / 68.3 |
+
+- The bound works in the intended direction on both seeds. The biggest rack titles fall by a third to a half, and no
+  title sells more than about 3× its realized store units. The bound is taken against store intent before the retail
+  envelope trims it, so realized ratios run above K.
+- Front-line racks lose 2–4M in 1961, because `--rack-shopper-scale` was fitted with the anomaly inside it. A lift from
+  0.026 to about 0.029 would return that volume to act titles. Not screened.
+- Artistless titles are still rack-heavy (13.5–15.5% of rack units on 6% of store units). That is the 0.9 genre weight,
+  and it is at the level of Easy Listening act titles.
+
+**Second Classical problem: the overall share.** Roster-act Classical is 4–7% of store LP units and its rack-to-store
+ratio is at the all-genre level. The only figure found for the period is Schickel (1960): $85M of $425M spent on
+recordings, 20% of dollars, year and source unstated
+([Sandow](https://artsjournal.com/sandow/2006/12/past_popularity.html)); a Time piece also says about 20%. Nothing by
+channel was found. Raising the Classical album affinity is the wrong lever: at 0.60 it gives 7–11% of units but 24–26%
+of the album top 50 on one seed (`LpGenreAllocationFollowup.md` §6). The route that fits is more Classical titles at
+low per-title demand, as for Jazz. Not built.
+
+**Issue 3. Budget per-title volume.** Runs `fh-v1-2002-{bb,bk}`, 208 weeks, against `bud-v2-2002-lwbr`. Everything is
+identical through 1961; own-master editions start in 1962.
+
+| Seed 2002 | Control | `lwbr` | `bb` (M = 1) | `bk` (K = 100k) |
+|---|---|---|---|---|
+| Own-master editions that sell | 93 | 212 | 1,003 | 165 |
+| Budget units from sources with 100k+ store sales | 56% | 63% | 47% | 83% |
+| Top 20 editions: median units | | 462k | 126k | 479k |
+| Top 20 editions: median ÷ source store LP | 3.8× | 2.6× | 0.55× | 1.9× |
+| Largest edition ÷ source (editions over 20k) | | 12.0× | 1.6× | 9.7× |
+| Median selling edition | | 103k | 17.5k | 143k |
+| Budget 1962 / 1963 (M) | 21.4 / 21.7 | 16.8 / 27.2 | 15.7 / 20.4 | 16.1 / 26.3 |
+| Stores 1963 (M) | 67.8 | 61.1 | 66.0 | 63.0 |
+| Bankruptcies (208 weeks) | 124 | 119 | 118 | 117 |
+
+- **The source bound removes the anomaly; K = 100k does not.** Under `bb` no edition outsells its full-price LP by a
+  multiple and five times as many editions sell. The ratios under 1 are by construction. The 1.6× maximum is the gap
+  between the regional store ledger the bound reads and the pressing-book figure scored here. Under `bk` sales history
+  counts again, so the shelf returns to former hits (83%) and a flop can still sell 9.7× its LP.
+- **It also answers most of issue 4's 1963 thinning.** Budget returns to 20.4M (control 21.7M), and inside the full
+  envelope stores recover 5M of the 6–7M they had lost.
+- **Cost.** 1962 budget volume is 15.7M against the control's 21.4M, so the gap to NARM's 21% of 1962 rack dollars is
+  not closed. M = 1 is a scenario value; no source gives a budget-to-original sales ratio.
+
+**Verdict:** `--budget-source-bound=1` is the per-title bound the `lwbr` package was waiting for. Recommend it with the
+package. `--rack-store-standing-bound=2` works at 104 weeks but does not hold at 208 (2.11), so it is not recommended
+as built. `--budget-appeal-saturation=100000` is rejected as the fix.
+
+Research still open (handoff questions 3–4): budget LP unit share 1960–63, and rack against store sales of soundtracks.
+Found only: RCA Camden, the largest low-price line, at $8–9M a year in 1963 and Pickwick at over $5M
+([Billboard, 24 August 1963](https://www.worldradiohistory.com/Archive-All-Music/Billboard/60s/1963/Billboard%201963-08-24.pdf),
+seen through a search excerpt); the *West Side Story* soundtrack at about 2.5M in 1962 across all channels
+([Wikipedia](https://en.wikipedia.org/wiki/West_Side_Story_(1961_soundtrack)), figures conflict).
+
+### 2.11 Combined arm `all`: `lwbr` + genre affinities + rack bound + budget source bound (2026-11-15)
+
+`all` = `lwbr` with `--lp-demand-scale=1.8`, `--album-affinity=Folk=0.44,BossaNova=0.40,TraditionalPop=0.41,
+EasyListening=0.28,Classical=0.60` (`LpGenreAllocationFollowup.md` §6), `--rack-store-standing-bound=2` and
+`--budget-source-bound=1`. Runs `fh-v1-{2002,1001}-all`, 208 weeks, against `cand-v3-*-off` and `bud-v2-*-lwbr`.
+Seed 2002 / 1001.
+
+| | Control | `lwbr` | `all` |
+|---|---|---|---|
+| 1961 stores / racks / budget (M) | 65.1/34.7/16.5; 65.6/31.7/17.1 | 65.2/35.8/14.0; 66.7/33.3/14.3 | 63.6/32.7/13.5; 62.2/31.2/14.4 |
+| 1962 stores / racks / budget (M) | 68.6/37.9/21.4; 73.6/34.3/20.4 | 68.8/39.3/16.8; 73.0/36.3/17.2 | 70.1/38.1/15.5; 71.7/36.3/16.1 |
+| 1963 stores / racks / budget (M) | 67.8/39.9/21.7; 72.3/36.3/21.1 | 61.1/41.6/27.2; 65.0/37.4/27.6 | 67.6/39.4/21.2; 71.3/36.7/20.5 |
+| Record gross 1961 / 1963 ($M) | 468 / 461; 461 / 461 | 468 / 455; 469 / 453 | 456 / 459; 451 / 460 |
+| Median LP units, act's best single under 1k | 15.7k / 17.9k | 12.5k / 13.8k | 12.4k / 13.5k |
+| Median LP units, act's best single 100k+ | 41.2k / 36.2k | 42.1k / 42.5k | 46.2k / 38.6k |
+| LPs losing money | 0.1% / 0.1% | 1.2% / 1.4% | 1.0% / 1.3% |
+| Top 10% share of LP units | 44.6 / 44.0 | 52.9 / 49.7 | 49.4 / 47.7 |
+| Own-master editions that sell | 93 / 121 | 212 / 198 | 1,039 / 1,005 |
+| Budget units from sources with 100k+ store sales | 56% / 55% | 63% / 63% | 45% / 44% |
+| Top 20 editions: median ÷ source store LP | 3.8× / 4.2× | 2.6× / 2.9× | 0.3× / 0.6× |
+| Artistless share of launched-LP rack units | 13.4% / 9.7% | 18.5% / 12.6% | 14.5% / 14.1% |
+| Top rack title, rack / store (k) | 3,490 / 349; 1,850 / 300 | 1,799 / 92; 1,270 / 447 | 1,581 / 328; 2,188 / 492 |
+| Bankruptcies (208 weeks) | 124 / 124 | 119 / 139 | 128 / 121 |
+
+Year-end album top 50 (`analyze_album_chart_head.py`), 1960 / 1961 / 1962 / 1963:
+
+| Top 50 % | Author's estimate | `all`, seed 2002 | `all`, seed 1001 |
+|---|---|---|---|
+| Folk | 13 / 6 / 18 / 18 | 12 / 22 / 24 / 2 | 10 / 14 / 14 / 6 |
+| TradPop | 30 / 28 / 24 / 36 | 34 / 46 / 38 / 32 | 20 / 18 / 20 / 26 |
+| Easy Listening | 6 / 12 / 10 / 2 | 18 / 6 / 4 / 6 | 8 / 10 / 0 / 4 |
+| Comedy | 11 / 6 / 6 / 8 | 16 / 14 / 0 / 0 | 12 / 26 / 6 / 0 |
+| Soundtrack | 7–14, about 25 in 1962–63 | 12 / 8 / 8 / 16 | 12 / 4 / 2 / 6 |
+| Bossa Nova | – / – / 2 / 4 | – / – / 8 / 18 | – / – / 22 / 18 |
+| Classical | not estimated | 8 / 4 / 2 / 2 | 28 / 22 / 12 / 4 |
+
+Folk is 8.7–9.3% of the store units of 1960–61 launches (control 23–29%), 6.9–9.6% of 1961 rack units (27–38%) and
+9–11% of budget units (56–61%).
+
+- **Channel totals are back at the control in all four years**, within 1–3M a channel, including 1963. The 1963 store
+  thinning is gone (67.6M / 71.3M against the control's 67.8M / 72.3M). 1961 stores are 2–3M under and 1961 gross is
+  2–3% under; 1962–63 gross matches.
+- **Earned LP demand keeps its effect**: an unknown act's LP sells 12.4–13.5k, 1.0–1.3% of LPs lose money.
+- **Folk is fixed for 1960–62 in every channel, and now under in 1963** (2–6% of the top 50 against 18). The
+  over-share was a 1960–62 problem. Folk's baseline falls after 1962 and the control's 1963 Folk head was already near
+  the estimate, so a flat affinity cut takes too much from 1963. That needs a year-keyed value or a 1963–64 baseline
+  lift.
+- **Bossa Nova at 0.40 is still over at the head** (18–22% in 1962–63 against 2–4) while its units are 3–5%. Its
+  shaped affinity clamps from 1962; it needs a lower value than Folk's.
+- **Classical 0.60 overshoots on seed 1001** (28 / 22 / 12). Drop it from the set.
+- **Comedy is over in 1960–61 on both seeds** and absent from 1962.
+- **The rack bound does not hold at 208 weeks.** One artistless title per seed still sells 1.6–2.2M on racks at 4–5×
+  its store units, and the artistless share of rack units is at the control's level, not below it. The bound is taken
+  against store intent, and a long-lived title's store intent stays high while the retail envelope trims what it
+  sells. The cause to fix is the title's rack pool (the 0.9 genre weight and awareness-driven exposure), or the bound
+  should use realized store units.
+- **Bankruptcies** are +4 / −3 against the control.
+
+**Switch table and verdicts** (all off by default, all inert when off):
+
+| Switch | Status after this pass |
+|---|---|
+| `--lp-earned-discovery=0`, `--lp-earned-launch`, `--lp-buyer-word-of-mouth=10000` | Recommended (package) |
+| `--budget-noncurrent-weeks=156` | Recommended (package) |
+| `--budget-appeal-saturation=25000` | Recommended (package); 100000 rejected |
+| `--budget-rank-by-weight` | Recommended with the source bound |
+| `--budget-source-bound=1` | **Adopted** with the package; closes issue 3 and the 1963 store thinning. M is a scenario value |
+| `--lp-demand-scale` + `--lp-demand-scale-stores-only` | Recommended; 1.6 without the genre set, 1.8 with it |
+| `--album-affinity=Folk=0.44,TraditionalPop=0.41,EasyListening=0.28` | Screened on two seeds; fixes 1960–62. Open: Folk 1963, Comedy |
+| `--album-affinity` BossaNova=0.40 | Too high; rescreen at about 0.25 |
+| `--album-affinity` Classical=0.60 | Rejected (head overshoot on one seed) |
+| `--rack-store-standing-bound=2` | Works at 104 weeks, not at 208. Not recommended as built |
+| `--album-chart-history` | Telemetry; add to candidate runs that score the album head |
+| `--lp-label-demand-parity` | Rejected (2.4) |
+
+**Adopted 2026-11-15** (in `candidate-request.json`): the `lwbr` package plus `--budget-source-bound=1`, that is
+`--lp-earned-discovery=0 --lp-earned-launch --lp-buyer-word-of-mouth=10000 --budget-noncurrent-weeks=156
+--lp-demand-scale=1.6 --lp-demand-scale-stores-only --budget-appeal-saturation=25000 --budget-rank-by-weight
+--budget-source-bound=1`. On seed 2002 (`fh-v1-2002-bb`, 2.10) that set holds stores, racks and budget near the control
+through 1963 and needs no genre decision; it has not been run alone on seed 1001. The genre set is the next step, after the Folk
+1963, Bossa Nova and Comedy values are settled on a 208-week pair, then the decade A/B on one paired seed.
+
 ## 3. Checked and found sound
 
 - **P&D advances are repaid under the bundle.** `--distribution-advance-recoupment` withheld $438k of $515k advanced (seed 2002) and $408k of $475k (seed 1001) inside two years; 4–6% was forgiven. The "never repaid" item is closed for the reference bundle.

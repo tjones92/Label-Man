@@ -1,5 +1,11 @@
 # LP channels and LP genre balance: handoff to Fable (2026-11-15)
 
+**Worked 2026-11-15.** Results: Folk in `LpGenreAllocationFollowup.md` §6; issues 2–3, the combined arm and the switch
+table in `GameyBehaviorAudit.md` §2.10–2.11. Short version: Folk's over-share is demand per title through the
+untouched album affinity (supply is on the anchor); `--budget-source-bound=1` closes issue 3 and most of the 1963
+store thinning; the rack bound built for issue 2 does not hold at 208 weeks; issue 4's envelope growth and opening
+baskets were not worked.
+
 ## Goal
 
 Two jobs, in this order:

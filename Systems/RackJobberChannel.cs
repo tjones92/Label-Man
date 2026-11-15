@@ -25,6 +25,11 @@ public static class RackJobberChannel {
 	public const string SharedSwitch = "--rack-shared-exhaustion";
 	public const string ReturnsSwitch = "--rack-returns=";
 	public const string TurnoverSwitch = "--rack-turnover=";
+	/// <summary>--rack-store-standing-bound=K (LP channel handoff issue 2). A racked title's own weekly rack demand in a
+	/// region is at most K times its store units there that week, so a title cannot sell on racks out of proportion to
+	/// the store sales that put it on the rack. 0 (default) is no bound.</summary>
+	public const string StoreBoundSwitch = "--rack-store-standing-bound=";
+	public static float StoreStandingBound { get; private set; }
 	public static float Turnover { get; private set; } = UnitsPerRackWeek;
 	public static bool SharedExhaustion { get; private set; }
 	public static float ReturnRate { get; private set; }
@@ -85,6 +90,12 @@ public static class RackJobberChannel {
 				!float.IsFinite(value) || value <= 0 || value > 1000) throw new ArgumentException("Invalid " + turnover);
 			Turnover = value;
 		}
+		string bound = args.FirstOrDefault(a => a.StartsWith(StoreBoundSwitch, StringComparison.Ordinal));
+		if (bound != null) {
+			if (!Enabled || !float.TryParse(bound[StoreBoundSwitch.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
+				!float.IsFinite(value) || value < 0f || value > 100f) throw new ArgumentException("Invalid " + bound);
+			StoreStandingBound = value;
+		}
 		if (scale != null) {
 			if (!Enabled) throw new ArgumentException(ScaleSwitch + " requires " + Switch + ".");
 			if (!float.TryParse(scale.Substring(ScaleSwitch.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
@@ -95,7 +106,10 @@ public static class RackJobberChannel {
 		configured = true;
 	}
 
-	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; ResetTelemetry(); }
+	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; ResetTelemetry(); }
+	internal static void SetStoreBoundForChecks(float bound) => StoreStandingBound = bound;
+	internal static float BoundByStoreStanding(float demand, int storeUnits) =>
+		StoreStandingBound > 0f ? Mathf.Min(demand, StoreStandingBound * Mathf.Max(0, storeUnits)) : demand;
 	internal static void SetForChecks(bool enabled, float scale = DefaultShopperScale, bool shared = false, float returns = 0f) {
 		configured = true; Enabled = enabled; ShopperScale = scale; SharedExhaustion = shared; ReturnRate = returns; ResetTelemetry();
 	}
@@ -241,7 +255,7 @@ public static class RackJobberChannel {
 				penetration += BudgetLpChannel.SourcePurchases(c.Record.baseRecord.recordId, region.regionId) / Mathf.Max(1f, titlePool);
 				c.Demand = titlePool * Exposure(c.Tier, c.Rank, c.Record.awareness) * Conversion(c.Record, year, month, liveTick) *
 					AlbumSimulator.CalculateAlbumExhaustion(penetration);
-				c.Demand = LpDemandCalibration.ApplyNonStore(c.Demand);
+				c.Demand = BoundByStoreStanding(LpDemandCalibration.ApplyNonStore(c.Demand), c.StoreUnits);
 				racked.Add(c);
 				c.AutonomousDemand = c.Demand;
 			}

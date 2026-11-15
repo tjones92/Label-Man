@@ -122,6 +122,27 @@ public static class BudgetLpChecks {
 				return BudgetLpChannel.Offers(region, 50, 1961, 6, false, Owner, stores).Any(o => o.Product.Id == "second");
 			}
 			Check(!Offered(false) && Offered(true), "rank by weight admits a strong secondary title");
+			// --budget-source-bound: an edition's regional copies stop at M times its source LP's regional store units.
+			BudgetLpChannel.ResetForChecks(true); BudgetLpChannel.SetNoncurrentForChecks(0, 0, true, 1);
+			BudgetLpChannel.Prepare(System.Array.Empty<RecordRuntimeData>(), Owner, 0); BudgetLpChannel.State.Products.Clear();
+			var sourced = Album("sourced", 60); sourced.totalUnitsSold = 400;
+			sourced.regionalData[region.regionId] = new RegionalRecordData { unitsSoldTotal = 100 };
+			BudgetLpChannel.Remember(sourced, 50);
+			var edition = BudgetLpChannel.State.Products["master:sourced"];
+			Check(edition.SourceRegionUnits[region.regionId] == 100, "source bound keeps the regional store units");
+			var boundOffers = BudgetLpChannel.Offers(region, 50, 1961, 6, false, Owner, stores);
+			Check(boundOffers.Count == 1 && boundOffers[0].Demand > 0 && boundOffers[0].Demand <= 100 &&
+				boundOffers[0].SwitchDemand <= boundOffers[0].Demand, "source bound caps the week at the allowance");
+			edition.RegionUnits[region.regionId] = 50;
+			Check(Math.Abs(BudgetLpChannel.Taper(edition, region.regionId) - .5) < 1e-9 && BudgetLpChannel.Headroom(edition, region.regionId) == 50,
+				"source bound tapers with copies sold");
+			edition.RegionUnits[region.regionId] = 100;
+			Check(BudgetLpChannel.Offers(region, 51, 1961, 6, false, Owner, stores).Count == 0, "a bought-out edition gives its slot up");
+			var boundCfg = BudgetLpChannel.Capture(); boundCfg.SourceBound = 0;
+			Check(Refuses(() => BudgetLpChannel.Restore(boundCfg)), "resume refuses a different source bound");
+			BudgetLpChannel.ResetForChecks(true); BudgetLpChannel.Remember(Album("unbound", 60), 50);
+			Check(BudgetLpChannel.State.Products["master:unbound"].SourceRegionUnits == null &&
+				double.IsPositiveInfinity(BudgetLpChannel.Headroom(BudgetLpChannel.State.Products["master:unbound"], region.regionId)), "off: no source ledger and no bound");
 			BudgetLpChannel.ResetForChecks();
 			bool shortRejects = false;
 			try { BudgetLpChannel.Configure(new[] { "--budget-noncurrent-weeks=156" }); } catch (ArgumentException) { shortRejects = true; }

@@ -5,7 +5,8 @@ param(
     [int]$Seed = 2002,
     [string]$Reference = 'SimLogs/writing-calibration/rg10-v1-2002-lw0up1_ao2_lh1_he095-request.json',
     [string[]]$Arms = @('le', 'lep'),
-    [double]$LpScale = 1.6
+    [double]$LpScale = 1.6,
+    [string[]]$Extra = @()
 )
 # LP earned-demand screen (GameyBehaviorAudit.md finding 1 and 9) on the rg10 Top 10 candidate.
 # The reference is the rg10 RUN request (it carries the lw0up1/ao2/lh1/he095 arm flags the reference request lacks).
@@ -20,12 +21,20 @@ param(
 # lwb = lw + bn + --lp-demand-scale=$LpScale (earned LP demand, volume restored by a global LP purchase scale,
 # budget editions from noncurrent catalogue). lwbs = lwb + --budget-appeal-saturation=25000.
 # lwbr = lwbs + --lp-demand-scale-stores-only + --budget-rank-by-weight (2.9b next arm).
+# LP channel handoff arms (2026-11-15), all on lwbr and all with --album-chart-history (telemetry only):
+# lref = lwbr as is. fa = lwbr + --album-affinity=Folk=0.44,BossaNova=0.40 (Folk demand per title cut).
+# fm = fa + TraditionalPop=0.46,Classical=0.60,Comedy=0.50 (the cut moved to the genres history had).
+# rk = lwbr + --rack-store-standing-bound=2 (issue 2). bb = lwbr + --budget-source-bound=1 (issue 3a).
+# fm2 = fa + TraditionalPop=0.41,EasyListening=0.28,Classical=0.60 (run with -LpScale 1.8 to restore store volume).
+# bk = lwbr with --budget-appeal-saturation=100000 (issue 3b). -Extra adds flags to every arm.
 # Run eo against -Reference SimLogs/writing-calibration/candidate-request.json with -RunPrefix cand-v1.
 # All arms in -Arms start at once and are awaited; run two at a time on a low-RAM machine.
 $ErrorActionPreference = 'Stop'
 # -File passes 'base,gap' as one string; split it and check each arm.
 $Arms = @($Arms | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw', 'bn', 'bns', 'lwb', 'lwbs', 'lwbr')) { throw "Unknown arm: $a" } }
+foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw', 'bn', 'bns', 'lwb', 'lwbs', 'lwbr', 'lref', 'fa', 'fm', 'rk', 'bb', 'bk', 'all', 'fm2')) { throw "Unknown arm: $a" } }
+$Extra = @($Extra | ForEach-Object { $_ -split ',(?=--)' } | Where-Object { $_ })
+$handoff = @('lref', 'fa', 'fm', 'fm2', 'rk', 'bb', 'bk', 'all')
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $dir = Join-Path $root 'SimLogs/writing-calibration'
@@ -42,17 +51,25 @@ foreach ($arm in $Arms) {
     $flags = @($referenceRequest.flags | ForEach-Object {
         if ($_ -like '--run=*') { "--run=$name" } elseif ($_ -like '--seed=*') { "--seed=$Seed" } elseif ($_ -like '--weeks=*') { "--weeks=$Weeks" } else { $_ }
     })
-    if ($arm -in @('le', 'lep', 'lw', 'lwb', 'lwbs', 'lwbr')) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
-    if ($arm -in @('lw', 'lwb', 'lwbs', 'lwbr')) { $flags += '--lp-buyer-word-of-mouth=10000' }
+    if ($arm -in @('le', 'lep', 'lw', 'lwb', 'lwbs', 'lwbr') + $handoff) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
+    if ($arm -in @('lw', 'lwb', 'lwbs', 'lwbr') + $handoff) { $flags += '--lp-buyer-word-of-mouth=10000' }
     if ($arm -eq 'lep') { $flags += '--lp-label-demand-parity' }
     if ($arm -eq 'an') { $flags += '--anniversary-opening-contracts' }
     if ($arm -eq 'rc') { $flags += '--receivable-overdraft-charge=0.0125' }
     if ($arm -eq 're') { $flags += '--renewal-live-evidence' }
     if ($arm -eq 'eo') { $flags += '--renewal-earned-option' }
-    if ($arm -in @('bn', 'bns', 'lwb', 'lwbs', 'lwbr')) { $flags += '--budget-noncurrent-weeks=156' }
-    if ($arm -in @('lwb', 'lwbs', 'lwbr')) { $flags += "--lp-demand-scale=$($LpScale.ToString([Globalization.CultureInfo]::InvariantCulture))" }
-    if ($arm -in @('bns', 'lwbs', 'lwbr')) { $flags += '--budget-appeal-saturation=25000' }
-    if ($arm -eq 'lwbr') { $flags += @('--lp-demand-scale-stores-only', '--budget-rank-by-weight') }
+    if ($arm -in @('bn', 'bns', 'lwb', 'lwbs', 'lwbr') + $handoff) { $flags += '--budget-noncurrent-weeks=156' }
+    if ($arm -in @('lwb', 'lwbs', 'lwbr') + $handoff) { $flags += "--lp-demand-scale=$($LpScale.ToString([Globalization.CultureInfo]::InvariantCulture))" }
+    if ($arm -in @('bns', 'lwbs', 'lwbr', 'lref', 'fa', 'fm', 'fm2', 'rk', 'bb', 'all')) { $flags += '--budget-appeal-saturation=25000' }
+    if ($arm -eq 'bk') { $flags += '--budget-appeal-saturation=100000' }
+    if ($arm -in @('lwbr') + $handoff) { $flags += @('--lp-demand-scale-stores-only', '--budget-rank-by-weight') }
+    if ($arm -in $handoff) { $flags += '--album-chart-history' }
+    if ($arm -eq 'fa') { $flags += '--album-affinity=Folk=0.44,BossaNova=0.40' }
+    if ($arm -eq 'fm') { $flags += '--album-affinity=Folk=0.44,BossaNova=0.40,TraditionalPop=0.46,Classical=0.60,Comedy=0.50' }
+    if ($arm -in @('fm2', 'all')) { $flags += '--album-affinity=Folk=0.44,BossaNova=0.40,TraditionalPop=0.41,EasyListening=0.28,Classical=0.60' }
+    if ($arm -in @('rk', 'all')) { $flags += '--rack-store-standing-bound=2' }
+    if ($arm -in @('bb', 'all')) { $flags += '--budget-source-bound=1' }
+    $flags += $Extra
     $userData = Join-Path $dir "userdata-$name"
     New-Item -ItemType Directory -Force -Path $userData | Out-Null
     @{ flags=$flags; sourceRevision=$revision; assemblySha256=$assemblyHash; startedUtc=[datetime]::UtcNow.ToString('o') } |

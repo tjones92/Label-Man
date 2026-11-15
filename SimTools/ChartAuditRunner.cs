@@ -283,6 +283,8 @@ public partial class ChartAuditRunner : Node {
 	private bool leanProbe;
 	// Read-only chart history, including opening carryovers, in aggregate/calibration runs.
 	private bool chartHistory;
+	// --album-chart-history: keep the weekly album chart under --calibration (telemetry only; LP genre head benchmark).
+	private bool albumChartHistory;
 	// Read-only follow-up diagnosis: keep off-chart observations for recent non-opening hit acts.
 	private bool followupChartTrace;
 	private readonly Dictionary<string, int> followupTraceFirstHits = new(StringComparer.Ordinal);
@@ -555,6 +557,8 @@ public partial class ChartAuditRunner : Node {
 				aggregateOnly = true;
 			} else if (argument == "--chart-history") {
 				chartHistory = true;
+			} else if (argument == "--album-chart-history") {
+				albumChartHistory = true;
 			} else if (argument == "--lean-probe") {
 				leanProbe = true;
 				aggregateOnly = true;
@@ -2387,6 +2391,7 @@ public partial class ChartAuditRunner : Node {
 		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
 		// so --calibration suppresses it. The economy is untouched; only these output CSVs go dark.
 		if (calibrationMode && smallLabelFinance) WriteLabelFinanceRows(week, date.year);
+		if (calibrationMode && albumChartHistory) WriteAlbumChartRows(week, date, albumChart);
 		if (!calibrationMode) {
 			RecordRuntimeData numberOne = chart.FirstOrDefault();
 			int totalChartUnits = chart.Sum(record => record.unitsThisWeek);
@@ -3501,6 +3506,11 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void WriteAlbumRows(int week, GameDate date, List<RecordRuntimeData> records, List<RecordRuntimeData> albumChart) {
+		WriteAlbumChartRows(week, date, albumChart);
+		WriteAlbumCompositionRows(week, date, records);
+	}
+
+	private void WriteAlbumChartRows(int week, GameDate date, List<RecordRuntimeData> albumChart) {
 		int chartSize = ChartManager.Instance.GetAlbumChartSize(date);
 		foreach (RecordRuntimeData record in albumChart) {
 			Album album = record.baseRecord.album;
@@ -3512,7 +3522,9 @@ public partial class ChartAuditRunner : Node {
 				record.weeksOnChart.ToString(CultureInfo.InvariantCulture), F(album?.pooledAppeal ?? 0f), F(album?.thematicCohesion ?? 0f), F(album?.packaging ?? 0f)
 			}));
 		}
+	}
 
+	private void WriteAlbumCompositionRows(int week, GameDate date, List<RecordRuntimeData> records) {
 		foreach (RecordRuntimeData record in records.Where(record => record.baseRecord.format == ReleaseFormat.Album)) {
 			Album album = record.baseRecord.album;
 			if (album == null || !observedAlbumIds.Add(album.albumId)) continue;

@@ -360,3 +360,118 @@ python SimTools/analyze_genre_hook_calibration.py --tags apr8-bundle lpa2-fb lpa
 python SimTools/analyze_genre_hook_calibration.py --tags dec-awrw-on dec-apr8-bundle dec-lpa-fbj30 --seeds 1001 2002 --weeks 522 --output SimLogs/lpa3b-decade
 python SimTools/genre_share_breakdown.py --tags dec-awrw-on dec-apr8-bundle dec-lpa-fbj30 --seeds 1001 2002 --weeks 522 --years 1965 1969
 ```
+
+## 6. Folk on the current candidate and the `lwbr` package (2026-11-15)
+
+Answers `SimTools/LpChannelFableHandoff.md` issue 1. Runs: control `cand-v3-{2002,1001}-off` and package
+`bud-v2-{2002,1001}-lwbr` (208 weeks); new 104-week arms `fh-v1-{2002,1001}-{lref,fa,fm,fm2}` on `lwbr`
+(`run_lp_earned_screen.ps1`). Seed 2002 / 1001 throughout. Nothing here is a default.
+
+### Why Folk is over-shared, ranked
+
+`analyze_lp_genre_supply_demand.py`, LPs launched in 1960 (lifetime store units):
+
+| | Control | `lwbr` |
+|---|---|---|
+| Folk share of LP launches | 13.2% / 12.1% | 12.4% / 11.9% |
+| Folk share of their store units | 28.5% / 29.4% | 29.3% / 30.2% |
+| Folk units per title (× the year's mean) | 2.16 / 2.44 | 2.36 / 2.54 |
+| Folk share of the year's 50 biggest LPs | 42% / 58% | 56% / 60% |
+
+1. **Demand per title, through album affinity (about 1.9×).** A title's buyer pool is
+   `buying population × segregation × acceptance × affinity × willingness`, and each title sells against its own
+   exhaustion, so a genre's units are titles × pool. Folk's shaped affinity is 0.89 in 1960, 0.97 in 1961 and clamps at
+   1.0 from 1962; the title-weighted mean is about 0.41. Baseline × affinity puts Folk's pool at 1.83–1.93× the mean.
+2. **Label mix (about 1.2×).** 30–47% of Folk LPs are on Majors (TradPop 16–25%), and the live LP tier constant gives
+   Major 1.36 against Small 0.50. Majors take 57–69% of Folk's store units.
+3. **Quality is not a cause** (0.9× the mean), and the residual after 1–2 is 1.0–1.2×.
+4. **Supply is not a cause.** Folk is 12–13% of LP launches, on the 13% anchor.
+5. **Racks only pass it on.** Folk act titles sell 0.8–1.05× their same-week store units on racks, below Easy
+   Listening (1.8–2.5×), Country and TradPop. Folk's 25–38% of 1961 rack units is its store share carried over by the
+   store-sales ranking, not a separate rack cause.
+
+**The head is worse than the units.** The album chart was empty because the candidate runs under `--calibration`,
+which skips `WriteAlbumRows`. New telemetry switch `--album-chart-history` keeps the weekly chart (27-week off run:
+94 weekly streams byte-identical to `cand-v3-2002-off`; the other five differ only in rows written at close).
+`analyze_album_chart_head.py` on `fh-v1-*-lref`: Folk is 80% / 76% of the 1960 year-end top 50 and 78% / 92% of 1961,
+against the author's 13 / 6. It holds 50% / 60% of 1960 No. 1 weeks and 27% / 21% of 1961.
+
+**Second anchor.** Billboard's No. 1 LPs: the Kingston Trio held the top for about 16 of 53 weeks in 1960 (*Here We
+Go Again!*, *Sold Out*, *String Along*) and no Folk title did in 1961
+([1960](https://en.wikipedia.org/wiki/List_of_Billboard_number-one_albums_of_1960),
+[1961](https://en.wikipedia.org/wiki/List_of_Billboard_number-one_albums_of_1961); the tables mix the mono and stereo
+charts, so the counts are approximate). Billboard's 1960 year-end top five has one Folk title (*The Sound of Music*
+cast, Shelley Berman, Bob Newhart, an RCA compilation, the Kingston Trio;
+[third-party listing](https://bestsellingalbums.org/year-end/Billboard_Top_Albums_1960)). Both agree with the author's
+13 → 6: a large 1960 presence from one act, and a dip in 1961.
+
+### Screened fix: `--album-affinity` on `lwbr`
+
+| Arm | `--album-affinity=` | LP scale |
+|---|---|---|
+| `lref` | none (`lwbr` as is) | 1.6 |
+| `fa` | Folk=0.44, BossaNova=0.40 | 1.6 |
+| `fm` | `fa` + TraditionalPop=0.46, Classical=0.60, Comedy=0.50 | 1.6 |
+| `fm2` | `fa` + TraditionalPop=0.41, EasyListening=0.28, Classical=0.60 | 1.8 |
+
+Jazz is left at 0.20 (§4: the Jazz level is the author's decision). Year-end top 50, 1960 / 1961, each seed:
+
+| Top 50 % | est | `lref` | `fa` | `fm` (2002) | `fm2` |
+|---|---|---|---|---|---|
+| Folk | 13 / 6 | 80 / 78; 76 / 92 | 16 / 14; 18 / 16 | 8 / 12 | 12 / 8; 12 / 18 |
+| TradPop | 30 / 28 | 2 / 8; 0 / 6 | 20 / 24; 14 / 14 | 48 / 58 | 36 / 48; 24 / 34 |
+| Easy Listening | 6 / 12 | 12 / 8; 16 / 0 | 30 / 38; 32 / 40 | 20 / 12 | 14 / 4; 10 / 4 |
+| Comedy | 11 / 6 | 0 / 2; 0 / 0 | 20 / 10; 10 / 18 | 18 / 10 | 22 / 20; 8 / 4 |
+| Soundtrack | 7–14 | 6 / 4; 2 / 0 | 10 / 10; 0 / 4 | 6 / 6 | 10 / 4; 12 / 2 |
+| Classical | not estimated | 0 / 0; 6 / 2 | 2 / 0; 12 / 0 | 0 / 0 | 6 / 6; 26 / 24 |
+
+| Store units of the year's launches % | implied (§2) | `lref` | `fa` | `fm2` |
+|---|---|---|---|---|
+| Folk | 11 / 10 | 27.5 / 24.5; 28.0 / 27.3 | 9.1 / 10.5; 10.2 / 8.7 | 9.4 / 9.9; 10.7 / 11.3 |
+| TradPop | 30 / 30 | 16.6 / 17.3; 13.9 / 13.9 | 23.5 / 19.9; 16.7 / 15.2 | 27.0 / 25.6; 22.0 / 19.2 |
+| Easy Listening | 17 / 15 | 14.7 / 14.0; 12.2 / 11.2 | 18.5 / 18.0; 17.2 / 17.0 | 13.7 / 8.0; 9.3 / 8.5 |
+| Classical | | 5.4 / 3.9; 6.9 / 4.5 | 7.8 / 5.6; 6.7 / 6.2 | 8.3 / 7.2; 11.5 / 10.0 |
+| Comedy | 2.9 / 2.5 | 5.5 / 5.5; 5.4 / 5.9 | 8.0 / 6.4; 8.0 / 7.8 | 8.9 / 7.1; 8.0 / 6.2 |
+
+| | `lref` | `fa` | `fm2` |
+|---|---|---|---|
+| Folk share of LP launches, 1960 | 12.4% / 11.9% | 8.6% / 8.3% | 8.8% / 8.5% |
+| Store LPs 1960 (M) | 40.3 / 40.9 | 34.3 / 31.1 | 39.3 / 35.5 |
+| Store LPs 1961 (M; Billboard 68) | 65.2 / 66.7 | 54.1 / 53.7 | 60.4 / 59.2 |
+| Gross 1961 ($M) | 419 / 420 | not read | 406 / 406 |
+| Median LP units, act's best single under 1k | 13.2k / 13.8k | not read | 13.1k / 14.8k |
+| Bankruptcies (104 weeks) | 86 / 96 | not read | 100 / 94 |
+
+- **The Folk cut works and replicates.** At 0.44 Folk is 12–18% of the 1960 top 50 and 9–11% of store units, on both
+  benchmarks. Bossa Nova is not yet testable (it starts in 1962).
+- **Affinity also cuts supply.** It feeds the album prior and the opening-catalogue seed, so Folk launches fall by
+  a third (12% → 8.5%). The unit share lands a little under for that reason; 0.46–0.48 would bring it to 11–12%.
+- **A pure cut removes volume.** `fa` loses 6–10M store LPs in 1960 and 11–13M in 1961. 1961 is demand-bound (17–25M of
+  the retail envelope is unspent), so nothing fills the gap.
+- **The vacuum goes to the wrong genre.** In `fa`, Easy Listening takes 30–40% of the top 50 against an estimate of
+  6–12, and Comedy is over in places. This is the trap in memory `vacuum-filling-vs-sampling-variance`.
+- **Affinity lifts are convex at the head.** TradPop 0.36 → 0.46 took its units from 17% to 31% and its top-50 share
+  to 48 / 58 (`fm`). At 0.41 with Easy Listening trimmed to 0.28 (`fm2`), TradPop is 24–36% of the 1960 top 50 and
+  22–27% of units, near both benchmarks; 1961 is still over on seed 2002 (48).
+- **Classical 0.60 is seed-dependent.** Units rise to 7–11%, but on seed 1001 Classical takes 24–26% of the top 50.
+  That is the Jazz problem again (§4): affinity raises every title's pool, and the best titles reach the head.
+  More Classical units without head presence needs more titles at low per-title demand, not affinity.
+- **Comedy is the next untouched absorber** (0.44): 20–22% of the top 50 on seed 2002 against 11 / 6. Seed 1001 reads
+  8 / 4, so this is not yet a replicated miss.
+- **Volume is mostly, not fully, restored.** With the stores-only scale at 1.8, 1961 stores are 59–60M against 65–67M.
+  The scale's range ends at 2.0.
+- **The package's effect survives.** An unknown act's LP still sells 13–15k and 1.3% of LPs lose money. Bankruptcies
+  are +14 / −2, inside the reshuffle band.
+
+**Verdict.** The mechanism is the untouched Folk affinity, and `--album-affinity=Folk=0.44,BossaNova=0.40` fixes Folk
+at the head and in units on two seeds. It cannot be adopted alone: it removes 11–13M store LPs in 1961 and hands the
+head to Easy Listening. `fm2` (with TraditionalPop=0.41 and EasyListening=0.28, and the stores-only scale at 1.8) is the
+best screened set. Open before adoption: the Classical value (leave 0.45 until the title-count route is tried), a
+Comedy trim to about 0.36, the last 5–7M of 1961 store volume (scale 1.9–2.0 or TradPop 0.43), Bossa Nova and 1962–63
+in a 208-week run, and the Big-5 cash side effect (§3) in the decade A/B.
+
+**208-week follow-up** (`fh-v1-{2002,1001}-all`, `GameyBehaviorAudit.md` §2.11): with this set, Folk is 12 / 22 / 24 / 2
+and 10 / 14 / 14 / 6 of the 1960–63 top 50 (estimate 13 / 6 / 18 / 18). The cut fixes 1960–62 and undershoots 1963, where
+the control was already near the estimate; it needs a year-keyed value or a 1963–64 baseline lift. Bossa Nova at 0.40 is
+still 18–22% of the 1962–63 head against 2–4, so it needs about 0.25. Classical 0.60 overshoots on seed 1001 at 208
+weeks too and should be dropped.

@@ -24,6 +24,17 @@ public static class BudgetLpChannel {
 	/// (sqrt(appeal) x quality^2.5 x this region's exhaustion, with the age decay) instead of the highest appeal, so a
 	/// strong secondary title can win a slot and a title its region has bought out gives its slot up.</summary>
 	public static bool RankByWeight { get; private set; }
+	/// <summary>--budget-source-bound=M (LP channel handoff issue 3). An own-master edition sells, in each region, at most
+	/// M times what its full-price LP sold in stores there. Its demand weight tapers to zero as it nears that bound, so a
+	/// bought-out edition gives its slot up. Opening baskets have no source and are not bound. 0 (default) is no bound.</summary>
+	public static double SourceBound { get; private set; }
+	internal static double Headroom(BudgetLpProduct p, string regionId) => SourceBound <= 0 || p.SourceRegionUnits == null ? double.PositiveInfinity
+		: Math.Max(0, SourceBound * p.SourceRegionUnits.GetValueOrDefault(regionId) - p.RegionUnits.GetValueOrDefault(regionId));
+	internal static double Taper(BudgetLpProduct p, string regionId) {
+		if (SourceBound <= 0 || p.SourceRegionUnits == null) return 1;
+		double bound = SourceBound * p.SourceRegionUnits.GetValueOrDefault(regionId);
+		return bound <= 0 ? 0 : Math.Max(0, 1 - p.RegionUnits.GetValueOrDefault(regionId) / bound);
+	}
 	internal static int Holdback => NoncurrentWeeks > 0 ? NoncurrentWeeks : HoldbackWeeks;
 	internal static double TitleAppeal(double units) => AppealSaturation > 0 ? units * AppealSaturation / (units + AppealSaturation) : units;
 	internal const double WholesaleShare = .55, Packaging = .11, RoyaltyRate = .05;
@@ -48,6 +59,7 @@ public static class BudgetLpChannel {
 		if (NoncurrentWeeks != 0 && NoncurrentWeeks < HoldbackWeeks) throw new ArgumentException("--budget-noncurrent-weeks must be 0 or at least 52.");
 		AppealSaturation = Read("--budget-appeal-saturation=", 0, 0, 1e8);
 		RankByWeight = args.Contains("--budget-rank-by-weight");
+		SourceBound = Read("--budget-source-bound=", 0, 0, 100);
 		if (RankByWeight && !Enabled) throw new ArgumentException("--budget-rank-by-weight requires " + Switch + ".");
 		configured = true;
 	}
@@ -58,21 +70,22 @@ public static class BudgetLpChannel {
 			throw new InvalidOperationException("Resume with the saved budget shopper scale, substitution and price.");
 		if (state != null && state.RackTurnover != RackJobberChannel.Turnover)
 			throw new InvalidOperationException("Resume with the saved rack turnover.");
-		if (state != null && (state.NoncurrentWeeks != NoncurrentWeeks || state.AppealSaturation != AppealSaturation || state.RankByWeight != RankByWeight))
-			throw new InvalidOperationException("Resume with the saved budget noncurrent weeks and appeal saturation.");
+		if (state != null && (state.NoncurrentWeeks != NoncurrentWeeks || state.AppealSaturation != AppealSaturation || state.RankByWeight != RankByWeight ||
+			state.SourceBound != SourceBound))
+			throw new InvalidOperationException("Resume with the saved budget noncurrent weeks, appeal saturation, slot ranking and source bound.");
 		LpChannelExperiment.RequireSettings(state);
 		State = state?.Copy(); weekRows.Clear(); LpChannelExperiment.BeginWeek();
 	}
 	internal static void ResetForChecks(bool enabled = false, double scale = .08, double substitution = .25) {
 		configured = enabled; Enabled = enabled; ShopperScale = scale; Substitution = substitution; Price = 1.75;
-		NoncurrentWeeks = 0; AppealSaturation = 0; RankByWeight = false;
+		NoncurrentWeeks = 0; AppealSaturation = 0; RankByWeight = false; SourceBound = 0;
 		State = null; weekRows.Clear(); regions.Clear(); products.Clear(); finance.Clear();
 	}
-	internal static void SetNoncurrentForChecks(int weeks, double saturation, bool rank = false) { NoncurrentWeeks = weeks; AppealSaturation = saturation; RankByWeight = rank; }
+	internal static void SetNoncurrentForChecks(int weeks, double saturation, bool rank = false, double sourceBound = 0) { NoncurrentWeeks = weeks; AppealSaturation = saturation; RankByWeight = rank; SourceBound = sourceBound; }
 	private static BudgetLpState Ensure() => State ??= new BudgetLpState { Scale = ShopperScale, Substitution = Substitution, Price = Price,
 		RackTurnover = RackJobberChannel.Turnover, MixedAssortment = LpChannelExperiment.MixedAssortment, RackChoice = LpChannelExperiment.ChoiceShare,
 		RackBuyerAccess = LpChannelExperiment.BuyerAccess, NoncurrentWeeks = NoncurrentWeeks, AppealSaturation = AppealSaturation,
-		RankByWeight = RankByWeight };
+		RankByWeight = RankByWeight, SourceBound = SourceBound };
 	internal static void Remember(RecordRuntimeData record, int week) {
 		if (!Enabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned || record.baseRecord.format != ReleaseFormat.Album ||
 			record.totalUnitsSold <= 0 || string.IsNullOrEmpty(record.baseRecord.labelId)) return;
@@ -81,7 +94,9 @@ public static class BudgetLpChannel {
 		state.Products.Add(id, new BudgetLpProduct {
 			Id = id, OwnerId = record.baseRecord.labelId, SourceId = record.baseRecord.recordId, ArtistId = record.baseRecord.artistId,
 			Provenance = "OwnMaster", Genre = record.baseRecord.primaryGenre, Quality = Math.Clamp(record.GetQuality(), 0, 1),
-			Appeal = TitleAppeal(record.totalUnitsSold), ReleaseWeek = week + Math.Max(0, Holdback - record.weeksSinceRelease)
+			Appeal = TitleAppeal(record.totalUnitsSold), ReleaseWeek = week + Math.Max(0, Holdback - record.weeksSinceRelease),
+			SourceRegionUnits = SourceBound > 0 ? (record.regionalData ?? new()).Where(p => p.Value != null && p.Value.unitsSoldTotal > 0)
+				.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => (long)p.Value.unitsSoldTotal, StringComparer.Ordinal) : null
 		});
 	}
 	public static void OnAcquired(string oldOwner, string newOwner) {
@@ -122,11 +137,11 @@ public static class BudgetLpChannel {
 		double manufacturing = CompetitorManager.Instance?.BudgetLpManufacturingCost ?? .51;
 		if (!HasMargin(manufacturing)) return weekRows[region.regionId];
 		double pool = Math.Max(0, region.population) * 1e6 * Math.Sqrt(Math.Max(0, region.averageIncome)) * RackJobberChannel.Reach(year) * ShopperScale;
-		double Weight(BudgetLpProduct p) => Math.Sqrt(Math.Max(1, p.Appeal)) * Math.Pow(p.Quality, 2.5) *
+		double Weight(BudgetLpProduct p) => Math.Sqrt(Math.Max(1, p.Appeal)) * Math.Pow(p.Quality, 2.5) * Taper(p, region.regionId) *
 			AlbumSimulator.CalculateAlbumExhaustion((float)(p.RegionUnits.GetValueOrDefault(region.regionId) / Math.Max(1, pool)));
 		double Decay(BudgetLpProduct p) => Math.Pow(.8, Math.Max(0, week - p.ReleaseWeek) / 52d);
 		var candidates = Ensure().Products.Values.Where(p => p.ReleaseWeek <= week && labelOf(p.OwnerId)?.IsActive == true &&
-			labelOf(p.OwnerId)?.isPlayerOwned == false);
+			labelOf(p.OwnerId)?.isPlayerOwned == false && Headroom(p, region.regionId) >= 1);
 		var eligible = (RankByWeight ? candidates.OrderByDescending(p => Weight(p) * Decay(p)) : candidates.OrderByDescending(p => p.Appeal * Decay(p)))
 			.ThenBy(p => p.Id, StringComparer.Ordinal).Take(OfferSlots).ToList();
 		var weighted = eligible.Select(p => (p, weight: Weight(p))).ToList();
@@ -142,7 +157,9 @@ public static class BudgetLpChannel {
 				double bargain = weights > 0 ? pool * .095 * Math.Min(3, 3d / Price) *
 					MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick) * availability * weight / weights : 0;
 				double switched = genreWeight > 0 ? switching * weight / genreWeight : 0;
-				offers.Add(new Offer { Product = p, Demand = LpDemandCalibration.BudgetDemand(bargain, switched), SwitchDemand = switched, StoreLimit = storeUnits.GetValueOrDefault(genre.Key) });
+				// The source bound caps this week's copies at what is left of the edition's regional allowance.
+				double demand = Math.Min(LpDemandCalibration.BudgetDemand(bargain, switched), Headroom(p, region.regionId));
+				offers.Add(new Offer { Product = p, Demand = demand, SwitchDemand = Math.Min(switched, demand), StoreLimit = storeUnits.GetValueOrDefault(genre.Key) });
 			}
 		}
 		weekRows[region.regionId] = offers.Where(o => o.Demand > 0).ToList();
@@ -233,9 +250,11 @@ public sealed class BudgetLpState {
 	public double AppealSaturation { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
 	public bool RankByWeight { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public double SourceBound { get; set; }
 	public BudgetLpState Copy() => new() { Initialized = Initialized, Scale = Scale, Substitution = Substitution, Price = Price, RackTurnover = RackTurnover,
 		MixedAssortment = MixedAssortment, RackChoice = RackChoice, RackBuyerAccess = RackBuyerAccess,
-		NoncurrentWeeks = NoncurrentWeeks, AppealSaturation = AppealSaturation, RankByWeight = RankByWeight,
+		NoncurrentWeeks = NoncurrentWeeks, AppealSaturation = AppealSaturation, RankByWeight = RankByWeight, SourceBound = SourceBound,
 		Products = Products.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value.Copy(), StringComparer.Ordinal) };
 }
 public sealed class BudgetLpProduct {
@@ -249,6 +268,10 @@ public sealed class BudgetLpProduct {
 	public double Quality { get; set; }
 	public double Appeal { get; set; }
 	public Dictionary<string, long> RegionUnits { get; set; } = new(StringComparer.Ordinal);
+	/// <summary>The source LP's full-price store units by region at retirement; only kept under --budget-source-bound.</summary>
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public Dictionary<string, long> SourceRegionUnits { get; set; }
 	public BudgetLpProduct Copy() { var copy = (BudgetLpProduct)MemberwiseClone();
-		copy.RegionUnits = RegionUnits.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal); return copy; }
+		copy.RegionUnits = RegionUnits.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+		copy.SourceRegionUnits = SourceRegionUnits?.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal); return copy; }
 }

@@ -31,6 +31,12 @@ public static class RackJobberChecks {
 			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.ReturnsSwitch + "0.2", RackJobberChannel.SharedSwitch) &&
 				RackJobberChannel.SharedExhaustion && RackJobberChannel.ReturnRate == .2f, "sensitivity switches configure");
 			Check(Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "0"), "nonpositive scale");
+			Check(Rejects(RackJobberChannel.StoreBoundSwitch + "2") && Rejects(RackJobberChannel.Switch, RackJobberChannel.StoreBoundSwitch + "-1"),
+				"the store-standing bound needs the channel and a non-negative value");
+			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.StoreBoundSwitch + "2") && RackJobberChannel.BoundByStoreStanding(500f, 100) == 200f &&
+				RackJobberChannel.BoundByStoreStanding(150f, 100) == 150f, "store-standing bound caps rack demand at K times store units");
+			RackJobberChannel.ResetForChecks();
+			Check(RackJobberChannel.BoundByStoreStanding(500f, 100) == 500f, "store-standing bound off leaves demand alone");
 			Check(Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "x"), "unparsable scale");
 			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "0.25") && RackJobberChannel.Enabled &&
 				RackJobberChannel.ShopperScale == .25f, "scale configures");
