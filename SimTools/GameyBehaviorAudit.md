@@ -214,10 +214,20 @@ Control `cand-v1-{2002,1001}-off` = the adopted candidate (`candidate-request.js
 - In the control the roll ignored money: a deal that made $10k+ was renewed less often than one that lost money did on a
   good roll. Under the switch renewal follows the deal on both seeds, at about the same overall rate.
 - What is still walked away from ($3.2–3.3M) is the cash gate and studio-parent bids.
-- **Cost to watch:** bankruptcies +9 / +6, the same sign on both seeds, all at Small and Boutique labels (+3 / +3 and
-  +6 / 0). It is not renewal advances: labels that later went bankrupt renewed 3 / 2 acts under the switch against
-  15 / 25 in the control. Untraced. Candidates: a losing label now loses its roster at expiry instead of keeping
-  acts on a roll, or reshuffle noise (±6 bankruptcies is inside single-seed spread). The decade A/B should check it.
+- **Bankruptcies +9 / +6, traced (2026-11-15).** These are closures that losses earned, not new ones, and total exits barely move.
+  - Total exits are 111 → 112 and 130 → 138. On seed 2002 dormancy exits fall from 24 to 16, so part of the change is the
+    same labels closing as bankrupt instead of dormant.
+  - Label identities churn: 31 / 38 labels go bankrupt only under the switch and 22 / 32 only in the control. The
+    net change is small inside that reshuffle.
+  - The labels that fold only under the switch end with empty rosters. Before closing they renewed 0.03 acts each,
+    against 0.23–0.26 for the same labels in the control, and 0.6–0.7 of their maturing acts per label had never been
+    released. They then released 0.0–0.1 records in their last 13 weeks (control 1.4–2.5) and signed 0.13–0.16
+    replacements after their last maturity (control 0.42–0.45), with about $1.0–1.3k cash at that point.
+  - So in the control a cash-starved label whose acts all lost money was kept trading by the loyalty roll. Under the
+    switch it lets those acts go, cannot afford to sign anyone, and folds. That fits *closures must be earned*.
+  - It is not renewal advances: labels that later went bankrupt renewed 3 / 2 acts under the switch against 15 / 25
+    in the control.
+- **Verdict: adoptable.** Recheck exits in the decade A/B.
 - Major-family chart share moves −3 / +6 points in 1961, which is reshuffle noise.
 
 ## 3. Checked and found sound
