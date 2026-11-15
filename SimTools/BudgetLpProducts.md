@@ -20,6 +20,11 @@ budget rights. The saved v32 ledger contains separate budget products:
   recovering missing pre-1960 titles. They are an explicit opening-stock
   sensitivity and can overlap economically with represented live repertoire.
 
+`--budget-noncurrent-weeks=N` (opt-in, GameyBehaviorAudit.md 2.8A/2.9) replaces the
+52-week rule: a live record is never reissued, and a master becomes a product only
+at retirement, released no earlier than N weeks after its original release.
+`--budget-appeal-saturation=K` saturates a title's appeal at `units × K / (units + K)`.
+
 Acquisition moves ownership while preserving product identity, release date
 and regional purchase depletion. Closed and player-owned labels cannot offer
 products. A product's budget sales never become source-record sales, chart

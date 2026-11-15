@@ -13,6 +13,15 @@ public static class BudgetLpChannel {
 	public static double Substitution { get; private set; } = .25;
 	public static double Price { get; private set; } = 1.75;
 	internal const int HoldbackWeeks = 52, OfferSlots = 25;
+	/// <summary>--budget-noncurrent-weeks=N (game-y audit 2.8A). Budget lines reissued noncurrent catalogue, not current
+	/// hits: an own master becomes a budget product only once it has retired from full-price sale, and no sooner than N weeks
+	/// after its original release. 0 (default) keeps the 52-week holdback that also reissues live records.</summary>
+	public static int NoncurrentWeeks { get; private set; }
+	/// <summary>--budget-appeal-saturation=K. A title's budget appeal is units x K / (units + K), so a former hit is not
+	/// worth more on a budget shelf than a secondary title in proportion to its full-price sales. 0 (default) is units.</summary>
+	public static double AppealSaturation { get; private set; }
+	internal static int Holdback => NoncurrentWeeks > 0 ? NoncurrentWeeks : HoldbackWeeks;
+	internal static double TitleAppeal(double units) => AppealSaturation > 0 ? units * AppealSaturation / (units + AppealSaturation) : units;
 	internal const double WholesaleShare = .55, Packaging = .11, RoyaltyRate = .05;
 	private static bool configured;
 	public static BudgetLpState State { get; private set; }
@@ -31,6 +40,9 @@ public static class BudgetLpChannel {
 		ShopperScale = Read("--budget-shopper-scale=", .08, 0, 1);
 		Substitution = Read("--budget-substitution=", .25, 0, 1);
 		Price = Read("--budget-price=", 1.75, .01, 3);
+		NoncurrentWeeks = (int)Read("--budget-noncurrent-weeks=", 0, 0, 520);
+		if (NoncurrentWeeks != 0 && NoncurrentWeeks < HoldbackWeeks) throw new ArgumentException("--budget-noncurrent-weeks must be 0 or at least 52.");
+		AppealSaturation = Read("--budget-appeal-saturation=", 0, 0, 1e8);
 		configured = true;
 	}
 	public static BudgetLpState Capture() => Enabled ? State?.Copy() : null;
@@ -40,16 +52,20 @@ public static class BudgetLpChannel {
 			throw new InvalidOperationException("Resume with the saved budget shopper scale, substitution and price.");
 		if (state != null && state.RackTurnover != RackJobberChannel.Turnover)
 			throw new InvalidOperationException("Resume with the saved rack turnover.");
+		if (state != null && (state.NoncurrentWeeks != NoncurrentWeeks || state.AppealSaturation != AppealSaturation))
+			throw new InvalidOperationException("Resume with the saved budget noncurrent weeks and appeal saturation.");
 		LpChannelExperiment.RequireSettings(state);
 		State = state?.Copy(); weekRows.Clear(); LpChannelExperiment.BeginWeek();
 	}
 	internal static void ResetForChecks(bool enabled = false, double scale = .08, double substitution = .25) {
 		configured = enabled; Enabled = enabled; ShopperScale = scale; Substitution = substitution; Price = 1.75;
+		NoncurrentWeeks = 0; AppealSaturation = 0;
 		State = null; weekRows.Clear(); regions.Clear(); products.Clear(); finance.Clear();
 	}
+	internal static void SetNoncurrentForChecks(int weeks, double saturation) { NoncurrentWeeks = weeks; AppealSaturation = saturation; }
 	private static BudgetLpState Ensure() => State ??= new BudgetLpState { Scale = ShopperScale, Substitution = Substitution, Price = Price,
 		RackTurnover = RackJobberChannel.Turnover, MixedAssortment = LpChannelExperiment.MixedAssortment, RackChoice = LpChannelExperiment.ChoiceShare,
-		RackBuyerAccess = LpChannelExperiment.BuyerAccess };
+		RackBuyerAccess = LpChannelExperiment.BuyerAccess, NoncurrentWeeks = NoncurrentWeeks, AppealSaturation = AppealSaturation };
 	internal static void Remember(RecordRuntimeData record, int week) {
 		if (!Enabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned || record.baseRecord.format != ReleaseFormat.Album ||
 			record.totalUnitsSold <= 0 || string.IsNullOrEmpty(record.baseRecord.labelId)) return;
@@ -58,7 +74,7 @@ public static class BudgetLpChannel {
 		state.Products.Add(id, new BudgetLpProduct {
 			Id = id, OwnerId = record.baseRecord.labelId, SourceId = record.baseRecord.recordId, ArtistId = record.baseRecord.artistId,
 			Provenance = "OwnMaster", Genre = record.baseRecord.primaryGenre, Quality = Math.Clamp(record.GetQuality(), 0, 1),
-			Appeal = record.totalUnitsSold, ReleaseWeek = week + Math.Max(0, HoldbackWeeks - record.weeksSinceRelease)
+			Appeal = TitleAppeal(record.totalUnitsSold), ReleaseWeek = week + Math.Max(0, Holdback - record.weeksSinceRelease)
 		});
 	}
 	public static void OnAcquired(string oldOwner, string newOwner) {
@@ -77,10 +93,12 @@ public static class BudgetLpChannel {
 				string id = "opening:" + group.Key.labelId + ":" + (int)group.Key.primaryGenre;
 				state.Products[id] = new BudgetLpProduct { Id = id, OwnerId = group.Key.labelId, Genre = group.Key.primaryGenre,
 					Provenance = "OpeningSyntheticBasket", SourceId = "", ArtistId = "", ReleaseWeek = week,
-					Quality = group.Average(r => Math.Clamp(r.GetQuality(), 0, 1)), Appeal = group.Sum(r => Math.Max(1d, r.totalUnitsSold)) };
+					Quality = group.Average(r => Math.Clamp(r.GetQuality(), 0, 1)), Appeal = group.Sum(r => TitleAppeal(Math.Max(1d, r.totalUnitsSold))) };
 			}
 			state.Initialized = true;
 		}
+		// Under --budget-noncurrent-weeks a live record is still selling at full price: only retirement remembers it.
+		if (NoncurrentWeeks > 0) return;
 		foreach (var record in records.Where(r => Active(r) && r.weeksSinceRelease >= HoldbackWeeks)) Remember(record, week);
 	}
 	internal sealed class Offer {
@@ -199,8 +217,13 @@ public sealed class BudgetLpState {
 	public double RackChoice { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
 	public bool RackBuyerAccess { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public int NoncurrentWeeks { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public double AppealSaturation { get; set; }
 	public BudgetLpState Copy() => new() { Initialized = Initialized, Scale = Scale, Substitution = Substitution, Price = Price, RackTurnover = RackTurnover,
 		MixedAssortment = MixedAssortment, RackChoice = RackChoice, RackBuyerAccess = RackBuyerAccess,
+		NoncurrentWeeks = NoncurrentWeeks, AppealSaturation = AppealSaturation,
 		Products = Products.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value.Copy(), StringComparer.Ordinal) };
 }
 public sealed class BudgetLpProduct {

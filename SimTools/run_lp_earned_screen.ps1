@@ -4,7 +4,8 @@ param(
     [ValidateRange(27, 522)][int]$Weeks = 208,
     [int]$Seed = 2002,
     [string]$Reference = 'SimLogs/writing-calibration/rg10-v1-2002-lw0up1_ao2_lh1_he095-request.json',
-    [string[]]$Arms = @('le', 'lep')
+    [string[]]$Arms = @('le', 'lep'),
+    [double]$LpScale = 1.6
 )
 # LP earned-demand screen (GameyBehaviorAudit.md finding 1 and 9) on the rg10 Top 10 candidate.
 # The reference is the rg10 RUN request (it carries the lw0up1/ao2/lh1/he095 arm flags the reference request lacks).
@@ -14,12 +15,16 @@ param(
 # re = --renewal-live-evidence (count live records at renewal; AI deals mature on the date only).
 # eo = --renewal-earned-option (renew on the deal's realized net plus a loyalty allowance, not a loyalty roll).
 # lw = le + --lp-buyer-word-of-mouth=10000 (LP word of mouth from buyers, not appeal).
+# bn = --budget-noncurrent-weeks=156 (budget editions only of retired masters, 3+ years old; audit 2.8A).
+# bns = bn + --budget-appeal-saturation=25000 (secondary titles weigh like former hits on the budget shelf).
+# lwb = lw + bn + --lp-demand-scale=$LpScale (earned LP demand, volume restored by a global LP purchase scale,
+# budget editions from noncurrent catalogue).
 # Run eo against -Reference SimLogs/writing-calibration/candidate-request.json with -RunPrefix cand-v1.
 # All arms in -Arms start at once and are awaited; run two at a time on a low-RAM machine.
 $ErrorActionPreference = 'Stop'
 # -File passes 'base,gap' as one string; split it and check each arm.
 $Arms = @($Arms | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw')) { throw "Unknown arm: $a" } }
+foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw', 'bn', 'bns', 'lwb')) { throw "Unknown arm: $a" } }
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $dir = Join-Path $root 'SimLogs/writing-calibration'
@@ -36,13 +41,16 @@ foreach ($arm in $Arms) {
     $flags = @($referenceRequest.flags | ForEach-Object {
         if ($_ -like '--run=*') { "--run=$name" } elseif ($_ -like '--seed=*') { "--seed=$Seed" } elseif ($_ -like '--weeks=*') { "--weeks=$Weeks" } else { $_ }
     })
-    if ($arm -in @('le', 'lep', 'lw')) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
-    if ($arm -eq 'lw') { $flags += '--lp-buyer-word-of-mouth=10000' }
+    if ($arm -in @('le', 'lep', 'lw', 'lwb')) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
+    if ($arm -in @('lw', 'lwb')) { $flags += '--lp-buyer-word-of-mouth=10000' }
     if ($arm -eq 'lep') { $flags += '--lp-label-demand-parity' }
     if ($arm -eq 'an') { $flags += '--anniversary-opening-contracts' }
     if ($arm -eq 'rc') { $flags += '--receivable-overdraft-charge=0.0125' }
     if ($arm -eq 're') { $flags += '--renewal-live-evidence' }
     if ($arm -eq 'eo') { $flags += '--renewal-earned-option' }
+    if ($arm -in @('bn', 'bns', 'lwb')) { $flags += '--budget-noncurrent-weeks=156' }
+    if ($arm -eq 'lwb') { $flags += "--lp-demand-scale=$($LpScale.ToString([Globalization.CultureInfo]::InvariantCulture))" }
+    if ($arm -eq 'bns') { $flags += '--budget-appeal-saturation=25000' }
     $userData = Join-Path $dir "userdata-$name"
     New-Item -ItemType Directory -Force -Path $userData | Out-Null
     @{ flags=$flags; sourceRevision=$revision; assemblySha256=$assemblyHash; startedUtc=[datetime]::UtcNow.ToString('o') } |

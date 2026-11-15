@@ -345,6 +345,66 @@ Vee-Jay ran about 70 main-series LPs 1957–63 plus jazz and gospel series again
 Not found and still open: classical's share of 1960 LP sales (Schickel 1960 implies about 20% of record dollars,
 unverified), Billboard's 1960 year-end LP list by genre, and budget LP unit share.
 
+### 2.9 Budget editions from noncurrent catalogue, bundled with earned LP demand and a global LP scale (2026-11-15)
+
+New switches:
+- `--budget-noncurrent-weeks=N` (`BudgetLpChannel`, fix for 2.8A). A live record is still selling at full price, so it is
+  never reissued; a master becomes a budget product only when it retires, and its edition waits until N weeks after its
+  original release. N = 156 (3 years, the shortest age the sources support). 0 keeps the 52-week rule.
+- `--budget-appeal-saturation=K` (built, not yet screened): budget appeal is `units × K / (units + K)`.
+- `--lp-demand-scale` now accepts 0.9–2 (was 0.9–1). It scales store, rack and budget-autonomous LP demand.
+
+Arm `lwb` = `le` + `--lp-buyer-word-of-mouth=10000` + `--budget-noncurrent-weeks=156` + `--lp-demand-scale=1.6` (the
+profile's 0.98 is replaced, so about 1.63× control demand). Runs `bud-v1-{2002,1001}-lwb`, 208 weeks, against
+`cand-v3-{2002,1001}-{off,lw}`. Off check: `bud-v1-2002-off` (27 weeks) matches `cand-v3-2002-off` byte for byte in
+all 68 weekly streams. Native budget checks: 38 pass (`--budget-lp-check`).
+LP cohort rows are LPs launched weeks 1–52, lifetime units at week 208. In this analysis "best single" maps acts through
+`demand-release-census`, so the control's unknown-act median reads 15.7k / 17.9k, against 17.4k / 18.5k in 2.6b.
+
+| Seed 2002 / 1001 | Control | `lw` | `lwb` |
+|---|---|---|---|
+| Median LP units, act's best single under 1k | 15.7k / 17.9k | 6.9k / 7.5k | 12.1k / 12.7k |
+| Median LP units, act's best single 100k+ | 41.2k / 36.2k | 36.9k / 35.7k | 45.9k / 44.2k |
+| Hit-to-unknown gap | 2.6× / 2.0× | 5.4× / 4.8× | 3.8× / 3.5× |
+| LPs losing money | 0.1% / 0.1% | 7.2% / 5.7% | 0.9% / 2.4% |
+| Top 10% share of LP units | 44.6 / 44.0 | 56.2 / 53.7 | 54.0 / 52.1 |
+| Best full-price LP, stores | 438k / 490k | 506k / 491k | 631k / 619k |
+| 1961 stores / racks / budget (M) (Billboard 68 / 60 racks incl. budget) | 65.1/34.7/16.5; 65.6/31.7/17.1 | 40.6/31.9/16.0; 41.9/31.0/16.3 | 60.9/45.6/15.6; 63.7/41.6/14.9 |
+| 1963 stores / racks / budget (M) | 67.8/39.9/21.7; 72.3/36.3/21.1 | 48.3/38.2/21.6; 54.2/40.0/23.5 | 55.8/47.5/27.1; 58.1/45.5/26.8 |
+| Record gross 1961 ($M) | 468 / 461 | 396 / 397 | 486 / 483 |
+| Own-master budget editions issued in 208 weeks | 6,799 / 6,560 | 6,128 / 6,036 | 1,729 / 1,679 |
+| Their median age at reissue (weeks) | 51 / 51 | 51 / 51 | 155 / 155 |
+| Biggest budget edition / its full-price store LP | 2.04M / 349k; 1.98M / 490k | 2.25M / 410k; 1.82M / 487k | 1.22M / 254k; 1.22M / 316k |
+| Bankruptcies (log, 208 weeks) | 124 / 124 | 159 / 177 | 118 / 139 |
+
+**Budget fix: works as built.**
+- No current title is reissued: own-master editions arrive at a median 155 weeks, all after retirement, and none
+  before 1963. 1960–62 budget volume is the opening synthetic baskets (assumed older own repertoire), and they hold it:
+  1961 budget is 15–16M, against 16.5–17.1M in the control.
+- Two things are still wrong. First, 1963 budget jumps to 27M, against the control's 21–22M and the 15–20M a year
+  history suggests, because three years of retired masters reach the shelf at once. Second, the biggest editions still
+  sell 1.0–1.2M in their first year, 4–5× their full-price store LP. That is selection by appeal, the
+  title's lifetime units, which is what the unscreened `--budget-appeal-saturation` is for.
+
+**Global scale: restores volume where the earned-demand fixes concentrate it.**
+- 1961 stores + racks + budget come to 122M / 120M against Billboard's 128M without clubs. The control has 116M / 114M
+  and `lw` 89M. Gross is 3–5% above the control.
+- The mix leans to racks. Stores are 61–64M against 68M; front-line racks are 42–46M, and racks plus budget come to 57–61M
+  against 60M. Racks are no longer short. Stores fall to 56–58M in 1963 while launches match the control (2,718 /
+  2,821 LPs that year), so per-title store demand thins late. That is not resolved here.
+- An unknown act's LP comes back to 12k when the scale lifts it as well. The hit-to-unknown gap stays wider than in
+  the control (3.5–3.8× against 2.0–2.6×), and 1–2% of LPs lose money.
+- Hit LPs stay inside the anchor: the best full-price LP sells 0.62–0.63M in stores.
+- Bankruptcies are −6 / +15 against the control and −41 / −38 against `lw`, so the `lw` closures came from lost
+  volume.
+
+**Verdict:** the budget mechanism is adoptable. The bundle is the first LP-demand package that keeps volume, gross and
+closures near the control while making LP sales follow the act. Before adopting it:
+- screen `--budget-appeal-saturation`, which should cut the 4–5× budget editions and the 1963 overshoot;
+- check whether the 1963 store thinning is the scale (exhaustion) or racks taking store buyers, and possibly split the
+  scale so racks are not lifted with stores;
+- the decade A/B.
+
 ## 3. Checked and found sound
 
 - **P&D advances are repaid under the bundle.** `--distribution-advance-recoupment` withheld $438k of $515k advanced (seed 2002) and $408k of $475k (seed 1001) inside two years; 4–6% was forgiven. The "never repaid" item is closed for the reference bundle.

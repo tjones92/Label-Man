@@ -101,6 +101,21 @@ public static class BudgetLpChecks {
 			BudgetLpChannel.ResetForChecks(true, scale: 0, substitution: 0);
 			BudgetLpChannel.Prepare(new[] { Album("live") }, Owner, 50);
 			Check(BudgetLpChannel.Offers(region, 50, 1961, 6, false, Owner, stores).All(o => o.Demand == 0), "zero buyer sources create no sales");
+			// --budget-noncurrent-weeks: live records are still at full price; retirement alone remembers a master, and
+			// its budget edition waits for the noncurrent age. Saturation compresses a hit's budget appeal.
+			BudgetLpChannel.ResetForChecks(true); BudgetLpChannel.SetNoncurrentForChecks(156, 10000);
+			BudgetLpChannel.Prepare(new[] { Album("old", 200) }, Owner, 50);
+			Check(BudgetLpChannel.State.Products.Values.All(p => p.Provenance == "OpeningSyntheticBasket"), "noncurrent: live records are never reissued");
+			var retired = Album("retired", 140); retired.totalUnitsSold = 90000;
+			BudgetLpChannel.Remember(retired, 300);
+			var noncurrent = BudgetLpChannel.State.Products["master:retired"];
+			Check(noncurrent.ReleaseWeek == 316 && Math.Abs(noncurrent.Appeal - 9000) < 1e-9, "noncurrent: holdback from release and saturated appeal");
+			var cfg = BudgetLpChannel.Capture(); cfg.NoncurrentWeeks = 0;
+			Check(Refuses(() => BudgetLpChannel.Restore(cfg)), "resume refuses a different noncurrent holdback");
+			BudgetLpChannel.ResetForChecks();
+			bool shortRejects = false;
+			try { BudgetLpChannel.Configure(new[] { "--budget-noncurrent-weeks=156" }); } catch (ArgumentException) { shortRejects = true; }
+			Check(shortRejects, "orphan noncurrent holdback rejected");
 		} finally { BudgetLpChannel.ResetForChecks(); }
 		Godot.GD.Print($"BUDGET_LP_CHECKS_OK {count}");
 	}
