@@ -298,7 +298,7 @@ public partial class MarketRegion : Resource {
 	/// <see cref="GetMarketAlbumOpportunityWeight"/> for why that one carries no genre.
 	/// </summary>
 	public float GetAlbumAffinity(Genre genre, int year) =>
-		ShapeAlbumAffinity(GetAlbumAffinityBaseline(GenreCatalog.MapLegacy(genre, year)), year);
+		ShapeAlbumAffinity(GetAlbumAffinityBaseline(GenreCatalog.MapLegacy(genre, year), year), year);
 
 	/// <summary>
 	/// The genre-blind era baseline, i.e. what an average genre's album propensity is.
@@ -312,15 +312,28 @@ public partial class MarketRegion : Resource {
 	// Public so the 1960 cold-start prewarm can seed a genre-realistic opening LP catalog: this baseline
 	// is the era's album skew (adult/jazz/classical high, teen/rock low), so it doubles as the
 	// probability a seeded catalog title is an album.
-	public static float GetAlbumSeedAffinity(Genre canonical) => GetAlbumAffinityBaseline(canonical);
+	public static float GetAlbumSeedAffinity(Genre canonical) => GetAlbumAffinityBaseline(canonical, 1960);
 
 	// Calibration probe, inert unless named: --album-affinity=Folk=0.40,... replaces a genre's flat album affinity
 	// baseline everywhere it is read (realized demand, the album prior and the opening-catalog seed).
 	private static readonly Dictionary<Genre, float> AlbumAffinityProbe = GenreCatalog.ParseProbe("--album-affinity=", false)
 		.ToDictionary(p => p.genre, p => p.value);
+	// --album-affinity-ramp=Folk@1960=0.40,Folk@1961=0.28,Folk@1962=0.40 (genre follow-up §8) replaces a genre's flat
+	// baseline with a piecewise-linear curve over calendar years, held flat outside its first and last keyframe. The
+	// genre keyframe grid (1960/62/64) cannot express a one-year feature. Inert unless named; wins over --album-affinity=.
+	private static readonly Dictionary<Genre, (int year, float value)[]> AlbumAffinityRamp = GenreCatalog.ParseProbe("--album-affinity-ramp=", true)
+		.GroupBy(p => p.genre).ToDictionary(g => g.Key, g => g.Select(p => (p.year, p.value)).OrderBy(k => k.year).ToArray());
 
-	private static float GetAlbumAffinityBaseline(Genre canonical) =>
-		AlbumAffinityProbe.TryGetValue(canonical, out float probe) ? probe : GetAuthoredAlbumAffinityBaseline(canonical);
+	internal static float GetAlbumAffinityBaseline(Genre canonical, int year) {
+		if (AlbumAffinityRamp.TryGetValue(canonical, out var ramp)) {
+			if (year <= ramp[0].year) return ramp[0].value;
+			for (int i = 1; i < ramp.Length; i++)
+				if (year <= ramp[i].year)
+					return Mathf.Lerp(ramp[i - 1].value, ramp[i].value, (year - ramp[i - 1].year) / (float)(ramp[i].year - ramp[i - 1].year));
+			return ramp[^1].value;
+		}
+		return AlbumAffinityProbe.TryGetValue(canonical, out float probe) ? probe : GetAuthoredAlbumAffinityBaseline(canonical);
+	}
 
 	private static float GetAuthoredAlbumAffinityBaseline(Genre canonical) => canonical switch {
 		// DEMAND PULLBACK (2026-08, WIP §4): 0.88 -> 0.65. At 0.88 EL over-routed to albums and fell to

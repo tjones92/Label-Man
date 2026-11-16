@@ -68,6 +68,22 @@ public static class MediaFollowerDemand {
 	public static readonly float[] WeekShare = { 0.5f, 0.3f, 0.2f };
 	private static readonly float[] FrontLoadedWeekShare = { 0.75f, 0.20f, 0.05f };
 	public static int Weeks => WeekShare.Length;
+	/// <summary>
+	/// --follower-album-casual=C,N (genre follow-up §9, the die-hard + casual decision of 2026-11-10). A share C of an LP
+	/// book is casual followers, who buy as the record reaches them: their intent is spread over N clearing weeks with
+	/// linearly falling shares (N, N−1, … 1). The rest keeps the three-week die-hard schedule. The book's total is unchanged.
+	/// Off (C = 0): every LP book clears in three weeks, so a youth act's hit LP, 80-90% follower-bought, leaves the album
+	/// chart in week 4. Singles are untouched.
+	/// </summary>
+	public const string AlbumCasualPrefix = "--follower-album-casual=";
+	public static float AlbumCasualShare { get; private set; }
+	public static int AlbumCasualWeeks { get; private set; } = 3;
+	public static int WeeksFor(ReleaseFormat format) => format == ReleaseFormat.Album && AlbumCasualShare > 0f ? Math.Max(Weeks, AlbumCasualWeeks) : Weeks;
+	internal static void SetAlbumCasualForChecks(float share, int weeks) { AlbumCasualShare = share; AlbumCasualWeeks = weeks; }
+	private static float AlbumCasualWeekShare(int week) {
+		int n = AlbumCasualWeeks;
+		return week < 0 || week >= n ? 0f : 2f * (n - week) / (n * (n + 1f));
+	}
 	/// <summary>A launch book is kept only when the followers would ask for at least this many copies in all.</summary>
 	public const float BookFloor = 100f;
 	/// <summary>Share of an act's followers in a room's region who come to one of its bills (initial value): 1 in 2,000.</summary>
@@ -106,7 +122,17 @@ public static class MediaFollowerDemand {
 					throw new ArgumentException($"{ColdAdultYearPrefix} must be finite and between 0 and 0.5.");
 				ColdAdultYear = cold;
 			}
+			if (argument.StartsWith(AlbumCasualPrefix, StringComparison.Ordinal)) {
+				string[] parts = argument[AlbumCasualPrefix.Length..].Split(',');
+				if (parts.Length != 2 || !float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float share) ||
+					!float.IsFinite(share) || share < 0f || share > 1f || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int weeks) ||
+					weeks < 1 || weeks > 104)
+					throw new ArgumentException($"{AlbumCasualPrefix} takes C,N with C in [0, 1] and N in [1, 104].");
+				AlbumCasualShare = share; AlbumCasualWeeks = weeks;
+			}
 		}
+		if (AlbumCasualShare > 0f && (!causal || noPurchaseIntent))
+			throw new ArgumentException($"{AlbumCasualPrefix} requires causal follower purchase intent.");
 		if (ColdAdultYear > 0f && !MediaFollowing.Active)
 			throw new ArgumentException($"{ColdAdultYearPrefix} changes followings; it requires {MediaFollowing.ObserveSwitch}.");
 		if (SingleScale != 1f && !causal && !shadow)
@@ -129,6 +155,7 @@ public static class MediaFollowerDemand {
 		noAdvanceStock = noPurchaseIntent = false;
 		SinglesFrontLoaded = SinglesRecruitFromNewBuyers = AlbumsRecruitFromNewBuyers = false;
 		ColdAdultYear = 0f;
+		AlbumCasualShare = 0f; AlbumCasualWeeks = 3;
 	}
 
 	internal static void SetColdAdultYearForChecks(float rate) => ColdAdultYear = rate;
@@ -151,7 +178,13 @@ public static class MediaFollowerDemand {
 	/// </summary>
 	public static float WeekFactor(int week, float loss, ReleaseFormat format = ReleaseFormat.Album) {
 		var shares = format == ReleaseFormat.Single && SinglesFrontLoaded ? FrontLoadedWeekShare : WeekShare;
-		return week < 0 || week >= shares.Length ? 0f : shares[week] * (week == 0 ? 1f : 1f - Math.Clamp(loss, 0f, 1f));
+		float kept = week == 0 ? 1f : 1f - Math.Clamp(loss, 0f, 1f);
+		if (format == ReleaseFormat.Album && AlbumCasualShare > 0f) {
+			if (week < 0) return 0f;
+			float dieHard = week < shares.Length ? shares[week] : 0f;
+			return ((1f - AlbumCasualShare) * dieHard + AlbumCasualShare * AlbumCasualWeekShare(week)) * kept;
+		}
+		return week < 0 || week >= shares.Length ? 0f : shares[week] * kept;
 	}
 
 	/// <summary>Fan intent added to a title's serviceable intent: never past the title's physical limit that week.</summary>

@@ -122,6 +122,19 @@ public class RecordRuntimeData {
 	public double albumDemandWeightedSingleHeat;
 	public double albumDemandWeightedSubstitutionPropensity;
 	public double albumDemandWeightedSuppression;
+	// --lp-demand-scale-known: how known this LP's act is this week (AlbumSimulator.UpdateAlbum). Not saved; NaN until the
+	// first weekly update, read through AlbumSimulator.LpScaleKnown.
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float lpScaleKnown = float.NaN;
+	// --lp-label-standing: the act's standing (LpLaunchStanding) read at this LP's launch, which then scales the label's push
+	// and Major tier premium for the LP's life. Saved so a resumed world keeps the launch value; null on every record
+	// launched without the switch (and on every single).
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? lpLabelStanding;
+	// --lp-reception-sigma: this LP's reception multiplier, a pure function of record id and world seed (LpReception.Factor).
+	// Not saved; NaN until first read.
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float lpReception = float.NaN;
 	// B5 (--record-campaign-spend): this single's own campaign multiplier on label push, and its
 	// follow-up tranches (-1 once cut). Null on every record launched without the switch.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

@@ -285,6 +285,11 @@ public partial class ChartAuditRunner : Node {
 	private bool chartHistory;
 	// --album-chart-history: keep the weekly album chart under --calibration (telemetry only; LP genre head benchmark).
 	private bool albumChartHistory;
+	// --album-demand-trace: per charted LP and week, its store demand terms summed over regions (telemetry only; why youth
+	// and country LPs leave the album chart in three weeks, genre follow-up §9). Rows run from launch to week 40 once charted.
+	private bool albumDemandTrace;
+	private StreamWriter albumDemandTraceWriter;
+	private readonly HashSet<string> albumDemandTraceCharted = new(StringComparer.Ordinal);
 	// Read-only follow-up diagnosis: keep off-chart observations for recent non-opening hit acts.
 	private bool followupChartTrace;
 	private readonly Dictionary<string, int> followupTraceFirstHits = new(StringComparer.Ordinal);
@@ -559,6 +564,8 @@ public partial class ChartAuditRunner : Node {
 				chartHistory = true;
 			} else if (argument == "--album-chart-history") {
 				albumChartHistory = true;
+			} else if (argument == "--album-demand-trace") {
+				albumDemandTrace = true;
 			} else if (argument == "--lean-probe") {
 				leanProbe = true;
 				aggregateOnly = true;
@@ -2392,6 +2399,7 @@ public partial class ChartAuditRunner : Node {
 		// so --calibration suppresses it. The economy is untouched; only these output CSVs go dark.
 		if (calibrationMode && smallLabelFinance) WriteLabelFinanceRows(week, date.year);
 		if (calibrationMode && albumChartHistory) WriteAlbumChartRows(week, date, albumChart);
+		if (albumDemandTrace) WriteAlbumDemandTraceRows(week, date, records);
 		if (!calibrationMode) {
 			RecordRuntimeData numberOne = chart.FirstOrDefault();
 			int totalChartUnits = chart.Sum(record => record.unitsThisWeek);
@@ -3510,6 +3518,51 @@ public partial class ChartAuditRunner : Node {
 		WriteAlbumCompositionRows(week, date, records);
 	}
 
+	private void WriteAlbumDemandTraceRows(int week, GameDate date, List<RecordRuntimeData> records) {
+		if (albumDemandTraceWriter == null) {
+			albumDemandTraceWriter = CreateWriter(Path.Combine(ProjectSettings.GlobalizePath("res://SimLogs"), $"{runName}-album-demand-trace.csv"));
+			albumDemandTraceWriter.WriteLine("week,year,recordId,artistId,labelTier,genre,albumFormat,age,position,units,rackUnits,followerUnits," +
+				"rawDemand,inStoresBefore,backordered,pool,penetration,exhaustion,decay,formatTilt,conversion,awareness,wordOfMouth,regions," +
+				"appeal,regionalAwareness,blendedAwareness");
+		}
+		foreach (RecordRuntimeData record in records) {
+			if (record.baseRecord.format != ReleaseFormat.Album || record.baseRecord.isPlayerOwned) continue;
+			string id = record.baseRecord.recordId;
+			if (record.currentPosition > 0) albumDemandTraceCharted.Add(id);
+			if (!albumDemandTraceCharted.Contains(id) || record.weeksSinceRelease > 40) continue;
+			double pool = 0, pen = 0, exh = 0, dec = 0, tilt = 0, conv = 0, raw = 0, follower = 0, regAware = 0, blend = 0;
+			long stock = 0, back = 0; int regions = 0;
+			foreach (RegionalRecordData d in record.regionalData.Values) {
+				if (d.albumBuyerPoolThisWeek <= 0f) continue;
+				regions++;
+				pool += d.albumBuyerPoolThisWeek;
+				pen += d.albumEffectivePenetrationThisWeek * d.albumBuyerPoolThisWeek;
+				exh += d.albumExhaustionThisWeek * d.albumBuyerPoolThisWeek;
+				dec += d.albumCatalogDecayMultiplierThisWeek * d.albumBuyerPoolThisWeek;
+				tilt += d.albumFormatTiltThisWeek * d.albumBuyerPoolThisWeek;
+				conv += d.albumConversionThisWeek * d.albumBuyerPoolThisWeek;
+				raw += d.albumRawDemandAfterCannibalizationThisWeek;
+				stock += d.albumUnitsInStoresBeforeSaleThisWeek;
+				back += d.unitsBackordered;
+				follower += d.settledFollowerUnits;
+				regAware += d.awareness * d.albumBuyerPoolThisWeek;
+				blend += d.albumAwarenessThisWeek * d.albumBuyerPoolThisWeek;
+			}
+			double w = Math.Max(1e-9, pool);
+			string tier = ChartManager.Instance.GetLabelById(record.baseRecord.labelId)?.tier.ToString() ?? string.Empty;
+			albumDemandTraceWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture), Csv(id), Csv(record.baseRecord.artistId),
+				tier, record.baseRecord.primaryGenre.ToString(), record.baseRecord.album?.albumFormat.ToString() ?? string.Empty,
+				record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture), record.currentPosition.ToString(CultureInfo.InvariantCulture),
+				record.unitsThisWeek.ToString(CultureInfo.InvariantCulture), record.rackUnitsThisWeek.ToString(CultureInfo.InvariantCulture),
+				F((float)follower), F((float)raw), stock.ToString(CultureInfo.InvariantCulture), back.ToString(CultureInfo.InvariantCulture),
+				F((float)pool), F((float)(pen / w)), F((float)(exh / w)), F((float)(dec / w)), F((float)(tilt / w)), F((float)(conv / w)),
+				F(record.awareness), F(record.wordOfMouth), regions.ToString(CultureInfo.InvariantCulture),
+				F(record.GetQuality()), F((float)(regAware / w)), F((float)(blend / w))
+			}));
+		}
+	}
+
 	private void WriteAlbumChartRows(int week, GameDate date, List<RecordRuntimeData> albumChart) {
 		int chartSize = ChartManager.Instance.GetAlbumChartSize(date);
 		foreach (RecordRuntimeData record in albumChart) {
@@ -4162,6 +4215,7 @@ public partial class ChartAuditRunner : Node {
 		releaseCapacityWriter?.Dispose();
 		seasonalityMonthlyWriter?.Dispose();
 		albumChartWriter?.Dispose();
+		albumDemandTraceWriter?.Dispose();
 		albumCompositionWriter?.Dispose();
 		formatMixWriter?.Dispose();
 		retiredTrackWriter?.Dispose();

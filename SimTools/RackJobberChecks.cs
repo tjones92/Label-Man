@@ -37,6 +37,12 @@ public static class RackJobberChecks {
 				RackJobberChannel.BoundByStoreStanding(150f, 100) == 150f, "store-standing bound caps rack demand at K times store units");
 			RackJobberChannel.ResetForChecks();
 			Check(RackJobberChannel.BoundByStoreStanding(500f, 100) == 500f, "store-standing bound off leaves demand alone");
+			Check(RackJobberChannel.SoundtrackWeight == RackJobberChannel.SoundtrackGenreWeight, "soundtrack rack weight defaults to .9");
+			Check(Rejects(RackJobberChannel.SoundtrackWeightSwitch + "0.3") && Rejects(RackJobberChannel.Switch, RackJobberChannel.SoundtrackWeightSwitch + "1.5"),
+				"the soundtrack rack weight needs the channel and a value in [0, 1]");
+			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.SoundtrackWeightSwitch + "0.3") && RackJobberChannel.SoundtrackWeight == .3f,
+				"soundtrack rack weight configures");
+			RackJobberChannel.ResetForChecks();
 			Check(Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "x"), "unparsable scale");
 			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "0.25") && RackJobberChannel.Enabled &&
 				RackJobberChannel.ShopperScale == .25f, "scale configures");

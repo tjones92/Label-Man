@@ -668,6 +668,9 @@ Folk is 8.7–9.3% of the store units of 1960–61 launches (control 23–29%), 
 | `--rack-store-standing-bound=2` | Works at 104 weeks, not at 208. Not recommended as built |
 | `--album-chart-history` | Telemetry; add to candidate runs that score the album head |
 | `--lp-label-demand-parity` | Rejected (2.4) |
+| `--lp-demand-scale-known` | Rejected (2.13): Known is weekly heat, so hit acts lose the scale too |
+| `--lp-floor-probe` | Diagnostic only (2.14) |
+| `--lp-launch-standing=30000` + scale 2.0 | Candidate (2.15); needs a 208-week pair |
 
 **Adopted 2026-11-15** (in `candidate-request.json`): the `lwbr` package plus `--budget-source-bound=1`, that is
 `--lp-earned-discovery=0 --lp-earned-launch --lp-buyer-word-of-mouth=10000 --budget-noncurrent-weeks=156
@@ -675,6 +678,399 @@ Folk is 8.7–9.3% of the store units of 1960–61 launches (control 23–29%), 
 --budget-source-bound=1`. On seed 2002 (`fh-v1-2002-bb`, 2.10) that set holds stores, racks and budget near the control
 through 1963 and needs no genre decision; it has not been run alone on seed 1001. The genre set is the next step, after the Folk
 1963, Bossa Nova and Comedy values are settled on a 208-week pair, then the decade A/B on one paired seed.
+
+### 2.12 Why unknown acts still sell LPs on the adopted candidate (2026-11-15, analysis only)
+
+Runs `fh-v1-2002-bb` (= the adopted candidate), `cand-v3-*-{off,lw}`, `bud-v1-*-lwb`, `bud-v2-2002-lwbr`. LPs launched
+weeks 1–52, lifetime units at week 208; "unknown" = the act's best single sold under 1k.
+
+**Who they are.** 372 LPs, median 12.4k. 356 are standalone LPs by acts with no single at all, 369 are NewSignings,
+and 365 never reach the album chart, so this is off-chart demand that never stops. They sell most in LP-native genres
+(Comedy 33k, Folk 28k, Children's 24k, Blues 20k, Easy Listening 19k; Soul 7.6k, Country 5.6k, Rock and Roll 3.2k).
+
+**1. The volume scale gave most of the earned cut back to unknowns.** Medians by the act's best single, seed 2002 / 1001:
+
+| | `lw` (earned demand, no scale) | `lwb` (+ scale 1.6) | Gain |
+|---|---|---|---|
+| Under 1k | 6.9k / 7.5k | 12.1k / 12.7k | 1.77× / 1.69× |
+| 1k–100k | 9.0k / 9.5k | 14.0k / 15.4k | 1.56× / 1.62× |
+| 100k+ | 36.9k / 35.7k | 45.9k / 44.2k | 1.24× / 1.24× |
+
+`--lp-demand-scale` multiplies conversion, and an unknown act's LP never gets near its buyer pool, so it takes the whole
+1.63×. A hit LP is held back by exhaustion (`1 / (1 + 4 × penetration)`, floor 0.15). A faster sale uses up its pool
+sooner, so it gains only 1.24×. In 2.6b the plan was for the scale to give the volume "back to known acts". It gave it
+back mostly to unknown acts instead.
+
+**2. What the earned switches leave is the label, and it does not depend on the act.** For an act with Known = 0, the
+earned switches remove the 0.04 launch base and the unconditional discovery term. What is left:
+- launch awareness = marketing impact + reputation × 0.1 (`ApplyPromotionSnapshot` / the AI launch path);
+- awareness growth of `push × 0.03` a week (`AlbumSimulator.UpdateAlbum`) and regional growth of `push × 0.018`
+  (`UpdateRegionalState`). *Correction (2.14): under the candidate the push ends with the programme campaign window
+  (`ProgrammePushFactor` is 0 after `CampaignWeeks`), so the 0.12 tail never runs;*
+- the tier purchase constant, Major 1.36 down to Small 0.50 (finding 9).
+
+Unknown-act median by label tier, candidate seed 2002: Major 41k, MidTier 37k, Independent 11k, Small 5k. Under `lw`,
+before the scale: Major 23k / 29k, Small 3.2k / 3.1k. An unknown act on a Major sells more than the median LP of the
+whole cohort (16k).
+
+**3. Conversion does not depend on the act.** `0.095 × quality^2.5`, × (0.72 + word of mouth × 0.45), × (0.85 + sentiment
+× 0.25). With buyer word of mouth an unknown act's LP loses at most the word-of-mouth part of the 0.72–1.17 range.
+
+**Budget editions sell unknown acts too.** On `fh-v1-2002-bb`, 849 own-master editions of 1960 LPs sell 17.3M:
+
+| Source act's best single | Editions selling | Units (M) | Share | Median edition | Median edition ÷ source |
+|---|---|---|---|---|---|
+| Under 1k | 144 | 1.78 | 10% | 14.3k | 0.58 |
+| 1k–100k | 407 | 7.09 | 41% | 15.5k | 0.62 |
+| 100k+ | 298 | 8.46 | 49% | 21.9k | 0.41 |
+
+The budget weight is `sqrt(saturated appeal) × quality^2.5 × taper × exhaustion × age decay`. Nothing in it depends on
+the act. With saturation at 25k, a 12k-unit LP has appeal 8.1k and a 100k-unit LP has 20k, so in `sqrt` terms the hit
+is only 1.6× ahead and quality chooses the titles. The source bound limits each edition to its own LP's sales, but it
+does not change the choice. In the sources (2.8A), Camden reissued "older recordings by currently popular artists":
+budget lines sold on the name. Before the bound (`lwbr`), 77% of these units came from hit acts.
+
+**Fix directions (not built):**
+- A volume restore that goes through act standing, not flat conversion. For example, apply the scale × Known so it
+  falls on acts people know, or let a hit's buyer pool reach outside its genre so hits can take the volume.
+- An LP's push scaled by Known, like the launch base. (The 0.12 tail already ends under the candidate; see 2.14.)
+- Act standing (current recognition or fame at reissue) in the budget weight, alongside or in place of `quality^2.5`.
+
+Constraint: under `lw`, taking act-blind LP income away without moving it raised bankruptcies by 28–43%. Hits are
+held back by exhaustion, so any cut to unknown acts needs a place for the volume to go.
+
+### 2.13 `--lp-demand-scale-known`: the store scale through Known (2026-11-15) — rejected
+
+New switch (`LpDemandCalibration`, off by default): an act's LP takes store scale `1 + (S − 1) × Known`, where Known is
+`LpEarnedDiscovery.Known` on the act's chart heat and release-awareness bonus that week. An LP with no roster act takes S.
+Needs the scale. Saved with the world and checked on resume. The scale's upper bound is now 3 (was 2). Checks: 32 LP
+calibration and 45 budget pass. `kn-v1-2002-off` (the new candidate, 27 weeks) matches `fh-v1-2002-lref` byte for byte
+in 94 weekly streams; five more differ only in rows written at close, as in 2.10.
+
+Runs `kn16-v1-{2002,1001}-kn` (S = 1.6) and `kn25-v1-{2002,1001}-kn` (S = 2.5), 104 weeks, on `candidate-request.json`
+plus `--album-chart-history`. Control: `fh-v1-*-lref` (`lwbr` at 104 weeks; the source bound does nothing before 1962).
+LPs launched weeks 1–52, lifetime at week 104 (`analyze_lp_known_scale.py`). Seed 2002 / 1001:
+
+| | Control | S = 1.6 | S = 2.5 |
+|---|---|---|---|
+| LP median, act's best single under 1k (k) | 13.2 / 13.8 | 8.3 / 9.3 | 10.2 / 10.5 |
+| LP median, best single 1k–100k (k) | 13.9 / 16.2 | 10.0 / 10.1 | 10.5 / 11.1 |
+| LP median, best single 100k+ (k) | 36.6 / 36.5 | 28.8 / 29.1 | 27.9 / 32.9 |
+| Hit-to-unknown gap | 2.77 / 2.64 | 3.47 / 3.13 | 2.72 / 3.14 |
+| Unknown act on a Major / Small (k) | 41.8 / 5.4; 41.6 / 5.1 | 32.0 / 4.3; 31.8 / 3.9 | 33.8 / 4.0; 32.8 / 3.6 |
+| LPs losing money | 1.2% / 1.4% | 3.0% / 3.9% | 2.8% / 3.9% |
+| Top 10% share of LP units | 41.2 / 39.5 | 43.8 / 43.7 | 46.6 / 45.8 |
+| 1961 stores / racks (M) | 65.2/35.0; 66.7/32.6 | 48.6/35.4; 52.4/33.5 | 54.1/37.4; 59.2/34.0 |
+| Record gross 1961 ($M) | 419 / 420 | 379 / 386 | 398 / 402 |
+| Bankruptcies (104 weeks) | 86 / 96 | 98 / 117 | 91 / 119 |
+
+- **Hit acts lose the scale too.** At S = 1.6 the 100k+ median falls 20–21%, about what removing the scale entirely
+  would cost a hit, so their Known averages well under 1 over an LP's sales life. Chart heat counts only while a record
+  is on the chart (0.3 for a Top 10 position, 0.1 per Top 10 peak), and the release bonus is
+  `momentum × 0.5 + reputation × 0.3 + recognition`, against a full-known mark of 0.30. Raising S to 2.5 lifts the few
+  acts charting that week and the artistless titles (best LP 477k on seed 1001), not the hit band (median 28–33k).
+- **The gap barely moves** (2.7–3.5× against 2.6–2.8×) and **volume is lost**: 1961 stores fall 7–17M, gross 4–10%,
+  bankruptcies rise 5–23.
+- **The unknown floor is the label.** Without any scale, an unknown act on a Major still sells 32k and on a Small 4k.
+- The same Known drives `--lp-earned-discovery` and `--lp-earned-launch`, so those switches also treat most hit acts as
+  partly unknown. That fits 2.6b, where `le` cut hit acts' LPs by 14%.
+
+**Verdict:** rejected as built. Two things follow. Act standing for LP demand needs a durable measure (the act's sales
+or chart record, or its recognition stock), not this week's heat. And the unknown-act floor sits on the label side,
+which a scale cannot reach; 2.14 finds it is mostly the label's launch awareness.
+
+### 2.14 Strong one-cause probes on the unknown-act LP floor (2026-11-15)
+
+Diagnostic switch `--lp-floor-probe=a,b,...` (`LpFloorProbe`, not for a candidate). Each named cause is switched off
+for every LP with a roster act; artistless LPs are untouched. `launch` = no label launch awareness (marketing +
+reputation × 0.1, both launch paths). `push` = label push grows no awareness (record × 0.03, regional × 0.018). `tail` =
+no push after week 12. `tier` = LP tier constant 1. `wom` = no 0.72 floor on the word-of-mouth multiplier. `label` =
+launch + push + tier. Runs `fp-{ctl,launch,push,tail,tier,wom,label}-2002-off`, 52 weeks, seed 2002, on
+`candidate-request.json` + `--album-chart-history`. `fp-ctl` matches `kn-v1-2002-off` in 94 streams over 27 weeks. LPs
+launched weeks 1–26, lifetime at week 52 (`analyze_lp_known_scale.py --launch-weeks=26`).
+
+| | Control | launch | push | tail | tier | wom | label |
+|---|---|---|---|---|---|---|---|
+| LP median, best single under 1k (k) | 12.6 | **5.8** | 9.6 | 12.6 | 17.8 | 0.0 | 6.9 |
+| LP median, best single 1k–100k (k) | 15.0 | 8.7 | 14.2 | 15.0 | 25.0 | 0.0 | 9.2 |
+| LP median, best single 100k+ (k) | 34.6 | 26.5 | 29.8 | 34.6 | 35.2 | 1.8 | 25.7 |
+| Unknown-act change / hit change | | **−54% / −23%** | −24% / −14% | 0 / 0 | +41% / +2% | −100% / −95% | −45% / −26% |
+| Hit-to-unknown gap | 2.74 | **4.54** | 3.10 | 2.74 | 1.98 | – | 3.73 |
+| Unknown act on a Major / Small (k) | 38.0 / 6.9 | 17.3 / 2.7 | 34.1 / 4.2 | 38.0 / 6.9 | 33.1 / 11.4 | 0 / 0 | 11.1 / 3.4 |
+| LPs losing money | 1.0% | 5.9% | 2.0% | 1.0% | 0.2% | 73% | 12.6% |
+| 1960 stores (M) | 40.3 | 29.2 | 36.9 | 40.3 | 44.9 | 2.1 | 30.0 |
+| Bankruptcies (52 weeks) | 51 | 53 | 58 | 51 | 55 | 107 | 59 |
+
+- **Launch awareness is the cause.** Removing the label's launch awareness halves an unknown act's LP (−54%; on a
+  Major 38k to 17k) and costs hit acts −23%, so the gap goes from 2.7× to 4.5×. Nothing else is that large or that
+  selective. Why the launch matters so much: an LP's awareness never decays. For an unknown act nothing after launch adds
+  much (no discovery term under the earned switches, push only in the campaign window, little word of mouth), so the
+  launch stock sets the LP's lifetime demand, and catalogue decay is the only clock.
+- **Push is second** (−24% / −14%), all of it inside the campaign window.
+- **The tail does not exist under the candidate.** `fp-tail` matches `fp-ctl` byte for byte in 99 streams over 52
+  weeks. `ProgrammePushFactor` returns 0 after the record's programme campaign (`CampaignWeeks`), so the 0.12 tail
+  is multiplied by 0. (2.12 is corrected.)
+- **The tier constant does not hold unknown acts up; it holds them down.** Most unknown acts are on Independent and
+  Small labels, so a constant of 1 raises their median by 41% (Small 6.9k to 11.4k) and lowers Major unknowns by 13%.
+- **Word of mouth hardly tells LPs apart.** Without the 0.72 floor, every LP collapses, hits included (−95%). Under buyer
+  word of mouth an LP's multiplier is about 0.72 plus a few points, so it is a common constant, not a source of the
+  unknown floor.
+- **Hit acts lean on launch awareness too** (−23%), because their own release bonus is small (2.13). A fix that cuts
+  only the label's launch for unknown acts needs a durable standing measure, or hit acts pay as well.
+
+One seed at 52 weeks; the launch effect (−54%) is well above seed noise. Next: scale the label's launch awareness on an
+LP by a durable act-standing measure, then screen at 104 weeks on two seeds.
+
+### 2.15 `--lp-launch-standing=K`: the label's LP launch awareness by what the act has sold (2026-11-15)
+
+New switch (`LpLaunchStanding`, off by default). On an act's LP, the label's launch awareness (marketing impact +
+reputation × 0.1, both launch paths) is multiplied by `units / (units + K)`. Here `units` is everything the act has
+sold: its credited career total (`SimulatedArtist.totalUnitsSold`, credited when a record leaves the chart) plus its
+live records not yet credited (`ChartManager.UncreditedLiveUnits`, which includes prewarmed opening records). A debut LP
+by an act with nothing sold gets no label launch awareness. An LP with no roster act is untouched. Read once at launch,
+no saved state. The labels' forecast (`ProjectLaunchAwareness`) is not changed, as with `--lp-earned-launch`.
+Checks: gamey switches pass; `ls-v1-2002-off` (27 weeks) matches `fh-v1-2002-lref` in 94 streams, with the usual five
+rows written at close.
+
+At K = 30k an act with 10k units keeps 25% of the label's launch, 100k keeps 77%, 1M keeps 97%. Runs
+`ls30-v1-{2002,1001}-off` (store scale 1.6, as in the candidate) and `ls30s20-v1-{2002,1001}-sc` (scale 2.0), 104
+weeks, on `candidate-request.json` + `--album-chart-history`, against `fh-v1-*-lref`. LPs launched weeks 1–52, lifetime
+at week 104. Seed 2002 / 1001:
+
+| | Control | K = 30k, scale 1.6 | K = 30k, scale 2.0 |
+|---|---|---|---|
+| LP median, act's best single under 1k (k) | 13.2 / 13.8 | 7.4 / 8.3 | 8.4 / 10.8 |
+| LP median, best single 1k–100k (k) | 13.9 / 16.2 | 9.4 / 10.2 | 11.6 / 12.1 |
+| LP median, best single 100k+ (k) | 36.6 / 36.5 | 32.0 / 31.7 | **41.5 / 37.7** |
+| Hit-to-unknown gap | 2.77 / 2.64 | 4.34 / 3.83 | **4.92 / 3.49** |
+| Unknown act on a Major / Small (k) | 41.8 / 5.4; 41.6 / 5.1 | 26.2 / 3.7; 26.5 / 2.7 | 33.3 / 4.5; 40.7 / 5.0 |
+| LPs losing money | 1.2% / 1.4% | 4.7% / 6.1% | 3.4% / 2.4% |
+| Top 10% share of LP units | 41.2 / 39.5 | 46.0 / 43.9 | 45.2 / 42.8 |
+| 1961 stores / racks (M) | 65.2/35.0; 66.7/32.6 | 51.5/36.2; 54.2/34.4 | **62.6/35.3; 67.1/32.1** |
+| Record gross 1961 ($M) | 419 / 420 | 389 / 390 | **416 / 419** |
+| Bankruptcies (104 weeks) | 86 / 96 | 92 / 102 | 95 / 98 |
+
+- **It does what the Known-weighted scale (2.13) could not.** At scale 1.6, unknown-act LPs fall 40–44% while hit acts
+  lose 13%. Hit acts have sold enough to keep most of the launch, so a volume restore now lands on them.
+- **With scale 2.0 the package holds volume.** 1961 stores are within 3M of the control, gross is flat, and acts with a
+  100k+ single gain 3–13% while unknown acts lose 22–36%. The gap goes from 2.6–2.8× to 3.5–4.9×.
+- **Bankruptcies:** +9 / +2 at scale 2.0, +6 / +6 at 1.6, in 104 weeks.
+- **What is left of the unknown floor** is on the label side but outside the launch: push in the campaign window
+  (2.14: −24%) and the Major tier constant. A brand-new act's first LP on a Major still sells 31–35k
+  (first LPs without pre-1960 history or opening records), against 3.7–7.4k on an Independent. Medians over 30–45 Major
+  LPs move a lot between arms, so read the Major row as rough.
+- **LP-only acts gain standing from their own records.** An act's second LP in the run outsells its first (seed 1001:
+  25k against 9k), because the first LP's units count. That is intended.
+
+**Verdict:** `--lp-launch-standing=30000` with `--lp-demand-scale=2.0` is a candidate. It is the first change that
+lowers unknown-act LPs while holding store volume and gross and raising hit-act LPs. Before adoption it needs a 208-week
+pair: the envelope binds from 1962, budget editions start in 1963, and bankruptcies need the full window. Open: the
+label forecast still assumes the full launch, so labels may over-plan unknown-act LPs; push by standing is the next
+lever if the floor should fall further.
+
+### 2.16 LP sales distribution against the RIAA 1965 release survey (2026-11-15, analysis only)
+
+Source: `SimTools/RIAA-1965-LP-sales-research-notes.md` (Glover / Cambridge Research Institute for RIAA, House
+Judiciary hearings, June 1965, pp. 797–799 and 861–865). 1,603 non-classical LPs released in 1963 by Capitol,
+Columbia, RCA Victor, Mercury, Laurie and Kapp, with sales counted through 1964. Model analogue
+(`analyze_lp_riaa_1965.py`): non-classical LPs launched weeks 1–52, units at week 104, store + rack (clubs are logged by
+label only and are left out). Runs `fh-v1-{2002,1001}-lref` (control) and `ls30s20-v1-{2002,1001}-sc` (2.15 candidate).
+
+| | RIAA 1963 | Model, all tiers | Model, Major | Model, Major debut |
+|---|---|---|---|---|
+| Under 4k | **48.8%** | 9–16% | **0%** | 0% |
+| Under 8k | 61.7% | 23–34% | 0–2% | 0–3% |
+| Median | 4–8k band | 13–18k | **65–83k** | 70–73k (control), 37–38k (2.15) |
+| 600k or more | 0.6% | 0% | 0% | – |
+| Losing money | 61% (break-even estimate, avg 7.8k) | 1–5% | 0–2% | 0–6% |
+
+"Debut" = the act's first LP in the run, scheduled as NewSigning (two thirds of launched LPs).
+
+- **The RIAA sample is mostly majors.** If as many as 300 of the 1,603 releases were Laurie or Kapp and all sold under 4k,
+  at least 37% of the four majors' LPs still did (a bound, not a source figure). The model's Major tier has none. Its
+  Small tier (median 5k, 28–42% under 4k) is the one that looks like the RIAA sample.
+- **Mean volume is about right; the shape is wrong.** The grouped RIAA mean lies between about 19k and 38k (band floors /
+  ceilings, 1M+ at 1M). The model's is 41–44k counting racks, 28–32k stores only. The model has too few flops, no title
+  above 600k, and a Major floor about 10× too high. A fix should move Major volume from flops to hits, not remove it.
+- **2.15 halves Major debuts** (about 72k to 37k), still 5–9× the RIAA median band and still 0–3% under 8k. What remains
+  is campaign-window push and the tier constant (2.14).
+- **Unit costs match p. 864:** mechanicals 2¢ × tracks (≈ $0.22 against $0.24), pressing $0.40 + packaging (against
+  $0.45), royalty 4–5% of list (against $0.15), net ≈ $1.92 a mono copy (against $1.818; stereo nets more). **The
+  per-copy remainder does not:** retired LPs realise $1.13–1.32 a copy after unit costs against RIAA's $0.45 after
+  SG&A, so Independent / Small LPs break even at 1–2k copies. Major break-even is about 8.3k, close to RIAA's 7.8k;
+  Majors almost never lose because they almost never sell under it. (Retired LPs only: biased to low sellers, 12–13
+  Major titles.) Probably no per-copy selling and overhead charge on records; not verified.
+- Caveats: the source has no debut split. The model cohort is its 1960 warm-up year against RIAA's 1963.
+
+**Scoring for Major LP fixes:** Major-tier share under 4k and under 8k, median band, share at 300k+, holding mean units
+per release and 1961 store / rack totals.
+
+### 2.17 Bringing Major LPs toward the RIAA bands: label push by standing, and a reception draw (2026-11-15)
+
+**Why Majors sit high (on `ls30s20-v1-2002-sc`).** Within a tier, log units have sd about 1.0 against RIAA's about
+2.0 (a lognormal fit to the p. 863 bands). Once act, genre and label are fixed, an LP's demand barely varies: quality
+correlates only 0.21 with Major log units, and the lowest-selling Major Folk LP still sells 19k. Most of the spread
+between Major LPs comes from career state and genre (Superstar 444k, Star 245k, Established 134k, NewSigning debut
+37k; Easy Listening 188k, Soul 13k). Majors issue 36–66 LPs each in 1960 and 80–100 in 1961, and their mean is about
+130k per LP, roughly 4× RIAA's sample mean.
+
+New switches (`GameyAuditSwitches.cs`; both off by default; checks pass):
+- `--lp-label-standing=push,tier` (needs `--lp-launch-standing=K`). The act's launch standing, units / (units + K), is
+  stored on the LP (`RecordRuntimeData.lpLabelStanding`, saved). It scales the label's push growth (record and
+  regional) and the part of the tier constant above 1 (Major 1.36 → 1 + 0.36 × standing). Constants below 1 are untouched.
+- `--lp-reception-sigma=S`. Each LP with a roster act gets a mean-preserving reception multiplier on store conversion,
+  `exp(S z − S²/2)`. The draw z is keyed on record id and world seed (`PhiloxCounterRandom`), so it consumes no RNG
+  stream and needs no saved state. Forecasts do not see it. The basis is Glover's own heading for the data, "Producing
+  and Selling Records Is a Risky Business".
+
+Runs at 104 weeks on `candidate-request.json` + `--album-chart-history --lp-launch-standing=30000 --lp-demand-scale=2`
+(the 2.15 candidate, `ls30s20`). Metrics are from `analyze_lp_riaa_1965.py --compact`: non-classical LPs launched weeks
+1–52, store + rack units at week 104. `lps` = + push,tier (seeds 2002 / 1001). `rc15` = + reception σ 1.5, and
+`lrc15` = both (seed 2002 only).
+
+| | RIAA | 2.15 control | `lps` push,tier | `rc15` σ 1.5 | `lrc15` both |
+|---|---|---|---|---|---|
+| All: under 4k / 8k % | 49 / 62 | 16 / 34; 13 / 32 | 24 / 43; 26 / 43 | **41 / 56** | 49 / 61 |
+| All: median (k) | 4–8 | 12.7; 15.2 | 10.3; 10.8 | **5.8** | 4.3 |
+| All: log-sd | ≈ 2.0 | 1.35; 1.36 | 1.58; 1.66 | **2.04** | 2.40 |
+| All: 300k+ % | 1.3 | 2.6; 2.4 | 2.6; 2.2 | 3.3 | 3.0 |
+| Major: under 4k / 8k % | ≥ 37 (bound) / – | 0 / 1; 0 / 2 | 1 / 3; 2 / 7 | 11 / 21 | 16 / 26 |
+| Major: median / mean (k) | (sample 4–8 / ≈ 31) | 74 / 131; 65 / 119 | 58 / 124; 46 / 108 | 35 / 137 | 30 / 111 |
+| Major debut: median (k) | – | 37; 38 | 26; 23 | 15 | 13 |
+| Major non-debut: median (k) | – | 98; 98 | 99; 96 | 53 | 44 |
+| LPs losing money % | 61 | 3.3; 2.5 | 10.4; 13.0 | 30.6 | 39.8 |
+| 1961 stores / racks (M) | – | 62.6/35.3; 67.1/32.1 | 54.6/33.8; 55.8/34.1 | 60.3/37.5 | 48.4/39.7 |
+| Record gross 1961 ($M) | – | 416; 419 | 388; 395 | 415 | 388 |
+| Bankruptcies (104 wk) | – | 95; 98 | 100; 110 | **140** | 141 |
+
+- **Push and tier by standing only reach debuts.** The Major debut median falls by about a third, but non-debut Major
+  LPs (median about 97k, none under 8k) do not move: their acts have standing near 1. The switch also costs 8–12M 1961
+  store units and 25–30M dollars of gross. Not recommended alone.
+- **Reception σ 1.5 reproduces the RIAA shape across the industry** (median, log-sd, under 4k within 8 points) and
+  holds 1961 stores, racks and gross. It is the first lever that moves non-debut Major LPs (98k → 53k). The losing
+  share rises from 3% toward RIAA's 61%, reaching 31%.
+- **Its cost is +45 bankruptcies,** all at Independent / Boutique / Small (Independent 62 → 72, Boutique 12 → 29,
+  Small 9 → 22); 98 of 140 come in a label's first year. A flop LP leaves pressings against a forecast that never sees
+  the draw. That is the period's risk, but closures must be earned (memory `closures-must-be-earned-not-imposed`),
+  so the cash side needs a look before adoption.
+- **Majors are still about 5× too high per title.** The Major mean per LP (111–137k) is about 4× the RIAA sample mean,
+  so no mean-preserving reshaping can bring the Major median into 4–8k while Major LP volume holds. The rest is volume
+  per title: the model's Majors issue 40–100 LPs a year, against roughly 1,500 sample releases from four majors. That
+  figure may count mono and stereo editions separately (p. 862 covers both), so it is perhaps 190–375 titles each. An
+  author decision is needed: more Major LP titles, or less Major LP volume.
+
+### 2.18 More Major LP titles: the sourced release rate, the real block, and the screen (2026-11-15)
+
+**Historical rate (sourced).** These are counts of titled entries per release year in the main pop / jazz / cast series:
+- **Capitol T/ST** (bsnpubs `capitol/previews/600-2999.pdf`, parsed): 163 titles (1959), 168 (1960), 149 (1961),
+  156 (1962), 143 (1963), 160 (1964).
+- **Columbia CL/CS** (bsnpubs `columbia/columbia12/columbia1400`–`1900.html`): about 145 in 1961 (CL-1400s 3, 1500s 35,
+  1600s 93, 1700s 14) and about 209 in 1962 (1600s 6, 1700s 78, 1800s 90, 1900s 35). 1960 is about 150+ (1400s 91,
+  1500s 61, plus early-1960 CL-1300s not counted).
+- Both labels pair mono and stereo on one title (CL-1500/CS-8291; ST/T 1412), so these are titles, not editions. They
+  exclude subsidiaries (Epic, Harmony, Okeh; Tower, Angel) and classical series.
+- So each of the head majors issued about **145–210 titles a year in its main series alone.**
+- **Consequence for 2.16:** four majors at about 150–200 titles each, plus Kapp and Laurie, comes to about 700–800
+  titles. Doubled for mono and stereo editions, that matches the RIAA sample's 1,603 "releases". So RIAA's bands are
+  most likely **per edition**, and per-title sales run up to about 2× the band values (less where stereo sold
+  little). An inference, not stated on p. 862.
+
+**What caps the model's Majors.** The Major programme envelope (`--programme-major-albums=5`, "a sensitivity
+assumption, not an RCA LP policy"; ×2 by the candidate's `--lp-programme-scale=2`, so 10 a month) is not the cap.
+Majors issued 52 a label in 1960 and 82 in 1961 against 120 of capacity. On `ls30s20-v1-2002-sc`, 1,128 Major LP
+slots were planned and 620 issued. The rest expired after repeated `preparation-material-economics-or-funding`
+postponements, which are the **all-in profit gate** (`release-profit-gates.csv`). Only 17% of Major LP attempts pass,
+10% for NewSignings (forecast median −$5.3k), against 61–67% for Rising / Established and 95–100% for Star /
+Superstar. Yet the Major debut LPs that are released sell a median 37k and almost never lose money. This is
+`debut-lp-forecast-is-3x-low` on the Major side.
+
+**Screen** (104 weeks, seed 2002, all on `ls30s20` = candidate + `--lp-launch-standing=30000 --lp-demand-scale=2`):
+`ma12` = + `--programme-major-albums=12`; `ma12d` = `ma12` + `--album-prior-debut-scale=2.0613` (the 2026-11-03
+debut prior fix); `ma12r` / `ma12rd` = the same + `--lp-reception-sigma=1.5`.
+
+| | 2.15 control | `ma12` | **`ma12d`** | `ma12r` | `ma12rd` |
+|---|---|---|---|---|---|
+| Major LPs per label, 1960 / 1961 | 52 / 82 | 54 / 97 | **80 / 154** | 54 / 89 | 80 / 148 |
+| Major LP gate pass % (all / NewSigning) | 17 / 10 | 13 / 8 | 36 / 33 | 12 / 7 | 39 / 37 |
+| Major: under 4k / 8k % | 0 / 1 | 0 / 2 | 1 / 4 | 14 / 24 | **23 / 35** |
+| Major: median / mean (k) | 74 / 131 | 52 / 111 | **37 / 79** | 27 / 111 | **18 / 86** |
+| Major non-debut median (k) | 98 | 75 | 48 | 36 | 27 |
+| Major LP units (M, cohort) | 27.8 | 25.3 | 28.6 | 25.4 | 30.3 |
+| Major share of cohort units % | 46.6 | 44.1 | 47.5 | 46.4 | 51.0 |
+| All: under 4k % / median (k) | 16 / 12.7 | 15 / 13.3 | 21 / 11.1 | 41 / 6.0 | 46 / 4.8 |
+| All: log-sd | 1.35 | 1.32 | 1.38 | 2.00 | 2.19 |
+| LPs losing money % | 3.3 | 3.1 | 7.1 | 31.0 | 38.2 |
+| 1961 stores / racks (M) | 62.6 / 35.3 | 59.5 / 35.9 | **65.2 / 37.4** | 54.0 / 38.9 | 59.0 / 37.0 |
+| Record gross 1961 ($M) | 416 | 408 | **427** | 403 | 407 |
+| Bankruptcies (104 wk) | 95 | 86 | **94** | 124 | 130 |
+
+- **The envelope alone does little** (`ma12`): the gate refuses the extra slots. It does lower the Major median, because
+  the fixed campaign pool is split across more releases.
+- **Envelope + debut prior (`ma12d`) reaches the historical rate at no cost.** Majors issue 154 LPs a label in 1961,
+  inside the sourced 145–210. Each Major title sells about half as much (median 74k → 37k, mean 131k → 79k), Major
+  LP volume and share hold, 1961 stores and gross rise slightly, and bankruptcies are flat.
+- **Adding reception (`ma12rd`) brings the Major distribution near RIAA per title.** The median is 18k, 23% under
+  4k and 35% under 8k; against per-edition bands roughly ×2, that is close. The all-label shape matches RIAA (46%
+  under 4k, median 4.8k). The cost is +35 bankruptcies, at small labels (2.17).
+- **Seed 1001** (`ls30s20` → `ma12d` → `ma12rd`):
+  - Major LPs per label 1960 / 1961: 49 / 68 → 71 / 125 → 73 / 123.
+  - Gate pass, all / NewSigning: 15 / 10% → 33 / 30% → 36 / 33%.
+  - Major median / mean: 65k / 119k → 36k / 84k → **11k / 68k**. Under 4k / 8k: 0 / 2% → 1 / 5% → 28 / 43%.
+  - Major LP units: 28.3M → 31.1M → 25.8M. Major share of cohort units: 45.8% → 51.7% → 50.7%.
+  - 1961 stores: 67.1M → 68.2M → 59.4M. Gross: $419M → $434M → $413M.
+  - Bankruptcies: 98 → **109** → 140.
+  - `ma12d` repeats seed 2002, except for the bankruptcies (+11 here, −1 on 2002). Its Major share of LP units rises
+    about 6 points on this seed.
+- **Verdict:** `ma12d` (`--programme-major-albums=12 --album-prior-debut-scale=2.0613` on `ls30s20`) is a candidate.
+  It needs a 208-week pair before adoption: the envelope binds from 1962, and both bankruptcies and Major share need
+  the full window. `ma12rd` is closest to RIAA but carries the 2.17 small-label closures.
+- **208-week pair** (`ls30s20-v2` against `ma12d-v2`, seeds 2002 / 1001; scored on 1962 releases with sales to week
+  208, the RIAA window; `analyze_lp_riaa_1965.py --compact --launch=105-156 --last=208`):
+
+  | | `ls30s20-v2` | `ma12d-v2` |
+  |---|---|---|
+  | Major LPs per label, 1960 / 61 / 62 / 63 | 52 / 84 / 115 / 133; 49 / 70 / 109 / 121 | 80 / 157 / **245 / 284**; 71 / 127 / **207 / 230** |
+  | Major LP gate pass % (all / NewSigning) | 28 / 19; 25 / 19 | 45 / 44; 41 / 41 |
+  | Major median / mean, 1962 releases (k) | 70 / 117; 48 / 95 | **26 / 58; 25 / 54** |
+  | Major under 4k / 8k % | 0 / 1; 0 / 2 | 2 / 8; 1 / 7 |
+  | Major share of cohort LP units % | 59.6; 64.5 | **66.2; 72.1** |
+  | LPs losing money % | 9.0; 9.3 | 15.8; 16.1 |
+  | Stores 1962 / 1963 (M) | 69.7 / 66.2; 71.6 / 70.3 | 72.8 / 69.5; 75.4 / 71.3 |
+  | Gross 1962 / 1963 ($M) | 500 / 461; 506 / 466 | 507 / 468; 514 / 466 |
+  | Bankruptcies (208 wk) | 124; 132 | **132; 150** |
+
+  - Per-title Major sales halve again at 208 weeks, and volume and gross hold.
+  - **Overshoot:** once the gate passes 41–45% of Major LPs, the 24-a-month envelope (12 × `--lp-programme-scale=2`)
+    binds. Majors issue 207–284 a label in 1962–63, against the sourced 145–210. The control reaches 109–133 by
+    then, so the 1960–61 gap is larger than the 1962–63 gap.
+  - **Costs that replicate:** the Major share of LP units rises 7–8 points, and bankruptcies rise 8–18. From 1962 the
+    extra Major titles take envelope from small labels.
+  - Next: `--programme-major-albums=8` (16 a month effective, about 190 a year) with the debut prior, to keep the
+    1960–61 lift and cap 1962–63 inside the range.
+- **Envelope 8 a month (`ma8d-v2`) and the combined candidate (`cb-v1`)**, 208 weeks:
+  - `cb` = `ma8d` + `--album-affinity=Folk=0.44,BossaNova=0.25,TraditionalPop=0.38,EasyListening=0.28,Comedy=0.50,
+    Blues=0.40` at LP scale 2.2 (`LpGenreAllocationFollowup.md` §7).
+  - Seed 2002 / 1001; 1962 releases, sales to week 208.
+
+  | | `ls30s20-v2` | `ma12d-v2` | **`ma8d-v2`** | **`cb-v1`** |
+  |---|---|---|---|---|
+  | Major LPs per label 1960 / 61 / 62 / 63 | 52 / 84 / 115 / 133; 49 / 70 / 109 / 121 | 80 / 157 / 245 / 284; 71 / 127 / 207 / 230 | 80 / 150 / 204 / 208; 70 / 143 / 188 / 202 | 83 / 148 / 201 / 206; 69 / 142 / 182 / 188 |
+  | Major median / mean (k) | 70 / 117; 48 / 95 | 26 / 58; 25 / 54 | 31 / 68; 32 / 70 | 29 / 62; 31 / 62 |
+  | Major share of cohort LP units % | 59.6; 64.5 | 66.2; 72.1 | 64.9; 71.6 | 62.7; 65.1 |
+  | LPs losing money % | 9.0; 9.3 | 15.8; 16.1 | 14.4; 15.5 | 10.5; 12.1 |
+  | Stores / racks 1961 (M) | 62.6/36.0; 67.1/32.8 | 65.2/38.2; 68.2/37.4 | 65.3/35.5; 68.2/34.9 | 59.6/39.4; 63.2/36.7 |
+  | Stores / racks 1963 (M) | 66.2/42.4; 70.3/39.4 | 69.5/41.0; 71.3/39.6 | 65.9/43.7; 70.7/39.2 | 62.2/46.5; 66.0/44.2 |
+  | Gross 1961 / 1963 ($M) | 465 / 461; 469 / 466 | 476 / 468; 483 / 466 | 470 / 465; 477 / 465 | 464 / 462; 468 / 465 |
+  | Bankruptcies (208 wk) | 124; 132 | 132; 150 | **117; 134** | 139; 138 |
+
+  - **`ma8d` is the Major-LP fix.** Release counts sit inside the sourced 145–210 from 1961, per-title Major sales
+    fall by a third to a half, gross holds, and bankruptcies match the control (−7 / +2). The Major share of LP units
+    still rises 5–7 points.
+  - **`cb` adds the genre fix** (the year-end head is in the follow-up doc §7) and takes back most of that share rise
+    (62.7 / 65.1). It costs about 5M store LPs a year, mostly made up on racks, gross −$1–16M, and bankruptcies
+    +22 / +4 against `ma8d`.
+- **Open:** the non-debut Major median (27–48k) is still high. The Major mean (79–86k) is still about 1.5–2.5× the
+  RIAA per-title mean, which is roughly 31k per edition, so maybe 45–60k per title.
 
 ## 3. Checked and found sound
 

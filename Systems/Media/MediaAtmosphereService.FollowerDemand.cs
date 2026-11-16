@@ -116,7 +116,7 @@ public static partial class MediaAtmosphereService {
 				continue;
 			}
 			int week = chartWeek - book.LaunchWeek;
-			if (week >= MediaFollowerDemand.Weeks) { CloseFollowerLaunch(book, today); continue; }
+			if (week >= MediaFollowerDemand.WeeksFor(book.Format)) { CloseFollowerLaunch(book, today); continue; }
 			float factor = MediaFollowerDemand.WeekFactor(week, book.Loss, book.Format);
 			if (factor > 0f) followerWeek[id] = (book, factor);
 		}

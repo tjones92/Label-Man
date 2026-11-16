@@ -55,6 +55,8 @@ public static class AlbumSimulator {
 		float campaign = ChartSimulator.GetCampaignImpact(label);
 		if (LabelReleaseProgramme.CapacityEnabled) campaign *= CompetitorManager.Instance?.ProgrammePushFactor(record) ?? 1f;
 		float campaignAge = record.weeksSinceRelease <= 4 ? 1f : record.weeksSinceRelease <= 12 ? 0.45f : 0.12f;
+		// --lp-floor-probe=tail: the campaign ends after week 12. Off: not read.
+		if (LpFloorProbe.Enabled && record.weeksSinceRelease > 12 && LpFloorProbe.Tail(record.baseRecord.artistId)) campaignAge = 0f;
 		record.currentLabelPush = campaign * campaignAge;
 		record.totalLabelInvestment += record.currentLabelPush;
 		float chartDiscovery = record.currentPosition > 0 ? Mathf.Clamp((201f - record.currentPosition) / 200f, 0f, 1f) * 0.025f : 0f;
@@ -63,7 +65,14 @@ public static class AlbumSimulator {
 		if (LpEarnedDiscovery.Enabled && !string.IsNullOrEmpty(record.baseRecord.artistId))
 			unconditional *= LpEarnedDiscovery.Factor(artistHeat,
 				ArtistManager.Instance?.GetArtist(record.baseRecord.artistId)?.GetNewReleaseAwarenessBonus() ?? 0f);
-		float organicRate = unconditional + artistHeat * 0.008f + record.currentLabelPush * 0.03f + chartDiscovery;
+		// --lp-demand-scale-known: this week's Known for the store scale. Off: never computed.
+		if (LpDemandCalibration.KnownWeighted) record.lpScaleKnown = CalculateLpScaleKnown(record, artistHeat);
+		float pushRate = record.currentLabelPush * 0.03f;
+		// --lp-floor-probe=push: label push grows no awareness on an act's LP. Off: not read.
+		if (LpFloorProbe.Enabled && LpFloorProbe.Push(record.baseRecord.artistId)) pushRate = 0f;
+		// --lp-label-standing=push: push grows awareness in proportion to the act's standing. Off: not read.
+		if (LpLabelStanding.Enabled) pushRate *= LpLabelStanding.Push(record);
+		float organicRate = unconditional + artistHeat * 0.008f + pushRate + chartDiscovery;
 		float organic = organicRate * (1f - record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness + organic, 0f, 1f);
 		// A5 counterfactual: the same headroom-proportional growth from the bonus-free start.
@@ -87,6 +96,11 @@ public static class AlbumSimulator {
 		float buyerPool = album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null
 			? region.GetSoundtrackAlbumMarketSize(album.externalMedia, year)
 			: region.GetAlbumMarketSize(record.baseRecord.primaryGenre, year);
+		// --hit-package-demand: a hits package also sells to the buyers of the singles it carries. Off: not read.
+		if (HitPackageDemand.Enabled) buyerPool += HitPackageDemand.RegionalBuyers(album, region, record.baseRecord.primaryGenre, year);
+		// --soundtrack-pool-breadth: a wider, slower soundtrack audience (conversion divided below). Off: not read.
+		bool broadSoundtrack = SoundtrackPoolBreadth.Enabled && album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null;
+		if (broadSoundtrack) buyerPool *= SoundtrackPoolBreadth.Breadth;
 		float awareness = record.awareness * 0.45f + data.awareness * 0.55f;
 		if (record.currentPosition > 0 && record.currentPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
 		else if (record.currentPosition > 0 && record.currentPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
@@ -100,9 +114,11 @@ public static class AlbumSimulator {
 			penetration = Mathf.Max(penetration, (float)(purchases / Mathf.Max(1f, buyerPool)));
 			if (genreMarketLive) data.albumPeakEffectivePenetration = Mathf.Max(data.albumPeakEffectivePenetration, penetration);
 		}
+		// --soundtrack-hit-tail: a top-10 soundtrack's audience renews (after the ratchet, so it stays in pool terms). Off: 1.
+		if (SoundtrackHitTail.Enabled) penetration /= SoundtrackHitTail.Renewal(record);
 		float exhaustion = CalculateAlbumExhaustion(penetration);
 		float conversion = BasePurchaseRate * Mathf.Pow(appeal, 2.5f) * exhaustion;
-		conversion *= 0.72f + record.wordOfMouth * 0.45f;
+		conversion *= (LpFloorProbe.Enabled && LpFloorProbe.Wom(record.baseRecord.artistId) ? 0f : 0.72f) + record.wordOfMouth * 0.45f;
 		conversion *= 0.85f + Mathf.Max(0f, data.sentiment) * 0.25f;
 		conversion *= 1f + AlbumModel.GetAlbumEraWeight(year) * (album?.packaging ?? 0f) * 0.12f;
 		conversion *= record.weeksSinceRelease switch { <= 2 => 0.72f, <= 6 => 1.05f, <= 12 => 1f, _ => 0.92f };
@@ -112,13 +128,25 @@ public static class AlbumSimulator {
 		float formatTilt = GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Album, year,
 			region.GetAlbumOpportunityWeight(record.baseRecord.primaryGenre, year, genreMarketLive), genreMarketLive);
+		// --soundtrack-format-tilt: a soundtrack's pool bypasses its mapped genre, so it takes F, not that genre's tilt. Off: not read.
+		if (SoundtrackFormatTilt.Enabled && album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null)
+			formatTilt = SoundtrackFormatTilt.Tilt;
 		conversion *= formatTilt;
 		conversion *= 1f - region.distribution.difficulty * 0.25f;
-		if (genreMarketLive) conversion *= LpLabelDemandParity.Apply(GetLiveLabelDemandScale(label?.tier));
+		if (genreMarketLive) {
+			float tierScale = LpFloorProbe.Enabled && LpFloorProbe.Tier(record.baseRecord.artistId) ? 1f
+				: LpLabelDemandParity.Apply(GetLiveLabelDemandScale(label?.tier));
+			// --lp-label-standing=tier: the tier premium above 1 by the act's standing. Off: not read.
+			conversion *= LpLabelStanding.Enabled ? LpLabelStanding.Tier(record, tierScale) : tierScale;
+		}
 		else if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;
+		// --lp-reception-sigma: how dealers and buyers took to this title (mean-preserving, keyed). Off: not read.
+		if (LpReception.Enabled) conversion *= LpReception.Factor(record);
+		if (broadSoundtrack) conversion /= SoundtrackPoolBreadth.Breadth;
 
-		float rawDemandBeforeCannibalization = CalculateRawDemandBeforeCannibalization(buyerPool, awareness, conversion);
+		float known = LpScaleKnown(record);
+		float rawDemandBeforeCannibalization = CalculateRawDemandBeforeCannibalization(buyerPool, awareness, conversion, known);
 		float rawSales = rawDemandBeforeCannibalization * (1f - record.cannibalizationSuppression);
 		data.albumBuyerPoolThisWeek = buyerPool;
 		data.albumAwarenessThisWeek = awareness;
@@ -127,7 +155,7 @@ public static class AlbumSimulator {
 		data.albumExhaustionThisWeek = exhaustion;
 		data.albumCatalogDecayMultiplierThisWeek = catalogDecayMultiplier;
 		data.albumFormatTiltThisWeek = formatTilt;
-		data.albumConversionThisWeek = LpDemandCalibration.Apply(conversion);
+		data.albumConversionThisWeek = LpDemandCalibration.ApplyStore(conversion, known);
 		data.albumRawDemandBeforeCannibalizationThisWeek = rawDemandBeforeCannibalization;
 		data.albumRawDemandAfterCannibalizationThisWeek = rawSales;
 		data.albumUnitsInStoresBeforeSaleThisWeek = data.unitsInStores;
@@ -140,7 +168,7 @@ public static class AlbumSimulator {
 		record.albumDemandWeightedSuppression += rawDemandBeforeCannibalization * record.cannibalizationSuppression;
 		if (record.promoShadowDemand.HasValue)
 			record.promoShadowDemand += CalculateRawDemandBeforeCannibalization(buyerPool,
-				CalculatePromoShadowAwareness(record, data), conversion);
+				CalculatePromoShadowAwareness(record, data), conversion, known);
 		data.rawDemandThisWeek = rawSales;
 		data.unitsBackordered = Mathf.RoundToInt(data.unitsBackordered * 0.55f);
 		if (data.unitsInStores < rawSales) {
@@ -179,6 +207,9 @@ public static class AlbumSimulator {
 	internal static float GetAlbumTimeDecayMultiplier(Album album, int weeksSinceRelease, int month) {
 		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null)
 			return GetSoundtrackBoxOfficeMultiplier(album.externalMedia, weeksSinceRelease, month);
+		// --hit-package-decay: a hits package keeps its own catalogue tail. Off: not read.
+		if (HitPackageDemand.DecayEnabled && album?.albumFormat == AlbumFormat.Compilation)
+			return weeksSinceRelease > CatalogDecayStartWeeks ? Mathf.Pow(HitPackageDemand.Decay, weeksSinceRelease - CatalogDecayStartWeeks) : 1f;
 		return GetCatalogDecayMultiplier(album?.albumFormat ?? AlbumFormat.Standard, weeksSinceRelease);
 	}
 
@@ -225,6 +256,8 @@ public static class AlbumSimulator {
 			float launchRamp = w < 3f ? Mathf.Lerp(0.85f, 1f, w / 3f) : 1f;
 			mult = Mathf.Pow(weeklyDecay, w) * launchRamp;
 		}
+		// --soundtrack-build-weeks: demand builds over the first B weeks (roadshow runs, a show finding its audience). Off: 1.
+		if (SoundtrackBuild.Enabled) mult *= SoundtrackBuild.Factor(w);
 		// Awards-season resurrection: a prestige title still alive the next Q1 gets a visible bump.
 		if ((month == 1 || month == 2 || month == 3) && profile.awardsPrestige > 0.5f && w > 20f)
 			mult *= 1f + profile.awardsPrestige * 0.8f;
@@ -240,8 +273,24 @@ public static class AlbumSimulator {
 		return awareness;
 	}
 
-	internal static float CalculateRawDemandBeforeCannibalization(float buyerPool, float awareness, float conversion) =>
-		LpDemandCalibration.Apply(buyerPool * awareness * conversion);
+	internal static float CalculateRawDemandBeforeCannibalization(float buyerPool, float awareness, float conversion, float known = 1f) =>
+		LpDemandCalibration.ApplyStore(buyerPool * awareness * conversion, known);
+
+	/// <summary>--lp-demand-scale-known: Known for an act's LP (LpEarnedDiscovery.Known on chart heat and the release-awareness
+	/// bonus); 1 for an LP with no roster act.</summary>
+	internal static float CalculateLpScaleKnown(RecordRuntimeData record, float artistHeat) {
+		string artistId = record.baseRecord.artistId;
+		if (string.IsNullOrEmpty(artistId)) return 1f;
+		return LpEarnedDiscovery.Known(artistHeat, ArtistManager.Instance?.GetArtist(artistId)?.GetNewReleaseAwarenessBonus() ?? 0f);
+	}
+
+	/// <summary>This week's Known for the store scale; computed on the spot if the weekly update has not run for this record
+	/// yet. Exactly 1 when --lp-demand-scale-known is off.</summary>
+	internal static float LpScaleKnown(RecordRuntimeData record) {
+		if (!LpDemandCalibration.KnownWeighted) return 1f;
+		if (float.IsNaN(record.lpScaleKnown)) record.lpScaleKnown = CalculateLpScaleKnown(record, record.artistHeat);
+		return record.lpScaleKnown;
+	}
 
 	internal static float CalculateAlbumExhaustion(float effectivePenetration) =>
 		Mathf.Max(0.15f, 1f / (1f + effectivePenetration * 4f));
@@ -256,7 +305,11 @@ public static class AlbumSimulator {
 	};
 
 	public static void UpdateRegionalState(RecordRuntimeData record, RegionalRecordData data) {
-		float localRate = record.currentLabelPush * 0.018f + record.wordOfMouth * 0.010f;
+		float localPush = record.currentLabelPush * 0.018f;
+		// --lp-floor-probe=push: label push grows no regional awareness on an act's LP. Off: not read.
+		if (LpFloorProbe.Enabled && LpFloorProbe.Push(record.baseRecord.artistId)) localPush = 0f;
+		if (LpLabelStanding.Enabled) localPush *= LpLabelStanding.Push(record);
+		float localRate = localPush + record.wordOfMouth * 0.010f;
 		float localGrowth = localRate * (1f - data.awareness);
 		data.awareness = Mathf.Clamp(data.awareness + localGrowth, 0f, 1f);
 		if (data.promoShadowAwareness is float shadow)
@@ -264,6 +317,11 @@ public static class AlbumSimulator {
 		data.sentiment = Mathf.Lerp(data.sentiment, record.GetQuality(), 0.06f);
 	}
 
-	public static float CalculateChartPoints(RecordRuntimeData record) =>
-		record.unitsThisWeek * (1f + Mathf.Max(-0.15f, record.momentum) * 0.15f);
+	public static float CalculateChartPoints(RecordRuntimeData record) {
+		float points = record.unitsThisWeek * (1f + Mathf.Max(-0.15f, record.momentum) * 0.15f);
+		// --album-chart-reporting: how fully the pop LP chart saw a genre's sales. Off: not read.
+		if (AlbumChartReporting.Enabled && record.baseRecord.album != null)
+			points *= AlbumChartReporting.Weight(record.baseRecord.primaryGenre, record.baseRecord.album.albumFormat);
+		return points;
+	}
 }

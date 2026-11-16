@@ -67,6 +67,11 @@ public static class RackJobberChannel {
 	};
 	/// <summary>Soundtracks and cast albums sold to the adult and family shopper whatever their mapped genre.</summary>
 	internal const float SoundtrackGenreWeight = .9f;
+	/// <summary>--rack-soundtrack-weight=F (genre follow-up §8). Replaces <see cref="SoundtrackGenreWeight"/>. At .9 a racked
+	/// soundtrack sells about 4 rack units per store unit in 1960-61 (other genres 0.6-1.6), and under
+	/// --rack-shared-exhaustion those rack sales spend its store buyers, so it leaves the album chart in weeks.</summary>
+	public const string SoundtrackWeightSwitch = "--rack-soundtrack-weight=";
+	public static float SoundtrackWeight { get; private set; } = SoundtrackGenreWeight;
 
 	public const int TierNone = 0, TierHit = 1, TierCatalogue = 2;
 
@@ -96,6 +101,12 @@ public static class RackJobberChannel {
 				!float.IsFinite(value) || value < 0f || value > 100f) throw new ArgumentException("Invalid " + bound);
 			StoreStandingBound = value;
 		}
+		string soundtrack = args.FirstOrDefault(a => a.StartsWith(SoundtrackWeightSwitch, StringComparison.Ordinal));
+		if (soundtrack != null) {
+			if (!Enabled || !float.TryParse(soundtrack[SoundtrackWeightSwitch.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
+				!float.IsFinite(value) || value < 0f || value > 1f) throw new ArgumentException("Invalid " + soundtrack);
+			SoundtrackWeight = value;
+		}
 		if (scale != null) {
 			if (!Enabled) throw new ArgumentException(ScaleSwitch + " requires " + Switch + ".");
 			if (!float.TryParse(scale.Substring(ScaleSwitch.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
@@ -106,7 +117,7 @@ public static class RackJobberChannel {
 		configured = true;
 	}
 
-	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; ResetTelemetry(); }
+	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; SoundtrackWeight = SoundtrackGenreWeight; ResetTelemetry(); }
 	internal static void SetStoreBoundForChecks(float bound) => StoreStandingBound = bound;
 	internal static float BoundByStoreStanding(float demand, int storeUnits) =>
 		StoreStandingBound > 0f ? Mathf.Min(demand, StoreStandingBound * Mathf.Max(0, storeUnits)) : demand;
@@ -140,7 +151,7 @@ public static class RackJobberChannel {
 
 	public static float GenreWeight(RecordRuntimeData record, int year) {
 		Album album = record.baseRecord.album;
-		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null) return SoundtrackGenreWeight;
+		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null) return SoundtrackWeight;
 		GenreProfile profile = GenreCatalog.Get(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year));
 		float tilt = 0f;
 		foreach (var pair in profile.SegmentWeights) tilt += pair.Value * SegmentTilt.GetValueOrDefault(pair.Key);
@@ -253,6 +264,8 @@ public static class RackJobberChannel {
 				float penetration = SharedExhaustion ? (float)((ExhaustionUnits(c.Data, rack: true) + (pendingStoreUnits != null ? c.StoreUnits : 0)) / Mathf.Max(1f, titlePool))
 					: (c.Data.rackUnitsTotal - c.Data.rackStoreBuyerUnitsTotal) / Mathf.Max(1f, titlePool);
 				penetration += BudgetLpChannel.SourcePurchases(c.Record.baseRecord.recordId, region.regionId) / Mathf.Max(1f, titlePool);
+				// --soundtrack-hit-tail: a top-10 soundtrack's audience renews for racks too. Off: 1.
+				if (SoundtrackHitTail.Enabled) penetration /= SoundtrackHitTail.Renewal(c.Record);
 				c.Demand = titlePool * Exposure(c.Tier, c.Rank, c.Record.awareness) * Conversion(c.Record, year, month, liveTick) *
 					AlbumSimulator.CalculateAlbumExhaustion(penetration);
 				c.Demand = BoundByStoreStanding(LpDemandCalibration.ApplyNonStore(c.Demand), c.StoreUnits);

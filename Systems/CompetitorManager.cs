@@ -1787,7 +1787,14 @@ public partial class CompetitorManager : Node {
 					existing.album.externalMedia != null && existing.album.GetAllTracks().Length == 0)
 					CompositionCatalogService.OnRecordReleased(existing);
 			}
-		if (GameRandom.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
+		// --opening-soundtrack-catalogue: the 1956-59 hits still selling, minted once in the first live week. Off: not read.
+		if (OpeningSoundtrackCatalogue.Enabled && !openingSoundtracksSeeded && (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) <= 2)
+			SeedOpeningSoundtrackCatalogue(date);
+		openingSoundtracksSeeded = true;
+		// --soundtrack-origination-early: fewer new soundtracks in 1960-61. Off: 1.
+		// --soundtrack-origination-season: fall-weighted originations (mean 1 over the year). Off: 1.
+		if (GameRandom.Randf() >= ExternalMediaService.OriginationsForYear(date.year) * SoundtrackOriginationEarly.Scale(date.year)
+			* SoundtrackOriginationSeason.Weight(date.month) / 52f) return;
 		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
 		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
 		// --studio-parent-labels: a film score may go to its own studio's label before the open bid.
@@ -1796,11 +1803,27 @@ public partial class CompetitorManager : Node {
 		MintSoundtrackRecord(label, profile, date);
 	}
 
-	private void MintSoundtrackRecord(AILabel label, ExternalMediaProfile profile, GameDate date) {
+	private bool openingSoundtracksSeeded;
+
+	// --opening-soundtrack-catalogue (genre follow-up §13): N top-10 cast and film albums from 1956-59, already old at
+	// world start. One is a blockbuster (the My Fair Lady tier); none counts against this run's decade cap.
+	private void SeedOpeningSoundtrackCatalogue(GameDate date) {
+		for (int i = 0; i < OpeningSoundtrackCatalogue.Count; i++) {
+			ExternalMediaProfile profile = ExternalMediaService.GenerateOpeningProfile(blockbuster: i == 0);
+			AILabel label = ExternalMediaService.SelectLabel(aiLabels, profile);
+			if (label == null) continue;
+			int age = (int)GameRandom.RandRange(OpeningSoundtrackCatalogue.MinAgeWeeks, OpeningSoundtrackCatalogue.MaxAgeWeeks);
+			MintSoundtrackRecord(label, profile, date, age);
+		}
+	}
+
+	private void MintSoundtrackRecord(AILabel label, ExternalMediaProfile profile, GameDate date, int openingAgeWeeks = 0) {
+		bool opening = openingAgeWeeks > 0;
 		Genre genre = ExternalMediaService.MapGenre(profile.sourceType);
 		// Resolve the stored production-cost MULTIPLE into an actual currency advance against this
 		// label's cost basis, charge it, and overwrite the field with the realized fee for telemetry.
-		float licenseFee = label.GetProductionCost() * profile.upfrontLicenseFee;
+		// An opening-catalogue title paid its licence before 1960.
+		float licenseFee = opening ? 0f : label.GetProductionCost() * profile.upfrontLicenseFee;
 		profile.upfrontLicenseFee = licenseFee;
 
 		generatedRecordCounter++;
@@ -1841,6 +1864,7 @@ public partial class CompetitorManager : Node {
 		// a cultural event -- an externally originated tie-in has no act to be influenced BY.
 		album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 
+		if (opening) { MintOpeningSoundtrack(record, label, profile, date, openingAgeWeeks); return; }
 		// Licensing economics: a high upfront advance, booked like any production spend.
 		if (StudioParentLabels.IsStudioLabel(label) && label.cashReserves - licenseFee <= label.GetMonthlyOverhead())
 			StudioParentLabels.Contribute(label, Mathf.Min(StudioParentLabels.Capacity(label), licenseFee), "soundtrack", date);
@@ -1857,7 +1881,8 @@ public partial class CompetitorManager : Node {
 			// Anchor launch awareness to the film/show's own premiere buzz -- soundtracks are not
 			// artist-heat driven, so without this seed they would never build awareness or chart.
 			// (Phase 4 replaces this static seed with the box-office demand trajectory.)
-			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity);
+			// --soundtrack-launch-awareness: premiere buzz × k. Off: 1.
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity * SoundtrackLaunchAwareness.Scale);
 			runtimeData.sunkProductionCost = licenseFee;
 			runtimeData.revenueMemoryEligible = false; // no artist/project memory to fold
 			runtimeData.projectRole = ProjectRecordRole.None;
@@ -1868,6 +1893,35 @@ public partial class CompetitorManager : Node {
 		if (LabelReleaseProgramme.CapacityEnabled) BookProgrammeCampaign(record, null, label, 0f);
 		SoundtrackOriginationsThisRun++;
 		if (debugMode) GD.Print($"Soundtrack minted: {record.title} ({genre}, {profile.sourceType}, bo={profile.boxOfficeTrajectory:F2}) by {label.labelName}, fee={licenseFee:F0}");
+	}
+
+	// An opening-catalogue soundtrack: released openingAgeWeeks ago, a top-10 hit with a long chart history, known in
+	// every region at its premiere buzz, with SpentPool of each region's soundtrack pool already sold.
+	private void MintOpeningSoundtrack(Record record, AILabel label, ExternalMediaProfile profile, GameDate date, int age) {
+		record.releaseDate = date.SubtractWeeks(age);
+		ChartManager.Instance.ReleaseRecord(record, label);
+		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData != null) {
+			runtimeData.weeksSinceRelease = age;
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity);
+			runtimeData.peakPosition = (int)GameRandom.RandRange(1, 10);
+			runtimeData.weeksOnChart = Mathf.Max(1, (int)(age * GameRandom.RandRange(0.6, 0.95)));
+			runtimeData.lastChartedAge = age;
+			runtimeData.lastSalesAboveRetirementFloorAge = age;
+			runtimeData.wordOfMouth = Mathf.Pow(runtimeData.GetQuality(), 2f) * 0.62f;
+			runtimeData.sunkProductionCost = 0f;
+			runtimeData.revenueMemoryEligible = false;
+			runtimeData.projectRole = ProjectRecordRole.None;
+			int year = date.year;
+			foreach (MarketRegion region in ChartManager.Instance.GetAllRegions()) {
+				if (!runtimeData.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+				data.awareness = Mathf.Max(data.awareness, runtimeData.awareness * (float)GameRandom.RandRange(0.8, 1.05));
+				data.unitsSoldTotal = Mathf.RoundToInt(region.GetSoundtrackAlbumMarketSize(profile, year) * OpeningSoundtrackCatalogue.SpentPool);
+				runtimeData.totalUnitsSold += data.unitsSoldTotal;
+			}
+		}
+		TrackRelease(label.labelId, record.recordId);
+		if (debugMode) GD.Print($"Opening soundtrack: {record.title} ({record.primaryGenre}, {profile.sourceType}, bo={profile.boxOfficeTrajectory:F2}, age {age}) at {label.labelName}");
 	}
 
 	private static string SoundtrackCreditName(ExternalMediaSourceType sourceType) => sourceType switch {
@@ -2402,6 +2456,9 @@ public partial class CompetitorManager : Node {
 		}
 		if (plan.format == ReleaseFormat.Album) {
 			if (!PassesReleaseProfitGate(label, artist, date.year, projectGenre, plan, undoSupplyOnFailure: programmeMaster == null)) return false;
+			// --lp-act-genre: an LP is the act's record, filed under the act's identity. The gate above releases the supply
+			// slot under the genre it was booked as, so the swap comes after it. Off: not read.
+			if (LpActGenre.Enabled) projectGenre = GenreCatalog.MapLegacy(artistPrimary, date.year);
 			return TryInitiateAlbumProject(label, artist, date, decision, plan, projectGenre);
 		}
 		if (programmeMaster != null && !PassesReleaseProfitGate(label, artist, date.year, projectGenre, plan, undoSupplyOnFailure: false)) return RefuseProgrammeIssue("all-in-profit-gate");
@@ -4331,6 +4388,16 @@ public partial class CompetitorManager : Node {
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float labelAwareness = label.reputation * 0.1f;
 		if (LabelReleaseProgramme.CapacityEnabled) labelAwareness *= ProgrammePushFactor(runtime);
+		// --lp-floor-probe=launch: no label launch awareness on an act's LP. Off: not read.
+		if (LpFloorProbe.Launch(true, record.artistId)) { marketingAwareness = 0f; labelAwareness = 0f; }
+		// --lp-launch-standing: the label's launch awareness scales with what the act has sold. Off: not read.
+		if (LpLaunchStanding.Enabled && !string.IsNullOrEmpty(record.artistId)) {
+			float standing = LpLaunchStanding.Factor(ArtistManager.Instance?.GetArtist(record.artistId));
+			marketingAwareness *= standing; labelAwareness *= standing;
+		}
+		// --lp-label-standing: keep the act's launch standing for the LP's push and tier premium. Off: not read.
+		if (LpLabelStanding.Enabled && !string.IsNullOrEmpty(record.artistId))
+			LpLabelStanding.Stamp(runtime, true, ArtistManager.Instance?.GetArtist(record.artistId));
 		float baseAwareness = LpEarnedLaunch.Base(0.04f, snapshot.artistAwareness) + snapshot.artistAwareness + marketingAwareness + labelAwareness;
 		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
 		// A5: the same launch without the promo's awareness bonus.
@@ -4495,6 +4562,15 @@ public partial class CompetitorManager : Node {
 			HitActCadence.CutPredecessors(predecessors);
 		}
 
+		// --lp-floor-probe=launch: no label launch awareness on an act's LP. Off: not read.
+		if (LpFloorProbe.Enabled && LpFloorProbe.Launch(isAlbum, record.artistId)) { marketingAwareness = 0f; labelAwareness = 0f; }
+		// --lp-launch-standing: the label's launch awareness on an LP scales with what the act has sold. Off: not read.
+		if (isAlbum && LpLaunchStanding.Enabled && !string.IsNullOrEmpty(record.artistId)) {
+			float standing = LpLaunchStanding.Factor(artist);
+			marketingAwareness *= standing; labelAwareness *= standing;
+		}
+		// --lp-label-standing: keep the act's launch standing for the LP's push and tier premium. Off: not read.
+		if (isAlbum && LpLabelStanding.Enabled && !string.IsNullOrEmpty(record.artistId)) LpLabelStanding.Stamp(runtimeData, true, artist);
 		// Keep the original arithmetic when off, including its floating-point addition order.
 		runtimeData.awareness = HitActCadence.AwarenessSplitEnabled && share < 1f
 			? HitActCadence.LaunchAwareness(0.08f, artistAwareness, marketingAwareness, labelAwareness, share)

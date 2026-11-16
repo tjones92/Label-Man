@@ -475,3 +475,793 @@ and 10 / 14 / 14 / 6 of the 1960–63 top 50 (estimate 13 / 6 / 18 / 18). The cu
 the control was already near the estimate; it needs a year-keyed value or a 1963–64 baseline lift. Bossa Nova at 0.40 is
 still 18–22% of the 1962–63 head against 2–4, so it needs about 0.25. Classical 0.60 overshoots on seed 1001 at 208
 weeks too and should be dropped.
+
+## 7. The handoff's Folk fix on the Major-LP bundle (2026-11-15)
+
+Base: `ma12d-v2` (208 weeks; the candidate + `--lp-launch-standing=30000 --lp-demand-scale=2 --programme-major-albums=12
+--album-prior-debut-scale=2.0613`, `GameyBehaviorAudit.md` §2.18). The extra Major LPs leave the genre problem as it was:
+Folk is 62 / 64 / 62 / 28 and 62 / 82 / 68 / 48 of the 1960–63 year-end top 50, and Bossa Nova is 24–40 in 1962–63.
+
+Arms, at LP scale 2.2 to restore the volume the Folk cut removes:
+- `gb`: `--album-affinity=Folk=0.44,BossaNova=0.25,TraditionalPop=0.41,EasyListening=0.28,Comedy=0.36`. This is the
+  §6 `fm2` set with Bossa Nova at the 0.25 the 208-week follow-up asked for, Classical left at 0.45, and the suggested
+  Comedy trim.
+- `gbb`: `gb` + Blues=0.40, seed 1001 only.
+
+Year-end top 50 %, 1960 / 61 / 62 / 63 (seed 2002; seed 1001):
+
+| | estimate | `ma12d-v2` | `gb` | `gbb` (1001) |
+|---|---|---|---|---|
+| Folk | 13 / 6 / 18 / 18 | 62 / 64 / 62 / 28; 62 / 82 / 68 / 48 | **20 / 14 / 12 / 6; 30 / 20 / 26 / 16** | |
+| TradPop | 30 / 28 / 24 / 36 | 14 / 12 / 6 / 6; 2 / 0 / 0 / 4 | 50 / 62 / 58 / 42; 26 / 38 / 40 / 42 | |
+| Bossa Nova | – / – / 2 / 4 | 0 / 0 / 24 / 40; 0 / 0 / 28 / 30 | **0 / 0 / 0 / 4; 0 / 0 / 0 / 0** | |
+| Easy Listening | 6 / 12 / 10 / 2 | 16 / 12 / 8 / 6; 20 / 12 / 2 / 2 | 16 / 4 / 2 / 2; 8 / 14 / 2 / 2 | |
+| Comedy | 11 / 6 / 6 / 8 | 0 / 2 / 0 / 0; 2 / 0 / 0 / 0 | 2 / 0 / 0 / 0; 6 / 2 / 0 / 0 | |
+| Soundtrack | 7–14, ≈25 in 1962–63 | 8 / 4 / 0 / 4; 8 / 2 / 0 / 2 | 4 / 6 / 6 / 16; 14 / 10 / 2 / 6 | |
+| Blues | not listed (≈0) | 0 / 4 / 0 / 2; 0 / 2 / 2 / 2 | 4 / 8 / 12 / 8; 4 / 6 / 14 / 2 | **0 / 0 / 0 / 0** |
+
+| | `ma12d-v2` | `gb` | `gbb` (1001) |
+|---|---|---|---|
+| Stores 1961 / 1962 / 1963 (M) | 65.2 / 72.8 / 69.5; 68.2 / 75.4 / 71.3 | 64.7 / 69.4 / 67.8; 63.0 / 71.8 / 70.4 | 64.0 / 70.3 / 67.0 |
+| Gross 1962 ($M) | 507; 514 | 507; 510 | 510 |
+| Major share of 1962-cohort LP units % | 66.2; 72.1 | 63.8; 66.1 | 65.0 |
+| Bankruptcies (208 wk) | 132; 150 | 134; 146 | **137** |
+
+- **The Folk fix carries over.** Folk lands near the estimate in 1960–62. Seed 2002 undershoots in 1962–63, partly
+  because the model files the 1963 revival as ContemporaryFolk (6% on that seed). Bossa Nova at 0.25 is fixed on both
+  seeds, slightly under.
+- **Volume and costs hold at scale 2.2.** Stores are within 1–4M, gross is flat, and bankruptcies are +2 / −4. The fix
+  also undoes most of the Major-share rise the Major LP bundle caused.
+- **New absorbers:**
+  - **TradPop at 0.41** overshoots on seed 2002 (42–62 against 24–36). Next value: 0.38.
+  - **Blues at 0.58**, the highest affinity left, takes 12–14% of the 1962 head on both seeds. At 0.40 it is 0, and
+    bankruptcies are 137 against 146.
+  - **Comedy is under on this base** (0–6 against 11 / 6 / 6 / 8), so the 0.36 trim, which §6 drew from `lwbr`, is the
+    wrong direction here. Next value: 0.50.
+- Still open: soundtracks in 1962–63 (2–16 against ≈25) are a supply question for the soundtrack subsystem, not an
+  affinity question, and Jazz stays at the author's decision (§4).
+- Next: the combined candidate `cb-v1` (`--programme-major-albums=8` + debut prior + `--album-affinity=Folk=0.44,
+  BossaNova=0.25,TraditionalPop=0.38,EasyListening=0.28,Comedy=0.50,Blues=0.40`, scale 2.2), 208 weeks, both seeds.
+
+**Combined candidate `cb-v1`** (208 weeks: `--programme-major-albums=8` + debut prior + `--album-affinity=Folk=0.44,
+BossaNova=0.25,TraditionalPop=0.38,EasyListening=0.28,Comedy=0.50,Blues=0.40`, scale 2.2), against `ma8d-v2`. Year-end
+top 50 %, 1960 / 61 / 62 / 63 (seed 2002; seed 1001):
+
+| | estimate | `ma8d-v2` | `cb-v1` |
+|---|---|---|---|
+| TradPop | 30 / 28 / 24 / 36 | 14 / 10 / 12 / 12; 2 / 6 / 0 / 6 | 36 / 54 / 36 / 42; **38 / 36 / 24 / 44** |
+| Folk (+ ContemporaryFolk in 1963) | 13 / 6 / 18 / 18 | 66 / 68 / 54 / 22; 64 / 82 / 70 / 34 | 22 / 24 / 22 / 12; 22 / 20 / 28 / 6 (+8) |
+| Easy Listening | 6 / 12 / 10 / 2 | 18 / 14 / 4 / 6; 20 / 4 / 6 / 2 | 14 / 6 / 12 / 8; 8 / 18 / 12 / 6 |
+| Comedy | 11 / 6 / 6 / 8 | 2 / 4 / 0 / 0; 4 / 0 / 0 / 0 | **8 / 4 / 6 / 0; 12 / 8 / 12 / 0** |
+| Bossa Nova | – / – / 2 / 4 | 0 / 0 / 26 / 32; 0 / 0 / 22 / 40 | 0 / 0 / 0 / 0; 0 / 0 / 0 / 0 |
+| Soundtrack | 10 / 10 / 25 / 25 | 0 / 0 / 0 / 8; 2 / 2 / 2 / 6 | 18 / 6 / 6 / 10; 10 / 4 / 2 / 12 |
+| Blues | ≈0 | – | 0; 0–4 |
+
+- **The head is close to both estimates on both seeds for the first time.**
+- **Still off:**
+  - TradPop in 1961 on seed 2002 (54);
+  - Folk in 1961 (20–24 against 6; Kingston Trio's 1961 dip);
+  - Comedy and Folk in 1963;
+  - Bossa Nova a little under (0 against 2–4, try 0.30);
+  - Soundtracks in 1962–63 (a supply question);
+  - SurfRock 6–16 in 1963. That is plausible: Beach Boys, Jan & Dean and Dick Dale all charted LPs in 1963.
+- **Costs against `ma8d`:** stores −5M a year, mostly made up on racks; gross −$1–16M; bankruptcies +22 / +4.
+
+## 8. Soundtracks, TradPop and Bossa Nova on `cb-v1` (2026-11-15)
+
+Runs: `cbg-*` (104 weeks unless noted; seed 2002 / 1001). A 104-week run is byte-identical to the first 104 weeks of
+the 208-week run of the same request (`cbg-ctl-2002` against `cb-v1-2002`), so `cb-v1` is the short control.
+
+- **Soundtracks were short-lived, not scarce.** `cb-v1` mints as many as the October reference (20–40 charting a year)
+  but each charts 7–11 weeks (reference 17–24, design 40–60). Racks give a soundtrack a flat 0.9 shopper weight
+  (`RackJobberChannel.SoundtrackGenreWeight`), so in 1960–61 it sells 4.1 rack units per store unit (other genres
+  0.6–1.6), and under `--rack-shared-exhaustion` those sales spend its store buyers. New probe
+  `--rack-soundtrack-weight=F`. At 0.3 with `--rack-shopper-scale=0.033` (restores the rack volume), 1961 soundtracks
+  go from 6 / 4 to 18 / 18 of the top 50, chart life to 12–16 weeks, and the 208-week pair (`cbg-v1`) reads
+  10 / 24 / 26 / 18; 16 / 24 / 20 / 16 (Billboard 1961–63: 24 / 22 / 18).
+- **TradPop:** 0.36 (the authored value) with Comedy 0.50 (`cbg-v2b`) is 36 / 32; 22 / 22 in 1960–61. 0.34 undershoots.
+  Reverting Comedy to 0.44 raised TradPop 4–8 points and left Comedy under in 1962–63.
+- **Bossa Nova 0.30:** 4 in 1963 on both seeds (estimate 4, Billboard 4).
+- **Folk:** a 1961-only `--album-affinity-ramp=` (new probe) hits the dip but its space goes to TradPop and Comedy.
+  Not adopted.
+
+Best set so far (`cbg-v2b`): `--rack-soundtrack-weight=0.3 --rack-shopper-scale=0.033
+--album-affinity=Folk=0.40,BossaNova=0.30,TraditionalPop=0.36,EasyListening=0.28,Comedy=0.50,Blues=0.40`.
+Not yet confirmed at 208 weeks; `cbg-v1` (Comedy 0.44, TradPop 0.38) had bankruptcies 132 / 160 against 139 / 138.
+
+## 9. Researched album-chart targets and why youth LPs miss the head (2026-11-15)
+
+**Billboard year-end LP top 50, classified to model genres** (bestsellingalbums.org: 1961 and 1962 mono charts, 1963
+combined; 1960 lists only the top 5). Act soundtracks (Elvis) count under the act; cast and film albums as Soundtrack;
+Ray Charles's country LPs as R&B; Peter, Paul & Mary and Baez as Folk.
+
+| % of top 50 | 1961 | 1962 | 1963 |
+|---|---|---|---|
+| Soundtrack / cast | 24 | 22 | 18 |
+| TradPop | 22 | 18 | 28 |
+| Youth + R&B (rock, teen, R&B, doo-wop, soul, surf) | 16 | 30 | 20 |
+| Folk (incl. contemporary) | 10 | 14 | 16 |
+| Comedy | 12 | 4 | 10 |
+| Easy Listening | 10 | 8 | 2 |
+| Jazz / Bossa Nova | 2 / 0 | 4 / 0 | 0 / 4 |
+| Classical | 2 | 0 | 0 |
+| Country | 2 | 0 | 0 |
+
+Country was nearly absent from the pop LP chart (one title in three years); the model has 4–12, so it is over.
+Half of the youth titles are hit collections (*Encore of Golden Hits*, *Paul Anka Sings His Big 15*, *Bobby Darin
+Story*, *Oldies But Goodies*, *Buddy Holly Story*, Orbison and Shirelles *Greatest Hits*); most of the rest are the
+1962 twist LPs (four Chubby Checker titles, Joey Dee, Ray Charles). `GenreAnnualMarketShareTable.md` is an old
+three-seed model output of total market share, not an album target.
+
+**Why youth LPs miss.** Youth acts launch 44% of LPs and their LPs reach the top 10 as often as adult ones, but chart a
+median 3 weeks (adult 7–8). New telemetry `--album-demand-trace` (inert: weeks.csv identical) on `cbg-tr-2002`:
+
+| top-10 LPs, week | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| youth + country units | 17.1k | 10.6k | 8.2k | 2.2k |
+| follower-bought | 92% | 87% | 78% | 0% |
+| adult units | 11.6k | 9.0k | 9.8k | 6.6k |
+| follower-bought | 73% | 50% | 33% | 0% |
+
+Follower LP intent is spent 50 / 30 / 20 over three clearing weeks (`MediaFollowerDemand.WeekShare`). After it, youth
+LPs have 2–3k a week of organic demand (format tilt 0.63 against 1.10, conversion about 2.6x lower, partly the small
+label tier) and adult LPs 9–12k. No stock-outs; exhaustion is similar.
+
+Screens (all on `cbg-v2b`, 104 weeks), youth + R&B and country % of the 1960 / 1961 top 50:
+
+| arm | seed 2002 youth; country | seed 1001 youth; country |
+|---|---|---|
+| `cbg-v2b` | 0 / 0; 2 / 0 | 0 / 4; 0 / 4 |
+| `--follower-album-casual=0.8,26` (`fc8x26`) | 2 / 6; 4 / 10 | |
+| `--lp-act-genre` (`ag1`; 2002 ran out of memory at week 101) | 0 / 0; 0 / 2 | 0 / 0; 2 / 4 |
+| both (`agc1`) | 4 / 4; 4 / 12 | 2 / 12; 6 / 10 |
+
+- `--follower-album-casual=C,N` (new) spreads the casual share of an LP's follower book over N weeks, total unchanged.
+  It doubles youth top-10 chart life (3 → 6.5–11.5 weeks) but lowers peaks, helps TradPop acts most, and lifts
+  country the wrong way. Hot 100 TeenPop 1961 16 → 21–28 (watch).
+- `--lp-act-genre` (new) files an LP under the act's identity genre: off-identity LPs 25% → 3.5%. It moves no youth
+  share (youth-act LPs were already 87% filed youth) and raises LPs losing money 6.6 → 8.9% / 6.7 → 11.8%, because the
+  format decision and profit plan are still made on the picker's genre. It needs the decision made on the act's genre.
+- Bankruptcies are flat in every arm (94–106).
+
+**Open.** The remaining gap is organic demand concentrated on star acts. History says it came through hit
+collections and crazes, not through every youth LP.
+
+## 10. Hit-package demand: youth LPs through their hit collections (2026-11-16)
+
+Follows §9's open item. Base `cbg-v2b` (104 weeks; seed 2002 / 1001). Nothing here is a default.
+
+**Why the existing packages miss.** `--lp-assembly` is in the profile, so the old compilation lottery
+(`AlbumModel.GetCompilationChance`, tilted to youth by single orientation) is retired. The live path is the LP-assembly
+greatest-hits package: it needs 3 or more singles that peaked in the Top 40, 8 tracks and package spacing. The model makes
+enough of them (16–28 youth packages in 1960–61). They reach the weekly top 10 (68–82%) but chart a median 3 weeks at
+19–26k units, half the adult packages, and none reaches the year-end top 50. The act's hits only enter the label's
+profit forecast. At sale time a package is an ordinary LP: genre album pool, track appeal × freshness, the normal-LP
+decay, and 3 weeks of follower demand.
+
+**Target: Billboard's 1961 mono year-end top 50**
+([mono](https://bestsellingalbums.org/year-end/Billboard_Top_Mono_Albums_1961),
+[stereo](https://bestsellingalbums.org/year-end/Billboard_Top_Stereo_Albums_1961)). Six hit collections, 12% of the top 50:
+
+| Rank | Title | Model group |
+|---|---|---|
+| 12 | Johnny Mathis, *Johnny's Greatest Hits* | adult (TradPop) |
+| 14 | The Platters, *Encore of Golden Hits* | youth |
+| 19 | Paul Anka, *Sings His Big 15* | youth |
+| 35 | Bobby Darin, *The Bobby Darin Story* | youth |
+| 38 | *Johnny Horton's Greatest Hits* | country |
+| 48 | *Oldies But Goodies Vol. 1* (various artists) | youth |
+
+So youth packages are about 6–8% of the top 50 and adult plus country about 4%. Ranks 51–100 add Buddy Holly, Connie
+Francis, Bobby Rydell and *Oldies Vol. 3*. The stereo top 50 has no hit collections (stereo was the adult hi-fi buyer).
+
+**Probe** (`HitPackageDemand`, `Systems/GameyAuditSwitches.cs`; read in `AlbumSimulator.CalculateRegionalSales`):
+- `--hit-package-demand=K`: a Compilation's store buyer pool in each region gains K × the buyers of the released
+  singles it carries, split by population share. Buyers per single come from its chart peak (1960–61 median lifetime
+  units in `cbg-v2b`: 878k at No. 1, 165k at 30, 31k at 85; log-log interpolation), so pre-1960 opening masters count
+  like live singles. The added buyers pass through the same awareness, conversion and exhaustion. The labels'
+  forecasts do not see it.
+- `--hit-package-demand-youth`: K is also scaled by the package genre's Youth segment weight (`GenreSegmentRouting`:
+  TeenPop 0.71, SurfRock 0.66, Rock and Roll 0.58, Doo-Wop 0.39, Soul 0.28, R&B 0.22, Country 0.16, TradPop 0.15,
+  Folk 0.13, Easy Listening 0.11, Jazz 0). An adult act's single buyers are mostly adults already in its genre's
+  album pool, so adding all of them counts them twice.
+- `--hit-package-decay=D`: packages' weekly decay after week 8. Not screened: packages chart a median 3 weeks, so
+  the decay was not binding.
+- Off is inert: `hp-off-2002-sc`, 142 of 142 CSVs byte-identical to `cbg-v2b-2002-sc`. Unit checks are in
+  `GameyAuditSwitchChecks`.
+
+Year-end top 50 %, 1961 (seed 2002 / 1001):
+
+| | control | flat 0.3 | flat 0.5 | flat 1.0 (2002) | youth 0.8 | youth 1.0 | Billboard |
+|---|---|---|---|---|---|---|---|
+| Youth + R&B | 0 / 2 | 6 / 6 | 16 / 14 | 36 | **20 / 10** | 20 / 16 | 16 |
+| All hit packages | 4 / 2 | 30 / 22 | 40 / 40 | 56 | **30 / 20** | 40 / 30 | 12 |
+| Youth hit packages | 0 / 0 | 6 / 6 | 16 / 14 | 36 | **20 / 10** | 20 / 16 | 6–8 |
+| Adult + other packages | 4 / 2 | 24 / 16 | 24 / 26 | 20 | **10 / 10** | 20 / 14 | about 4 |
+| Country | 0 / 4 | 4 / 12 | 8 / 16 | 4 | **0 / 8** | 2 / 10 | 2 |
+| TradPop | 32 / 22 | 44 / 10 | 30 / 12 | 22 | 36 / 24 | 34 / 10 | 22 |
+
+| Packages, 1960–61 launches | control | flat 0.5 | youth 0.8 |
+|---|---|---|---|
+| Youth: median chart weeks; units | 3 / 3; 26k / 19k | 11 / 12; 56k / 108k | 10.5 / 8; 85k / 58k |
+| Adult + other: median chart weeks; units | 4 / 3; 65k / 47k | 15 / 16.5; 260k / 200k | 5 / 6; 60k / 57k |
+
+| | control | youth 0.8 | youth 1.0 |
+|---|---|---|---|
+| Store LPs 1960 / 1961 (M) | 39.0 / 61.0; 34.7 / 62.2 | 40.3 / 61.4; 37.0 / 62.6 | 41.8 / 62.3; 37.3 / 65.4 |
+| LP gross 1961 ($M) | 268; 265 | 263; 265 | 267; 270 |
+| Labels defunct (104 weeks) | 119; 135 | 115; 129 | 112; 125 |
+
+- **The mechanism works.** Hit buyers make youth packages chart 8–12 weeks and reach the year-end top 50. That is
+  what the history shows: a youth act's LP presence came through its hit collection.
+- **Flat K overshoots on adult packages.** At 0.5, adult and country packages take 24–26 points of the 1961 top 50
+  against about 4, at 200–260k units a package. That is the double count.
+- **Youth-weighted 0.8 is the best arm.** Youth + R&B averages 15 across the two seeds against 16. Adult packages are
+  back near control units (57–60k) and 10 points of the top 50. Country is 0 / 8 (control 0 / 4).
+- **It is cheap.** Store LPs +0.4 to +2.3M, gross flat, defunct labels −4 / −6 (inside the reshuffle band).
+- **Youth is carried entirely by packages.** Youth packages are 20 / 10 of the top 50 against Billboard's 6–8, and
+  youth studio LPs (Elvis, Brenda Lee, Ricky Nelson in 1961; the 1962 twist LPs) are still absent. The probe fills the
+  package half of the gap and over-fills it to stand in for the studio half. Fixed below by the studio scope.
+- **Seed spread is wide** (youth 20 against 10), so a third seed is needed before adoption.
+
+**Studio LPs: `--hit-package-demand-studio=S`.** Billboard's 1961 youth studio LPs are star acts' LPs that carry a
+current hit (*Rick Is 21*, *Dedicated to You*, *Genius + Soul = Jazz*, Elvis). The model's hit-led LPs are those LPs:
+27 youth Star/Superstar hit-led LPs per seed in 1960–61, reaching the top 10 79–100% of the time and charting 3 weeks.
+With S on, a studio LP (any format but Compilation and Soundtrack) gains S × K of the buyers of the released singles on
+it, with the youth weighting. An LP with no released singles on it gains nothing, so the new-signing LPs (about 1,400
+per seed) are untouched.
+
+Year-end top 50 %, youth-weighted (seed 2002 / 1001):
+
+| | K 0.8 | K 0.8, S 0.5 | **K 0.6, S 1.0** | Billboard 1961 |
+|---|---|---|---|---|
+| Youth + R&B 1960 | 6 / 8 | 10 / 12 | **14 / 16** | top 5 only |
+| Youth + R&B 1961 | 20 / 10 | 20 / 18 | **24 / 14** | 16 |
+| Youth hit packages 1961 | 20 / 10 | 20 / 10 | **14 / 6** | 6–8 |
+| Youth studio LPs 1961 | 0 / 0 | 0 / 8 | **10 / 8** | about 8 |
+| Adult + other packages 1961 | 10 / 10 | 12 / 8 | **10 / 8** | about 4 |
+| Country 1961 | 0 / 8 | 2 / 12 | **2 / 8** | 2 |
+| TradPop 1961 | 36 / 24 | 30 / 10 | **30 / 14** | 22 |
+| Store LPs 1960 / 1961 (M) | 40.3 / 61.4; 37.0 / 62.6 | 42.2 / 63.1; 38.9 / 64.7 | **42.4 / 64.2; 38.9 / 65.2** | |
+| Labels defunct | 115; 129 | 121; 137 | **120; 138** | |
+
+- **K 0.6, S 1.0 splits youth the way Billboard does.** Youth averages 19 against 16 in 1961, with packages at 10
+  against 6–8 and studio LPs at 9 against about 8.
+- **The studio LPs that reach the head are the right acts.** All are hit-led LPs by Stars and Superstars (plus one
+  Superstar ordinary LP and one rock soundtrack); no Rising act's LP gets in.
+- **The cost is still small.** Store LPs are +3–4M in 1960 and +3M in 1961, LP gross is +4–10M, and defunct labels are
+  +1 / +3 against the control.
+- **R&B is still missing from the head.** No R&B or Soul LP reaches the top 50, so there is no Ray Charles analogue.
+  R&B's Youth weight is 0.22 because its young buyers route to UrbanRnB, so the youth weighting gives R&B acts little.
+- **Placebo.** The routing session (2026-11-16) found that a placebo arm that only reshuffles the RNG moves TeenPop
+  slots +5.5 and Big-5 Top 10 share +8 points. The youth lift here (0 → 15–20 points) is well above that, but the
+  seed gap (24 against 14) is about that size.
+
+**Third seed (3003).** Control `cbg-v2b-3003-sc` and arm `hps-k06s10-3003-sc`, 104 weeks. 1961 year-end top 50 %, seeds
+2002 / 1001 / 3003, with the three-seed mean:
+
+| 1961 | control | mean | K 0.6, S 1.0 | mean | Billboard |
+|---|---|---|---|---|---|
+| Soundtrack / cast | 20 / 16 / 12 | 16 | 18 / 16 / 8 | 14 | 24 |
+| TradPop | 32 / 22 / 42 | 32 | 30 / 14 / 20 | 21 | 22 |
+| Youth + R&B | 0 / 2 / 0 | 1 | 24 / 14 / 22 | 20 | 16 |
+| of which hit packages | 0 / 0 / 0 | 0 | 14 / 6 / 10 | 10 | 6–8 |
+| of which studio LPs | 0 / 2 / 0 | 1 | 10 / 8 / 12 | 10 | about 8 |
+| Folk | 16 / 24 / 6 | 15 | 14 / 24 / 6 | 15 | 10 |
+| Comedy | 16 / 18 / 26 | 20 | 8 / 14 / 30 | 17 | 12 |
+| Easy Listening | 14 / 10 / 8 | 11 | 4 / 10 / 6 | 7 | 10 |
+| Country | 0 / 4 / 4 | 3 | 2 / 8 / 8 | 6 | 2 |
+| Adult + other hit packages | 4 / 2 / 4 | 3 | 10 / 8 / 8 | 9 | about 4 |
+| Sum of gaps to Billboard (nine rows) | | 50 | | 36 | |
+
+- **The youth fix replicates.** Youth + R&B is 14–24 on all three seeds, split about evenly between packages and studio
+  LPs. Seed 3003 (store LPs +4.2 / +3.8M, defunct labels 128 → 141) gives the largest closure change so far. That is
+  inside the reshuffle band seen on seed 2002 (113–131), but worth watching.
+- **Folk is a seed effect, not a miss of the probe.** It is 6 / 14–16 / 24 in both arms. The three-seed mean (15) is
+  still above Billboard's 10.
+- **Comedy on seed 3003** (26–30 in both arms) is seed-specific.
+- **Two consistent misses:**
+  - **Country** rises by 2–4 points on every seed. Country's Youth weight is 0.16, as high as TradPop's, so its
+    packages and hit-led LPs gain. Johnny Horton's package is the only country title Billboard has.
+  - **Soundtracks** are under on every seed (8–18 against 24) and fall slightly when youth LPs enter. The rack
+    soundtrack weight (§8) lifted them; this takes some of that back.
+
+**Next.**
+1. A 208-week pair of youth K 0.6, S 1.0 with a placebo arm (K 0.001, which only reshuffles), judged on 1962–63
+   (youth + R&B 30 / 20; 1962 is mostly twist LPs).
+2. Country and soundtracks: the two misses that replicate on all three seeds.
+3. If R&B in the head matters, weight R&B acts' buyers by Youth + part of UrbanRnB rather than Youth alone.
+4. The routing quirks (TeenPop Youth cap, Latin floor) were screened in their own session: no effect beyond placebo,
+   not adopted (`segment-routing-quirks` branch, 5ab2d6c). If the Youth slope is ever adopted, K comes down about 20%.
+
+Reproduction: `SimTools/run_lp_earned_screen.ps1 -Reference SimLogs/writing-calibration/cbg-v2b-2002-sc-request.json
+-Arms sc -LpScale 2.2 -Weeks 104 -Seed <seed> -RunPrefix <p> -Extra --hit-package-demand=K[,--hit-package-demand-youth][,--hit-package-demand-studio=S]`
+(`hp-off`, `hp-k03`, `hp-k05`, `hp-k10`, `hpy-k08`, `hpy-k10`, `hps-k08s05`, `hps-k06s10`), then from `SimLogs/`
+`python ../SimTools/analyze_hit_package_demand.py <run>-<seed>-sc ...`.
+
+## 11. Country and soundtracks on the hit-package candidate (2026-11-16)
+
+Candidate (the author's choice, 2026-11-16): `cbg-v2b` + `--hit-package-demand=0.6 --hit-package-demand-youth
+--hit-package-demand-studio=1.0` (§10). Seeds 2002 / 1001, 104 weeks. Nothing here is a default.
+
+**Country.** The country LPs in the 1961 top 50 are Major-label Star and Superstar LPs (hit-led LPs or packages)
+selling 110–220k. They were already there in the control (0 / 2 / 2 titles across three seeds); the candidate adds
+one or two each. The album chart ranks on store units (`AlbumSimulator.CalculateChartPoints`), so a country LP that
+sells like a pop LP charts like one. Billboard's pop LP chart came from pop dealers' reports. Country LPs sold largely
+through country outlets, and Billboard's 1961 mono top 50 has one country title. New switch
+`--album-chart-reporting=Genre=w,...`: a genre's album chart points × w. Units and money are untouched, but chart
+position still feeds awareness. Soundtracks keep weight 1.
+
+**Soundtracks.**
+- **What the shortfall is.** Every soundtrack in the model's 1961 top 50 is a 1961 release. On Billboard's 1961 list,
+  about 10 of the 24 points are cast and film albums from 1956–59 (*South Pacific* ×2, *My Fair Lady*, *The Sound of
+  Music*, *Ben-Hur*) and about 10 are from 1960. The model's 1960 soundtracks chart a median 10–12 weeks against the
+  design's 40–60, and the opening world has no pre-1960 soundtracks at all.
+- **What ends the runs.** `cbg-tr-2002` trace, the 20 top-10 soundtracks launched in 1960:
+
+  | Age (weeks) | 1–4 | 9–12 | 21–26 |
+  |---|---|---|---|
+  | Pool penetration | 0.02 | 0.22 | 0.43 |
+  | Exhaustion | 0.92 | 0.53 | 0.37 |
+  | Box-office decay | 0.90 | 0.79 | 0.62 |
+  | Rack units ÷ store units | 0.4 | 2.1 | 1.7 |
+
+  The national pool is about 440k buyers. Racks spend it as fast as stores do (shared exhaustion), and exhaustion
+  binds before box-office decay.
+- **The switch.** `--soundtrack-pool-breadth=F`: a soundtrack's buyer pool × F and its per-buyer weekly conversion
+  ÷ F. The launch week sells the same and the pool exhausts F times more slowly.
+
+Year-end top 50 %, 1961 (seed 2002 / 1001):
+
+| | candidate | Country 0.5, breadth 3 | Country 0.35, breadth 5 | Billboard |
+|---|---|---|---|---|
+| Soundtrack / cast | 18 / 16 | **20 / 38** | 50 / 26 | 24 |
+| … of it released before 1961 | 0 / 2 | **0 / 8** | 16 / 8 | about 20 |
+| Country | 2 / 8 | **0 / 0** | 0 / 0 | 2 |
+| TradPop | 30 / 14 | **26 / 14** | 22 / 14 | 22 |
+| Youth + R&B | 24 / 14 | **22 / 12** | 18 / 20 | 16 |
+| Folk | 14 / 24 | **6 / 10** | 2 / 8 | 10 |
+| Comedy | 8 / 14 | **22 / 12** | 4 / 22 | 12 |
+| Easy Listening | 4 / 10 | **4 / 10** | 4 / 8 | 10 |
+| Sum of gaps to Billboard (nine rows, two-seed means) | 30 | **22** | 36 | |
+| 1960 soundtracks: median chart weeks | 6 / 11.5 | **13 / 18** | 15 / 28 | 40–60 (design) |
+| Soundtracks in the 1960 top 50 | 10 / 14 | **18 / 18** | 20 / 24 | 7–14 (author) |
+| Store LPs 1960 / 1961 (M) | 42.4 / 64.2; 38.9 / 65.2 | **42.6 / 66.7; 38.1 / 65.2** | 44.2 / 67.1; 38.8 / 65.7 | – / 68 |
+| Labels defunct | 120; 138 | **107; 131** | 118; 140 | |
+
+- **Country 0.5 removes country from the head on both seeds** (and from 1960). Billboard has one title, so 0.6–0.7
+  may leave it there. Either way the Country error falls from 3–6 to 2.
+- **Breadth 3 doubles soundtrack chart life and brings the total near Billboard's**: a 29 mean against 24, though
+  seed 1001 is over at 38.
+- **It does not create the carry-over.** Only 0 / 8 points are pre-1961 releases against about 20. The extra
+  presence comes from more 1961 releases charting. Breadth 5 shows the same thing at a larger size and overshoots
+  (50 on seed 2002).
+- **Folk comes back toward target** in both arms (6 / 10 against 10). The longer-running soundtracks take the head
+  room that seed 1001's Folk was holding.
+- **Cheap.** Store LPs are within ±2.5M of the candidate, and defunct labels move −13 / −7 (inside the noise).
+
+**Open.** The carry-over structure needs titles that are already old in 1960:
+- an opening soundtrack catalogue, i.e. long-running cast and film albums released 1956–59 at world start, like the
+  opening singles catalogue;
+- and/or a slower tail for hit soundtracks only, so the 1960 hits last into 1961 without more 1961 releases charting.
+
+Breadth then likely comes down from 3. Reproduction: `-Extra` = candidate flags +
+`--album-chart-reporting=Country=C,--soundtrack-pool-breadth=F` (`cs-c05b3`, `cs-c035b5`), analysis as §10.
+
+## 12. A slower tail for hit soundtracks (2026-11-16)
+
+Base: the §11 candidate (`cbg-v2b` + hit-package flags + `--album-chart-reporting=Country=0.5`). Seeds 2002 / 1001,
+104 weeks. Nothing here is a default.
+
+**The switch.** `--soundtrack-hit-tail=R` (`SoundtrackHitTail`). A soundtrack that has peaked in the album top 10 has
+an audience that renews, as a hit film or show kept finding new viewers. After week 12, its exhaustion reads its
+penetration ÷ (1 + R × weeks past 12), in both the store and rack paths. The penetration ratchet stays in pool terms.
+Weekly demand size, the launch, and soundtracks that never reached the top 10 are untouched. The box-office
+trajectory, not a spent pool, then sets how long a hit lasts. The opening world has no soundtracks, so a title's first
+chart year stands in for its release year (`analyze_soundtrack_carryover.py`).
+
+Year-end top 50 %, 1961, and the chart life of 1960's soundtracks (seed 2002 / 1001):
+
+| | breadth 3, no tail (§11) | b2, R .1 | b1.5, R .1 | b1, R .1 | **b1, R .25** | Billboard |
+|---|---|---|---|---|---|---|
+| Soundtrack / cast | 20 / 38 | 34 / 36 | 18 / 16 | 18 / 16 | **28 / 22** | 24 |
+| … first charted before 1961 | 0 / 8 | 6 / 20 | 6 / 4 | 2 / 10 | **12 / 6** | ≈20 (≈10 from 1960) |
+| … first charted in 1961 | 20 / 30 | 28 / 16 | 12 / 12 | 16 / 6 | **16 / 16** | ≈4 |
+| 1960 top-10 soundtracks: median chart weeks | 23 / 35.5 | 46.5 / 55 | 36 / 26 | 18 / 50 | **52 / 43** | 40–60 (design) |
+| … still charting in 1961 | 54 / 70 % | 90 / 94 % | 91 / 100 % | 64 / 89 % | **83 / 90 %** | |
+| TradPop | 26 / 14 | 16 / 20 | 22 / 16 | 18 / 26 | **16 / 26** | 22 |
+| Youth + R&B | 22 / 12 | 20 / 18 | 30 / 24 | 30 / 14 | **24 / 18** | 16 |
+| Folk | 6 / 10 | 12 / 10 | 14 / 18 | 10 / 20 | **14 / 14** | 10 |
+| Comedy | 22 / 12 | 10 / 2 | 6 / 10 | 6 / 6 | **2 / 6** | 12 |
+| Easy Listening | 4 / 10 | 8 / 12 | 10 / 12 | 18 / 14 | **16 / 8** | 10 |
+| Store LPs 1960 / 1961 (M) | 42.6 / 66.7; 38.1 / 65.2 | 43.4 / 65.6; 39.7 / 65.8 | 42.6 / 66.2; 38.2 / 64.1 | 42.8 / 64.7; 38.1 / 63.3 | **42.7 / 63.0; 38.2 / 63.4** | – / 68 |
+| Labels defunct | 107; 131 | 124; 137 | 120; 135 | 120; 136 | **115; 149** | |
+
+- **The tail does what it was built for.** 1960's top-10 soundtracks now run 43–55 weeks against the design's 40–60
+  (23–35 before), and 83–100% are still charting in 1961. Breadth does not need to be 3 to get there.
+- **Best arm: breadth 1, R 0.25.** The soundtrack total is 25 against 24 (two-seed mean), and 9 points first charted
+  before 1961 against Billboard's ≈10 from 1960 releases, which is the half the tail was meant to fill. The 1956–59 half
+  (≈10 points) is the opening catalogue's job.
+- **Breadth 2 overshoots** (35 mean) through 1961 releases. Breadth 1.5 and breadth 1 at R 0.1 fall short on both
+  carry-over and chart life (seed 2002's hits at b1 R .1 run a median 18 weeks).
+- **1961 releases are still over.** 16 points against Billboard's ≈4 on both seeds of the best arm. 1961 hits renew
+  too, so they hold their place through the year. The opening catalogue will add ≈10 more old points, and the total
+  stays near 24 only if those displace 1961 releases.
+- **Comedy is the casualty** (2 / 6 against 12, from 22 / 12). Longer-running soundtracks take the adult head room.
+- **Cost.** Store LPs in 1961 are −3.7 / −1.8M against §11. Defunct labels are +8 / +18. The seed 1001 rise is larger
+  than §11's moves and needs a third seed before the arm is adopted.
+
+**Next.** The opening soundtrack catalogue (cast and film albums released 1956–59 at world start) on b1 R .25, with
+the hit tail keeping them alive. Watch whether old titles push out 1961 releases or add on top of them.
+Reproduction: `-Extra` = §11 candidate flags + `--album-chart-reporting=Country=0.5,--soundtrack-hit-tail=R`
+[`,--soundtrack-pool-breadth=F`] (`sht-b1r25`, `sht-b2r10`, `sht-b15r10`, `sht-b1r10`), then
+`python ../SimTools/analyze_soundtrack_carryover.py <run>-<seed>-sc ...` and `analyze_hit_package_demand.py`.
+
+## 13. An opening soundtrack catalogue (2026-11-16)
+
+Base: the §12 best arm (§11 candidate + `--soundtrack-hit-tail=0.25`, breadth 1). Seeds 2002 / 1001, 104 weeks.
+Nothing here is a default.
+
+**The switch.** `--opening-soundtrack-catalogue=N` (`OpeningSoundtrackCatalogue`,
+`CompetitorManager.SeedOpeningSoundtrackCatalogue`). The first live week mints N soundtracks released 26–210 weeks
+before the start (`ExternalMediaService.GenerateOpeningProfile`):
+- 60% cast albums and 40% film scores, with box office 0.7–0.95. The first title is a blockbuster (0.85–1.0), which
+  does not count against the run's decade cap.
+- Peak 1–10, with a chart history of 60–95% of their age.
+- Record and regional awareness at their premiere buzz, and half of each region's soundtrack pool already sold.
+- No licence fee (it was paid before 1960). The licensee is picked as for any soundtrack (`SelectLabel`).
+
+The hit tail keeps their audience renewing; without it they would be spent. `analyze_soundtrack_carryover.py` finds
+them as the soundtracks that chart by week 4 with 100k+ units already sold (`records.csv` logs no albums). On
+`osc-n8-2002` one title first charts in week 10 and is counted as a 1960 release.
+
+Year-end top 50 %, 1961 (seed 2002 / 1001):
+
+| | hit tail only (§12) | **N 5** | N 8 | Billboard |
+|---|---|---|---|---|
+| Soundtrack / cast | 28 / 22 | **22 / 28** | 28 / 40 | 24 |
+| … opening (1956–59) titles | 0 / 0 | **6 / 6** | 8 / 12 | ≈10 |
+| … first charted in 1960 | 12 / 6 | **8 / 14** | 12 / 14 | ≈10 |
+| … first charted in 1961 | 16 / 16 | **8 / 8** | 8 / 14 | ≈4 |
+| Opening titles: best peak 1960 / 1961 | – | **1 / 1** both seeds | 1 / 1 both seeds | |
+| Opening titles: chart weeks 1960 / 1961 | – | **232 / 166; 220 / 174** | 290 / 206; 373 / 291 | |
+| 1960 top-10 soundtracks: median chart weeks | 52 / 43 | **65.5 / 75** | 83.5 / 68 | 40–60 (design) |
+| Soundtracks in the 1960 top 50 | 20 / 14 | **20 / 30** | 26 / 34 | 7–14 (author) |
+| TradPop | 16 / 26 | **30 / 16** | 24 / 10 | 22 |
+| Youth + R&B | 24 / 18 | **20 / 14** | 14 / 16 | 16 |
+| Folk | 14 / 14 | **10 / 6** | 8 / 4 | 10 |
+| Comedy | 2 / 6 | **2 / 16** | 16 / 14 | 12 |
+| Easy Listening | 16 / 8 | **10 / 12** | 10 / 12 | 10 |
+| Country | 0 / 4 | **0 / 0** | 0 / 0 | 2 |
+| Sum of gaps to Billboard (these seven rows, two-seed means) | 21 | **11** | 26 | |
+| Store LPs 1960 / 1961 (M) | 42.7 / 63.0; 38.2 / 63.4 | **44.5 / 63.3; 42.2 / 65.9** | 46.7 / 63.8; 41.9 / 63.9 | – / 68 |
+| Labels defunct | 115; 149 | **123; 140** | 111; 141 | |
+
+- **The opening titles behave like the 1956–59 cast albums.** Each run has a #1 among them in both 1960 and 1961,
+  and five titles chart about 45 weeks each in 1960 and 35 in 1961.
+- **They displace 1961 releases rather than add on top.** The 1961-release share halves (16 → 8 on both seeds at
+  N 5), and the soundtrack total stays at 25 against 24. That is the age mix §11 asked for: 6 / 11 / 8 points for
+  1956–59, 1960 and 1961 against Billboard's ≈10 / 10 / 4.
+- **N 8 overshoots** (34 mean, 40 on seed 1001). Its opening share (10) is right, but the 1960 releases are still
+  over. N 5 is under on opening titles (6 against 10) and right on the total.
+- **N 5 halves the gap to Billboard** across the seven rows (21 → 11). Comedy and TradPop swing between seeds, but
+  their two-seed means are close.
+- **1960 is now over on soundtracks** (20 / 30 against the author's 7–14). The old titles add to 1960's head, and
+  1960's own hits run 65–75 weeks, above the design's 40–60. R 0.25 may be too strong once the catalogue carries the
+  old share. R 0.15–0.2 with N 5–6 is the next screen.
+- **Cost.** Store LPs are +1.8 / +4.0M in 1960 (the old titles sell) and flat-to-up in 1961. Defunct labels are
+  123 / 140 against §12's 115 / 149, inside the noise. The opening titles carry no licence fee, and their licensees
+  (mostly Majors) get their sales.
+
+**Next.** N 5–6 with the hit tail at R 0.15–0.2, to bring 1960's soundtrack share and its hits' chart life back
+toward the design without losing the 1961 carry-over. Then a third seed.
+Reproduction: `-Extra` = §12 flags + `--opening-soundtrack-catalogue=N` (`osc-n5`, `osc-n8`), analysis as §12.
+
+**Billboard, 4 April 1960 (p. 34, worldradiohistory.com).** In 1960 Billboard printed two LP charts per configuration:
+"Action Albums" (on the chart 39 weeks or less, top 40 mono) and "Essential Inventory" (40+ weeks, top 25 mono).
+Cast and film albums on the mono lists:
+- Action (3 of 40): *The Sound of Music* cast #1 (16 weeks; released Nov 1959), *Porgy and Bess* film (38 weeks),
+  *Gypsy* cast (38 weeks).
+- Essential Inventory (7 of 25): *South Pacific* film #2 (106 weeks), *My Fair Lady* cast #4 (209), *Gigi* film #5
+  (92), *The Music Man* cast #7 (110), *South Pacific* cast #14 (305), *The King and I* film #18 (180), *Flower Drum
+  Song* cast #19 (54).
+
+That is 10 of 65 titles (15%), and four of the top seven long-runners. Stereo adds *Fiorello!*, *Oklahoma!* and *The
+Eddy Duchin Story*. **Every soundtrack charting in spring 1960 is a 1949–59 release.** A merged top 50 would hold
+about 8–10 of them (15–20%). So the 1960 target is about 15–20%, nearly all of it old titles, not the 7–14% design
+value. The model's 1960 excess is in **1960 releases**: N 5 has 5 / 10 of them in the 1960 top 50 against about 0–2
+historically, while its 5 opening titles are fewer than Billboard's 8–10 active ones. That points to N about 8 with
+a lower tail rate (R 0.15), not N 5–6. One spring week cannot show the late-1960 releases (*Can-Can*, *Bye Bye
+Birdie*, *Exodus*, *Camelot*) that carry 1961.
+
+**Billboard's 1960 year-end list** ("Chart Toppers of 1960", 19 Dec 1960 Record Programming issue, p. 23: best-selling
+mono LPs, a recap of the Action and Essential Inventory charts, January–November). Cast and film albums, 8 of 50
+(16%): *The Sound of Music* cast #1 (Nov 1959), *South Pacific* film #8 (1958), *My Fair Lady* cast #22 (1956),
+*Gigi* film #29 (1958), *The Music Man* cast #31 (1957), *Can-Can* film #33 (1960), *South Pacific* cast #36 (1949),
+*Ben-Hur* (Rome Symphony / Savina, M-G-M) #43 (1959–60). That is 6–7 titles released before 1960 and 1–2 from 1960.
+
+Classified as §9 (my calls; Mitch Miller sing-alongs, Darin's standards LPs and RCA's *Sixty Years* sampler as
+TradPop, Belafonte as Folk, Mancini's *Mr. Lucky* as Easy Listening):
+
+| % of top 50 | 1960 |
+|---|---|
+| Soundtrack / cast | 16 |
+| TradPop | 28 |
+| Folk (Kingston Trio ×5, Belafonte) | 14 |
+| Youth + R&B | 14 |
+| Comedy (Berman ×3, Newhart, Gardner, Woodbury) | 12 |
+| Easy Listening | 6 |
+| Classical / religious | 6 |
+| Country | 2 |
+| Children's (Chipmunks) | 2 |
+
+Against the model at N 5 (seed 2002 / 1001):
+- **The soundtrack total is over** (20 / 30 against 16).
+- **The opening titles are about right in number.** N 8 places 6 / 8 of them in the 1960 top 50, against Billboard's
+  6–7.
+- **The 1960 releases are the miss** (5 / 10 in the top 50 against 1–2). They are over in every run so far, before
+  the tail too (tail only 10 / 7; §11 breadth 3 about 9 / 9). So this excess comes mostly from how hard and how often
+  a new soundtrack launches, not from the tail. A lower R trims only part of it. The rest needs a lower origination
+  rate or a weaker launch for 1960 releases.
+
+Billboard's 1960 releases carry 1961 (*Can-Can*, *Exodus*, *Camelot*), so they were few and late in 1960 and big in
+1961.
+
+## 14. N 8, tail R 0.15 and fewer early originations (2026-11-16)
+
+Base: §13 flags with `--opening-soundtrack-catalogue=8 --soundtrack-hit-tail=0.15`. New switch
+`--soundtrack-origination-early=F` (`SoundtrackOriginationEarly`): soundtrack originations in 1960–61 × F, later
+years untouched. Seeds 2002 / 1001, 104 weeks. Nothing here is a default.
+
+| | N 5, R .25 (§13) | N 8, R .15 | N 8, R .15, origination × 0.5 | Billboard |
+|---|---|---|---|---|
+| 1960 top 50: soundtrack % | 20 / 30 | 26 / 36 | 20 / 34 | 16 |
+| … opening titles / 1960 releases (titles) | 5 / 5; 5 / 10 | 6 / 7; 8 / 10 | 6 / 4; 8 / 9 | 6–7 / 1–2 |
+| 1961 top 50: soundtrack % | 22 / 28 | 30 / 26 | 20 / 28 | 24 |
+| … opening / 1960 / 1961 releases | 6 / 8 / 8; 6 / 14 / 8 | 8 / 10 / 12; 10 / 8 / 8 | 8 / 4 / 8; 10 / 10 / 8 | ≈10 / 10 / 4 |
+| New 1960 soundtracks charting (reaching top 10)* | 20 (7); 24 (11) | 27 (9); 18 (10) | 12 (5); 17 (9) | 1–2 top 10 |
+| Gap to Billboard, seven rows, 1960 / 1961 | 26 / 11 | 35 / 18 | 32 / 19 | |
+
+\* Corrected 2026-11-16. The first version of this row had opening titles leaking into the count (a positional mask
+misaligned against a record-indexed series in an ad-hoc script); the shared `analyze_soundtrack_carryover.py` rows
+were not affected.
+| Store LPs 1960 / 1961 (M) | 44.5 / 63.3; 42.2 / 65.9 | 46.2 / 65.0; 41.1 / 62.9 | 44.7 / 62.2; 41.9 / 63.5 | |
+| Labels defunct | 123; 140 | 120; 138 | 118; 143 | |
+
+- **N 8 gets the old titles right.** 6 / 8 make the 1960 top 50 (Billboard 6–7) and 8 / 10 points of 1961's.
+- **Halving early originations halves the charting new titles, but less so the hits.** New 1960 soundtracks charting
+  fall 27 → 12 and 18 → 17, while those reaching the top 10 fall 9 → 5 and 10 → 9. On seed 1001 the 1960 top 50 still
+  holds 9 new 1960 soundtracks.
+- **So the 1960 excess is mostly the soundtrack launch, not the count.** Every arm puts 5–11 new soundtracks a year
+  into the album top 10, against Billboard's one or two in 1960 (*Can-Can*). A soundtrack launches with awareness at
+  its premiere buzz (`sourcePopularity`, 0.3–0.8; `CompetitorManager.MintSoundtrackRecord`), against 0.06–0.20 for an
+  ordinary LP (`ChartManager.ReleaseRecord`).
+- **Neither arm beats N 5, R .25 on the gap sums.** Seed noise in the soundtrack share is ±5–10 points, so two seeds
+  cannot rank arms closer than that.
+
+**Next.** A soundtrack launch-awareness scale (premiere buzz × k), screened with N 8 and the full origination rate.
+The target is 1–3 new top-10 soundtracks a year, not 10–18. Then three seeds on the best arm.
+Reproduction: `-Extra` = §11 candidate flags + `--album-chart-reporting=Country=0.5,--soundtrack-hit-tail=0.15,
+--opening-soundtrack-catalogue=8[,--soundtrack-origination-early=0.5]` (`osc-n8r15`, `osc-n8r15o5`).
+
+## 15. Soundtrack launch awareness (2026-11-16)
+
+Base: §14's N 8, R .15 (full origination). New switch `--soundtrack-launch-awareness=k`
+(`SoundtrackLaunchAwareness`): a new soundtrack's launch awareness is premiere buzz × k. Opening titles are untouched.
+Seeds 2002 / 1001, 104 weeks. Nothing here is a default.
+
+| | k 1 (§14) | k 0.5 | **k 0.25** | Billboard |
+|---|---|---|---|---|
+| New soundtracks reaching the top 10, 1960 | 9 / 10 | 9 / 6 | **5 / 7** | 1–2 |
+| … 1961 | 5 / 6 | 5 / 9 | **3 / 3** | |
+| New soundtracks charting, 1960 / 1961 | 27, 29 / 18, 29 | 27, 26 / 15, 27 | **19, 18 / 13, 17** | |
+| 1960 top 50: soundtrack % | 26 / 36 | 28 / 26 | **20 / 28** | 16 |
+| … opening titles / 1960 releases (titles) | 6, 7 / 8, 10 | 6, 8 / 8, 5 | **6, 4 / 8, 6** | 6–7 / 1–2 |
+| 1961 top 50: soundtrack % | 30 / 26 | 30 / 32 | **22 / 26** | 24 |
+| … opening / 1960 / 1961 releases | 8 / 10 / 12; 10 / 8 / 8 | 8 / 12 / 10; 12 / 2 / 18 | **8 / 6 / 8; 10 / 6 / 10** | ≈10 / 10 / 4 |
+| Gap to Billboard, seven rows, 1960 / 1961 | 35 / 18 | 28 / 24 | **22 / 14** | |
+| Store LPs 1960 / 1961 (M) | 46.2 / 65.0; 41.1 / 62.9 | 46.5 / 63.4; 41.2 / 63.4 | **45.7 / 65.5; 42.1 / 64.8** | – / 68 |
+| Labels defunct | 120; 138 | 110; 138 | **127; 145** | |
+
+- **k 0.25 is the best arm so far over both years** (gap 22 / 14; N 5, R .25 in §13 was 26 / 11). The 1961
+  soundtrack total is 24 against 24, and its old titles are 9 against ≈10.
+- **Fewer new soundtracks chart, and fewer reach the top 10.** In 1960 the top-10 count goes 9 → 5 and 10 → 7, and
+  in 1961 5 → 3 and 6 → 3. It is still 3–5 times Billboard's one or two.
+- **The age mix in 1961 moves the right way but not far enough.** 1960 releases are under (6 against ≈10) and 1961
+  releases still over (8–10 against ≈4).
+- **k 0.5 is not between k 1 and k 0.25 on every row.** Seed noise (±5–10 points of soundtrack share) is as large as
+  the step.
+- **Cost.** Store LPs are flat to +2M. Defunct labels are +7 / +7 against k 1, inside the noise.
+
+**Next.** k 0.1–0.15 to reach 1–2 new top-10 soundtracks in 1960, then three seeds on the best arm.
+Reproduction: §14 flags + `--soundtrack-launch-awareness=k` (`sla-k50`, `sla-k25`).
+
+## 16. Launch awareness k 0.15 and 0.10: the switch floors out (2026-11-16)
+
+`sla-k15` and `sla-k10` (§15 base) are **byte-identical** on both seeds (album chart files compared). The launch seed
+is `max(ordinary LP launch awareness, premiere buzz × k)`, and at k ≤ 0.15 premiere buzz × k (at most about 0.12)
+falls below the ordinary LP launch value, so the soundtrack term never binds. The switch's working range is k ≥ about
+0.2. k 0.25 differs from k 0.15 in the titles drawn (one conversion reshuffles the stream), not in a measurable trend.
+
+| | k 0.25 (§15) | k ≤ 0.15 | Billboard |
+|---|---|---|---|
+| New soundtracks charting / reaching top 10, 1960 | 19 / 5; 13 / 7 | 19 / 6; 15 / 6 | 1–2 top 10 |
+| … 1961 | 18 / 3; 17 / 3 | 18 / 10; 24 / 10 | |
+| 1960 top 50: soundtrack % (opening, 1960-release titles) | 20 (6, 4); 28 (8, 6) | 18 (6, 3); 24 (8, 4) | 16 (6–7, 1–2) |
+| 1961 top 50: soundtrack % | 22 / 26 | 24 / 30 | 24 |
+| Gap to Billboard, seven rows, 1960 / 1961 | 22 / 14 | 19 / 14 | |
+| Store LPs 1960 / 1961 (M) | 45.7 / 65.5; 42.1 / 64.8 | 45.5 / 64.7; 42.0 / 65.2 | |
+| Labels defunct | 127; 145 | 121; 130 | |
+
+- **5–7 new soundtracks still reach the 1960 top 10 with the launch seed at the ordinary LP value.** So what remains
+  is not launch buzz but the soundtrack's own demand path: a buyer pool drawn from the adult and family segments
+  regardless of genre (`MarketRegion.GetSoundtrackAlbumMarketSize`), appeal 0.5 + 0.35 × box office
+  (`ExternalMediaService.PooledAppeal`), and the box-office multiplier. Each of these is a candidate. A weekly trace of
+  the 1960 top-10 soundtracks against ordinary top-10 LPs (pool, awareness, conversion) should come before another
+  switch.
+- **The two arms are tied on the gap sums** (19–22 / 14). The 1960 soundtrack share is within 2–8 points of
+  Billboard's 16, and 1961 within 0–6 of 24.
+- **Candidate for a three-seed check:** N 8, R .15, k 0.25 (the lowest k at which the switch still acts).
+
+## 17. The soundtrack demand path: a genre format tilt on a bypass pool (2026-11-16)
+
+Trace: the §16 candidate (N 8, R .15, k 0.25) with `--album-demand-trace`, which now also logs appeal, regional
+awareness and blended awareness (`slt-k25`, seeds 2002 / 1001; album charts byte-identical to `sla-k25`, so the
+trace is inert). `analyze_soundtrack_demand_trace.py` compares the new 1960 soundtracks that reached the top 10
+(5 + 7) with the ordinary 1960 LPs that did (110 + 113), by weeks since release.
+
+Soundtrack ÷ ordinary, medians:
+
+| Weeks | Store units | Raw demand | Pool | Blended awareness | Appeal | Conversion | Format tilt | Exhaustion | Decay |
+|---|---|---|---|---|---|---|---|---|---|
+| 1–4 | 0.84 | 1.57 | 1.10 | 0.62 | 1.01 | 2.61 | **1.82** | 1.20 | 0.92 |
+| 5–8 | 2.04 | 1.71 | 1.03 | 1.00 | 0.99 | 2.04 | **1.82** | 1.07 | 0.88 |
+| 9–12 | 1.81 | 1.69 | 1.03 | 0.65 | 1.00 | 1.94 | **1.79** | 0.95 | 1.02 |
+| 13–20 | 2.07 | 2.53 | 1.01 | 0.71 | 1.00 | 3.55 | **1.79** | 1.14 | 1.38 |
+
+- **Pool and appeal are not the cause.** A top-10 soundtrack's buyer pool is within 10% of a top-10 ordinary LP's,
+  and its appeal is the same (0.73–0.74). Its awareness is lower (0.6–0.8×).
+- **The format tilt is.** A soundtrack's store conversion carries the format tilt of its *mapped* genre
+  (`GenreAcceptanceService.GetLiveFormatMultiplier`, `AlbumSimulator.CalculateRegionalSales`), even though its buyer
+  pool bypasses that genre (`GetSoundtrackAlbumMarketSize`). Film scores map 60% to Classical, whose tilt is 1.72.
+  Comedy's is 1.42, Easy Listening's 1.22 and TradPop's 1.07. So the 1960 top-10 soundtracks run at a median 1.72
+  against 0.94–0.96 for the ordinary top-10 LPs. For an ordinary LP the tilt reshapes a genre pool; for a soundtrack
+  it is applied to a demographic pool the genre never shaped, which counts it twice.
+- **The rest of the conversion gap** (2.0–3.5× against a 1.8× tilt) is the box-office decay running slower than
+  catalogue decay after week 12 (by design: 1.4× at 13–20 weeks, 3× at 21–40) and exhaustion 1.1–1.2× in the
+  first month. Rack sales follow store standing (rack conversion has no tilt), so racks amplify the same gap.
+
+**Next.** A switch that gives a soundtrack with a media profile a neutral format tilt (1.0, or a value F), screened
+on the candidate. It should cut new top-10 soundtracks toward Billboard's one or two without touching the opening
+titles' 1961 carry-over much, since their run is set by box office and the hit tail.
+
+## 18. A neutral format tilt for soundtracks (2026-11-16)
+
+Base: §16 candidate (N 8, R .15). New switch `--soundtrack-format-tilt=F` (`SoundtrackFormatTilt`): a soundtrack with
+a media profile takes tilt F in its store conversion, in place of its mapped genre's. Arms at F 1.0, with and without
+k 0.25 (`sft-t10k25`, `sft-t10k1`, with `--album-demand-trace`). Seeds 2002 / 1001, 104 weeks. Gap sums from the new
+`analyze_album_head_gap.py`.
+
+| | k 0.25, genre tilt (§16) | **tilt 1.0, k 0.25** | tilt 1.0, k 1 | Billboard |
+|---|---|---|---|---|
+| New soundtracks reaching the top 10, 1960 | 5 / 7 | **4 / 8** | 6 / 11 | 1–2 |
+| … 1961 | 3 / 3 | **2 / 6** | 4 / 5 | |
+| 1960 soundtrack % (opening, 1960-release titles) | 20 (6, 4); 28 (8, 6) | **14 (5, 2); 30 (8, 7)** | 20 (5, 5); 30 (8, 7) | 16 (6–7, 1–2) |
+| 1961 soundtrack % | 22 / 26 | **16 / 28** | 20 / 26 | 24 |
+| 1961 TradPop % | 24 / 12 | **40 / 28** | 32 / 28 | 22 |
+| Gap to Billboard, seven rows, 1960 / 1961 | 22 / 14 | **26 / 24** | 30 / 24 | |
+| Store LPs 1960 / 1961 (M) | 45.7 / 65.5; 42.1 / 64.8 | **45.6 / 64.9; 41.1 / 64.2** | 45.1 / 63.0; 41.8 / 65.2 | |
+| Labels defunct | 127; 145 | **105; 143** | 121; 133 | |
+
+- **The tilt is gone from the trace, and with it the soundtrack's edge.** Tilt now reads 1.0–1.06. With it neutral,
+  a new top-10 soundtrack's conversion is exactly a Major LP's: the residual after appeal, exhaustion, decay and tilt
+  is 0.214 for both. Every new soundtrack is on a Major (`ExternalMediaService.SelectLabel` ranks by tier and
+  capital), and charting Major soundtracks reach the top 10 *less* often than charting ordinary Major LPs (33%
+  against 48%, appeal 0.69 against 0.72).
+- **So what is left is volume.** About 18 new soundtracks a year chart in 1960, all on Majors. At a Major's top-10
+  rate that is 4–8 top-10 entries against Billboard's one or two. Origination count is now the lever; §14's
+  origination cut ran while the genre tilt still made almost every launch a hit.
+- **The gap sums got worse in 1961** (14 → 24). The head room soundtracks gave up went to TradPop (40 / 28 against
+  22), and seed 2002's 1960 soundtracks ran short (top-10 median 13.5 weeks), which cost the 1961 carry-over.
+- **k matters less once the tilt is neutral** (k 1 against k 0.25: within seed noise).
+
+**Next.** Tilt 1.0 with `--soundtrack-origination-early=0.5`, then three seeds on whichever arm leads. The 1961
+TradPop excess on this base needs watching; it may be a seed effect (seed 2002 TradPop swings 24–40 across arms).
+
+## 19. Heavy 53-week probes on the 1960 soundtrack share (2026-11-16)
+
+Base (`pr-base`): §18's tilt 1.0, k 0.25, N 8, R .15. Each probe makes one heavy change; 53 weeks (all of 1960),
+seeds 2002 / 1001. `pr-base` reproduces the 1960 of the 104-week `sft-t10k25` exactly (same top-50 split and
+top-10 counts), so these probes are prefixes of the long runs. Rack weight is overridden through a copied reference
+request (`--rack-soundtrack-weight=0.1`), because the first copy of a flag wins. "Old" = opening titles in the top
+50; "new" = 1960 soundtracks in the top 50. One or two late-charting opening titles leak into "new" (on `pr-o0`,
+which mints no new soundtracks, 2 still show).
+
+| Probe | 1960 soundtrack % (2002 / 1001; mean) | Old / new in top 50 | New soundtracks reaching top 10 | Gap, seven rows |
+|---|---|---|---|---|
+| base | 14 / 30; 22 | 5, 2 / 8, 7 | 4 / 8 | 26 |
+| origination × 0 | 10 / 16; 13 | 5, 0 / 8, 0 | 1 / 0 | 22 |
+| **origination × 0.25** | **10 / 22; 16** | **5, 0 / 8, 3** | **1 / 3** | **21** |
+| **format tilt 0.6** | **10 / 14; 12** | **4, 1 / 6, 1** | **2 / 3** | **22** |
+| opening catalogue N 4 | 12 / 16; 14 | 4, 2 / 4, 4 | 3 / 4 | 19 |
+| hit tail off | 14 / 20; 17 | 2, 5 / 4, 6 | 9 / 5 | 14 |
+| rack soundtrack weight 0.1 | 18 / 24; 21 | 5, 4 / 8, 4 | 5 / 5 | 23 |
+| Billboard 1960 | 16 | 6–7, 1–2 | 1–2 | |
+
+- **Two levers move the 1960 soundtracks the right way:** fewer originations and a format tilt below 1. Origination
+  × 0.25 hits the total (16) and keeps the old titles whole, since they are not originations. Tilt 0.6 cuts deeper (12)
+  and also trims the old titles (they are soundtracks too).
+- **N 4 and turning the tail off move the wrong part.** They cut the old titles (Billboard's 6–7 become 2–4) and
+  leave 4–6 new ones. The tail is what keeps the opening titles alive through 1960. "Tail off" has the best gap
+  (14) only through other rows (TradPop, Comedy), not through the soundtrack mix.
+- **Rack weight 0.1 does almost nothing** (21 against 22).
+- **Caution for 1961.** The origination cut runs through 1961, and Billboard's 1961 needs about 10 points from 1960
+  releases. With only 4–5 new soundtracks charting in 1960, that carry-over may thin. A 104-week run on the two leading
+  probes answers it.
+
+## 20. Origination 0.25 and tilt 0.6 at 104 weeks: 1960 fixed, 1961 lost (2026-11-16)
+
+The two §19 leaders at 104 weeks (`lg-o25`: tilt 1.0 + origination × 0.25 through 1961; `lg-t06`: tilt 0.6), seeds
+2002 / 1001. Their 1960 matches the probes.
+
+| | tilt 1.0 (§18) | origination × 0.25 | tilt 0.6 | Billboard |
+|---|---|---|---|---|
+| 1960 soundtrack % | 14 / 30 | 10 / 22 | 10 / 14 | 16 |
+| 1961 soundtrack % | 16 / 28 | **10 / 14** | **8 / 8** | 24 |
+| 1961: opening / 1960 / 1961 releases | 8 / 2 / 6; 10 / 8 / 10 | 8 / 0 / 2; 10 / 4 / 0 | 4 / 2 / 2; 4 / 0 / 4 | ≈10 / 10 / 4 |
+| Gap, seven rows, 1960 / 1961 | 26 / 24 | 21 / 34 | 22 / 46 | |
+| 1961 TradPop % | 40 / 28 | 38 / 18 | 46 / 26 | 22 |
+| Store LPs 1960 / 1961 (M) | 45.6 / 64.9; 41.1 / 64.2 | 43.2 / 62.1; 39.4 / 62.7 | 43.2 / 61.4; 39.7 / 63.2 | – / 68 |
+| Labels defunct | 105; 143 | 135; 131 | 123; 146 | |
+
+- **Both fix 1960 and empty 1961.** The 1961 soundtrack share falls to 8–14 against 24. Origination × 0.25 keeps
+  the opening titles (8 / 10 points, Billboard ≈10) but leaves no 1960 or 1961 releases. Tilt 0.6 also halves the
+  opening titles' 1961 life (183–232 → 103–117 chart weeks), because they are soundtracks too.
+- **Volume levers trade one year for the other.** Billboard's pattern is few 1960 releases in the 1960 top 50 (1–2)
+  but about 10 points of them in 1961's. The model's soundtracks peak at launch, so a 1960 release is either in
+  1960's head or not much of a carry-over. Billboard's 1960 releases in the 1961 list (*Exodus*, *Camelot*,
+  *Never on Sunday*) came out in the last quarter of 1960 and peaked in 1961. *The Sound of Music* (Nov 1959) did the
+  same for 1960.
+- **So the remaining miss is timing.** Fall-season launches (Broadway's season, holiday and roadshow film releases)
+  or a soundtrack that builds for some months after launch would put 1960 releases into 1961's head without adding
+  to 1960's. Neither exists in the model: originations are uniform through the year (`OriginationsForYear / 52`
+  weekly) and the box-office multiplier starts at its peak (`GetSoundtrackBoxOfficeMultiplier`, ramp 0.85 → 1 over
+  3 weeks only).
+- **The base (§18, tilt 1.0) is still the best two-year arm** on soundtrack share (22 / 22 means against 16 / 24).
+  Its miss is the age mix inside each year, not the totals.
+
+## 21. Timing: a fall origination season and a box-office build (2026-11-16)
+
+Base: §18's tilt 1.0, k 0.25, N 8, R .15 (`sft-t10k25`). New switches:
+- `--soundtrack-origination-season=S` (`SoundtrackOriginationSeason`): the weekly origination rate is
+  × 1 + S·cos(2π(month − 11) / 12), with a November peak, a May trough and a mean of 1.
+- `--soundtrack-build-weeks=B` (`SoundtrackBuild`): a soundtrack's box-office multiplier starts at 0.35 and rises
+  linearly to 1 by week B.
+
+Seeds 2002 / 1001, 104 weeks (`tm-s09`, `tm-b16`, `tm-s09b16`).
+
+| | base | **season 0.9** | build 16 | season 0.9 + build 16 | Billboard |
+|---|---|---|---|---|---|
+| 1960 soundtrack % | 14 / 30 | **14 / 24** | 14 / 16 | 12 / 18 | 16 |
+| … opening / 1960-release titles | 5, 2 / 8, 7 | **5, 2 / 8, 4** | 5, 2 / 8, 0 | 5, 1 / 8, 1 | 6–7 / 1–2 |
+| 1961 soundtrack % | 16 / 28 | **20 / 26** | 10 / 18 | 8 / 12 | 24 |
+| 1961: opening / 1960 / 1961 releases | 8, 2, 6 / 10, 8, 10 | **8, 6, 6 / 10, 8, 8** | 8, 0, 2 / 12, 0, 6 | 8, 0, 0 / 10, 2, 0 | ≈10 / 10 / 4 |
+| New soundtracks charting / top 10, 1960 | 17/4; 19/8 | **12/5; 21/8** | 9/1; 12/0 | 5/1; 16/2 | 1–2 top 10 |
+| … 1961 | 19/2; 22/6 | **25/5; 15/5** | 14/1; 14/1 | 11/1; 11/0 | |
+| Gap, seven rows, 1960 / 1961 | 26 / 24 | **20 / 22** | 19 / 36 | 23 / 37 | |
+| Store LPs 1960 / 1961 (M) | 45.6 / 64.9; 41.1 / 64.2 | **44.0 / 63.0; 40.7 / 63.8** | 44.5 / 63.9; 40.7 / 64.0 | 43.8 / 64.6; 40.4 / 64.5 | |
+| Labels defunct | 105; 143 | **110; 134** | 113; 136 | 123; 132 | |
+
+- **The fall season moves the age mix the right way.** 1960 soundtracks fall from a 22 mean to 19 (Billboard 16).
+  1961 rises to 23 (24). Within 1961, 1960 releases carry 6 / 8 points against the base's 2 / 8 (Billboard ≈10), and
+  1961 releases fall to 6 / 8 (≈4). It has the lowest gap of any arm on this base (20 / 22).
+- **The build removes soundtracks rather than delaying them.** Starting at 35% of demand, a new soundtrack charts low
+  and seldom reaches the top 10 (0–1 a year), so the hit tail, which needs a top-10 peak, never renews it. Lost early
+  sales are not made up later. 1961 falls to 10–18. With the season it is worse still (8 / 12).
+- **New top-10 soundtracks in 1960 are unchanged by the season** (5 / 8). It moves when they launch, not how many
+  hit. That excess is the volume question from §18–20.
+
+**Candidate.** Tilt 1.0, k 0.25, N 8, R .15, season 0.9. Next: three seeds (add 3003), 104 weeks.
+Reproduction: `-Extra` = §11 candidate flags + `--album-chart-reporting=Country=0.5,--soundtrack-launch-awareness=0.25,
+--soundtrack-hit-tail=0.15,--opening-soundtrack-catalogue=8,--soundtrack-format-tilt=1.0,
+--soundtrack-origination-season=0.9`.

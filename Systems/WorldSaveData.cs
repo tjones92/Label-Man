@@ -35,6 +35,8 @@ public sealed class WorldSaveData {
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public bool? LpDemandScaleStoresOnly { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public bool? LpDemandScaleKnown { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? RetailPurchasePolicy { get; set; }
 	// --- Clock (Phase 0) ---
 	public int ChartWeek { get; set; }
@@ -292,6 +294,7 @@ public static class WorldStateService {
 		var world = new WorldSaveData {
 			LpDemandScale = LpDemandCalibration.SavedScale,
 			LpDemandScaleStoresOnly = LpDemandCalibration.SavedStoresOnly,
+			LpDemandScaleKnown = LpDemandCalibration.SavedKnownWeighted,
 			RetailPurchasePolicy = RetailPurchaseEnvelope.SavedVersion,
 			ChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Hour = TimeManager.Instance?.CurrentHour ?? 0,
@@ -352,7 +355,7 @@ public static class WorldStateService {
 	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
 		if (world?.ShadowContinuation is { Version: not 1 })
 			throw new System.InvalidOperationException("Unsupported experimental shadow continuation version.");
-		LpDemandCalibration.RequireSaved(world?.LpDemandScale, world?.LpDemandScaleStoresOnly);
+		LpDemandCalibration.RequireSaved(world?.LpDemandScale, world?.LpDemandScaleStoresOnly, world?.LpDemandScaleKnown);
 		RetailPurchaseEnvelope.RequireSaved(world?.RetailPurchasePolicy);
 		ProfessionalWritingMarket.RequireSaved(world?.Composition?.WritingMarket);
         SceneAttentionFeedback.Reset(); // derived prior-week cache must not survive a load/rollback

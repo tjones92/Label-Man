@@ -1771,6 +1771,14 @@ public partial class MediaAtmosphereChecks : Node {
 			&& Math.Abs(hurt - (MediaFollowerDemand.WeekShare[0] + 0.8f * (1f - MediaFollowerDemand.WeekShare[0]))) < 1e-6f
 			&& MediaFollowerDemand.WeekFactor(-1, 0f) == 0f && MediaFollowerDemand.WeekFactor(MediaFollowerDemand.Weeks, 0f) == 0f,
 			$"The book is spent over three clearing weeks (sum {whole:F2}); a disappointment cuts weeks two and three, never the advance ({hurt:F2})");
+		MediaFollowerDemand.SetAlbumCasualForChecks(0.6f, 16);
+		float casualLp = Enumerable.Range(0, 20).Sum(w => MediaFollowerDemand.WeekFactor(w, 0f, ReleaseFormat.Album));
+		float casualSingle = Enumerable.Range(0, 20).Sum(w => MediaFollowerDemand.WeekFactor(w, 0f, ReleaseFormat.Single));
+		Check(Math.Abs(casualLp - 1f) < 1e-5f && Math.Abs(casualSingle - 1f) < 1e-6f && MediaFollowerDemand.WeeksFor(ReleaseFormat.Album) == 16
+			&& MediaFollowerDemand.WeeksFor(ReleaseFormat.Single) == 3 && MediaFollowerDemand.WeekFactor(15, 0f, ReleaseFormat.Album) > 0f
+			&& MediaFollowerDemand.WeekFactor(16, 0f, ReleaseFormat.Album) == 0f,
+			$"A casual LP share spreads the same book over 16 weeks (sum {casualLp:F3}); singles keep three weeks");
+		MediaFollowerDemand.SetAlbumCasualForChecks(0f, 3);
 		Check(MediaFollowerDemand.Grant(900, 1_000, 500.7f) == 100 && MediaFollowerDemand.Grant(200, 1_000, 500.7f) == 500
 			&& MediaFollowerDemand.Grant(1_000, 1_000, 500f) == 0 && MediaFollowerDemand.Grant(0, 1_000, 0f) == 0,
 			"Fans never take a title past its physical limit: 100 of 500 with 100 copies left, all 500 with room, none on an empty shelf");

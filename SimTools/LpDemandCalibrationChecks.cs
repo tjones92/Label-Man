@@ -8,7 +8,7 @@ public static class LpDemandCalibrationChecks {
 		void Check(bool condition, string name) { if (!condition) throw new InvalidOperationException("LP calibration: " + name); checks++; }
 		void Set(params string[] args) { LpDemandCalibration.ResetForChecks(); LpDemandCalibration.Configure(args); }
 		try {
-			foreach (string value in new[] { "0", ".899", "2.01", "NaN", "Infinity", "bad" }) {
+			foreach (string value in new[] { "0", ".899", "3.01", "NaN", "Infinity", "bad" }) {
 				bool rejected = false;
 				try { Set(LpDemandCalibration.Switch + value); } catch (ArgumentException) { rejected = true; }
 				Check(rejected, "invalid factor " + value);
@@ -61,6 +61,24 @@ public static class LpDemandCalibrationChecks {
 			try { LpDemandCalibration.RequireSaved(1.6); } catch (InvalidOperationException) { mismatch = true; }
 			Check(mismatch, "resume refuses a save without stores-only");
 			LpDemandCalibration.RequireSaved(1.6, true);
+			// --lp-demand-scale-known: an act's LP takes 1 + (S - 1) x Known; Known 1 is the flat scale.
+			bool knownOrphan = false;
+			try { Set(LpDemandCalibration.KnownSwitch); } catch (ArgumentException) { knownOrphan = true; }
+			Check(knownOrphan, "known weighting needs an active scale");
+			Set(LpDemandCalibration.Switch + "1.6", LpDemandCalibration.StoresOnlySwitch);
+			Check(LpDemandCalibration.ApplyStore(100f, 0f) == 160f && LpDemandCalibration.ApplyStore(100f, 0f) == LpDemandCalibration.Apply(100f),
+				"without the switch the store scale ignores Known");
+			Set(LpDemandCalibration.Switch + "2.5", LpDemandCalibration.StoresOnlySwitch, LpDemandCalibration.KnownSwitch);
+			Check(LpDemandCalibration.ApplyStore(100f, 0f) == 100f && LpDemandCalibration.ApplyStore(100f, 1f) == 250f &&
+				LpDemandCalibration.ApplyStore(100f, .5f) == 175f && LpDemandCalibration.ApplyStore(100f, 2f) == 250f, "store scale is 1 + (S - 1) x Known, clamped");
+			Check(AlbumSimulator.CalculateRawDemandBeforeCannibalization(2000, .4f, .095f, 0f) == 2000 * .4f * .095f,
+				"an unknown act's LP takes no scale");
+			Check(LpDemandCalibration.ApplyNonStore(100f) == 100f, "known weighting leaves rack demand");
+			Check(WorldStateService.Capture().LpDemandScaleKnown == true, "known weighting is captured");
+			bool knownMismatch = false;
+			try { LpDemandCalibration.RequireSaved(2.5, true); } catch (InvalidOperationException) { knownMismatch = true; }
+			Check(knownMismatch, "resume refuses a save without known weighting");
+			LpDemandCalibration.RequireSaved(2.5, true, true);
 		} finally { LpDemandCalibration.ResetForChecks(); LpDemandCalibration.Configure(OS.GetCmdlineUserArgs()); }
 		GD.Print($"LP_DEMAND_CALIBRATION_CHECKS_OK {checks}");
 	}

@@ -27,12 +27,15 @@ param(
 # rk = lwbr + --rack-store-standing-bound=2 (issue 2). bb = lwbr + --budget-source-bound=1 (issue 3a).
 # fm2 = fa + TraditionalPop=0.41,EasyListening=0.28,Classical=0.60 (run with -LpScale 1.8 to restore store volume).
 # bk = lwbr with --budget-appeal-saturation=100000 (issue 3b). -Extra adds flags to every arm.
+# kn = the reference (run against candidate-request.json, which carries lwbr + --budget-source-bound=1 since 2026-11-15)
+# with --lp-demand-scale-known, and the reference's --lp-demand-scale replaced by -LpScale (audit 2.12).
+# sc = the reference with its --lp-demand-scale replaced by -LpScale only (audit 2.15).
 # Run eo against -Reference SimLogs/writing-calibration/candidate-request.json with -RunPrefix cand-v1.
 # All arms in -Arms start at once and are awaited; run two at a time on a low-RAM machine.
 $ErrorActionPreference = 'Stop'
 # -File passes 'base,gap' as one string; split it and check each arm.
 $Arms = @($Arms | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw', 'bn', 'bns', 'lwb', 'lwbs', 'lwbr', 'lref', 'fa', 'fm', 'rk', 'bb', 'bk', 'all', 'fm2')) { throw "Unknown arm: $a" } }
+foreach ($a in $Arms) { if ($a -notin @('off', 'le', 'lep', 'an', 'rc', 're', 'eo', 'lw', 'bn', 'bns', 'lwb', 'lwbs', 'lwbr', 'lref', 'fa', 'fm', 'rk', 'bb', 'bk', 'all', 'fm2', 'kn', 'sc')) { throw "Unknown arm: $a" } }
 $Extra = @($Extra | ForEach-Object { $_ -split ',(?=--)' } | Where-Object { $_ })
 $handoff = @('lref', 'fa', 'fm', 'fm2', 'rk', 'bb', 'bk', 'all')
 $root = Split-Path -Parent $PSScriptRoot
@@ -49,8 +52,13 @@ foreach ($arm in $Arms) {
     $name = "$RunPrefix-$Seed-$arm"
     if (Get-ChildItem -LiteralPath (Join-Path $root 'SimLogs') -Filter "$name-*.csv*" | Select-Object -First 1) { throw "Run exists: $name" }
     $flags = @($referenceRequest.flags | ForEach-Object {
-        if ($_ -like '--run=*') { "--run=$name" } elseif ($_ -like '--seed=*') { "--seed=$Seed" } elseif ($_ -like '--weeks=*') { "--weeks=$Weeks" } else { $_ }
+        if ($_ -like '--run=*') { "--run=$name" } elseif ($_ -like '--seed=*') { "--seed=$Seed" } elseif ($_ -like '--weeks=*') { "--weeks=$Weeks" }
+        elseif ($arm -in @('kn', 'sc') -and $_ -like '--lp-demand-scale=*') { "--lp-demand-scale=$($LpScale.ToString([Globalization.CultureInfo]::InvariantCulture))" } else { $_ }
     })
+    if ($arm -eq 'kn') {
+        if (-not ($flags -contains '--lp-demand-scale-stores-only')) { throw 'kn needs a reference with the stores-only LP scale.' }
+        $flags += '--lp-demand-scale-known'
+    }
     if ($arm -in @('le', 'lep', 'lw', 'lwb', 'lwbs', 'lwbr') + $handoff) { $flags += @('--lp-earned-discovery=0', '--lp-earned-launch') }
     if ($arm -in @('lw', 'lwb', 'lwbs', 'lwbr') + $handoff) { $flags += '--lp-buyer-word-of-mouth=10000' }
     if ($arm -eq 'lep') { $flags += '--lp-label-demand-parity' }

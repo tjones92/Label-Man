@@ -3359,6 +3359,16 @@ public partial class ChartManager : Node {
 
 	public List<RecordRuntimeData> GetAllRecords() => new List<RecordRuntimeData>(allRecords);
 
+	/// <summary>--lp-launch-standing: units on this act's live records whose chart run has not yet been credited to the act
+	/// (SimulatedArtist.CompleteChartRun adds a record's units only when it leaves the chart).</summary>
+	internal long UncreditedLiveUnits(string artistId) {
+		if (string.IsNullOrEmpty(artistId)) return 0L;
+		long units = 0L;
+		foreach (RecordRuntimeData r in allRecords)
+			if (r.baseRecord?.artistId == artistId && !r.artistChartRunCompleted) units += Math.Max(0, r.totalUnitsSold);
+		return units;
+	}
+
 	public int GetCurrentChartWeek() => currentChartWeek;
 
 	public Zeitgeist GetCurrentZeitgeist() => baseZeitgeist;
