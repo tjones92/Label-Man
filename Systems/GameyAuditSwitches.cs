@@ -602,16 +602,26 @@ public static class SoundtrackPoolBreadth {
 public static class SoundtrackHitTail {
 	public const string Switch = "--soundtrack-hit-tail";
 	public const int StartWeek = 12;
-	public const int HitPeak = 10;
+	public const int DefaultHitPeak = 10;
+	// --soundtrack-hit-tail-peak=N (§25): the album chart peak that counts as a hit. On a trailing-blend chart
+	// (--album-chart-blend) few new soundtracks peak in the top 10, so the bar moves down the chart. Default 10.
+	public const string PeakSwitch = "--soundtrack-hit-tail-peak";
 	private static bool read;
 	private static float rate;
-	private static void Read() { if (!read) { rate = GameyAuditArguments.Value(Switch, 0f, 1f) ?? 0f; read = true; } }
-	internal static void SetForChecks(float value) { read = true; rate = value; }
+	private static int hitPeak;
+	private static void Read() {
+		if (read) return;
+		rate = GameyAuditArguments.Value(Switch, 0f, 1f) ?? 0f;
+		hitPeak = (int)(GameyAuditArguments.Value(PeakSwitch, 1f, 200f) ?? DefaultHitPeak);
+		read = true;
+	}
+	internal static void SetForChecks(float value, int peak = DefaultHitPeak) { read = true; rate = value; hitPeak = peak; }
+	public static int HitPeak { get { Read(); return hitPeak; } }
 	public static bool Enabled { get { Read(); return rate > 0f; } }
 	public static float Rate { get { Read(); return rate; } }
 
 	/// <summary>The divisor on a title's penetration: 1 when off, for a non-soundtrack, or for a soundtrack that has
-	/// not peaked in the top 10.</summary>
+	/// not peaked at <see cref="HitPeak"/> or better.</summary>
 	public static float Renewal(RecordRuntimeData record) {
 		if (!Enabled || record == null) return 1f;
 		Album album = record.baseRecord?.album;
@@ -733,4 +743,41 @@ public static class SoundtrackBuild {
 	public static bool Enabled { get { Read(); return weeks > 0f; } }
 	public static float Factor(float weeksSinceRelease) =>
 		!Enabled || weeksSinceRelease >= weeks ? 1f : StartShare + (1f - StartShare) * Math.Max(0f, weeksSinceRelease) / weeks;
+}
+
+/// <summary>
+/// --album-chart-blend=L (LpGenreAllocationFollowup.md §24). The album chart ranks this week's store units, and LP demand
+/// peaks at launch (the follower book is spent over three weeks), so model LPs debut at their peak inside the top half and
+/// fall: 92-223 top-10 debuts a year and 23-35 No. 1s against Billboard's ~0 and 10-12. Billboard's LP chart was compiled
+/// from dealer reports; its LPs entered at the bottom (#105-148 of 150 in 1962) and climbed. With the switch on an LP's
+/// chart points are a trailing blend, points = L x this week's points + (1 - L) x last week's blend, so a launch spike
+/// enters low and a steady seller climbs to its level over about 1/L weeks. An LP first seen at <see cref="SeedAgeWeeks"/>
+/// weeks or older (the opening catalogue, opening soundtracks) is seeded at its own points; anything younger starts at 0.
+/// Units, sales and money are untouched; chart position still feeds awareness and career reads. The blend is runtime state and is not saved (a probe for headless runs). Off: never read.
+/// </summary>
+public static class AlbumChartBlend {
+	public const string Switch = "--album-chart-blend";
+	private static bool read;
+	public const int SeedAgeWeeks = 8;
+	private static float lambda;
+	private static void Read() { if (!read) { lambda = GameyAuditArguments.Value(Switch, 0.05f, 1f) ?? 1f; read = true; } }
+	internal static void SetForChecks(float value) { read = true; lambda = value; }
+	public static bool Enabled { get { Read(); return lambda < 1f; } }
+	/// <summary>--album-chart-blend-floors-raw (§26): the album demand's chart reads (the top-10 and top-40 awareness
+	/// floors and chart discovery, <see cref="AlbumSimulator"/>) use last week's unblended sales rank instead of the
+	/// published blended position, so the blend changes what the chart shows but not who gets chart exposure at launch.
+	/// Rack access and career reads keep the published chart. Read only with the blend on.</summary>
+	public const string FloorsRawSwitch = "--album-chart-blend-floors-raw";
+	private static bool? floorsRaw;
+	public static bool FloorsRaw => Enabled && (floorsRaw ??= GameyAuditArguments.Has(FloorsRawSwitch));
+	internal static void SetFloorsRawForChecks(bool value) => floorsRaw = value;
+	/// <summary>The chart position album demand reads: the raw sales rank under the raw-floors switch, else the chart.</summary>
+	public static int DemandPosition(RecordRuntimeData record) => FloorsRaw ? record.albumRawRank : record.currentPosition;
+	/// <summary>True when an LP's first blend should start at its own points (it was already old when first seen).</summary>
+	public static bool Seeds(bool seen, int weeksSinceRelease) => !seen && weeksSinceRelease >= SeedAgeWeeks;
+	/// <summary>The next blended chart points. <paramref name="seed"/> starts the blend at this week's points.</summary>
+	public static float Next(float previous, float points, bool seed) {
+		Read();
+		return seed || lambda >= 1f ? points : lambda * points + (1f - lambda) * previous;
+	}
 }

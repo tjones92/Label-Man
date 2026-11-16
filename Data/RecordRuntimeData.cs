@@ -28,6 +28,11 @@ public class RecordRuntimeData {
 	public List<float> fitReliveAwareness;
 	// --album-scale-career-milestones: the album run's best singles-equivalent position (0 = unset). Written only on.
 	public int albumCareerPeak;
+	// --album-chart-blend: the LP's trailing-blend chart points. Written only on; runtime only (not saved).
+	public float albumChartBlend;
+	public bool albumChartBlendSeen;
+	// --album-chart-blend-floors-raw: last week's unblended album sales rank (0 = off the chart). Runtime only.
+	public int albumRawRank;
 	public bool artistChartEntryCredited;
 	public bool artistTop40Credited;
 	public bool artistTop10Credited;

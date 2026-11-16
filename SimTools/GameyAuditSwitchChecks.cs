@@ -103,6 +103,9 @@ public static class GameyAuditSwitchChecks {
 				Check(SoundtrackHitTail.Renewal(st) == 1f, "no renewal before week 12");
 				st.weeksSinceRelease = 32; st.peakPosition = 11;
 				Check(SoundtrackHitTail.Renewal(st) == 1f, "a soundtrack outside the top 10 is untouched");
+				SoundtrackHitTail.SetForChecks(0.05f, 20);
+				Check(Near(SoundtrackHitTail.Renewal(st), 2f), "a lower hit bar renews a #11 soundtrack");
+				SoundtrackHitTail.SetForChecks(0.05f);
 				st.peakPosition = 4; st.baseRecord.album.albumFormat = AlbumFormat.Standard;
 				Check(SoundtrackHitTail.Renewal(st) == 1f, "a non-soundtrack is untouched");
 				SoundtrackHitTail.SetForChecks(0f);
@@ -138,6 +141,21 @@ public static class GameyAuditSwitchChecks {
 				SoundtrackBuild.SetForChecks(16f);
 				Check(Near(SoundtrackBuild.Factor(0f), 0.35f) && Near(SoundtrackBuild.Factor(8f), 0.675f) && SoundtrackBuild.Factor(16f) == 1f && SoundtrackBuild.Factor(40f) == 1f, "build from .35 to 1 over B weeks");
 				SoundtrackBuild.SetForChecks(0f);
+				AlbumChartBlend.SetForChecks(1f);
+				Check(!AlbumChartBlend.Enabled && AlbumChartBlend.Next(5000f, 9000f, false) == 9000f, "off ranks this week's points");
+				AlbumChartBlend.SetForChecks(0.25f);
+				Check(Near(AlbumChartBlend.Next(0f, 8000f, false), 2000f) && Near(AlbumChartBlend.Next(4000f, 8000f, false), 5000f)
+					&& AlbumChartBlend.Next(0f, 8000f, true) == 8000f, "blend enters low and climbs; seeded LPs start at their points");
+				Check(AlbumChartBlend.Seeds(false, 120) && !AlbumChartBlend.Seeds(false, 0) && !AlbumChartBlend.Seeds(true, 120), "only old LPs first seen are seeded");
+				{
+					var lp = new RecordRuntimeData { currentPosition = 35, albumRawRank = 4 };
+					AlbumChartBlend.SetFloorsRawForChecks(true);
+					Check(AlbumChartBlend.DemandPosition(lp) == 4, "raw floors read the unblended rank");
+					AlbumChartBlend.SetForChecks(1f);
+					Check(AlbumChartBlend.DemandPosition(lp) == 35, "blend off: demand reads the chart whatever the floors flag");
+					AlbumChartBlend.SetFloorsRawForChecks(false);
+				}
+				AlbumChartBlend.SetForChecks(1f);
 				ExternalMediaProfile op = ExternalMediaService.GenerateOpeningProfile(blockbuster: true);
 				Check(op.isBlockbuster && op.boxOfficeTrajectory >= 0.85f && op.sourceType != ExternalMediaSourceType.FilmSong,
 					"opening soundtrack is a hit cast or film album");

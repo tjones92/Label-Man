@@ -1386,9 +1386,29 @@ public partial class ChartManager : Node {
 		OnChartCalculated?.Invoke(new List<RecordRuntimeData>(currentChart));
 
 		int albumChartSize = GetAlbumChartSize(TimeManager.Instance?.CurrentDate ?? new GameDate(year, 1, 1));
+		Func<RecordRuntimeData, float> albumPoints = AlbumSimulator.CalculateChartPoints;
+		// --album-chart-blend: rank LPs on a trailing blend of their weekly points. Off: not read.
+		if (AlbumChartBlend.Enabled) {
+			foreach (var record in allRecords) {
+				if (record.baseRecord.format != ReleaseFormat.Album) continue;
+				bool seed = AlbumChartBlend.Seeds(record.albumChartBlendSeen, record.weeksSinceRelease);
+				record.albumChartBlend = AlbumChartBlend.Next(record.albumChartBlend, AlbumSimulator.CalculateChartPoints(record), seed);
+				record.albumChartBlendSeen = true;
+			}
+			albumPoints = record => record.albumChartBlend;
+			// --album-chart-blend-floors-raw: keep the unblended sales rank for the album demand's chart reads.
+			if (AlbumChartBlend.FloorsRaw) {
+				int rank = 0;
+				foreach (var record in allRecords
+					.Where(record => record.baseRecord.format == ReleaseFormat.Album)
+					.OrderByDescending(record => record.unitsThisWeek > 0 ? AlbumSimulator.CalculateChartPoints(record) : -1f)
+					.ThenByDescending(record => record.unitsThisWeek))
+					record.albumRawRank = record.unitsThisWeek > 0 && ++rank <= albumChartSize ? rank : 0;
+			}
+		}
 		var albumRanking = allRecords
 			.Where(record => record.baseRecord.format == ReleaseFormat.Album && record.unitsThisWeek > 0)
-			.OrderByDescending(AlbumSimulator.CalculateChartPoints)
+			.OrderByDescending(albumPoints)
 			.ThenByDescending(record => record.unitsThisWeek)
 			.Take(albumChartSize + BubblingUnderSize)
 			.ToList();

@@ -59,7 +59,8 @@ public static class AlbumSimulator {
 		if (LpFloorProbe.Enabled && record.weeksSinceRelease > 12 && LpFloorProbe.Tail(record.baseRecord.artistId)) campaignAge = 0f;
 		record.currentLabelPush = campaign * campaignAge;
 		record.totalLabelInvestment += record.currentLabelPush;
-		float chartDiscovery = record.currentPosition > 0 ? Mathf.Clamp((201f - record.currentPosition) / 200f, 0f, 1f) * 0.025f : 0f;
+		int chartPosition = AlbumChartBlend.DemandPosition(record);
+		float chartDiscovery = chartPosition > 0 ? Mathf.Clamp((201f - chartPosition) / 200f, 0f, 1f) * 0.025f : 0f;
 		float unconditional = 0.004f + appeal * 0.012f;
 		// --lp-earned-discovery: an act nobody knows keeps only a share of the unconditional term. Off: never read.
 		if (LpEarnedDiscovery.Enabled && !string.IsNullOrEmpty(record.baseRecord.artistId))
@@ -102,8 +103,9 @@ public static class AlbumSimulator {
 		bool broadSoundtrack = SoundtrackPoolBreadth.Enabled && album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null;
 		if (broadSoundtrack) buyerPool *= SoundtrackPoolBreadth.Breadth;
 		float awareness = record.awareness * 0.45f + data.awareness * 0.55f;
-		if (record.currentPosition > 0 && record.currentPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
-		else if (record.currentPosition > 0 && record.currentPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
+		int floorPosition = AlbumChartBlend.DemandPosition(record);
+		if (floorPosition > 0 && floorPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
+		else if (floorPosition > 0 && floorPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
 
 		int regionalCumulativeUnitsBeforeSale = data.unitsSoldTotal;
 		float observedPenetration = regionalCumulativeUnitsBeforeSale / Mathf.Max(1f, buyerPool);
@@ -268,8 +270,9 @@ public static class AlbumSimulator {
 	// read from the bonus-free paths. A region opened after launch has no bonus to remove.
 	internal static float CalculatePromoShadowAwareness(RecordRuntimeData record, RegionalRecordData data) {
 		float awareness = (record.promoShadowAwareness ?? record.awareness) * 0.45f + (data.promoShadowAwareness ?? data.awareness) * 0.55f;
-		if (record.currentPosition > 0 && record.currentPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
-		else if (record.currentPosition > 0 && record.currentPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
+		int floorPosition = AlbumChartBlend.DemandPosition(record);
+		if (floorPosition > 0 && floorPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
+		else if (floorPosition > 0 && floorPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
 		return awareness;
 	}
 
