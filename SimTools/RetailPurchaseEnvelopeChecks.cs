@@ -76,6 +76,12 @@ public static class RetailPurchaseEnvelopeChecks {
                 "westcoast"=>R(id,20.3f,.82f,1.18f,.38f), "deepsouth"=>R(id,15.0f,.48f,.78f,.40f), "rockies"=>R(id,4.6f,.58f,.95f,.39f),
                 _=>R(id,14.2f,.62f,.90f,.41f) }).ToArray();
             double buyersBefore=regions.Sum(r=>(double)r.GetRecordBuyingPopulation());
+            // --census-specialist-priors (§31) rescales the specialist priors by census / authored population, valid only if
+            // each authored prior is that region's authored population x buying fraction.
+            Check(regions.All(r=>Math.Abs(GenreAcceptanceService.AuthoredSpecialistPriorForChecks(r.regionId)
+                    -GenreAcceptanceService.AuthoredRegionPopulationForChecks(r.regionId)*r.GetBuyingPopulationPercentage())<1e-5
+                    && GenreAcceptanceService.AuthoredRegionPopulationForChecks(r.regionId)==r.population),
+                "Specialist priors are authored population x buying fraction");
             try {
                 CensusPopulation.ApplyCore(regions);
                 var south=regions.Single(r=>r.regionId=="deepsouth");

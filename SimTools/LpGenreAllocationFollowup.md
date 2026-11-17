@@ -1972,3 +1972,56 @@ The `cenbwr` package is on the candidate (`SimLogs/writing-calibration/candidate
 Check: `adcen-2002-sc` (candidate, 27 weeks, no probe flag) matches `cenbwr-2002-sc` byte for byte on all 116 common
 weekly streams; the 26 that differ are end-of-run snapshots. `--lp-purse-adult-weight` (§29) is not adopted: it was
 not in the screened arms.
+
+## 31. Specialist texture centred on census buyers; Southern labels as exporters (2026-11-16)
+
+### `--census-specialist-priors`
+
+`GenreAcceptanceService.SpecialistBuyingPopulationPriors` (the weights that centre the Country, TexMex and Boogaloo
+regional texture to one national opportunity, and the specialist single normalizer) were authored population ×
+`GetBuyingPopulationPercentage`. New opt-in switch `--census-specialist-priors` (requires `--census-population`)
+rescales each prior by census / authored population; the buying fraction does not change under the census. Check: the
+authored priors equal authored population × buying fraction to 1e-5 (`--retail-purchase-envelope-check`, 4,026 pass).
+
+Predicted size: on census buyers the authored centring leaves national acceptance at 1.021 (Country), 1.016 (TexMex),
+0.985 (Boogaloo); Deep South Country texture 1.38 → 1.35, East Coast 0.85 → 0.83.
+
+`csp` = candidate (census package adopted) + `--census-specialist-priors` + `--regional-home-sales`, 104 weeks; control
+`cenbwr`.
+
+| Three-seed mean | `bsc13` (pre-census) | `cenbwr` | `csp` | target |
+|---|---|---|---|---|
+| Country 1960 (2002 / 1001 / 3003) | 8.5 / 11.5 / 8.4 | 9.6 / 11.9 / 9.4 | 8.2 / 10.1 / 9.7 | 8.4 |
+| Country 1961 | 8.5 / 13.9 / 9.8 | 11.4 / 12.5 / 11.9 | 11.1 / 11.2 / 11.6 | 8.3 |
+| TexMex 1960 / 1961 | 0.11 / 0.11 | 0.08 / 0.15 | 0.06 / 0.16 | 0.23 / 0.24 |
+| LatinPop 1960 / 1961 (not a specialist) | 0.17 / 0.30 | 0.46 / 0.53 | 0.41 / 0.21 | 0.91 / 0.95 |
+| Genre share error 1960 | 22.9 | 27.2 | 28.2 | |
+| Genre share error 1961 | 25.4 | 27.9 | **25.5** | |
+
+- Country moves the predicted way on 5 of 6 seed-years (paired −1.4 / −1.8 / +0.3 in 1960, −0.3 / −1.3 / −0.3 in
+  1961): 1960 is back to the pre-census control, 1961 sits 0.6 over it. The rest of the 1961 Country excess (10.7
+  control, 8.3 target) predates the census.
+- TexMex and LatinPop are under a quarter of a point and move inside noise; both are under target by half in every
+  arm, a supply question rather than centring. Boogaloo emerges in 1966 and cannot be screened at 104 weeks.
+- The 1961 genre error returns to the control; the 1960 rise (+1.0) is seed 3003 and 1001 outside the specialists.
+- **Recommendation:** adopt as the census package's correctness fix (it removes an authored-population weight the
+  census made stale). **Adopted on the candidate 2026-11-16** (backup `candidate-request-pre-specialist-2026-11-16.json`).
+
+### Why Southern labels are exporters
+
+- **The lease route is on the candidate** (`--lp-retail-v2-profile` expands to `--ai-master-deals`,
+  `--ai-master-national-pickups`, `--ai-master-capacity-decisions`), but fires 15 / 11 / 22 times in 104 weeks
+  (`cenbwr`), 6 / 1 / 7 for Southern sellers: a seller accepts only when it cannot fund replenishment, and small labels
+  reach national distribution on their own first (64% sign a P&D deal in year one; the deal gate is a launch-ramp bar).
+- **Southern small labels' singles are 76–81% charted units** (`label-sales-weekly`, 1961, `rhsc`), the same as other
+  small labels, so their export share is that of a national chart record in a South with 14% of buyers.
+- **Chart coverage:** Deep South labels hold 6–13% of Hot 100 record-weeks in `bsc13` and 9–18% in `cenbwr`.
+  An unverified count of the 1960–61 year-end Top 100 on Deep South labels (Hi, Monument, Rita, Minit, Instant,
+  Satellite, Hickory) is about 5 and 7 records; regional hits that went national were often leased to Northern labels
+  (Satellite → Atlantic "Gee Whiz", Dot's licensing of local masters) and are booked there. Outside their hits,
+  Southern labels' catalogues sold through regional channels (WLAC mail order via Ernie's Record Mart, Randy's;
+  Excello/Nashboro, Starday, Peacock).
+- **Reading:** the model has the South's national hits but not its regional catalogue or the lease hand-off. The lever
+  is the P&D deal gate (history suggests 5–15% of small labels a year, against 64%), which would keep non-hit records
+  home and route breakouts through the existing lease path. A whole-economy change; needs its own screen and a labelled
+  1960–61 Hot 100 count as the target.
