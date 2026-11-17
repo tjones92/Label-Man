@@ -190,6 +190,8 @@ public static class LabelReleaseProgramme {
 		var tier = label.tier == LabelTier.Major ? (MajorSinglesPerMonth, MajorAlbumsPerMonth) :
 			(label.releasesPerMonth * (UsesWorkBudget(label) ? WorkBudgetFor(label) : .67f), label.releasesPerMonth * .33f);
 		float singles = UsesActCadence(label) ? ReleaseEligibleActs(label) * (52f / 12f) / ActCadenceWeeks : tier.Item1;
+		// --earned-head-capacity: a non-Major's singles capacity rises with its own recent Hot 100 records. Off: identity.
+		singles = EarnedHeadCapacity.Singles(label, singles, MajorSinglesPerMonth);
 		return (singles, LpCapacityScreen.AlbumRate(label, tier.Item2));
 	}
 	// --programme-act-cadence=W: an AI label plans one single per release-eligible signed act every W weeks, whatever its

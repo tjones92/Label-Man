@@ -86,6 +86,8 @@ public static class FootprintCraftSoftening {
 	/// <paramref name="week"/> reads the larger lift. Reads the act's clock only while that switch is on.</summary>
 	public static float Craft(float quality, ReleaseFormat format, AILabel label, SimulatedArtist artist, int week) {
 		EnsureConfigured();
+		// --midtier-hit-act-package=craft: a MidTier's hot act reads the reference; off, the input unchanged.
+		quality = MidTierHitActPackage.CraftRead(quality, format, label, artist, week);
 		float floor = CraftFloor;
 		if (HitActCraftFloor > floor && format == ReleaseFormat.Single && quality < CraftReference && HitActLift(label, artist, week))
 			floor = HitActCraftFloor;

@@ -53,7 +53,9 @@ public static class AILabelFactory {
 	// EMI and Decca UK were corporate majors with full value-chain control; Parlophone
 	// was an EMI imprint and Pye an independently distributed operation. The
 	// parent/imprint ontology problem is tracked separately in the handoff.
-	internal static int DeferredBritishCount => BritishLabelDeferral.Enabled ? britishTemplates.Length : 0;
+	// --historical-majors also drops them: the London templates are legacy and never part of the 1960 US game.
+	private static bool DefersBritish => BritishLabelDeferral.Enabled || HistoricalMajors.Enabled;
+	internal static int DeferredBritishCount => DefersBritish ? britishTemplates.Length : 0;
 	private static readonly LabelTemplate[] britishTemplates = {
 		new LabelTemplate("Parlophone", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }),
 		new LabelTemplate("Decca UK", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }, LabelTier.Major),
@@ -144,7 +146,7 @@ public static class AILabelFactory {
 		foreach (var template in indieTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in britishTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
 		// Deferred London labels are still drawn, then dropped, so every other label keeps its id and traits.
-		List<AILabel> deferredBritish = BritishLabelDeferral.Enabled ? labels.Skip(labels.Count - britishTemplates.Length).ToList() : null;
+		List<AILabel> deferredBritish = DefersBritish ? labels.Skip(labels.Count - britishTemplates.Length).ToList() : null;
 		foreach (var template in countryTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in folkTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Boutique, ref idCounter));
 		foreach (var template in jazzTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Boutique, ref idCounter));
@@ -208,8 +210,10 @@ public static class AILabelFactory {
 		label.status = LabelStatus.Stable;
 		if (StudioParentLabels.Enabled) label.studioParent = StudioParentLabels.ParentFor(template.baseName);
 		
-		label.preferredGenres = template.genres;
-		label.secondaryGenres = GetRelatedGenres(template.genres[0]);
+		// --historical-majors: the five Major templates carry their 1960 repertoire (HistoricalMajors.GenresFor).
+		Genre[] genres = (HistoricalMajors.Enabled && tier == LabelTier.Major ? HistoricalMajors.GenresFor(template.baseName) : null) ?? template.genres;
+		label.preferredGenres = genres;
+		label.secondaryGenres = GetRelatedGenres(genres[0]);
 		
 		ApplyTierStats(label, tier, template.archetype, template.headScale);
 		if (template.lowCash) label.cashReserves = LabelStartingFinances.Cash(LabelTier.Major, 0.0);
@@ -392,7 +396,8 @@ public static class AILabelFactory {
 	// large firms, so the procedural draw only tops them up.
 	private static LabelTier GetRandomTier() {
 		float roll = GameRandom.Randf();
-		if (roll < 0.002f) return LabelTier.Major;
+		// --historical-majors: no procedural firm opens as a Major; the band becomes MidTier (same draw consumed).
+		if (roll < 0.002f) return HistoricalMajors.Enabled ? LabelTier.MidTier : LabelTier.Major;
 		if (roll < 0.035f) return LabelTier.MidTier;
 		if (roll < 0.365f) return LabelTier.Independent;
 		if (roll < 0.795f) return LabelTier.Small;

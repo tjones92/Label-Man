@@ -2700,3 +2700,675 @@ mostly flops, are observed first.
 five-year closures, Major LPs a label a year against bsnpubs 143–209), which also shows the memory past its first
 year. If labels with 2–3 LPs still drift low there, give them a prior variance (σ²₀ ≈ 2, the pooled log spread) blended
 with their own until they have about 5 LPs.
+
+## 46. 260-week check of the LP package; adopted (2026-11-17)
+
+Package: `--lp-reception-sigma=1.5 --lp-label-price-share=0.50 --earned-lp-forecast --earned-lp-forecast-log`
+(§41, §42, §44–45). Runs: `gfo260` (control: the candidate plus `--regional-home-sales`, from §40), `lrs260` (+ σ 1.5
+only), `pkg260` (+ the package). All 260 weeks, seeds 2002 / 1001. Scripts: `SimTools/analyze_lp_package_260.py`
+(yearly market, Major LPs per Major label, small-label LP share, cumulative closures), `analyze_riaa_1963_cohort.py`,
+`analyze_closure_horizon.py`, `analyze_earned_lp_telemetry.py`.
+
+**RIAA 1963 cohort** (LPs released in 1963, sales to the end of 1964):
+
+| | < 2k | < 4k | 10–50k | 300k+ | fail | fail + overhead |
+|---|---|---|---|---|---|---|
+| RIAA | 35.8% | 48.8% | 22.9% | 1.4% | 61% | (included) |
+| `gfo260` | 11.3% | 25.2% | 43.4% | 0.0% | 20% | 26% |
+| `lrs260` | 36.2% | 49.4% | 24.8% | 0.4% | 51% | 56% |
+| `pkg260` | **34.0%** | **47.3%** | **26.9%** | 0.4% | **55%** | **61%** |
+| `pkg260` Major + MidTier | 21.6% | 33.2% | 34.7% | 0.7% | 57% | 66% |
+
+| Mean of 2002 / 1001 | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| LP market (M), `gfo260` / `lrs260` / `pkg260` | 144.3 / 144.9 / 136.6 | 172.6 / 171.8 / 166.5 | 176.3 / 175.0 / 175.2 | 173.1 / 172.8 / 172.0 | 167.7 / 167.7 / 167.4 |
+| Major LPs per Major label (bsnpubs 143–209) | 65 / 64 / 38 | 125 / 112 / 95 | 170 / 156 / **150** | 182 / 181 / **157** | 186 / 182 / **164** |
+| Small-label share of LP units | 29.6 / 23.0 / 32.8% | 28.1 / 26.7 / 31.1% | 23.6 / 22.2 / 24.9% | 21.9 / 18.9 / 24.0% | 21.1 / 20.1 / 22.6% |
+| Labels defunct, cumulative | 14.5 / 19.5 / 19.5 | 75 / 100.5 / 108.5 | 107.5 / 163 / 180 | 124 / 208.5 / 227.5 | **152.5 / 261 / 287.5** |
+| Record gross ($M) | 291.5 / 291.8 / 230.4 | 374.0 / 371.2 / 299.1 | 387.6 / 382.9 / 317.9 | 384.2 / 382.5 / 317.5 | 379.7 / 381.0 / 317.8 |
+
+Opening procedural labels defunct by week 260, seeds 2002 / 1001: Independent 11 / 14% (`gfo260`), 21 / 30%
+(`lrs260`), 30 / 31% (`pkg260`); Boutique 16 / 11%, 30 / 28%, 25 / 31%; Small 29 / 32%, 46 / 45%, 49 / 50%. Runtime births
+rise with the closures (179 / 186 → 255 / 286 → 288 / 292): the field churns and refills rather than thinning out.
+
+- **The LP shape is on the survey.** Under 2k / under 4k / fail are 34 / 47 / 55% against 36 / 49 / 61%, and 61% with
+  overhead. A 300k+ tail now exists (0.4%; RIAA 1.4%).
+- **The LP market holds from 1962** (−0.6% to −0.2%). The first two years are down 5.3% / 3.5% because the memory first
+  learns at week 53, so in 1960 Majors face the lower price on the raw prior (38 LPs a label against 65).
+- **Major LP counts are inside the sourced range** in 1962–64 (150–164 a label a year). That is about 10% below the
+  control, which ran near the top of the range.
+- **The closures are σ's.** σ 1.5 alone takes cumulative closures from 152.5 to 261. The margin and the earned forecast
+  add 26 more. They are earned on LP flops in the sense of §40: no-hit labels can now fail, the flop share is on
+  RIAA, and the market holds.
+- **Record gross is −17% at the label.** That is the intended effect: labels book about 0.45–0.50 of list rather than
+  the dealer share. The `gross` column is label receipts, not consumer spending.
+- **Watch:** on seed 1001 one procedural opening Major (`label_0088`, $130k opening cash) never builds cash at the
+  lower margin. It is demoted to MidTier and goes bankrupt in week 83; on the control it holds $2.5M by week 79. Other
+  watch items: procedural MidTier closures (seed 1001, 77%, n 13, ~equal to σ-only 85%) and the 1960 Major LP dip.
+- **Memory at 260 weeks** (`pkg260` telemetry): Majors learn 2.56 (pooled 2.13; median 497 LPs observed), Independents
+  0.79 (0.91, 8 LPs), Boutiques 0.95 (1.10, 11), Small 0.39 (0.59, 3). Small labels with 2–3 LPs still learn low.
+
+**Adopted.** The four flags are added to `SimLogs/writing-calibration/candidate-request.json` (251 flags; previous:
+`candidate-request-pre-lp-margin-2026-11-17.json`). Open items: the opening-Major cash fragility at the lower margin
+(`realistic-opening-cash-needs-credit`), a prior spread for labels with fewer than ~5 LPs, and the 1960–61 Major LP dip
+before the memory learns.
+
+## 47. The §46 open items: who closes, the seed 1001 Major, few-LP labels, the 1960 Major LP dip (2026-11-17, read-only)
+
+All on the §46 runs (`gfo260`, `lrs260`, `pkg260`; seeds 2002 / 1001). New script: `SimTools/analyze_closure_economy.py RUN ...`
+(closed labels by tier at closure: ever charted, LPs and singles issued, net by format, exit reasons; per year Hot 100
+entries by tier family, firms charting, C4, distinct acts releasing, singles).
+
+### Are the doubled closures flops, and do they touch the economy?
+
+Small labels (Independent / Boutique / Small at birth, opening and runtime), closed by week 260, split by whether the
+label ever issued an LP that lost money (`release-outcomes` realized net < 0):
+
+| Closed / labels, seeds 2002 · 1001 | had a losing LP | LPs, none lost | never issued an LP |
+|---|---|---|---|
+| `gfo260` | 29 / 459 · 18 / 442 (**4–6%**) | 19 / 166 · 27 / 194 (11–14%) | 92 / 111 · 99 / 114 (83–87%) |
+| `lrs260` (σ 1.5) | 110 / 592 · 125 / 605 (19–21%) | 13 / 69 · 15 / 73 | 114 / 151 · 123 / 172 |
+| `pkg260` (package) | 139 / 612 · 127 / 599 (**21–23%**) | 13 / 74 · 19 / 84 | 116 / 159 · 133 / 173 |
+
+- **The extra closures are the labels with losing LPs.** That group goes from about 24 closures a seed to 133. Labels
+  whose LPs all made money close no more often (23 → 16 a seed), and labels that never issued an LP close at a steady 73–87%.
+  Half the exits are bankruptcies and half are `Dormancy`: 12 quiet months, solvent, and too little free cash for a
+  production (`FounderLabelLifecycle`). That is the same cash run-out, ending one step before bankruptcy.
+- **Of the closed small labels, 98% never held $50k.** The mean closer issued 1.6 LPs and 7 singles, and 10% ever charted.
+  No Major closed in any run. MidTier closures went 9.5 → 12.5 a seed.
+- **The market holds.** Singles are unchanged (a fixed purse), the LP market is −0.2% by 1964 (§46), and C4 stays at 0.27–0.31.
+  The Major + MidTier share of Hot 100 entries in 1964 is 55.5% control and 57.2% package, with the seeds split (2002 +7, 1001 −4).
+- **What does move is breadth.** Firms charting in 1964: 196.5 → 179.5 (−9%). Distinct acts with a release in 1964:
+  3,433 → 2,864 (−17%), of which acts on small labels 2,380 → 1,939. σ alone does half of each (179.0, 3,134). Births refill
+  the field, but each new label carries a short roster. This is the cost of the package, and it is earned: fewer labels
+  survive their flops, so fewer acts get a record out. No period target exists for it yet.
+
+### Seed 1001, `label_0088` (Twister Records, procedural opening Major)
+
+- **Five of six procedural opening Majors grow under the package** ($1.3–4.7M by week 104), including `label_0312`, which
+  opens with less cash ($94k). Opening cash alone does not explain the failure.
+- **It is the weakest opening Major on either seed.** First-month revenue is $182k under the package; the next lowest of
+  16 Majors is $262k. It earns on 4 career acts (3 Rising, 1 Star). Its 12 NewSignings fail the gate at both prices (0
+  commits in 1960 even on the control).
+- **It starves; it does not flop.** Its records made money (LPs +$66k on $7k production, singles +$51k). From week 6 the
+  commitment reserve refuses releases: overhead, plant payables, tax reserve and programme slots, all its own
+  obligations. That includes a Rising act's LP in week 11. With fewer releases revenue falls ($93k → $20k a month by
+  week 32) and the label turns `Struggling` (fewer release attempts), then is demoted and goes bankrupt in week 83. It
+  never signs after week 13 (control: P&D clients from week 35).
+- **The failure falls inside the 1960 dip window** (below): its Rising LP forecasts are on the unlearned prior
+  ($3.3k album profit against $5.6k on the control). A fix for the dip should save it. No separate change is proposed.
+
+### Small labels with 2–3 LPs learn low: correct, not bias
+
+Replaying the log estimator on the `pkg260` telemetry, small labels grouped by how many LPs the memory saw by week 260:
+
+| Small-tier labels, seeds 2002 · 1001 | closed: pooled sold / forecast | alive: pooled (born after wk 104) | learned ratio (median) |
+|---|---|---|---|
+| 1–3 LPs | 0.28 · 0.28 | 0.60 · 0.38 (81% · 78%) | 0.25–0.35 |
+| 4+ LPs | 0.46 · 0.50 | 0.99 · 0.91 | 0.80–1.12 |
+
+- **Labels with few LPs learn about what their LPs sold.** Half of them closed after those LPs, with pooled sales 0.28 of
+  forecast. Most of the others were born after week 104 and are on their first LPs (pooled 0.38–0.60).
+- The §45 idea of a prior variance (σ²₀ 2–2.25, worth 3–5 LPs) moves the median learned ratio by 0.1 or less in every tier.
+  The within-label log spread is about 3 (σ² of the draw is 2.25), so a prior variance has little to add.
+- The release-time forecast the memory compares against is the raw prior, cached before the multiplier
+  (`CompetitorManager.CalculateAlbumPriorNet`), so there is no feedback.
+- **Closed: no change.** The tier pooled ratio (Small 0.56–0.63) is not a target for a single label. It mixes mature labels
+  near 1 with failing ones near 0.3.
+
+### The 1960–61 Major LP dip
+
+Major LPs chosen per quarter, mean of seeds (Major `AlbumStandalone` gate commit %):
+
+| Quarter | Q1 | Q2 | Q3 | Q4 | Q5 | Q6 | Q7 | Q8 |
+|---|---|---|---|---|---|---|---|---|
+| `gfo260` | 26 (68) | 188 (34) | 159 (35) | 150 (29) | 242 (31) | 232 (33) | 231 (25) | 294 (30) |
+| `pkg260` | 14 (35) | 112 (11) | 106 (13) | 72 (9) | 100 (9) | **213 (33)** | 230 (43) | 260 (45) |
+
+The dip is five quarters (weeks 1–65) at about 55% of control, and it ends in Q6. It is the §46 cause: the memory
+first observes at week 36 (early retirements) and 53, shrunk by n / (n + 4), so through 1960 the Major gate prices the RIAA
+margin on a prior that is 1.5–2.9× low (§43). Options:
+
+1. **Opening experience (warm start).** Opening labels start with k pseudo-LPs at the ratio the sim's own Majors /
+   MidTiers / small labels learn by 1962 (about 2.2 / 2–3 / 1). These labels sold LPs for years before 1960, so this is
+   memory earned before the run starts. One measured constant per tier, opening labels only; runtime births still
+   start at 1.
+2. **Earlier provisional observation.** Observe at 13 or 26 weeks, with copies scaled by a measured share of 52-week
+   sales. This is earned and needs no tier constant, but it needs per-LP weekly sales telemetry to calibrate (none of the
+   current files has it). Q1–Q2 would still be on the raw prior.
+3. **Root cause.** The Major prior leaves out what Majors sell beyond it (footprint, push;
+   `realization-premium-is-footprint-quality-heat`). Fixing that would bring the learned Major ratio to about 1. This is the
+   largest change and the most correct.
+
+**Recommendation:** (1) now, behind a switch, screened at 104 weeks on the Q1–Q5 Major LP count, the 1960 LP market,
+and `label_0088`; (3) stays the long-run fix.
+
+## 48. Is the thinner field still historical? And how many Majors did 1960 have? (2026-11-17, read-only)
+
+### Breadth against history
+
+Sim: `records.csv` weekly positions, mean of seeds 2002 / 1001, operating label. History: the Hot 100 counts come from
+`SimLogs/historical-hot100-1960-64/hot100_weekly.csv` (distinct artist strings; a duet counts as its own artist, so this
+runs slightly high). Top 10 labels come from the operating-label reconstruction (HistoricalLabelTierBalanceResearch.md
+§12–13). Top 20 labels in 1960 come from a fan tally of Billboard's 1960 charts (deaconstreet.com "Record Labels 1960"),
+which gives 55 in its text and 45 in its heading, so treat it as weak.
+
+| Per year 1960 / 61 / 62 / 63 / 64 | History | `gfo260` (control) | `pkg260` (package) |
+|---|---|---|---|
+| Labels with a Top 10 record | 49 / 51 / 53 / 54 / 55 | 62 / 53 / 54 / 60 / 57 | 61 / 61 / 49 / 58 / 56 |
+| Labels with a Top 20 record | 55 (1960 only) | 94 / 86 / 82 / 90 / 84 | 90 / 85 / 80 / 82 / 80 |
+| Distinct Hot 100 artists | 329 / 395 / 384 / 389 / 376 | 382 / 350 / 370 / 373 / 370 | 374 / 353 / 376 / 369 / 352 |
+| Distinct Hot 100 records | 683 / 783 / 768 / 754 / 811 | 669 / 630 / 648 / 655 / 660 | 668 / 636 / 641 / 642 / 653 |
+| Labels with a Hot 100 record | not found | 222 / 203 / 197 / 199 / 197 | 208 / 198 / 188 / 190 / 180 |
+
+- **Where history exists, the package stays in bounds.** Top 10 labels stay at 49–61, against 49–55, and the package is no
+  further off than the control. Hot 100 artists are 352–376, against 329–395. Top 20 labels are already too broad in both
+  arms (80–94 against 55), and the package moves them slightly toward history.
+- **Hot 100 records are about 15% short after 1960 in both arms.** The package doesn't cause this (it is −0.4% against
+  the control); the shortfall is chart turnover.
+- **No sourced figure** was found for labels on the Hot 100, labels in business, or acts with any release a year, the
+  measures that fall 9% / 17% under the package (§47). The chart-visible field is unchanged. The thinning is below the
+  chart: fewer flop-making labels survive to issue records nobody charts.
+
+### Majors in 1960
+
+The trade sense of the 1950s "majors" is six: Columbia, RCA Victor, Decca, Capitol, Mercury and MGM (history-of-rock.com,
+"The Major Record Companies"). Some accounts drop MGM and give a Big Five. The film-company labels (ABC-Paramount, Dot,
+Warner Bros., United Artists, 20th Fox) were large, corporately owned firms, but not majors in that sense.
+
+The sim opens with the five Big Five templates (`AILabelFactory.majorTemplates`; Decca UK and EMI deferred) plus the
+procedural draw `GetRandomTier` (roll < 0.002 → Major, about 1.1 expected from 553 procedural labels). §46's seeds 2002
+and 1001 each drew 3, for 8 Majors; seed 3003 drew 0. The procedural Majors' archetypes are SoulFactory ×3,
+CountrySpecialist, RockRebel and BluesRoots. **No 1960 firm like that ran at Major scale.** The large specialists of
+1960 (Vee-Jay, Chess, Atlantic, King, Starday) were independents without national branch distribution. So "the weakest
+of 8 opening Majors" (§47 said 16 by adding both seeds) means a world with 3 Majors too many, and `label_0088` should
+not have been a Major at all.
+
+**Proposed:** route the 0.002 Major roll to MidTier, or to Independent for specialist archetypes. One draw is still
+consumed, so the RNG stream keeps its shape, but every label after the first former Major reshuffles its later
+draws (memory `one-conversion-reshuffles-the-rng-stream`). That leaves a fixed 5 Majors. MGM as a sixth template is grounded
+historically, but `head-templates-crowd-the-field` warns that head capacity is paid for by small labels. Screen it on
+CR4 / CR8, Top 10 labels and the small-label Hot 100 share.
+
+## 49. `--historical-majors`: the five US majors, 1960 repertoire, no procedural Majors (2026-11-17)
+
+`Systems/HistoricalMajors.cs`, check `--historical-majors-check` (`SimTools/HistoricalMajorsChecks.cs`; passes, as do
+`--seed-head-templates-check` and `--midtier-opening-realism-check`). With the switch on:
+- **No procedural Majors.** The procedural tier draw's Major band (roll < 0.002) becomes MidTier. The same draw is
+  consumed, but the world reshuffles from the first label that drew it.
+- **The legacy London templates are dropped**, as `--defer-british-labels` does. Profile runs already drop them (596 labels).
+- **MGM stays the studio MidTier** (`--studio-parent-labels`). It was one of the 1950s "six majors" by the trade
+  definition of its own plants and distribution, but it sold through independent distributors (FilmBroadcastLabelResearch.md).
+  Here the Major tier means branch distribution and Big-5 launch reach.
+- **The five templates carry their 1960 repertoire**, TraditionalPop first for all five (`HistoricalMajors.GenresFor`):
+
+| Label | Before | 1960 repertoire (sources: the 1960 Top 10 reconstruction; label histories) |
+|---|---|---|
+| Columbia | Pop, Jazz, Folk | Pop, EasyListening (Percy Faith, Conniff), Country (Robbins, Horton, Cash), Folk (Brothers Four), Jazz |
+| RCA Victor | Pop, Country, Rock | Pop, Country (Reeves, Locklin, the Browns, Cramer), Rock (Elvis), TeenPop (Sedaka, Peterson), EasyListening (Mancini) |
+| Capitol | Pop, Jazz, Country | Pop (Sinatra, Cole, Martin), Folk (Kingston Trio), Country (Owens, Husky, Ford), EasyListening (Gleason), Jazz |
+| Decca | Pop, Country, Jazz | Pop (Crosby, McGuire Sisters), Country (Bradley's Nashville), TeenPop (Brenda Lee), EasyListening (Kaempfert) |
+| Mercury | Pop, R&B, Country | Pop (Patti Page), R&B (Benton, Washington), DooWop (Platters), TeenPop (Johnny Preston), Country (George Jones), Jazz (EmArcy) |
+
+Runs: `hm104` = the `pkg260` request (candidate + `--regional-home-sales`) + `--historical-majors`, 104 weeks, seeds 2002 / 1001;
+control `pkg260` cut at week 104 (same source revision; the switch is inert when off). Launcher
+`SimTools/run_request_arm.ps1`; script `SimTools/analyze_historical_majors.py pkg260 hm104`.
+
+| Mean of 2002 / 1001 | History | `pkg260` | `hm104` |
+|---|---|---|---|
+| Opening Majors | 5 (6 with MGM) | 8 | **5** |
+| 1960 Big-5 share of Top 10 slots | 34.2% (178 / 520) | 22.8% | **32.3%** |
+| 1960 CR4, Top 10 slots, operating label | 34.6% | 25.8% | **33.4%** |
+| 1961 Big-5 share of Top 10 slots | ~22% (1961–64 mean 21.6%) | 31.5% | **37.2%** |
+| 1961 Major-tier share of Top 10 slots | | 41.8% | 37.2% |
+| 1961 CR4 | 27.9% | 33.8% | **40.1%** (37.5 / 42.7) |
+| Labels with a Top 10 record 1960 / 1961 | 49 / 51 | 60.5 / 60.5 | 61.0 / 58.5 |
+| Labels with a Hot 100 record 1960 / 1961 | | 210.5 / 197.5 | 224.0 / 206.0 |
+| Major Hot 100 entries, 1960: Country / Teen+Rock / R&B+DooWop / EasyListening | Top 10 records: 27 / 42 / 12 / 4% | 4 / 32 / 32 / 7% | **11 / 42 / 11 / 13%** |
+| LP market 1960 / 1961, stores + racks (M) | | 70.6 / 100.4 | 75.5 / 99.9 |
+| Major LPs chosen per Major label, 1960 / 1961 | | 38.2 / 94.3 | 43.9 / 114.1 |
+| Labels defunct by week 52 / 104 | | 19.5 / 108.5 | 16.5 / 96.5 |
+
+- **1960 lands on history.** With three fewer Majors, the Big-5 recover their 1960 Top 10 share (32.3% against 34.2%) and CR4
+  goes from 25.8 to 33.4% (history 34.6%). The low control values were the LP package's 1960 Major dip (§47) with the
+  procedural Majors taking the rest.
+- **The Majors' chart repertoire moves toward history.** Before, a third of Major Hot 100 entries were R&B, carried by the
+  SoulFactory procedural Majors. Now it is 11–14%, and Country, EasyListening and TraditionalPop rise. Country is still below the
+  1960 Top 10 mix (11% of Major Hot 100 entries against 7 of 26 Top 10 records). The Top 10 is a small and different base.
+- **1961 is the known Big-5 problem, now unmasked.** The Major-tier share falls (41.8 → 37.2%), but none of it is held by a
+  non-template Major any more, so the Big-5's share rises to 37.2% and CR4 to 40.1% (history 27.9%; both seeds above).
+  The procedural Majors were diluting the Big-5's post-1960 excess (`big5-collective-share-drives-cr4`: history's majors fell
+  from 34% to 19–26% after 1960 as Liberty, Cameo-Parkway, ABC and Vee-Jay took top-4 spots). It does not recreate them.
+- **Closures fall** (−12 by week 104), and the 1960 LP market and Major LP count rise. Labels with a hit hold.
+
+**Reading:** the switch is structurally right, and 1960 now reproduces. The cost is that 1961 concentration is out of band.
+That is the open Big-5 launch-entry edge (§17k of HistoricalLabelTierBalanceResearch.md), not something this switch should
+paper over. Before adoption: a 260-week check (CR4 / Big-5 share 1962–64, closures, and whether the second rank of
+national independents forms by earned promotion).
+
+## 50. Where the 1961 Big-5 excess comes from under `--historical-majors` (2026-11-17, read-only)
+
+Runs `hm104-{2002,1001}-sc` (with `pkg260` for contrast). History is the operating-label Top 10 reconstruction
+(`SimLogs/historical-1960-top10`, `SimLogs/historical-top10-1961`; HistoricalLabelTierBalanceResearch.md §13). Script:
+`SimTools/analyze_big5_1961_excess.py RUN [RUN …]`. A "1960 hit act" is an act with any Top 10 slot in 1960.
+
+### It is not run length any more, and not conversion after entry
+
+- **Weeks per Top 10 record are historical.** Big-5 1961 Top 10 records run 4.70 / 4.85 weeks (history ~4.5), and
+  the rest of the field 4.26 / 4.28. §16's run-length explanation no longer applies. The excess is the **count**: the Big-5
+  place 40 / 41 records in the 1961 Top 10, against history's 24, out of 118 / 116 in total (history ~115).
+- **Hot 100 → Top 10 conversion is close to fair.** For 1961 Hot 100 debuts, 20.0 / 21.0% of Big-5 debuts reach the
+  Top 10 against 16.8 / 16.6% for other labels, a ratio of 1.2–1.26 (history 1.00 ± 0.18, §17aa). That is too small to
+  carry the gap.
+- **Volume goes the other way.** The Big-5 launch 11.0 / 11.6% of 1961 singles (history ~18%) and take 36–38% of Top 10
+  slots: about 5x the field's Top 10 weeks per single, against history's ~1.2x. 1960 lands on history only because both
+  errors are present: 7.4–8.0% of launches at 5.1–5.6x.
+
+### The excess is new Big-5 hit acts
+
+1961 Top 10 slots (% of 520) by who holds them:
+
+| 1961 | History | 2002 | 1001 | Sim mean | Gap |
+|---|---:|---:|---:|---:|---:|
+| Big-5, act with a 1960 Top 10 | 16.3 | 17.7 | 24.2 | 21.0 | +4.7 |
+| **Big-5, act with no 1960 Top 10** | **4.2** | 18.5 | 14.0 | **16.3** | **+12.0** |
+| Other labels, 1960 hit act | 22.9 | 18.7 | 12.7 | 15.7 | −7.2 |
+| Other labels, new hit act | 56.5 | 45.2 | 49.0 | 47.1 | −9.4 |
+| Big-5 / other 1960 hit acts | 20 / 53 | 24 / 62 | 23 / 69 | | |
+| 1961 slot-weeks per 1960 hit act, Big-5 / other | 4.45 / 2.17 | 3.83 / 1.56 | 5.48 / 0.96 | 4.66 / 1.26 | |
+
+- **Three quarters of the +16.7 is new hit acts at the Big-5.** In history, only five Big-5 records in 1961 came from acts
+  without a 1960 Top 10: Buzz Clifford, Jimmy Dean, Patsy Cline, Leroy Van Dyke and the Tokens (22 slots, two of them
+  veterans crossing over). The sim has 14–16 such acts with 73–96 slots. They are mostly NewSigning-state acts that the Big-5
+  signed or first released in 1960 (15.2 / 7.7 points; 2.3 / 5.2 points from 1961 debuts; opening-roster acts ~1). Half of
+  them had no 1960 Hot 100 entry at all. History's new hit acts of 1961 were at Liberty, Parkway, Scepter and the other
+  national independents (Bobby Vee, Chubby Checker, the Shirelles).
+- **The Big-5's carry-over is only slightly high** (4.66 slot-weeks per 1960 hit act against 4.45; seed 2002 is under). Big-5 hit
+  acts launch 5.0–5.25 singles in 1961 and put 4.1 records on the Hot 100 each (history 3.28 raw, ~2.6 chart events).
+- **The field's 1960 hit acts underproduce** (1.26 slot-weeks against 2.17). They launch 2.1–2.5 singles in 1961
+  (history 3.6–4.7), and 56–62% of Independent and 48–54% of MidTier hit acts take a performance departure by week 104,
+  against 17–26% at the Big-5. Every one of those departures is from Declining, a median 55–61 weeks after the hit. That is
+  just past `HitActCadence.RetentionWeeks` = 52, once flops (peak > 60) have run them down from Rising. The drops follow from low
+  follow-up entry; they do not cause it (`followup-gap-is-hot100-entry-via-footprint-gates`).
+
+### Why Big-5 newcomers break through
+
+Newcomer singles (NewSigning / Rising), 1960–61 pooled, Top 10 weeks per launch:
+
+| Quality | Big-5 | MidTier | Independent | Small |
+|---|---:|---:|---:|---:|
+| < 0.66 | 0.063 | 0.027 | 0.010 | 0.008 |
+| 0.66–0.70 | 0.051 | 0.247 | 0.057 | 0.018 |
+| 0.70–0.74 | 0.249 | 0.174 | 0.096 | 0.054 |
+| 0.74–0.78 | 0.190 | 0.313 | 0.139 | 0.062 |
+| 0.78+ | **0.962** | 0.675 | 0.329 | 0.107 |
+| All | **0.293** | 0.214 | 0.078 | — |
+
+- **At equal quality, a Big-5 newcomer converts like a MidTier one** (MidTier rates at the Big-5 quality mix: 0.274 against
+  0.293). Against an Independent the Big-5 gap is 0.215. About 20% of it is quality: Big-5 newcomers average 0.713
+  (production 0.748, hook 0.726) against 0.672 (0.666 / 0.693). Independent rates at the Big-5 mix give 0.121. The other
+  ~80% is the head-firm launch package that MidTiers share: campaign impact 0.55 / 0.53 against 0.36, a median first run of
+  5.5k / 5.9k against 3.3k, and all seven regions covered by peak (Big-5 newcomer entrants 7.0, Independents 5.4).
+  After entry, Big-5 newcomers peak at 26k a week against 14k.
+- **Volume turns that edge into share.** The Big-5 launch 211 newcomer singles in 1960 and 266 in 1961 (58–62% of their
+  launches), against 211–313 for all MidTiers together. With five head firms and few MidTiers, the head package mostly sits
+  on Big-5 newcomers.
+- **The genre spread is broad.** Big-5 1961 newcomer Top 10 weeks: Teen/Rock 19, EasyListening 11 (one hit), TradPop 9,
+  R&B/DooWop 8.5, Country 5. Repertoire is not the carrier: Big-5 Teen/Rock launches are the same count with and without the
+  switch (154 / 162), and the doubled Teen/Rock Top 10 share under `hm104` comes with a higher senior share at the same quality.
+
+### One firm carries it
+
+1961 Top 10 slots per Big-5 firm (2002 / 1001; history): Columbia 12 / 13 (23), **RCA Victor 74 / 111 (44)**, Capitol
+0 / 0 (0), Decca 55 / 43 (28), Mercury 47 / 32 (12). Capitol's blank 1961 is historical. Columbia is short; RCA is 1.7–2.5x
+history, and Decca and Mercury are about 2–3x. RCA's 1961 slots in seed 1001 come from 13 acts. Most are Rising or
+Established youth acts first released in 1960. Under `pkg260`, the leading firm was Columbia (seed 2002) or Mercury (seed
+1001), so which firm leads is seed noise. A runaway leader with no national independent answering it is the shape that
+recurs. The best non-Big-5 firm holds 19 / 36 slots (history: Liberty 42, Parkway 31).
+
+### Reading
+
+The 1961 excess is a **Big-5 farm system that history did not have**. The majors sign newcomers at volume. At equal quality
+each one launches with the same package as a MidTier newcomer, but with ~0.04 more production quality, so they mint
+three to four times history's new Big-5 hit acts. History's 1961 new hit acts came from the national independents, which
+the sim lacks at head scale (§17k). The field's 1960 hit acts then fade and are dropped about a year later. That is a
+second, smaller part (−7 points), and it is the known follow-up entry gap.
+
+Levers tried before (§17n–17o launch saturation, which cut newcomer slots and put 1961 CR4 in band; stock spread, demand
+parity, push spread, earned impact) have all acted on this same newcomer package. The adopted caps already equalize Big-5
+and MidTier impact (0.55). What remains unscreened is the **allocation**. History's majors put promotion and singles slots
+behind roster acts and gave unknowns a release without a campaign. **Proposed probe, not built:** a Major-tier newcomer
+package (`--major-newcomer-package=F`) that moves campaign impact and first-run stock for NewSigning launches at Major-tier
+labels toward the Independent level, with established acts untouched.
+
+- **Pre-registered for 1961:** Big-5 new-hit-act slots fall toward ~4–8 points, Big-5 share toward 21–28, the 1960 hit-act
+  carry-over stays.
+- **Kill:** the 1960 Big-5 share falls below ~28 (1960 is on history now; 14 points of it are Big-5 newcomers), or the
+  freed slots go to MidTiers rather than spreading over the field.
+- **Screen:** `hm104` + switch, 104 weeks, seeds 2002 / 1001, then 3003 / 4004 if the sign holds.
+
+## 51. Screen: `--major-newcomer-package` is inert on newcomer breakthroughs (2026-11-17; rejected)
+
+`Systems/MajorNewcomerPackage.cs`, check `--major-newcomer-package-check` (`SimTools/MajorNewcomerPackageChecks.cs`;
+passes, as do the stock-spread and historical-majors checks). For a live AI single by a NewSigning act at a Major-tier
+label: launch campaign impact `0.36 + F × (impact − 0.36)` (read by the launch radio push and the launch marketing
+awareness), and launch stock scale × `0.60 + 0.40 F`. Coverage, weekly push and every other launch are untouched, and no draw
+is added. **Off is identical:** `mnpoff27-2002-sc` matches `hm104-2002-sc` row for row through week 26 (records, launch
+attribution, label finance). Arms `mnp0` (F = 0) and `mnp05` (F = 0.5) = the `hm104` request + switch, 104 weeks, seeds 2002 / 1001.
+
+| 2002 / 1001 | `hm104` | `mnp05` | `mnp0` | History |
+|---|---:|---:|---:|---:|
+| Big-5 newcomer first run, median 1961 | 5.5k / 5.2k | 4.3k / 4.2k | 3.3k / 3.1k | |
+| Big-5 newcomer Hot 100 entry 1961 | 7.4 / 10.3% | 12.4 / 15.8% | 12.6 / 10.3% | |
+| Big-5 newcomer Top 10 weeks per launch 1961 | .226 / .188 | .253 / .292 | .162 / .269 | |
+| Big-5 newcomer entrants: radio heat at entry (2002 / 1001) | .255 / .249 | | .244 / .260 | |
+| Big-5, no-1960-Top-10 acts, % of 1961 slots | 18.5 / 14.0 | 19.4 / 31.0 | 10.0 / 20.0 | 4.2 |
+| 1960 Big-5 Top 10 share | 35.7 / 28.9 | 33.6 / 24.9 | 24.7 / 31.5 | 34.2 |
+| **1961 Big-5 Top 10 share** | **36.2 / 38.3** | **37.1 / 40.2** | **22.1 / 39.6** | ~21 |
+| 1961 CR4 | 37.5 / 42.7 | 38.7 / 39.2 | 22.3 / 40.6 | 27.9 |
+
+- **The lever reached its target and the target was not the carrier.** Big-5 newcomers ship 40% less, but their Hot 100
+  entry and Top 10 weeks per launch do not fall at either dose; in three of the four seed-arms they rise. Newcomer entrants
+  arrive about 6 weeks after release (age 5.5–6.0), when launch radio heat has been replaced by the weekly dynamics: entry
+  radio heat is unchanged (.24–.26). Launch awareness falls only .160 → .137 (seed 2002) and .163 → .160 (1001).
+- **No dose response.** F = 0.5 raises the 1961 Big-5 share in both seeds. F = 0 cuts seed 2002 by 14 points but raises seed
+  1001. The seed 2002 cut sits in *senior* Big-5 slots (Established 56 → 25, Declining 24 → 15), which the switch never touches:
+  that is world reshuffle from the first changed launch on. The 1961 Big-5 share moves ±1–14 points per seed on reshuffle alone,
+  so a two-seed screen cannot resolve anything under ~10 points here.
+- **§50's attribution was wrong.** "About 80% is the launch package" came from Big-5 ≈ MidTier at equal quality, and MidTiers
+  share the launch package. They also share national coverage and the weekly regional build, and those are what the
+  newcomers' entry six weeks after release depends on. Matched-quality tier comparisons do not identify the launch half.
+
+**Rejected; not added to any bundle.** The switch stays in code for reference, off and identical. The remaining carrier
+of Big-5 newcomer breakthroughs is post-launch: the per-week regional factor for covered regions (`GetRegionalLaunchFactor`:
+0.55 + 0.45 × reach covered, 0.12 + 0.18 × reach uncovered), together with coverage count (7.0 against 5.4 regions by
+peak). That is national branch distribution, which is historically real. The structural reading in §50 stands: history's
+1961 new hit acts sat at national independents that the sim does not have at head scale. That points at the second rank
+(§17k: earned national access for non-Majors that chart) rather than at a further Major tax.
+
+## 52. Second-rank access: reach is already there, volume is not; earned capacity adds entries, not Top 10 slots (2026-11-17; not adopted)
+
+### Where the second rank stands under `hm104`
+
+The historical second rank is present and already has near-Major reach. MGM, Dot, UA, ABC-Paramount, Warner Bros.,
+Liberty, Cameo-Parkway, Chess and Atlantic run as MidTiers covering 6–7 regions, with owned reach ~0.75 by week 52,
+launch campaign impact 0.36–0.53 (Cameo-Parkway 0.80–0.98) and label production 0.55–0.90. What they lack is output. They issue
+**6–37 singles a year** (MidTier median 16–17) against the Big-5's 56–127. History's studio and head firms issued 65–130 a
+year: MGM ~110, ABC ~100, UA ~80, WB ~65, Dot ~130, Liberty ~70 (1961 ~115). Source: LabelReleaseProgrammeImplementation.md,
+"Singles issued per label, 1960". The binding constraint is slate capacity: `releasesPerMonth` × work budget is about 2 a
+month, and they use 80–100% of it from rosters of 16–30 release-eligible acts. In 1961 only 19–25 MidTiers are alive,
+9 of them historical. That is about the size of history's second rank.
+
+Market volume for reference (seeds 2002 / 1001): 4,447 / 4,380 singles in 1960 and 4,099 / 4,040 in 1961 (closures), on 123 → 128M
+cleared single units. In 1961 the Big-5 issue 452–468 (history ~1,080) and MidTiers 291–326 (history ~600+ for the studio
+and head firms). Independents, Small and Boutique labels issue ~3,300.
+
+### `--earned-head-capacity=R`
+
+`Systems/EarnedHeadCapacity.cs`, check `--earned-head-capacity-check` (`SimTools/EarnedHeadCapacityChecks.cs`, passes). A
+non-Major's monthly singles capacity becomes `max(envelope, min(Major envelope, R × Hot 100 records in the last 52 weeks / 12))`.
+The count is `GetRecentChartingRecordCount`, the promotion gate's own, cached per label per week. R = 4 follows history's
+head independents at about 4–5 singles per Hot 100 record. Capacity is earned, falls back when the records stop, and still
+passes through cash, the going-concern reserve, roster and material. Albums, Majors and the player are untouched.
+**Off is identical:** `ehcoff27-2002-sc` matches `hm104-2002-sc` row for row through week 26 (records, launches, label
+finance, programme resources, release slate). Runs: `ehc4-{2002,1001,3003,4004}-sc` against `hm104` on the same four seeds
+(`hm104-3003` / `-4004` are new controls).
+
+| 1961, seeds 2002 / 1001 / 3003 / 4004 | `hm104` | `ehc4` (R = 4) | History |
+|---|---|---|---:|
+| MidTier singles | 326 / 291 / 236 / 311 | 466 / 520 / 464 / 588 (+60%) | ~600+ (studio + head) |
+| MidTier Hot 100 records | 105 / 92 / 73 / 103 | 134 / 173 / 113 / 144 (+50%) | |
+| Major + MidTier share of Hot 100 entries | 43.9 mean | 49.5 | |
+| MidTier share of Top 10 slots | 19.8 / 20.2 / 13.5 / 21.2 | 15.8 / 33.5 / 10.2 / 20.6 | |
+| **Big-5 share of Top 10 slots** | 36.2 / 38.3 / 34.2 / 30.2 (**34.7**) | 37.7 / 27.5 / 37.5 / 29.2 (**33.0**) | 20.6 |
+| CR4 | 35.5 mean | 33.6 | 27.9 |
+| Non-Big-5 firms with 20+ Top 10 slots | 0 / 2 / 2 / 0 | 1 / 2 / 0 / 1 | 4 (Liberty 42, Parkway 31, Scepter 20, Swan-Cameo group) |
+| Labels defunct by week 104 | 96.5 | **105.5** | |
+| Labels with a Hot 100 record | 208 | 195 | |
+| Single units per release | 31.3k | 29.5k (−6%) | |
+| LP market stores + racks (M) | 96.7 | 92.4 | |
+| 1960 Big-5 share | 30.3 | 29.5 | 34.2 |
+
+- **The capacity reaches the right firms.** In seed 1001, Cameo-Parkway earns 9.8 singles a month and Chess 8.7. Their launches go
+  37 → 97 and 25 → 73, and their Top 10 slots 36 → 41 and 7 → 43. In seed 2002, Dot, MGM and Pioneer double their output.
+- **It buys Hot 100 entries, not Top 10 slots.** MidTier Hot 100 records rise in every seed (+50%), but the MidTier Top 10
+  share moves only in seed 1001 (+13); the other three fall 0.6–4 points. The Big-5 drop 1.7 points on the mean, with two
+  seeds up and two down, inside the ±10-point reshuffle range (§51). The count of second-rank firms with 20+ slots does not move.
+- **It costs the field.** Volume is a fixed singles purse (`singles-volume-is-a-fixed-purse`). Units per release fall 6%,
+  9 more labels close by week 104, and 13 fewer labels place a Hot 100 record.
+- Same shape as `--programme-major-singles=16` for the Majors (`major-share-is-career-mix-adult60-is-volume`). Extra singles
+  enter the Hot 100, but the Top 10 is held by hit acts, and volume does not make them.
+
+**Not adopted.** The switch stays in code, off and identical. Second-rank *volume* is now historical-ish under R = 4 and
+second-rank *reach* already was, yet the second rank still does not take Top 10 slots. What history's Liberty and Parkway
+had that the sim's MidTiers lack is hit acts: Bobby Vee, Chubby Checker, Gene McDaniels, Dee Dee Sharp. The next question is
+why a second-rank label's newcomer converts at 0.214 Top 10 weeks per launch against the Big-5's 0.293 (§50 table), and
+why its 1960 hit acts carry only 1.26 slot-weeks into 1961 against 4.66. That is the field hit-act follow-up gap again
+(§50, `field-hit-act-gap-is-not-selection`).
+
+Four-seed `hm104` control for reference: 1961 Big-5 share 34.7 and CR4 35.5. Seeds 3003 / 4004 (34.2 / 30.2) run below the
+first two.
+
+## 53. Why the second rank makes few hit acts (2026-11-17, read-only)
+
+Runs: `hm104-{2002,1001,3003,4004}-sc` (control) and `ehc4-*` (§52). Scripts, run from `SimLogs/`:
+`SimTools/analyze_second_rank_funnel.py`, `analyze_second_rank_followups.py` and `analyze_second_rank_matched_entry.py`, each `RUN [RUN …]`.
+The tier comes from `single-launch-quality.csv`. Big-5 = label_0001–0005. "Newcomer" = NewSigning, Rising or Unsigned at launch.
+"New hit act" = an act whose first in-run Top 10 record was launched as a newcomer.
+
+### Minting: a per-launch tie, so the gap is newcomer volume, and volume does not buy more
+
+1961, four-seed mean per run:
+
+| | Big-5 | MidTier | Independent |
+|---|---:|---:|---:|
+| Launching firms | 5 | 20.8 | 256 |
+| Newcomer launches (per firm) | 287 (57) | 203 (9.8) | 1,662 (6.5) |
+| Newcomer Hot 100 entry / Top 10 per launch | .151 / .035 | .122 / .031 | .082 / .015 |
+| Newcomer Top 10 weeks per Top 10 record | 5.6 | 3.5 | 4.5 |
+| Hit acts minted 1961 (per firm) | 15.2 (3.05) | 9.8 (0.47) | 29.8 (0.12) |
+| Entrants: Top 10 per Hot 100 entry, newcomer / established | .231 / .190 | .253 / .211 | .180 / .174 |
+
+- **A MidTier newcomer reaches the Top 10 about as often as a Big-5 one** (.031 against .035 per launch), and a MidTier entrant
+  converts to the Top 10 slightly better. Per firm, the Big-5 mint 6.5x as many hit acts because they launch 5.8x as many
+  newcomers. Their newcomer Top 10 records also run longer (5.6 weeks against 3.5, on ~25 MidTier records, so treat this as soft).
+- **`ehc4` shows that more volume does not add hit acts.** MidTier newcomer launches go 203 → 375, but entry falls .122 → .099 and Top 10 per launch
+  falls .031 → .019, so new MidTier hit acts go only 9.8 → 11.5. Established MidTier conversion also falls (Top 10 per entry .211 → .149).
+  The extra records enter the Hot 100 and then compete with each other for the same ~115 Top 10 records a year
+  (`singles-volume-is-a-fixed-purse`). The second rank cannot mint its way past the Big-5 while the Big-5 newcomer pool is 1.4x
+  the whole MidTier pool, which is §50's excess.
+
+### Carry-over: MidTier hit acts follow up at half the Big-5 rate
+
+New hit acts with a first hit by week 78 (52-week window inside 104 weeks). Control, four-seed pool:
+
+| Per new hit act, 52 wk after the hit | Big-5 | MidTier | Independent |
+|---|---:|---:|---:|
+| Acts per run | 15.8 | 19.8 | 44.0 |
+| Quality of the hit record | .768 | .756 | .753 |
+| Follow-up singles | 4.56 | 3.00 | 3.09 |
+| Hot 100 entries (share) | 2.86 (63%) | 1.28 (43%) | 1.13 (37%) |
+| Top 10 records / Top 10 weeks | .54 / 3.13 | .29 / 1.43 | .20 / .93 |
+| Follow-up quality (hook / production) | .728 (.760 / .742) | .690 (.709 / .702) | .678 (.695 / .690) |
+| Label production at follow-up | .827 | .746 | .728 |
+| Professional songs / artist-written | 54 / 16% | 40 / 32% | 44 / 21% |
+| Median first run; launch awareness | 37k; .44 | 27k; .50 | 25k; .42 |
+| Left the label within 52 wk | 0% | 4% | 5% |
+
+Log split of the 3.13 → 1.43 Top 10 weeks gap: **follow-up count 53%, Hot 100 entry 49%, weeks per Top 10 record 21%**, and
+conversion after entry −23% (in the MidTier's favour). Departures, lanes (96–99% OrphanSingle in every tier) and awareness are not carriers.
+
+**Entry, quality-matched** (1961 launches by acts with a prior chart record, four seeds): MidTier .429 against Big-5 .552.
+At the Big-5 quality mix the MidTier rate is .483, so **quality is ~45% of the entry gap** (.704 against .727 mean quality) and
+**~55% is an equal-quality residual** (8–11 points lower in each bin below .78, equal above it). `he095` (`--label-blind-launch-dose-exposure=0.95`)
+and `--label-demand-parity=1` are already in `hm104`. The residual is the post-launch national footprint (6.4–6.5 regions at entry against 7.0, and the
+covered-region weekly factor), which §51 named as the Big-5's remaining carrier and which is a historical branch-distribution edge.
+For Independents the same split is .270 → .358 (quality ~30%).
+
+The quality gap also has both halves. MidTier hit acts drop .066 from their hit to their follow-ups and Big-5 acts drop .040.
+Label production is .746 against .827, and the MidTier relies on artist-written songs (32% against 16%), with a lower hook in every source.
+
+### Reading
+
+A second-rank firm mints hit acts at the Big-5's per-launch rate. It mints fewer because it launches a sixth as many newcomers,
+and giving it the volume (`ehc4`) only dilutes its own conversion inside a fixed Top 10. Once a MidTier label has a hit act, it
+gets half the Top 10 weeks the Big-5 get, evenly from fewer follow-ups (3.0 against 4.6) and lower entry (43 against 63%). Lower entry is part quality
+(label craft + professional song access) and part national footprint. Each piece has already been screened in some form:
+cadence (`--hit-act-due-weeks-field=8`, §9 of the follow-up handoff: launches up, entry flat), craft (`--hit-act-craft-floor`: quality
++.02, entry flat), capacity (`ehc4`: hit-act follow-ups 3.49 → 4.41 for all MidTier hit acts, Top 10 .52 → .46), footprint (Major
+distribution edge, kept by author choice). No single label-side lever is left for the second rank. History's second-rank
+hit acts (Bobby Vee, Chubby Checker) had both cadence and entry, so the untested combination is the joint
+package that gives a **MidTier hit act** professional material and cadence together. Whatever the second rank gains still has to come out of a Top 10 that the
+Big-5 newcomer pool over-fills (§50: +12 points). A second-rank fix cannot pass the 1961 Big-5 share gate on its own.
+
+**`--earned-head-capacity`:** keep it in code, off and identical, and do not add it to the bundle. It is the only lever that brought
+MidTier release volume (and MidTier hit-act cadence) toward history, but in a fixed-purse market it costs 9 closures, 13 charting labels
+and 6% of units per release while lowering MidTier conversion. Re-screen it, possibly at R = 2, only as the cadence half of a hit-act package.
+
+## 54. Screen: `--midtier-hit-act-package` raises MidTier follow-ups but not their Top 10 weeks (2026-11-17; not adopted)
+
+### What §53 left, and the material finding
+
+§53 split the MidTier hit-act follow-up gap into cadence and Hot 100 entry, and entry into quality and footprint. Before building,
+the song search was traced (`material-funnel.csv`, four `hm104` seeds, acts on a hit rung). MidTier hit acts' searches stop on
+**cash 46%** of the time. The Big-5's stop on the two-pending cap (39%) and almost never on cash (1%). Under `--writing-market-royalty-licences`
+a professional licence costs 0 and a cover's rehearsal costs 0, so the test `cash − going-concern reserve < fee` reads `cash < reserve`:
+a label under its reserve cannot take a free song. Those follow-ups fall back to the act's own song or a cover. Within every route,
+Big-5 hit acts' follow-ups still carry a hook 0.035–0.045 higher (act endowment and wider pools: 59 against 23 professional songs in
+the act's genre pool), which the package does not touch.
+
+### The switch
+
+`Systems/MidTierHitActPackage.cs`, check `--midtier-hit-act-package-check` (`SimTools/MidTierHitActPackageChecks.cs`; passes, as do the
+hit-act cadence, footprint-craft and earned-capacity checks). `--midtier-hit-act-package=PARTS` (`cadence`, `craft`, `material` or `all`)
+applies only to a hot act (Top 40 within 52 weeks, the hit-act clock) at a MidTier AI label:
+
+- **cadence:** due 8 weeks after the last single instead of 13, through `HitActCadence.DueWeeksFor` (the shorter field interval is kept if one is set).
+- **craft:** the single's label-craft term reads the Major reference 0.85 (`FootprintCraftSoftening.Craft`).
+- **material:** a zero-fee licence or cover is not refused for a label sitting under its reserve (`ProfessionalWritingMarket.CanLicense`,
+  `TryStartProgrammeMaterial`, the audit mirror). A fee above 0 still needs cash.
+
+No draw is added. **Off is identical:** `mhpoff27-2002-sc` matches `hm104-2002-sc` row for row through week 26 (records, launch
+attribution, label finance, programme resources, release slate, material funnel, material search, writing launches).
+Arm `mhpa` = the `hm104` request + `--midtier-hit-act-package=all`, 104 weeks, seeds 2002 / 1001 / 3003 / 4004.
+
+### Result
+
+| Four seeds | `hm104` | `mhpa` | History |
+|---|---:|---:|---:|
+| MidTier hit-rung searches started / stopped on cash | .23 / .46 | .43 / .01 | |
+| MidTier hit-act follow-ups: professional catalogue / commission | 27.8 / 7.3% | 35.1 / 9.9% | |
+| **MidTier new hit act, 52 wk after the hit:** follow-ups | 3.00 | 3.83 | 3.6–4.7 a year (field) |
+| Hot 100 entries (share) | 1.28 (43%) | 1.93 (50%) | |
+| Follow-up quality (production / hook) | .690 (.702 / .709) | .706 (.739 / .721) | |
+| Top 10 records / **Top 10 weeks** | .29 / **1.43** | .37 / **1.59** | |
+| Big-5 new hit act: Top 10 weeks | 3.13 | 1.76 | |
+| MidTier new hit acts minted 1961 | 9.8 | 10.2 | |
+| MidTier Top 10 slot share 1961 | 19.8 / 20.2 / 13.5 / 21.2 (18.7) | 28.5 / 16.2 / 11.5 / 30.4 (21.7) | |
+| Non-Big-5 firms with 20+ Top 10 slots (sum) | 4 | 6 | 4 per year |
+| **1961 Big-5 Top 10 share** | 36.2 / 38.3 / 34.2 / 30.2 (**34.7**) | 26.7 / 38.5 / 39.0 / 31.5 (**33.9**) | 20.6 |
+| 1961 CR4 | 35.5 | 33.9 | 27.9 |
+| 1960 Big-5 share | 30.3 | 27.1 | 34.2 |
+| Labels defunct by week 104 / with a Hot 100 record 1961 | 96.5 / 208 | 101.5 / 203 | |
+
+- **Every part reached its target.** Cash blocks vanish, MidTier hit acts cut more professional songs and get the Major craft read,
+  and they issue 0.8 more follow-ups. Hot 100 entry per follow-up rises 43 → 50% and Hot 100 entries per hit act rise half.
+- **Top 10 weeks barely follow:** +11% per MidTier hit act (1.43 → 1.59). The extra entries peak below the Top 10. Conversion per
+  established MidTier entry falls (.211 → .181), the same dilution as `ehc4`.
+- **The Big-5 do not give ground outside noise.** 1961 share −0.8 points (seed 2002 −9.5, seed 3003 +4.8). The MidTier Top 10 share is up 3 points
+  on the mean, from two seeds (+9) against two (−2 to −4). Big-5 new hit acts' follow-up Top 10 weeks fall 3.13 → 1.76, which the
+  package does not touch: that is reshuffle, or crowding of the Top 10, and four seeds cannot tell which.
+- Cost: 5 more closures and 5 fewer labels with a Hot 100 record, inside the `ehc4` range.
+
+**Not adopted.** The switch stays in code, off and identical. MidTier hit-act cadence and entry are now closer to history,
+but the Top 10 does not follow. After `ehc4` (§52) this is the second second-rank lever that buys Hot 100 entries without Top 10 slots.
+Neither lever changes how a Top 10 slot is decided. The Top 10 is about 115 records a year. A second-rank record wins a slot only
+by out-selling a Big-5 newcomer at the peak, and §50–51 found that edge in the post-launch national footprint, which is kept by
+choice. The 1961 Big-5 excess is not a second-rank deficit that a label-side package can fill. The remaining options are:
+(a) accept ~34% as the model's 1961 Big-5 share under kept distribution; or (b) act on the Big-5 newcomer pool itself (287 newcomer singles a year; history's
+majors gave unknowns a release without national weekly push), the post-launch half §51 left. The material finding is separate from this verdict:
+a zero-fee song refused for want of cash is a gate defect for every non-Major under its reserve (Independents stop on cash 47% of the time).
+It is worth its own screen as a general fix, not as part of a tier package.
+
+## 55. Zero-fee material gate; did the Big-5 promote newcomers? Promotion-follows-action is inert (2026-11-17; one seed)
+
+### `--zero-fee-material-gate` (gate fix)
+
+`Systems/ZeroFeeMaterialGate.cs`, check `--zero-fee-material-gate-check` (passes). For every AI label, a song that costs the label nothing
+(royalty licence, a cover's rehearsal) clears the material cash test whatever the going-concern reserve. Same three sites as §54's
+material part (`ProfessionalWritingMarket.CanLicense`, `TryStartProgrammeMaterial`, the audit mirror). A fee above 0 still needs the cash.
+**Off is identical** (`zfgoff27-2002-sc` against `hm104-2002-sc`, eight decision files through week 26; `napoff27-2002-sc` repeats it on the build with §55's second switch).
+
+Seed 2002, 104 weeks (`zfg-2002-sc` against `hm104-2002-sc`), all launches:
+
+| | Search started (hm104 → zfg) | Stopped on cash | Professional + commission songs | Mean record hook |
+|---|---|---|---|---|
+| Big-5 | .245 → .265 | .012 → 0 | 47.0 → 45.0% | .752 → .752 |
+| MidTier | .178 → .437 | .520 → 0 | 29.9 → 38.7% | .709 → .724 |
+| Independent | .342 → .544 | .343 → 0 | 32.0 → 36.0% | .695 → .701 |
+| Small / Boutique | .483 / .399 → .601 / .556 | .196 / .241 → 0 | ~flat | ~flat |
+
+The defect is fixed where it bit. Labels closed by week 104 rose 95 → 106, but the both-switch arm gives 98, so one seed cannot separate that from reshuffle.
+**Status: a defect fix, not a calibration lever. Kept (the user's decision, 2026-11-17): it goes on every arm from here; the four-seed closure and LP check rides on the next multi-seed run.**
+
+### Research: did the Big-5 give newcomers little national promotion?
+
+**Sources (web, 2026-11-17).** No source found states a majors' policy for unknown acts directly. What the trade press and histories show:
+- Major-label promotion was regional and staffed: Mercury named regional sales-promotion managers in December 1960 (Billboard 1960-12-05),
+  Capitol ran a regional promotion man from its Detroit branch (Tom Takayoshi, early 1960s), and MGM's field men worked single stations
+  market by market (Billboard 1965). Billboard's own charts carried a "national breakout" tier and "Regional Breakouts" for records showing
+  dealer action in a market before the Hot 100 (Billboard 1960-01-18; 1966-08-20). Promotion followed reported action market by market.
+- The majors' A&R heads favoured roster stars and covers. Mitch Miller (Columbia) disliked rock and passed on new rock acts; independents
+  broke new acts, largely by DJ contact and payola until the 1959-60 hearings (Gillett, *The Sound of the City*; Time 1958; payola-hearing histories).
+- RCA's 1961 year-end statement names its new pop acts (Ann-Margret, Al Hirt, the Tokens and others) as the year's push (Billboard Music Week 1961-12-25).
+  Majors did promote chosen newcomers. That was selection, not a campaign behind every newcomer single.
+
+**Repo data.** The Big-5 issued about 1,080 singles in 1960 (Columbia ~360, Mercury ~195, Decca ~185, Capitol ~178, RCA ~160;
+LabelReleaseProgrammeImplementation.md), which is 4 a week per firm. Finite promotion staff could not work them all. Yet history shows about
+**4.5 Big-5 newcomer Top 10 records a year (1961-64)**, against the sim's ~12 from ~460 singles.
+
+**Climb shape** (`SimTools/analyze_newcomer_climb.py`, Top 10 records; history: labelled Top 10 1961-64 on the recovered Hot 100):
+
+| Top 10 records | History n / debut / weeks to Top 10 | Sim (hm104, 4 seeds, 1960-61) n / debut / weeks |
+|---|---|---|
+| Big-5 newcomer | 18 / 83 / 4.9 | 96 / 77 / 3.9 |
+| Other newcomer | 146 / 85.5 / 5.5 | 420 / 83 / 5.4 |
+| Big-5 established | 67 / 73 / 4.4 | 169 / 65 / 5.7 |
+
+History's Big-5 newcomer hits debuted low and climbed at the field's pace (−0.5 weeks against other newcomers, 95% CI −1.75 to +0.75).
+The sim's climb 1.5 weeks faster (CI −1.84 to −1.17). History's interval does not rule out the sim's gap.
+
+**Verdict on the assumption: partly confirmed.** Majors released far more newcomer singles than they could promote, and promotion followed
+regional action. The strong form, that national promotion played no part for the newcomers that hit, is not shown: the few that did hit
+are too few (18) to tell their climb from the field's or from the sim's.
+
+### `--major-newcomer-action-push=F` (promotion follows action)
+
+`Systems/MajorNewcomerActionPush.cs`, check `--major-newcomer-action-push-check` (passes). The weekly label push on a Major's single by an act
+NewSigning at launch reads `0.36 + F × (push − 0.36)` until the record shows action (any Hot 100 week or a regional breakout), then full.
+§51 cut the launch package; this cuts the weekly push, the half §51 left. Off is identical (`napoff27`). Arms on seed 2002, 104 weeks:
+`nap0` (F = 0), `zfgnap0` (gate + F = 0), with `zfg` as the gate-only reference.
+
+| Seed 2002 | `hm104` | `zfg` | `nap0` | `zfgnap0` | History |
+|---|---:|---:|---:|---:|---:|
+| Big-5 newcomer launches 1961 | 244 | 351 | 318 | 307 | |
+| Big-5 newcomer Hot 100 entry / Top 10 per launch | .119 / .033 | .162 / .046 | .126 / .035 | .163 / .039 | |
+| Big-5, no-1960-Top-10 acts, % of 1961 slots | 18.5 | 23.5 | 15.2 | 15.8 | 4.2 |
+| 1960 Big-5 share | 35.7 | 29.1 | 29.1 | 30.2 | 34.2 |
+| **1961 Big-5 share** | **36.2** | **37.9** | **31.3** | **32.9** | 20.6 |
+| 1961 CR4 | 37.5 | 33.7 | 28.1 | 30.8 | 27.9 |
+| Labels defunct by week 104 | 95 | 106 | 98 | 98 | |
+
+- **The action push does not touch Big-5 newcomer conversion.** Entry .119 → .126 and Top 10 per launch .033 → .035. The newcomers that become hits
+  show action at a median of 3 weeks after release (max 6), on stock and national coverage alone, so the cut holds for about three weeks of
+  a 0.55 → 0.36 push. Promotion following action is what the sim already does in effect: its distribution makes hits show action early.
+- **The share moves are reshuffle.** The gate fix never touches a Big-5 newcomer, yet it moves 1960 Big-5 share −6.6 and the 1961 newcomer slots +5.
+  Every arm's 1961 change (−4.9 to +1.7) is inside the ±10-point single-seed range (§51).
+- With §51 (launch package) and §54 (second-rank package), this is the third promotion-side lever with no effect on Big-5 newcomers. The carrier is
+  the distribution footprint (stock, seven-region coverage, the covered-region launch factor), as §51 concluded. Under that footprint a Big-5
+  newcomer shows action before promotion could matter.
+
+**Not adopted; the switch stays in code, off and identical.** The research supports selective promotion, but promotion is not what makes a Big-5 newcomer
+hit in the sim. The historical lever left is how widely and deeply a major shipped an unknown's single, which history does not
+document (the national-breakout tier implies records broke in one market first, not seven). That would be a launch-coverage probe for Major
+newcomers (ship to home and strong regions only until action), and the earlier guards say to check the regional stagger before adopting any footprint change.

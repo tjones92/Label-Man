@@ -96,9 +96,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--label-hold-capacity-check")) { LabelHoldCapacityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-heat-attribution-check")) { ArtistHeatAttributionChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--seed-head-templates-check")) { HeadScaleTemplatesChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--historical-majors-check")) { HistoricalMajorsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--midtier-opening-realism-check")) { MidTierOpeningRealismChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--launch-push-saturation-check")) { LaunchPushSaturationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--launch-stock-spread-check")) { LaunchStockSpreadChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-newcomer-package-check")) { MajorNewcomerPackageChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--earned-head-capacity-check")) { EarnedHeadCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--midtier-hit-act-package-check")) { MidTierHitActPackageChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--zero-fee-material-gate-check")) { ZeroFeeMaterialGateChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-newcomer-action-push-check")) { MajorNewcomerActionPushChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--major-scale-gate-check")) { MajorScaleGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-footprint-parity-check")) { LabelFootprintParityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-blind-launch-check")) { LabelBlindLaunchChecks.Run(); GetTree().Quit(0); return; }

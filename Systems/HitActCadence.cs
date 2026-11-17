@@ -51,8 +51,8 @@ public static class HitActCadence {
 	/// <summary>The non-Major due interval under <see cref="FieldDueSwitch"/>; 0 when off.</summary>
 	public static int FieldDueWeeks => fieldDueWeeks;
 	/// <summary>The due interval a label's hot acts read: <see cref="FieldDueSwitch"/> at a non-Major AI label, else 13.</summary>
-	public static int DueWeeksFor(AILabel label) =>
-		fieldDueWeeks > 0 && label != null && !label.isPlayerOwned && label.tier != LabelTier.Major ? fieldDueWeeks : DueWeeks;
+	public static int DueWeeksFor(AILabel label) => MidTierHitActPackage.DueWeeksFor(label,
+		fieldDueWeeks > 0 && label != null && !label.isPlayerOwned && label.tier != LabelTier.Major ? fieldDueWeeks : DueWeeks);
 	private static bool lane;
 	private static bool retention;
 	private static bool awarenessSplit;

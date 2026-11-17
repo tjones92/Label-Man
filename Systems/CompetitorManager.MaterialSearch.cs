@@ -55,7 +55,7 @@ public partial class CompetitorManager {
         int delay = professional ? (MaterialPreparationService.CommissionDeliveryDays + 6) / 7 : (MaterialPreparationService.CoverLearnDays(artist) + 6) / 7;
         float fee = professional ? (ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.LicenseFee(song, label, artist) : MaterialPreparationService.CommissionFee) : 0;
         if (week + delay > item.ReadyWeek) return "timing";
-        if (label.cashReserves - EconomicLabelLifecycle.CommitmentReserve(label, false) < fee) return "cash";
+        if (label.cashReserves - EconomicLabelLifecycle.CommitmentReserve(label, false) < fee && !ZeroFeeMaterialGate.Clears(label, fee) && !MidTierHitActPackage.ClearsZeroFee(label, artist, fee)) return "cash";
         var pending = ProgrammeState.Items.Where(i => i.MaterialSearch?.State == ProgrammeMaterialState.Pending).ToList();
         if (pending.Any(i => i.ArtistId == artist.artistId)) return "artist-capacity";
         if (pending.Count(i => i.LabelId == label.labelId) >= 2) return "label-capacity";
@@ -121,7 +121,7 @@ public partial class CompetitorManager {
         int delay = professional ? (MaterialPreparationService.CommissionDeliveryDays + 6) / 7 : (MaterialPreparationService.CoverLearnDays(artist) + 6) / 7;
         float fee = professional ? (ProfessionalWritingMarket.Enabled ? ProfessionalWritingMarket.LicenseFee(song, label, artist) : MaterialPreparationService.CommissionFee) : 0;
         if (!float.IsFinite(baseline) || baseline < 0 || baseline > 1 || !float.IsFinite(benefit) || benefit <= fee || week + delay > item.ReadyWeek ||
-            label.cashReserves - EconomicLabelLifecycle.CommitmentReserve(label, false) < fee) return false;
+            label.cashReserves - EconomicLabelLifecycle.CommitmentReserve(label, false) < fee && !ZeroFeeMaterialGate.Clears(label, fee) && !MidTierHitActPackage.ClearsZeroFee(label, artist, fee)) return false;
         string supplier = professional ? MaterialSupplier(song) : null;
         var pending = ProgrammeState.Items.Where(i => i.MaterialSearch?.State == ProgrammeMaterialState.Pending).ToList();
         if (pending.Any(i => i.ArtistId == artist.artistId) || pending.Count(i => i.LabelId == label.labelId) >= 2 ||

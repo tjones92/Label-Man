@@ -399,8 +399,14 @@ public partial class ChartManager : Node {
 		ArtistFanbase.Configure(SimulationArguments.Get());
 		LabelHoldCapacity.Configure(SimulationArguments.Get());
 		HeadScaleTemplates.Configure(SimulationArguments.Get());
+		HistoricalMajors.Configure(SimulationArguments.Get());
 		LaunchStockSpread.Configure(SimulationArguments.Get());
 		LaunchCapScope.Configure(SimulationArguments.Get());
+		MajorNewcomerPackage.Configure(SimulationArguments.Get());
+		EarnedHeadCapacity.Configure(SimulationArguments.Get());
+		MidTierHitActPackage.Configure(SimulationArguments.Get());
+		ZeroFeeMaterialGate.Configure(SimulationArguments.Get());
+		MajorNewcomerActionPush.Configure(SimulationArguments.Get());
 		MajorScaleGate.Configure(SimulationArguments.Get());
 		IndieDistributorAccess.Configure(SimulationArguments.Get());
 		EarnedIndieCoverage.Configure(SimulationArguments.Get());

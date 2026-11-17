@@ -4557,6 +4557,8 @@ public partial class CompetitorManager : Node {
 		BookProgrammeCampaign(record, artist, label, marketingBudget);
 		AttributeReleaseCampaign(runtimeData, marketingBudget);
 		bool isAlbum = record.format == ReleaseFormat.Album;
+		// --major-newcomer-package: a Major's NewSigning single launches toward an Independent's package. Off: false.
+		bool majorNewcomer = MajorNewcomerPackage.Applies(label, artist, isAlbum);
 		// --act-earned-campaign-impact: fixes this single's earned share before any launch read of campaign impact. Off: nothing.
 		ActEarnedCampaignImpact.NoteLaunch(record, label, artist);
 		
@@ -4564,7 +4566,7 @@ public partial class CompetitorManager : Node {
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
 		// --hit-act-hype: a recency lift for an act with a recent Top 10 / Top 40. Off: not read.
 		if (HitActHype.Enabled && !isAlbum) artistAwareness += HitActHype.AwarenessLift(artist);
-		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label, record.recordId, runtimeData);
+		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label, record.recordId, runtimeData, majorNewcomer);
 		// --label-blind-launch=promo: reference reputation for a live AI single. Off: label.reputation.
 		float labelAwareness = LabelBlindLaunch.Reputation(runtimeData, label) * 0.1f;
 		float programmeShare = ProgrammePushFactor(runtimeData);
@@ -4595,8 +4597,8 @@ public partial class CompetitorManager : Node {
 
 		float baseRadio = quality * 0.3f;
 		// LaunchPushSaturation is a probe on the launch reads of campaign impact only; identity unless named.
-		float pushRadio = LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
-			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), runtimeData, label), record.recordId), label) * 0.3f;
+		float pushRadio = MajorNewcomerPackage.Impact(LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
+			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), runtimeData, label), record.recordId), label), majorNewcomer) * 0.3f;
 		float payolaRadio = LabelBlindLaunch.Payola(runtimeData, label) * 0.15f;
 		if (LabelReleaseProgramme.CapacityEnabled) { pushRadio *= programmeShare; payolaRadio *= programmeShare; }
 		// Phase D: a small programmer-confidence lift for recognized acts. Singles only, weaker than
@@ -4635,7 +4637,8 @@ public partial class CompetitorManager : Node {
 			var regionalData = runtimeData.regionalData[region.regionId];
 			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, runtimeData.baseRecord?.recordId);
 			int baseStock = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId,
-				stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult, runtimeData.baseRecord?.recordId);
+				stockScale * (isAlbum ? 0.45f : 1f) * MajorNewcomerPackage.StockScale(majorNewcomer), perceivedQualityMult,
+				runtimeData.baseRecord?.recordId);
 			initialStock[region.regionId] = baseStock;
 			regionalData.unitsInStores = baseStock;
 			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GameRandom.RandRange(0.8, 1.1), 0f, 1f);
@@ -4705,9 +4708,10 @@ public partial class CompetitorManager : Node {
 		return Mathf.Clamp((Mathf.Log(1 + normalized * 9) / Mathf.Log(10)) / 1.5f, 0f, 1f);
 	}
 
-	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label, string recordId = null, RecordRuntimeData blindRecord = null) {
-		float campaignImpact = LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
-			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), blindRecord, label), recordId), label);
+	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label, string recordId = null, RecordRuntimeData blindRecord = null,
+		bool majorNewcomer = false) {
+		float campaignImpact = MajorNewcomerPackage.Impact(LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
+			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), blindRecord, label), recordId), label), majorNewcomer);
 		if (!MarketSeasonality.Enabled) return BudgetToImpact(marketingBudget, label.tier) * campaignImpact * 0.35f;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;

@@ -1217,6 +1217,8 @@ public static class ChartSimulator {
 		// --label-blind-launch=promo: a live AI single's weekly push reads the reference campaign impact. Identity when off.
 		float basePush = RadioPushSpread.Apply(ActEarnedCampaignImpact.Apply(
 			LabelBlindLaunch.Impact(GetCampaignImpact(label), record, label), record.baseRecord?.recordId));
+		// --major-newcomer-action-push: a Major's newcomer single is worked at the reference until it shows action. Identity when off.
+		basePush = MajorNewcomerActionPush.Apply(basePush, record, label);
 		// --record-campaign-spend: the record's own campaign; exactly 1 for any record launched without it.
 		basePush *= RecordCampaignSpend.PushFactor(record);
 		if (LabelReleaseProgramme.CapacityEnabled) basePush *= CompetitorManager.Instance?.ProgrammePushFactor(record) ?? 1f;

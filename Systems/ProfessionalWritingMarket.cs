@@ -134,7 +134,8 @@ public static class ProfessionalWritingMarket {
 		}
 		if (d.AvailableWeek > Week || d.PriorityUntilWeek > Week && d.LabelId != label.labelId ||
 			d.ArtistId != null && d.HoldUntilWeek >= Week && artist != null && d.ArtistId != artist.artistId) return false;
-		return Affordable(label, LicenseFee(song, label, artist));
+		float fee = LicenseFee(song, label, artist);
+		return Affordable(label, fee) || ZeroFeeMaterialGate.Clears(label, fee) || MidTierHitActPackage.ClearsZeroFee(label, artist, fee);
 	}
 	public static IReadOnlyList<SongComposition> Visible(IReadOnlyList<SongComposition> pool, AILabel label, SimulatedArtist artist = null) {
 		if (!Enabled || State == null || pool == null) return pool;
