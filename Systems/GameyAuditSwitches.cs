@@ -542,11 +542,11 @@ public static class HitPackageDemand {
 		if (scope <= 0f) return 0f;
 		if (totalPopulation <= 0) {
 			var regions = ChartManager.Instance?.GetAllRegions();
-			if (regions != null) foreach (MarketRegion r in regions) totalPopulation += Math.Max(0f, r?.population ?? 0f);
+			if (regions != null) foreach (MarketRegion r in regions) totalPopulation += Math.Max(0f, r?.EconomicPopulation ?? 0f);
 			if (totalPopulation <= 0) return 0f;
 		}
 		float k = scope * (youth ? share * YouthWeight(genre, year) : share);
-		return (float)(k * PackageBuyers(album) * Math.Max(0f, region.population) / totalPopulation);
+		return (float)(k * PackageBuyers(album) * Math.Max(0f, region.EconomicPopulation) / totalPopulation);
 	}
 
 	internal static void SetPopulationForChecks(double total) => totalPopulation = total;

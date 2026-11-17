@@ -79,7 +79,7 @@ public static class RegionalRadioBuildObserve {
 		foreach (var p in pending) {
 			var data = p.Data;
 			float access = data.genreRadioOpportunityThisWeek > 0f ? data.genreRadioOpportunityThisWeek : 1f;
-			float scale = p.Region.media != null ? p.Region.media.radioReach * p.Region.population : 0f;
+			float scale = p.Region.media != null ? p.Region.media.radioReach * p.Region.EconomicPopulation : 0f;
 			writer.WriteLine(string.Join(",",
 				p.Week.ToString(CultureInfo.InvariantCulture), p.Year.ToString(CultureInfo.InvariantCulture),
 				p.Record.baseRecord.recordId, p.Region.regionId,

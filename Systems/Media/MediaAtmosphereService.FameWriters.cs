@@ -14,7 +14,7 @@ public static partial class MediaAtmosphereService {
 	private const int FameRootDays = 7 * 26;
 
 	private static double NationalPopulation() =>
-		(ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()).Sum(r => (double)r.population) * 1e6;
+		(ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()).Sum(r => (double)r.EconomicPopulation) * 1e6;
 
 	private static MediaActTally EnsureTally(string artistId, string name) {
 		if (!state.Tallies.TryGetValue(artistId, out MediaActTally t)) state.Tallies[artistId] = t = new MediaActTally { ArtistId = artistId, ArtistName = name };

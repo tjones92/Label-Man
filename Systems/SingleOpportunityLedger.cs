@@ -22,7 +22,7 @@ public static class SingleOpportunityLedger {
 		float intrinsic = Mathf.Pow(Mathf.Clamp(quality, .01f, 1f), 4f);
 		float launch = Mathf.Clamp(runtime.initialLaunchAwareness > 0f ? runtime.initialLaunchAwareness : runtime.awareness, .01f, 1f);
 		foreach (MarketRegion region in regions?.Where(item => item != null) ?? Enumerable.Empty<MarketRegion>()) {
-			float population = Mathf.Max(0f, region.population * 1000000f * region.GetBuyingPopulationPercentage());
+			float population = Mathf.Max(0f, region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage());
 			float routed = GenreAcceptanceService.GetRegionalDemandAcceptance(runtime.baseRecord.primaryGenre,
 				runtime.baseRecord.secondaryGenre, region, year, 0f);
 			float legacy = region.GetLegacyGenreAcceptance(runtime.baseRecord.primaryGenre, year, includeMomentum: false);

@@ -136,7 +136,7 @@ public static class BudgetLpChannel {
 		weekRows.TryAdd(region.regionId, new List<Offer>());
 		double manufacturing = CompetitorManager.Instance?.BudgetLpManufacturingCost ?? .51;
 		if (!HasMargin(manufacturing)) return weekRows[region.regionId];
-		double pool = Math.Max(0, region.population) * 1e6 * Math.Sqrt(Math.Max(0, region.averageIncome)) * RackJobberChannel.Reach(year) * ShopperScale;
+		double pool = Math.Max(0, region.EconomicPopulation) * 1e6 * Math.Sqrt(Math.Max(0, region.averageIncome)) * RackJobberChannel.Reach(year) * ShopperScale;
 		double Weight(BudgetLpProduct p) => Math.Sqrt(Math.Max(1, p.Appeal)) * Math.Pow(p.Quality, 2.5) * Taper(p, region.regionId) *
 			AlbumSimulator.CalculateAlbumExhaustion((float)(p.RegionUnits.GetValueOrDefault(region.regionId) / Math.Max(1, pool)));
 		double Decay(BudgetLpProduct p) => Math.Pow(.8, Math.Max(0, week - p.ReleaseWeek) / 52d);

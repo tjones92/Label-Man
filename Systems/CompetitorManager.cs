@@ -3741,9 +3741,9 @@ public partial class CompetitorManager : Node {
 	/// </summary>
 	public static float CalculateMarketAlbumOpportunityFactor(IEnumerable<MarketRegion> regions, float year) {
 		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
-		float buyingPopulation = regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage());
+		float buyingPopulation = regionArray.Sum(region => region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage());
 		if (buyingPopulation <= 0f) return .5f;
-		return Mathf.Clamp(regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage() *
+		return Mathf.Clamp(regionArray.Sum(region => region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage() *
 			region.GetMarketAlbumOpportunityWeight(year)) / buyingPopulation, 0f, 1f);
 	}
 

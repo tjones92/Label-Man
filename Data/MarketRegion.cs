@@ -19,6 +19,10 @@ public partial class MarketRegion : Resource {
 
 	[ExportGroup("Demographics - 1960 Baseline")]
 	[Export] public float population;
+	/// <summary>Population as the economy reads it: the authored (or, under --census-population, census) population times
+	/// <see cref="CensusPopulation.EconomicScale"/>, which holds the national record-buying population at its calibrated
+	/// level. Exactly <see cref="population"/> when the switch is off.</summary>
+	public float EconomicPopulation => population * CensusPopulation.EconomicScale;
 	[Export(PropertyHint.Range, "0,1")] public float urbanization;
 	[Export] public float averageIncome;
 	[Export(PropertyHint.Range, "0,0.6")] public float youthPercentage;
@@ -177,7 +181,7 @@ public partial class MarketRegion : Resource {
 	}
 	
 	public float GetGenreMarketSize(Genre genre, int year) {
-		float baseMarket = population * 1000000f;
+		float baseMarket = EconomicPopulation * 1000000f;
 		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
 		if (GenreMarketV2.Enabled && genreMarketV2Live) {
 			float momentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
@@ -197,7 +201,7 @@ public partial class MarketRegion : Resource {
 			// growth before quality, awareness, stock, or format tilt could act.
 			return explanation.EnabledPreTiltBuyerPool;
 		}
-		float baseMarket = population * 1000000f;
+		float baseMarket = EconomicPopulation * 1000000f;
 		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
 		return buyingPopulation * GetGenreAcceptance(genre, year) * GetSegregationFactor(genre) *
 			GetAlbumAffinity(genre, year) * GetAlbumPurchaseWillingness(year);
@@ -211,7 +215,7 @@ public partial class MarketRegion : Resource {
 	// for youth-appeal film songs) rather than from GetGenreAcceptance/GetAlbumAffinity. This does NOT
 	// touch the genre's own acceptance (handoff §3.4); the record still reports under its real genre.
 	public float GetSoundtrackAlbumMarketSize(ExternalMediaProfile profile, int year) {
-		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		float buyingPopulation = EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 		var shares = segmentCapacities?.Shares;
 		float Share(AudienceSegment s, float fallback) => shares != null && shares.TryGetValue(s, out float v) ? v : fallback;
 		float segReach = Share(AudienceSegment.AdultMOR, 0.14f) + Share(AudienceSegment.FamilyChildrens, 0.04f);
@@ -224,7 +228,7 @@ public partial class MarketRegion : Resource {
 	}
 
 	public AlbumDemandExplanation GetAlbumDemandExplanation(Genre genre, float year) {
-		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		float buyingPopulation = EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 		float momentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
 		float routedAcceptance = GenreAcceptanceService.GetRegionalDemandAcceptance(genre, genre, this, year, momentum);
 		float legacyAcceptance = GetLegacyGenreAcceptance(genre, year);
@@ -283,7 +287,7 @@ public partial class MarketRegion : Resource {
 
 	/// <summary>Accepted legacy genre buyer pool used as the common Album-prior denominator.</summary>
 	public float GetAcceptedLegacyGenreMarketSize(Genre genre, float year) {
-		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		float buyingPopulation = EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 		return buyingPopulation * GetLegacyGenreAcceptance(genre, year) * GetSegregationFactor(genre);
 	}
 
@@ -446,7 +450,7 @@ public partial class MarketRegion : Resource {
 	/// as a region-relative one.
 	/// </summary>
 	public float GetRecordBuyingPopulation() =>
-		population * 1000000f * GetBuyingPopulationPercentage();
+		EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 
 	public float GetGenreAcceptance(Genre genre, int year) => GetGenreAcceptance(genre, (float)year);
 

@@ -48,7 +48,7 @@ public static partial class MediaAtmosphereService {
 	/// </summary>
 	private static void SeedOpeningFollowing(Evidence evidence, GameDate start) {
 		if (!MediaFollowing.Active || ArtistManager.Instance == null || evidence.Regions == null || evidence.Regions.Count == 0) return;
-		double totalPop = evidence.Regions.Sum(x => (double)x.population);
+		double totalPop = evidence.Regions.Sum(x => (double)x.EconomicPopulation);
 		if (totalPop <= 0) return;
 		int today = BroadcastExposure.DayIndex(start);
 		foreach (SimulatedArtist a in ArtistManager.Instance.GetAllArtists()) {
@@ -67,7 +67,7 @@ public static partial class MediaAtmosphereService {
 			if (youngByYear.Values.Sum() + adult < FollowingPruneFloor) continue;
 			var fs = new MediaFollowingState { ArtistId = a.artistId, ArtistName = a.stageName, LastActiveDay = today };
 			foreach (MarketRegion region in evidence.Regions) {
-				float w = (float)(region.population / totalPop);
+				float w = (float)(region.EconomicPopulation / totalPop);
 				var fr = new FollowingRegion { Adult = adult * w };
 				foreach (var (year, n) in youngByYear) fr.Young[year] = n * w;
 				if (MediaFollowing.ObserveOpeningOrigin) OpeningFollowingOrigin.Seed(fr);
@@ -88,8 +88,8 @@ public static partial class MediaAtmosphereService {
 		for (int i = 0; i < r; i++) index[regions[i].regionId] = i;
 		float youngShare = BroadcastExposure.GroupShare(ViewerGroup.Teen, year) + BroadcastExposure.GroupShare(ViewerGroup.YoungAdult, year);
 		float adultShare = BroadcastExposure.GroupShare(ViewerGroup.Adult, year);
-		double[] youngPop = regions.Select(x => Math.Max(1.0, x.population * 1e6 * youngShare)).ToArray();
-		double[] adultPop = regions.Select(x => Math.Max(1.0, x.population * 1e6 * adultShare)).ToArray();
+		double[] youngPop = regions.Select(x => Math.Max(1.0, x.EconomicPopulation * 1e6 * youngShare)).ToArray();
+		double[] adultPop = regions.Select(x => Math.Max(1.0, x.EconomicPopulation * 1e6 * adultShare)).ToArray();
 		float wYoung = youngShare / (youngShare + adultShare);
 		float[] Row(Dictionary<string, float[]> map, string id) { if (!map.TryGetValue(id, out var v)) map[id] = v = new float[r]; return v; }
 		// Diagnostic only: same proportional source allocation used by the following ledger, before pruning.

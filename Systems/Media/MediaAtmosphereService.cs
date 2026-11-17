@@ -316,7 +316,7 @@ public static partial class MediaAtmosphereService {
 		if (perf == 0f || freshShare <= 0) return;
 		if (!state.DemandLift.TryGetValue(a.RecordId, out var byRegion)) state.DemandLift[a.RecordId] = byRegion = new Dictionary<string, float>(StringComparer.Ordinal);
 		foreach (var (regionId, reach) in airing.Exposure.ReachByRegion) {
-			double population = (ChartManager.Instance?.GetRegionById(regionId)?.population ?? 0) * 1e6;
+			double population = (ChartManager.Instance?.GetRegionById(regionId)?.EconomicPopulation ?? 0) * 1e6;
 			if (population <= 0 || reach <= 0) continue;
 			float q = (float)(MediaDemand.Gain * perf * freshShare * reach / population);
 			byRegion[regionId] = byRegion.GetValueOrDefault(regionId) + q;
@@ -1061,7 +1061,7 @@ public static partial class MediaAtmosphereService {
 	private static void TallyAiredThrough(GameDate weekEnd) {
 		int cutoff = BroadcastExposure.DayIndex(weekEnd);
 		airedThisWeek.Clear();
-		double population = (ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()).Sum(r => r.population) * 1e6;
+		double population = (ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()).Sum(r => r.EconomicPopulation) * 1e6;
 		foreach (MediaAppearance a in state.Appearances) {
 			foreach (MediaAiring airing in a.Airings) {
 				if (airing.Tallied || BroadcastExposure.DayIndex(airing.Date) > cutoff) continue;

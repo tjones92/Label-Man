@@ -368,6 +368,8 @@ public partial class ChartManager : Node {
 			return;
 		}
 		Instance = this;
+		// --census-population: census-sized regions and the economic scale, before anything reads a region.
+		CensusPopulation.Apply(allRegions);
 		// Resolve the scene default and any audit override before population or
 		// prewarming can consume simulation state.
 		MarketSeasonality.Configure(marketSeasonalityEnabled, SimulationArguments.Get());
@@ -1517,7 +1519,7 @@ public partial class ChartManager : Node {
 		// Stage A: retain the accepted common local clearing unchanged.
 		foreach (MarketRegion region in allRegions) {
 			List<MarketIntent> intents = intentsByRegion[region.regionId];
-			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
+			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.EconomicPopulation * 1_000_000f * region.GetBuyingPopulationPercentage()
 				* WeeklyRegionalPurchaseCapacityMultiplier));
 			float albumChannelMaturity = AlbumModel.GetRetailFulfillmentMaturity(year);
 			float albumEra = region.GetAlbumDemandEraProgress(year);
@@ -1625,9 +1627,13 @@ public partial class ChartManager : Node {
 					pending[regionId][intent.Record] = intent.Cleared;
 				}
 			}
+			// --lp-purse-adult-weight: the national LP purse, shared out by adult buyers instead of each region's singles purse.
+			var adultPurses = RetailPurchaseEnvelope.AdultWeighted
+				? RetailPurchaseEnvelope.AdultWeightedBudgets(allRegions, region => summariesByRegion[region.regionId].BasePurchaseCapacity, year) : null;
 			RackJobberChannel.ClearWeek(allRecords, allRegions, GetLabelById, currentChartWeek, year, month, triggerEvents,
 				(record, region) => pending[region].GetValueOrDefault(record),
-				region => RetailPurchaseEnvelope.AlbumBudget(summariesByRegion[region].BasePurchaseCapacity, year), AllocateStoreCohort);
+				region => adultPurses != null ? adultPurses[region]
+					: RetailPurchaseEnvelope.AlbumBudget(summariesByRegion[region].BasePurchaseCapacity, year), AllocateStoreCohort);
 			foreach (var (region, intents) in intentsByRegion) {
 				var summary = summariesByRegion[region];
 				void RemoveStore(MarketIntent intent, int remove) {
@@ -2281,7 +2287,7 @@ public partial class ChartManager : Node {
 			}
 			// Reach x population is the weighting CalculateChartPoints pays airplay on, so this is the
 			// share of the panel that still carries the record rather than a count of regions.
-			float panelWeight = region.media != null ? region.media.radioReach * region.population : 0f;
+			float panelWeight = region.media != null ? region.media.radioReach * region.EconomicPopulation : 0f;
 			totalPanelWeight += panelWeight;
 			if (!data.stationsDropped) carriedPanelWeight += panelWeight;
 
@@ -2397,7 +2403,7 @@ public partial class ChartManager : Node {
 	private static long NationalAlbumChannelCapacity(MarketRegion[] regions, int year) {
 		long total = 0;
 		foreach (MarketRegion region in regions ?? Array.Empty<MarketRegion>()) {
-			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
+			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.EconomicPopulation * 1_000_000f * region.GetBuyingPopulationPercentage()
 				* WeeklyRegionalPurchaseCapacityMultiplier));
 			float era = region.GetAlbumDemandEraProgress(year);
 			total += Mathf.RoundToInt(baseCapacity * AlbumModel.GetRetailFulfillmentMaturity(year) *
@@ -2415,8 +2421,8 @@ public partial class ChartManager : Node {
 		float rackShelf = labelShipsHere ? 1f : ChartSimulator.GetRackJobberShelfMultiplier(
 			chartPosition, data?.peakBreakoutScore ?? 0f,
 			TimeManager.Instance?.CurrentDate.year ?? 1960);
-		return (region.distribution.recordStoreCount * 100f) +
-			(region.distribution.departmentStoreCount * 200f * rackShelf);
+		return ((region.distribution.recordStoreCount * 100f) +
+			(region.distribution.departmentStoreCount * 200f * rackShelf)) * CensusPopulation.EconomicScale;
 	}
 
 	internal float GetRegionalDemandScale(MarketRegion region) {

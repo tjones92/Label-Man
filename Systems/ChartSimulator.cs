@@ -438,7 +438,7 @@ public static class ChartSimulator {
 		float singleOpportunityNormalization = 1f)
 	{
 		// === 1. POTENTIAL BUYERS ===
-		float populationMillions = region.population;
+		float populationMillions = region.EconomicPopulation;
 		float buyingPercentage = region.GetBuyingPopulationPercentage();
 		float potentialBuyers = populationMillions * 1000000f * buyingPercentage;
 		
@@ -662,7 +662,8 @@ public static class ChartSimulator {
 		float rackShelf = labelShipsHere ? 1f : GetRackJobberShelfMultiplier(shelfPosition,
 			regionalData?.peakBreakoutScore ?? 0f, TimeManager.Instance?.CurrentDate.year ?? RACK_ERA_START_YEAR);
 		float deptCapacity = region.distribution.departmentStoreCount * WEEKLY_SALES_PER_DEPT_STORE * rackShelf;
-		float totalCapacity = (storeCapacity + deptCapacity) * region.distribution.inventoryDepth;
+		float totalCapacity = (storeCapacity + deptCapacity) * region.distribution.inventoryDepth
+			* CensusPopulation.EconomicScale; // --census-population: store counts are census-sized, capacity is calibrated
 
 		if (shelfPosition > 0 && shelfPosition <= 20) {
 			totalCapacity *= 1.5f;
@@ -1330,7 +1331,7 @@ public static class ChartSimulator {
 	private static float GetRegionalPotentialAudience(RecordRuntimeData record, MarketRegion region, float quality, int year) {
 		float qualityAppeal = 0.3f + (quality * 0.7f);
 		float genreReach = GetGenreMarketReach(record.baseRecord.primaryGenre, year);
-		return BASE_POTENTIAL_AUDIENCE * qualityAppeal * genreReach * (region.population / 50f);
+		return BASE_POTENTIAL_AUDIENCE * qualityAppeal * genreReach * (region.EconomicPopulation / 50f);
 	}
 	
 	// =======================================================================
@@ -1415,7 +1416,7 @@ public static class ChartSimulator {
 			// TrajectoryShapeProbe: --airplay-convexity=K replaces the exponent; the authored value when off.
 			Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, TrajectoryShapeProbe.Convexity(AIRPLAY_CONVEXITY)) * access;
 		if (panelLinear) rotation += StationRegionalSupport.PanelLinearWeight * data.panelRadioPlay;
-		return rotation * region.media.radioReach * region.population *
+		return rotation * region.media.radioReach * region.EconomicPopulation *
 			AIRPLAY_POINTS_PER_MILLION_REACHED;
 	}
 

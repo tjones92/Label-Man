@@ -64,7 +64,7 @@ public sealed partial class StationNetwork {
 				float radio = Math.Max(panel, d.salesRegionalRadioPlayThisWeek);
 				responseNow[(id, region.regionId)] = new ResponseEvidence { Week = week, Region = region.regionId,
 					Units = d.unitsSoldThisWeek, Backorders = d.unitsBackordered, Panel = panel, Radio = radio,
-					Score = ResponseAuditionProbe.Response(d.unitsSoldThisWeek, region.population, radio),
+					Score = ResponseAuditionProbe.Response(d.unitsSoldThisWeek, region.EconomicPopulation, radio),
 					Streak = ordinary && panel > 0 && d.unitsSoldThisWeek >= 20 ? (prior?.Week == week - 1 ? prior.Streak : 0) + 1 : 0 };
 			}
 			// Reports are one meeting old, with two completed ordinary-support observations.

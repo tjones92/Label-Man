@@ -19,6 +19,12 @@ public static class RegionalGenreTaste {
 	private static bool configured;
 	public static float K { get; private set; }
 	public static bool Enabled => K > 0f;
+	/// <summary>--regional-genre-taste-buyer-weight (LpGenreAllocationFollowup.md §30): the national means (each attribute's
+	/// mean and the taste normalizer) weight a place by its record buyers -- population x its region's
+	/// GetBuyingPopulationPercentage, the weight GenreAcceptanceService uses -- instead of by heads, so "national genre
+	/// totals hold" in buyers. Off: heads, as before.</summary>
+	public static bool BuyerWeight { get; private set; }
+	private const string BuyerWeightSwitch = "--regional-genre-taste-buyer-weight";
 
 	/// <summary>A city's 1960 metro population (millions) and specialist audience shares. Authored approximations of
 	/// 1960 census SMSA totals and nonwhite shares, Spanish-surname/Puerto Rican shares, and a judgement of
@@ -54,6 +60,8 @@ public static class RegionalGenreTaste {
 
 	private sealed class Place {
 		public string Id, RegionId, CityId; public float Population, Black, Country, Latin, LatinPerYear, LatinCap;
+		// Weight in the national means: Population, or Population x the region's buying share under BuyerWeight.
+		public float Weight;
 		public float LatinIn(int year) => LatinPerYear > 0f ? Math.Min(LatinCap, Latin + LatinPerYear * Math.Max(0, year - 1960)) : Latin;
 	}
 
@@ -69,11 +77,12 @@ public static class RegionalGenreTaste {
 		if (raw != null && (!float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out float k) || k < 0f || k > 4f))
 			throw new ArgumentException(Prefix + " takes a number from 0 to 4.");
 		K = raw == null ? 0f : float.Parse(raw, CultureInfo.InvariantCulture);
+		BuyerWeight = (arguments ?? Array.Empty<string>()).Contains(BuyerWeightSwitch, StringComparer.Ordinal);
 		configured = true;
 	}
 
-	internal static void SetForChecks(float k, IEnumerable<MarketRegion> regions) {
-		configured = true; K = k; places = null; regionCache.Clear(); cityCache.Clear(); normalizer.Clear();
+	internal static void SetForChecks(float k, IEnumerable<MarketRegion> regions, bool buyerWeight = false) {
+		configured = true; K = k; BuyerWeight = buyerWeight; places = null; regionCache.Clear(); cityCache.Clear(); normalizer.Clear();
 		Build(regions);
 	}
 
@@ -106,7 +115,7 @@ public static class RegionalGenreTaste {
 		var byRegion = new Dictionary<string, (float pop, float mass)>(StringComparer.Ordinal);
 		foreach (Place p in places) {
 			byRegion.TryGetValue(p.RegionId, out var t);
-			byRegion[p.RegionId] = (t.pop + p.Population, t.mass + p.Population * Mass(primary, secondary, p, year));
+			byRegion[p.RegionId] = (t.pop + p.Weight, t.mass + p.Weight * Mass(primary, secondary, p, year));
 		}
 		float total = 0f, weighted = 0f;
 		foreach (var (pop, mass) in byRegion.Values) { total += pop; weighted += pop * MathF.Pow(mass / pop, K); }
@@ -137,7 +146,7 @@ public static class RegionalGenreTaste {
 
 	private static float NationalMean(Func<Place, float> share) {
 		float pop = 0f, sum = 0f;
-		foreach (Place p in places) { pop += p.Population; sum += p.Population * share(p); }
+		foreach (Place p in places) { pop += p.Weight; sum += p.Weight * share(p); }
 		return Math.Max(1e-6f, sum / pop);
 	}
 
@@ -151,10 +160,11 @@ public static class RegionalGenreTaste {
 		cityByName = new Dictionary<string, Place>(StringComparer.Ordinal);
 		foreach (MarketRegion region in regions) {
 			float cityPop = 0f, cityBlack = 0f;
+			float buyers = BuyerWeight ? region.GetBuyingPopulationPercentage() : 1f;
 			foreach (City c in Cities) {
 				MarketCity mc = DistanceModel.GetCityById(c.Id);
 				if (mc == null || mc.parentRegionId != region.regionId) continue;
-				var place = new Place { Id = c.Id, RegionId = region.regionId, CityId = c.Id, Population = c.Population, Black = c.Black, Country = c.Country,
+				var place = new Place { Id = c.Id, RegionId = region.regionId, CityId = c.Id, Population = c.Population, Weight = c.Population * buyers, Black = c.Black, Country = c.Country,
 					Latin = c.Latin, LatinPerYear = c.LatinPerYear, LatinCap = c.LatinCap };
 				places.Add(place);
 				cityByName[mc.name] = place;
@@ -163,7 +173,7 @@ public static class RegionalGenreTaste {
 			float rest = Math.Max(.1f * region.population, region.population - cityPop);
 			(float country, float latin) = Remainders.TryGetValue(region.regionId, out var r) ? r : (.15f, .01f);
 			places.Add(new Place { Id = region.regionId + ":rest", RegionId = region.regionId,
-				CityId = DistanceModel.GetHubCityIdForRegion(region.regionId), Population = rest,
+				CityId = DistanceModel.GetHubCityIdForRegion(region.regionId), Population = rest, Weight = rest * buyers,
 				Black = Math.Max(BlackShareFloor, (region.blackPopulation * (cityPop + rest) - cityBlack) / rest), Country = country, Latin = latin });
 		}
 	}

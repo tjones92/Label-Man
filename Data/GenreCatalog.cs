@@ -565,6 +565,14 @@ public static class GenreCatalog {
 		}
 	}
 	private static void Add(string id, Genre genre, GenreFamily family, float emergence, float? death, float audience, float orientation, params float[] baseline) {
+		// Census R&S retune (LpGenreAllocationFollowup.md §30, adopted 2026-11-16): on the census base with census Black
+		// shares and the buyer-weighted taste normalizer, RnB sat 1.5 points under the control; ×1.15 (1960) and ×1.08
+		// (1962) return it. Same float multiply as the --genre-keyframe-scale probe it replaces, so cenbwr reproduces.
+		if (genre == Genre.RnB && CensusPopulation.BlackShareEnabled) {
+			baseline = (float[])baseline.Clone();
+			baseline[0] *= 1.15f;
+			baseline[1] *= 1.08f;
+		}
 		if (KeyframeScaleProbe.Count > 0) {
 			baseline = (float[])baseline.Clone();
 			int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };

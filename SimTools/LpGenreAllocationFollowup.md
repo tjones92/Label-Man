@@ -1610,3 +1610,365 @@ carries `--hit-package-demand=0.4 --hit-package-demand-studio=0.75 --lp-demand-s
 `--album-chart-blend=0.22 --soundtrack-hit-tail-peak=20` (239 flags). Apart from `--run`, `--seed` and `--weeks` its
 flag list equals the `acb-k4s265` run requests, so those runs are its 104-week control. The previous file is
 `candidate-request-pre-blend-2026-11-16.json`. `--album-chart-blend-floors-raw` is not in it.
+
+## 27. Racks to 60M, and seed 1001's youth studio LPs (2026-11-16)
+
+§26 left racks plus budget editions at 52–55M against Billboard's 60M and suggested `--rack-shopper-scale`. Runs on the
+adopted candidate (`candidate-request.json`, scale 2.65), 104 weeks: control `acb-k4s265` (seed 3003 added),
+`bsc115` (`--budget-shopper-scale=0.115`, 2002 / 1001), `bsc13` (0.13, 2002 / 1001 / 3003) and `bsc13s28` (0.13 with
+`--lp-demand-scale=2.8`, 2002 / 1001). No code change.
+
+**The short channel is budget editions, not front-line racks.** In the control, front-line racks sell 38.0–40.0M in
+1961, inside the 36.6–41.2M front-line range (`RackJobberChannelDesign.md`; 60M less a 31–39% budget share). Budget
+editions sell 13.5–13.8M against 18.8M (31% of units at the model's $1.75 budget price) to 23.4M (39% at $1.25). Rack
+shelf is not binding (66–72% used). Clubs are 44.1M against 45M (count `record-club-annual` without the `Licensor` rows,
+which repeat the `OperatorLicensed` units), so total 1961 LPs are 160–165M against 173M, and the missing ~6M of budget
+editions fits without overshooting. A higher `--rack-shopper-scale` would push front-line racks past their range, and
+under `--rack-shared-exhaustion` it spends store buyers. The lever is `--budget-shopper-scale` (default 0.08).
+
+| 1961 (seed 2002 / 1001; 3003) | control | budget 0.115 | **budget 0.13** | 0.13 + LP scale 2.8 | Billboard |
+|---|---|---|---|---|---|
+| Front-line racks (M) | 40.0 / 38.0; 39.3 | 38.7 / 39.4 | **38.6 / 37.9; 37.2** | 38.8 / 38.5 | 36.6–41.2 |
+| Budget editions (M) | 13.5 / 13.8; 13.7 | 18.4 / 18.7 | **20.6 / 20.9; 21.1** | 20.5 / 20.9 | 18.8–23.4 |
+| Racks together (M) | 53.5 / 51.8; 53.0 | 57.1 / 58.1 | **59.2 / 58.8; 58.3** | 59.3 / 59.4 | 60 |
+| Store LPs (M) | 67.4 / 67.1; 62.9 | 66.1 / 65.8 | **64.8 / 65.0; 61.7** | 66.0 / 65.0 | 68 |
+| Total with clubs (M) | 165.0 / 163.0; 160.0 | 167.3 / 168.0 | **168.1 / 167.9; 164.2** | 169.4 / 168.5 | 173 |
+| Envelope: store intent / allocated (M) | 87.6→79.5 / 87.7→78.9 | 88.7→78.0 / 90.9→77.8 | 87.5→76.4 / 90.1→76.5 | 91.1→77.7 / 91.2→76.7 | |
+| … region-weeks bound / unspent (M) | 29% 10.0 / 26% 12.0 | 35% 7.6 / 43% 6.9 | 39% 6.8 / 45% 6.9 | 45% 5.5 / 48% 6.4 | |
+| Budget net to labels ($M) | 1.76 / 1.80 | 2.40 / 2.44 | 2.69 / 2.73; 2.76 | 2.68 / 2.73 | |
+| Head gap, seven rows, 1960 / 1961 (2002 + 1001) | 14 / 36 | 18 / 21 | **14 / 19** | 21 / 31 | |
+| Distinct No. 1s, 1960 / 1961 (two-seed mean) | 8 / 12.5 | 7.5 / 12.5 | 7.5 / 12.5 | 9 / – | 10 / 12 |
+| Labels defunct | 120; 128 | 116; 131 | 117; 132 | 111; 131 | |
+
+- **Budget scale 0.13 puts racks at 58.3–59.4M**, budget editions at 35% of rack units (between the two price
+  sensitivities), and leaves the chart untouched: budget units never enter chart points, and the chart-shape and head
+  rows move inside the seed band.
+- **It costs 1.2–2.6M of store LPs through the retail purchase envelope**, not through switchers (1.4M, unchanged).
+  Stores and racks share one purse (`RetailPurchaseEnvelope.Split`); in a short region-week, the purse is split by store
+  intent against 1.6 × rack intent, so more budget demand takes store copies. Bound region-weeks rise from 26–29% to
+  39–45%. Nationally 6.8M stays unspent: the purse is tight in some regions and weeks and slack in others.
+- **More store intent barely buys it back.** LP scale 2.8 (+6% store intent) recovers 0.0–1.2M, because nearly half
+  the region-weeks are now envelope-bound. Store volume above ~65M is now an envelope question (its size is the singles
+  purse × 133/129, and its regional fit), not a demand-scale one.
+
+**Seed 1001's youth studio LPs are seed luck.** 1961 top-50 youth studio LPs, counted per title: control 7 / 5 / 9
+(1001 / 2002 / 3003), `bsc13` 7 / 4 / 6; Billboard about 4. Seed 1001's excess is one Superstar (artist_00007,
+label_0004) with three studio LPs in the 1961 top 50, released at weeks 55, 73 and 91, each reaching #1. Youth Stars
+and Superstars release a studio LP every 18–19 weeks on all three seeds (median and lower quartile at the 18-week
+spacing), about 2.8 a year, the top of what Elvis or Brenda Lee issued in 1960–61. Seed 3003 has more youth Superstar
+LPs (16) than 1001 (11) and its own control reads 9. The residual over Billboard is 1–3 titles a seed spread across
+Major and MidTier Stars, inside the row noise of §26. No lever proposed.
+
+**Proposed candidate update:** add `--budget-shopper-scale=0.13` (scale 2.65 unchanged). Open: store LPs 62–65M against
+68M, now bound by the envelope's regional fit; Comedy under in 1961 (2–8 against 12); the 40+-week catalogue stock
+and the 50-slot chart (§23).
+
+Reproduction: `run_lp_earned_screen.ps1 -Reference SimLogs/writing-calibration/candidate-request.json -Arms sc -LpScale
+2.65 -Weeks 104 -Seed <seed> -RunPrefix bsc13 -Extra "--budget-shopper-scale=0.13"` (run with `-ExecutionPolicy
+Bypass`). Volume: `rack-region-weekly` (front), `budget-region-weekly`, `record-club-annual` without `Licensor`,
+`decade-annual-rollup` (stores), `retail-purchase-envelope`.
+
+**Adopted into the candidate (2026-11-16, author's call).** `candidate-request.json` appends `--budget-shopper-scale=0.13` (240 flags). Apart from `--run`, `--seed` and `--weeks` it equals the `bsc13` run requests, so those are its 104-week control. The previous file is `candidate-request-pre-budget-2026-11-16.json`.
+
+## 28. Store LPs against the purse, and Comedy in 1961 (2026-11-16)
+
+§27 left stores at 61.7–65.0M against Billboard's 68M (bound by the envelope's regional fit) and Comedy at 2–8 against
+12 in 1961. Both read from the `bsc13` runs (the candidate's control; seeds 2002 / 1001 / 3003). No code change, no new
+runs.
+
+**The purse is Billboard's retail LP total, so stores and racks share what little slack there is.** The envelope
+gives LPs the singles purse × 133/129 (the 1966 guide's retail ratio) = 131.9M in 1961. Billboard's own 1961 retail
+figures are LPs 68 + 60 = 128M against singles 92 + 40 = 132M, a ratio of 0.97, not 1.03; the model's singles purse
+(~128M) is 3% under Billboard and the ratio 6% over, so the purse lands 3% above Billboard's retail LP total. Reaching
+68 + 60 needs 97% of it spent. The runs spend 121–125M (92–95%): stores 61.7–65.0M, racks and budget 59.5–60.4M,
+unspent 6.8–10.7M.
+
+| 1961, by region (seed 2002) | purse (M) | store intent | stores | racks | unspent | weeks bound | store intent lost |
+|---|---|---|---|---|---|---|---|
+| East Coast | 44.2 | 34.3 | 23.3 | 20.5 | 0.4 | 87% | 7.0 |
+| Great Lakes | 31.4 | 20.8 | 16.1 | 14.1 | 1.2 | 52% | 1.9 |
+| West Coast | 19.6 | 13.8 | 10.5 | 8.4 | 0.7 | 62% | 1.4 |
+| Deep South, Southwest, Plains, Rockies | 36.8 | 18.6 | 15.0 | 17.4 | 4.4 | 8–44% | 0.9 |
+
+- **The regional fit is a youth-weighting carry-over.** The album purse is the region's singles purse
+  (`MarketRegion.GetBuyingPopulationPercentage`: youth share, √income, urbanisation), so youthful, low-income regions
+  get the same LP:single ratio as the East Coast. Store intent per purse dollar runs 0.78 (East Coast) to 0.42 (Deep
+  South); the South and Southwest leave 3–4M unspent while the East Coast is bound in 77–87% of weeks.
+- **Offline re-split** (`SimTools/replay_envelope_region_weights.py`, which applies `RetailPurchaseEnvelope.Split` to
+  the logged region-week intents; with production weights it reproduces the logged stores and rack allowance exactly).
+  The national purse is held fixed and only its regional shares change. Feedback through the chart is not modelled.
+
+| 1961 stores (M), seed 2002 / 1001 / 3003 | rack weight 1.3 (production) | rack weight 1.0 |
+|---|---|---|
+| Current purse shares (East Coast 33.5%) | 64.8 / 65.0 / 61.7 | 67.2 / 67.8 / 63.3 |
+| Adult × √income × urbanisation (36.5%) | 66.2 / 66.1 / 62.8 | 68.3 / 68.7 / 64.1 |
+| Adult × income × urbanisation (37.8%) | 66.5 / 66.4 / 62.8 | 68.7 / 69.0 / 64.2 |
+
+  Adult-weighted purse shares add 1.1–1.7M to stores at no cost to racks (rack allowance ±0.2M). Rack weight 1.0 (the
+  priority racks get in a short region-week; production 1.3 in 1960–66, calibrated on the 1966–68 guide) moves another
+  ~2.5M from racks to stores, so racks would fall to ~57.5M and the budget scale would have to rise again: a trade, not
+  a gain.
+- **Seed 3003 is short on demand, not purse**: store intent 80.3M (2002 / 1001: 87.5 / 90.1), bound in 24% of
+  region-weeks, 10.7M unspent. No purse change reaches it.
+
+**Comedy is seed noise around the target.** Year-end top-50 Comedy share, three seeds: 1960 10 / 8 / 16 (mean 11.3,
+Billboard 12), 1961 8 / 2 / 20 (mean 10, Billboard 12). Release supply is the same on every seed (65–76 Comedy LP drops
+in 1961, 55–67 of them new signings). The head depends on whether an opening Comedy act becomes a Star: seed 3003 has
+two (artist_00620 with 7 charting LPs in two years, artist_00931 with 5), seed 1001 none (its best act charts 2 LPs,
+peak #4). Billboard's 1961 six titles came from about four acts with one or two LPs each. Raising Comedy affinity
+would lift the mean only by pushing seed 3003 further over, so no genre lever is proposed. The 7-LPs-in-two-years act
+is the same Star release cadence §27 found for youth (every 18–19 weeks).
+
+**Proposals.**
+1. Size each region's album purse by adult population × √income × urbanisation (national total unchanged), as an opt-in
+   switch with a 104-week three-seed screen. Expected +1–1.5M stores; it is a model correction (LPs were bought by
+   adults) rather than a tuning knob.
+2. Leave the rack weight at 1.3: stores above ~66M then need either racks below 60M or a purse above Billboard's retail
+   LP total.
+3. Comedy: none. If the Star release cadence (18–19 weeks) is ever lengthened, recheck Comedy and youth together.
+
+**Population check (author's question).** Model regions total 157.9M against the 1960 census's 178.5M (48 states + DC,
+by `Data/Map/UsStates.json` regions). The gap is not uniform: Great Plains, West Coast, Rockies and Southwest match the
+census; Great Lakes is 36.1 against 39.3 and the East Coast 52.2 against 54.8; the **Deep South is 15.0 against 29.9**
+(no documented reason found). The national level is absorbed by the calibrated multipliers (the singles purse lands at
+~128M against Billboard's 132M), so the store gap is not a total-population effect. Replaying the purse with census
+populations, intents held as logged: the Deep South's purse share rises from 7.8% to 13.9%, the East Coast's falls from
+33.5% to 31.6%, and stores fall to 58.8–61.4M (with adult weighting, 60.2–62.6M). The Deep South's own demand would
+also roughly double, but its 1961 store intent (4.0–4.5M) is far below its census-sized purse (~18M), so most of that
+purse would go unspent. Correcting the Deep South is a world calibration question (singles, Country / R&B, regional
+labels), not a store-LP fix, and the adult-weighted purse would still be needed alongside it.
+
+## 29. Census population with the economic scale, and the adult-weighted LP purse (2026-11-16)
+
+Two new opt-in switches, built after §28 (the author: the Deep South's 15M is a badly sourced figure, not a deliberate
+segregation proxy; the segregation factor and Black radio already model that).
+
+- `--census-population` (`Systems/CensusPopulation.cs`, applied in `ChartManager._EnterTree` before anything reads a
+  region). Each region takes its 1960 census population (Great Lakes 39.3, Great Plains 15.4, East Coast 54.8, West
+  Coast 20.3, Deep South 29.9, Rockies 4.6, Southwest 14.2; 178.5M), and its infrastructure counts (stations, jukeboxes,
+  venues, studios, local labels, clubs, theatres, colleges, record and department stores) scale by census / authored.
+  **Infrastructure check:** every region was authored at one per-capita density of its authored population (about 24
+  stations, 2,800 jukeboxes and 10–12 record stores per million, the South included), so the counts were sized to the
+  same wrong 15M. Scaled, the national totals read about 4,380 stations (Broadcasting: 3,507 AM + 938 FM at the end of
+  1961; 4,339 AM+FM in November 1961) and about 497,000 jukeboxes (about 500,000 is the usual period figure). No
+  state-level station table was found to check regional splits.
+  `CensusPopulation.EconomicScale` (0.8975) holds the national record-buying population at its calibrated level. Every
+  consumer that turns population into units, points, pools or fans reads `MarketRegion.EconomicPopulation` (singles
+  purse, genre and album market sizes, airplay chart points and panel weights, potential audience, rack and budget
+  shopper pools, rack counts, fanbase, media fans and TV viewers), and the four store-capacity formulas multiply by the
+  scale. Logging, regional taste (cities against the rest) and colleges per million keep the real population.
+- `--lp-purse-adult-weight` (`RetailPurchaseEnvelope.AdultWeightedBudgets`, requires `--retail-purchase-envelope=1`).
+  The national LP purse (the sum of the regional purses, unchanged) is shared out by economic population × (1 − youth)
+  × √income × (0.6 + 0.4 urbanisation) instead of by each region's youth-weighted singles purse.
+
+Checks: `--retail-purchase-envelope-check` passes 4,023 assertions (7 new: purse conservation and direction, census
+populations, infrastructure scaling, national buying population held, scale ≈ 0.90, off = authored). **Off is inert:**
+`cpoff-2002-sc` (27 weeks, new build, no switches) matches `bsc13-2002-sc` on all 69 comparable weekly streams; the four
+that differ do so from week 1 in end-of-run snapshot columns (company-monthly, programme-cash-shortfalls,
+release-profit-gates, writing-suppliers), as in §24.
+
+Runs on the candidate, 104 weeks, seeds 2002 / 1001 / 3003: `cen` (census only), `cenad` (census + adult purse);
+control `bsc13`. Analysis: `SimTools/analyze_census_population.py bsc13 cen cenad` and `analyze_album_head_gap.py`.
+
+| 1961 (seed 2002 / 1001 / 3003) | control | census | census + adult purse | Billboard |
+|---|---|---|---|---|
+| Singles (M) | 128.0 / 128.0 / 128.0 | 128.0 / 128.0 / 128.0 | 128.0 / 128.0 / 128.0 | 132 |
+| Store LPs (M) | 64.8 / 65.0 / 61.7 | 62.7 / 62.7 / 58.7 | **64.2 / 63.9 / 61.6** | 68 |
+| Front-line racks (M) | 38.6 / 37.9 / 37.2 | 39.8 / 37.8 / 39.7 | 40.8 / 38.6 / 40.3 | 36.6–41.2 |
+| Budget editions / clubs (M) | 20.6–21.1 / 44.1 | same | same | 18.8–23.4 / 45 |
+| Purse unspent (M); region-weeks bound | 6.8 / 6.9 / 10.7; 27–45% | 7.6 / 9.2 / 11.0; 25–40% | 5.2 / 7.2 / 7.5; 38–54% | |
+| Deep South share of singles / store LPs | 8% / 5–6% | 14% / 10% | 14% / 9% | (16.8% of people) |
+| Labels defunct | 117 / 132 / 124 | 128 / 152 / 128 | 128 / 158 / 134 | |
+| Genre share error, 1960 / 1961 (3-seed mean) | 22.9 / 25.4 | 29.9 / 26.6 | 30.0 / 29.7 | |
+| … Pop / R&S share 1960 (mean) | 37.4 / 21.2 | 38.0 / 19.0 | 38.2 / 18.9 | 34.9 / 24.3 |
+| … Pop / R&S share 1961 (mean) | 34.8 / 22.9 | 34.3 / 21.8 | 38.7 / 19.9 | 34.0 / 24.7 |
+| Album top-50 head gap 1960 / 1961 (3 seeds) | 9 / 15 | 11 / 26 | 11 / 18 | |
+
+- **The economy holds at the national level.** Singles, clubs and budget editions are unchanged to the decimal, and
+  the purse is the same 131.9M. The Deep South takes 14% of singles (from 8%).
+- **The adult purse is needed with the census.** The census alone costs 2.1–3.0M of 1961 store LPs (a bigger South
+  thins the East Coast's purse share, as §28's replay predicted). With the adult purse, stores are within 0.1–1.1M of
+  the control and racks gain 0.7–3.1M, so retail LPs rise to 123–126M. The purse only binds in 1961, so 1960 is the
+  same in both arms.
+- **Three costs, none from the national level:**
+  1. **Defunct labels +12 (census) and +16 (both); every seed is positive.** Small labels (Independent, Small,
+     Boutique) lose 15% of 1961 gross on the East Coast ($51.9M → $44.0M, three-seed mean), more than the 5% cut in
+     East Coast buyers, while Southern small labels gain only 4% ($17.8M → $18.6M) from 1.8× the buyers. Majors hold.
+     The larger South's buyers go to national product, not to Southern labels.
+  2. **R&S falls 1–2 points** (1960: 21.2 → 19.0 against 24.3), so the 1960 genre share error rises 7 points. The
+     regions that shrink in economic terms (East Coast, Great Lakes) are the integrated R&S markets; the one that grows
+     is the least integrated (`integrationLevel` 0.05), so Southern R&S demand stays mostly with its 33% Black
+     population. The genre calibration was fitted against the 15M South.
+  3. **The adult purse lifts Pop in 1961 by 4.4 points** (LP money moves to the TradPop-heavy East Coast).
+- Album head rows and Comedy move inside the seed band of §26–28.
+
+**Not proposed for adoption yet.** The switches do what they say and hold the economy's level, but they move regional
+and genre balance that the old calibration absorbed. Next, in order:
+1. Why Southern small labels do not convert a larger home market (distribution difficulty 0.6, inventory depth 0.4,
+   breakout bars denominated in buying population, or national hits taking Southern buyers), from `label-sales-weekly`
+   and the breakout funnel on `cen` against `bsc13`.
+2. R&S under census: whether the Deep South's segregation factor and R&S acceptance were tuned to make a 15M South
+   carry its R&S share; then R&S acceptance on the census base.
+3. Then a decade A/B of `--census-population --lp-purse-adult-weight` at the end of the audit.
+
+Reproduction: `run_lp_earned_screen.ps1 -Reference SimLogs/writing-calibration/candidate-request.json -Arms sc -LpScale
+2.65 -Weeks 104 -Seed <seed> -RunPrefix cenad -Extra "--census-population,--lp-purse-adult-weight"` (`cen`: census
+only), run with `-ExecutionPolicy Bypass`.
+
+## 30. Why Southern labels don't capture the bigger South, and R&S on the census base (2026-11-16)
+
+New telemetry: `--regional-home-sales` (telemetry only, written in every mode including `--calibration`) writes
+`{run}-regional-home-sales.csv`: each week, sale region × selling label's home region × tier × format × genre family,
+with records in play and awaiting arrival, raw demand, aware buyers, serviceable intent, displaced demand, units
+(local and spillover), backorders, stock, summed awareness and radio, and regional breakouts. Inert: `rhs0` (control +
+stream) and `rhsc` (census + stream) match `bsc13` and `cen` byte for byte on decade-annual-rollup,
+market-clearing-weekly, year-end-hot100, label-finance and retail-purchase-envelope, all three seeds. Analysis:
+`SimTools/analyze_regional_home_sales.py` (one run in depth) and `SimTools/summarize_regional_home_sales.py CONTROL ARM`
+(three seeds).
+
+### Southern small labels do capture their home market
+
+1961 singles, three-seed means, `rhs0` → `rhsc`:
+
+| | control | census |
+|---|---|---|
+| Southern small labels' units in the Deep South (M) | 1.50 | 2.83 (+88%) |
+| … outside the Deep South (M) | 9.67 | 9.29 (−4%) |
+| … home fraction of their singles | 13% | 23% |
+| Their share of Deep South singles | 15.2% | 16.0% |
+| Small-label share of singles in the five other regions | 54.8% | 48.4% (paired −7.4 / −6.2 / −5.3) |
+| Small-label share of Hot 100 record-weeks (2002 / 1001 / 3003) | 56.6 / 49.7 / 60.5 | 46.9 / 43.6 / 57.5 |
+
+- **None of the four candidates binds.** Southern small labels' home units grow with the 1.8× buyers and their share
+  of Southern sales holds. Distribution difficulty (0.6, a ×0.82 conversion term) and inventory depth (0.4, store
+  capacity) apply to every record in the region, so they scale the South for everyone and cannot move Southern buyers
+  from Southern labels to national product. Backorders per Southern-label record-week roughly double (seed 2002:
+  1,401 → 3,041) and serviceable/raw falls from 71% to 65%, so inventory trims a few percent at most. Majors and
+  mid-tier labels gain 1–3 points of Southern sales (national product), also small.
+- **Southern labels are export labels.** In the control 87% of their singles sell outside the South, so a census that
+  shrinks every other region's economic population by 2–11% costs them about as much abroad as they gain at home.
+  Southern label *supply* does not respond either: the label count (~100 small) and 1961 launches (~550–650) are the
+  same in both arms, because label placement does not read population (see `ProceduralLabelCityWeightingHandoff.md`;
+  `MusicInfrastructure.localLabelCount` is never read).
+- **The real cost is national and hits every small label.** Outside the South, small-label records lose 12–15% of raw
+  demand per record-week on every seed (6–10% fewer aware buyers, 6–7% lower conversion), while majors' change is
+  +4 / −7 / −1%. Small labels lose 3–10 points of Hot 100 record-weeks to majors on every seed. The split by region,
+  genre and label is seed noise (East Coast small-label conversion −19 / −32 / +18%; R&S and non-R&S small records
+  both lose), so this probe cannot name the mechanism. It is not R&S taste alone. The likeliest candidate is the
+  zero-sum chart signal in conversion amplifying a small first-round loss in the regions small labels concentrate in.
+  Testing that needs `demandChartSignal` in the stream. **Open.**
+
+### R&S: the loss is the regional taste normalizer, not segregation or acceptance
+
+- **The segregation factor does not reach singles.** On the live path (`GenreMarketV2`), singles demand is
+  `GenreAcceptanceService.GetRegionalDemandAcceptance`: Σ segment capacity × acceptance × routing, with routing centred
+  on each region's own capacity-weighted mean, so the UrbanRnB segment's size nearly cancels.
+  `MarketRegion.GetSegregationFactor` enters only album pools (and the player desk). The South's integration (0.05)
+  reaches singles only through MainstreamAM's 0.6 + 0.4 × integration factor.
+- **R&S units barely move under census; the share loss is small and mostly 1960.** Paired R&S unit-share deltas (all
+  formats, `genre-decade-shape`): 1960 −1.6 / −4.3 / −0.7 (mean −2.2, SE ≈ 1.1); 1961 −0.4 / +0.8 / −3.8. Year-end
+  slots: 26.0 → 25.3 (1960), 33.0 → 32.0 (1961). Southern radio does not disfavour R&S (R&S airplay per record is 1.07×
+  the all-genre mean in the South in both arms).
+- **The carrier is `RegionalGenreTaste` (K = 1 on the candidate).** It multiplies single conversion by a region's
+  Black share against the national mean and normalizes so the **population-weighted** national mean is 1. Under
+  census two things go wrong:
+  1. The national Black mean rises from 0.108 to 0.126, because the authored Deep South share (0.33, set for 15M)
+     now applies to 29.9M. On census populations the authored shares imply 22.2M Black Americans (12.4%) against the
+     census's 18.86M (10.6%). From the 1960 census by state (Gibson and Jung, Census Bureau Working Paper 56, Tables
+     15–65, summed by `Data/Map/UsStates.json`): Deep South 0.263 (authored 0.33), Great Lakes 0.079 (0.11), East
+     Coast 0.090 (0.10), Southwest 0.099 (0.09), West Coast 0.047 (0.05), Great Plains 0.036 (0.01), Rockies 0.014
+     (0.01).
+  2. The normalizer weights heads, not buyers. The South converts about 0.6 singles per head against 0.74–0.84
+     elsewhere, so taste mass moved there is partly lost.
+  R&S taste falls 3–13% in every region (Deep South 2.38 → 2.08, East Coast 0.95 → 0.86). A first-order replay on seed
+  2002 (control regional R&S shares × taste ratio × census regional units) gives R&S singles 26.9% against the
+  control's 28.7% (observed 28.3%; clearing damps it). With census Black shares and a buyer-weighted normalizer the
+  same replay gives 28.1%.
+- Side note: the Country centring priors (`GenreAcceptanceService.SpecialistBuyingPopulationPriors`) are still the
+  authored-population weights, so under census the Country texture no longer centres nationally (it over-weights the
+  South's 1.30). Not screened.
+
+Two new opt-in switches, off byte-inert (seed 3003's `rhs0`/`rhsc` ran on the new build and match):
+- `--census-black-share` (requires `--census-population`): `CensusPopulation.CensusBlackShare1960` replaces each
+  region's `blackPopulation` before regions initialise, so it reaches the UrbanRnB segment, the segregation factor
+  (album pools) and the regional taste.
+- `--regional-genre-taste-buyer-weight`: `RegionalGenreTaste`'s national means weight each place by population × its
+  region's `GetBuyingPopulationPercentage` (the weight `GenreAcceptanceService` uses).
+
+Checks: `--retail-purchase-envelope-check` passes 4,025 assertions (2 new: the Black-share table reproduces 10.6%;
+the switch is off by default).
+
+### Screen: census Black share and the buyer-weighted normalizer
+
+Runs on the candidate, 104 weeks, seeds 2002 / 1001 / 3003, all with `--census-population` and `--regional-home-sales`:
+`cenb` (+ `--census-black-share`), `cenbw` (+ `--regional-genre-taste-buyer-weight`). Controls `bsc13`, `cen`.
+
+| Three-seed mean | control | census | + Black share | + buyer weight | history |
+|---|---|---|---|---|---|
+| R&S unit share 1960 (paired vs control) | 21.2 | 19.0 (−1.6 / −4.3 / −0.7) | 18.2 (−1.6 / −4.5 / −2.8) | **20.9** (+0.9 / −1.3 / −0.5) | 24.3 |
+| R&S unit share 1961 | 22.9 | 21.8 (−0.4 / +0.8 / −3.8) | 20.2 (+0.4 / −1.8 / −6.6) | 21.4 (−2.8 / +1.7 / −3.6) | 24.7 |
+| R&S year-end slots 1960 / 1961 | 26.0 / 33.0 | 25.3 / 32.0 | 26.3 / 29.7 | 30.3 / 31.0 | |
+| … RnB / DooWop unit share 1960 | 9.9 / 6.3 | 8.5 / 6.4 | | 8.4 / 7.4 | 11.3 / 5.1 |
+| Genre share error 1960 / 1961 | 22.9 / 25.4 | 29.9 / 26.6 | 27.6 / 29.0 | 28.3 / 30.1 | |
+| Labels defunct (2002 / 1001 / 3003) | 117 / 132 / 124 | 128 / 152 / 128 | 121 / 116 / 137 | 121 / 129 / 131 | |
+| Singles, clubs, budget editions | | identical in every arm | | | |
+
+- **The census Black shares alone make R&S worse**: they lower the Black share of the regions with the most R&S
+  buyers (Deep South, Great Lakes), and the head-weighted normalizer still leaks the mass to the low-conversion South.
+- **With the buyer-weighted normalizer the R&S family is back to the control in 1960** and inside the seed band in 1961.
+  It recovers through DooWop (lower UrbanRnB routing, +1.1), not RnB, which stays 1.5 points under the control.
+- **Defunct labels return to the control** (+1 and +3 against +12 for census alone).
+- **The genre share error does not recover** (28.3 / 30.1 against 22.9 / 25.4). The census residue is RnB −1.5,
+  TeenPop +1.4, Rock and Roll +1.1, DooWop +1.1 in 1960, and Country +1.8 in 1961 (12.5 against a target of 8.3). The
+  Country centring priors are still authored-population weights (see above), the likeliest cause of the Country excess.
+
+### R&S acceptance retune on the census base: RnB keyframes ×1.15 (1960) / ×1.08 (1962)
+
+`cenbwr` = `cenbw` + `--genre-keyframe-scale=RnB@1960=1.15,RnB@1962=1.08` (the existing calibration probe; RnB's keyframes
+are 1960 and 1962, so 1961 interpolates to about ×1.115). Sized to return RnB to the control on the census base.
+
+| Three-seed mean | control | `cenbw` | `cenbwr` | history |
+|---|---|---|---|---|
+| R&S unit share 1960 (paired) | 21.2 | 20.9 | **21.7** (+1.7 / +0.4 / −0.6) | 24.3 |
+| R&S unit share 1961 (paired) | 22.9 | 21.4 | **21.7** (+0.2 / +0.4 / −4.2) | 24.7 |
+| RnB 1960 / 1961 | 9.9 / 9.9 | 8.4 / 8.9 | **10.0 / 9.8** | 11.3 / 12.0 |
+| R&S year-end slots 1960 / 1961 | 26.0 / 33.0 | 30.3 / 31.0 | 27.3 / 33.0 | |
+| Genre share error 1960 / 1961 | 22.9 / 25.4 | 28.3 / 30.1 | 27.2 / 27.9 | |
+| Labels defunct | 117 / 132 / 124 | 121 / 129 / 131 | 122 / 119 / 123 | |
+
+- **R&S is restored on the census base**: family share, RnB and year-end slots are at the control, and defunct labels
+  are at or below it. Singles volume is unchanged (128.0M in every arm). Seed 3003's 1961 (−4.2) is the outlier in every
+  census arm.
+- **The remaining census genre error is not R&S**: TeenPop and Rock and Roll (+1 each, the South's youth share 0.40)
+  and Country (+1.8 in 1961, the uncentred specialist priors). Those need their own fixes before the census package can
+  match the control's 22.9 / 25.4.
+
+**Census package candidate, not adopted:** `--census-population --census-black-share --regional-genre-taste-buyer-weight
+--genre-keyframe-scale=RnB@1960=1.15,RnB@1962=1.08` (plus `--lp-purse-adult-weight` from §29, not in these arms).
+The keyframe scale is a probe flag; if the package is adopted, fold the factor into the RnB keyframes behind the
+census switch rather than carrying the probe.
+
+Next, in order:
+1. Re-centre the Country specialist texture on live regional buyers (`GenreAcceptanceService.SpecialistBuyingPopulationPriors`
+   is the authored-population table) under `--census-population`, and re-screen Country.
+2. TeenPop / Rock and Roll on the census base (youth-weighted South).
+3. The small-label chart-access loss under census (3–10 points of Hot 100 record-weeks to majors): add `demandChartSignal`
+   to `--regional-home-sales` and test the chart-feedback hypothesis. Check whether it survives the buyer-weighted taste
+   (defunct already returns to the control in `cenbw` / `cenbwr`).
+4. Then the decade A/B of the census package at the end of the audit.
+
+Reproduction: `run_lp_earned_screen.ps1 -Reference SimLogs/writing-calibration/candidate-request.json -Arms sc -LpScale
+2.65 -Weeks 104 -Seed <seed> -RunPrefix cenbwr -Extra "--census-population,--census-black-share,--regional-genre-taste-buyer-weight,--genre-keyframe-scale=RnB@1960=1.15,RnB@1962=1.08"`
+(`cenb`, `cenbw`: drop the trailing switches; `rhs0` / `rhsc`: control / census with `--regional-home-sales`), run with
+`-ExecutionPolicy Bypass`. Analysis: `summarize_regional_home_sales.py rhs0 rhsc`, `analyze_regional_home_sales.py`,
+`analyze_census_population.py cen cenb cenbw`.
+
+### Adopted (2026-11-16)
+
+The `cenbwr` package is on the candidate (`SimLogs/writing-calibration/candidate-request.json`, backup
+`candidate-request-pre-census-2026-11-16.json`): `--census-population --census-black-share
+--regional-genre-taste-buyer-weight`. The RnB retune is folded into `GenreCatalog.Add` behind `--census-black-share`
+(×1.15 on the 1960 keyframe, ×1.08 on 1962, the same float multiply as the probe), so the probe flag is not carried.
+Check: `adcen-2002-sc` (candidate, 27 weeks, no probe flag) matches `cenbwr-2002-sc` byte for byte on all 116 common
+weekly streams; the 26 that differ are end-of-run snapshots. `--lp-purse-adult-weight` (§29) is not adopted: it was
+not in the screened arms.

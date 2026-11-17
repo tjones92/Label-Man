@@ -144,10 +144,10 @@ public static class RackJobberChannel {
 	public static float Reach(int year) => ChartSimulator.GetRackJobberEraWeight(year);
 
 	public static float ShopperPool(MarketRegion region, int year) =>
-		Mathf.Max(0f, region.population) * 1_000_000f * Mathf.Sqrt(Mathf.Max(0f, region.averageIncome)) * Reach(year) * ShopperScale;
+		Mathf.Max(0f, region.EconomicPopulation) * 1_000_000f * Mathf.Sqrt(Mathf.Max(0f, region.averageIncome)) * Reach(year) * ShopperScale;
 
 	public static int Shelf(MarketRegion region, int year) =>
-		Mathf.Max(0, Mathf.FloorToInt(Mathf.Max(0f, region.population) * RacksPerMillionAtFullReach * Reach(year) * Turnover));
+		Mathf.Max(0, Mathf.FloorToInt(Mathf.Max(0f, region.EconomicPopulation) * RacksPerMillionAtFullReach * Reach(year) * Turnover));
 
 	public static float GenreWeight(RecordRuntimeData record, int year) {
 		Album album = record.baseRecord.album;

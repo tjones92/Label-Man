@@ -48,7 +48,7 @@ public static partial class MediaAtmosphereService {
 		if (!MediaDemand.Active || !MediaDemand.PressSource) return;
 		int today = BroadcastExposure.DayIndex(weekEnd);
 		var regions = ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>();
-		double population = regions.Sum(r => (double)r.population) * 1e6;
+		double population = regions.Sum(r => (double)r.EconomicPopulation) * 1e6;
 		if (population <= 0) return;
 		List<string> ranked = null;
 		foreach (MediaStory s in state.Stories) {

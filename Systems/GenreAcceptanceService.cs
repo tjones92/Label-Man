@@ -270,7 +270,7 @@ public static class GenreAcceptanceService {
 		float acceptedTotal = 0f;
 		float populationTotal = 0f;
 		foreach (MarketRegion region in regions) {
-			float populationWeight = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			float populationWeight = region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage();
 			if (populationWeight <= 0f) continue;
 			float newEnabled = 0f;
 			float newAccepted = 0f;
@@ -336,7 +336,7 @@ public static class GenreAcceptanceService {
 		float totalBuyingPopulation = 0f;
 		foreach (MarketRegion region in regions) {
 			if (region == null) continue;
-			float buyingPopulation = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			float buyingPopulation = region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage();
 			if (buyingPopulation <= 0f) continue;
 			weightedAcceptance += buyingPopulation * GetRegionalDemandAcceptance(primary, secondary, region, year, legacyMomentum);
 			totalBuyingPopulation += buyingPopulation;
@@ -417,7 +417,7 @@ public static class GenreAcceptanceService {
 		float effective = 0f, clampLoss = 0f, finalSingle = 0f;
 		float protectedEffective = 0f, protectedClampLoss = 0f, protectedFinalSingle = 0f, totalPopulation = 0f;
 		foreach (MarketRegion region in fixedRegions) {
-			float buyingPopulation = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			float buyingPopulation = region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage();
 			if (buyingPopulation <= 0f) continue;
 			RegionalDemandAcceptanceComponents route = GetRegionalDemandAcceptanceComponents(primary, secondary, region, year, 0f,
 				includeCenteredSpecialistTexture: true);
