@@ -94,8 +94,11 @@ public partial class DeskAtmosphere : Control {
 
 	/// <summary>Daylight through the venetian blinds: slanted bands across the back wall that come up in the morning, slide
 	/// down it as the sun climbs and turn amber by five, then go out with the daylight.</summary>
+	public static float DaylightStrength(float hour) =>
+		Mathf.SmoothStep(7f, 10.5f, hour) * (1f - Mathf.SmoothStep(17.5f, 19.5f, hour));
+
 	private void DrawBlinds() {
-		float strength = Mathf.SmoothStep(7f, 10.5f, hour) * (1f - Mathf.SmoothStep(17.5f, 19.5f, hour));
+		float strength = DaylightStrength(hour);
 		if (strength <= 0.01f) return;
 		float low = Mathf.Clamp((hour - 15f) / 3f, 0f, 1f);                            // 0 midday, 1 low sun
 		Color noon = new(1f, 0.97f, 0.86f), amber = new(1f, 0.74f, 0.42f);

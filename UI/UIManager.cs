@@ -14,6 +14,8 @@ public partial class UIManager : Control
 	[Export] private LabelDetailPanel labelDetailPanel;
 	private Button calendarButton;
 	private TextureRect officeBackdrop;
+	private SubViewport officeViewport;
+	private DirectionalLight3D officeDaylight;
 	private Tween officeLightTween;
 	private PopupPanel calendarPopup;
 	private SpinBox skipDaysInput;
@@ -61,7 +63,9 @@ public partial class UIManager : Control
 		PaperTheme.Apply(GetWindow());
 		if (artistDetailPanel != null) artistDetailPanel.LabelRequested += id => OpenLabel(id);
 		if (labelDetailPanel != null) labelDetailPanel.ArtistRequested += id => OpenArtist(id);
-		officeBackdrop = GetNodeOrNull<TextureRect>("TextureRect");
+		officeBackdrop = GetNodeOrNull<TextureRect>("OfficeBackdrop");
+		officeViewport = officeBackdrop?.GetNodeOrNull<SubViewport>("RoomViewport");
+		officeDaylight = officeViewport?.GetNodeOrNull<DirectionalLight3D>("Daylight");
 		calendarButton = GetNodeOrNull<Button>("CalendarBtn");
 		BuildPaintedLayer();
 		if (calendarButton != null) {
@@ -852,10 +856,7 @@ public partial class UIManager : Control
 	private void OnDayStartedForLight(GameDate _) => ApplyOfficeLight(animate: false);
 
 	// ── Office light ────────────────────────────────────────────────────────────────────────────
-	// One painted desk serves every hour, so the hour tints it: full daylight through the working day,
-	// warm toward six, a dusk blue by eight, night after nine. Modulate only darkens, and it takes the
-	// whole painted room with it, lamp included. When a real night-lit background exists, crossfade to it
-	// with the same OfficeTint(hour) deciding the blend and drop the modulate.
+	// Tint the canvas overlays with the room as the window light changes through the day.
 	private static readonly (float Hour, Color Tint)[] OfficeLightKeys = {
 		(9f,  new Color(1.00f, 1.00f, 1.00f)),
 		(15f, new Color(1.00f, 1.00f, 1.00f)),
@@ -876,13 +877,32 @@ public partial class UIManager : Control
 	}
 
 	private void ApplyOfficeLight(bool animate) {
-		if (officeBackdrop == null || TimeManager.Instance == null) return;
-		Color target = OfficeTint(TimeManager.Instance.CurrentHour + TimeManager.Instance.CurrentMinute / 60f);
+		if (officeDaylight == null || TimeManager.Instance == null) return;
+		float hour = TimeManager.Instance.CurrentHour + TimeManager.Instance.CurrentMinute / 60f;
+		float sun = DeskAtmosphere.DaylightStrength(hour);
+		float sunset = Mathf.SmoothStep(15f, 18.5f, hour);
+		float arc = Mathf.Clamp((hour - 8f) / 11f, 0f, 1f);
+		float elevation = 16f + 16f * Mathf.Sin(arc * Mathf.Pi);
+		var angle = new Vector3(-elevation, Mathf.Lerp(-47f, -16f, arc), 0f);
+		Color lightColor = new Color(1f, .91f, .78f).Lerp(new Color(1f, .68f, .43f), sunset);
+		Color overlayColor = OfficeTint(hour);
 		officeLightTween?.Kill();
-		if (!animate) { officeBackdrop.Modulate = target; if (paintedLayer != null) paintedLayer.Modulate = target; return; }
+		if (!animate) {
+			officeDaylight.LightEnergy = sun * .47f;
+			officeDaylight.LightColor = lightColor;
+			officeDaylight.RotationDegrees = angle;
+			paintedLayer.Modulate = overlayColor;
+			officeViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
+			return;
+		}
+		officeViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Always;
 		officeLightTween = CreateTween().SetParallel(true);
-		officeLightTween.TweenProperty(officeBackdrop, "modulate", target, 0.8);
-		if (paintedLayer != null) officeLightTween.TweenProperty(paintedLayer, "modulate", target, 0.8);
+		officeLightTween.TweenProperty(officeDaylight, "light_energy", sun * .47f, 0.8);
+		officeLightTween.TweenProperty(officeDaylight, "light_color", lightColor, 0.8);
+		officeLightTween.TweenProperty(officeDaylight, "rotation_degrees", angle, 0.8);
+		officeLightTween.TweenProperty(paintedLayer, "modulate", overlayColor, 0.8);
+		officeLightTween.Chain().TweenCallback(Callable.From(() =>
+			officeViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once));
 	}
 
 	public void OpenArtist(string artistId, bool isOwnedByPlayer = false, int startTab = 0)

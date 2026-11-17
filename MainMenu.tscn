@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://crwoi352i6e2b"]
 
 [ext_resource type="Script" uid="uid://dce20t7kgyhn6" path="res://UI/UIManager.cs" id="1_eiy7p"]
-[ext_resource type="Texture2D" uid="uid://bj62eu8ah1jwo" path="res://983378b0-fa8d-4d8b-a742-9074092aca4f.png" id="2_h7a2f"]
+[ext_resource type="PackedScene" path="res://UI/Office/OfficeBackdrop.tscn" id="2_office"]
 [ext_resource type="Script" uid="uid://ijrv605mspwk" path="res://UI/ChartUI.cs" id="3_qoqlk"]
 [ext_resource type="Texture2D" uid="uid://1pd6mcmr0a6j" path="res://a40a2761-2ec0-4953-90f6-66858329e3b9.png" id="4_iwfq2"]
 [ext_resource type="PackedScene" uid="uid://4v07s5f1navm" path="res://ChartEntry.tscn" id="5_iwfq2"]
@@ -40,14 +40,8 @@ chartPanel = NodePath("ChartPanel")
 artistDetailPanel = NodePath("ArtistDetailPanel")
 labelDetailPanel = NodePath("LabelDetailPanel")
 
-[node name="TextureRect" type="TextureRect" parent="." unique_id=2044183199]
+[node name="OfficeBackdrop" parent="." instance=ExtResource("2_office")]
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("2_h7a2f")
 
 [node name="BillboardButton" type="TextureButton" parent="." unique_id=1732141028]
 layout_mode = 1

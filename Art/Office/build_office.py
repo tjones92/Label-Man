@@ -1,0 +1,773 @@
+"""Build the office in Blender, using the menu painting to register the camera and paper artwork.
+
+Usage: blender --background --python build_office.py -- <reference.png> <output-directory>
+The .blend keeps the individually editable props. The .glb batches meshes for Godot.
+"""
+
+import math
+from pathlib import Path
+from random import Random
+import sys
+
+import bpy
+import numpy as np
+from mathutils import Quaternion, Vector
+
+
+WIDTH, HEIGHT = 1656, 950
+DESK = 0.82
+CREDENZA = 0.92
+WALL = 2.79
+FOCAL = 1145
+rng = Random(61463)
+
+
+def linear(c):
+    return c / 12.92 if c < 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def color(hex_rgb):
+    return tuple(linear(int(hex_rgb[i:i + 2], 16) / 255) for i in (0, 2, 4))
+
+
+def material(name, hex_rgb, roughness=.45, metal=0, image=None):
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Base Color"].default_value = (*color(hex_rgb), 1)
+    bsdf.inputs["Roughness"].default_value = roughness
+    bsdf.inputs["Metallic"].default_value = metal
+    mat.diffuse_color = (*color(hex_rgb), 1)
+    if image:
+        tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        tex.image = image
+        mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    return mat
+
+
+def image_from_linear(name, rgb):
+    height, width, _ = rgb.shape
+    # Pack an sRGB PNG for Blender and glTF.
+    encoded = np.where(rgb <= .0031308, rgb * 12.92, 1.055 * np.maximum(rgb, 0) ** (1 / 2.4) - .055)
+    rgba = np.concatenate((np.clip(encoded, 0, 1), np.ones((height, width, 1))), axis=2)
+    img = bpy.data.images.new(name, width, height, alpha=False)
+    img.pixels.foreach_set(rgba.astype(np.float32).ravel())
+    img.pack()
+    return img
+
+
+def surface_map(name, dark, light, wood=True):
+    size = 768
+    rand = np.random.default_rng(sum(map(ord, name)))
+    y, x = np.indices((size, size)) / size
+
+    def noise(nx, ny):
+        grid = rand.random((ny, nx))
+        u, v = x * nx, y * ny
+        i, j = u.astype(int), v.astype(int)
+        s, t = u - i, v - j
+        s, t = s * s * (3 - 2 * s), t * t * (3 - 2 * t)
+        return ((grid[j, i] * (1 - s) + grid[j, (i + 1) % nx] * s) * (1 - t)
+                + (grid[(j + 1) % ny, i] * (1 - s) + grid[(j + 1) % ny, (i + 1) % nx] * s) * t)
+
+    if wood:
+        warp = y + .19 * (noise(3, 7) - .5) + .014 * np.sin(x * math.tau * 2)
+        summer = .5 + .5 * np.sin(math.tau * (warp * 15 + .47 * noise(7, 24)))
+        grain = (.52 * noise(4, 11) + .12 * summer ** .7 + .24 * noise(11, 135)
+                 + .08 * noise(41, 266) + .04 * rand.random((size, size)))
+    else:
+        grain = .45 * noise(24, 21) + .30 * noise(120, 127) + .25 * rand.random((size, size))
+        grain += .09 * np.sin((x + y) * 3 * math.tau)
+    grain = np.clip((grain - .23) * 1.7, 0, 1)[..., None]
+    return image_from_linear(name, np.array(color(dark)) * (1 - grain) + np.array(color(light)) * grain)
+
+
+def artwork(name, corners, width, height):
+    """Rectify one original printed surface to UV space. Geometry supplies its perspective."""
+    matrix, rhs = [], []
+    for (u, v), (x, y) in zip(((0, 0), (1, 0), (1, 1), (0, 1)), corners):
+        matrix.extend(([u, v, 1, 0, 0, 0, -u*x, -v*x], [0, 0, 0, u, v, 1, -u*y, -v*y]))
+        rhs.extend((x, y))
+    a, b, c, d, e, f, g, h = np.linalg.solve(matrix, rhs)
+    u, v = np.meshgrid(np.linspace(.002, .998, width), np.linspace(.998, .002, height))
+    x = np.clip((a*u + b*v + c) / (g*u + h*v + 1), 0, WIDTH - 2)
+    y = np.clip(HEIGHT - 1 - (d*u + e*v + f) / (g*u + h*v + 1), 0, HEIGHT - 2)
+    ix, iy = x.astype(int), y.astype(int)
+    fx, fy = (x - ix)[..., None], (y - iy)[..., None]
+    rgb = ((reference[iy, ix] * (1 - fx) + reference[iy, ix + 1] * fx) * (1 - fy)
+           + (reference[iy + 1, ix] * (1 - fx) + reference[iy + 1, ix + 1] * fx) * fy)
+    rgb = np.where(rgb <= .04045, rgb / 12.92, ((rgb + .055) / 1.055) ** 2.4)
+    return material(name, "ffffff", .75, image=image_from_linear(name, rgb))
+
+
+def group(name):
+    global collection
+    collection = bpy.data.collections.new(name)
+    scene.collection.children.link(collection)
+
+
+def link(obj, name, mat=None):
+    if collection not in obj.users_collection:
+        for old in list(obj.users_collection):
+            old.objects.unlink(obj)
+        collection.objects.link(obj)
+    obj.name = name
+    if mat:
+        obj.data.materials.append(mat)
+    return obj
+
+
+def mesh(name, vertices, faces, mat, uv=None):
+    data = bpy.data.meshes.new(name)
+    data.from_pydata(vertices, [], faces)
+    data.update()
+    obj = bpy.data.objects.new(name, data)
+    link(obj, name, mat)
+    if uv:
+        layer = data.uv_layers.new()
+        for loop in data.loops:
+            layer.data[loop.index].uv = uv[loop.vertex_index]
+    return obj
+
+
+def bevel(obj, radius, segments=3):
+    if radius:
+        modifier = obj.modifiers.new("Soft edges", "BEVEL")
+        modifier.width = radius
+        modifier.segments = segments
+        modifier = obj.modifiers.new("Corner normals", "WEIGHTED_NORMAL")
+        modifier.keep_sharp = True
+    return obj
+
+
+def box(name, loc, dimensions, mat, radius=.005, angle=0, grain=None, smooth=False):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
+    obj = link(bpy.context.object, name, mat)
+    for vertex in obj.data.vertices:
+        for axis in range(3):
+            vertex.co[axis] *= dimensions[axis]
+    obj.rotation_euler.z = angle
+    if smooth:
+        for polygon in obj.data.polygons:
+            polygon.use_smooth = True
+    if grain:
+        u_axis, v_axis = grain
+        for polygon in obj.data.polygons:
+            for i in polygon.loop_indices:
+                co = obj.data.vertices[obj.data.loops[i].vertex_index].co
+                side = co[v_axis] if abs(polygon.normal[v_axis]) < .5 else co[3-u_axis-v_axis]
+                u_offset = .51 + loc[u_axis] * .68
+                v_offset = .51 + loc[v_axis] * .83
+                obj.data.uv_layers.active.data[i].uv = (co[u_axis] / 1.35 + u_offset, side / .56 + v_offset)
+    return bevel(obj, radius)
+
+
+def ellipsoid(name, loc, radii, mat):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, radius=1, location=loc)
+    obj = link(bpy.context.object, name, mat)
+    obj.scale = radii
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+    return obj
+
+
+def cyl(name, a, b, radius, mat, r2=None, sides=32):
+    a, b = Vector(a), Vector(b)
+    delta = b - a
+    bpy.ops.mesh.primitive_cone_add(vertices=sides, radius1=radius, radius2=radius if r2 is None else r2,
+                                   depth=delta.length, location=(a + b) / 2)
+    obj = link(bpy.context.object, name, mat)
+    obj.rotation_euler = delta.to_track_quat("Z", "Y").to_euler()
+    for poly in obj.data.polygons:
+        poly.use_smooth = len(poly.vertices) == 4
+    return bevel(obj, min(.002, radius * .2), 2)
+
+
+def tube(name, points, radius, mat):
+    curve = bpy.data.curves.new(name, "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = radius
+    curve.bevel_resolution = 3
+    spline = curve.splines.new("POLY")
+    spline.points.add(len(points) - 1)
+    for point, co in zip(spline.points, points):
+        point.co = (*co, 1)
+    return link(bpy.data.objects.new(name, curve), name, mat)
+
+
+def lathe(name, position, profile, mat, sides=96, y_scale=1, axis=(0, 0, 1), notch=0):
+    rotation = Vector(axis).to_track_quat("Z", "Y")
+    points = []
+    for radius, height in profile:
+        for i in range(sides):
+            a = i * math.tau / sides
+            cut = sum(math.exp(-((math.atan2(math.sin(a - key), math.cos(a - key))) / .095) ** 2)
+                      for key in (.24, 2.38, 4.65))
+            dip = notch * cut * max(0, 1 - abs(height - .059) / .027)
+            points.append(Vector(position) + rotation @ Vector((radius * math.cos(a), radius * math.sin(a) * y_scale, height - dip)))
+    faces = [(j*sides + i, j*sides + (i+1) % sides, (j+1)*sides + (i+1) % sides, (j+1)*sides + i)
+             for j in range(len(profile) - 1) for i in range(sides)]
+    obj = mesh(name, points, faces, mat)
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+    return obj
+
+
+def ray(u, v):
+    return forward + right * ((u - WIDTH / 2) / FOCAL) + up * ((HEIGHT / 2 - v) / FOCAL)
+
+
+def at_z(u, v, z):
+    r = ray(u, v)
+    return camera_pos + r * ((z - camera_pos.z) / r.z)
+
+
+def at_y(u, v, y):
+    r = ray(u, v)
+    return camera_pos + r * (y / r.y)
+
+
+def at_plane(u, v, point, normal):
+    r = ray(u, v)
+    return camera_pos + r * (normal.dot(point - camera_pos) / normal.dot(r))
+
+
+def projected_quad(corners, z):
+    return [at_z(*point, z) for point in corners]
+
+
+def panel(name, quad, thickness, top, edge=None, radius=0, rounded=0):
+    a, b, c, d = map(Vector, quad)
+    normal = (d - a).cross(b - a).normalized()
+    uv = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    if rounded:
+        uv = []
+        for x, y, start in ((rounded, rounded, 180), (1-rounded, rounded, 270),
+                            (1-rounded, 1-rounded, 0), (rounded, 1-rounded, 90)):
+            for step in range(6):
+                angle = math.radians(start + step*18)
+                uv.append((x + rounded*math.cos(angle), y + rounded*math.sin(angle)))
+    outline = [interpolate_quad((a, b, c, d), u, v) for u, v in uv]
+    count = len(outline)
+    verts = outline + [v - normal * thickness for v in outline]
+    faces = [tuple(reversed(range(count))), tuple(range(count, 2*count))]
+    for i in range(count):
+        j = (i+1) % count
+        faces.append((i, j, j+count, i+count))
+    obj = mesh(name, verts, faces, top, [(u, 1-v) for u, v in uv] * 2)
+    if edge:
+        obj.data.materials.append(edge)
+        for face in list(obj.data.polygons)[1:]:
+            face.material_index = 1
+    return bevel(obj, radius)
+
+
+def interpolate_quad(quad, u, v):
+    a, b, c, d = quad
+    return a.lerp(b, u).lerp(d.lerp(c, u), v)
+
+
+def area(name, loc, target, power, tint, size):
+    data = bpy.data.lights.new(name, "AREA")
+    data.energy, data.color, data.shape, data.size = power, tint, "DISK", size
+    obj = link(bpy.data.objects.new(name, data), name)
+    obj.location = loc
+    obj.rotation_euler = (Vector(target) - obj.location).to_track_quat("-Z", "Y").to_euler()
+
+
+def room():
+    group("Walnut paneling and door")
+    for i in range(-16, 7):
+        x = i * .235
+        box("Walnut wall panel", (x, WALL + .014, 1.2), (.232, .063, 2.5), walnuts[i % len(walnuts)], .002, grain=(2, 0))
+    door_left = at_y(282, 210, WALL - .035).x
+    door_right = at_y(647, 215, WALL - .035).x
+    door_width = door_right - door_left
+    box("Office door", ((door_left + door_right) / 2, WALL - .04, 1.1),
+        (door_width, .055, 2.2), walnuts[1], .004, grain=(2, 0))
+    for x in (door_left, door_right):
+        box("Dark steel door casing", (x, WALL - .086, 1.11), (.026, .039, 2.23), gunmetal, .003)
+    knob = at_y(607, 251, WALL - .115)
+    cyl("Knob escutcheon", knob + Vector((0, .047, 0)), knob, .043, nickel)
+    cyl("Knob stem", knob, knob + Vector((0, -.027, 0)), .019, brass)
+    ellipsoid("Round door knob", knob + Vector((0, -.043, 0)), (.035, .023, .035), nickel)
+    switch = at_y(720, 116, WALL - .029)
+    box("Light switch faceplate", switch, (.077, .012, .137), tarnished_brass, .005)
+    box("Toggle", switch + Vector((0, -.012, -.004)), (.012, .017, .032), ivory, .003).rotation_euler.x = -.30
+    for dz in (-.052, .052):
+        cyl("Switch faceplate screw", switch + Vector((0, -.005, dz)), switch + Vector((0, -.009, dz)), .005, nickel, sides=12)
+    box("Oak floor", (-.5, 1.65, -.035), (6, 5, .06), desk_wood, .002, grain=(0, 1))
+
+    group("Desk and credenza")
+    desk_back = at_z(828, 484, DESK).y
+    box("Polished walnut desk top", (-.5, (desk_back + .24) / 2, DESK - .037),
+        (3.35, desk_back - .24, .074), desk_wood, .012, grain=(0, 1))
+    box("Desk apron", (-.5, (desk_back + .28) / 2, DESK - .145),
+        (3.25, desk_back - .28, .16), walnuts[2], .012, grain=(0, 2))
+    for x in (-2.05, 1.05):
+        for y in (.40, desk_back - .13):
+            box("Desk leg", (x, y, .34), (.075, .075, .68), walnuts[0], .006, grain=(2, 0))
+    front = at_z(990, 406, CREDENZA).y
+    left = at_y(663, 375, front).x
+    w = 2.30
+    box("Credenza top", (left + w / 2, (front + WALL) / 2, CREDENZA - .022),
+        (w, WALL - front, .044), desk_wood, .008, grain=(0, 1))
+    box("Credenza case", (left + w / 2, (front + WALL) / 2 + .025, .434),
+        (w - .045, WALL - front - .075, .88), walnuts[2], .007, grain=(0, 2))
+    for i in range(4):
+        center = left + .290 + i * .57
+        box("Inset cabinet door", (center, front + .031, .48), (.540, .023, .78), walnuts[i % 3], .005, grain=(2, 0))
+        cyl("Credenza pull", (center - .23, front + .008, .62), (center - .23, front + .008, .78), .008, tarnished_brass)
+
+    group("Olive vinyl chair")
+    x = at_z(423, 457, .80).x - .037
+    back = box("Padded vinyl back", (x, 2.013, .910), (.59, .132, .357), olive, .065, angle=-.075, smooth=True)
+    back.rotation_euler.x = .13
+    box("Chair seat", (x, 1.95, .48), (.54, .49, .10), olive, .043)
+    for dx in (-.19, .19):
+        cyl("Chair back upright", (x+dx, 2.04, .44), (x+dx, 2.06, .96), .018, nickel)
+        for y in (1.78, 2.13):
+            cyl("Chair leg", (x+dx*1.2, y, .02), (x+dx, 1.96, .48), .018, gunmetal)
+    pip = []
+    for i in range(81):
+        a = i * math.tau / 80
+        pip.append(back.location + back.rotation_euler.to_matrix() @ Vector((
+            .281 * math.copysign(abs(math.cos(a)) ** .30, math.cos(a)), -.055,
+            .167 * math.copysign(abs(math.sin(a)) ** .30, math.sin(a)))))
+    tube("Chair leather piping", pip, .004, olive_trim)
+
+
+def desk_lamp():
+    group("Articulated desk lamp")
+    base = at_z(122, 470, DESK)
+    lathe("Weighted walnut lamp base", base, [(.0001, 0), (.145, 0), (.158, .006), (.159, .028),
+          (.147, .039), (.0001, .039)], walnuts[0], y_scale=.71)
+    bottom = at_y(160, 437, base.y)
+    elbow = at_y(93, 181, base.y + .025)
+    hinge = at_y(86, 163, base.y + .020)
+    throat = at_y(107, 51, base.y + .034)
+    arm = box("Walnut articulated lower arm", (bottom + elbow) / 2, (.080, .044, (elbow-bottom).length), desk_wood, .007, grain=(2, 0))
+    arm.rotation_euler = (elbow - bottom).to_track_quat("Z", "Y").to_euler()
+    cyl("Brass lower hinge stem", elbow, hinge, .014, brass)
+    cyl("Brass upper arm", hinge, throat, .011, brass)
+    for v in (bottom, hinge, throat):
+        cyl("Slotted brass pivot", v + Vector((-.034, 0, 0)), v + Vector((.034, 0, 0)), .022, brass)
+    shade = at_y(241, 49, 1.59)
+    axis = Vector((-.045, .055, 1)).normalized()
+    outer = [(.307, 0), (.305, .016), (.288, .052), (.255, .105), (.211, .155), (.160, .189), (.037, .195)]
+    lathe("Black enamel shade exterior", shade, outer, enamel, axis=axis)
+    lathe("Warm enamel shade interior", shade, [(r - .004, z) for r, z in reversed(outer)], shade_lining, axis=axis)
+    lathe("Rolled brass shade rim", shade, [(.300, -.002), (.306, -.004), (.309, .000), (.307, .005), (.302, .005)], brass, axis=axis)
+    bulb = shade + Vector((-.015, .026, .040))
+    ellipsoid("Frosted tungsten bulb", bulb, (.059, .051, .056), bulb_mat)
+    anchor = link(bpy.data.objects.new("Lamp light position", None), "Lamp light position")
+    anchor.location = shade + Vector((0, -.025, -.038))
+
+
+def frame():
+    group("Framed trade clipping")
+    quad = [at_y(*p, WALL - .057) for p in ((980, 36), (1333, 36), (1326, 238), (976, 228))]
+    panel("Frame back", quad, .028, walnuts[0], dark_wood, .003)
+    for i in range(4):
+        a, b = quad[i], quad[(i + 1) % 4]
+        frame_rail = box("Mitered walnut rail", (a+b)/2 + Vector((0, -.016, 0)),
+                         (.017, .025, (b-a).length + .010), frame_wood, .003, grain=(2, 0))
+        frame_rail.rotation_euler = (b-a).to_track_quat("Z", "Y").to_euler()
+    print_coords = ((989, 47), (1321, 47), (1316, 225), (985, 217))
+    art = artwork("Aged newsprint and framed record", print_coords, 768, 400)
+    panel("Printed clipping and mat", [at_y(*p, WALL - .064) for p in print_coords], .003, art)
+
+
+def records():
+    sleeve_stock = [material(f"Sleeve stock {i + 1}", c, .66) for i, c in enumerate(
+        ("ad9370", "786348", "c1a580", "433e2a", "967359", "866631", "5b4543", "c3ac86"))]
+    group("Left record sleeves")
+    # Register the top sleeve and disc against the UI's catalogue overlays.
+    a, b, d = at_y(792, 289, 2.65), at_y(977, 296, 2.65), at_y(730, 309, 2.25)
+    normal = (d - a).cross(b - a).normalized()
+    lid = (a, b, at_plane(932, 318, a, normal), d)
+    for i in range(19):
+        height = (i + 1) / 20
+        offset = Vector((rng.uniform(-.012, .012), rng.uniform(-.012, .012), 0))
+        sleeve = [Vector((v.x, v.y, CREDENZA + (v.z-CREDENZA)*height)) + offset for v in lid]
+        panel("Record sleeve", sleeve, .0055, rng.choice(sleeve_stock), vinyl, .001)
+    panel("Top sleeve", lid, .006, sleeve_stock[2], sleeve_stock[3], .001)
+    center = at_plane(991 * WIDTH / 1920, 347 * HEIGHT / 1080, a, normal)
+    for label, radius, z, mat in (("Vinyl disc", .129, .001, vinyl), ("Paper centre label", .032, .004, record_label),
+                                  ("Spindle hole", .0028, .005, vinyl)):
+        cyl(label, center + normal*z, center + normal*(z+.0013), radius, mat, sides=64)
+    for r in (.068, .090, .103, .119):
+        lathe("Pressed vinyl grooves", center, [(r, .0024), (r+.0006, .00245)], groove, sides=64, axis=normal)
+
+    group("Right record sleeves")
+    origin = at_z(1601, 412, CREDENZA)
+    for i in range(29):
+        x = origin.x + rng.uniform(-.014, .014)
+        y = origin.y + rng.uniform(-.020, .020)
+        box("Record sleeve", (x, y, CREDENZA + .003 + i*.0067), (.34, .32, .0056),
+            rng.choice(sleeve_stock), .0013, angle=rng.uniform(-.055, .055))
+
+
+def typewriter():
+    group("Olive mechanical typewriter")
+    p = at_z(1132, 385, CREDENZA)
+    x, y = p.x, p.y
+    box("Typewriter foot", (x, y, CREDENZA+.016), (.425, .325, .032), rubber, .012)
+    box("Cast base shell", (x, y, CREDENZA+.039), (.473, .353, .067), enamel_olive, .022, smooth=True)
+    box("Carriage housing", (x, y+.088, CREDENZA+.124), (.442, .177, .129), enamel_olive, .021, smooth=True)
+    keyboard = box("Recessed keyboard tray", (x, y-.081, CREDENZA+.072), (.411, .167, .022), enamel, .009)
+    keyboard.rotation_euler.x = .20
+    for direction in (-1, 1):
+        cap = box("Sculpted keyboard side wall", (x + direction*.220, y-.064, CREDENZA+.082),
+                  (.031, .202, .049), enamel_olive, .012)
+        cap.rotation_euler.x = .26
+    row_text = ("1234567890-=", "QWERTYUIOP", "ASDFGHJKL;", "ZXCVBNM,.")
+    for row, keys in enumerate(row_text):
+        for col, key in enumerate(keys):
+            px = x + (col - (len(keys)-1)/2) * .031
+            py = y + .009 - row * .037
+            pz = CREDENZA + .123 - row * .011
+            cyl("Typewriter key linkage", (px, py, pz-.013), (px, py, pz), .006, gunmetal, sides=10)
+            cap = box(f"Key {key}", (px, py, pz+.001), (.025, .024, .011), ivory, .003)
+            cap.rotation_euler.x = .10
+    box("Space bar", (x, y-.150, CREDENZA+.082), (.236, .023, .013), ivory, .004)
+    box("Ribbon recess", (x, y+.064, CREDENZA+.190), (.182, .075, .003), rubber, .003)
+    for dx in (-.070, .070):
+        cyl("Ribbon spool", (x+dx, y+.064, CREDENZA+.191), (x+dx, y+.064, CREDENZA+.196), .031, gunmetal)
+    cyl("Rubber platen", (x-.224, y+.146, CREDENZA+.216), (x+.224, y+.146, CREDENZA+.216), .021, rubber)
+    cyl("Carriage paper guide", (x-.244, y+.104, CREDENZA+.216), (x+.244, y+.104, CREDENZA+.216), .004, nickel)
+    for dx in (-1, 1):
+        cyl("Platen knob", (x+dx*.225, y+.146, CREDENZA+.216), (x+dx*.261, y+.146, CREDENZA+.216), .023, gunmetal)
+        cyl("Platen knob inset", (x+dx*.260, y+.146, CREDENZA+.216), (x+dx*.269, y+.146, CREDENZA+.216), .013, brass)
+    for dx in (-.17, .17):
+        box("Paper bail", (x+dx, y+.104, CREDENZA+.216), (.032, .014, .009), rubber, .002)
+    sheet = [Vector((x+dx, y+dy, CREDENZA+dz)) for dx, dy, dz in
+             ((-.148, .173, .275), (.148, .173, .275), (.148, .119, .207), (-.148, .119, .207))]
+    panel("Sheet in the platen", sheet, .0005, paper)
+    tube("Carriage return lever", [(x-.209, y+.146, CREDENZA+.227), (x-.251, y+.122, CREDENZA+.231),
+         (x-.272, y+.080, CREDENZA+.214), (x-.300, y+.050, CREDENZA+.214)], .005, nickel)
+
+
+def phone():
+    group("Honey Bakelite rotary telephone")
+    x, y, _ = at_z(1394, 383, CREDENZA)
+    rotation = Quaternion((0, 0, 1), -.10)
+
+    def p(dx, dy, dz):
+        return Vector((x, y, CREDENZA)) + rotation @ Vector((dx*.92, dy, dz))
+
+    levels = (
+        ((-.148, -.119), (.148, -.119), (.146, .115), (-.146, .115)),
+        ((-.145, -.115), (.145, -.115), (.140, .111), (-.140, .111)),
+        ((-.128, -.099), (.128, -.099), (.119, .086), (-.119, .086)),
+    )
+    points = [p(dx, dy, h) for corners, h in zip(levels, (.004, .022, .082)) for dx, dy in corners]
+    points[8].z -= .037
+    points[9].z -= .037
+    points[10].z += .034
+    points[11].z += .034
+    bevel(mesh("Faceted Bakelite chassis", points, [(3, 2, 1, 0), (8, 9, 10, 11)] +
+               [(i+j, (i+1) % 4+j, (i+1) % 4+j+4, i+j+4) for j in (0, 4) for i in range(4)], bakelite), .017, 5)
+    normal = rotation @ Vector((0, -.36, .933)).normalized()
+    center = p(0, -.027, .076)
+    cyl("Rotary dial chrome bezel", center, center + normal*.005, .072, nickel)
+    cyl("Number plate", center + normal*.004, center + normal*.008, .066, ivory)
+    u, v = rotation @ Vector((1, 0, 0)), normal.cross(rotation @ Vector((1, 0, 0)))
+    for i in range(10):
+        a = math.radians(i * 29 + 37)
+        pos = center + u * (.052*math.cos(a)) + v * (.052*math.sin(a)) + normal*.0086
+        cyl("Rotary finger hole recess", pos, pos + normal*.003, .0092, gunmetal, sides=20)
+        lathe("Finger wheel rim", pos, [(.0092, .0026), (.0113, .0026), (.0113, .0038), (.0092, .0038)],
+              tarnished_brass, sides=20, axis=normal)
+    cyl("Rotary hub", center + normal*.007, center + normal*.014, .034, tarnished_brass)
+    cyl("Number card", center + normal*.014, center + normal*.015, .027, ivory)
+    box("Finger stop", p(.053, -.095, .072), (.025, .009, .009), nickel, .002, angle=-.10)
+    for dx in (-.091, .091):
+        box("Cradle horn", p(dx, .058, .097), (.036, .049, .052), bakelite, .010, angle=-.10)
+    handset_profile = ((-.154, .027, .130, .041, .033), (-.127, .041, .145, .040, .030),
+                       (-.097, .055, .161, .029, .021), (-.055, .071, .172, .021, .013),
+                       (0, .074, .174, .020, .013), (.055, .070, .168, .022, .014),
+                       (.100, .053, .154, .032, .024), (.137, .031, .138, .041, .033),
+                       (.157, .018, .123, .039, .026))
+    handset = []
+    for dx, dy, dz, ry, rz in handset_profile:
+        for i in range(24):
+            a = i * math.tau / 24
+            handset.append(p(dx, dy + ry*math.cos(a), dz + rz*math.sin(a)))
+    faces = [tuple(range(23, -1, -1)), tuple(range(len(handset)-24, len(handset)))]
+    faces += [(j*24+i, j*24+(i+1)%24, (j+1)*24+(i+1)%24, (j+1)*24+i)
+              for j in range(len(handset_profile)-1) for i in range(24)]
+    receiver = mesh("Curved Bakelite receiver", handset, faces, bakelite)
+    bevel(receiver, .008)
+    for poly in receiver.data.polygons:
+        poly.use_smooth = True
+    cord = []
+    for i in range(241):
+        t = i/240
+        a = t * math.tau * 16
+        cord.append(p(-.143 - .100*math.sin(math.pi*t) + .010*math.cos(a), .006 - .129*t + .009*math.sin(a),
+                      .020 + .107*(1-t)**3 + .007*math.cos(a)))
+    tube("Coiled handset cable", cord, .0038, cord_mat)
+
+
+def paperwork():
+    group("Trade papers")
+    top = projected_quad(((117, 450), (459, 441), (339, 559), (-26, 550)), DESK + .052)
+    for i in range(15):
+        offset = Vector((rng.uniform(-.018, .018), rng.uniform(-.022, .014), -.049 + i*.0032))
+        panel("Loose folded trade sheet", [v + offset for v in top], .0029, rng.choice(paper_stock), paper_edge, .001)
+    print_coords = ((119, 451), (455, 443), (339, 554), (1, 547))
+    panel("Trade masthead", top, .0012, artwork("Record trade front page", print_coords, 900, 620))
+
+    group("Ruled A&R desk pad")
+    pad = projected_quad(((605, 547), (1121, 582), (1107, 1070), (85, 901)), DESK + .025)
+    panel("Pad backing", [v - Vector((0, 0, .006)) for v in pad], .021, dark_wood, radius=.004)
+    panel("Stack of ruled paper", pad, .022, paper, paper_edge, .002)
+    blue = material("Faded blue ruling", "87949b", .75)
+    red = material("Red margin ink", "ae7057", .75)
+    for i in range(1, 27):
+        v = i/27
+        tube("Horizontal rule", [interpolate_quad(pad, u, v) + Vector((0, 0, .00024)) for u in (.01, .99)], .00032, blue)
+    for u in (.775, .865, .920, .963):
+        tube("Ledger column", [interpolate_quad(pad, u, v) + Vector((0, 0, .00025)) for v in (.024, .995)], .00037, blue)
+    for u in (.12, .698, .704):
+        tube("Margin line", [interpolate_quad(pad, u, v) + Vector((0, 0, .00031)) for v in (.025, .995)], .00041, red)
+
+    group("Leather checkbook and cheques")
+    left = projected_quad(((369, 529), (601, 564), (290, 773), (14, 713)), DESK + .048)
+    right_quad = projected_quad(((603, 561), (843, 605), (714, 814), (278, 773)), DESK + .048)
+    for name, cover in (("Grained leather flap", left), ("Leather checkbook support", right_quad)):
+        panel(name, cover, .017, leather, edge_leather, .006, rounded=.019)
+        stitch_height = Vector((0, 0, .0012))
+        for a, b in [((.04, .037), (.96, .037)), ((.96, .037), (.96, .963)),
+                     ((.96, .963), (.04, .963)), ((.04, .963), (.04, .037))]:
+            v1, v2 = interpolate_quad(cover, *a), interpolate_quad(cover, *b)
+            count = int((v1-v2).length / .010)
+            for i in range(count):
+                tube("Saddle stitch", [v1.lerp(v2, t) + stitch_height for t in (i/count, (i+.58)/count)], .00068, thread)
+    for i in range(4):
+        panel("Tucked payment slip", projected_quad(((450, 587), (591, 569), (391, 701), (295, 723)),
+              DESK+.050+i*.002), .002, rng.choice(paper_stock), paper_edge, .001)
+    check = projected_quad(((610, 571), (803, 565), (642, 758), (369, 748)), DESK + .0856)
+    for i in range(14):
+        offset = Vector((rng.uniform(-.003, .003), rng.uniform(-.004, .004), -.034 + i*.0024))
+        panel("Cheque in the register", [v + offset for v in check], .0021, paper_stock[i % 3], paper_edge)
+    panel("Printed cheque face", check, .0014,
+          artwork("Cheque printing", ((612, 576), (788, 568), (639, 747), (390, 738)), 768, 395), paper_edge, .001)
+
+
+def calendar():
+    group("Three-ring flip calendar")
+    a = at_z(1107, 550, DESK + .004)
+    b = at_z(1547, 614, DESK + .004)
+    c = at_y(1559, 448, b.y + .106)
+    normal = (b - a).cross(c - b).normalized()
+
+    def on_front(u, v, offset=0):
+        return at_plane(u, v, a + normal*offset, normal)
+
+    face = [on_front(*p) for p in ((1133, 412), (1559, 448), (1547, 614), (1107, 550))]
+    panel("Brushed steel face", face, .010, gunmetal, nickel, .0035)
+    rear = [face[0], face[1], b + Vector((0, .19, 0)), a + Vector((0, .19, 0))]
+    panel("Folded steel stand", rear, .009, gunmetal, gunmetal, .003)
+    for corners, pin in (
+            (((1143, 428), (1253, 440), (1237, 533), (1126, 517)), (1200, 444)),
+            (((1268, 440), (1380, 451), (1365, 552), (1250, 536)), (1322, 456)),
+            (((1398, 455), (1529, 467), (1514, 569), (1380, 552)), (1459, 467))):
+        for i in range(4):
+            panel("Calendar index card", [on_front(*p, .004+i*.002) for p in corners],
+                  .002, paper, paper_edge, .0008, rounded=.08)
+        pin_location = on_front(*pin, .010)
+        cyl("Ring hole", pin_location, pin_location + normal*.002, .008, gunmetal)
+        ring = [pin_location + Vector((0, .021 + .025 * math.cos(math.radians(a)), .025 + .035 * math.sin(math.radians(a))))
+                for a in range(-127, 233, 8)]
+        tube("Bent nickel binding ring", ring, .0044, nickel)
+
+
+def ashtray():
+    group("Molded glass ashtray")
+    center = at_z(1429, 787, DESK)
+    profile = [(0.001, .001), (.135, .001), (.152, .008), (.161, .022), (.163, .044), (.162, .056),
+               (.157, .063), (.150, .064), (.144, .058), (.141, .042), (.134, .025), (.126, .017), (.001, .017)]
+    lathe("Heavy smoked glass bowl", center, [(r*1.105, h) for r, h in profile], glass, 112, 1.04, notch=.014)
+    for radius, h in ((.155, .018), (.161, .033), (.149, .061)):
+        radius *= 1.105
+        lathe("Pressed rim highlight", center, [(radius-.001, h-.002), (radius+.001, h), (radius-.0008, h+.0018)], glass, 112, 1.04, notch=.014)
+    for i in range(165):
+        a, r = rng.uniform(0, math.tau), math.sqrt(rng.random()) * .138
+        pos = center + Vector((math.cos(a)*r, math.sin(a)*r*.98, .021 + rng.uniform(0, .009)))
+        rad = rng.uniform(.0025, .0070)
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=rad, location=pos)
+        chip = link(bpy.context.object, "Irregular ash fragment", rng.choice(ash_colors))
+        chip.scale = (1, rng.uniform(.4, 1.2), .62)
+        chip.rotation_euler.z = a
+    for i in range(13):
+        ang = rng.uniform(0, math.tau)
+        a = center + Vector((rng.uniform(-.079, .079), rng.uniform(-.077, .077), rng.uniform(.026, .040)))
+        b = a + Vector((math.cos(ang)*.053, math.sin(ang)*.053, rng.uniform(-.006, .018)))
+        if i == 0:
+            # Camera-space origin used by DeskAtmosphere's animated smoke.
+            b = at_z(1664 * WIDTH / 1920, 764 * HEIGHT / 1080, DESK + .052)
+            a = b + Vector((.031, -.048, -.020))
+        split = a.lerp(b, rng.uniform(.38, .59))
+        end = a.lerp(b, .92)
+        cyl("Crushed cork filter", a, split, .0066, filter_mat, sides=16)
+        cyl("Crumpled cigarette paper", split, end, .0067, ivory, r2=.0056, sides=16)
+        cyl("Burned cigarette tip", end, b, .0057, ash_colors[1], r2=.0043, sides=14)
+
+
+def lighting():
+    group("Blender preview lights")
+    lamp = bpy.data.objects["Lamp light position"].location
+    area("Warm desk lamp", lamp, (-.67, 1.30, DESK), 49, (1, .69, .34), .32)
+    area("Soft window light", (-2.42, .45, 2.45), (.1, 2.1, .99), 82, (1, .88, .72), 1.70)
+    area("Office bounce", (1.80, .21, 1.92), (-.3, 2, .88), 47, (.76, .83, 1), 2.45)
+    world = bpy.data.worlds.new("Warm office ambient")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs[0].default_value = (.25, .18, .12, 1)
+    world.node_tree.nodes["Background"].inputs[1].default_value = .19
+    scene.world = world
+
+
+def export_scene(out):
+    bpy.context.preferences.filepaths.save_version = 0
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 36
+    scene.cycles.use_denoising = True
+    scene.render.resolution_x, scene.render.resolution_y = WIDTH, HEIGHT
+    scene.render.resolution_percentage = 100
+    scene.view_settings.view_transform = "AgX"
+    scene.view_settings.look = "AgX - Medium High Contrast"
+    for screen in bpy.data.screens:
+        for area in screen.areas:
+            if area.type == "VIEW_3D":
+                area.spaces.active.region_3d.view_perspective = "CAMERA"
+    bpy.ops.wm.save_as_mainfile(filepath=str(out / "Label Man Office.blend"))
+
+    # Keep the glass material transmissive in Cycles, with a translucent approximation in Godot GL.
+    shader = glass.node_tree.nodes.get("Principled BSDF")
+    shader.inputs["Transmission Weight"].default_value = 0
+    shader.inputs["Alpha"].default_value = .45
+    glass.surface_render_method = "BLENDED"
+    # Export one mesh per prop, retaining UVs, material slots and evaluated normals.
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    bpy.ops.object.select_all(action="DESELECT")
+    for coll in list(scene.collection.children):
+        objects = [o for o in coll.objects if o.type in {"MESH", "CURVE"}]
+        exports = []
+        for obj in objects:
+            evaluated = obj.evaluated_get(depsgraph)
+            data = bpy.data.meshes.new_from_object(evaluated, preserve_all_data_layers=True, depsgraph=depsgraph)
+            export = bpy.data.objects.new(obj.name, data)
+            coll.objects.link(export)
+            export.matrix_world = obj.matrix_world
+            exports.append(export)
+        for obj in exports:
+            obj.select_set(True)
+        if exports:
+            bpy.context.view_layer.objects.active = exports[0]
+            if len(exports) > 1:
+                bpy.ops.object.join()
+            exports[0].name = coll.name
+            exports[0].select_set(False)
+        for obj in objects:
+            bpy.data.objects.remove(obj, do_unlink=True)
+    for obj in scene.objects:
+        if obj.type in {"MESH", "CAMERA", "EMPTY"}:
+            obj.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=str(out / "office.glb"), use_selection=True, export_cameras=True,
+                             export_lights=False, export_yup=True, export_unused_images=False)
+
+
+def build(reference_path, output):
+    global scene, reference, camera_pos, forward, right, up
+    global walnuts, desk_wood, frame_wood, dark_wood, gunmetal, nickel, brass, tarnished_brass, enamel, enamel_olive
+    global olive, olive_trim, rubber, shade_lining, bulb_mat, bakelite, cord_mat, paper, paper_edge, paper_stock
+    global leather, edge_leather, thread, vinyl, groove, record_label, ivory, glass, ash_colors, filter_mat
+    bpy.ops.wm.read_homefile(use_empty=True, use_factory_startup=True)
+    scene = bpy.context.scene
+    source = bpy.data.images.load(str(reference_path), check_existing=False)
+    if tuple(source.size) != (WIDTH, HEIGHT):
+        raise ValueError(f"Reference must be {WIDTH} x {HEIGHT} pixels, got {tuple(source.size)}")
+    # Read the original byte values for rectifying the artwork.
+    source.colorspace_settings.name = "Non-Color"
+    pixels = np.empty(WIDTH * HEIGHT * 4, dtype=np.float32)
+    source.pixels.foreach_get(pixels)
+    reference = pixels.reshape(HEIGHT, WIDTH, 4)[..., :3]
+    bpy.data.images.remove(source)
+
+    wall_image = surface_map("Quartered walnut veneer", "24190f", "63402a")
+    desk_image = surface_map("Oiled walnut desktop grain", "452613", "885736")
+    walnuts = [material(f"Walnut panel {i + 1}", "ffffff", r, image=wall_image) for i, r in enumerate((.64, .61, .67))]
+    desk_wood = material("Oiled desk and credenza", "ffffff", .48, image=desk_image)
+    frame_wood = material("Waxed walnut molding", "694227", .31)
+    dark_wood = material("Dark stained end grain", "36251d", .58)
+    leather = material("Worn chestnut leather", "ffffff", .64, image=surface_map("Leather grain", "3a1a10", "774227", False))
+    leather.node_tree.nodes.get("Principled BSDF").inputs["Specular IOR Level"].default_value = .22
+    edge_leather = material("Dark dyed leather edge", "3d2218", .43)
+    thread = material("Waxed linen stitching", "b8925e", .64)
+    gunmetal = material("Brushed dark steel", "555755", .42, .55)
+    nickel = material("Polished aged nickel", "9a907d", .26, .74)
+    brass = material("Warm polished brass", "b58a44", .29, .70)
+    tarnished_brass = material("Oxidized brass", "77634b", .46, .54)
+    enamel = material("Black-green enamel", "282923", .32, .24)
+    shade_lining = material("Ivory shade enamel", "f2dcad", .38)
+    lining_bsdf = shade_lining.node_tree.nodes.get("Principled BSDF")
+    lining_bsdf.inputs["Emission Color"].default_value = (*color("f2cb7f"), 1)
+    lining_bsdf.inputs["Emission Strength"].default_value = .19
+    bulb_mat = material("Tungsten bulb glass", "fff0c5", .20)
+    lamp_bsdf = bulb_mat.node_tree.nodes.get("Principled BSDF")
+    lamp_bsdf.inputs["Emission Color"].default_value = (*color("ffe4a0"), 1)
+    lamp_bsdf.inputs["Emission Strength"].default_value = 5.5
+    olive = material("Aged olive vinyl", "515233", .48)
+    olive_trim = material("Glossy olive piping", "858356", .32)
+    rubber = material("Black rubber", "26251e", .66)
+    enamel_olive = material("Cast olive typewriter enamel", "797952", .36, .18)
+    bakelite = material("Honey Bakelite", "b48a54", .28)
+    cord_mat = material("Golden brown handset cable", "775734", .42)
+    paper = material("Cream writing stock", "dfc69a", .82)
+    paper_edge = material("Aged paper edge", "9c8061", .80)
+    paper_stock = [material(f"Paper stock {i + 1}", c, .77) for i, c in enumerate(("c8b58d", "dbbf93", "b6a17b", "decba5"))]
+    record_label = material("Faded paper record label", "bd9b64", .73)
+    vinyl = material("Black shellac", "24221e", .28)
+    groove = material("Shellac groove edge", "3c3932", .33)
+    ivory = material("Nicotine-aged ivory", "d2bc8f", .41)
+    glass = material("Smoked molded glass", "827261", .13)
+    glass_bsdf = glass.node_tree.nodes.get("Principled BSDF")
+    glass_bsdf.inputs["Transmission Weight"].default_value = 1
+    glass_bsdf.inputs["IOR"].default_value = 1.50
+    ash_colors = [material(f"Ash and charcoal {i + 1}", c, .90) for i, c in enumerate(("706760", "392e24", "988b79", "b4a895"))]
+    filter_mat = material("Cork cigarette filter", "9c622c", .73)
+
+    group("Menu camera")
+    pitch = math.atan((HEIGHT / 2 - 221) / FOCAL)
+    yaw = -math.atan((1135 - WIDTH / 2) * math.cos(pitch) / FOCAL)
+    camera_pos = Vector((0, 0, 1.245))
+    forward = Vector((math.sin(yaw)*math.cos(pitch), math.cos(yaw)*math.cos(pitch), -math.sin(pitch)))
+    right = Vector((math.cos(yaw), -math.sin(yaw), 0))
+    up = right.cross(forward)
+    lens = bpy.data.cameras.new("Office composition")
+    lens.lens = FOCAL * 36 / WIDTH
+    lens.sensor_fit = "HORIZONTAL"
+    lens.clip_start, lens.clip_end = .035, 16
+    camera = link(bpy.data.objects.new("Menu camera", lens), "Menu camera")
+    camera.location = camera_pos
+    camera.rotation_euler = forward.to_track_quat("-Z", "Y").to_euler()
+    scene.camera = camera
+
+    room()
+    desk_lamp()
+    frame()
+    records()
+    typewriter()
+    phone()
+    paperwork()
+    calendar()
+    ashtray()
+    lighting()
+    export_scene(output)
+
+
+if __name__ == "__main__":
+    reference_path, destination = map(Path, sys.argv[sys.argv.index("--") + 1:])
+    build(reference_path, destination)

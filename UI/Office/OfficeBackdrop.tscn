@@ -1,0 +1,87 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://UI/Office/office.glb" id="1_office"]
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_office"]
+resource_local_to_scene = true
+viewport_path = NodePath("RoomViewport")
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_office"]
+sky_top_color = Color(0.43, 0.46, 0.53, 1)
+sky_horizon_color = Color(0.68, 0.57, 0.41, 1)
+ground_bottom_color = Color(0.11, 0.08, 0.05, 1)
+ground_horizon_color = Color(0.31, 0.22, 0.14, 1)
+sun_angle_max = 0.0
+
+[sub_resource type="Sky" id="Sky_office"]
+sky_material = SubResource("ProceduralSkyMaterial_office")
+
+[sub_resource type="Environment" id="Environment_office"]
+background_mode = 2
+sky = SubResource("Sky_office")
+ambient_light_source = 3
+ambient_light_color = Color(0.49, 0.44, 0.37, 1)
+ambient_light_energy = 0.43
+reflected_light_source = 2
+tonemap_mode = 2
+
+[node name="OfficeBackdrop" type="TextureRect"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("ViewportTexture_office")
+expand_mode = 1
+
+[node name="RoomViewport" type="SubViewport" parent="."]
+own_world_3d = true
+gui_disable_input = true
+size = Vector2i(1656, 950)
+msaa_3d = 2
+positional_shadow_atlas_size = 4096
+render_target_update_mode = 1
+
+[node name="Office" parent="RoomViewport" instance=ExtResource("1_office")]
+
+[node name="Environment" type="WorldEnvironment" parent="RoomViewport"]
+environment = SubResource("Environment_office")
+
+[node name="Daylight" type="DirectionalLight3D" parent="RoomViewport"]
+rotation_degrees = Vector3(-28, -32, 0)
+light_color = Color(1, 0.91, 0.78, 1)
+light_energy = 0.47
+shadow_enabled = true
+shadow_bias = 0.18
+shadow_normal_bias = 0.75
+directional_shadow_mode = 0
+directional_shadow_max_distance = 4.5
+
+[node name="DeskLamp" type="SpotLight3D" parent="RoomViewport"]
+position = Vector3(-1.3602, 1.46824, -1.565)
+rotation_degrees = Vector3(-52, -138, 0)
+light_color = Color(1, 0.79, 0.53, 1)
+light_energy = 0.30
+light_specular = 0.34
+spot_range = 2.05
+spot_attenuation = 0.80
+spot_angle = 67.0
+spot_angle_attenuation = 0.75
+shadow_enabled = true
+shadow_bias = 0.15
+shadow_normal_bias = 0.70
+
+[node name="ShadeGlow" type="OmniLight3D" parent="RoomViewport"]
+position = Vector3(-1.3602, 1.46824, -1.565)
+light_color = Color(1, 0.71, 0.40, 1)
+light_energy = 0.10
+omni_range = 1.55
+omni_attenuation = 1.0
+
+[node name="RoomBounce" type="OmniLight3D" parent="RoomViewport"]
+position = Vector3(0.8, 1.58, -0.58)
+light_color = Color(0.76, 0.80, 1, 1)
+light_energy = 0.16
+omni_range = 3.6
+omni_attenuation = 0.83
