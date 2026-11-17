@@ -377,6 +377,7 @@ public partial class ChartManager : Node {
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, SimulationArguments.Get());
 		EconomicLabelLifecycle.Configure(SimulationArguments.Get());
 		LabelPressingEconomics.Configure(SimulationArguments.Get());
+		EarnedLpForecast.Configure(SimulationArguments.Get());
 		PhysicalPressingInventory.Configure(SimulationArguments.Get());
 		AlbumSalesVolume.Configure(SimulationArguments.Get());
 		LabelOperatorPay.Configure(SimulationArguments.Get());

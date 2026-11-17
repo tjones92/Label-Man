@@ -22,6 +22,11 @@ public static class LabelPressingEconomicsChecks {
 			"an AI single books the dealer price the player's shop sales book");
 		Check(Mathf.IsEqualApprox(LabelPressingEconomics.LabelPrice(ReleaseFormat.Album, 3.98f), 3.98f * 0.63f / 0.98f),
 			"an LP books the same dealer share of list");
+		LabelPressingEconomics.SetAlbumLabelShareForChecks(.45f);
+		Check(Mathf.IsEqualApprox(LabelPressingEconomics.LabelPrice(ReleaseFormat.Album, 3.98f), 3.98f * .45f)
+			&& Mathf.IsEqualApprox(LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, 0.89f), PlayerDesk.DealerPrice),
+			"--lp-label-price-share moves the LP price only");
+		LabelPressingEconomics.SetAlbumLabelShareForChecks(LabelPressingEconomics.DealerShareOfList);
 
 		var label = new AILabel { labelId = "check-label", tier = LabelTier.Small };
 		var flop = Fresh(ReleaseFormat.Single);
@@ -146,6 +151,26 @@ public static class LabelPressingEconomicsChecks {
 			"album composition allowance follows actual tracks, with the generator's mean for missing catalog snapshots");
 		LabelPressingEconomics.SetPeriodAlbumCostsForChecks(false);
 		LabelPressingEconomics.SetPeriodSingleCostsForChecks(false);
+
+		// --earned-lp-forecast (genre §44): a ratio of weighted totals, observed once per LP, shrunk while n is small.
+		var learner = new AILabel { labelId = "earned-lp" };
+		EarnedLpForecast.SetForChecks(false);
+		var lpA = Fresh(ReleaseFormat.Album, 52, "earned-a"); lpA.releaseTimeExpectedLpUnits = 10000f; lpA.pressingBookSold = 20000;
+		EarnedLpForecast.Observe(learner, lpA);
+		Check(learner.lpForecastObservations == 0 && EarnedLpForecast.Multiplier(learner) == 1f && !lpA.lpForecastObserved, "earned LP forecast is inert when off");
+		EarnedLpForecast.SetForChecks(true);
+		Check(EarnedLpForecast.Multiplier(learner) == 1f, "a label with no observed LP keeps the prior");
+		EarnedLpForecast.Observe(learner, lpA); EarnedLpForecast.Observe(learner, lpA);
+		Check(learner.lpForecastObservations == 1 && Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(learner), MathF.Pow(2f, 1f / 5f)),
+			"one LP that sold 2x its forecast moves the label's forecast by 2^(1/5), and only once");
+		var lpB = Fresh(ReleaseFormat.Album, 52, "earned-b"); lpB.releaseTimeExpectedLpUnits = 30000f; lpB.pressingBookSold = 0;
+		var lpC = Fresh(ReleaseFormat.Album, 52, "earned-c"); lpC.pressingBookSold = 50000;
+		EarnedLpForecast.Observe(learner, lpB); EarnedLpForecast.Observe(learner, lpC);
+		float sold = .1f * 20000f * .9f, forecast = .1f * 10000f * .9f + .1f * 30000f;
+		Check(learner.lpForecastObservations == 2 && !lpC.lpForecastObserved
+			&& Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(learner), MathF.Exp(2f / 6f * MathF.Log(Mathf.Max(sold / forecast, EarnedLpForecast.MinRatio)))),
+			"the memory is a ratio of totals, and an LP without a release forecast is not observed");
+		EarnedLpForecast.SetForChecks(false);
 
 		// --small-home-territory (§11): factory Small labels start in their home region only, with every draw still made.
 		var territoryChecks = SmallLabelHomeTerritoryChecks();

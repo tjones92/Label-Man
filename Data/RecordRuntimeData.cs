@@ -104,6 +104,9 @@ public class RecordRuntimeData {
 	public bool revenueMemoryEligible;
 	// Immutable-at-launch context for normalized, opportunity-relative memory.
 	public float releaseTimeExpectedNet;
+	// --earned-lp-forecast: the gate's raw LP unit forecast at release, and whether the label has learned from it.
+	public float releaseTimeExpectedLpUnits;
+	public bool lpForecastObserved;
 	public float releaseTimeOpportunityScale;
 	public int releaseMemoryWeek;
 	public ProjectRecordRole projectRole;
@@ -265,6 +268,8 @@ public class RecordRuntimeData {
 		unitsPressed = 0;
 		pressingBookSold = 0;
 		revenueMemoryEligible = false;
+		releaseTimeExpectedLpUnits = 0f;
+		lpForecastObserved = false;
 		
 		// Simulation forces - all start at zero
 		awareness = 0f;

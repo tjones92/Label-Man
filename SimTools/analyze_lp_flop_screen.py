@@ -42,6 +42,21 @@ def one(run, seed):
     charted = set(r[(r.year == 1961) & (r.currentPosition >= 1) & (r.currentPosition <= 100)].labelId)
     alive = [l for l in d[(d.initialTier == 'Independent') & (~d.isHistorical)].index if not (l in dead.index and dead[l] <= 104)]
     out['Surviving proc. Independents with no 1961 Hot 100 record %'] = 100 * sum(l not in charted for l in alive) / max(len(alive), 1)
+    # §42 (LP margin): LPs issued in the run (retired + still selling), LP net per copy, and what LPs were worth to the
+    # surviving no-hit Independents (realized net of retired LPs + net to date less production of live ones).
+    o = pd.read_csv(p + 'release-outcomes.csv', usecols=['labelId', 'recordId', 'format', 'realizedNet', 'lifetimeLabelNet', 'pressingBookSold'])
+    v = pd.read_csv(p + 'live-records-snapshot.csv', usecols=['week', 'recordId', 'labelId', 'format', 'lifetimeLabelNet', 'sunkProductionCost', 'totalUnitsSold'])
+    v = v[v.week == v.week.max()]
+    lp = pd.concat([o[o.format == 'Album'].assign(units=o.pressingBookSold)[['labelId', 'recordId', 'realizedNet', 'lifetimeLabelNet', 'units']],
+                    v[v.format == 'Album'].assign(realizedNet=v.lifetimeLabelNet - v.sunkProductionCost, units=v.totalUnitsSold)
+                    [['labelId', 'recordId', 'realizedNet', 'lifetimeLabelNet', 'units']]]).drop_duplicates('recordId')
+    out['LPs issued (retired + live)'] = len(lp)
+    out['LP net per copy, all (cents)'] = 100 * lp.lifetimeLabelNet.sum() / max(lp.units.sum(), 1)
+    nohit = [l for l in alive if l not in charted]
+    z = lp[lp.labelId.isin(nohit)]
+    out['No-hit surviving Indies: LPs per label'] = len(z) / max(len(nohit), 1)
+    out['No-hit surviving Indies: LP realized net per label ($k)'] = z.realizedNet.sum() / max(len(nohit), 1) / 1e3
+    out['No-hit surviving Indies: LP fail %'] = 100 * (z.realizedNet < 0).mean() if len(z) else 0.0
     return out
 
 res = {run: {sd: one(run, sd) for sd in seeds} for run in args}

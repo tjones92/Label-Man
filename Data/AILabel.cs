@@ -164,6 +164,9 @@ public partial class AILabel : Resource {
 	public float weeklyPlantPaid;
 	public float pressingForecastSingleLogUnits;
 	public float pressingForecastAlbumLogUnits;
+	// --earned-lp-forecast: weighted copies sold and gate-forecast units of this label's observed LPs. Zero when off.
+	public float lpForecastMemorySold, lpForecastMemoryForecast;
+	public int lpForecastObservations;
 	// Publishing goldmine (Phase 3b). Composition income this label collects when OTHER labels record a
 	// song it controls; accrued during any label's settlement and banked in a pass after the main loop.
 	public float weeklyPublishingReceipts;

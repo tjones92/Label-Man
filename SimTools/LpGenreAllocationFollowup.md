@@ -2498,3 +2498,151 @@ flops lose.
 - **Watch:** MidTier closures (seed 1001 77%, n 13); small-label LP share 1960 −6.6 points (1961 −1.4).
 - **Recommendation:** σ 1.5 as the shape fix, checked at 260 weeks on the RIAA 1963 cohort and five-year closures before
   adoption; then the LP margin screen against the §40 per-copy table.
+
+## 42. LP margin per copy: the label's share of list, on σ 1.5 (2026-11-16)
+
+`--lp-label-price-share=S` (`LabelPressingEconomics.AlbumLabelShareOfList`): what an AI label books on an LP it sells,
+as a share of list. The default is the dealer share (0.63 / 0.98 = 0.643). The RIAA 1963 survey has the companies
+realizing $1.818 an LP, about 0.45 of a $3.98 / $4.98 list mix. They sold to distributors and branches below dealer
+price and gave free goods and return credit. Artist royalty and mechanicals stay on list. The release gate prices with the same
+`LabelPrice`, so labels see the cut when deciding to issue. Singles, budget editions and clubs are unchanged.
+
+Runs: `lrs15` (σ 1.5) vs `lps55` / `lps50` (σ 1.5 + share 0.55 / 0.50), 104 weeks, seeds 2002 / 1001, built from the
+`gfo-2002-sc` request; `gfo` is the σ-off control. Scripts: `analyze_lp_flop_screen.py gfo lrs15 lps55 lps50` (new
+rows: LPs issued, LP net per copy, the no-hit surviving Independents' LPs), `analyze_riaa_1965_breakeven.py RUN --years
+1960 1961`, `analyze_riaa_1963_cohort.py RUN --launch 1-52`.
+
+| Retired LPs 1960–61, median net per copy | Major | MidTier | Indie | Boutique | Small | all |
+|---|---|---|---|---|---|---|
+| RIAA contribution before S,G&A | | | | | | $0.902 |
+| `lrs15` | $1.230 | $1.265 | $1.328 | $1.352 | $1.537 | $1.328 |
+| `lps55` | $0.977 | $1.014 | $1.064 | $1.126 | $1.241 | $1.077 |
+| `lps50` | **$0.862** | **$0.884** | **$0.915** | **$0.961** | $1.030 | **$0.932** |
+
+| Mean of 2002 / 1001 | `gfo` | `lrs15` | `lps55` | `lps50` |
+|---|---|---|---|---|
+| LPs issued in the run (retired + live) | 5,412 | 4,984 | 4,416 | 3,995 |
+| … of which released 1960 by Major + MidTier / Indie | | 1,328 / 1,411 | 1,089 / 1,325 | 896 / 1,252 |
+| No-hit surviving Indies: LPs per label | 9.3 | 8.6 | 7.6 | 7.0 |
+| No-hit surviving Indies: LP realized net per label ($k) | 98 | 115 | 92 (64 / 119) | **74** (73 / 75) |
+| No-hit surviving Indies: LP fail % | 18 | 44 | 48 | 49 |
+| Surviving proc. Independents with no 1961 Hot 100 record | 47.3% | 49.0% | 47.9% | 43.4% |
+| Procedural Independent / Boutique / Small defunct by week 104 | 9.6 / 4.8 / 16.5% | 16.8 / 6.6 / 18.6% | 14.8 / 6.1 / 17.6% | 15.9 / 8.2 / 19.7% |
+| Procedural MidTier defunct | 44.4% | 53.5% | 63.5% | 62.1% |
+| All labels defunct by week 104 | 75 | 100.5 | 95.5 | 104.5 |
+| LP market 1961, stores + racks + budget + clubs (M) | 170.5 | 169.6 | 167.6 | **159.7** |
+| … stores / racks 1961 (M) | 68.4 / 37.0 | 63.5 / 41.3 | 60.0 / 42.5 | **54.1** / 40.5 |
+| Small-label share of LP units 1960 / 1961 | 29.6 / 28.1% | 23.0 / 26.7% | 27.6 / 28.8% | **32.7 / 33.5%** |
+| LP shape, 1960 releases: < 2k / < 4k / fail | 6 / 18 / 6% | 33 / 46 / 40% | 31 / 43 / 41% | 29 / 42 / 41% |
+
+- **0.50 puts the margin on the survey.** The median net per copy is $0.86–1.03 by tier, against $0.902, and the
+  no-hit Independents' LP income falls by a third ($115k to $74k per label over two years, both seeds agreeing).
+- **The labels answer through the release gate, not by going broke.** LPs issued fall 20% from `lrs15`. Closures do
+  not move outside noise (all labels 100.5 to 104.5; Independents 16.8 to 15.9%), and the share of survivors with no hit
+  does not fall (49.0 to 43.4%). Two years is too short to see a lower mean turn into closures; at 104 weeks the no-hit
+  label still nets $74k from LPs.
+- **The cut lands on the big labels.** Major + MidTier LP releases fall a third (1,328 to 896) and Indies' 11%: the
+  Major's higher fixed cost per LP (about $10.6k) clears the gate less often on a lower margin. The small-label share
+  of LP units rises 7–10 points to 33%, and store LPs fall 15% (63.5M to 54.1M), so the LP market (−6%) leaves the
+  Billboard guard. Fewer Major titles shift the size bands up a little: Major + MidTier < 2k falls 15 to 11%.
+- **0.55** is in between: margin $1.08, market −1%, Majors −18% LPs, no-hit LP net $92k with the seeds split (64 / 119).
+
+**Reading:** the margin is the right number to change (period-sourced, and it moves the mean). At 0.50, though, the
+Majors' release gate turns it into a cut in Major LP volume. That is the opposite of history: the survey firms issued
+1,603 popular LPs at this margin. Before adoption the Major LP count has to hold. Two options: (a) check whether the
+gate's Major LP forecast is low (`debut-lp-forecast-is-3x-low`), so the lower margin exposes a forecast bias rather than a
+true loss; (b) restore store volume with `--lp-demand-scale`, which would not restore the titles. The closure effect
+needs the 260-week check (RIAA 1963 cohort, five-year closures) with σ 1.5.
+
+## 43. Why the lower LP price cuts Major LPs: the gate's Major forecast is low (2026-11-17)
+
+§42 found that at `--lp-label-price-share=0.50` Major + MidTier LP releases fall by a third. Here the release gate's LP
+forecast is checked against what the released LPs did, on `gfo` (σ off), `lrs15` and `lps50`. Script:
+`SimTools/analyze_lp_gate_forecast.py RUN` (gate attempts and forecast vs realized net by tier); the units split below
+joins `release-strategy` (projectedAlbumNet, albumMarginPerUnit) with `release-campaign-costs` (productionCost), and
+forecast units = (projected net + production) / margin. LPs chosen in weeks 1–52, sales to week 104, seeds 2002 / 1001.
+
+**Gate attempts, Major `AlbumStandalone`:** commit 30% → 11% from `lrs15` to `lps50`; NewSigning (82–85% of attempts)
+29% → 10%, median forecast −$3.9k → −$5.2k; Rising 41 → 18%; Star 99 → 58%. Independents 88 → 67%, MidTiers 71 → 61%.
+
+| LPs released 1960: forecast units (mean) vs sold to week 104 | `gfo` NewSigning | `gfo` Rising+ | `lrs15` NewSigning | `lps50` NewSigning | still selling (`gfo`) |
+|---|---|---|---|---|---|
+| Major | 23.5k → 36.0k (**1.53×**) | 37.5k → 91.6k (**2.44×**) | 2.32× | 1.29× | 86–88% |
+| MidTier | 1.54× | **2.89×** | 1.56× | 1.47× | 69–84% |
+| Independent | 12.5k → 11.2k (0.90×) | 1.51× | 0.68× | 0.75× | 35–59% |
+| Boutique | 1.22× | 1.37× | 0.76× | 1.62× | 40–72% |
+| Small | 1.06× | 1.52× | 0.78× | 0.91× | 21–57% |
+
+- **The miss is the tier, not the career.** On `gfo`, where the ratio of medians agrees with the ratio of means, a Major
+  debut LP sells 1.5× its forecast and a Major Rising-or-better LP 2.4×. 86–88% of these are still selling at week
+  104, so the final ratio is higher. A small label's debut is on forecast (0.9–1.2×). The candidate's
+  `--album-prior-debut-scale=2.0613` is one number for every tier, so it lands the small labels and leaves Majors and
+  MidTiers short. That is the earlier finding (`debut-lp-forecast-is-3x-low`, `major-lp-count-is-profit-gate-bound`) still
+  present after the debut scale.
+- **The margin side is not a Major bias.** The gate's margin per copy ($0.99 at the dealer share, $0.61 at 0.50) is
+  about $0.45–0.55 below the record ledger's net per copy ($1.54 / $1.12). The difference is the company sale costs
+  (fulfilment, trade support, excise), charged at the company level, which run 17–26% of gross in every tier
+  (`company-monthly`, 1961). The gate is right to charge them. Two consequences: the §42 per-copy table, which is
+  record net, flatters every tier by that much; and the RIAA $0.902 is "before S,G&A", so the comparison stands as made.
+- **Why Majors fall hardest:** a Major LP carries $10.3k of production against $2.3k for an Independent. At the gate's
+  $0.61 margin the Major breaks even at about 17k units. Its debut forecast median is 19–24k, so most fall near the
+  line, while the sales it does not forecast (≥1.5×) would have cleared it.
+
+**Reading:** the LP margin cut at 0.50 is blocked by a Major/MidTier LP forecast that is 1.5–2.9× low, not by Major LPs
+losing money. A fair test of the margin needs that forecast fixed first. Two ways:
+(a) **earned:** each label scales its LP unit forecast by its own retired LPs' realized/forecast ratio, a geometric
+memory like `pressingForecastAlbumLogUnits` (no tier constant; a new label starts at 1);
+(b) **calibrated:** a per-tier debut/Rising prior scale in place of the single `--album-prior-debut-scale`.
+(a) is preferred under `closures-must-be-earned-not-imposed`, but its memory fills from retirements, which for Major LPs
+come late (86% still selling at week 104). It may need the live-record maturity curve (`album-format-memory-provisional-bias`).
+
+## 44. Earned LP forecast: each label learns its own LP forecast error (2026-11-17)
+
+`--earned-lp-forecast` (`Systems/EarnedLpForecast.cs`). When an AI label's LP reaches 52 weeks, or retires sooner, it
+adds the copies sold so far and the units the gate forecast at release to two running totals, each weighted 0.1. The
+gate then multiplies that label's LP unit forecasts by their ratio (clamped 0.25–6), shrunk toward 1 by n / (n + 4)
+while the label has few LPs. Using totals rather than averaging each LP's ratio keeps the σ 1.5 draw from biasing it
+downward on average. It adds two floats and a count on `AILabel` and the release forecast on `RecordRuntimeData`. It
+uses no random draws, and with the switch off nothing is read or written. The forecast at release is cached per
+(label, act) when the gate prices the LP. It is not saved, so an LP released after a load without a fresh forecast is
+never observed. Checks: `--label-pressing-check` (inert when off, observed once, ratio of totals, shrinkage).
+
+Runs: `elf` = `lrs15` + switch; `elf50` = `lps50` + switch (both σ 1.5), 104 weeks, seeds 2002 / 1001. Learning starts
+at week 53, so 1960 matches the controls (LP market and gross agree to 0.1M) and only 1961 differs. Scripts:
+`SimTools/analyze_earned_lp_forecast.py lrs15 elf lps50 elf50` and `analyze_lp_flop_screen.py` on the same four runs.
+
+| 1961, mean of seeds | `lrs15` | `elf` | `lps50` | `elf50` |
+|---|---|---|---|---|
+| Major LPs chosen (per seed) | 1,252 | 1,253 | 696 | **1,000** |
+| Major gate commit | 27% | 33% | 11% | **23%** |
+| Major LPs chosen: median gate forecast / median sold | $8.2k / 6.6k | $18.2k / 6.2k | $7.2k / 10.8k | $11.2k / 7.7k |
+| MidTier LPs chosen / commit | 226 / 75% | 252 / 81% | 176 / 61% | 185 / 67% |
+| Indie LPs chosen / commit | 1,284 / 89% | 1,222 / 80% | 1,078 / 68% | 1,046 / 61% |
+| Boutique / Small commit | 88 / 80% | 84 / 71% | 69 / 60% | 61 / 54% |
+| LP market (M) | 169.6 | 167.7 | 159.7 | **163.9** |
+| Single + album gross ($M) | 371.2 | 364.8 | 287.6 | 298.1 |
+| All labels defunct by week 104 | 100.5 | 109.5 (+11 / +7) | 104.5 | 107.5 (+6 / 0) |
+| Independent / Small defunct | 16.8 / 18.6% | 18.5 / 21.4% | 15.9 / 19.7% | 18.4 / 19.7% |
+| Small-label share of LP units | 26.7% | 28.8% | 33.5% | 30.0% |
+| No-hit surviving Indies: LP net per label ($k) | 115 | 121 | 74 | 77 |
+
+- **Majors learn what §43 measured.** At the 0.50 price, Major LPs chosen in 1961 rise from 696 to 1,000 and the gate
+  passes 23% instead of 11%. That recovers about 55% of the gap to the dealer price, inside one year of learning. The
+  added Major LPs sell less (median 7.7k against 10.8k), as expected for LPs that only just clear the gate. The LP
+  market recovers 4.2M of the 9.9M lost, and the small-label share of LP units falls back from 33.5% to 30%.
+- **At the dealer price the Major count does not move** (1,252 → 1,253) though the gate passes more (27 → 33%): there,
+  something other than the gate caps Major LPs (the programme limit of 10 a month; `major-lp-count-is-profit-gate-bound`).
+- **Small labels learn a correction below 1 and pass the gate less** (Indie 89 → 80% at the dealer price, 68 → 61% at
+  0.50; Small 80 → 71%, 60 → 54%). Two causes. Under σ 1.5 a label with only a few LPs usually sees a total below its
+  expected value, because a few big hits carry the average, and shrinkage toward 1 with 4 prior LPs only partly offsets
+  that. And Independent debuts really do sell a little under forecast (0.9× on `gfo`, §43). The `elf` closures
+  (+9, both seeds up) are mostly Independent and Small; they are within noise at `elf50` (+3).
+- **Not yet measured:** the learned multipliers themselves (no telemetry; inferred here from gate pass rates and
+  median forecasts), and anything past one year of learning.
+
+**Reading:** the earned memory removes about half of the Major LP cut at the RIAA margin without any tier constant, and
+the remaining gap should shrink as more Major LPs reach 52 weeks. Before adoption: (1) log each label's multiplier and
+observation count (a weekly or yearly label telemetry column); (2) settle the small-label downward drift: either
+stronger shrinkage (ShrinkRecords 8–10) or learning on log units with the label's observed spread; (3) the 260-week
+check of σ 1.5 + 0.50 + earned forecast on the RIAA 1963 cohort, five-year closures and the Major LP count against
+the bsnpubs range (143–209 titles a label a year).

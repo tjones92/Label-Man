@@ -1271,6 +1271,8 @@ public partial class CompetitorManager : Node {
 				initialRunSpend = LabelPressingEconomics.PlantBill(format, press.InitialRun, false, pressingCost);
 				pressingSpend = initialRunSpend + LabelPressingEconomics.PlantBill(format, press.Repressed, true, pressingCost);
 				LabelCompanyAccounts.Inventory(label, runtimeData, press.InitialRun, press.Repressed, Mathf.RoundToInt(weeklyUnits), pressingCost);
+				if (EarnedLpForecast.Enabled && runtimeData.weeksSinceRelease >= EarnedLpForecast.ObserveAgeWeeks)
+					EarnedLpForecast.Observe(label, runtimeData);
 			}
 			// Keep the existing artist contract convention (royalty on retail). The
 			// distribution skim is based on revenue after manufacturing cost.
@@ -2003,6 +2005,7 @@ public partial class CompetitorManager : Node {
 		}
 
 		if (LabelPressingEconomics.Enabled) LabelPressingEconomics.Learn(GetLabel(labelId), runtimeData);
+		EarnedLpForecast.Observe(GetLabel(labelId), runtimeData);
 		RecordClubChannel.FoldRetired(runtimeData, TimeManager.Instance?.CurrentDate.year ?? 1960);
 		BudgetLpChannel.Remember(runtimeData, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		float realizedNet = runtimeData.lifetimeLabelNet - runtimeData.SunkReleaseCost;
@@ -2520,6 +2523,7 @@ public partial class CompetitorManager : Node {
 		if (ReleaseAllInEconomics.IsLive) runtimeData.sunkMarketingCost = 0f;
 		runtimeData.revenueMemoryEligible = true;
 		runtimeData.releaseTimeExpectedNet = plan.format == ReleaseFormat.Album ? plan.priorAlbumNet : plan.priorSingleNet;
+		NoteLpForecastAtRelease(label, artist, runtimeData);
 		runtimeData.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(runtimeData.releaseTimeExpectedNet), productionCost));
 		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtimeData.projectRole = record.projectRole;
@@ -2845,6 +2849,7 @@ public partial class CompetitorManager : Node {
 			runtime.sunkMarketingCost = 0f;
 		runtime.revenueMemoryEligible = true;
 		runtime.releaseTimeExpectedNet = releaseTimeExpectedNet;
+		NoteLpForecastAtRelease(label, artist, runtime);
 		runtime.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(releaseTimeExpectedNet), productionCost));
 		runtime.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtime.projectRole = record.projectRole;
@@ -3524,6 +3529,14 @@ public partial class CompetitorManager : Node {
 		return (net, multiplier.Value);
 	}
 
+	// --earned-lp-forecast: the latest raw LP unit forecast per (label, act), read when that act's LP is released.
+	// Not saved: an LP released after a load without a fresh forecast is simply not observed.
+	private readonly Dictionary<(string LabelId, string ArtistId), float> lastRawLpForecastUnits = new();
+	private void NoteLpForecastAtRelease(AILabel label, SimulatedArtist artist, RecordRuntimeData runtime) {
+		if (!EarnedLpForecast.Enabled || label == null || artist == null || runtime?.baseRecord?.format != ReleaseFormat.Album) return;
+		if (lastRawLpForecastUnits.TryGetValue((label.labelId, artist.artistId), out float units)) runtime.releaseTimeExpectedLpUnits = units;
+	}
+
 	private float CalculateAlbumPriorNet(AILabel label, SimulatedArtist artist, int year, DecisionContext decision,
 		float compCostWeight, HitInventory hitInventory, out AlbumPriorDiagnostics diagnostics, float? productionMultiplier = null,
 		float affinityScale = 1f, CareerState? affinityCareerState = null) {
@@ -3571,6 +3584,10 @@ public partial class CompetitorManager : Node {
 		float productionCost = MarketSeasonality.Enabled
 			? label.GetProductionCost() * decision.recordingCostMultiplier * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging
 			: label.GetProductionCost() * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging;
+		if (EarnedLpForecast.Enabled && label != null && artist != null) {
+			lastRawLpForecastUnits[(label.labelId, artist.artistId)] = expectedUnits;
+			expectedUnits *= EarnedLpForecast.Multiplier(label);
+		}
 		float expectedRevenueAtMargin = expectedUnits * marginPerUnit;
 		diagnostics = new AlbumPriorDiagnostics {
 			expectedFormatMultiplier = multiplier,
