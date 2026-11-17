@@ -100,3 +100,57 @@ Adopt only if genre and economy metrics hold inside the seed band; the gain is f
 - Both pickers using it behind the switch; off is byte-inert (compare a 27-week run's streams against a control).
 - A check in the retail-purchase-envelope or a new check harness asserting the regional label shares the table implies.
 - The three-seed screen written up as a section of this file with an adopt / don't-adopt call.
+
+## Result: `--label-city-weights` screen (2026-11-16)
+
+**Built** (`Systems/LabelCityWeights.cs`; hooks in `AILabelFactory.GetRandomCity` and `LabelGenerator.GenerateSingleLabel`).
+One `GameRandom.Randf()` per placement against a cumulative table.
+
+- **General table (sourced):** the 46 non-template firms with national chart reach in 1960–61: every independent
+  with a national Top 10 record (`SimLogs/historical-top10-1960`, `-1961`) plus every label on both the KDWB and KFWB
+  1960 surveys (`SimLogs/historical-station-surveys`), imprints merged into firms, unplaceable labels dropped. New York
+  24, Los Angeles 12, Philadelphia 3, New Orleans 2, Memphis, Chicago, Seattle, Minneapolis and Norfolk (at Washington)
+  1 each. Rule: weight = firms + 0.5 per catalog city (Newark left out: no DistanceModel node). Deep South 9.0%.
+  The general table places CorporateGiant and RegionalHustler labels and every runtime birth.
+- **Archetype tilts (authored, cited in code):** CountrySpecialist (Nashville .45, LA .15, Cincinnati, Houston .10 …),
+  BluesRoots (Chicago .35, LA .20 …), GospelPowerhouse (Chicago .25, LA .15 …), RockRebel (LA .35, Memphis .15 …).
+  SoulFactory, TeenHitMachine, FolkBoutique and JazzPrestige keep their legacy placement.
+- **Not built:** Shreveport and Norfolk nodes; archetype-first runtime births (births draw the general table, and
+  `RuntimeLabelProfileFactory` assigns the archetype afterwards, as before).
+
+Checks: `--retail-purchase-envelope-check` 4,034 pass (8 new: every table city resolves to the factory's region, the
+general table's 61 weight and 9.0% Deep South, the draw spans the table, off by default). **Off is inert:**
+`lcwoff-2002-sc` (candidate, 27 weeks) matches `csp-2002-sc` on all 117 common weekly streams.
+
+Screen on the candidate (census package + specialist priors), 104 weeks: `lcw` (+ `--label-city-weights
+--regional-home-sales`) against `csp`. Analysis: `SimTools/analyze_label_city_weights.py csp lcw`.
+
+| Seed 2002 / 1001 / 3003 | control `csp` | `lcw` | history |
+|---|---|---|---|
+| Opening procedural labels in the Deep South | 19 / 18 / 22% | 14 / 11 / 10% | |
+| … Nashville labels | 67 / 62 / 69 | 37 / 34 / 29 | |
+| … East Coast | 36 / 31 / 30% | 44 / 42 / 44% | |
+| Runtime births in the Deep South | 25 / 19 / 19% | 6 / 4 / 9% | |
+| Deep South labels' Hot 100 record-weeks 1960 | 10.5 / 13.9 / 17.0% | 11.9 / 6.6 / 8.1% | ~4% of chart rows (KDWB, KFWB) |
+| … 1961 | 11.6 / 7.5 / 15.2% | 13.3 / 5.2 / 7.4% | |
+| Deep South labels' Top 10 record-weeks 1960 / 1961 (mean) | 10.1 / 9.8% | 7.4 / 5.5% | 3.1 / 7.1% of slots |
+| Southern small labels' home fraction of singles, 1961 | 20 / 25 / 21% | 21 / 31 / 20% | |
+| Small-label share of Hot 100 record-weeks 1960 / 1961 (mean) | 54 / 54% | 50 / 50% | |
+| Labels defunct | 123 / 137 / 124 | 132 / 133 / 127 | |
+| Genre share error 1960 | 24.4 / 33.2 / 27.1 (28.2) | 19.5 / 24.9 / 26.4 (**23.6**) | |
+| Genre share error 1961 | 28.5 / 23.8 / 24.1 (25.5) | 29.7 / 31.3 / 19.1 (26.7) | |
+| Pop / Country 1960 (mean) | 35.0 / 9.3 | 39.6 / 9.0 | 34.9 / 8.4 |
+| Pop / Country 1961 (mean) | 36.5 / 11.3 | 37.3 / 10.2 | 34.0 / 8.3 |
+
+- **The label map moves to history.** The Deep South holds about half its former share of procedural labels, Nashville
+  half its labels, and births no longer favour the South. Southern chart share falls about a third on average (Top 10
+  1961 now at history; 1960 still twice it). Seed 2002 is the exception (Memphis doubles to 31 labels and its chart
+  share holds).
+- **Southern labels still export.** Their home fraction is unchanged (20–31%): placement changes how many Southern
+  labels there are, not how their records travel. That needs the distribution side (the P&D deal gate, see
+  LpGenreAllocationFollowup.md §31).
+- **Costs:** the East Coast rises to 42–44% of procedural labels (the sourced New York weight), and Pop rises 4.6
+  points in 1960 (TradPop / TeenPop supply moves to New York). Total genre error falls 4.6 in 1960 and rises 1.2 in
+  1961 (mean of both years 26.9 → 25.2). Defunct +3, small-label chart share −4: both inside the seed band.
+- **Adopted on the candidate 2026-11-16** (backup `candidate-request-pre-citymap-2026-11-16.json`). It is a fidelity fix to the label map with a sourced general table, and the genre and
+  economy metrics hold inside the seed band. Watch Pop in the next screens.

@@ -399,7 +399,14 @@ public static class AILabelFactory {
 		return LabelTier.Boutique;
 	}
 	
-	private static string GetRandomCity(LabelArchetype archetype) => archetype switch {
+	private static string GetRandomCity(LabelArchetype archetype) {
+		var table = LabelCityWeights.Enabled ? LabelCityWeights.TableFor(archetype) : null;
+		return table != null ? LabelCityWeights.Pick(table) : GetLegacyRandomCity(archetype);
+	}
+
+	internal static string RegionOfCity(string city) => CityToRegion(city);
+
+	private static string GetLegacyRandomCity(LabelArchetype archetype) => archetype switch {
 		LabelArchetype.CountrySpecialist => "Nashville",
 		LabelArchetype.SoulFactory => GameRandom.Randf() < 0.6f ? "Detroit" : greatLakesCities[(int)GameRandom.RandRange(0, greatLakesCities.Length - 1)],
 		LabelArchetype.RockRebel => GameRandom.Randf() < 0.5f ? southernCities[(int)GameRandom.RandRange(0, southernCities.Length - 1)] : westCoastCities[(int)GameRandom.RandRange(0, westCoastCities.Length - 1)],

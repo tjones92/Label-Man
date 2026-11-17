@@ -54,7 +54,10 @@ public class LabelGenerator {
 		label.labelName = legacyName;
 		label.labelId = "gen_" + legacyName.Replace(" ", "").ToLower() + "_" + (int)GameRandom.RandRange(1000, 9999);
 		label.founderName = GenerateFounderName();
-		label.headquartersCity = cities[(int)GameRandom.RandRange(0, cities.Length - 1)];
+		// --label-city-weights: births draw from the sourced general table (one draw, as before); the archetype is
+		// assigned afterwards by RuntimeLabelProfileFactory, so a birth's city stays independent of its genre.
+		label.headquartersCity = LabelCityWeights.Enabled ? LabelCityWeights.Pick(LabelCityWeights.General)
+			: cities[(int)GameRandom.RandRange(0, cities.Length - 1)];
 		ApplyGeneratedIdentity(label, year);
 		if (legacyIdentity) label.foundedYear = (int)GameRandom.RandRange(year - 5, year + 1);
 		label.isHistorical = false;

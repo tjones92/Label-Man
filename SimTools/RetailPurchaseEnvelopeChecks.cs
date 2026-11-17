@@ -76,6 +76,14 @@ public static class RetailPurchaseEnvelopeChecks {
                 "westcoast"=>R(id,20.3f,.82f,1.18f,.38f), "deepsouth"=>R(id,15.0f,.48f,.78f,.40f), "rockies"=>R(id,4.6f,.58f,.95f,.39f),
                 _=>R(id,14.2f,.62f,.90f,.41f) }).ToArray();
             double buyersBefore=regions.Sum(r=>(double)r.GetRecordBuyingPopulation());
+            // --label-city-weights: every city resolves in the distance catalog to the factory's region, the general
+            // table puts 9.0% in the Deep South and 46 sourced firms plus a 0.5 floor per city, and the switch is off by default.
+            foreach (var t in new[]{LabelCityWeights.General,LabelCityWeights.Country,LabelCityWeights.Blues,LabelCityWeights.Gospel,LabelCityWeights.Rock})
+                Check(t.All(e=>e.city=="Newark"||DistanceModel.GetCityByName(e.city)?.parentRegionId==AILabelFactory.RegionOfCity(e.city)), "Label city table resolves to catalog regions");
+            var gs=LabelCityWeights.RegionShares(LabelCityWeights.General,AILabelFactory.RegionOfCity);
+            Check(Math.Abs(gs["deepsouth"]-5.5f/61f)<1e-4 && Math.Abs(LabelCityWeights.General.Sum(e=>e.weight)-61f)<1e-3, "General label-city table: 46 firms + floor, Deep South 9.0%");
+            Check(LabelCityWeights.PickAt(LabelCityWeights.General,0f)=="New York" && LabelCityWeights.PickAt(LabelCityWeights.General,.9999f)=="Seattle", "Label-city draw spans the table");
+            Check(!LabelCityWeights.Enabled, "Label city weights are off unless switched");
             // --census-specialist-priors (§31) rescales the specialist priors by census / authored population, valid only if
             // each authored prior is that region's authored population x buying fraction.
             Check(regions.All(r=>Math.Abs(GenreAcceptanceService.AuthoredSpecialistPriorForChecks(r.regionId)
