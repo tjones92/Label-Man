@@ -500,6 +500,7 @@ public partial class ChartManager : Node {
 		AiBackers.Configure(SimulationArguments.Get());
 		LabelCorporateModel.Configure(SimulationArguments.Get());
 		FounderCompensation.Configure(SimulationArguments.Get());
+		GraduatedFounderOverhead.Configure(SimulationArguments.Get());
 		LabelCompanyTax.Configure(SimulationArguments.Get());
 		FounderLabelLifecycle.Configure(SimulationArguments.Get());
 		StudioParentLabels.Configure(SimulationArguments.Get());

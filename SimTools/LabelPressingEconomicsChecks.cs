@@ -181,7 +181,30 @@ public static class LabelPressingEconomicsChecks {
 				on.strongRegions.Length == 1 && on.strongRegions[0] == on.homeRegion, "a Small label covers and is strong only at home");
 		}
 		Check(small > 100 && widened > small / 3, "the check sees many Small labels the old factory widened");
-		return $"small home territory ({widened}/{small} Small narrowed)";
+		// --home-territory-tiers (§34): procedural Boutique/Independent labels cut the same way, templates and draws untouched.
+		SmallLabelHomeTerritory.SetEnabledForChecks(true);
+		SmallLabelHomeTerritory.SetExtraTiersForChecks(LabelTier.Boutique, LabelTier.Independent);
+		GameRandom.Seed(4401);
+		var tiered = AILabelFactory.GenerateAllLabels(600);
+		float nextTiered = GameRandom.Randf();
+		SmallLabelHomeTerritory.SetExtraTiersForChecks();
+		SmallLabelHomeTerritory.SetEnabledForChecks(false);
+		Check(nextTiered == nextBefore && tiered.Count == before.Count, "the tier cut makes the same draws");
+		int cutTier = 0;
+		for (int i = 0; i < tiered.Count; i++) {
+			AILabel off = after[i], on = tiered[i];
+			bool target = !on.isHistorical && on.tier is LabelTier.Boutique or LabelTier.Independent;
+			if (!target) {
+				Check(SameRegions(off.distributionRegions, on.distributionRegions) && SameRegions(off.strongRegions, on.strongRegions),
+					"labels outside the tier cut keep their territory");
+				continue;
+			}
+			cutTier++;
+			Check(on.distributionRegions.Length == 1 && on.distributionRegions[0] == on.homeRegion &&
+				on.strongRegions.Length == 1 && on.strongRegions[0] == on.homeRegion, "a procedural Boutique/Independent label starts home-only");
+		}
+		Check(cutTier > 50, "the check sees procedural Boutique/Independent labels");
+		return $"small home territory ({widened}/{small} Small narrowed; {cutTier} Boutique/Independent under the tier cut)";
 	}
 
 	private static bool SameRegions(string[] a, string[] b) => (a ?? Array.Empty<string>()).SequenceEqual(b ?? Array.Empty<string>());

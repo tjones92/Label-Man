@@ -18,7 +18,7 @@ public static class FounderCompensation {
     internal static bool Applies(AILabel label, LabelCompanyState company) => Enabled
         && LabelCorporateModel.HomeOperated && LabelCorporateModel.Applies(label)
         && company?.ownership == LabelOwnershipForm.PrivateCorporation
-        && LabelCorporateModel.IsFounderRun(label, company);
+        && LabelCorporateModel.IsFounderLed(label, company);
 
     internal static double FixedFounderPayroll(AILabel label, LabelCompanyState company) =>
         Applies(label, company) ? 0 : company.founderPayrollQuote;

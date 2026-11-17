@@ -1219,7 +1219,7 @@ public partial class ChartAuditRunner : Node {
 		geographyMetricsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-geography-metrics.csv"));
 		if (regionalHomeSales) {
 			regionalHomeSalesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-regional-home-sales.csv"));
-			regionalHomeSalesWriter.WriteLine("week,year,regionId,labelHomeRegion,labelTier,format,family,recordsInPlay,awaiting,rawDemand,awareBuyers,serviceableIntent,displacedDemand,units,localCleared,spilloverCleared,backorders,unitsInStores,awarenessSum,radioSum,breakouts");
+			regionalHomeSalesWriter.WriteLine("week,year,regionId,labelHomeRegion,labelTier,format,family,recordsInPlay,awaiting,rawDemand,awareBuyers,serviceableIntent,displacedDemand,units,localCleared,spilloverCleared,backorders,unitsInStores,awarenessSum,radioSum,breakouts,peakClass,pdDeal");
 		}
 		dealMetricsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-deal-metrics.csv"));
 		genreCatalogWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-genre-catalog.csv"));
@@ -1635,17 +1635,21 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void WriteRegionalHomeSalesRows(int week, int year, List<RecordRuntimeData> records) {
-		var rollups = new Dictionary<(string Region, string Home, string Tier, string Format, string Family), HomeSalesRollup>();
+		var rollups = new Dictionary<(string Region, string Home, string Tier, string Format, string Family, string Peak, string Pd), HomeSalesRollup>();
 		foreach (RecordRuntimeData record in records) {
 			AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
 			if (label == null || record.regionalData == null) continue;
 			string home = string.IsNullOrEmpty(label.homeRegion) ? "none" : label.homeRegion;
 			string format = record.baseRecord.format.ToString();
 			string family = GenreCatalog.Get(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year)).Family.ToString();
+			// Peak Hot 100 class to date (T40 / H100 / none) and whether the label holds a P&D deal now: splits a label's
+			// export into hit records and uncharted spread (LpGenreAllocationFollowup.md §33).
+			string peak = record.peakPosition <= 0 ? "none" : record.peakPosition <= 40 ? "T40" : "H100";
+			string pd = label.activeDeal != null ? "1" : "0";
 			foreach (var pair in record.regionalData) {
 				RegionalRecordData data = pair.Value;
 				if (data == null) continue;
-				var key = (pair.Key, home, label.tier.ToString(), format, family);
+				var key = (pair.Key, home, label.tier.ToString(), format, family, peak, pd);
 				if (!rollups.TryGetValue(key, out HomeSalesRollup row)) rollups[key] = row = new HomeSalesRollup();
 				if (data.awaitingArrival) { row.Awaiting++; continue; }
 				row.InPlay++;
@@ -1665,7 +1669,7 @@ public partial class ChartAuditRunner : Node {
 		}
 		foreach (var pair in rollups.OrderBy(pair => pair.Key.Region, StringComparer.Ordinal).ThenBy(pair => pair.Key.Home, StringComparer.Ordinal)
 			.ThenBy(pair => pair.Key.Tier, StringComparer.Ordinal).ThenBy(pair => pair.Key.Format, StringComparer.Ordinal)
-			.ThenBy(pair => pair.Key.Family, StringComparer.Ordinal)) {
+			.ThenBy(pair => pair.Key.Family, StringComparer.Ordinal).ThenBy(pair => pair.Key.Peak, StringComparer.Ordinal).ThenBy(pair => pair.Key.Pd, StringComparer.Ordinal)) {
 			HomeSalesRollup row = pair.Value;
 			regionalHomeSalesWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(pair.Key.Region), Csv(pair.Key.Home),
@@ -1673,7 +1677,7 @@ public partial class ChartAuditRunner : Node {
 				F(row.Raw), F(row.Aware), F(row.Serviceable), F(row.Displaced), row.Units.ToString(CultureInfo.InvariantCulture),
 				row.Local.ToString(CultureInfo.InvariantCulture), row.Spill.ToString(CultureInfo.InvariantCulture),
 				row.Backorders.ToString(CultureInfo.InvariantCulture), row.Stock.ToString(CultureInfo.InvariantCulture),
-				F(row.Awareness), F(row.Radio), row.Breakouts.ToString(CultureInfo.InvariantCulture)
+				F(row.Awareness), F(row.Radio), row.Breakouts.ToString(CultureInfo.InvariantCulture), pair.Key.Peak, pair.Key.Pd
 			}));
 		}
 	}

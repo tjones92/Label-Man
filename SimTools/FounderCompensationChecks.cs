@@ -73,6 +73,48 @@ public static class FounderCompensationChecks {
         GameRandom.Seed(4832); float next = GameRandom.Randf(); GameRandom.Seed(4832);
         FounderCompensation.Pay(Firm());
         Check(next == GameRandom.Randf(), "compensation consumes no random draws");
+        // --graduated-founder-overhead (§37): up to T paid staff keep home premises and contingent founder pay.
+        AILabel Staffed(double employees) {
+            var firm = Firm();
+            firm.company.departments[0].employees = employees;
+            LabelCorporateModel.ReviewOrganization(firm, january + 1, 0, 0); // February: requote, no quarterly hiring
+            return firm;
+        }
+        GraduatedFounderOverhead.SetForChecks(false);
+        var cliff = Staffed(.25);
+        float cliffOverhead = cliff.GetMonthlyOverhead();
+        Check(!FounderCompensation.Applies(cliff, cliff.company) && cliff.company.leasedOfficeSuites >= 1
+            && cliffOverhead > cliff.company.founderPayrollQuote, "off: a quarter-employee switches on fixed founder pay and a suite");
+        GraduatedFounderOverhead.SetForChecks(true, 2);
+        var graded = Staffed(.25);
+        double staffWages = graded.company.payrollQuote - graded.company.founderPayrollQuote;
+        Check(FounderCompensation.Applies(graded, graded.company) && graded.company.leasedOfficeSuites == 0,
+            "on: a founder with a quarter-employee stays home-run on contingent pay");
+        Check(staffWages > 0 && Near(graded.GetMonthlyOverhead(), staffWages + 12 * .25 + 25),
+            "on: overhead is the hired wages, a desk allowance and home running cost");
+        Check(cliffOverhead - graded.GetMonthlyOverhead() >= cliff.company.founderPayrollQuote + cliff.company.premisesQuote - 25 - 12 * .25 - .01,
+            $"on: the founder salary and suite are removed ({cliffOverhead:F0} -> {graded.GetMonthlyOverhead():F0})");
+        Check(!LabelCorporateModel.IsFounderRun(graded, graded.company), "founder dormancy still needs a firm with no paid staff");
+        var grown = Staffed(2.5);
+        Check(!FounderCompensation.Applies(grown, grown.company) && grown.company.leasedOfficeSuites >= 1,
+            "on: staff above the limit lease an office and salary the founder as before");
+        var bare = Staffed(0);
+        Check(Near(bare.GetMonthlyOverhead(), 25), "on: a firm with no staff is unchanged");
+        GameRandom.Seed(4833); float nextGraded = GameRandom.Randf(); GameRandom.Seed(4833);
+        Staffed(1);
+        Check(nextGraded == GameRandom.Randf(), "graduated overhead consumes no random draws");
+        GraduatedFounderOverhead.SetForChecks(false);
+        foreach (var args in new[] { new[] { "--graduated-founder-overhead=0.1" }, new[] { "--graduated-founder-overhead=x" } }) {
+            bool threw = false;
+            try { GraduatedFounderOverhead.Configure(args); } catch (ArgumentException) { threw = true; }
+            Check(threw, "bad staff limits are refused: " + args[0]);
+        }
+        GraduatedFounderOverhead.Configure(new[] { "--graduated-founder-overhead" });
+        Check(GraduatedFounderOverhead.Enabled && Near(GraduatedFounderOverhead.StaffLimit, 2), "bare switch reads two paid staff");
+        GraduatedFounderOverhead.Configure(new[] { "--graduated-founder-overhead=1.5" });
+        Check(Near(GraduatedFounderOverhead.StaffLimit, 1.5), "explicit staff limit is read");
+        GraduatedFounderOverhead.Configure(Array.Empty<string>());
+        Check(!GraduatedFounderOverhead.Enabled && GraduatedFounderOverhead.PaidStaffAllowance == 0, "absent switch is off");
         FounderCompensation.SetForChecks(false);
         Check(Near(quiet.GetMonthlyOverhead(), quiet.company.founderPayrollQuote + 25), "switch off restores existing fixed cost quote");
         GD.Print($"FOUNDER_COMPENSATION_CHECK_PASSED checks={checks}");

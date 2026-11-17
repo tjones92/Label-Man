@@ -84,6 +84,14 @@ public static class RetailPurchaseEnvelopeChecks {
             Check(Math.Abs(gs["deepsouth"]-5.5f/61f)<1e-4 && Math.Abs(LabelCityWeights.General.Sum(e=>e.weight)-61f)<1e-3, "General label-city table: 46 firms + floor, Deep South 9.0%");
             Check(LabelCityWeights.PickAt(LabelCityWeights.General,0f)=="New York" && LabelCityWeights.PickAt(LabelCityWeights.General,.9999f)=="Seattle", "Label-city draw spans the table");
             Check(!LabelCityWeights.Enabled, "Label city weights are off unless switched");
+            // --proven-hit-deal-weeks (§32): a recent hit counts for a deal only after N qualifying weeks; off = plain recent.
+            var hit=new RegionalRecordData { dealEvidenceAge=10, dealHitWeeks=3 };
+            Check(RegionalHitDealGate.ProvenWeeks==0 && RegionalHitDealGate.IsProvenRecent(hit,12), "Proven-hit deal bar is off by default");
+            RegionalHitDealGate.SetProvenWeeksForChecks(4);
+            Check(!RegionalHitDealGate.IsProvenRecent(hit,12) && RegionalHitDealGate.IsRecent(hit,12), "Three hit weeks do not meet a four-week bar; lease evidence still does");
+            hit.dealHitWeeks=4;
+            Check(RegionalHitDealGate.IsProvenRecent(hit,12) && !RegionalHitDealGate.IsProvenRecent(hit,14), "Four hit weeks meet it while recent, and lapse with the hit");
+            RegionalHitDealGate.SetProvenWeeksForChecks(0);
             // --census-specialist-priors (§31) rescales the specialist priors by census / authored population, valid only if
             // each authored prior is that region's authored population x buying fraction.
             Check(regions.All(r=>Math.Abs(GenreAcceptanceService.AuthoredSpecialistPriorForChecks(r.regionId)

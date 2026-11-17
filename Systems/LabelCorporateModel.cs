@@ -199,7 +199,7 @@ public static class LabelCorporateModel {
             ? company.departments.Sum(d => d.founderEquivalent * Wage(d.department)) * 1.12 * index * PayrollScale : 0;
         company.payrollQuote = company.departments.Sum(d => d.employees * Wage(d.department)) * 1.12 * index * PayrollScale
             + company.founderPayrollQuote;
-        bool home = HomeOperated && IsFounderRun(label, company);
+        bool home = HomeOperated && IsFounderLed(label, company);
         company.retainerQuote = home ? 0 : (company.departments.First(d => d.department == LabelDepartment.BusinessAffairs).employees < 1 ? 35 : 0)
             + (company.departments.First(d => d.department == LabelDepartment.FinanceRoyalties).employees < 1 ? 20 : 0);
         company.retainerQuote *= index;
@@ -218,16 +218,25 @@ public static class LabelCorporateModel {
             company.leasedOfficeSuites = Math.Max(company.leasedOfficeSuites, (int)suites);
             company.leasedBranchOffices = Math.Max(company.leasedBranchOffices, (int)branchOffices);
         }
-        double paidEquivalents = home ? 0 : employees + (company.ownership == LabelOwnershipForm.PrivateCorporation ? founder : 0);
+        // A founder-led firm with paid staff (--graduated-founder-overhead) keeps a desk allowance per paid employee. Off, a
+        // home firm has no employees, so this is 0 as before.
+        double paidEquivalents = home ? employees : employees + (company.ownership == LabelOwnershipForm.PrivateCorporation ? founder : 0);
         company.premisesQuote = (room * company.leasedOfficeSuites + company.leasedBranchOffices * room * 1.5 + 12 * paidEquivalents) * index
             + company.assets.Sum(a => a.bookValue > 0 ? a.cost * .0025 : 0) + (home ? HomeRunningCost * index : 0);
         double required = company.departments.Sum(d => d.requiredEmployees) + founder;
         company.organizationCoverage = required <= 0 ? 1 : Math.Clamp((employees + founder) / required, .25, 1);
     }
 
-    internal static bool IsFounderRun(AILabel label, LabelCompanyState company) => label != null && company != null
+    internal static bool IsFounderRun(AILabel label, LabelCompanyState company) => IsFounderRun(label, company, 0);
+
+    /// <summary>Founder-run, allowing the paid staff --graduated-founder-overhead permits (none when off): such a firm
+    /// works from home on contingent founder pay. Founder dormancy still reads the strict <see cref="IsFounderRun(AILabel, LabelCompanyState)"/>.</summary>
+    internal static bool IsFounderLed(AILabel label, LabelCompanyState company) =>
+        IsFounderRun(label, company, GraduatedFounderOverhead.PaidStaffAllowance);
+
+    private static bool IsFounderRun(AILabel label, LabelCompanyState company, double paidStaffAllowance) => label != null && company != null
         && !label.isPlayerOwned && !label.IsSubsidiary
-        && company.departments.Sum(d => d.employees) <= 0
+        && company.departments.Sum(d => d.employees) <= paidStaffAllowance
         && company.ownership is (LabelOwnershipForm.OwnerOperated or LabelOwnershipForm.PrivateCorporation)
         && label.tier is (LabelTier.Small or LabelTier.Boutique or LabelTier.Independent);
 

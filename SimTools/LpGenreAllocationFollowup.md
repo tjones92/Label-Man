@@ -2025,3 +2025,476 @@ Predicted size: on census buyers the authored centring leaves national acceptanc
   is the P&D deal gate (history suggests 5–15% of small labels a year, against 64%), which would keep non-hit records
   home and route breakouts through the existing lease path. A whole-economy change; needs its own screen and a labelled
   1960–61 Hot 100 count as the target.
+
+## 32. A proven-regional-hit bar for national distribution (2026-11-16)
+
+On the current candidate (census package, specialist priors, label city weights; the regional-hit deal gate and slow
+wholesale spread are on by default) 35% of starting Small labels sign a P&D deal in 1960 and 56% by the end of 1961,
+against a historical 5–15% a year (national pickups were per-record leases of proven regional hits;
+`pd-deal-gate-is-a-launch-ramp-bar`). The evidence is a regional hit (breakout ≥ .40, volume ≥ .50) in the last four
+weeks; about a fifth of monthly checks pass it.
+
+New opt-in `--proven-hit-deal-weeks=N` (`RegionalHitDealGate.IsProvenRecent`; counter `RegionalRecordData.dealHitWeeks`,
+saved): an AI label's P&D pull offer (and the record a Major's poach covers) and a wholesale house's hop into a
+neighbouring market need a record that is a regional hit now and has been one for N weeks in that market. AI master
+lease pickups and the player's pitch keep the plain four-week test, so a short regional hit can still be leased out.
+Checks: 4,037 pass (3 new); save/load round trip passes. Off is inert (`phoff-2002-sc` matches `lcw-2002-sc` on all
+117 common weekly streams).
+
+Runs: candidate + `--regional-home-sales`, 104 weeks, seeds 2002 / 1001 / 3003; control `lcw`. Analysis:
+`SimTools/analyze_deal_gate.py lcw ph4 ph8 ph13`.
+
+| Three-seed mean | control | N 4 | N 8 | N 13 | history |
+|---|---|---|---|---|---|
+| Starting Small with a P&D deal, end 1960 | 35% | 26% | 18% | **5%** | 5–15% a year |
+| … end 1961 | 56% | 45% | 33% | **10%** | |
+| Starting Small with a wholesale house, end 1960 (placements) | 36% (106) | 31% (95) | 21% (60) | 14% (43) | |
+| Starting Independent with a P&D deal, end 1960 | 44% | 39% | 32% | 19% | |
+| AI master leases (two years; Southern sellers) | 14 (4) | 12 (4) | 12 (4) | 14 (4) | |
+| Southern small labels' home fraction of singles, 1961 | 24% | 21% | 24% | 26% | |
+| Deep South Hot 100 record-weeks 1960 / 1961 | 8.9 / 8.6% | 9.0 / 7.2% | 9.0 / 7.0% | 7.7 / 5.8% | ~4% (two stations) |
+| Deep South Top 10 record-weeks 1960 / 1961 | 7.4 / 5.5% | 8.4 / 4.1% | 10.1 / 7.2% | 6.6 / 3.3% | 3.1 / 7.1% of slots |
+| Small-label Hot 100 record-weeks 1960 / 1961 | 50 / 50% | 51 / 48% | 51 / 50% | 50 / 45% | |
+| Labels defunct | 131 | 129 | 129 | 137 (+9 / +11 / +1) | |
+| Genre share error 1960 / 1961 | 23.6 / 26.7 | 21.1 / 22.8 | 18.6 / 22.3 | 20.4 / 25.9 | |
+
+- **N 13 puts Small P&D signing in the historical band** (5% a year), and the wholesale route does not refill it: the
+  hop reads the same proven bar, so Small house placements fall too (106 → 43), unlike the October gate
+  (`wholesale-substitutes-for-pd-deals`). Independents keep more access (19%), as they should.
+- **Southern labels' home fraction barely moves** (24% → 26%). About 80% of their singles units are Hot 100 records,
+  and a charting record still reaches every region (national Top 40 arrival, neighbour tests, the blind-launch dose for
+  hot acts). Over two years (seed 2002), 6,853 held region launches opened through acquired distribution against 186 by
+  the chart, so the bar trims non-hit spread, but the units are in the hits. The export share is the share of a
+  national hit, which is historical for a label with hits (Minit's "Mother-in-Law" sold nationally).
+- **Leases do not respond** (12–14 per seed): `--ai-master-capacity-decisions` only lets a seller lease when it cannot
+  fund replenishment, so withholding a P&D deal does not make a label lease. That is the next lever if leases are the
+  goal.
+- **Costs:** defunct +6 at N 13 (two seeds +9 / +11), from slower distribution growth. Genre error is no worse at any N
+  (N 8 is lowest, inside reshuffle noise).
+- **Recommendation:** N 13 for the deal band; N 8 if the closures matter more (18% a year, defunct flat). Not adopted.
+
+**Adopted 2026-11-16:** `--proven-hit-deal-weeks=13` is in `SimLogs/writing-calibration/candidate-request.json`
+(previous: `candidate-request-pre-provenhit-2026-11-16.json`). The candidate equals the ph13 runs without the
+`--regional-home-sales` telemetry.
+
+## 33. Why the Southern home share barely moves (2026-11-16)
+
+`--regional-home-sales` now also splits rows by the record's peak Hot 100 class to date (`peakClass` T40 / H100 / none)
+and whether the label holds a P&D deal that week (`pdDeal`). Telemetry only: `hs0` / `hs13` (the pre-adoption control
+and the new candidate, 104 weeks, seeds 2002 / 1001) print the same `REGIONAL_ARRIVAL` counters as `lcw` / `ph13`.
+Analysis: `SimTools/analyze_home_share_split.py hs0 hs13`.
+
+Southern small labels' 1961 singles (control → N 13):
+
+| | 2002 | 1001 |
+|---|---|---|
+| Units | 11.64M → 6.56M | 4.63M → 3.57M |
+| Home fraction | 21% → 23% | 31% → 29% |
+| Top 40 records: share of units, home fraction | 64% → 54%, 17% → 13% | 48% → 37%, 23% → 11% |
+| Hot 100 (41–100) records | 20% → 22%, 25% → 28% | 29% → 31%, 35% → 35% |
+| Uncharted records | 16% → 24%, 34% → 41% | 23% → 32%, 43% → 44% |
+| Units on labels with no P&D deal | 38% → 79% | 17% → 67% |
+
+- **The gate works on volume, not geography.** It halves the Top 40 count, which cuts home units with away units
+  (seed 2002 home 2.44M → 1.53M). Each record keeps its own export profile, so the mix shift towards uncharted records
+  (+4–7 pts home) is offset by a lower home fraction on the Top 40 records that remain.
+- **Charted records are national whatever the label's distribution.** At N 13, 67–79% of these units sit on labels with no
+  P&D deal: a Top 40 record arrives everywhere (national Top 40 trigger, and the hot-act launch dose opens every region
+  for the act's next single). A Top 40 record's home fraction (11–23%) is about the Deep South's census share of buyers
+  (17%), i.e. a national hit, which is historical.
+- **Uncharted records were never exported by P&D.** With no deal they are still in play in 30–70% of away
+  region-weeks (East Coast / Great Lakes / Southwest 54–70%). The floor is opening owned distribution
+  (`AILabelFactory.GetDistributionRegions`): home plus 1–2 regions for Boutique and 1–3 for Independent, and 40% of
+  labels get an adjacent strong region (`GetRegionalStrength`); both open at launch. Small labels are already cut to home
+  only (`SmallLabelHomeTerritory`, default on), and it shows: 63–71% of Southern Small uncharted units sell at home,
+  against 33–44% for Boutique and Independent, whose records are in play in 65–72% of away region-weeks. Independents
+  and Boutiques carry ~85% of Southern small-label units.
+- **Ceiling:** removing every away unit of uncharted records would lift the home fraction only to 27% (2002) / 35%
+  (1001). The aggregate is set by the hit mix, so it should not be a target: a label with a national hit exports most of
+  its units, in history too.
+- **Better target:** the uncharted home fraction (41–44% now). A non-hit Southern record selling more than half its
+  units outside the South is the unhistorical part. The lever is the opening owned-distribution draw for
+  procedural Boutique/Independent labels, not the deal gate (screened in §34).
+
+## 34. Home-only opening territory for Boutique / Independent labels (2026-11-16, one-seed probe)
+
+New opt-in `--home-territory-tiers=Boutique[,Independent]` (`SmallLabelHomeTerritory`): opening procedural labels of those
+tiers start with distribution and strong region at home only, as Small labels already do. Templates keep their networks;
+the cut runs after the factory's draws, so the opening RNG stream is unchanged (check: same draws, 297 labels cut).
+Off is the existing code path.
+
+Probe: `htbi` (both tiers) on the candidate + `--regional-home-sales`, seed 2002, 1960 read at week 53 against `hs13`.
+
+| 1960, seed 2002 | hs13 | htbi |
+|---|---|---|
+| Southern small labels: singles units, home fraction | 6.91M, 28% | 3.59M, 41% |
+| … uncharted units: home fraction | 44% | 68% |
+| … Boutique / Independent uncharted home | 35% / 34% | 75% / 61% |
+| Deep South Hot 100 / Top 10 record-weeks | 7.4% / 5.1% | 8.1% / 5.5% |
+| Small-label share of Hot 100 record-weeks (all regions) | 50% | **38%** |
+| Small-label share of single units | 48% | **35%** |
+| Defunct by week 52 | 58 | 54 |
+
+- **It hits the target:** uncharted Southern records go from 44% to 68% home, and Boutiques reach the Small level.
+- **The cost is national:** every region's procedural Independents lose their opening network, so small labels lose
+  12–13 points of chart and unit share to Majors. History moves the other way in 1960 (independents rising), so the
+  Independent half of the arm is too blunt.
+- Next, if pursued: Boutique only (`htb`), with the small-label chart share as the guard.
+
+## 35. Is the national small-label share carried by Southern labels? No (2026-11-16)
+
+`SimTools/analyze_region_small_share.py` splits small-label (Independent / Small / Boutique) chart and unit share by label
+home region. 1960, `hs13` seeds 2002 / 1001, then the §34 probe `htbi` seed 2002:
+
+| Label home | labels | small H100 rec-wks | home fraction | uncharted home | region's demand | `htbi`: small H100, uncharted home |
+|---|---|---|---|---|---|---|
+| East Coast | 44 / 42% | 43 / 48% | 43 / 45% | 60 / 60% | 36 / 38% | 49%, 79% |
+| Great Lakes | 17 / 21% | 22 / 18% | 35 / 38% | 55 / 59% | 23 / 20% | 20%, 75% |
+| West Coast | 18 / 16% | 18 / 13% | 31 / 33% | 49 / 52% | 10 / 9% | 16%, 70% |
+| Deep South | 14 / 12% | 11 / 11% | 28 / 31% | 44 / 53% | 17 / 19% | 10%, 68% |
+| Southwest | 4 / 7% | 3 / 9% | 16 / 11% | 27 / 29% | 7 / 6% | 4%, 62% |
+| Plains + Rockies | 3 / 2% | 2 / 1% | 10–38% | 13–42% | 8 / 8% | 1% |
+
+- **Southern labels are under-weight, not propping up the total.** They supply 5.5 of the 48–50 points of small-label
+  Hot 100 share, less than their share of small labels (12–14%) or of demand (17–19%). East Coast labels supply 21–23
+  points, Great Lakes 9–11, West Coast 6–9.
+- **Southern export is ordinary.** Every region's small labels sell most units away; home fraction over the region's
+  demand share is 1.2 (East Coast), 1.5–1.9 (Great Lakes, Deep South), 3.0+ (West Coast). Uncharted records are 44–60%
+  home in the big regions.
+- **The §34 loss was national** because the switch hit Independents everywhere: East Coast 21.3 → 18.7 points, Great
+  Lakes 11.1 → 7.8, West Coast 9.0 → 6.1, Deep South 5.6 → 4.0.
+- **The regional imbalance that exists is placement, by design:** label share follows the sourced city weights (§31,
+  New York / Los Angeles heavy) and small-label chart share follows label count, not regional demand. That matches the
+  sourced 1960–61 firm table, so it is not evidence of a fault.
+- **Implication:** if uncharted spread is too wide, it is too wide in every region (opening networks of procedural
+  Independents / Boutiques), and a fix must be judged on the national small-label share, which §34 shows it costs.
+
+## 36. What is wrong with procedural Independents and Boutiques (2026-11-16, read-only)
+
+Read from `hs13` (seeds 2002 / 1001, 104 weeks, current candidate + `--regional-home-sales`); no new runs. Scripts in the
+session scratchpad (opening-label census, closure split, overhead bands).
+
+### Census, 1960
+
+| Procedural | labels | singles / label | median units / single | unit share | Hot 100 record-weeks | P&D end 1960 | defunct end 1960 / 1961 |
+|---|---|---|---|---|---|---|---|
+| Independent | 188 / 177 | 6.7 / 7.2 | 792 / 872 | 28 / 29% | 29 / 28% | 14 / 22% | 20 / 20%, 31 / 29% |
+| Boutique | 111 / 119 | 4.1 / 4.4 | 670 / 644 | 10 / 9% | 9 / 9% | 11 / 9% | 5 / 7%, 8 / 18% |
+| Small | 231 / 241 | 3.4 / 3.6 | 129 / 141 | 7 / 5% | 8 / 5% | 5 / 5% | 2 / 2%, 22 / 20% |
+
+The chart's firm structure is not the miss: 58 / 59 labels reach the 1960 Top 10 (33 / 39 with one record) against 49
+(31) in Billboard's 1960 Top 10 (`historical-top10-1960/concentration_1960.csv`). The tier sizes are not evidence of a
+fault on their own.
+
+### Problems found
+
+1. **An overhead cliff decides who closes.** `LabelCorporateModel.IsFounderRun` needs zero paid employees. Once the
+   work estimate (`SetRequiredStaff`, roster and release rate) passes one founder, the first quarter-employee also
+   switches on the founder's fixed salary and a leased suite, so opening overhead is either ~$25 or $1,100–1,900 a
+   month, with nothing between. 76–83% of procedural Independents open above it and 12–18% of Boutiques. At the same
+   opening cash (~$14k Independents):
+
+   | Opening overhead | Independent n, defunct by week 104 | Boutique n, defunct |
+   |---|---|---|
+   | ≤ $100 | 45 / 29, 16 / 14% | 97 / 98, 6 / 11% |
+   | $1k–2k | 143 / 147, 36 / 33% | 14 / 21, 21 / 48% |
+
+   Dead and surviving Independents sell the same median single (856 vs 815, 1,170 vs 886 units); the dead ones simply
+   never got a hit while carrying $15k a year. This is the MidTier pattern (`midtier-closures-are-tier-payroll-vs-opening-roster`)
+   one tier down: unearned, set by the opening roster draw. Candidate fix: a graduated transition (pay the employees
+   hired; the founder stays on surplus compensation and home premises until paid staff pass a threshold), not more cash.
+
+2. **Geography is supply-only, so uncharted spread can only be cut by cutting networks.** A record's regional sales
+   are the region's buyers times the launch factor (`ChartSimulator.GetRegionalLaunchFactor`: strong/home 1.35, covered
+   0.55 + 0.45 × reach ≈ 0.7, uncovered ≈ 0.18) and stock depth; nothing on the demand side favours a local act or a
+   record with no action. A Deep South Independent with home plus East Coast and Great Lakes therefore sells about
+   .17 × 1.35 against .36 × .7 + .21 × .7 + the rest × .18 elsewhere, i.e. ~35% home, which is what §33 measured. The
+   same networks carry the hits, so §34's home-only cut cost 12–13 points of small-label share. The historical shape
+   was broad, shallow distribution (independent distributors carried the line) with distributors pushing only records
+   that showed local action. Candidate: covered non-home regions launch at the uncovered factor until the record has a
+   home breakout, then open at the covered factor. That targets uncharted records and leaves hits their reach; judge
+   it on the national small-label share and the uncharted home fraction together.
+
+3. **Opening networks are drawn without geography.** `AILabelFactory.GetDistributionRegions` adds 1–3 (Independent) or
+   1–2 (Boutique) regions uniformly from all seven, so a Nashville label can open in the Rockies and West Coast but not
+   the East Coast. Strong regions are home plus a 40% adjacent draw. If networks stay, they should follow market size or
+   adjacency (where independent distributors were), which would also make problem 2 easier to read.
+
+4. **Runtime births follow different rules.** `RuntimeLabelProfileFactory` (`:180–187`) sets every birth's strong
+   regions to home only, after `LabelGenerator.AssignRegions` (`:189–212`) has moved ~30% of a birth's extra regions
+   into `strongRegions`; those regions are then dropped (neither strong nor distributed). Opening and runtime
+   Independents of the same tier therefore start with different footprints. Unverified in a run.
+
+5. **Tier is drawn independently of archetype.** `GetRandomTier` ignores the archetype, so 9–12 procedural Boutiques
+   and 9–15 Independents per seed are `CorporateGiant`, and 20–30 Boutiques are `RegionalHustler`. "Boutique" carries
+   no specialist meaning: it is an Independent-like envelope (budget .20–.52, marketing .30–.70) at Small costs, which
+   is why it rarely closes (5–7% in year one).
+
+**Order:** 1 is a correctness fix with a clear target (closures earned on records, not roster size) and should be
+screened first, three seeds at 104 weeks, guarded by Independent launches and Big-5 share. 2 is the lever for the
+uncharted spread and needs its own screen. 3–5 are cleanup that changes the RNG stream, so they belong behind a switch.
+
+## 37. Graduated founder overhead (2026-11-16)
+
+New opt-in `--graduated-founder-overhead[=T]` (`Systems/GraduatedFounderOverhead.cs`; bare = 2 paid FTE; requires
+`--founder-surplus-compensation`). A founder-run Small / Boutique / Independent firm stays founder-led while its paid staff
+is at most T: it pays the staff it hires (wages plus the $12 desk allowance) but keeps home premises and contingent
+founder pay (`LabelCorporateModel.IsFounderLed`, read by the premises quote and `FounderCompensation.Applies`). Above T
+it leases an office and salaries the founder as before. Founder dormancy still reads the strict no-staff test. No draws,
+no saved state. Checks: `--founder-compensation-check` 38 pass (13 new), `--retail-purchase-envelope-check` 4,037 pass.
+Off is inert: `gfooff-2002-sc` matches `ph13-2002-sc` byte for byte on 142 of 143 CSVs; the other
+(`regional-home-sales`, two telemetry columns added in §33) matches `hs13-2002-sc`.
+
+Runs: `gfo` = `ph13` flags + `--graduated-founder-overhead`, 104 weeks, seeds 2002 / 1001 / 3003. Analysis:
+`SimTools/analyze_founder_overhead.py ph13 gfo`, `SimTools/analyze_label_city_weights.py ph13 gfo`.
+
+| Three-seed mean | `ph13` | `gfo` |
+|---|---|---|
+| Procedural Independent opening overhead (median) | $1,269 | $353 |
+| Procedural Independent defunct end 1960 / 1961 | 20.6 / 29.5% | **2.6 / 8.8%** |
+| … opened ≤ $100 / above, defunct end 1961 | 12 / 34% | 3 / 10% |
+| Procedural Boutique defunct end 1960 / 1961 | 6.2 / 13.4% | 0.6 / 4.7% |
+| Procedural Small defunct end 1961 | 18.2% | 14.4% |
+| Procedural MidTier defunct end 1961 (untouched) | 41.8% | 43.3% |
+| All labels defunct by week 104 | 137 | **69** |
+| Runtime label births by week 104 | 99 | 53 |
+| Procedural Independent singles 1960 / 1961 | 1,377 / 1,327 | 1,579 / 1,757 (+15 / +32%) |
+| Small-label unit share 1960 / 1961 | 49.5 / 41.8% | 49.7 / 48.9% |
+| Small-label Hot 100 record-weeks 1960 / 1961 | 50.1 / 43.3% | 51.5 / 48.5% |
+| Big-5 Top 10 record-weeks 1960 / 1961 | 27.5 / 33.8% | 33.3 (38 / 30 / 32) / 33.7% |
+| Genre share error 1960 / 1961 | 20.4 / 25.9 | 22.1 / 24.1 |
+
+- **The cliff was the closure cause.** Independent two-year closures fall by two thirds, and the ≤ $100 group falls too
+  (12 → 3%): firms that opened below the cliff were crossing it later, when they hired their first part-timer. By week
+  104 survivors' overhead is graduated (most $100–1,000; 17–28 firms per seed above $1,000, past the 2-FTE limit).
+- **Small labels hold their 1961 share** (+7 points of units, +5 of Hot 100 weeks), because the firms that survive keep
+  releasing (Independent singles +32% in 1961). The 1961 small-label fade in the control was partly closures.
+- **Births halve** (99 → 53): runtime founding fills vacancies left by closures, so fewer closures mean fewer births.
+- **Big-5 1960 Top 10 +5.8** is mostly seed 2002 (+12; 1001 +1, 3003 +5) and 1961 is flat: inside reshuffle noise, but
+  the same sign on all three seeds, so watch it. Genre error moves inside noise.
+- **Open question: closures may now be too low.** 9% of Independents and 5% of Boutiques close in two years; the design
+  band is 20–35% five-year financial closure for Small labels (`small-labels-never-lose-money`). The remaining
+  closures are earned (no hit, real cost), but whether the five-year rate lands in the band needs a 260-week run.
+- **Recommendation:** adopt as a correctness fix (it removes a cost step set by the opening roster draw), after a
+  260-week check of the five-year closure rate. Not adopted.
+
+## 38. Graduated founder overhead: economy, chart health and the Southern question (2026-11-16)
+
+Same runs as §37 (`ph13` vs `gfo`, three seeds, 104 weeks; Southern split on `hs13` vs `gfo` where it needs the §33
+columns). Scripts: `SimTools/analyze_founder_overhead_wider.py ph13 gfo`, `analyze_home_share_split.py`,
+`analyze_region_small_share.py`, `analyze_label_city_weights.py`.
+
+### Economy
+
+| Three-seed mean | `ph13` 1960 / 1961 | `gfo` 1960 / 1961 |
+|---|---|---|
+| Single units (M) | 123.3 / 128.0 | 123.3 / 128.0 |
+| Album units (M) | 43.6 / 65.3 | 44.4 / 66.7 |
+| Single + album gross ($M) | 287 / 369 | 290 / 373 |
+| Singles released | 3,542 / 4,297 | 3,788 / 4,773 (+7 / +11%) |
+| Singles losing money | 67.2 / 68.7% | 69.0 / 70.0% |
+| Gross share Major / MidTier / Indie / Boutique / Small, 1961 | 68.8 / 10.5 / 14.2 / 4.0 / 2.5% | 67.2 / 9.6 / 16.3 / 4.2 / 2.6% |
+| Independent pretax earnings ($M) | 16.8 / 14.0 | 18.3 / 16.9 |
+| Independent owner salary ($M) | 1.67 / 1.33 | 0.70 / 1.01 |
+| Active Independent / Boutique / Small firms, end of run | 242 / 103 / 190 | 263 / 113 / 185 |
+| Independent median cash, end of run | $37k | $44k |
+
+- **The singles purse is fixed, so more survivors means more records sharing it.** Units are identical to the
+  thousand (`singles-volume-is-a-fixed-purse`); 11% more 1961 singles push the money-losing share up 1.3 points. Album
+  units and gross rise about 1–2%.
+- **Share moves from Majors and MidTiers to Independents** (1961 gross −1.6 and −0.9, +2.1). Independents' earnings
+  rise $1.5–2.9M a year, about half of it the founder salary that is now paid only from surplus.
+- **Small labels are flat:** they were never above the cliff, and fewer runtime births offset their lower closures.
+
+### Chart health (Billboard in brackets)
+
+| Three-seed mean | `ph13` 1960 / 1961 | `gfo` 1960 / 1961 | Billboard |
+|---|---|---|---|
+| Top 10 label CR4 (slots) | 27.9 / 37.2 | 30.9 / 32.6 | 34.6 / 27.9 |
+| Top 10 label CR8 | 44.8 / 56.5 | 47.2 / 49.7 | 52.7 / 43.5 |
+| Top 10 firms | 60.7 / 52.3 | 62.0 / 55.7 | 49 / 51 |
+| … with one Top 10 record | 38.7 / 35.7 | 43.7 / 37.7 | 31 / 27 |
+| Top 10 records | 123 / 119 | 117 / 119 | 102 / 115 |
+| Hot 100 records | 666 / 637 | 670 / 637 | 683 / 783 |
+| Hot 100 weeks per record | 8.0 / 8.2 | 7.9 / 8.2 | 7.6 / 6.6 |
+| #1 records | 21.3 / 19.7 | 18.3 / 21.0 | 19 / 22 |
+
+- **Concentration moves toward Billboard in both years:** 1960 CR4 / CR8 up toward 34.6 / 52.7, 1961 down toward
+  27.9 / 43.5 (the control's 1961 over-concentration halves).
+- **The firm count overshoots more:** 2–3 more Top 10 firms and 2–5 more one-record firms, already above Billboard's
+  31 / 27. Survivors get more one-off Top 10 hits.
+- Record counts, Hot 100 run length and #1s do not move. The 1961 Hot 100 shortfall (637 vs 783 records, 8.2 vs 6.6
+  weeks) predates this switch.
+
+### The Southern question
+
+| | `ph13` / `hs13` | `gfo` |
+|---|---|---|
+| Southern procedural small labels defunct by week 104 (3 seeds) | 22.7% (elsewhere 21.2%) | 9.5% (elsewhere 10.5%) |
+| Southern small-label singles 1961, seeds 2002 / 1001 | 6.56 / 3.57M | 7.66 / 6.56M |
+| … home fraction | 23 / 29% | 24 / 23% |
+| … uncharted records' home fraction | 41 / 44% | 40 / 40% |
+| … units on labels with a P&D deal | 21 / 33% | 45 / 22% |
+| Deep South points of small-label Hot 100 share, 1961 | 5.4 / 3.5 | 6.4 / 4.9 |
+| Deep South Hot 100 / Top 10 record-weeks, 1961 (3 seeds) | 5.8 / 3.3% | 6.0 / 3.5% |
+
+- **The fix is neutral for the South.** Southern labels' closures were the cliff like everyone else's (22.7 → 9.5%, no
+  regional gap), so they gain volume and a point or so of small-label chart share, but each record keeps the same
+  export profile: home fractions do not move and uncharted Southern records still sell 60% away.
+- The uncharted spread remains §36 problem 2 (supply-only geography, opening networks). This switch removes a
+  confound from that screen: closures no longer thin out the labels whose networks are being tested.
+
+**Reading:** the economy and chart side effects are small and mostly in the right direction (concentration toward
+Billboard; Independents' share up, Majors' down). Two costs to watch: the one-record Top 10 firm excess grows, and
+money-losing singles rise 1–2 points from the fixed purse. The §37 open question (five-year closure rate) still decides
+adoption.
+
+## 39. Graduated founder overhead at five years (2026-11-16)
+
+`gfo260` = `gfo` flags at 260 weeks, seeds 2002 / 1001, no control (read against the 20–35% five-year band for Small
+labels, `small-labels-never-lose-money`). Reference without the switch: `lch-cand` (an earlier 208-week candidate,
+before the census and proven-hit gates), whose procedural Independents close 25 / 28% by week 104 and 30 / 33% by week 208. Analysis:
+`SimTools/analyze_closure_horizon.py gfo260 --weeks 52 104 156 208 260`. Runtime 48 minutes per seed.
+
+| Opening procedural cohort, defunct by week (2002 / 1001) | 104 | 208 | 260 |
+|---|---|---|---|
+| Independent | 8.0 / 11.3% | 10.6 / 13.0% | **11.2 / 13.6%** |
+| Boutique | 4.5 / 5.0% | 13.5 / 10.1% | **16.2 / 10.9%** |
+| Small | 15.6 / 17.4% | 24.2 / 27.4% | **29.4 / 32.4%** (band 20–35%) |
+| MidTier (untouched) | 35 / 54% | 40 / 62% | 40 / 62% |
+
+Week 104 reproduces the §37 screen (8 / 11%). Runtime births: 179 / 186, of which 28 / 25 closed.
+
+- **Small labels land in the band** (29–32%, mostly dormancy). About 55% of surviving starting Smalls have been promoted
+  to Independent by 1964.
+- **Independents almost stop closing after year two:** +3 points over 1962–64. Boutiques keep closing slowly
+  (dormancy), reaching 11–16%.
+- **Why survivors do not run down.** Year-five survivors split into charted (two thirds of Independents, a Hot 100 record in
+  1963–64) and uncharted. Uncharted Independents in 1964: ~14 singles a year, ~55k units, $80–85k gross, median pretax −$1–2k,
+  56–57% losing money, but on $29–30k cash and $450–570 monthly overhead. Losses that small against that buffer take
+  decades to bankrupt a firm, and dormancy needs a founder with no releases, which these firms never are. Charted
+  Independents earn $18–23k pretax.
+- **Reading:** the cliff closures are gone and were unearned. What remains is a different, older gap: a no-hit label sits at
+  break-even indefinitely, because ~4k units a release roughly pay for its records. That is the per-release volume
+  question in `small-labels-never-lose-money` and `singles-volume-is-a-fixed-purse`, not a reason to keep the cliff.
+- **Recommendation:** adopt (it replaces roster-set closures with earned ones and moves chart concentration toward
+  Billboard, §38), and treat the low five-year Independent closure rate (11–14%) as a separate question:
+  why a no-hit Independent's records break even.
+
+**Adopted 2026-11-16:** `--graduated-founder-overhead` is in `SimLogs/writing-calibration/candidate-request.json` (247 flags;
+previous: `candidate-request-pre-gfo-2026-11-16.json`).
+
+## 40. Why a no-hit label breaks even: the RIAA 1963 release survey against the model (2026-11-16)
+
+Source: RIAA / Glover statement, House Judiciary Subcommittee 3, 10 June 1965, Exhibit 10 (p. 799) and pp. 861–865;
+details in `SimTools/RIAA-1965-LP-sales-research-notes.md`. Six companies (Mercury, Capitol, Columbia, RCA Victor,
+Laurie, Kapp; 32% of 1963 industry releases), records released in 1963 with sales counted through 1964. Break-even is a
+release-weighted company average and allocates recording overhead and G&A per selection (p. 862). Singles: 1,189
+releases, 53.3% under 2k, break-even 11,200, 74% fail; revenue $.440, contribution $.259 before S,G&A. Popular LPs:
+1,603 releases, 35.8% under 2k, break-even 7,800, 61% fail; revenue $1.818, contribution $.902 before S,G&A.
+
+Model: `gfo260` (candidate + graduated overhead, 260 weeks, seeds 2002 / 1001), the same cohort (released weeks
+157–208, sales to week 260; retired records from `release-outcomes`, LPs still selling from `live-records-snapshot`).
+"Fail" = realized net < 0; "+ overhead" also charges each release its label's 1963–64 overhead per release. Scripts:
+`SimTools/analyze_riaa_1963_cohort.py gfo260`, `SimTools/analyze_riaa_1965_breakeven.py gfo260` (retired 1962–64, with
+a per-tier fit of realized net = contribution × copies − fixed cost).
+
+### Singles: the model matches the survey
+
+| Releases in 1963, sales to end 1964 | < 2k | 2–10k | 10–50k | 50k+ | fail | fail + overhead |
+|---|---|---|---|---|---|---|
+| RIAA | 53.3% | 19.7% | 14.9% | 12.2% | 74% | (included) |
+| Model, all tiers (n 10,316) | 61.8% | 17.5% | 13.2% | 7.5% | 73% | 79% |
+| Model, Major + MidTier (n 2,299) | 39.3% | 17.2% | 26.8% | 16.9% | 64% | 78% |
+
+| Retired singles 1962–64, fit by tier | Major | MidTier | Indie | Boutique | Small | RIAA |
+|---|---|---|---|---|---|---|
+| Contribution per copy | $0.246 | $0.269 | $0.263 | $0.269 | $0.283 | $0.259 |
+| Fixed cost per release | $4,283 | $2,756 | $1,042 | $807 | $509 | $2,900 incl. allocated S,G&A |
+| Break-even copies | 17,400 | 10,200 | 4,000 | 3,000 | 1,800 | 11,200 |
+
+- Per-copy margin is right in every tier. Fixed cost is the authored `AILabel.GetProductionCost` table ($4,000 / 2,000 /
+  800 / 600 / 350) plus launch marketing; the survey firms' average sits between the model's Major and MidTier.
+- The survey firms (mostly majors) had more flops than the model's Majors and MidTiers (53% vs 39% under 2k, and
+  fewer 10–50k records), but the loss rate with overhead lands on target (78% vs 74%).
+- **No-hit labels' singles already lose money as history says:** surviving Independents with no Hot 100 record in
+  1963–64 sell a median 250–460 copies per single, 84–85% fail, and their singles net slightly negative in total.
+
+### LPs: the survival margin, and the miss
+
+| Releases in 1963, sales to end 1964 | < 2k | < 4k | 10–50k | 300k+ | fail | fail + overhead |
+|---|---|---|---|---|---|---|
+| RIAA | 35.8% | 48.8% | 22.9% | 1.4% | 61% | (included) |
+| Model, all tiers (n 7,539) | 11.3% | 25.2% | 43.4% | 0.0% | 20% | 26% |
+| Model, Major + MidTier (n 3,155) | 0.5% | 2.0% | 74.9% | 0.0% | 17% | 26% |
+| Model Independent / Boutique / Small, median copies | 5,348 / 5,619 / 2,714 | | | | 23 / 17 / 20% | |
+
+- **The no-hit labels live on LPs.** Over 1963–64 the uncharted surviving Independents (~50 per seed) issue ~11 LPs each,
+  median 5.4k copies, 24–26% failing, worth $3.6–4.6M; their singles lose $0.1–0.2M. The "4k units pays for its records"
+  of §39 was the LP line.
+- **Shape:** the model has almost no LP flops (Major + MidTier 0.5% under 2k vs 35.8%) and no LP over 300k (vs 1.4%);
+  three quarters of the RIAA-like firms' LPs sit in 10–50k. This is the same miss as `riaa-1965-lp-distribution-check`
+  (2026-11-15), still present after `--lp-launch-standing=30000`.
+- **Margin:** LP contribution is $1.24–1.37 a copy against $0.90 before S,G&A, and the fitted fixed cost per Independent
+  LP is $2,940 (break-even 2.4k) against the survey's 7,800 break-even.
+
+**Reading:** nothing about singles needs to change. The levers for the no-hit label are the LP floor (unknown-act LPs
+sell 5k+ on small labels, 20k on Majors) and the LP per-copy margin, which together set a 2–3k LP break-even.
+Lowering LP income without moving LP volume raised bankruptcies before (`unknown-act-lp-floor-is-scale-plus-label-push`);
+here that is the intended effect, but it must be earned on the LP flop share (target 36% < 2k, 49% < 4k, 61% fail) and
+must keep the LP market total (stores + racks + budget + clubs) on Billboard.
+
+## 41. LP flop share: the reception draw on the current candidate (2026-11-16)
+
+`--lp-reception-sigma=S` (GameyBehaviorAudit.md §2.17; `GameyAuditSwitches.LpReception`) gives every LP with a roster
+act a mean-preserving reception multiplier on store conversion, exp(S z − S²/2), z keyed on record id and world seed (no
+RNG stream, no saved state; forecasts do not see it). On 2026-11-15 σ 1.5 reproduced the RIAA shape but was held back for
++35–45 small-label bankruptcies, then read as imposed. With the graduated overhead adopted and no-hit labels meant to be
+able to fail (§39–40), it is re-screened here.
+
+Runs: `gfo` (= candidate) vs `lrs10` / `lrs15` (+ σ 1.0 / 1.5), 104 weeks, seeds 2002 / 1001. Scored on LPs released in
+1960 with sales to week 104 (the RIAA window shifted to the run's first two years): `SimTools/analyze_riaa_1963_cohort.py RUN
+--launch 1-52`; guards: `SimTools/analyze_lp_flop_screen.py gfo lrs10 lrs15`.
+
+| LPs released 1960, sales to end 1961 | < 2k | < 4k | 4–20k | 20–100k | 300k+ | fail | fail + overhead |
+|---|---|---|---|---|---|---|---|
+| RIAA (1963 releases to end 1964) | 35.8% | 48.8% | 27.8% | 18.3% | 1.4% | 61% | (included) |
+| `gfo` all tiers | 6.2% | 17.7% | 45.1% | 34.2% | 0.2% | 6% | 10% |
+| `lrs10` | 18.6% | 31.4% | 39.3% | 25.7% | 0.6% | 22% | 28% |
+| `lrs15` | **33.2%** | **46.1%** | 31.3% | 19.1% | 1.0% | **40%** | **45%** |
+| `gfo` / `lrs15` Major + MidTier < 2k | 0.1% / 15.1% | | | | | 4% / 39% | 12% / 50% |
+
+Per tier, `lrs15` (median copies, < 4k): Major 12.6k, 25%; MidTier 19.6k, 26%; Independent 3.8k, 52%; Boutique 3.2k,
+56%; Small 1.5k, 70%. A third of the cohort is still selling at week 104, so final fail rates will be somewhat lower.
+The RIAA bands are probably per edition (mono and stereo; §2.18), so the Major + MidTier per-title shortfall is about
+half what it looks.
+
+| Guards, mean of 2002 / 1001 | `gfo` | `lrs10` | `lrs15` |
+|---|---|---|---|
+| LP market 1961, stores + racks + budget + clubs (M) | 170.5 | 167.9 | 169.6 |
+| … stores / racks 1961 (M) | 68.4 / 37.0 | 65.1 / 37.6 | 63.5 / 41.3 |
+| Singles 1961 (M) | 128.0 | 128.0 | 128.0 |
+| Single + album gross 1961 ($M) | 374.0 | 365.4 | 371.2 |
+| Procedural Independent / Boutique / Small defunct by week 104 | 9.6 / 4.8 / 16.5% | 9.9 / 7.4 / 18.9% | **16.8** / 6.6 / 18.6% |
+| Procedural MidTier defunct | 44.4% | 53.3% | 53.5% (30 / 77) |
+| All labels defunct by week 104 | 75 | 86.5 | **100.5** |
+| Small-label share of LP units 1960 / 1961 | 29.6 / 28.1% | 29.3 / 29.2% | 23.0 / 26.7% |
+| Surviving Independents with no 1961 Hot 100 record | 47.3% | 52.4% | 49.0% |
+
+**Who closes.** Under σ 1.5 the dead procedural Independents (26 / 35 against 15 / 20) issued 0.7–0.8 LPs each, 85–88%
+of which lost money, and only 2 / 7 had a chart record before closing; they fold on a first LP that flops against a
+first pressing sized to a forecast that never saw the draw. Surviving Independents' LPs fail 43–44% (control 17–18%), but
+their LP net per label rises ($115–120k against $104–116k): the draw is mean-preserving, so the lucky ones gain what the
+flops lose.
+
+- **σ 1.5 puts the LP shape on RIAA** (33 / 46% under 2k / 4k against 36 / 49%, the 4–100k bands within 2–6 points, a
+  300k+ tail) while the LP market (−0.5%), singles and gross (−0.7%) hold. σ 1.0 gets half way.
+- **The closures are earned on flops** in the sense the RIAA meant ("Producing and Selling Records Is a Risky
+  Business"), but by a draw: the flop is the title's reception, not its quality or the label's judgement.
+- **It does not close the §39–40 gap on its own.** The draw adds variance, not a lower mean: the share of surviving
+  Independents without a hit is unchanged (49% vs 47%), and their LP income per label does not fall. A no-hit label
+  still breaks even on average; it now risks ruin on its first flops instead. The mean is the per-copy LP margin
+  ($1.24–1.37 against $0.90; §40), the second lever.
+- **Watch:** MidTier closures (seed 1001 77%, n 13); small-label LP share 1960 −6.6 points (1961 −1.4).
+- **Recommendation:** σ 1.5 as the shape fix, checked at 260 weeks on the RIAA 1963 cohort and five-year closures before
+  adoption; then the LP margin screen against the §40 per-copy table.

@@ -161,6 +161,8 @@ public class RegionalRecordData {
 	// Record age of the last week this region was a regional hit by RegionalHitDealGate's bar, or -1. Written
 	// only while that switch is on; the switched-off deal gate reads peakBreakoutScore instead.
 	public int dealEvidenceAge = -1;
+	// Weeks this region has met RegionalHitDealGate's bar, counted only under --proven-hit-deal-weeks.
+	public int dealHitWeeks;
 	public float breakoutVolumeInput;
 	public float breakoutVelocityInput;
 	public float breakoutAudienceInput;

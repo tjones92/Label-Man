@@ -602,7 +602,7 @@ public partial class CompetitorManager : Node {
 		var hits = new HashSet<string>(System.StringComparer.Ordinal);
 		foreach (RecordRuntimeData record in ChartManager.Instance?.GetRecordsForLabel(label.labelId) ?? (IEnumerable<RecordRuntimeData>)System.Array.Empty<RecordRuntimeData>()) {
 			foreach (var pair in record.regionalData)
-				if (RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) hits.Add(pair.Key);
+				if (RegionalHitDealGate.IsProvenRecent(pair.Value, record.weeksSinceRelease)) hits.Add(pair.Key);
 		}
 		return hits;
 	}
@@ -5046,7 +5046,8 @@ public partial class CompetitorManager : Node {
 		DistributionOffersGenerated++;
 		if (!ShouldAcceptDeal(client, offer)) return;
 		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
-			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold,
+			requireProvenHit: true);
 		offer.Cover(evidence.EarningRecordId);
 		TryCommitDistributionPoach(client, current, incumbent, offer, major, dropped);
 	}
@@ -5063,7 +5064,8 @@ public partial class CompetitorManager : Node {
 		if (!CanSignDistributionDeal(client.tier) || StudioParentLabels.IsStudioLabel(client)) return;
 
 		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
-			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold,
+			requireProvenHit: true);
 		// A scalar national-awareness estimate is not a physical network. The old
 		// <0.40 test excluded every otherwise-qualified runtime Independent above
 		// that arbitrary line even when a distributor still had six new regions to
@@ -5148,7 +5150,8 @@ public partial class CompetitorManager : Node {
 	// runtime founders with a >=.30 market peak in the measured 1960-65 checkpoint.
 
 	internal static RegionalDealEvidence EvaluateRegionalDealEvidence(
-		IEnumerable<RecordRuntimeData> records, string labelId, IEnumerable<string> strongRegionIds, float threshold) {
+		IEnumerable<RecordRuntimeData> records, string labelId, IEnumerable<string> strongRegionIds, float threshold,
+		bool requireProvenHit = false) {
 		var strongRegions = (strongRegionIds ?? System.Array.Empty<string>())
 			.Where(regionId => !string.IsNullOrEmpty(regionId))
 			.ToHashSet(System.StringComparer.Ordinal);
@@ -5179,7 +5182,8 @@ public partial class CompetitorManager : Node {
 				bestAny = Mathf.Max(bestAny, peak);
 				recordBestPeak = Mathf.Max(recordBestPeak, peak);
 				if (hitGate) {
-					if (RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) {
+					if (requireProvenHit ? RegionalHitDealGate.IsProvenRecent(pair.Value, record.weeksSinceRelease)
+						: RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) {
 						recordHasPersistentEvidence = true;
 						if (pair.Value.breakoutScore > hitRecordScore) {
 							hitRecordScore = pair.Value.breakoutScore;

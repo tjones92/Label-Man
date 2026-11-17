@@ -1112,6 +1112,9 @@ public sealed class RegionalRecordSaveData {
 	public int localPeakAge { get; set; } = -1;
 	// RegionalHitDealGate's last qualifying week; absent (-1) in older saves and switched-off runs.
 	public int dealEvidenceAge { get; set; } = -1;
+	// --proven-hit-deal-weeks counter; absent (null) in older saves and switched-off runs.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? dealHitWeeks { get; set; }
 	// Rack-jobber ledger and tier; absent unless the rack channel has sold or racked here.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? rackUnits { get; set; }
@@ -1135,7 +1138,7 @@ public sealed class RegionalRecordSaveData {
 		breakoutStage = (int)d.breakoutStage, salesVelocity = d.salesVelocity,
 		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks,
 		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge,
-		dealEvidenceAge = d.dealEvidenceAge,
+		dealEvidenceAge = d.dealEvidenceAge, dealHitWeeks = d.dealHitWeeks != 0 ? d.dealHitWeeks : null,
 		rackUnits = d.rackUnitsTotal != 0 ? d.rackUnitsTotal : null, rackTier = d.rackTier != 0 ? d.rackTier : null,
 		rackStoreBuyers = d.rackStoreBuyerUnitsTotal != 0 ? d.rackStoreBuyerUnitsTotal : null,
 		fanDisplacedBuyers = d.fanDisplacedBuyerUnitsTotal != 0 ? d.fanDisplacedBuyerUnitsTotal : null,
@@ -1157,7 +1160,7 @@ public sealed class RegionalRecordSaveData {
 			// An older save has no arrival; a region that has already sold is treated as in play from
 			// release, which is what every region's clock was before local clocks existed.
 			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
-			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge,
+			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge, dealHitWeeks = dealHitWeeks ?? 0,
 			fitExposureAge = fitExposureAge ?? 0, fitExposureCause = fitExposureCause,
 			fanDisplacedBuyerUnitsTotal = fanDisplacedBuyers ?? 0
 		};
