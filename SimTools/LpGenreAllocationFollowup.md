@@ -2646,3 +2646,57 @@ observation count (a weekly or yearly label telemetry column); (2) settle the sm
 stronger shrinkage (ShrinkRecords 8–10) or learning on log units with the label's observed spread; (3) the 260-week
 check of σ 1.5 + 0.50 + earned forecast on the RIAA 1963 cohort, five-year closures and the Major LP count against
 the bsnpubs range (143–209 titles a label a year).
+
+## 45. Earned LP forecast: telemetry and the small-label fix (2026-11-17)
+
+**Telemetry.** With `--earned-lp-forecast` on, the runner writes `RUN-earned-lp-forecast.csv`, one row per LP the
+memory learns from (week, label, tier, record, age, forecast units, copies sold, observations, totals ratio, log
+mean and variance, learned ratio, multiplier). `SimTools/analyze_earned_lp_telemetry.py RUN` reports, per tier, the
+**pooled** ratio (all observed LPs' copies sold over forecast units, the unbiased value a label should learn) against
+each label's final learned ratio and multiplier. Observations begin at week 36: LPs that retire before 52 weeks,
+mostly flops, are observed first.
+
+**Two fixes screened**, on σ 1.5 + `--lp-label-price-share=0.50`, 104 weeks, seeds 2002 / 1001:
+- `elk10`: the totals estimator with `--earned-lp-forecast-shrink=10` (default 4).
+- `ell2`: `--earned-lp-forecast-log`, the label's log-ratio mean m and variance v, learned ratio exp(m + v/2), the
+  lognormal mean. LPs weigh equally until a label has 10, then exponentially (0.1). v is corrected by n / (n − 1),
+  and only the learned ratio is clamped. A first version (`ell`) seeded the mean with the label's first LP, weighted
+  later LPs 0.1, and clamped each LP's ratio to 0.25–6. So a label with a few LPs learned almost only from its first
+  (often an early-retiring flop), and the clamp cut off the hits the variance needs: Majors learned 1.31 against a
+  pooled 2.37 and the Major gain halved (814 LPs). Fixed in `ell2`.
+
+`elt` is `elf50` (§44) rerun with telemetry; it is byte-identical to `elf50` (release-strategy compared on both seeds).
+
+| End of 1961, median over labels: learned ratio (pooled) / multiplier / share of labels < 1 | `elt` totals, shrink 4 | `elk10` totals, shrink 10 | `ell2` log, shrink 4 |
+|---|---|---|---|
+| Major (17 labels, median 43 LPs) | 1.58 (2.33) / 1.52 / 12% | 1.56 (2.27) / 1.45 / 18% | **2.24 (2.29)** / 2.06 / 12% |
+| MidTier (30, 8) | 2.51 (3.06) / 1.79 / 27% | 2.59 (3.04) / 1.53 / 26% | 3.43 (3.06) / 2.29 / 20% |
+| Independent (~420, 4) | 0.62 (1.10) / 0.81 / 69% | 0.62 (1.05) / 0.88 / 69% | **0.98 (1.09)** / 0.99 / 51% |
+| Boutique (~193, 3) | 0.54 (1.87) / 0.79 / 71% | 0.53 (1.83) / 0.88 / 73% | 0.75 (1.78) / 0.89 / 58% |
+| Small (~300, 2) | 0.37 (0.94) / 0.76 / 75% | 0.37 (0.91) / 0.88 / 76% | 0.48 (0.93) / 0.81 / 66% |
+
+| 1961, mean of seeds | `lps50` (no memory) | `elt` | `elk10` | `ell2` |
+|---|---|---|---|---|
+| Major LPs chosen per seed / gate commit | 696 / 11% | 1,000 / 23% | 968 / 21% | **1,027 / 28%** |
+| MidTier commit | 61% | 67% | 67% | 72% |
+| Indie / Boutique / Small commit | 68 / 69 / 60% | 61 / 61 / 54% | 64 / 63 / 56% | **66 / 64 / 57%** |
+| LP market (M) | 159.7 | 163.9 | 164.0 | 164.3 |
+| All labels defunct by week 104 | 104.5 | 107.5 | 110.0 | 108.5 |
+| Small-label share of LP units | 33.5% | 30.0% | 31.3% | 31.1% |
+
+- **The totals estimator is biased for small labels, as suspected.** The pooled Independent ratio is 1.10, but the
+  median Independent learns 0.62, and 69% of small labels end below 1. Shrinkage 10 only damps the multiplier
+  (0.81 → 0.88); the learned ratio is still 0.62. Majors learn below their pooled ratio too (1.58 against 2.33), so
+  the skew costs them as well.
+- **The log mode learns the pooled ratio** for the tiers with enough LPs: Major 2.24 against 2.29 and Independent 0.98
+  against 1.09. Major LPs reach 1,027 and the gate passes 28% (dealer price 27%). Small-label gate rates come back to
+  within 2–3 points of the no-memory control.
+- **What remains:** Small (2 LPs) and Boutique (3) labels still learn low (0.48 / 0.75): two or three LPs give a noisy
+  variance. Boutique's pooled 1.78 also rests on a few big sellers. The closures are within noise of each other
+  (104.5–110). The LP market recovers 4.6M of the 9.9M lost at 0.50.
+
+**Reading:** adopt the log mode as the estimator (`--earned-lp-forecast --earned-lp-forecast-log`), still behind the
+0.50 price. Before adoption: the 260-week check of σ 1.5 + 0.50 + log-mode earned forecast (RIAA 1963 cohort,
+five-year closures, Major LPs a label a year against bsnpubs 143–209), which also shows the memory past its first
+year. If labels with 2–3 LPs still drift low there, give them a prior variance (σ²₀ ≈ 2, the pooled log spread) blended
+with their own until they have about 5 LPs.

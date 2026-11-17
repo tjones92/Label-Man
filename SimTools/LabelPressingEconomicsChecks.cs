@@ -170,6 +170,21 @@ public static class LabelPressingEconomicsChecks {
 		Check(learner.lpForecastObservations == 2 && !lpC.lpForecastObserved
 			&& Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(learner), MathF.Exp(2f / 6f * MathF.Log(Mathf.Max(sold / forecast, EarnedLpForecast.MinRatio)))),
 			"the memory is a ratio of totals, and an LP without a release forecast is not observed");
+		// --earned-lp-forecast-log: lognormal mean exp(m + v/2) of the weighted log ratios; v only from two observations.
+		EarnedLpForecast.SetForChecks(true, log: true, shrink: 10f);
+		var logLearner = new AILabel { labelId = "earned-lp-log" };
+		var lpD = Fresh(ReleaseFormat.Album, 52, "earned-d"); lpD.releaseTimeExpectedLpUnits = 9999f; lpD.pressingBookSold = 19999;
+		EarnedLpForecast.Observe(logLearner, lpD);
+		float x1 = MathF.Log(2f);
+		Check(Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(logLearner), 2f)
+			&& Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(logLearner), MathF.Exp(x1 / 11f)),
+			"log mode: one LP seeds the log mean outright, no variance yet, shrunk by 1/(1+10)");
+		var lpE = Fresh(ReleaseFormat.Album, 52, "earned-e"); lpE.releaseTimeExpectedLpUnits = 3999f; lpE.pressingBookSold = 999;
+		EarnedLpForecast.Observe(logLearner, lpE);
+		// Two LPs weigh equally; the sample variance of two is (x1 - x2)^2 / 2.
+		float x2 = MathF.Log(.25f), m = (x1 + x2) / 2f, v = (x1 - x2) * (x1 - x2) / 2f;
+		Check(Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(logLearner), MathF.Exp(m + v / 2f)),
+			"log mode: LPs weigh equally early, and the label's own spread restores the mean");
 		EarnedLpForecast.SetForChecks(false);
 
 		// --small-home-territory (§11): factory Small labels start in their home region only, with every draw still made.

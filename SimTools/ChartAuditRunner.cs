@@ -209,6 +209,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter artistEvolutionWriter;
 	private StreamWriter culturalEventWriter;
 	private StreamWriter labelOperatingTargetEventWriter;
+	private StreamWriter earnedLpForecastWriter;
 	// The tier ladder had NO per-run ledger. The section 7.2 flow table was built by hand and never
 	// re-derived, so every MidTier hypothesis since has been inference from standing headcounts --
 	// which is how five of them in a row were wrong. This records the transition itself, with the
@@ -1267,6 +1268,12 @@ public partial class ChartAuditRunner : Node {
 			if (ArtistEvolution.CulturalMemoryEnabled)
 				culturalEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-cultural-events.csv"));
 			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
+			EarnedLpForecast.Configure(SimulationArguments.Get());
+			if (EarnedLpForecast.Enabled) {
+				earnedLpForecastWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-earned-lp-forecast.csv"));
+				earnedLpForecastWriter.WriteLine(EarnedLpForecast.CsvHeader);
+				EarnedLpForecast.Observed += OnEarnedLpForecastObserved;
+			}
 			labelTierTransitionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-tier-transitions.csv"));
 			runtimeLabelProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-runtime-label-profiles.csv"));
 			firstChartEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-first-chart-events.csv"));
@@ -2733,6 +2740,9 @@ public partial class ChartAuditRunner : Node {
 			}));
 		}
 	}
+
+	private void OnEarnedLpForecastObserved(EarnedLpForecast.Observation observation) =>
+		earnedLpForecastWriter?.WriteLine(EarnedLpForecast.CsvRow(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, observation));
 
 	private void WriteOperatingRosterTargetEvent(LabelLifecycleManager.OperatingRosterTargetEvent targetEvent) {
 		if (labelOperatingTargetEventWriter == null || targetEvent?.Label == null) return;
@@ -4342,6 +4352,8 @@ public partial class ChartAuditRunner : Node {
 		artistEvolutionWriter?.Dispose();
 		culturalEventWriter?.Dispose();
 		labelOperatingTargetEventWriter?.Dispose();
+		EarnedLpForecast.Observed -= OnEarnedLpForecastObserved;
+		earnedLpForecastWriter?.Dispose();
 		labelTierTransitionWriter?.Dispose();
 		runtimeLabelProfileWriter?.Dispose();
 		dailyTalentMarketWriter?.Dispose();
@@ -4421,6 +4433,7 @@ public partial class ChartAuditRunner : Node {
 		artistEvolutionWriter = null;
 		culturalEventWriter = null;
 		labelOperatingTargetEventWriter = null;
+		earnedLpForecastWriter = null;
 		labelTierTransitionWriter = null;
 		runtimeLabelProfileWriter = null;
 		dailyTalentMarketWriter = null;
