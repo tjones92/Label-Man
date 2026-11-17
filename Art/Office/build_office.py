@@ -30,7 +30,7 @@ def color(hex_rgb):
     return tuple(linear(int(hex_rgb[i:i + 2], 16) / 255) for i in (0, 2, 4))
 
 
-def material(name, hex_rgb, roughness=.45, metal=0, image=None):
+def material(name, hex_rgb, roughness=.45, metal=0, maps=None):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
@@ -38,48 +38,212 @@ def material(name, hex_rgb, roughness=.45, metal=0, image=None):
     bsdf.inputs["Roughness"].default_value = roughness
     bsdf.inputs["Metallic"].default_value = metal
     mat.diffuse_color = (*color(hex_rgb), 1)
-    if image:
-        tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
-        tex.image = image
-        mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    if maps:
+        albedo, microsurface, relief = maps
+        nodes, links = mat.node_tree.nodes, mat.node_tree.links
+        base_texture = nodes.new("ShaderNodeTexImage")
+        base_texture.image = albedo
+        base_texture.location = (-580, 320)
+        links.new(base_texture.outputs["Color"], bsdf.inputs["Base Color"])
+        rough_texture = nodes.new("ShaderNodeTexImage")
+        rough_texture.image = microsurface
+        rough_texture.location = (-580, 30)
+        channels = nodes.new("ShaderNodeSeparateColor")
+        channels.location = (-280, 20)
+        links.new(rough_texture.outputs["Color"], channels.inputs["Color"])
+        links.new(channels.outputs["Green"], bsdf.inputs["Roughness"])
+        normal_texture = nodes.new("ShaderNodeTexImage")
+        normal_texture.image = relief
+        normal_texture.location = (-580, -250)
+        normal = nodes.new("ShaderNodeNormalMap")
+        normal.location = (-280, -250)
+        links.new(normal_texture.outputs["Color"], normal.inputs["Color"])
+        links.new(normal.outputs["Normal"], bsdf.inputs["Normal"])
     return mat
 
 
-def image_from_linear(name, rgb):
+def packed_image(name, rgb, data=False):
     height, width, _ = rgb.shape
     # Pack an sRGB PNG for Blender and glTF.
-    encoded = np.where(rgb <= .0031308, rgb * 12.92, 1.055 * np.maximum(rgb, 0) ** (1 / 2.4) - .055)
-    rgba = np.concatenate((np.clip(encoded, 0, 1), np.ones((height, width, 1))), axis=2)
+    encoded = rgb if data else np.where(rgb <= .0031308, rgb * 12.92, 1.055 * np.maximum(rgb, 0) ** (1 / 2.4) - .055)
+    rgba = np.ones((height, width, 4), dtype=np.float32)
+    rgba[..., :3] = np.clip(encoded, 0, 1)
     img = bpy.data.images.new(name, width, height, alpha=False)
-    img.pixels.foreach_set(rgba.astype(np.float32).ravel())
+    if data:
+        img.colorspace_settings.name = "Non-Color"
+    img.pixels.foreach_set(rgba.ravel())
     img.pack()
     return img
 
 
-def surface_map(name, dark, light, wood=True):
-    size = 768
-    rand = np.random.default_rng(sum(map(ord, name)))
-    y, x = np.indices((size, size)) / size
+class TextureField:
+    """Sample repeatable noise and small marks in the same UV space as the finish."""
 
-    def noise(nx, ny):
-        grid = rand.random((ny, nx))
-        u, v = x * nx, y * ny
+    def __init__(self, width, height, seed):
+        self.width, self.height = width, height
+        self.random = np.random.default_rng(seed)
+        self.u, self.v = np.meshgrid(np.arange(width, dtype=np.float32) / width,
+                                     np.arange(height, dtype=np.float32) / height)
+
+    def noise(self, nx, ny, u=None, v=None):
+        grid = self.random.random((ny, nx), dtype=np.float32)
+        u, v = (self.u if u is None else u) * nx, (self.v if v is None else v) * ny
+        u, v = np.mod(u, nx), np.mod(v, ny)
         i, j = u.astype(int), v.astype(int)
         s, t = u - i, v - j
         s, t = s * s * (3 - 2 * s), t * t * (3 - 2 * t)
         return ((grid[j, i] * (1 - s) + grid[j, (i + 1) % nx] * s) * (1 - t)
-                + (grid[(j + 1) % ny, i] * (1 - s) + grid[(j + 1) % ny, (i + 1) % nx] * s) * t)
+                + (grid[(j + 1) % ny, i] * (1 - s) + grid[(j + 1) % ny, (i + 1) % nx] * s) * t).astype(np.float32)
 
-    if wood:
-        warp = y + .19 * (noise(3, 7) - .5) + .014 * np.sin(x * math.tau * 2)
-        summer = .5 + .5 * np.sin(math.tau * (warp * 15 + .47 * noise(7, 24)))
-        grain = (.52 * noise(4, 11) + .12 * summer ** .7 + .24 * noise(11, 135)
-                 + .08 * noise(41, 266) + .04 * rand.random((size, size)))
-    else:
-        grain = .45 * noise(24, 21) + .30 * noise(120, 127) + .25 * rand.random((size, size))
-        grain += .09 * np.sin((x + y) * 3 * math.tau)
-    grain = np.clip((grain - .23) * 1.7, 0, 1)[..., None]
-    return image_from_linear(name, np.array(color(dark)) * (1 - grain) + np.array(color(light)) * grain)
+    def marks(self, count, length, width, direction=None):
+        marks = np.zeros_like(self.u)
+        for _ in range(count):
+            cx, cy = self.random.uniform((0, 0), (self.width, self.height))
+            a = self.random.uniform(*length) * self.width
+            b = self.random.uniform(*width) * self.height
+            angle = self.random.uniform(0, math.tau) if direction is None else self.random.normal(direction, .18)
+            dx, dy = math.cos(angle), math.sin(angle)
+            reach_x, reach_y = abs(dx)*a + abs(dy)*b, abs(dy)*a + abs(dx)*b
+            xs = np.arange(math.floor(cx-reach_x), math.ceil(cx+reach_x)+1)
+            ys = np.arange(math.floor(cy-reach_y), math.ceil(cy+reach_y)+1)
+            x, y = np.meshgrid(xs-cx, ys-cy)
+            r2 = ((dx*x+dy*y)/a)**2 + ((-dy*x+dx*y)/b)**2
+            pixels = np.clip(1-r2, 0, 1)**2 * self.random.uniform(.25, 1)
+            cells = np.ix_(ys % self.height, xs % self.width)
+            marks[cells] = np.maximum(marks[cells], pixels)
+        return marks
+
+    def pebble(self, nx, ny):
+        x, y = self.u * nx, self.v * ny
+        i, j = x.astype(int), y.astype(int)
+        offsets = self.random.uniform(.20, .80, (ny, nx, 2)).astype(np.float32)
+        nearest = np.full_like(self.u, np.inf)
+        second = nearest.copy()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                sites = offsets[(j+dy) % ny, (i+dx) % nx]
+                d2 = (x - (i+dx+sites[..., 0]))**2 + (y - (j+dy+sites[..., 1]))**2
+                second = np.minimum(second, np.maximum(nearest, d2))
+                nearest = np.minimum(nearest, d2)
+        return np.clip((np.sqrt(second) - np.sqrt(nearest)) * 3.3, 0, 1)
+
+
+def palette(dark, light, tone):
+    return np.array(color(dark)) + np.clip(tone, 0, 1)[..., None] * (np.array(color(light)) - np.array(color(dark)))
+
+
+def finish(name, rgb, roughness, height, relief_scale):
+    # Tangent-space normals from the same recesses, grain and scratches as the color and roughness.
+    dx = (np.roll(height, 1, axis=1) - np.roll(height, -1, axis=1)) * relief_scale
+    dy = (np.roll(height, 1, axis=0) - np.roll(height, -1, axis=0)) * relief_scale
+    length = np.sqrt(1 + dx*dx + dy*dy)
+    normal = .5 + .5 * np.stack((dx/length, dy/length, 1/length), axis=-1)
+    return (packed_image(f"{name} • Color", rgb),
+            packed_image(f"{name} • Roughness", np.repeat(roughness[..., None], 3, axis=2), data=True),
+            packed_image(f"{name} • Normal", normal, data=True))
+
+
+def walnut_finish(name, width, height, seed, dark, light, figured=False):
+    field = TextureField(width, height, seed)
+    u, v = field.u, field.v
+    warp = v + .065*(field.noise(4, 8) - .5) + .016*(field.noise(8, 17) - .5)
+    heart = np.zeros_like(v)
+    if figured:
+        # Growth lines crowd and bend around small knots in the flat-sawn veneer.
+        for x, y, sx, sy in ((.35, .39, .17, .059), (.72, .68, .15, .048), (.19, .81, .12, .040)):
+            du, dv = (u-x+.5) % 1 - .5, (v-y+.5) % 1 - .5
+            falloff = np.exp(-((du/sx)**2+(dv/sy)**2))
+            warp += .037*np.tanh(dv/(sy*.38))*falloff
+            heart = np.maximum(heart, np.exp(-((du/(sx*.19))**2+(dv/(sy*.20))**2)))
+    warm = field.noise(5, 14, v=warp)
+    bands = .5 + .5*np.cos(math.tau*(34*warp + .25*field.noise(7, 43)))
+    fibers = field.noise(21, 240, v=warp)
+    pores = np.clip((.32-field.noise(125, 370, v=warp))*3.4, 0, 1)**2 * (.25+.75*bands)
+    scratches = field.marks(150 if figured else 38, (.002, .020), (.0007, .0022), .10)
+    rubbed = field.noise(14, 24)
+    tone = .21+.41*warm+.19*fibers-.14*bands**8-.24*pores-.39*heart+.22*scratches
+    rough = (.45 if figured else .57) + .115*(rubbed-.5)+.14*pores+.20*scratches
+    height = .26*fibers-.40*pores-.16*bands**8-.21*scratches-.22*heart
+    return finish(name, palette(dark, light, tone), rough, height, .40 if figured else .31)
+
+
+def leather_finish(name, dark, light, seed, worn=False):
+    field = TextureField(1024 if worn else 512, 1024 if worn else 512, seed)
+    pebble = field.pebble(112 if worn else 92, 155 if worn else 86)
+    wrinkles = field.pebble(27, 41)
+    fiber = field.noise(290, 292)
+    dye = field.noise(12, 16)
+    wear = np.zeros_like(pebble)
+    scars = np.zeros_like(pebble)
+    fold = np.zeros_like(pebble)
+    if worn:
+        u, v = field.u, field.v
+        edge = np.minimum.reduce((u, v, 1-u, 1-v))
+        worn_patches = field.noise(15, 13)
+        wear = (.23 + .77*worn_patches)*np.exp(-(edge/.045)**2)
+        fold = np.exp(-((u-.89-.015*np.sin(v*math.tau*2))/.014)**2) * (.25+.75*worn_patches)
+        scars = field.marks(180, (.0025, .030), (.0008, .003), -.5)
+    tone = .27+.28*dye+.14*pebble-.14*(1-wrinkles)**6+.37*wear+.20*scars+.12*fold
+    rough = (.68+.065*(dye-.5)+.10*(1-pebble)+.14*scars-.09*wear
+             if worn else .43+.14*(dye-.5)+.16*(1-pebble))
+    relief = .54*pebble+.12*wrinkles+.10*fiber-.22*scars-.26*fold
+    return finish(name, palette(dark, light, tone), rough, relief, .44 if worn else .29)
+
+
+def hardware_finish(name, dark, light, base_roughness, seed, brush=False, oxidized=False):
+    field = TextureField(512, 512, seed)
+    cloud = field.noise(10, 12)
+    micro = field.noise(13, 278) if brush else field.noise(134, 153)
+    scars = field.marks(95, (.006, .065), (.0012, .003), .06 if brush else None)
+    pitting = np.clip((.32-field.noise(80, 88))*3.3, 0, 1)**2
+    tone = .54+.19*(cloud-.5)+.18*(micro-.5)+.36*scars
+    roughness = base_roughness + .12*(cloud-.5)+.12*(micro-.5)+.22*scars
+    if oxidized:
+        oxide = np.clip((field.noise(12, 16)-.48)*2.2, 0, 1) * (.45+.55*field.noise(52, 49))
+        tone -= .52*oxide+.18*pitting
+        roughness += .22*oxide
+    return finish(name, palette(dark, light, tone), roughness, .15*micro-.14*pitting-.22*scars, .37)
+
+
+def bakelite_finish():
+    field = TextureField(768, 512, 296)
+    warp = field.v+.18*(field.noise(5, 7)-.5)
+    resin = field.noise(9, 22, v=warp)
+    flecks = field.noise(185, 142)
+    polish = field.noise(19, 16)
+    scuffs = field.marks(110, (.003, .025), (.0013, .0034))
+    tone = .12+.49*resin+.24*field.noise(27, 38, v=warp)+.09*flecks+.12*scuffs
+    return finish("Molded honey Bakelite", palette("6d4829", "c29860", tone),
+                  .28+.13*(polish-.5)+.19*scuffs, .08*flecks-.19*scuffs, .38)
+
+
+def paper_finish(name, field, rgb, ruled=False):
+    u, v = field.u, field.v
+    edge = np.minimum.reduce((u, v, 1-u, 1-v))
+    pulp = field.noise(190, 242)
+    fibers = field.marks(1050, (.001, .0045), (.0005, .0017))
+    foxing = field.marks(380, (.0009, .0045), (.0009, .0042)) * (.3+.7*np.exp(-edge/.08))
+    age = .065*np.exp(-edge/.032) + .048*field.noise(12, 16) + .16*foxing
+    rgb = rgb * (1 + .05*(pulp-.5) - .12*fibers - age)[..., None]
+    if ruled:
+        row = np.exp(-((v*27 - np.rint(v*27))/.035)**2) * (v > .025) * (v < .975) * (u > .01) * (u < .99)
+        for column in (.775, .865, .920, .963):
+            row = np.maximum(row, np.exp(-((u-column)/.0013)**2) * (v > .005) * (v < .976))
+        margin = np.maximum.reduce([np.exp(-((u-column)/.0014)**2) for column in (.12, .698, .704)])
+        margin *= (v > .005) * (v < .975)
+        for ink, mask in (("5e7785", row), ("a05a48", margin)):
+            amount = (mask*(.85+.13*pulp))[..., None]
+            rgb = rgb*(1-amount) + np.array(color(ink))*amount
+    return finish(name, rgb, .77+.13*pulp, .22*pulp-.13*fibers, .23)
+
+
+def cut_paper_finish():
+    field = TextureField(512, 256, 472)
+    layers = .5+.5*np.cos(math.tau*(31*field.v + .28*field.noise(19, 54)))
+    fiber = field.noise(168, 88)
+    tone = .54+.16*fiber-.31*layers**4
+    return finish("Compressed page edges", palette("73583d", "c3a681", tone),
+                  .77+.13*fiber, .16*fiber-.25*layers**4, .35)
 
 
 def artwork(name, corners, width, height):
@@ -97,7 +261,8 @@ def artwork(name, corners, width, height):
     rgb = ((reference[iy, ix] * (1 - fx) + reference[iy, ix + 1] * fx) * (1 - fy)
            + (reference[iy + 1, ix] * (1 - fx) + reference[iy + 1, ix + 1] * fx) * fy)
     rgb = np.where(rgb <= .04045, rgb / 12.92, ((rgb + .055) / 1.055) ** 2.4)
-    return material(name, "ffffff", .75, image=image_from_linear(name, rgb))
+    field = TextureField(width, height, sum(map(ord, name)))
+    return material(name, "bca481", maps=paper_finish(name, field, rgb))
 
 
 def group(name):
@@ -140,7 +305,7 @@ def bevel(obj, radius, segments=3):
     return obj
 
 
-def box(name, loc, dimensions, mat, radius=.005, angle=0, grain=None, smooth=False):
+def box(name, loc, dimensions, mat, radius=.005, angle=0, grain=None, smooth=False, grain_scale=(1.35, .56)):
     bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
     obj = link(bpy.context.object, name, mat)
     for vertex in obj.data.vertices:
@@ -150,15 +315,20 @@ def box(name, loc, dimensions, mat, radius=.005, angle=0, grain=None, smooth=Fal
     if smooth:
         for polygon in obj.data.polygons:
             polygon.use_smooth = True
-    if grain:
-        u_axis, v_axis = grain
-        for polygon in obj.data.polygons:
-            for i in polygon.loop_indices:
-                co = obj.data.vertices[obj.data.loops[i].vertex_index].co
-                side = co[v_axis] if abs(polygon.normal[v_axis]) < .5 else co[3-u_axis-v_axis]
-                u_offset = .51 + loc[u_axis] * .68
-                v_offset = .51 + loc[v_axis] * .83
-                obj.data.uv_layers.active.data[i].uv = (co[u_axis] / 1.35 + u_offset, side / .56 + v_offset)
+    u_axis, v_axis = grain or (0, 2)
+    other_axis = 3-u_axis-v_axis
+    for polygon in obj.data.polygons:
+        u_face = other_axis if abs(polygon.normal[u_axis]) > .5 else u_axis
+        v_face = other_axis if abs(polygon.normal[v_axis]) > .5 else v_axis
+        if grain:
+            u_scale, v_scale = grain_scale
+            u_offset, v_offset = .51 + loc[u_axis]*.68, .51 + loc[v_axis]*.83
+        else:
+            u_scale, v_scale = dimensions[u_face], dimensions[v_face]
+            u_offset = v_offset = .5
+        for i in polygon.loop_indices:
+            co = obj.data.vertices[obj.data.loops[i].vertex_index].co
+            obj.data.uv_layers.active.data[i].uv = (co[u_face]/u_scale+u_offset, co[v_face]/v_scale+v_offset)
     return bevel(obj, radius)
 
 
@@ -195,6 +365,21 @@ def tube(name, points, radius, mat):
     return link(bpy.data.objects.new(name, curve), name, mat)
 
 
+def ring_uv(obj, sides, rows, caps=0):
+    layer = obj.data.uv_layers.new()
+    for poly in obj.data.polygons:
+        if poly.index < caps:
+            for i in poly.loop_indices:
+                angle = math.tau*(obj.data.loops[i].vertex_index % sides)/sides
+                layer.data[i].uv = (.5+.48*math.cos(angle), .5+.48*math.sin(angle))
+            continue
+        row, segment = divmod(poly.index - caps, sides)
+        u0, u1 = segment/sides, (segment+1)/sides
+        uv = ((u0, rows[row]), (u1, rows[row]), (u1, rows[row+1]), (u0, rows[row+1]))
+        for i, coord in zip(poly.loop_indices, uv):
+            layer.data[i].uv = coord
+
+
 def lathe(name, position, profile, mat, sides=96, y_scale=1, axis=(0, 0, 1), notch=0):
     rotation = Vector(axis).to_track_quat("Z", "Y")
     points = []
@@ -208,6 +393,8 @@ def lathe(name, position, profile, mat, sides=96, y_scale=1, axis=(0, 0, 1), not
     faces = [(j*sides + i, j*sides + (i+1) % sides, (j+1)*sides + (i+1) % sides, (j+1)*sides + i)
              for j in range(len(profile) - 1) for i in range(sides)]
     obj = mesh(name, points, faces, mat)
+    length = np.r_[0, np.cumsum([math.dist(a, b) for a, b in zip(profile, profile[1:])])]
+    ring_uv(obj, sides, length/length[-1])
     for poly in obj.data.polygons:
         poly.use_smooth = True
     return obj
@@ -257,8 +444,15 @@ def panel(name, quad, thickness, top, edge=None, radius=0, rounded=0):
     obj = mesh(name, verts, faces, top, [(u, 1-v) for u, v in uv] * 2)
     if edge:
         obj.data.materials.append(edge)
-        for face in list(obj.data.polygons)[1:]:
+        obj.data.polygons[1].material_index = 1
+        perimeter = 0
+        for i, face in enumerate(list(obj.data.polygons)[2:]):
             face.material_index = 1
+            next_perimeter = perimeter + (outline[(i+1) % count]-outline[i]).length/.28
+            for loop, coord in zip(face.loop_indices, ((perimeter, 1), (next_perimeter, 1),
+                                                      (next_perimeter, 0), (perimeter, 0))):
+                obj.data.uv_layers.active.data[loop].uv = coord
+            perimeter = next_perimeter
     return bevel(obj, radius)
 
 
@@ -301,7 +495,7 @@ def room():
     group("Desk and credenza")
     desk_back = at_z(828, 484, DESK).y
     box("Polished walnut desk top", (-.5, (desk_back + .24) / 2, DESK - .037),
-        (3.35, desk_back - .24, .074), desk_wood, .012, grain=(0, 1))
+        (3.35, desk_back - .24, .074), desk_wood, .012, grain=(0, 1), grain_scale=(3.35, 1.54))
     box("Desk apron", (-.5, (desk_back + .28) / 2, DESK - .145),
         (3.25, desk_back - .28, .16), walnuts[2], .012, grain=(0, 2))
     for x in (-2.05, 1.05):
@@ -466,8 +660,10 @@ def phone():
     points[9].z -= .037
     points[10].z += .034
     points[11].z += .034
-    bevel(mesh("Faceted Bakelite chassis", points, [(3, 2, 1, 0), (8, 9, 10, 11)] +
-               [(i+j, (i+1) % 4+j, (i+1) % 4+j+4, i+j+4) for j in (0, 4) for i in range(4)], bakelite), .017, 5)
+    chassis = mesh("Faceted Bakelite chassis", points, [(3, 2, 1, 0), (8, 9, 10, 11)] +
+                   [(i+j, (i+1) % 4+j, (i+1) % 4+j+4, i+j+4) for j in (0, 4) for i in range(4)], bakelite,
+                   [(dx/.296+.5, dy/.238+.5) for corners in levels for dx, dy in corners])
+    bevel(chassis, .017, 5)
     normal = rotation @ Vector((0, -.36, .933)).normalized()
     center = p(0, -.027, .076)
     cyl("Rotary dial chrome bezel", center, center + normal*.005, .072, nickel)
@@ -498,6 +694,7 @@ def phone():
     faces += [(j*24+i, j*24+(i+1)%24, (j+1)*24+(i+1)%24, (j+1)*24+i)
               for j in range(len(handset_profile)-1) for i in range(24)]
     receiver = mesh("Curved Bakelite receiver", handset, faces, bakelite)
+    ring_uv(receiver, 24, [(row[0]+.154)/.311 for row in handset_profile], caps=2)
     bevel(receiver, .008)
     for poly in receiver.data.polygons:
         poly.use_smooth = True
@@ -522,16 +719,18 @@ def paperwork():
     group("Ruled A&R desk pad")
     pad = projected_quad(((605, 547), (1121, 582), (1107, 1070), (85, 901)), DESK + .025)
     panel("Pad backing", [v - Vector((0, 0, .006)) for v in pad], .021, dark_wood, radius=.004)
-    panel("Stack of ruled paper", pad, .022, paper, paper_edge, .002)
-    blue = material("Faded blue ruling", "87949b", .75)
-    red = material("Red margin ink", "ae7057", .75)
-    for i in range(1, 27):
-        v = i/27
-        tube("Horizontal rule", [interpolate_quad(pad, u, v) + Vector((0, 0, .00024)) for u in (.01, .99)], .00032, blue)
-    for u in (.775, .865, .920, .963):
-        tube("Ledger column", [interpolate_quad(pad, u, v) + Vector((0, 0, .00025)) for v in (.024, .995)], .00037, blue)
-    for u in (.12, .698, .704):
-        tube("Margin line", [interpolate_quad(pad, u, v) + Vector((0, 0, .00031)) for v in (.025, .995)], .00041, red)
+    field = TextureField(1536, 1024, 164)
+    ledger = material("Printed ruled ledger stock", "d4b98d",
+                      maps=paper_finish("Ruled ledger paper", field, np.array(color("d4b98d")), ruled=True))
+    stack = panel("Stack of ruled paper", pad, .022, ledger, paper_edge, .002)
+    # Project the print across the plane so the rules stay straight through triangulation.
+    a, b, c, _ = pad
+    across, down = b-a, c-b
+    area_scale = across.cross(down).z
+    layer = stack.data.uv_layers.active
+    for i in stack.data.polygons[0].loop_indices:
+        offset = stack.data.vertices[stack.data.loops[i].vertex_index].co - a
+        layer.data[i].uv = (offset.cross(down).z/area_scale, 1-across.cross(offset).z/area_scale)
 
     group("Leather checkbook and cheques")
     left = projected_quad(((369, 529), (601, 564), (290, 773), (14, 713)), DESK + .048)
@@ -685,6 +884,7 @@ def build(reference_path, output):
     global olive, olive_trim, rubber, shade_lining, bulb_mat, bakelite, cord_mat, paper, paper_edge, paper_stock
     global leather, edge_leather, thread, vinyl, groove, record_label, ivory, glass, ash_colors, filter_mat
     bpy.ops.wm.read_homefile(use_empty=True, use_factory_startup=True)
+    rng.seed(61463)
     scene = bpy.context.scene
     source = bpy.data.images.load(str(reference_path), check_existing=False)
     if tuple(source.size) != (WIDTH, HEIGHT):
@@ -696,21 +896,27 @@ def build(reference_path, output):
     reference = pixels.reshape(HEIGHT, WIDTH, 4)[..., :3]
     bpy.data.images.remove(source)
 
-    wall_image = surface_map("Quartered walnut veneer", "24190f", "63402a")
-    desk_image = surface_map("Oiled walnut desktop grain", "452613", "885736")
-    walnuts = [material(f"Walnut panel {i + 1}", "ffffff", r, image=wall_image) for i, r in enumerate((.64, .61, .67))]
-    desk_wood = material("Oiled desk and credenza", "ffffff", .48, image=desk_image)
-    frame_wood = material("Waxed walnut molding", "694227", .31)
+    wall_maps = walnut_finish("Quarter-sawn walnut", 1536, 768, 813, "25170e", "60402a")
+    desk_maps = walnut_finish("Oiled figured walnut", 1536, 1024, 629, "3a2011", "946139", figured=True)
+    walnuts = [material(f"Walnut panel {i + 1}", "4c3020", maps=wall_maps) for i in range(3)]
+    desk_wood = material("Oiled desk and credenza", "6d4226", maps=desk_maps)
+    frame_wood = material("Waxed walnut molding", "56331f", maps=wall_maps)
     dark_wood = material("Dark stained end grain", "36251d", .58)
-    leather = material("Worn chestnut leather", "ffffff", .64, image=surface_map("Leather grain", "3a1a10", "774227", False))
-    leather.node_tree.nodes.get("Principled BSDF").inputs["Specular IOR Level"].default_value = .22
+    leather = material("Worn chestnut leather", "5c321e",
+                       maps=leather_finish("Chestnut leather with rubbed edges", "2d150c", "774225", 996, worn=True))
+    leather.node_tree.nodes.get("Principled BSDF").inputs["Specular IOR Level"].default_value = .10
     edge_leather = material("Dark dyed leather edge", "3d2218", .43)
     thread = material("Waxed linen stitching", "b8925e", .64)
-    gunmetal = material("Brushed dark steel", "555755", .42, .55)
-    nickel = material("Polished aged nickel", "9a907d", .26, .74)
-    brass = material("Warm polished brass", "b58a44", .29, .70)
-    tarnished_brass = material("Oxidized brass", "77634b", .46, .54)
-    enamel = material("Black-green enamel", "282923", .32, .24)
+    gunmetal = material("Brushed dark steel", "555755", metal=.55,
+                        maps=hardware_finish("Pitted brushed steel", "313431", "74746a", .43, 72, brush=True, oxidized=True))
+    nickel = material("Polished aged nickel", "9a907d", metal=.74,
+                      maps=hardware_finish("Brushed nickel", "605c52", "aca897", .255, 58, brush=True))
+    brass = material("Warm polished brass", "b58a44", metal=.70,
+                     maps=hardware_finish("Burnished brass", "705133", "ca9d54", .29, 85, brush=True, oxidized=True))
+    tarnished_brass = material("Oxidized brass", "77634b", metal=.54,
+                               maps=hardware_finish("Dark brass patina", "493924", "9e8053", .44, 517, oxidized=True))
+    enamel = material("Black-green enamel", "282923", metal=.24,
+                      maps=hardware_finish("Black enamel with handling scratches", "20231e", "36362f", .34, 218))
     shade_lining = material("Ivory shade enamel", "f2dcad", .38)
     lining_bsdf = shade_lining.node_tree.nodes.get("Principled BSDF")
     lining_bsdf.inputs["Emission Color"].default_value = (*color("f2cb7f"), 1)
@@ -719,25 +925,30 @@ def build(reference_path, output):
     lamp_bsdf = bulb_mat.node_tree.nodes.get("Principled BSDF")
     lamp_bsdf.inputs["Emission Color"].default_value = (*color("ffe4a0"), 1)
     lamp_bsdf.inputs["Emission Strength"].default_value = 5.5
-    olive = material("Aged olive vinyl", "515233", .48)
+    olive = material("Aged olive vinyl", "515233",
+                     maps=leather_finish("Fine pebbled olive vinyl", "3b4028", "646541", 887))
     olive_trim = material("Glossy olive piping", "858356", .32)
     rubber = material("Black rubber", "26251e", .66)
-    enamel_olive = material("Cast olive typewriter enamel", "797952", .36, .18)
-    bakelite = material("Honey Bakelite", "b48a54", .28)
+    enamel_olive = material("Cast olive typewriter enamel", "797952", metal=.18,
+                            maps=hardware_finish("Cast olive enamel", "5b5b3b", "999570", .36, 324, oxidized=True))
+    bakelite = material("Honey Bakelite", "b48a54", maps=bakelite_finish())
     cord_mat = material("Golden brown handset cable", "775734", .42)
-    paper = material("Cream writing stock", "dfc69a", .82)
-    paper_edge = material("Aged paper edge", "9c8061", .80)
+    paper = material("Cream writing stock", "dfc69a",
+                     maps=paper_finish("Cream rag paper", TextureField(512, 512, 819), np.array(color("dfc69a"))))
+    paper_edge = material("Aged paper edge", "9c8061", maps=cut_paper_finish())
     paper_stock = [material(f"Paper stock {i + 1}", c, .77) for i, c in enumerate(("c8b58d", "dbbf93", "b6a17b", "decba5"))]
     record_label = material("Faded paper record label", "bd9b64", .73)
     vinyl = material("Black shellac", "24221e", .28)
     groove = material("Shellac groove edge", "3c3932", .33)
     ivory = material("Nicotine-aged ivory", "d2bc8f", .41)
-    glass = material("Smoked molded glass", "827261", .13)
+    glass = material("Smoked molded glass", "827261",
+                     maps=hardware_finish("Scuffed molded glass", "716252", "95826e", .128, 432))
     glass_bsdf = glass.node_tree.nodes.get("Principled BSDF")
     glass_bsdf.inputs["Transmission Weight"].default_value = 1
     glass_bsdf.inputs["IOR"].default_value = 1.50
     ash_colors = [material(f"Ash and charcoal {i + 1}", c, .90) for i, c in enumerate(("706760", "392e24", "988b79", "b4a895"))]
-    filter_mat = material("Cork cigarette filter", "9c622c", .73)
+    filter_mat = material("Cork cigarette filter", "9c622c",
+                          maps=hardware_finish("Flecked cork paper", "70441f", "b57a42", .73, 32, oxidized=True))
 
     group("Menu camera")
     pitch = math.atan((HEIGHT / 2 - 221) / FOCAL)
