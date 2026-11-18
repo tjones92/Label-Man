@@ -57,6 +57,10 @@ public static class SingleCommercialFit {
 	/// proven act's record that connects sells more (climbs), not only connects more often. Field hit-act follow-ups
 	/// section of Big5ChartOpportunityInvestigation.md. Off (0) is the odds-only shape exactly.</summary>
 	public const string ActRecordSizePrefix = "--single-commercial-fit-act-record-size=";
+	/// <summary>With the act-record size: the lift is full up to the size kink (draws between the act's kink and the size
+	/// kink sell at the just-connected level) and falls linearly to zero T standard deviations above the size kink, so a proven act's marginal record is carried into the Top 40 but its strong draw is not enlarged.
+	/// Needs S &lt;= T x upside so a better draw never sells less. Off (0): a flat lift.</summary>
+	public const string ActRecordSizeTaperPrefix = "--single-commercial-fit-act-record-size-taper=";
 	private const uint NationalDecision = 0x43460000U;
 	private const uint RegionalDecision = 0x43460100U;
 	private const string NationalKey = "national";
@@ -73,6 +77,7 @@ public static class SingleCommercialFit {
 	public static float ActRecordWeight { get; private set; }
 	public static float UpsideCap { get; private set; }
 	public static float ActRecordSize { get; private set; }
+	public static float ActRecordSizeTaper { get; private set; }
 	public static bool ActRecordOddsOnly { get; private set; }
 	private static bool fitForAwareBuyers;
 	private static double kink, logNormalizer;
@@ -108,6 +113,9 @@ public static class SingleCommercialFit {
 		ActRecordSize = Read(args, ActRecordSizePrefix, 0f, 0f, 3f);
 		if (ActRecordSize > 0f && !ActRecordOddsOnly)
 			throw new ArgumentException(ActRecordSizePrefix + " needs " + ActRecordOddsOnlySwitch + " (without it the whole kink already enlarges a connected draw).");
+		ActRecordSizeTaper = Read(args, ActRecordSizeTaperPrefix, 0f, 0f, 10f);
+		if (ActRecordSizeTaper > 0f && (ActRecordSize <= 0f || ActRecordSize > ActRecordSizeTaper * UpsideSigma + 1e-6f))
+			throw new ArgumentException(ActRecordSizeTaperPrefix + " needs " + ActRecordSizePrefix + " with size <= taper x upside (a better draw must not sell less).");
 		if (ActRecordOddsOnly && (ActRecordWeight <= 0f || OwnNormalization > 0f))
 			throw new ArgumentException(ActRecordOddsOnlySwitch + " needs " + ActRecordWeightPrefix + " and no own-normalization.");
 		if (ActRecordWeight > 0f && !HitActCadence.ClockEnabled)
@@ -120,11 +128,11 @@ public static class SingleCommercialFit {
 
 	internal static void SetForChecks(float sigma, float regionalSigma, float scale, ulong checkSeed, float hitShare = 1f, float upside = 0f,
 		float launchWeight = 0f, float pushWeight = 0f, float floor = 0f, float ownNormalization = 0f, float actRecordWeight = 0f, float upsideCap = 0f,
-		bool actRecordOddsOnly = false, bool awareBuyers = false, float actRecordSize = 0f) {
+		bool actRecordOddsOnly = false, bool awareBuyers = false, float actRecordSize = 0f, float actRecordSizeTaper = 0f) {
 		fitForAwareBuyers = awareBuyers;
 		configured = true; Sigma = sigma; RegionalSigma = regionalSigma; Scale = scale; seed = checkSeed;
 		HitShare = hitShare; UpsideSigma = upside; LaunchWeight = launchWeight; PushWeight = pushWeight; Floor = floor; OwnNormalization = ownNormalization;
-		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; ActRecordSize = actRecordSize; Prepare();
+		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; ActRecordSize = actRecordSize; ActRecordSizeTaper = actRecordSizeTaper; Prepare();
 	}
 
 	/// <summary>Kink at the (1 - hit share) normal quantile for a launch at the reference awareness.</summary>
@@ -168,7 +176,9 @@ public static class SingleCommercialFit {
 		double normalizer = OwnNormalization > 0f ? logNormalizer + OwnNormalization * (LogMean(k) - logNormalizer) : logNormalizer;
 		double above = UpsideSigma * Math.Max(0d, z - sizeKink);
 		// --single-commercial-fit-act-record-size: a connected draw by a proven act sells larger. Off: nothing added.
-		if (ActRecordSize > 0f && z >= k) above += ActRecordSize * actRecord;
+		// --single-commercial-fit-act-record-size-taper: the lift fades to zero T above the size kink.
+		if (ActRecordSize > 0f && z >= k)
+			above += ActRecordSize * actRecord * (ActRecordSizeTaper > 0f ? Math.Max(0d, 1d - Math.Max(0d, z - sizeKink) / ActRecordSizeTaper) : 1d);
 		if (UpsideCap > 0f) above = Math.Min(above, UpsideCap);
 		double log = (z < k ? Sigma * (z - k) : above) - normalizer;
 		return Floor > 0f ? Math.Max(log, Math.Log(Floor)) : log;

@@ -501,6 +501,9 @@ public partial class ChartManager : Node {
 		BoundedAudienceProbe.Configure(SimulationArguments.Get());
 		HitActFitSupport.Configure(SimulationArguments.Get());
 		ProvenActChartAdd.Configure(SimulationArguments.Get());
+		RegionalChartAction.Configure(SimulationArguments.Get());
+		RegionalChartRank.Configure(SimulationArguments.Get());
+		ChartFallerReportDepth.Configure(SimulationArguments.Get());
 		LaunchStocking.Configure(SimulationArguments.Get());
 		MajorOffChartSingles.Configure(SimulationArguments.Get());
 		RecordClubChannel.Configure(SimulationArguments.Get());
@@ -1352,6 +1355,8 @@ public partial class ChartManager : Node {
 		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
 			record.surveySampleThisWeek = ChartSimulator.DrawSurveySample(record.unitsThisWeek, record);
 		}
+		// --chart-regional-rank: each region's ranked sales list, scored once before any point total is read. Off: nothing.
+		RegionalChartRank.UpdateWeek(allRecords, allRegions);
 		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
 			float points = ChartSimulator.CalculateChartPoints(record, allRegions);
 			if (record.unitsThisWeek == 0 && points > 0) points *= 0.1f;
@@ -1366,6 +1371,8 @@ public partial class ChartManager : Node {
 			.ThenByDescending(kvp => kvp.Key.unitsThisWeek)
 			.Select(kvp => kvp.Key)
 			.ToList();
+		// --chart-faller-report-depth: singles past their sales peak and ranked below the depth go unreported. Off: unchanged.
+		rawRanking = ChartFallerReportDepth.Filter(rawRanking);
 
 		var rawPositions = rawRanking
 			.Select((record, index) => new { record, position = index + 1 })

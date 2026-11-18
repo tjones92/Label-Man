@@ -181,6 +181,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter labelGeographyWriter;
 	private StreamWriter geographyMetricsWriter;
 	private StreamWriter regionalHomeSalesWriter;
+	private StreamWriter salesRankWriter;
 	private StreamWriter dealMetricsWriter;
 	private StreamWriter genreCatalogWriter;
 	private StreamWriter genreMarketWeeklyWriter;
@@ -311,6 +312,7 @@ public partial class ChartAuditRunner : Node {
 	private bool calibrationMode;
 	private bool smallLabelFinance;
 	private bool regionalHomeSales;
+	private bool salesRankTelemetry;
 	// Player-desk diagnostic: what a scout in each market is actually offered, and what the
 	// acts are called. Prints at end of run; touches nothing in the simulation.
 	private bool scoutingReport;
@@ -595,6 +597,10 @@ public partial class ChartAuditRunner : Node {
 				// Telemetry only: each region's sales split by the selling label's home region and tier, written in
 				// every mode (calibration included). LpGenreAllocationFollowup.md §30.
 				regionalHomeSales = true;
+			} else if (argument == "--sales-rank-telemetry") {
+				// Telemetry only: each week's Nth-best-selling single by units, whatever its published position, written in
+				// every mode (calibration included). Big5ChartOpportunityInvestigation.md, "Where the chart bottom's slots go".
+				salesRankTelemetry = true;
 			} else if (argument == "--small-label-finance") {
 				// Retain cohort cash/status under fast calibration output, without walking
 				// every record/region for the full diagnostic CSV suite.
@@ -1242,6 +1248,10 @@ public partial class ChartAuditRunner : Node {
 			regionalHomeSalesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-regional-home-sales.csv"));
 			regionalHomeSalesWriter.WriteLine("week,year,regionId,labelHomeRegion,labelTier,format,family,recordsInPlay,awaiting,rawDemand,awareBuyers,serviceableIntent,displacedDemand,units,localCleared,spilloverCleared,backorders,unitsInStores,awarenessSum,radioSum,breakouts,peakClass,pdDeal");
 		}
+		if (salesRankTelemetry) {
+			salesRankWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-sales-rank.csv"));
+			salesRankWriter.WriteLine("week,year,salesRank,units,recordId,labelTier,publishedPosition,weeksSincePeakUnits,singlesSelling");
+		}
 		dealMetricsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-deal-metrics.csv"));
 		genreCatalogWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-genre-catalog.csv"));
 		genreMarketWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-genre-market-weekly.csv"));
@@ -1664,6 +1674,25 @@ public partial class ChartAuditRunner : Node {
 	private sealed class HomeSalesRollup {
 		public int InPlay, Awaiting, Units, Local, Spill, Backorders, Stock, Breakouts;
 		public double Raw, Aware, Serviceable, Displaced, Awareness, Radio;
+	}
+
+	private static readonly int[] SalesRankRows = { 1, 10, 25, 40, 50, 60, 75, 100, 150, 200 };
+
+	/// <summary>The week's singles ranked by units alone (the sales chart a survey only approximates): the Nth-best seller's
+	/// units, its published Hot 100 position (0 if not listed) and weeks past its own sales peak. Reads state only.</summary>
+	private void WriteSalesRankRows(int week, int year, List<RecordRuntimeData> records) {
+		var selling = records.Where(r => r.baseRecord.format == ReleaseFormat.Single && r.unitsThisWeek > 0)
+			.OrderByDescending(r => r.unitsThisWeek).ThenBy(r => r.baseRecord.recordId, StringComparer.Ordinal).ToList();
+		foreach (int rank in SalesRankRows) {
+			if (rank > selling.Count) break;
+			RecordRuntimeData r = selling[rank - 1];
+			salesRankWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), rank.ToString(CultureInfo.InvariantCulture),
+				r.unitsThisWeek.ToString(CultureInfo.InvariantCulture), Csv(r.baseRecord.recordId),
+				Csv(ChartManager.Instance.GetLabelById(r.baseRecord.labelId)?.tier.ToString()),
+				r.currentPosition.ToString(CultureInfo.InvariantCulture), r.weeksSincePeakUnits.ToString(CultureInfo.InvariantCulture),
+				selling.Count.ToString(CultureInfo.InvariantCulture) }));
+		}
 	}
 
 	private void WriteRegionalHomeSalesRows(int week, int year, List<RecordRuntimeData> records) {
@@ -2525,6 +2554,7 @@ public partial class ChartAuditRunner : Node {
 		WriteLpCapacityRows(week, date.year);
 		WriteRetailPurchaseRows(week, date.year);
 		if (regionalHomeSales) WriteRegionalHomeSalesRows(week, date.year, records);
+		if (salesRankTelemetry) WriteSalesRankRows(week, date.year, records);
 
 		// Everything below is per-week diagnostic telemetry that walks all records/labels/rosters and
 		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
@@ -4070,6 +4100,7 @@ public partial class ChartAuditRunner : Node {
 		labelGeographyWriter?.Flush();
 		geographyMetricsWriter?.Flush();
 		regionalHomeSalesWriter?.Flush();
+		salesRankWriter?.Flush();
 		dealMetricsWriter?.Flush();
 		genreMarketWeeklyWriter?.Flush();
 		recordGenreExplanationWriter?.Flush();
@@ -4419,6 +4450,7 @@ public partial class ChartAuditRunner : Node {
 		labelGeographyWriter?.Dispose();
 		geographyMetricsWriter?.Dispose();
 		regionalHomeSalesWriter?.Dispose();
+		salesRankWriter?.Dispose();
 		dealMetricsWriter?.Dispose();
 		genreCatalogWriter?.Dispose();
 		genreMarketWeeklyWriter?.Dispose();
@@ -4501,6 +4533,7 @@ public partial class ChartAuditRunner : Node {
 		labelGeographyWriter = null;
 		geographyMetricsWriter = null;
 		regionalHomeSalesWriter = null;
+		salesRankWriter = null;
 		dealMetricsWriter = null;
 		genreCatalogWriter = null;
 		genreMarketWeeklyWriter = null;

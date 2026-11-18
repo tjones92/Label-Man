@@ -91,6 +91,24 @@ public static class SingleCommercialFitShapeChecks {
 			Check(Near(sizeCold[0], SingleCommercialFit.National(2d, .2f, .35f, 0f)) && Near(sizeCold[1], SingleCommercialFit.National(-2.5d, .2f, .35f, 0f)),
 				"size: a cold act is unchanged");
 			Check(Near(sizeMiss, SingleCommercialFit.National(-2.5d, .2f, .35f, 1f)), "size: a draw that misses even the act's kink is unchanged");
+
+			// Taper: full lift from the act's kink up to the size kink (the reference kink, hit share .15), half at T/2 above it,
+			// none from T up; never decreasing in the draw.
+			double Lift(double z, float size, float taper) {
+				SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f, launchWeight: 0f, floor: 0f,
+					actRecordWeight: 2f, actRecordOddsOnly: true, actRecordSize: size, actRecordSizeTaper: taper);
+				return SingleCommercialFit.National(z, .2f, .35f, 1f);
+			}
+			const double sizeKink = 1.0364334d;
+			Check(Near(Lift(0d, .6f, 1f) - Lift(0d, 0f, 0f), .6d), "taper: full lift between the kinks");
+			Check(Near(Lift(sizeKink + .5d, .6f, 1f) - Lift(sizeKink + .5d, 0f, 0f), .3d, 1e-3), "taper: half the lift halfway");
+			Check(Near(Lift(sizeKink + 1d, .6f, 1f), Lift(sizeKink + 1d, 0f, 0f)) && Near(Lift(sizeKink + 2d, .6f, 1f), Lift(sizeKink + 2d, 0f, 0f)),
+				"taper: no lift from T above the size kink");
+			SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f, launchWeight: 0f, floor: 0f,
+				actRecordWeight: 2f, actRecordOddsOnly: true, actRecordSize: .6f, actRecordSizeTaper: .6f);
+			double prev = double.NegativeInfinity; bool monotone = true;
+			for (double z = -1.5d; z < 4d; z += 1e-3) { double v = SingleCommercialFit.National(z, .2f, .35f, 1f); monotone &= v >= prev - 1e-9; prev = v; }
+			Check(monotone, "taper: a better draw never sells less");
 			Set(2f, 0f);
 			Check(SingleCommercialFit.National(2d, .2f, .35f, 1f) > SingleCommercialFit.National(2d, .2f, .35f, 0f), "full kink mode still enlarges a connected draw");
 			Set(1f, 0f);

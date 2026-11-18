@@ -1386,7 +1386,8 @@ public static class ChartSimulator {
 		CalculateChartPoints(record, regions, TimeManager.Instance?.CurrentDate.year ?? AIRPLAY_ERA_START_YEAR);
 
 	public static float CalculateChartPoints(RecordRuntimeData record, MarketRegion[] regions, int year) {
-		float salesPoints = record.unitsThisWeek;
+		// Off unless --chart-regional-action / --chart-regional-rank is named: national units exactly.
+		float salesPoints = RegionalChartRank.SalesPoints(record, RegionalChartAction.SalesPoints(record, regions));
 
 		float airplayPoints = 0f;
 		foreach (var region in regions) {

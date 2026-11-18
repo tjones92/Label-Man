@@ -169,6 +169,10 @@ public class RecordRuntimeData {
 	// computed inside CalculateChartPoints, because that method is called from five sites including
 	// the audit telemetry and a redraw would let the telemetry disagree with the ranking it reports.
 	public float surveySampleThisWeek = 1f;
+	// --chart-regional-rank: this week's store-report score in national units (RegionalChartRank), cached for the same
+	// reason as the survey draw. Zero, and absent from saves, when the switch is off.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public float regionalRankUnitsThisWeek;
 	public float wordOfMouth;         // 0-1: Are people talking about it?
 	
 	// === ARTIST FACTORS ===

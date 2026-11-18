@@ -474,6 +474,204 @@ Plug outcomes (Big-5 singles launched weeks 1–92, per seed): hit act plugged 1
 
 **Reading.** At S 0.4 the package's closure excess is mostly noise against a low control: dormancy is in the S 0 range and bankruptcies are at its top. The closure guard limits S to about 0.4. Size 0.5 is excluded on closures as well as Top 10 rate.
 
+**Gap 10 (`asz04g10p4`).** Same package with W 10. Four seeds:
+
+| | `asz04g12p4` | `asz04g10p4` | History |
+|---|---:|---:|---:|
+| Big-5 follow-ups: events / T40 / T10 | 2.75 / 1.57 / 0.90 | **3.46 / 1.99 / 1.21** | 2.9–3.2 / 2.2–2.3 / 1.1–1.2 |
+| Field follow-ups: events / T40 / T10 | 2.45 / 1.30 / 0.66 | 2.50 / 1.25 / 0.68 | 2.7–3.1 / 1.7–2.1 / 0.64–0.79 |
+| Climb, T40 % proven / other | 51.9 / 46.8 | 48.7 / 47.6 | 60.5 / 38.1 |
+| T10 % proven / other | 26.3 / 17.4 | 26.5 / 20.1 | 21.6 / 15.3 |
+| Big-5 Top 10 share 1960 / 1961 | 24.8 / **25.0%** | 31.4 / 32.5% | 34.2 / 20.6% |
+| Big-5 / field Top 10 per issue | | 4.14× | ~1.1× |
+| Dormancy / bankruptcy / total closures | 34.5 / 69.0 / 103.5 | 35.0 / 75.0 / 110.0 | |
+
+W 10 puts Big-5 hit-act follow-ups on history but returns the 1961 share to 32.5% and raises bankruptcies to 75. W 12 is kept: it gives up about a quarter of the Big-5's follow-up Top 10s for a 7.5-point lower 1961 share. A two-week change moving the share this far is larger than the follow-up change implies, so part of it may be reshuffle; 1960 moves with it (24.8 → 31.4%).
+
+**Two untried levers for the climb premium.** Half of the premium gap is on the non-proven side: their records reach the Top 40 at 46.8% against history's 38.1%. From the same debut band they climb like history's (61–80: 72 against 70%; 81–100: 37 against 32%), but fewer of them debut at the bottom: 74% of non-proven events debut at 81–100 against 84% in history, and the sim has about 350 non-proven events a year against 426. The missing ~80 short bottom-chart runs a year look like 1960's regional records, which the store-and-station-report Hot 100 charted low nationally. A chart lever giving regional action weight at the bottom would add them; it needs a check against the earlier regional-blend and chart-bottom work first. On the proven side, a size term that tapers to zero for strong draws would lift marginal proven records into the Top 40 without enlarging big hits, which addresses the Top 10 overshoot (26% against 21.6%).
+
+**Size taper (`t06g12p4`, rejected).** `--single-commercial-fit-act-record-size-taper=T`: the lift is full up to the size kink and falls linearly to zero T standard deviations above it. It is measured from the size kink because draws between the act's kink and the size kink sell at the just-connected level, so a lift fading from the act's kink would make a better draw sell less. Configuration requires S ≤ T × upside, and the shape check (39 cases) tests monotonicity at S = T. The 27-week off run matches `mnsh40` row for row. S 0.6, T 1.0, with gap 12 and plug 4, four seeds against `asz04g12p4`: climb 55.1 / 46.3 (from 51.9 / 46.8), but proven records reach the Top 10 *more* often, 30.6% against 26.3%. Field follow-ups move to 1.48 Top 40 / 0.82 Top 10, Big-5 to 1.86 / 1.25, the 1961 share to 26.8% and 1960 to 23.2%, and bankruptcies rise to 77 (total closures 111.8). Proven Top 10s come from modest draws carried by a strong launch, so tapering the large draws cannot hold the Top 10 rate down.
+
+**Regional chart action (`rca02`, rejected in this form).** The material exists: on each seed, about 150 never-charting newcomer singles had a week in which one region alone sold at least 40% of the national No. 100's units, with about 90% of their sales there (`newcomer-connect-trace`, ages 1–12). `--chart-regional-action=L` (`Systems/RegionalChartAction.cs`, read in `CalculateChartPoints`): a single's sales points gain L × (best region's units ÷ its population share − national units), capped at its own units. `--chart-regional-action-check` passes; the 27-week off run matches `mnsh40` row for row. L 0.2 on `mnsh40`, four seeds:
+
+| | `mnsh40` | `rca02` | History |
+|---|---:|---:|---:|
+| Hot 100 debuts, 1961 per seed | 534 | 518 | |
+| Non-proven events debuting 81–100 (Top 40 %) | 1,031 (37.1) | 1,027 (38.5) | 1,075 / 3 yr (31.9) |
+| Climb, T40 % proven / other | 42.3 / 46.8 | 47.7 / 49.3 | 60.5 / 38.1 |
+| Follow-ups, Big-5 / field events | 4.19 / 1.87 | 4.17 / 1.56 | ~3.0 / 2.7–3.1 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 24.3 / 31.3% | 34.2 / 20.6% |
+| Closures (dormancy / bankruptcy) | 27.5 / 67.0 | 28.8 / 69.0 | |
+
+The bottom does not widen: debuts fall and non-proven records climb more, not less. The bonus is not selective. With the regional fit draw (σ 0.5), almost every record has one region selling above its share, so ordinary records gain points too and the bottom cutoff rises with them. Concentrated regional sellers gain little relative to the rest. A selective version would pay only skew well beyond the regional draw's spread (for example, the excess of the best region's equivalent over K × national units with K about 3), or would rank-score each region's top list as the store reports did.
+
+**Selective regional action (`rcs3`, rejected).** `--chart-regional-action-skew=K` pays only the excess of the best region's equivalent over K × national units; the check adds two skew cases and passes. L 1.0, K 3 on `mnsh40`, four seeds:
+
+| | `mnsh40` | `rca02` | `rcs3` | History |
+|---|---:|---:|---:|---:|
+| Hot 100 debuts, 1961 per seed | 534 | 518 | 528 | |
+| Non-proven events debuting 81–100 (Top 40 %) | 1,031 (37.1) | 1,027 (38.5) | 1,015 (35.5) | 1,075 / 3 yr (31.9) |
+| Climb, T40 % proven / other | 42.3 / 46.8 | 47.7 / 49.3 | 45.5 / 49.1 | 60.5 / 38.1 |
+| Follow-ups, Big-5 / field events | 4.19 / 1.87 | 4.17 / 1.56 | 4.62 / 1.67 | ~3.0 / 2.7–3.1 |
+| Big-5 follow-up Top 10s per anchor | 0.95 | 1.03 | 1.36 | 1.08 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 24.3 / 31.3% | 24.6 / 31.8% | 34.2 / 20.6% |
+| Closures (dormancy / bankruptcy) | 27.5 / 67.0 | 28.8 / 69.0 | 31.0 / 64.5 | |
+
+Skew does not single out the regional sellers. Using each region's share of single units in place of population, the `mnsh40` newcomer trace (ages 1–12, record-weeks with at least 20 units) gives a best-region ratio, the best region's equivalent ÷ national, with a median of 3.0 on chart weeks and 3.16 for never-charted records selling at least 0.4 × the No. 100's units. The ratio exceeds 3 on half of chart weeks and 61% of the near-misses, and exceeds 5 on 18% and 22%. Newcomers launch in a few covered regions, so their charting records are as concentrated as the ones that miss. The bonus scales with a record's own units, so records with similar ratios keep their order. The bonus mostly reached proven and Big-5 records: Big-5 follow-up Top 10s rose to 1.36 per anchor and the 1961 share to 31.8%. No threshold on skew relative to the record's own sales can widen the bottom. The remaining form is an additive one, points for a record's rank in each region's list regardless of its national size, as the 1960 store reports gave. That is a change to how the chart is built and needs to be checked against the chart-bottom target first.
+
+**Store-report rank scoring (`rrk5`, rejected).** `--chart-regional-rank=B` (`Systems/RegionalChartRank.cs`): each region ranks its singles by the week's units. Rank r up to the list depth D (`--chart-regional-rank-depth`, default 50) earns the Carroll chart-score weight, tapered to zero at D + 1. A record's store score sums those weights over regions, each weighted by population share raised to A (`--chart-regional-rank-market-weight`, default 1, renormalized). The score is converted to national units so that the week's top 100 by units keep their total, and sales points become (1 − B) × units + B × score. Each week's score is computed once before ranking and cached on the record (absent from saves when off), so the audit recomputation stays exact. `--chart-regional-rank-check` passes, and the 27-week off run matches `mnsh40` row for row. B 0.5, D 50, A 0.5 (small markets' lists count more than their buyers), four seeds:
+
+| | `mnsh40` | `rcs3` | `rrk5` | History |
+|---|---:|---:|---:|---:|
+| Hot 100 debuts, 1961 per seed | 534 | 528 | 516 | |
+| Non-proven events debuting 81–100 (Top 40 %) | 1,031 (37.1) | 1,015 (35.5) | 1,055 (36.7) | 1,075 / 3 yr (31.9) |
+| Climb, T40 % proven / other | 42.3 / 46.8 | 45.5 / 49.1 | 49.3 / 47.5 | 60.5 / 38.1 |
+| Follow-ups, Big-5 / field events | 4.19 / 1.87 | 4.62 / 1.67 | 4.45 / 1.78 | ~3.0 / 2.7–3.1 |
+| Big-5 follow-up Top 10s per anchor | 0.95 | 1.36 | 1.36 | 1.08 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 24.6 / 31.8% | 23.3 / 33.5% | 34.2 / 20.6% |
+| #10 ÷ #100 units, 1961 (seed medians) | 10.5–11.9 | | 9.9–11.4 | |
+| Closures (dormancy / bankruptcy) | 27.5 / 67.0 | 31.0 / 64.5 | 32.3 / 67.3 | |
+
+Rank scoring adds 24 bottom debuts over four seeds, but total debuts fall by 18 a seed and non-proven records still climb at 47.5%. The gain again goes to Big-5 follow-ups (1.36 Top 10s per anchor) and the 1961 share (33.5%). All three forms (proportional, skew-gated and rank-scored) give the same result: any credit for regional strength lengthens the runs of records already charting and favours the Big-5's proven acts, whose follow-ups lead in their strong regions. None adds the short bottom runs. **Reading.** The missing ~80 non-proven bottom events a year are not a chart-construction miss the sales score can fix. They need records that sell briefly near the cutoff, which is a supply question (how many marginal newcomer singles exist and how fast they fade), not a ranking question. The regional chart switches stay off. (The next section corrects this reading: supply is there, and the slots are held by falling records.)
+
+## Where the chart bottom's slots go (2026-11-18)
+
+The Hot 100 has 5,200 slot-weeks a year, so events × mean chart life is fixed. Fewer short bottom runs must mean longer runs somewhere. History is the Hot 100 of 1961–63; the sim is 1961 on `mnsh40`, four seeds, per seed-year. Score with `python SimTools/score_chart_faller_depth.py ARM`.
+
+| | History | `mnsh40` |
+|---|---:|---:|
+| Debuts / chart events a year | 674 / 620 | 534 / 531 |
+| Mean chart life, weeks | 7.7 | 8.9 |
+| Share of slot-weeks held by records past their chart peak | 30.4% | 45.7% |
+| Top 40 peakers: weeks after the peak | 4.1 | 6.9 |
+| Top 40 peakers: median last chart position | **No. 50** | **No. 81** |
+| Record past its peak at 41–60: off the chart the next week | **58.8%** | **2.7%** |
+| Non-proven events a year (debuting 81–100) | 426 (360) | 337 (251) |
+
+**History's records left the chart from about No. 50, whatever their peak.** The median last position of a completed run is 48, 49, 49 and 52 for records peaking at 1–3, 4–10, 11–20 and 21–40, and 79% of Top 40 peakers last appear at No. 60 or higher (for example "Hit the Road Jack": … 6, 7, 22, 47, gone). In the sim the same bands leave at 82, 83, 78 and 81, and only 5.5% of Top 40 peakers leave from No. 60 or higher. Weeks before the peak match history in every band above No. 40 (6.8–7.2 against 6.1–7.0). Weeks after it run about three longer (10.3 / 7.6 / 6.1 / 5.1 against 7.2 / 5.0 / 3.7 / 2.7). In history, records past their peak hold 125 slot-weeks a year at 81–100; in the sim they hold 435. Everything else about the bottom is close: bottom-only records last 2.1 weeks against 2.3.
+
+**What holds a falling record.** At 61–100, 97.5% of a falling record's points are units: about 6,000 a week, four weeks past its sales peak. Airplay is about 36% of a No. 1's points by design, and the fifth-power rotation makes it negligible at the bottom. The 1960 Hot 100 was a survey of about 110 outlets, 63 of them radio stations (`ChartSimulator.cs`, survey comment), and outlets reported only what was on their own lists. Wikipedia's Hot 100 article says that before 1991 stations and stores dropped a song from their manual reports once its label stopped promoting it, so songs fell quickly after peaking. The sim ranks on residual national units, so a falling record slides on them to about No. 80. [Billboard Hot 100](https://en.wikipedia.org/wiki/Billboard_Hot_100)
+
+**Supply is there.** Static replay of the logged `mnsh40` weeks (scratch `replay.py`; no feedback): below No. D, list only singles fewer than G weeks past their own sales peak, refilling from the logged pool. In these calibration runs `records.csv` logs off-chart singles only for the follow-up trace (hit acts' next singles), so the pool adds every connected NewSigning/Unsigned single to age 12 from the newcomer trace, scored on national units. The pool fills the freed slots (11–25 slot-weeks a year unfilled of 5,200).
+
+| Replay | Events / yr | Non-proven / proven events | T40 % non-proven / proven | Last pos, T40 peakers | Past-peak share |
+|---|---:|---:|---:|---:|---:|
+| History | 620 | 426 / 195 | 38.1 / 60.6 | 50 | 30.4% |
+| As run | 531 | 337 / 188 | 46.6 / 42.8 | 81 | 45.7% |
+| D 50, G 2 | 698 | **425** / 265 | **37.6** / 30.8 | 43 | 31.9% |
+| D 50, G 3 | 649 | 395 / 246 | 40.3 / 33.4 | 43 | 35.2% |
+| D 55, G 2 | 680 | 415 / 257 | 38.6 / 31.7 | 47 | 33.2% |
+
+At D 50, G 2 the non-proven side lands on history: 425 events a year reaching the Top 40 at 37.6%. The Top 40 itself is unchanged by construction (225 records a year against history's 293). The proven side moves the other way. Hit acts' near-miss follow-ups now chart at the bottom, so proven events rise from 188 to 265 a year while their Top 40 events stay at about 80 (history 118). History's proven act charted fewer records and most of them climbed; the sim's issues more weak follow-ups that miss the chart only because falling records hold the bottom.
+
+**Reading.** The missing short bottom runs are crowded out by falling records, not missing from supply. The three regional forms could not add them, because each one paid records already charting. A chart that lists falling records only above about No. 50 gives back history's non-proven bottom in a static replay.
+
+**Probe.** `--chart-faller-report-depth=D` (`Systems/ChartFallerReportDepth.cs`, applied to the points ranking in `ChartManager`): a single ranked below No. D on points and at least G weeks past its own weekly sales peak (`--chart-faller-report-grace=G`, default 2) goes unreported. It is dropped from the week's ranking, so it is off the Hot 100 and Bubbling Under, and records below it move up. Points are unchanged and nothing is drawn. `--chart-faller-report-depth-check` passes. In a live run, a dropped faller also loses chart exposure; under the candidate's `--uncharted-single-exposure=0.5`, a stalled uncharted single falls toward half exposure, as dealers returned records with no chart or regional support. The 27-week off run (`frdoff27-2002-sc`) matches `mnsh40-2002-sc` row for row in records, label finance and the release slate.
+
+**Live screen (`frd50` = D 50, G 2 on `mnsh40`, four seeds).** The neutral range is the four arms that never touch the field's chart (`g12`, `plug4`, `kaa55`, `pca025`) in the same scorer.
+
+| | History | `mnsh40` | `frd50` | Neutral arms |
+|---|---:|---:|---:|---:|
+| Chart events a year | 620 | 531 | 730 | 523–532 |
+| Top 40 peakers: weeks after the peak / median last position | 4.1 / No. 50 | 6.9 / No. 81 | 4.8 / No. 41 | |
+| Record past its peak at 41–60: off next week | 58.8% | 2.7% | 71.9% | |
+| Slot-weeks past the peak | 30.4% | 45.7% | 32.1% | |
+| Non-proven events a year (debuting 81–100) | 426 (360) | 337 (251) | 470 (376) | 339–360 |
+| Non-proven: T40 % / T10 % | **38.1 / 15.3** | 46.6 / 20.1 | **35.8 / 15.2** | 45.5–47.6 |
+| Proven events a year; T40 % / T10 % | 195; 60.6 / 21.6 | 188; 42.8 / 20.0 | 262; 28.1 / 14.5 | 164–193; 41.6–43.2 |
+| Follow-ups per 1960 anchor, field: events / T40 / T10 | 2.7–3.1 / 1.7–2.1 / 0.64–0.79 | 1.87 / 0.82 / 0.37 | **2.66** / 0.78 / 0.36 | |
+| Follow-ups per 1960 anchor, Big-5: events / T40 / T10 | 2.9–3.2 / 2.2–2.3 / 1.1–1.2 | 4.19 / 2.07 / 0.95 | 5.29 / 1.67 / 1.03 | |
+| Big-5 Top 10 share 1960 / 1961 | 34.2 / 20.6% | 25.2 / 30.0% | 21.5 / 30.9% | 21.6–27.0 / 20.9–32.5% |
+| #10 ÷ #100 units, 1961; units share of 41–100 | | 11.4; 25.4% | **18.3**; 23.0% | 11.5–12.0; 25.3–25.4% |
+| Single units; Big-5 share of them | | 251.5M; 23.9% | 251.6M; 22.9% | |
+| Opening labels closed (dormancy / bankruptcy) | | 91.0 (27.5 / 63.5) | 99.2 (32.8 / 66.5) | 89.0–96.2 (29.2–33.2 / 56.0–67.0) |
+
+- **The descent is now history's.** Weeks after the peak by peak band are 8.3 / 5.4 / 4.0 / 2.9 against history's 7.2 / 5.0 / 3.7 / 2.7 (No. 1–3, 4–10, 11–20, 21–40). The rule is slightly too sharp: records leave from No. 41 against No. 50, and a faller at 41–60 leaves 72% of weeks against 59%. D 55–60 would land closer.
+- **The non-proven half of the climb premium is closed.** Non-proven records reach the Top 40 35.8% of the time and the Top 10 15.2% (history 38.1 and 15.3). Their excess climb in the control came from fewer, larger records charting, not from records climbing too readily.
+- **The proven half is now the whole gap.** Proven acts chart 262 events a year against history's 195, but their Top 40 events stay at about 74 a year (history 118) and their Top 10 events at about 38 (history 42). The extra events are weak follow-ups that used to miss the chart. Field hit acts' follow-up events reach history (2.66 per anchor) while their Top 40 follow-ups stay at 0.78 against 1.7–2.1. Big-5 hit acts chart 5.3 follow-ups against about 3.
+- **The bottom now turns over a little too fast.** 730 events a year against 620. Records peaking at 61–80 rise for 1.9 weeks against history's 3.6, and there are about 35% more of them. History's marginal records crept up the bottom; the sim's peak almost at once (the climbs-are-pointed result in `Top10TurnoverFindings.md`).
+- **Guards.** The 1961 Big-5 share is unchanged. 1960 falls on three of four seeds to 21.5%, the bottom of the neutral range. Units are fixed by the purse; the Big-5 lose a point of unit share as their fallers' tails lose chart exposure. Closures rise on all four seeds to 99.2, three above the neutral range. Labels with a Top 40 record close as before (7.2 → 6.5 a seed). The rule moves 44 labels a seed from never charting to charting only at 41–100. The labels left never charting close at 28.7% against 24.0%, since they are now the weaker group, and the bottom-only group closes at 11.6% against 9.7%. **#10 ÷ #100 units go from 11.4 to 18.3**, because the No. 100 is now a small rising record instead of a large falling one. The chart-bottom target (memory `chart-bottom-target`) set about 11 from the Carroll and Hesbacher score curves. On a survey chart those curves describe reported score, not units, so this guard needs the author's reading.
+
+**Reading.** The 1960 chart's lower half was a list of records still rising, and falling records left it from about No. 50. Reproducing that closes the non-proven half of the proven-act climb premium and puts field hit acts' follow-up count on history. Not adoptable alone: closures sit just above the neutral range, 1960 sits at its bottom, and #10 ÷ #100 needs a decision. The natural pair is the follow-up package (`asz04g12p4`): its size term lifts proven records' climb, and its gap cuts the Big-5 hit acts' extra follow-ups, which the rule now shows as stalled bottom events. Use D 55–60 for the exit point.
+
+**Rule plus follow-up package (`frd60pk` = D 60, G 2, size 0.4, Major hit-act gap 12, plug slots 4 on `mnsh40`, four seeds).**
+
+| | History | `mnsh40` | `asz04g12p4` | `frd50` | `frd60pk` |
+|---|---:|---:|---:|---:|---:|
+| Chart events a year; mean life | 620; 7.7 | 531; 8.9 | 501; 9.6 | 730; 6.5 | **656; 7.2** |
+| Top 40 peakers: median last position; faller at 41–60 off next week | 50; 58.8% | 81; 2.7% | 83; 1.7% | 41; 71.9% | **48; 61.7%** |
+| Slot-weeks past the peak | 30.4% | 45.7% | 45.2% | 32.1% | 33.8% |
+| Non-proven events; T40 % / T10 % | 426; 38.1 / 15.3 | 337; 46.6 / 20.1 | 332; 46.9 / 17.2 | 470; 35.8 / 15.2 | **435; 35.3 / 14.0** |
+| Proven events; T40 % / T10 % | 195; 60.6 / 21.6 | 188; 42.8 / 20.0 | 174; 51.7 / 26.4 | 262; 28.1 / 14.5 | 220; 39.3 / **22.3** |
+| Field follow-ups per 1960 anchor: events / T40 / T10 | 2.7–3.1 / 1.7–2.1 / 0.64–0.79 | 1.87 / 0.82 / 0.37 | 2.45 / 1.30 / 0.66 | 2.66 / 0.78 / 0.36 | **3.10** / 1.30 / **0.74** |
+| Big-5 follow-ups per 1960 anchor: events / T40 / T10 | 2.9–3.2 / 2.2–2.3 / 1.1–1.2 | 4.19 / 2.07 / 0.95 | 2.75 / 1.57 / 0.90 | 5.29 / 1.67 / 1.03 | **3.19** / 1.38 / 0.81 |
+| Top 40 records a year | 293 | 226 | 230 | 223 | 221 |
+| Big-5 Top 10 share 1960 / 1961 | 34.2 / 20.6% | 25.2 / 30.0% | 24.8 / 25.0% | 21.5 / 30.9% | 22.1 / **21.9%** |
+| #10 ÷ #100 units; units share of 41–100 | | 11.4; 25.4% | 12.4; 25.4% | 18.3; 23.0% | 19.5; 23.5% |
+| Opening labels closed (dormancy / bankruptcy) | | 91.0 (27.5 / 63.5) | 100.5 (34.2 / 66.2) | 99.2 (32.8 / 66.5) | **107.8 (34.2 / 73.5)** |
+
+- **On history together for the first time:** chart turnover and exit point, the non-proven climb, both tiers' follow-up counts, field follow-up Top 10s, proven records' Top 10 rate, and the 1961 Big-5 share (19.4 / 28.1 / 21.7 / 18.3 by seed).
+- **The climb premium is positive but small:** proven 39.0% against other 35.5% (history 60.5 against 38.1). Proven records reach the Top 10 at history's rate but stall between 41 and 100 more often. Proven Top 40 events are about 86 a year against history's 118, and Top 40 records overall stay at 221 against 293 in every arm. The size term lifts how far a connected proven record goes, not how many reach the Top 40.
+- **Big-5 follow-ups now sit under history at the Top 40 and Top 10** (1.38 / 0.81 against 2.2–2.3 / 1.1–1.2), as in `asz04g12p4`. 1960 stays at 22.1%, the bottom of the neutral range.
+- **Closures are the blocker.** All four seeds close 107–109 opening labels, against 89–96 for the neutral arms; bankruptcies are 73.5 against 56–67. The two parts roughly add (package +9.5, rule +8). By tier, against the control: Independents +8.7 (6.7 bankruptcies), Small +4.7, Boutique +3.6, MidTier none. By chart history, labels with a Top 40 record close as before (7.3 → 6.3 a seed). There are fewer of them (179 → 160), because the package gives field Top 10s to repeat hit acts. About 50 labels move from never charting to charting only at 41–100. The labels left never charting close at 31% against 24%. Their singles sell 1.4M units in 1961 against 2.7M in the control (Independent, Small and Boutique). The purse is fixed, and more of it now goes to records with chart exposure, including the extra bottom entrants.
+
+**Reading.** The faller rule and the follow-up package fit together: the rule fixes the chart's construction and the non-proven side, and the package fixes hit acts' cadence and Top 10 conversion. What is left is the proven Top 40 rate, the 1960 Big-5 share, and closures. The closure cost runs through the fixed purse to labels that never chart. Before tuning further, it needs splitting into how much comes from the rule's chart exposure (fallers lose it, bottom entrants gain it) and how much from the size term's larger proven hits.
+
+**Closure split (2026-11-18).** Opening labels are identical across the arms of a seed, so each can be paired across worlds. In every arm, including the neutral ones, 31–54 opening Independent, Small and Boutique labels a seed close that thrived in the control. In the control those labels sold about 340,000 units, earned about $62,000, and 57% charted. Another 31–44 a seed close in the control but survive in the arm. Which labels close is mostly a lottery on whether a label's first singles land. The treatment effect is the difference between the two pools (closed in the arm only, minus closed in the control only):
+
+| Pair | Arm only | Control only | Net a seed |
+|---|---:|---:|---:|
+| `mnsh40` → `g12`, `plug4`, `kaa55`, `pca025` (neutral) | 33–43 | 31–44 | −1.3 to +5.0 (mean +1.9) |
+| `mnsh40` → `frd60` (rule alone, D 60) | 42.0 | 34.5 | **+7.5** |
+| `mnsh40` → `frd50` (rule alone, D 50) | 45.5 | 36.8 | +8.8 |
+| `mnsh40` → `asz04g12p4` (package alone) | 46.3 | 35.8 | **+10.5** |
+| `asz04g12p4` → `frd60pk` (rule added to the package) | 45.5 | 39.0 | +6.5 |
+| `mnsh40` → `frd60pk` (both) | 53.5 | 36.5 | +17.0 |
+
+The two costs add: rule 6.5–7.5 plus package 10.5 against 17 together. Net of the neutral arms' mean, about 5–6 a seed come from the rule at D 60 and about 8.5 from the package. Two-year closure by starting tier, control → `frd60pk` (neutral range): Independent 15.1 → 19.3% (14.8–16.9), Small 17.0 → 19.0% (15.7–17.2), Boutique 6.1 → 9.1% (5.9–7.4). The closures are micro-labels: those that close gross about $8,000 over two years and lose about $6,000. Total Independent, Small and Boutique gross and units move less between arms than they do among the neutral arms.
+
+- **The rule's channel is the minor chart record's tail.** Connected newcomer singles that peaked at 41–100 (newcomer trace, ages 1–12) sell, relative to their chart-peak week:
+
+  | Weeks after the chart peak | +2 | +3 | +4 | +5 |
+  |---|---:|---:|---:|---:|
+  | Peak 41–60, `mnsh40` / `frd50` | 0.95 / 0.86 | 0.85 / 0.65 | 0.70 / 0.30 | 0.60 / 0.18 |
+  | Peak 61–80, `mnsh40` / `frd50` | 0.81 / 0.88 | 0.63 / 0.60 | 0.46 / 0.28 | 0.40 / 0.20 |
+
+  Units in the six weeks after the peak fall 16% (peak 41–60), 22% (61–80) and 34% (81–100, partly the smaller entrants). Off the chart, a record loses chart exposure and, once stalled, drops to the candidate's 0.5 uncharted floor. A label living on one minor chart record loses that tail. In 1960 a record leaving the chart had also lost its reporting stations and dealers, so the faster tail is plausible history. These labels are the sheltered small labels already flagged (memory `small-labels-never-lose-money`; the design band is 20–35% of starting-Small labels closed in five years).
+- **The package's channel is the size term**, as found before: bankruptcies through the fixed purse. Field Top 10s also go to repeat hit acts, so fewer labels ever get a Top 40 record (179 a seed → 165 → 160). Labels with a Top 40 record close at about 4%.
+
+**The rule alone at D 60 (`frd60`).** Chart structure: 690 events a year, last position No. 48, a faller at 41–60 leaves 62.3% of weeks, 34.4% of slot-weeks past the peak. Non-proven T40 / T10 36.5 / 16.9% (history 38.1 / 15.3). Proven 239 events at 33.3% T40. Guards: Big-5 Top 10 share 28.2% in 1960 and 32.4% in 1961 (control 25.2 / 30.0; by seed 41.0 / 28.5 / 21.3 / 38.7), so the 1960 fall under `frd50` was reshuffle. Opening labels closed 97.8 (dormancy 31.8, bankruptcy 66.0; neutral 89.0–96.2, 29.2–33.2, 56.0–67.0). #10 ÷ #100 units 16.6; units share of 41–100 24.2%.
+
+**Reading.** At D 60 the rule alone costs about 5–6 closures a seed beyond noise. Its total sits 1.6 above the neutral range, with dormancy and bankruptcy each inside theirs. That cost is minor chart records losing a tail that 1960 records also lost. The package costs more, through the size term. `frd60` is the candidate form of the rule. Its open guard is #10 ÷ #100: the published ratio is 16.6, and the sales-ranked ratio (all singles by units) still needs logging.
+
+**Adoption check for `frd60` (2026-11-18): not adoptable alone.**
+
+*Sales-ranked bottom.* `--sales-rank-telemetry` (audit runner, telemetry only) writes each week's 1st, 10th, 25th, 40th, 50th, 60th, 75th, 100th, 150th and 200th best-selling single by units, with its published position and weeks past its sales peak. Control and `frd60` were rerun with it on seeds 1001 and 2002 (`srkc-*`, `srkf60-*`). Each rerun matches its original row for row in records, label finance and the release slate. Score with `python SimTools/score_sales_rank_guard.py RUN ...`. 1961 medians over weeks:
+
+| | Control 1001 / 2002 | `frd60` 1001 / 2002 |
+|---|---:|---:|
+| Sales-ranked #10 ÷ #100 (target ~5–11×) | 11.5 / 11.0 | 12.9 / 12.7 |
+| Published #10 ÷ #100 | 11.8 / 10.5 | 17.7 / 15.4 |
+| Sales-ranked No. 100 units; published No. 100 units | 4,235 / 4,405; 4,188 / 4,290 | 3,951 / 3,980; 2,558 / 2,932 |
+| Sales-ranked No. 60 not on the published chart | 0% | 21–23% (all 2+ weeks past their peak) |
+
+The sales curve barely moves. Fallers losing their tail lower the 100th-best seller by about 8%, which puts the sales-ranked ratio about 1.5 above the control, just over the target's 11× top. The published ratio steepens mostly because No. 100 is now a smaller rising record. A fifth of the sales chart's No. 60s are falling records the survey no longer lists. On this guard the rule is marginal, not failing.
+
+*Two guards fail.* Pooled 1960–61 launches to week 92, four seeds (`analyze_footprint_scope.py`), with the neutral range from `g12`, `plug4`, `kaa55` and `pca025`:
+
+| | History | Control | Neutral arms | `frd50` | `frd60` | `frd60pk` |
+|---|---:|---:|---:|---:|---:|---:|
+| Big-5 newcomer Top 10 records, 1961, per seed | ~4.5 | 4.5 | 4.5–5.8 | 7.8 | **7.8** | 4.2 |
+| Newcomer Top 10 premium (Big-5 ÷ field) | | 2.04 | 1.66–2.54 | 2.47 | **2.65** | 2.09 |
+| Top 10 records, 1961, per seed | 110.7 | 115.3 | 116.3–119.5 | 118.5 | **124.8** (129 / 124 / 123 / 123) | 117.5 |
+| One-week Top 10s / No. 1 records a year | 11.5% / 20.7 | 12.6% / 20.3 | 14.1–16.3% / 19.3–22.0 | 15.3% / 20.8 | 16.5% / 18.3 | 14.9% / 18.3 |
+
+Clearing fallers off the bottom gives early-charting records a higher position and more chart exposure. Big-5 newcomers ship nationally with full stock, so they turn that into climbs, and the newcomer premium that the shared fit-exposure draw removed partly comes back (1961 Big-5 newcomer Top 10s 4.5 → 7.8 at both depths). Top 10 turnover rises on every seed at D 60. With the follow-up package, both return to the control: the plug slots launch most Big-5 newcomer singles as routine issues, so they cannot use the freed bottom. The size term touches only proven acts and the gap only hit acts. The plug slots and the gap were neutral on closures alone (`plug4` 94.8, `g12` 89.0 against 91.0). The package's closure cost is the size term's.
+
+**Reading.** The rule needs the plug slots, and the 1961 share needs them too. The size term buys the proven side (Top 40 39.3% against 33.3% without it; Top 10 22.3% against 16.7%, history 60.6 / 21.6) for about 8.5 closures a seed. The next screen is `frd60gp` (D 60, gap 12, plug slots 4, no size) to price the rule with the parts of the package that cost nothing. A size 0.3 arm on top of it shows what the proven side is worth per closure.
+
+**Adopted (2026-11-18): `frd60pk`.** The author adopted the full arm, accepting its two costs: more opening-label closures (91 → 108 a seed), and a lower 1960 Big-5 share (Top 10 25.2 → 22.1%, Hot 100 20.3 → 15.9%; history 34.2% at the Top 10). The 1960 dip is already treated as an opening-roster question. Closures were judged low to begin with. `SimLogs/writing-calibration/candidate-request.json` now ends with `--chart-faller-report-depth=60 --single-commercial-fit-act-record-size=0.4 --slate-major-hit-act-gap=12 --major-plug-slots=4` (260 flags; previous file `candidate-request-pre-faller-depth-2026-11-18.json`). Apart from `--run`, `--seed`, `--weeks` and the telemetry switches `--regional-home-sales`, `--gzip-telemetry` and `--newcomer-connect-trace`, it equals the `frd60pk-*-sc` run requests, which are the 104-week controls for the next screens. In 1961 the adopted candidate gives: Big-5 Top 10 share 21.9% (history 20.6%); CR4 26.2% (27.9%); 656 chart events (620), with records leaving at No. 48 (No. 50); non-proven Top 40 rate 35.3% (38.1%); follow-ups per hit 3.10 field and 3.19 Big-5 (2.7–3.1 and 2.9–3.2); Big-5 net $104M (control $103M). Open items: the proven Top 40 rate (39% against 61%), Top 40 records a year (221 against 293), 1960, and the sales-ranked #10 ÷ #100 (12.8 for the rule alone, not yet measured with the size term).
+
 ## Reproduction
 
 Run these from the repository root with a Python interpreter that has pandas installed. The historical tables, national charts, radio decisions and regional traces live under the local ignored `SimLogs` directory. The analysis uses existing runs. It makes no gameplay changes.
@@ -482,4 +680,10 @@ Run these from the repository root with a Python interpreter that has pandas ins
 python SimTools/analyze_big5_chart_opportunities.py
 python SimTools/analyze_footprint_scope.py 1001,2002,3003,4004 'zfg-{s}-sc' 'mnfoot-{s}-sc' 'mjfoot-{s}-sc'
 node SimLogs/report-follower-stock.cjs SimLogs/shelf-final.json
+python SimTools/score_chart_faller_depth.py mnsh40 frd50 g12 plug4 kaa55 pca025
+python SimTools/analyze_hit_followups.py mnsh40 frd50
+python SimTools/score_sales_rank_guard.py srkc-1001-sc srkc-2002-sc srkf60-1001-sc srkf60-2002-sc
+python SimTools/analyze_footprint_scope.py 1001,2002,3003,4004 'mnsh40-{s}-sc' 'frd60-{s}-sc' 'frd60pk-{s}-sc'
 ```
+
+The faller screen's run requests are `SimLogs/writing-calibration/frd50-{1001,2002,3003,4004}-sc-request.json` (the `mnsh40` requests plus `--chart-faller-report-depth=50`), launched with `SimTools/run_request_arm.ps1`.

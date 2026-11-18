@@ -120,6 +120,9 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-cadence-check")) { HitActCadenceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains(ProvenActChartAdd.CheckSwitch)) { ProvenActChartAdd.RunChecks(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains(MajorHitActGapChecks.Switch)) { MajorHitActGapChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(RegionalChartAction.CheckSwitch)) { RegionalChartAction.RunChecks(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(RegionalChartRank.CheckSwitch)) { RegionalChartRank.RunChecks(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(ChartFallerReportDepth.CheckSwitch)) { ChartFallerReportDepth.RunChecks(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-release-programme-check")) { LabelReleaseProgrammeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-follow-up-finance-check")) { HitFollowUpFinanceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--slate-preparation-headroom-check")) { PreparationHeadroomChecks.Run(); GetTree().Quit(0); return; }
