@@ -407,6 +407,8 @@ public partial class ChartManager : Node {
 		MidTierHitActPackage.Configure(SimulationArguments.Get());
 		ZeroFeeMaterialGate.Configure(SimulationArguments.Get());
 		MajorNewcomerActionPush.Configure(SimulationArguments.Get());
+		MajorVolumeSwitches.Configure(SimulationArguments.Get());
+		QualityResponseProbe.Configure(SimulationArguments.Get());
 		MajorScaleGate.Configure(SimulationArguments.Get());
 		IndieDistributorAccess.Configure(SimulationArguments.Get());
 		EarnedIndieCoverage.Configure(SimulationArguments.Get());

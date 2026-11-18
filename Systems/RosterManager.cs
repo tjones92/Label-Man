@@ -611,6 +611,7 @@ public partial class RosterManager : Node {
 			CompetitorManager.Instance?.RecordExpense(winner.Label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(winner.Artist, winner.Label.labelId, date.year);
 			SceneRecruitmentService.RecordSigning(winner.Label, winner.Artist, chartWeek, date.year, "DailyMarket");
+			MajorVolumeSwitches.NoteSigning(winner.Label, date.year);
 			WeeklySignings++; RecordSigning(winner.Label.tier, winner.Artist, transition.IsReSigning);
 			winner.Appointment.Outcome = winner.Appointment.CollisionOfferCount > 1 ? "AcceptedArtistChoice" : "AcceptedUncontested";
 			winner.Label.lastScoutingOutcome = winner.Appointment.Outcome;
@@ -679,7 +680,9 @@ public partial class RosterManager : Node {
 		return new DailyNomination { Appointment = appointment, Service = service };
 	}
 
-	private static bool HasDailyVacancy(AILabel label) => label != null && label.CurrentRosterSize < label.OperatingRosterTarget && label.CurrentRosterSize < label.maxRosterSize;
+	// --major-signing-quota: an AI Major that has used its yearly quota has no vacancy until January. Off: always false.
+	private static bool HasDailyVacancy(AILabel label) => label != null && label.CurrentRosterSize < label.OperatingRosterTarget && label.CurrentRosterSize < label.maxRosterSize
+		&& !MajorVolumeSwitches.SigningQuotaReached(label, TimeManager.Instance?.CurrentDate.year ?? GameDate.StartDate.year);
 	private static bool IsFreshSupplyCandidate(SimulatedArtist artist) => artist?.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance;
 	private static bool IsRuntimeBirthWeekBlocked(AILabel label, int chartWeek) => label.populationOrigin == LabelPopulationOrigin.RuntimeFounded && label.runtimeBirthWeek > 0 && chartWeek <= label.runtimeBirthWeek;
 	private static int CalendarChartWeek(GameDate date) => (int)((new DateTime(date.year, date.month, date.day) - new DateTime(GameDate.StartDate.year, GameDate.StartDate.month, GameDate.StartDate.day)).TotalDays / 7) + 1;
@@ -1060,6 +1063,11 @@ public partial class RosterManager : Node {
 	}
 	
 	private bool TrySignNewArtist(AILabel label, int year, LabelScoutingVacancyObservation observation = null) {
+		// --major-signing-quota: checked before any candidate is read or drawn. Off: never true.
+		if (MajorVolumeSwitches.SigningQuotaReached(label, year)) {
+			if (observation != null) observation.FailureReason = "MajorSigningQuota";
+			return false;
+		}
 		bool enabledSupply = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		int discoveryPoolCount = 0;
 		var candidates = enabledSupply
@@ -1102,6 +1110,7 @@ public partial class RosterManager : Node {
 			CompetitorManager.Instance?.RecordExpense(label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
 			SceneRecruitmentService.RecordSigning(label, bestCandidate, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, year, "WeeklyMarket");
+			MajorVolumeSwitches.NoteSigning(label, year);
 			string signingKind = transition.IsReSigning ? "ReSigning" : "FirstSigning";
 			WeeklySignings++;
 			if (IsLiveGenreMarket()) RecordSigning(label.tier, bestCandidate, transition.IsReSigning);

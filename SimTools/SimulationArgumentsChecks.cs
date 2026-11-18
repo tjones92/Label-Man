@@ -13,7 +13,8 @@ public static class SimulationArgumentsChecks {
         Check(ordinary.Length == 216 && ordinary.Distinct().Count() == 216, "Complete ordinary-game profile");
         Check(ordinary.Contains("--causal-media-atmosphere") && ordinary.Contains("--professional-writing-market") &&
             ordinary.Contains("--lp-assembly-gate-uncredited") && ordinary.Contains("--media-demand-press") &&
-            ordinary.Contains("--response-auditions=response") && !ordinary.Contains("--media-demand-controversy"),
+            ordinary.Contains("--response-auditions=response") && !ordinary.Contains("--dj-word-of-mouth") &&
+            !ordinary.Contains("--fit-for-aware-buyers") && !ordinary.Contains("--media-demand-controversy"),
             "media-atmosphere-v3 branch set");
         var previous = SimulationArguments.Resolve(new[] { SimulationArguments.PreviousSwitch }, false)
             .Except(new[] { SimulationArguments.PreviousSwitch }).ToArray();
@@ -56,7 +57,7 @@ public static class SimulationArgumentsChecks {
             Check(RetailPurchaseEnvelope.Enabled && SaveGameService.WritingVersion >= 36 &&
                 WorldStateService.Capture().LpDemandScale == .98 && WorldStateService.Capture().RetailPurchasePolicy == 1,
                 "Default purchase policy captured in saves");
-            Check(MediaAtmosphere.Causal && ResponseAuditionProbe.Enabled && ResponseAuditionProbe.Writer == null,
+            Check(MediaAtmosphere.Causal && ResponseAuditionProbe.Enabled && !ResponseAuditionProbe.DjTips && ResponseAuditionProbe.Writer == null,
                 "Branch systems active; audition log needs a run name");
         }
         GD.Print($"SIMULATION_ARGUMENTS_CHECKS_OK {checks} profile={SimulationArguments.ProfileName} saveVersion={SaveGameService.WritingVersion}");

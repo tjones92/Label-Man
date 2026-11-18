@@ -4,7 +4,9 @@ param(
     [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9-]+$')][string]$Name,
     [Parameter(Mandatory)][int]$Seed,
     [ValidateRange(27, 522)][int]$Weeks = 104,
-    [string[]]$Extra = @()
+    [string[]]$Extra = @(),
+    # Plain .csv telemetry instead of the default --gzip-telemetry (.csv.gz, about a tenth of the size).
+    [switch]$PlainTelemetry
 )
 # One seed of a screen arm: the reference request's flags with --run/--seed/--weeks replaced and -Extra appended.
 # Launch one background task per seed (short-gate-runs-go-parallel). Writes NAME-request.json, NAME.log, NAME-engine.log.
@@ -18,7 +20,7 @@ if (@($ref.flags).Count -lt 100) { throw 'Reference flags missing.' }
 if (Get-ChildItem -LiteralPath (Join-Path $root 'SimLogs') -Filter "$Name-*.csv*" | Select-Object -First 1) { throw "Run exists: $Name" }
 $flags = @($ref.flags | ForEach-Object {
     if ($_ -like '--run=*') { "--run=$Name" } elseif ($_ -like '--seed=*') { "--seed=$Seed" } elseif ($_ -like '--weeks=*') { "--weeks=$Weeks" } else { $_ }
-}) + $Extra
+}) + $Extra + $(if ($PlainTelemetry -or $Extra -contains "--gzip-telemetry") { @() } else { @("--gzip-telemetry") })
 $assembly = Join-Path $root '.godot/mono/temp/bin/Debug/Label Man.dll'
 @{ flags=$flags; reference=$Reference; sourceRevision=(git rev-parse HEAD).Trim(); assemblySha256=(Get-FileHash -LiteralPath $assembly).Hash;
    startedUtc=[datetime]::UtcNow.ToString('o') } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dir "$Name-request.json")

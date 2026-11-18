@@ -63,6 +63,13 @@ public static class OpeningCareerService {
 			ChartChance = 0.12f, Strength = 0.35f },
 	};
 
+	// --major-catalog-veterans (MajorVolumeSwitches): a working contract act since the late 1940s or early 1950s. A national
+	// placing on about one side in eight at the height of the career, mostly in the lower half of the chart, no #1s.
+	private static readonly Spec CatalogVeteranSpec = new() { Archetype = OpeningCareerArchetype.CatalogVeteran, Rung = CareerState.Established,
+		Genres = Array.Empty<Genre>(), Tiers = new[] { LabelTier.Major },
+		LeadAgeMin = 26, LeadAgeMax = 45, StartMin = 1946, StartMax = 1955, SinglesMin = 2, SinglesMax = 4, AlbumsMin = 0, AlbumsMax = 1,
+		ChartChance = 0.15f, Strength = 0.40f };
+
 	private const int MaxSuperstarsPerLabel = 2, MaxStarsPerLabel = 4, MaxOpeningActsPerLabel = 6;
 	public const int FirstLpYear = 1949;
 
@@ -161,6 +168,22 @@ public static class OpeningCareerService {
 			}
 			tally[spec.Archetype] = picks.Count + studio.Acts + independent.Acts;
 		}
+		// --major-catalog-veterans: after every archetype has picked, each AI Major stamps N more of its own roster in a
+		// keyed order. Off: CatalogVeteransFor is 0 and nothing is read.
+		int veterans = 0;
+		foreach (AILabel label in labels.Where(l => l?.roster != null).OrderBy(l => l.labelId, StringComparer.Ordinal)) {
+			int n = MajorVolumeSwitches.CatalogVeteransFor(label);
+			if (n <= 0) continue;
+			foreach (SimulatedArtist artist in label.roster
+					.Where(a => a != null && !chosen.Contains(a.artistId) && a.members?.Count > 0)
+					.OrderBy(a => BandLife.Unit("catalog-veteran|" + a.artistId)).ThenBy(a => a.artistId, StringComparer.Ordinal)
+					.Take(n).ToList()) {
+				Stamp(artist, label, CatalogVeteranSpec, CareerState.Established, year);
+				chosen.Add(artist.artistId);
+				veterans++;
+			}
+		}
+		if (veterans > 0) tally[OpeningCareerArchetype.CatalogVeteran] = veterans;
 		int superstars = labels.Sum(l => l?.roster?.Count(a => a?.openingArchetype != OpeningCareerArchetype.None && a.careerState == CareerState.Superstar) ?? 0);
 		GD.Print($"OpeningCareerService: seeded {chosen.Count} opening careers ({superstars} Superstars) - " +
 			string.Join(", ", tally.Select(t => $"{t.Key} {t.Value}")));
@@ -424,6 +447,7 @@ public static class OpeningCareerService {
 		OpeningCareerArchetype.FormerStar => "A former star past their peak",
 		OpeningCareerArchetype.CriticsFavourite => "A musicians' musician the critics admire",
 		OpeningCareerArchetype.RegionalName => "A regional favourite",
+		OpeningCareerArchetype.CatalogVeteran => "A working contract act",
 		_ => "An act",
 	};
 }

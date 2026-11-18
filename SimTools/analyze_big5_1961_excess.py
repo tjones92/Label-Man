@@ -6,6 +6,12 @@ operating-label reconstruction (SimLogs/historical-1960-top10, historical-top10-
 quality bin, and the Independent / MidTier rate at the Big-5 quality mix."""
 import re, sys
 import numpy as np, pandas as pd
+import os
+
+
+def gz(path):
+    """Arm runs write .csv.gz by default; read whichever exists."""
+    return path if os.path.exists(path) or not os.path.exists(path + ".gz") else path + ".gz"
 
 B5_IDS = [f"label_000{i}" for i in range(1, 6)]  # Columbia, RCA Victor, Capitol, Decca, Mercury; never compare ids as strings
 B5_HIST = ["Columbia", "RCA Victor", "Capitol", "Decca", "Mercury"]
@@ -35,7 +41,7 @@ def history():
 
 def one(run):
     p = f"SimLogs/{run}-"
-    r = pd.read_csv(p + "records.csv", usecols=["year", "recordId", "artistId", "labelId", "currentPosition"])
+    r = pd.read_csv(gz(p + "records.csv"), usecols=["year", "recordId", "artistId", "labelId", "currentPosition"])
     r = r[r.currentPosition.between(1, 100)]
     t = r[r.currentPosition <= 10]
     hit = t[t.year == 1960].groupby("artistId").labelId.agg(lambda s: s.value_counts().index[0])
@@ -49,8 +55,8 @@ def one(run):
         o[f"{'B5' if b else 'other'} slot-weeks per 1960 hit act"] = x.artistId.isin(acts.index).sum() / len(acts)
     for lab, i in zip(B5_HIST, B5_IDS):
         o[f"slots {lab}"] = (x.labelId == i).sum()
-    a = pd.read_csv(p + "single-launch-attribution.csv", usecols=["year", "singleId", "labelId", "career", "quality"])
-    q = pd.read_csv(p + "single-launch-quality.csv", usecols=["singleId", "tier"])
+    a = pd.read_csv(gz(p + "single-launch-attribution.csv"), usecols=["year", "singleId", "labelId", "career", "quality"])
+    q = pd.read_csv(gz(p + "single-launch-quality.csv"), usecols=["singleId", "tier"])
     a = a[a.year.isin([1960, 1961]) & a.career.isin(["NewSigning", "Rising", "Unsigned"])].merge(q, on="singleId", how="left")
     a["g"] = np.where(a.labelId.isin(B5_IDS), "Big5", a.tier.replace({"Boutique": "Small"}))
     a["t10"] = a.singleId.map(t.groupby("recordId").size()).fillna(0)

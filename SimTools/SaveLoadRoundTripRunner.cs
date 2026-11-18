@@ -105,6 +105,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--midtier-hit-act-package-check")) { MidTierHitActPackageChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--zero-fee-material-gate-check")) { ZeroFeeMaterialGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--major-newcomer-action-push-check")) { MajorNewcomerActionPushChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-volume-check")) { MajorVolumeSwitchesChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--major-scale-gate-check")) { MajorScaleGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-footprint-parity-check")) { LabelFootprintParityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-blind-launch-check")) { LabelBlindLaunchChecks.Run(); GetTree().Quit(0); return; }

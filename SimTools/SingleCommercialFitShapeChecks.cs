@@ -95,6 +95,22 @@ public static class SingleCommercialFitShapeChecks {
 			Check(restored.actChartRecordAtLaunch == hot.actChartRecordAtLaunch
 				&& SingleCommercialFit.Multiplier(restored, "south", null) == SingleCommercialFit.Multiplier(hot, "south", null), "world JSON keeps the act record and response");
 			Check(RuntimeRecordSaveData.From(hot).ToRuntime().actChartRecordAtLaunch == hot.actChartRecordAtLaunch, "record DTO keeps the act record");
+			if (RegionalFitExposure.Enabled) {
+				// Same record, region and keyed draw. Only the servicing date changes.
+				Set(0f, 0f);
+				var single = Launch("shape-listener-0");
+				for (int i = 1; i <= 100 && !SingleCommercialFit.Connected(single, null); i++)
+					single = Launch($"shape-listener-{i}");
+				var region = new RegionalRecordData { regionId = "south", awaitingArrival = true, unitsInStores = 0 };
+				single.regionalData["south"] = region;
+				float heard = SingleCommercialFit.Multiplier(single, "south", null);
+				region.fitExposureAge = RegionalFitExposure.NotExposed;
+				Check(SingleCommercialFit.Multiplier(single, "south", null) < heard, "control caps a connected unserviced market");
+				SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f, awareBuyers: true);
+				Check(SingleCommercialFit.Multiplier(single, "south", null) == heard, "aware buyer receives the same keyed fit");
+				Check(region.awaitingArrival && region.unitsInStores == 0 && !RegionalFitExposure.Exposed(single, "south"),
+					"purchase experiment cannot open, service or stock a market");
+			}
 			Check(GameRandom.State == stateBefore, "no global random draw");
 			GD.Print($"SINGLE_COMMERCIAL_FIT_SHAPE_CHECK passed checks={checks}");
 		} finally { Set(0f, 0f, .15f); }

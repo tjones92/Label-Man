@@ -162,6 +162,8 @@ public partial class ChartAuditRunner : Node {
 	private bool stationPickSignals;
 	private StreamWriter stationPickSignalWriter;
 	private StreamWriter singleDemandStagesWriter;
+	private StreamWriter followerStockAuditWriter;
+	private bool followerStockAudit;
 	private StreamWriter revenueMemoryWriter;
 	private StreamWriter liveRecordsSnapshotWriter;
 	private StreamWriter priorCostAssumptionWriter;
@@ -294,6 +296,10 @@ public partial class ChartAuditRunner : Node {
 	private readonly HashSet<string> albumDemandTraceCharted = new(StringComparer.Ordinal);
 	// Read-only follow-up diagnosis: keep off-chart observations for recent non-opening hit acts.
 	private bool followupChartTrace;
+	// --newcomer-connect-trace: per region and week, the first 12 weeks of every live AI single by an Unsigned or NewSigning
+	// act whose keyed commercial-fit draw connected (newcomer-connect-trace.csv). Telemetry only; reads keyed draws, draws nothing.
+	private bool newcomerConnectTrace;
+	private StreamWriter newcomerConnectWriter;
 	private readonly Dictionary<string, int> followupTraceFirstHits = new(StringComparer.Ordinal);
 	// Calibration mode: the simulation runs at full fidelity (nothing about the economy changes),
 	// but CaptureWeek emits ONLY the accumulations the calibration CSVs read -- LP unit share
@@ -387,6 +393,7 @@ public partial class ChartAuditRunner : Node {
 			if (catastrophicFailFast || catastrophicControlPreflight) LoadCatastrophicFailFastControl();
 			if (catastrophicControlPreflight) {
 				WriteCatastrophicControlPreflight();
+				CloseGzipTelemetry();
 				GetTree().Quit(0);
 				return;
 			}
@@ -516,16 +523,19 @@ public partial class ChartAuditRunner : Node {
 			demandObservationCompleted = true;
 			FlushAndClose();
 			if (scoutingReport) WriteScoutingReport();
+			CloseGzipTelemetry();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
 			GetTree().Quit(0);
 		} catch (AuditMemoryStop) {
 			StopForCheckpoint();
+			CloseGzipTelemetry();
 			GetTree().Quit(3);
 		} catch (PolarResearchStop exception) {
 			FlushPolarResearch();
 			WritePolarResearchManifest();
 			SavePolarCheckpoint("stopped-" + exception.Message);
 			FlushAndClose();
+			CloseGzipTelemetry();
 			GD.Print($"CHART_AUDIT_STOPPED run={runName} completedWeeks={currentAuditWeek} reason={exception.Message}");
 			GetTree().Quit(0);
 		} catch (CatastrophicAbortException exception) {
@@ -533,11 +543,12 @@ public partial class ChartAuditRunner : Node {
 			WriteCatastrophicAbort(exception);
 			WriteLiveRecordsSnapshot();
 			FlushAndClose();
+			CloseGzipTelemetry();
 			GD.Print($"CHART_AUDIT_ABORTED_CATASTROPHIC run={runName} gate={exception.Gate} metric={exception.Metric} week={currentAuditWeek} date={TimeManager.Instance?.CurrentDate}");
 			GetTree().Quit(2);
 		} catch (Exception exception) {
 			GD.PushError($"CHART_AUDIT_FAILED: {exception}");
-			FlushAndClose();
+			try { FlushAndClose(); } finally { CloseGzipTelemetry(); }
 			GetTree().Quit(1);
 		}
 	}
@@ -590,6 +601,10 @@ public partial class ChartAuditRunner : Node {
 				smallLabelFinance = true;
 			} else if (argument == "--followup-chart-trace") {
 				followupChartTrace = true;
+			} else if (argument == "--newcomer-connect-trace") {
+				newcomerConnectTrace = true;
+			} else if (argument == "--follower-stock-audit") {
+				followerStockAudit = true;
 			} else if (argument == "--station-decisions") {
 				stationDecisions = true;
 			} else if (argument == "--station-pick-signals") {
@@ -671,10 +686,10 @@ public partial class ChartAuditRunner : Node {
 		string seasonality = Path.Combine(directory, $"{gateControlRun}-seasonality-monthly.csv");
 		string albumProjects = Path.Combine(directory, $"{gateControlRun}-album-projects.csv");
 		string revenue = Path.Combine(directory, $"{gateControlRun}-market-revenue.csv");
-		if (!File.Exists(releases) || !File.Exists(seasonality) || !File.Exists(albumProjects) || !File.Exists(revenue))
+		if (!TelemetryExists(releases) || !TelemetryExists(seasonality) || !TelemetryExists(albumProjects) || !TelemetryExists(revenue))
 			throw new InvalidOperationException($"Catastrophic fail-fast control '{gateControlRun}' is incomplete: required release-capacity, seasonality-monthly, album-projects, and market-revenue rows must exist.");
 		Dictionary<int, FailFastControlYear> parsed = ParseCatastrophicFailFastControl(
-			File.ReadLines(releases), File.ReadLines(seasonality), File.ReadLines(albumProjects), File.ReadLines(revenue), 1960, 1969);
+			ReadTelemetryLines(releases), ReadTelemetryLines(seasonality), ReadTelemetryLines(albumProjects), ReadTelemetryLines(revenue), 1960, 1969);
 		failFastControlYears.Clear();
 		foreach ((int year, FailFastControlYear row) in parsed) failFastControlYears[year] = row;
 	}
@@ -1188,6 +1203,11 @@ public partial class ChartAuditRunner : Node {
 			// suppress under --lean-probe like the heavy settlement dumps below.
 			if (!leanProbe || followupChartTrace) singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
 		}
+		if (newcomerConnectTrace) {
+			newcomerConnectWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-newcomer-connect-trace.csv"));
+			newcomerConnectWriter.WriteLine("week,recordId,labelId,labelTier,launchCareer,region,age,covered,awaitingArrival,arrivalAge,fitExposureAge,fitExposureCause," +
+				"unitsInStores,unitsBackordered,awareness,radioPlay,awareBuyers,rawDemand,serviceable,cleared,breakoutScore,breakoutStage,position,launchAwareness");
+		}
 		revenueMemoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-revenue-memory.csv"));
 		if (stationDecisions) {
 			stationDecisionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-station-decisions.jsonl"));
@@ -1331,6 +1351,11 @@ public partial class ChartAuditRunner : Node {
 		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,cannibalizationCharged,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumChoiceProbability,formatChoiceRoll,albumCapacityReroute");
 		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,genre,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet,unitsPressed,pressingBookSold,sunkMarketingCost,bookedContributionBeforeMarketing,bookedContributionAfterMarketing");
 		singleReleaseLaneWriter?.WriteLine("week,year,recordId,projectId,releaseLane,labelId,tier,artistId,genre,careerState,hookStrength,productionQuality,danceability,quality,enabledOpportunityMass,acceptedOpportunityMass,cohortNormalizer,normalizerSource,coldStartFallback");
+		if (followerStockAudit) {
+			followerStockAuditWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-follower-stock.csv"));
+			followerStockAuditWriter.WriteLine("week,recordId,region,stockLeft,cleared,followerIntent,rawDemand");
+			ChartManager.ReplayDemandObserver += ObserveFollowerStock;
+		}
 		singleDemandStagesWriter?.WriteLine("week,year,recordId,releaseLane,region,age,potentialAudience,baselineAwareness,earnedDiscoveryExposure,awareBuyers,intrinsicQualityFactor,acceptanceFactor,formatFactor,intrinsicConversionRate,rawDemand,serviceableDemand,clearedUnits,chartSignal,momentumSignal,radioSignal,inventoryFulfillmentRate,marketFulfillmentRate" +
 			(followupChartTrace ? ",commercialFitAtCapture" +
 				(HitActFitSupport.Enabled ? ",commercialFitWithoutSupportAtCapture,hitActFitFloorAtLaunch" : "") : "") +
@@ -2313,10 +2338,45 @@ public partial class ChartAuditRunner : Node {
 			F(BandLife.Normal("dj-ear|" + station.stationId + "|" + c.Id)), F(SingleCommercialFit.UnexposedCapLog), dj?.archetype.ToString() ?? ""));
 	}
 
-	private static StreamWriter CreateWriter(string path) =>
-		SkipTelemetry(path)
-			? new StreamWriter(Stream.Null, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
-			: new(path, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), 64 * 1024);
+	private static StreamWriter CreateWriter(string path) {
+		var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+		if (SkipTelemetry(path)) return new StreamWriter(Stream.Null, encoding);
+		gzipTelemetry ??= OS.GetCmdlineUserArgs().Contains(GzipTelemetrySwitch);
+		if (gzipTelemetry != true) return new(path, false, encoding, 64 * 1024);
+		var file = new FileStream(path + ".gz", FileMode.Create, System.IO.FileAccess.Write, FileShare.Read, 64 * 1024);
+		var writer = new StreamWriter(new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionLevel.Optimal), encoding, 64 * 1024);
+		lock (gzipWriters) gzipWriters.Add(writer);
+		return writer;
+	}
+
+	/// <summary>
+	/// --gzip-telemetry: every CreateWriter file is written as NAME.csv.gz (or .jsonl.gz) instead of NAME.csv, about a tenth
+	/// of the size. Telemetry only; the simulation is unchanged. A gzip file is readable only once its writer is disposed,
+	/// so every exit path calls <see cref="CloseGzipTelemetry"/> last. Writers outside CreateWriter stay plain text.
+	/// </summary>
+	private const string GzipTelemetrySwitch = "--gzip-telemetry";
+	private static bool? gzipTelemetry;
+	private static readonly List<StreamWriter> gzipWriters = new();
+	private static void CloseGzipTelemetry() {
+		lock (gzipWriters) {
+			foreach (var writer in gzipWriters) {
+				try { writer.Dispose(); } catch (Exception e) { GD.PushError($"GZIP_TELEMETRY_CLOSE_FAILED {e.Message}"); }
+			}
+			gzipWriters.Clear();
+		}
+	}
+
+	/// <summary>Lines of a run's telemetry file, plain or gzip (NAME.csv, else NAME.csv.gz).</summary>
+	private static IEnumerable<string> ReadTelemetryLines(string path) {
+		if (File.Exists(path) || !File.Exists(path + ".gz")) {
+			foreach (string line in File.ReadLines(path)) yield return line;
+			yield break;
+		}
+		using var reader = new StreamReader(new System.IO.Compression.GZipStream(File.OpenRead(path + ".gz"), System.IO.Compression.CompressionMode.Decompress));
+		for (string line; (line = reader.ReadLine()) != null;) yield return line;
+	}
+
+	private static bool TelemetryExists(string path) => File.Exists(path) || File.Exists(path + ".gz");
 
 	/// <summary>
 	/// --skip-telemetry=a,b,...: a CSV whose name ends in -a.csv (or -a.jsonl) is not written; its writer discards every
@@ -2407,6 +2467,7 @@ public partial class ChartAuditRunner : Node {
 
 		foreach (RecordRuntimeData record in singleRecords) {
 			if (!calibrationMode) WriteSingleLaneDiagnostics(week, date.year, record);
+			if (newcomerConnectWriter != null) WriteNewcomerConnectRows(week, record);
 			LifecycleState state = ObserveRecord(record, wasPresentAtStart: false);
 			if (followupChartTrace && !state.WasPresentAtStart && record.currentPosition is > 0 and <= 10)
 				followupTraceFirstHits.TryAdd(record.baseRecord.artistId, week);
@@ -2522,6 +2583,12 @@ public partial class ChartAuditRunner : Node {
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;
+	}
+
+	private void ObserveFollowerStock(string stage, RecordRuntimeData record, MarketRegion region, RegionalRecordData data, int cleared) {
+		if (stage != "after-clearing" || record.baseRecord.format != ReleaseFormat.Single || record.weeksSinceRelease > 3) return;
+		string id = record.baseRecord.recordId;
+		followerStockAuditWriter.WriteLine(FormattableString.Invariant($"{ChartManager.Instance.GetCurrentChartWeek()},{id},{region.regionId},{data.unitsInStores},{cleared},{MediaAtmosphereService.FollowerIntent(id, region.regionId):R},{data.rawDemandThisWeek:R}"));
 	}
 
 	private void WriteSingleLaneDiagnostics(int week, int year, RecordRuntimeData record) {
@@ -4143,6 +4210,27 @@ public partial class ChartAuditRunner : Node {
 		}));
 	}
 
+	private void WriteNewcomerConnectRows(int week, RecordRuntimeData record) {
+		if (record?.baseRecord == null || record.baseRecord.format != ReleaseFormat.Single || record.weeksSinceRelease > 12 ||
+			record.launchCareerState is not (CareerState.NewSigning or CareerState.Unsigned) || !SingleCommercialFit.Applies(record)) return;
+		AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
+		if (label == null || !SingleCommercialFit.Connected(record, label)) return;
+		foreach (MarketRegion region in regions) {
+			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+			newcomerConnectWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), Csv(record.baseRecord.recordId), Csv(label.labelId), label.tier.ToString(),
+				record.launchCareerState.ToString(), Csv(region.regionId), record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
+				label.HasDistributionInRegion(region.regionId) ? "1" : "0", data.awaitingArrival ? "1" : "0",
+				data.arrivalAge.ToString(CultureInfo.InvariantCulture), data.fitExposureAge.ToString(CultureInfo.InvariantCulture), Csv(data.fitExposureCause),
+				data.unitsInStores.ToString(CultureInfo.InvariantCulture), data.unitsBackordered.ToString(CultureInfo.InvariantCulture),
+				F(data.awareness), F(data.radioPlay), F(data.demandAwareBuyers), F(data.rawDemandThisWeek),
+				data.serviceableIntentThisWeek.ToString(CultureInfo.InvariantCulture),
+				(data.localClearedThisWeek + data.spilloverClearedThisWeek).ToString(CultureInfo.InvariantCulture),
+				F(data.breakoutScore), data.breakoutStage.ToString(), record.currentPosition.ToString(CultureInfo.InvariantCulture),
+				F(record.initialLaunchAwareness) }));
+		}
+	}
+
 	private void WriteBreakoutRows(int week, RecordRuntimeData record) {
 		AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
 		if (label == null || record.baseRecord.isPlayerOwned) return;
@@ -4298,6 +4386,9 @@ public partial class ChartAuditRunner : Node {
 		releaseOutcomeWriter?.Dispose();
 		singleReleaseLaneWriter?.Dispose();
 		singleDemandStagesWriter?.Dispose();
+		newcomerConnectWriter?.Dispose();
+		ChartManager.ReplayDemandObserver -= ObserveFollowerStock;
+		followerStockAuditWriter?.Dispose();
 		stationPlaylistWriter?.Dispose();
 		StationNetwork.PlaylistSink = null;
 		stationDecisionWriter?.Dispose();

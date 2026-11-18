@@ -43,7 +43,7 @@ public static class LabelReleaseProgramme {
 		ColdActGapWeeks = (int)Read(args, ColdActGapSwitch, 0, 7, 52);
 		if (args.Any(a => a.StartsWith(ColdActGapSwitch, StringComparison.Ordinal)) && !AllocationEnabled)
 			throw new ArgumentException(ColdActGapSwitch + " requires " + AllocationSwitch);
-		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 16);
+		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 30);
 		MajorAlbumsPerMonth = Read(args, "--programme-major-albums=", 5, 0, 12);
 		if (args.Any(a => a.StartsWith("--programme-major-", StringComparison.Ordinal)) && !CapacityEnabled)
 			throw new ArgumentException("Programme capacity parameters require " + CapacitySwitch);

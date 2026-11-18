@@ -137,12 +137,17 @@ public static class RegionalFitExposure {
 		bool blindFoot = LabelBlindLaunch.InExpose;
 		float reach = blindFoot ? LabelBlindLaunch.ReferenceReach : label.EffectiveNationalReachForRecord(recordId);
 		float chance = LaunchBase + LaunchReachSlope * reach;
+		// --label-blind-launch-expose-shared: one draw for the record, read by every region. Off: each region keys its own.
+		bool shared = LabelBlindLaunch.InSharedExpose;
+		// --label-blind-launch-expose-shared=P: the shared draw's chance. Bare switch: the reference chance above.
+		if (shared && LabelBlindLaunch.SharedExposeChance is float sharedChance) chance = sharedChance;
 		foreach (var pair in record.regionalData) {
 			bool home = (!blindFoot && pair.Key == label.homeRegion) || pair.Key == actHome;
 			// --label-blind-launch-dose: an opened region's chance is at least the reference chance (or the chance
 			// --label-blind-launch-dose-exposure names). Off: Opened is false.
 			float regionChance = LabelBlindLaunch.Opened(pair.Key) ? Math.Max(chance, LabelBlindLaunch.DoseExposureChance) : chance;
-			bool exposed = home || PhiloxCounterRandom.Unit(BandLife.WorldSeed, recordId, pair.Key, 0, LaunchDecision) < regionChance;
+			bool exposed = home || PhiloxCounterRandom.Unit(BandLife.WorldSeed, recordId,
+				shared ? LabelBlindLaunch.SharedExposeKey : pair.Key, 0, LaunchDecision) < regionChance;
 			pair.Value.fitExposureAge = exposed ? 0 : NotExposed;
 			pair.Value.fitExposureCause = exposed ? "launch" : "unexposed";
 			if (exposed) launchExposed++; else launchHeld++;

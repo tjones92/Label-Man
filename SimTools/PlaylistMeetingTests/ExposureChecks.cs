@@ -12,6 +12,13 @@ public sealed class RecordRuntimeData {
 public sealed class RegionalRecordData { public int fitExposureAge, localSalesRank, localIntroAge = -1; public string fitExposureCause; }
 public sealed class AILabel { public string homeRegion; public float EffectiveNationalReachForRecord(string id) => 0; }
 public sealed class SimulatedArtist { }
+public static class LabelBlindLaunch {
+	public static bool InExpose => false;
+	public static float ReferenceReach => throw new InvalidOperationException();
+	public static bool Opened(string region) => false;
+	public static float DoseExposureChance => throw new InvalidOperationException();
+}
+public static class LabelFootprintParity { public static int FitExposureNationalRank => RegionalFitExposure.NationalRank; }
 public static class StationRegionalSupport { public static bool ChartReadsNational => false; }
 public static class SingleCommercialFit {
 	public static bool Enabled => true; public static float HitShare => .15f; public static double UnexposedCapLog => -1;

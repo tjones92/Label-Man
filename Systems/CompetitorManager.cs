@@ -4039,7 +4039,8 @@ public partial class CompetitorManager : Node {
 		
 		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.55f) + (baseQuality * 0.35f) + (float)GameRandom.RandRange(-0.12, 0.18), 0f, 1f);
 		// --label-craft-floor / --hit-act-craft-floor: a single reads the label's craft lifted toward the Major reference. Off: the stored value.
-		record.productionQuality = Mathf.Clamp((FootprintCraftSoftening.Craft(label.productionQuality, format, label, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0) * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
+		// --major-newcomer-craft=C: a Major's single for a newcomer reads craft at most C. Off: unchanged.
+		record.productionQuality = Mathf.Clamp((MajorVolumeSwitches.NewcomerCraft(FootprintCraftSoftening.Craft(label.productionQuality, format, label, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0), format, label, artist) * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
 		record.originality = Mathf.Clamp(artist.members.Max(m => m.creativity) * 0.7f + (float)GameRandom.RandRange(0f, 0.3f), 0f, 1f);
 		record.danceability = (float)GameRandom.RandRange(0.3, 0.95);
 		record.controversy = (float)GameRandom.RandRange(0f, 0.2f);

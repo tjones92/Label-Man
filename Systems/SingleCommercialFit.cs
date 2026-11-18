@@ -69,6 +69,7 @@ public static class SingleCommercialFit {
 	public static float ActRecordWeight { get; private set; }
 	public static float UpsideCap { get; private set; }
 	public static bool ActRecordOddsOnly { get; private set; }
+	private static bool fitForAwareBuyers;
 	private static double kink, logNormalizer;
 	/// <summary>Regional sync §9s: the most an unexposed region reads of the national log, the reference launch's median
 	/// draw, so a connected record sells there at the flop level and a flop is unchanged.</summary>
@@ -80,6 +81,11 @@ public static class SingleCommercialFit {
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		var args = (arguments ?? Array.Empty<string>()).ToArray();
+		// Purchase conversion is already applied to the reached audience. This experiment removes
+		// just its servicing cap; station servicing, reach, physical delivery and the local clocks still run.
+		fitForAwareBuyers = args.Contains("--fit-for-aware-buyers");
+		if (fitForAwareBuyers && !args.Contains(RegionalFitExposure.Flag))
+			throw new ArgumentException("--fit-for-aware-buyers requires " + RegionalFitExposure.Flag);
 		Sigma = Read(args, SigmaPrefix, 0f, 0f, 3f);
 		RegionalSigma = Read(args, RegionalPrefix, Sigma * .5f, 0f, 3f);
 		Scale = Read(args, ScalePrefix, 1f, .25f, 4f);
@@ -105,7 +111,9 @@ public static class SingleCommercialFit {
 	}
 
 	internal static void SetForChecks(float sigma, float regionalSigma, float scale, ulong checkSeed, float hitShare = 1f, float upside = 0f,
-		float launchWeight = 0f, float pushWeight = 0f, float floor = 0f, float ownNormalization = 0f, float actRecordWeight = 0f, float upsideCap = 0f, bool actRecordOddsOnly = false) {
+		float launchWeight = 0f, float pushWeight = 0f, float floor = 0f, float ownNormalization = 0f, float actRecordWeight = 0f, float upsideCap = 0f,
+		bool actRecordOddsOnly = false, bool awareBuyers = false) {
+		fitForAwareBuyers = awareBuyers;
 		configured = true; Sigma = sigma; RegionalSigma = regionalSigma; Scale = scale; seed = checkSeed;
 		HitShare = hitShare; UpsideSigma = upside; LaunchWeight = launchWeight; PushWeight = pushWeight; Floor = floor; OwnNormalization = ownNormalization;
 		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; Prepare();
@@ -221,7 +229,7 @@ public static class SingleCommercialFit {
 			throw new InvalidOperationException("Commercial fit requires persistent record and region IDs.");
 		double nationalLog = RawNationalLog(record, label);
 		// §9s: the connection is realized only where the record is exposed; a hit act's floor still applies on top.
-		if (RegionalFitExposure.Enabled && !RegionalFitExposure.Exposed(record, regionId))
+		if (!fitForAwareBuyers && RegionalFitExposure.Enabled && !RegionalFitExposure.Exposed(record, regionId))
 			nationalLog = Math.Min(nationalLog, UnexposedCapLog);
 		if (applyHitSupport && HitActFitSupport.Enabled) nationalLog = HitActFitSupport.Apply(record, nationalLog);
 		double log = nationalLog + Lognormal(RegionalSigma, Normal(id, regionId, RegionalDecision));

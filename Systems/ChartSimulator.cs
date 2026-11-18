@@ -505,7 +505,8 @@ public static class ChartSimulator {
 		exhaustionFactor = Mathf.Max(exhaustionFactor, 0.08f);
 		
 		// === 4. DEMAND CURVE ===
-		float demandCurve = Mathf.Pow(quality, QUALITY_EXPONENT);
+		// QualityResponseProbe: identity (quality^QUALITY_EXPONENT) unless --purchase-quality-exponent is named.
+		float demandCurve = QualityResponseProbe.DemandCurve(quality);
 		float conversionRate = BASE_PURCHASE_RATE * demandCurve * exhaustionFactor;
 		if (PolarSongBehavior.UsePolarFitSelection) conversionRate *= PolarSongBehavior.MomentMultiplier(record.baseRecord);
 		// The high-volume label families dominate every measured sales window.
@@ -1252,7 +1253,8 @@ public static class ChartSimulator {
 		
 		float radioGrowth = record.radioHeat * RADIO_AWARENESS_MULT;
 		
-		float womEffectiveness = Mathf.Max(0, (quality - 0.45f) * 2.2f); 
+		// QualityResponseProbe: identity unless --wom-quality-once is named.
+		float womEffectiveness = QualityResponseProbe.WomEffectiveness(quality);
 		float womGrowth = record.wordOfMouth * WORD_OF_MOUTH_MULT * womEffectiveness;
 		
 		float chartVisibility = 0f;

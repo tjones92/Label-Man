@@ -65,7 +65,8 @@ public partial class CompetitorManager {
 		bool pending = !last && item.MaterialSearch?.State == ProgrammeMaterialState.Pending;
 		bool closed = pipelineWeek >= item.IntendedWeek + LabelReleaseProgramme.Horizon;
 		bool record = !pending && !closed && WorthRecording(perceived, routine, uncertainty);
-		bool own = !pending && !record && last;
+		// --major-gate-exemption: a Major records the act's own session rather than hold for stronger material. Off: false.
+		bool own = !pending && !record && (last || !closed && MajorVolumeSwitches.Exempt(label));
 		item.ProjectReview = new ProgrammeProjectReview { Week = pipelineWeek,
 			CandidateId = own ? "routine-session|" + artist.artistId : searched ? item.MaterialSearch.SongId : shortlist.BestId,
 			Perceived = perceived, RoutineRead = routine, Uncertainty = uncertainty, UseSearchedMaterial = searched && record,

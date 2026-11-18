@@ -10,6 +10,7 @@ public static class LabelBlindLaunchChecks {
 		void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("Label-blind launch: " + why); }
 		bool Near(float a, float b) => Mathf.Abs(a - b) < 1e-5f;
 		bool promoWas = LabelBlindLaunch.Promo, footWas = LabelBlindLaunch.Foot; float doseWas = LabelBlindLaunch.Dose;
+		LabelBlindLaunch.FootTarget scopeWas = LabelBlindLaunch.Scope;
 		ulong stateWas = GameRandom.State;
 		try {
 			var indie = new AILabel { labelId = "indie", tier = LabelTier.Independent, distributionStrength = 0.3f, nationalReach = 0.25f,
@@ -83,6 +84,39 @@ public static class LabelBlindLaunchChecks {
 						"city, hold and expose must keep the launch factor and stock");
 			}
 
+			// --label-blind-launch-scope: the foot parts reach only a Major's single (major) or a Major newcomer's (major-newcomer).
+			var newcomer = new SimulatedArtist { artistId = "new-act", careerState = CareerState.NewSigning };
+			var unsignedAct = new SimulatedArtist { artistId = "unsigned-act", careerState = CareerState.Unsigned };
+			var veteran = new SimulatedArtist { artistId = "old-act", careerState = CareerState.Established };
+			Check(LabelBlindLaunch.Scope == LabelBlindLaunch.FootTarget.All, "the scope must default to every single");
+			LabelBlindLaunch.SetForChecks(false, true);
+			LabelBlindLaunch.SetScopeForChecks(LabelBlindLaunch.FootTarget.MajorNewcomer);
+			float majorOwn = ChartSimulator.GetRegionalLaunchFactor(major, "westcoast");
+			Check(majorOwn > reference + 0.1f, "a Major's own covered factor must sit above the reference");
+			using (LabelBlindLaunch.Launch(single, major, newcomer)) {
+				Check(LabelBlindLaunch.InFoot, "major-newcomer must open a Major newcomer's launch");
+				foreach (string r in regions) Check(Near(ChartSimulator.GetRegionalLaunchFactor(major, r), reference), "a scoped Major newcomer must launch at the reference factor");
+			}
+			using (LabelBlindLaunch.Launch(single, major, unsignedAct)) Check(LabelBlindLaunch.InFoot, "major-newcomer must open an Unsigned act at a Major");
+			using (LabelBlindLaunch.Launch(single, major, veteran)) {
+				Check(!LabelBlindLaunch.InFoot, "major-newcomer must not open a Major's established act");
+				Check(ChartSimulator.GetRegionalLaunchFactor(major, "westcoast") == majorOwn, "an established Major act must keep its own factor");
+			}
+			using (LabelBlindLaunch.Launch(single, major)) Check(!LabelBlindLaunch.InFoot, "major-newcomer must not open a launch without an artist");
+			using (LabelBlindLaunch.Launch(single, indie, newcomer)) {
+				Check(!LabelBlindLaunch.InFoot, "major-newcomer must not open a non-Major newcomer");
+				for (int i = 0; i < regions.Length; i++) Check(ChartSimulator.GetRegionalLaunchFactor(indie, regions[i]) == factorOff[i] &&
+					Stock(indie, regions[i]) == stockOff[i], "a non-Major under the scope must keep its own factor and stock");
+			}
+			foreach (RecordRuntimeData other in new[] { album, player, opening })
+				using (LabelBlindLaunch.Launch(other, major, newcomer)) Check(!LabelBlindLaunch.InFoot, "the scope must still skip albums, player records and opening catalog");
+			LabelBlindLaunch.SetScopeForChecks(LabelBlindLaunch.FootTarget.Major);
+			using (LabelBlindLaunch.Launch(single, major, veteran)) Check(LabelBlindLaunch.InFoot, "major must open a Major's established act");
+			using (LabelBlindLaunch.Launch(single, major)) Check(LabelBlindLaunch.InFoot, "major must open a Major launch without an artist");
+			using (LabelBlindLaunch.Launch(single, indie, newcomer)) Check(!LabelBlindLaunch.InFoot, "major must not open a non-Major");
+			LabelBlindLaunch.SetScopeForChecks(LabelBlindLaunch.FootTarget.All);
+			using (LabelBlindLaunch.Launch(single, indie, newcomer)) Check(LabelBlindLaunch.InFoot, "an unscoped foot must open every live single");
+
 			// --label-blind-launch-dose: opens a keyed share of a non-Major's regions to the reference footprint, lift only.
 			LabelBlindLaunch.SetFootPartsForChecks(false, false, false, false, false);
 			using (LabelBlindLaunch.Launch(single, indie))
@@ -149,7 +183,7 @@ public static class LabelBlindLaunchChecks {
 			using (LabelBlindLaunch.Launch(single, indie)) Check(!LabelBlindLaunch.InFoot, "promo alone must not open the footprint scope");
 			GD.Print("LABEL_BLIND_LAUNCH_CHECK passed");
 		} finally {
-			LabelBlindLaunch.SetForChecks(promoWas, footWas); LabelBlindLaunch.SetDoseForChecks(doseWas);
+			LabelBlindLaunch.SetForChecks(promoWas, footWas); LabelBlindLaunch.SetDoseForChecks(doseWas); LabelBlindLaunch.SetScopeForChecks(scopeWas);
 			GameRandom.State = stateWas;
 		}
 	}

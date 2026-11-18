@@ -26,5 +26,7 @@ public enum OpeningCareerArchetype {
 	EstablishedHitmaker,
 	FormerStar,
 	CriticsFavourite,
-	RegionalName
+	RegionalName,
+	/// <summary>--major-catalog-veterans: a contracted working act on a Major's 1960 roster with occasional placings.</summary>
+	CatalogVeteran
 }

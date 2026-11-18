@@ -290,6 +290,20 @@ public partial class CompetitorManager {
 						audit?.Add(new ProgrammeCandidateAudit { ArtistId = a?.artistId, CareerState = a?.careerState.ToString(), Reason = reason });
 						return false;
 					});
+					// --major-slate-pool=N: a Major's ordinary single slot reviews hot acts plus N keyed others, not its roster.
+					if (format == ReleaseFormat.Single && !financed && MajorVolumeSwitches.SlatePoolCapped(label)) {
+						var all = eligible.ToList();
+						string poolSlot = id + "|major-slate-pool";
+						var pool = MajorVolumeSwitches.SlatePool(all,
+							a => HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks,
+							a => ProgrammeRoll(label, a, poolSlot, week, 0), a => a.artistId);
+						if (audit != null) {
+							var reviewed = new HashSet<SimulatedArtist>(pool);
+							foreach (var a in all.Where(a => !reviewed.Contains(a)))
+								audit.Add(new ProgrammeCandidateAudit { ArtistId = a.artistId, CareerState = a.careerState.ToString(), Reason = "outside-major-slate-pool" });
+						}
+						eligible = pool;
+					}
 					// --label-project-judgement: heard material ranks the competing acts on one scale, each act's best read against
 					// the slot's mean. Whether a song beats the act's own writing is the hold review's question, not the ranking's.
 					Dictionary<string, float> materialReads = null;

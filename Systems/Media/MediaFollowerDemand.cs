@@ -44,6 +44,8 @@ public static class MediaFollowerDemand {
 	public const string ShadowSwitch = "--observe-follower-demand";
 	public const string CausalSwitch = "--follower-demand";
 	public const string NoAdvanceStockSwitch = "--follower-demand-no-advance-stock";
+	private const string SingleStockSharePrefix = "--follower-single-stock-share=";
+	internal static float SingleStockShare { get; private set; } = 1f;
 	public const string NoPurchaseIntentSwitch = "--follower-demand-no-purchase-intent";
 	public const string FrontLoadSinglesSwitch = "--follower-singles-front-load";
 	public const string RecruitFromNewSingleBuyersSwitch = "--follower-singles-recruit-from-new-buyers";
@@ -106,6 +108,12 @@ public static class MediaFollowerDemand {
 			if (argument == ShadowSwitch) shadow = true;
 			if (argument == CausalSwitch) causal = true;
 			if (argument == NoAdvanceStockSwitch) noAdvanceStock = true;
+			if (argument.StartsWith(SingleStockSharePrefix, StringComparison.Ordinal)) {
+				if (!float.TryParse(argument[SingleStockSharePrefix.Length..], NumberStyles.Float, CultureInfo.InvariantCulture,
+					out float share) || !float.IsFinite(share) || share < 0f || share > 1f)
+					throw new ArgumentException($"{SingleStockSharePrefix} takes a finite share in [0, 1].");
+				SingleStockShare = share;
+			}
 			if (argument == NoPurchaseIntentSwitch) noPurchaseIntent = true;
 			if (argument == FrontLoadSinglesSwitch) SinglesFrontLoaded = true;
 			if (argument == RecruitFromNewSingleBuyersSwitch) SinglesRecruitFromNewBuyers = true;
@@ -153,6 +161,7 @@ public static class MediaFollowerDemand {
 	internal static void SetForChecks(bool on, bool writeCausal = false) {
 		shadow = on && !writeCausal; causal = on && writeCausal; configured = true;
 		noAdvanceStock = noPurchaseIntent = false;
+		SingleStockShare = 1f;
 		SinglesFrontLoaded = SinglesRecruitFromNewBuyers = AlbumsRecruitFromNewBuyers = false;
 		ColdAdultYear = 0f;
 		AlbumCasualShare = 0f; AlbumCasualWeeks = 3;

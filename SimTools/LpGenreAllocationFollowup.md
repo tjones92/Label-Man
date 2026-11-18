@@ -3372,3 +3372,227 @@ NewSigning at launch reads `0.36 + F × (push − 0.36)` until the record shows 
 hit in the sim. The historical lever left is how widely and deeply a major shipped an unknown's single, which history does not
 document (the national-breakout tier implies records broke in one market first, not seven). That would be a launch-coverage probe for Major
 newcomers (ship to home and strong regions only until action), and the earlier guards say to check the regional stagger before adopting any footprint change.
+
+## 56. Did a major ship every single nationally, or only its big acts? (2026-11-17, research and history data, no runs)
+
+§55 left one historical lever: ship a Major newcomer's single only to its home and strong regions until it shows action.
+Before building it, the question was whether majors gave every single full distribution or only their hits and big acts.
+
+**Breadth (which markets got the record): national, newcomers included.**
+- 1960 city surveys (`SimTools/analyze_regional_break_history.py`, §9s; Los Angeles KFWB+KRLA against Minneapolis KDWB): the 20 Big-5
+  Top 10 records had **no** city lead of 2+ weeks over the Hot 100 and **no** city gap of 6+ weeks (indie Top 10: 18.5% and 14.6%).
+  The newcomers among them reached both cities within about two weeks, mostly *after* their Hot 100 debut: The Brothers Four
+  "Greenfields" (Columbia; city lead −3.6 wk, gap 2.1), Jeanne Black "He'll Have to Stay" (Capitol; +0.4, 1.1), Bert Kaempfert
+  "Wonderland by Night" (Decca; −0.7, 0.9), Hank Locklin "Please Help Me, I'm Falling" (RCA, a pop newcomer; −4.7, 1.9).
+  A home-first launch would create exactly the city leads and gaps that history shows only for indie records.
+- Billboard's charts of the period define "Bubbling Under" as records with "considerable regional action" that lack strength
+  "thruout the country" (1960-11-14). That is demand showing up market by market, not shipping held back.
+- Collector and trade recollections (soul-source.co.uk threads on 1960s US distribution and on rare major-label 45s) agree that
+  majors serviced DJ copies nationally by station format, and that Columbia and RCA were "much more liberal with their promos".
+
+**Depth (how many copies stood in shops): thin for unknowns, set by orders.**
+- Stock followed demand: stations reported plays, and stock was "pushed to stores through the distributor network" where a city
+  showed demand; flops often had more DJ copies than store stock, some only DJ copies (the same threads; anecdotal, no counts).
+- Big acts sold on a different scale: Billboard (1961-03-20) reports every Presley RCA single since 1955 sold a million, and
+  Herman's Hermits had 600,000 advance orders (MGM, 1966). A small label's known act moved 3,500 singles as an initial order
+  (Limelight, Billboard 1965-12-11).
+- RCA cut its 1960 singles release to 2-3 a week, "fewer, more intensively promoted", and led the industry in singles sales
+  (Billboard Music Week 1962-01-13). The repo's ~160 RCA singles for 1960 agrees.
+
+**What this means for the sim.**
+- The home-first launch lever is **not built**. History says Big-5 records, newcomers included, went out nationally. A held
+  launch would fail the stagger guard (Big-5 lead ≥ 2 and gap ≥ 6 both 0 in 1960). §51's conclusion stands: national branch
+  coverage is historically real.
+- The historical difference for unknowns is depth: national promo copies and thin, order-led store stock. §51 already cut a Big-5
+  newcomer's first run 40% (median 5.5k → 3.3k) with no effect on entry or Top 10 weeks. The sim's newcomers enter around week 6,
+  after reorders replace the launch stock, so first-run depth does not bind.
+- So distribution is not what makes the sim's Big-5 newcomers hit 2-3x too often (§55: ~12 newcomer Top 10 records a year
+  against history's ~4.5). The candidates left are what each launch carries: quality and slate selection (MajorShareRootCauseHandoff.md, 2026-11-13
+  decomposition: quality mix ~35% of the Big-5 realization premium) and the number of newcomer singles the Big-5 issue.
+
+## 57. Big-5 single volume: share of issues, the field trim, the gate exemption and opening rosters (2026-11-17; four seeds; not adopted yet)
+
+**The gap.** The five majors issued about 1,080 singles in 1960 (LabelReleaseProgrammeImplementation.md), 16-19% of Billboard's
+5,800-6,700. The sim's Big-5 issue 313 (1960) and 543 (1961), 7-13% of ~4,200. Field labels issue fewer singles than history in
+absolute terms; their share is too large only because the Big-5's is too small. The sim's total is ~2/3 of history's and singles
+demand is a fixed purse, so the target (the user's call) is history's **share**, ~18%, about 750 Big-5 singles at the sim's
+scale, taken from Independent, Small and Boutique output. MidTiers, already below history, are held.
+
+**Knobs.** `--programme-major-singles=N` (cap raised 16 → 30 in `LabelReleaseProgramme.cs`) and the non-Major work budget
+`--slate-work-budget=S` with `--slate-work-budget-midtier=1`. Two new switches in `Systems/MajorVolumeSwitches.cs`, check
+`--major-volume-check` (passes): `--major-gate-exemption` (a Major's single skips the single capital-risk test, and its project
+review records the act's own session instead of holding for stronger material; it still waits for a song in delivery and never
+records after the window closes) and `--major-opening-roster=N` (a Major opens with at least N acts; the fill draw is still
+consumed). **Off is identical:** `mvoff27-2002-sc` matches `zfg-2002-sc` row for row through week 26 (records, launches, label
+finance, release slate, programme choices). Scorer `SimTools/analyze_major_volume.py`. All arms carry `--zero-fee-material-gate`.
+
+**One-seed calibration (seed 2002).** Majors at 16 and 24 a month issue 662 and 681 singles in 1961: above ~16 a month the extra
+slots expire. Field trim 0.85 removes ~380-440 Independent and Small/Boutique singles a year; units per single +6-10%, closures flat.
+
+**Why Major slots expire.** At 16 a month the extra cancelled Big-5 slots were held, until their window closed, by the
+**single capital-risk** test (6 → 97 on seed 2002, 19 → 204 on 1001) and **hold-for-stronger-material** (46 → 118, 37 → 185).
+On seed 1001 Columbia's 1961 singles fell 109 → 38 with $5M in cash. History's majors issued exactly the marginal singles these
+gates refuse: most singles of the period lost money.
+
+**Rosters.** Majors open with `maxRosterSize × fill` (30-60 × 0.6-0.85), about 39 acts a week considered for a slot in 1960 H1,
+growing to 58-67 by 1961 H2 under `--earned-roster-capacity`. History has no direct roster count; from 1,080 singles at ~2-4.6
+singles per act (repo discography sample), ~350-450 releasing acts, ~70-90 per major, ~55-60 at the sim's scale. The sim is short
+in 1960 and on target by late 1961.
+
+**Screen** (104 weeks; arms on the `zfg` reference; Big-5 = label_0001-0005):
+
+| Seeds 2002 / 1001 / 3003 (4004) | `zfg` | `mj16wb85` (16 + field 0.85) | `mvg` (+ exemption) | `mvx` (+ exemption + roster 58) | History |
+|---|---|---|---|---|---:|
+| 1961 Big-5 singles | 543 / 534 / 491 (431) | 641 / 536 / 587 (729) | 672 / 588 / 717 | 729 / 701 / 803 (653) | |
+| 1961 Big-5 share of issues | 12.9 / 13.0 / 11.7 (10.5) | 16.6 / 14.3 / 14.3 (18.0) | 16.8 / 15.1 / 17.2 | 18.7 / 18.0 / 19.7 (16.8) | 16-19 |
+| 1960 Big-5 share of issues | 7.1 / 8.1 / 7.9 (5.8) | 9.7 / 10.1 / 8.3 (9.1) | 11.4 / 11.3 / 10.2 | 11.7 / 13.2 / 13.7 (12.3) | 16-19 |
+| **1961 Big-5 Top 10 share** | 37.9 / 33.8 / 29.8 (26.2) | 29.2 / 40.0 / 26.0 (34.6) | 38.7 / 38.1 / 42.7 | **46.5 / 45.6 / 54.2 (35.4)** | 20.6 |
+| **1960 Big-5 Top 10 share** | 29.1 / 27.9 / 33.6 (16.6) | 31.1 / 23.6 / 24.0 (23.2) | 37.9 / 17.0 / 25.7 | **39.6 / 45.7 / 52.5 (28.1)** | 34.2 |
+| 1961 CR4 | 33.7 / 37.5 / 27.9 (27.1) | 29.2 / 41.0 / 34.2 (31.0) | 38.3 / 45.6 / 39.6 | 43.7 / 45.6 / 54.2 (37.9) | 27.9 |
+| 1961 Big-5 newcomer Top 10 records | 8 / 9 / 7 (5) | 8 / 14 / 8 (5) | 7 / 11 / 14 | 7 / 16 / 12 (9) | ~4.5 |
+| 1961 single units per single issued (k) | 30.3 / 31.1 / 30.5 | 33.1 / 34.3 / 31.1 | 32.0 / 32.9 / 30.6 | 32.8 / 32.8 / 31.4 | |
+| Labels defunct by week 104 | 106 / 101 / 84 (94) | 106 / 95 / 82 (97) | 97 / 100 / 75 | 102 / 94 / 86 (94) | |
+
+- **Volume reaches history.** The exemption makes the Big-5 issue 590-720 singles in 1961 on every seed, 15-17% of issues; with
+  the opening roster, 18-20%. 1960 stays at 10-14%.
+- **Extra slots alone leave chart share flat** (`mj16wb85` 31.7 against 33.8, mean of three seeds), as §52 and the earlier
+  `--programme-major-singles=16` found.
+- **The exemption adds about 6 points of 1961 Big-5 Top 10 share** (33.8 → 39.8; +0.8 / +4.3 / +12.9 by seed), none in 1960.
+- **The opening roster adds 19 points in 1960 and 9 in 1961, on every seed** (4 of 4 above reference in both years). The extra
+  opening acts are newcomers: opening Big-5 rosters 149-196 → 290 acts, Stars and Established nearly unchanged (seed 2002: 7 → 8
+  Stars; 3003: 11 → 15). Most 1960 Big-5 Top 10 slots come from opening acts (205 of 210 on seed 2002). Each added newcomer launches with
+  the Big-5's per-release advantage, so moving acts from field labels to Majors converts them at Big-5 rates. On seed 2002 the
+  roster also drained the launch pool for MidTiers (1961 MidTier singles 298 → 171).
+- **Reading.** Volume that repeats the same acts buys entries, not Top 10 slots; volume that adds *distinct* acts multiplies the
+  per-launch Big-5 premium (2-4x the field per launch, against history's ~1.2x; `big5-premium-constant-1961-is-volume`). History's
+  Big-5 issued far more and charted at only ~1.2x per release, so the sim's volume is not wrong: the premium is. Raising volume
+  before the premium comes down moves the Big-5 further from history.
+
+**Status: not adopted (the user decides); both switches stay in code, off and identical, with the cap raised to 30.** My recommendation: reject `--major-opening-roster`
+while the per-launch premium stands. The volume package (`--programme-major-singles=16`, field trim 0.85, `--major-gate-exemption`)
+is historically right on output but costs ~6 points of 1961 Big-5 share; it should be paired with a per-launch premium fix
+(quality mix and slate selection, footprint; MajorShareRootCauseHandoff.md 2026-11-13) and screened again.
+
+## 58. Where Big-5 newcomers' stronger hooks come from (2026-11-17; `zfg` x4, no new runs)
+
+**Question.** The connected-newcomer trace put ~35% of the Big-5 newcomer Hot 100 premium on record quality, mostly hook
+(.74 vs .69). Do the Big-5 get better songs or better writers? If so, would a writing-talent bank that labels spend be the lever?
+Scorer `SimTools/analyze_newcomer_hook_source.py RUN...`. Newcomer (NewSigning / Unsigned) singles launched to week 92:
+1,204 Big-5, 23,492 field, seeds 2002 / 1001 / 3003 / 4004 of `zfg`.
+
+**How a hook is made.** Record hook = `PolarSongBehavior.RealizeHook`: lerp(performance, composition hook, 0.9), a 15% ceiling
+toward the composition hook, times execution. The record's hook is ~90% the song's (`commercialHook`). Performance (act
+songwriting, act quality, studio) matters only for artist-written songs, through `ArtistWrittenHookScale` (0.85 writer craft +
+0.15 performance).
+
+**The gap.** Record hook .730 vs .698 (+.032); composition hook .755 vs .726 (+.029; by seed +.036 / +.028 / +.025 / +.029);
+realization (record − composition) adds only +.003. So the edge is which songs get cut.
+
+| Split of the +.029 composition-hook gap | Size | How measured |
+|---|---:|---|
+| Source × genre mix (Big-5 do more TeenPop / Country / TradPop) | +.005 | shift-share over source × genre cells |
+| Act writer craft (Majors sign better self-writers) | ~+.007 | OLS with cell FE: Big-5 +.025 → +.018 with act craft and songwriting |
+| Path mix (Big-5 use the material search less: 23% vs 34% of launches) | ~−.004 | Big-5 +.018 → +.022 with path; label cap of 2 pending searches blocks 64% of unstarted Big-5 searches (field 1%) |
+| Label-side picking: deeper shortlists, sharper reads | ~+.020 | remainder; explained below |
+
+- **Within every source, Big-5 newcomers cut better songs** (pooled composition hook, Big-5 vs field): professional .775 vs .755,
+  standards .804 vs .741, own songs .717 vs .680, recent-hit covers .744 vs .733. Source mix explains +.002.
+- **Own songs are all act craft:** Big-5 newcomer writer craft .726 vs .685; with craft in the regression the Big-5 term is −.002
+  (se .002).
+- **Professional songs and standards are label-side:** Big-5 +.028 (se .006) and +.051 (se .011) after act controls.
+- **Not writers or offices.** Within professional songs (+.020): publisher-office mix +.002, within the same office +.018; writer
+  quartile mix +.008, within the same writer quartile +.012. Writer recognition .002 for both groups. The R&R hit office
+  (`--rock-hit-office-placement=2`, pitched only to Majors and recent Top 40 labels) is 5.5% of Big-5 newcomer professional songs vs
+  6.1% of the field's. The Big-5 draw better songs from the same writers' catalogues and from the same (non-exclusive) standards.
+
+**The picking mechanism, by path** (`release-judgements-shadow.csv` outcome; OLS with source × genre × seed FE):
+
+| Path | Share Big-5 / field | Hook Big-5 / field | Big-5 term → with controls |
+|---|---|---|---|
+| Shortlist pick (`pool`: best-read recordable song) | 65 / 60% | .726 / .706 | +.014 → +.009 (act craft) → +.003 (+ depth) → −.005 (+ read band) |
+| Material search (`material-search`) | 23 / 34% | .817 / .760 | +.052 → +.049 (act craft) → +.021 (+ baseline read) |
+
+- **Shortlist depth.** Big-5 newcomers hold 2.39 recordable songs at release vs 1.93. `AiRepertoireService.ArrivalRate` brings
+  professional songs at base × pro share × (0.5 + 0.63 × scouting). At equal depth (0-2 songs) Big-5 and field hooks match
+  (.666/.663, .707/.698, .717/.714).
+- **Read accuracy.** Shortlist read band .099 vs .118 (`ReadBand` = lerp(.20, .08, scouting)); demo reads .18 − .12 × scouting
+  (`ProfessionalWritingMarket.DemoRead`); material-search reads lerp(.20, .08, scouting). Founding scouting envelopes: Major
+  .68-.96, MidTier .54-.90, Independent .44-.91, Boutique .48-.93, Small .34-.84.
+- **Search bar.** A search starts only for a song that reads above the baseline (best-read shortlist song): Big-5 .715 vs .618.
+  A deeper shortlist raises the bar, so the songs searched for are stronger. Baseline absorbs 60% of the search-path edge, read
+  band most of the rest.
+
+**What the hook gap is worth.** Logit over newcomer launches (genre × seed FE, hook, production, Big-5 dummy): at field hooks,
+Big-5 newcomer Top 10 per launch falls ×0.77 / 0.83 / 0.84 / 0.81 by seed (pooled premium 2.86 → 2.32), Hot 100 entry ×0.85-0.90
+(1.89 → 1.66). That is ~20% of the Top 10 premium in log terms, an upper bound because it is cross-sectional. The label-side picking
+part (~.020 of .029) is worth ~12%. The production gap is larger (.747 vs .656) and the same logit gives field hook + production
+1.29x, but `--major-newcomer-craft=0.65` cut Big-5 newcomer production .06-.07 causally and moved the premium within seed noise
+(candidate 2 diagnostic), so production's cross-sectional weight is the label's footprint, not its studio.
+
+**Reading.**
+- The Big-5 do not have disproportionately better writers. Their hook edge is ordinary A&R: they sign better self-writers,
+  get more professional songs pitched, read songs more accurately and set a higher bar. That is historical (staff A&R
+  producers, publishers pitching majors first) and worth at most ~12% of the premium.
+- **A writing-talent bank is not a premium lever.** Rationing writer access acts on a channel worth ~.003 of hook. Charging for
+  each pitched song would thin Big-5 shortlists (arrivals are free under royalty licences), but the Majors are the labels best
+  able to pay, and the whole picking channel is ~12%. Not built.
+- With the slate-pool cap rejected, the newcomer-craft cap inside seed noise (both in `Big5VolumeAndPremiumHandoff.md`) and hook
+  ≤20%, record quality is not where the ~3x per-launch premium lives. What remains is launch footprint (covered regions ~45% of connected Hot 100 entry odds) and campaign
+  impact (~20%): candidate 3, footprint jointly, which the author holds as the last resort.
+
+## 59. Major launch depth: the footprint ablation scoped to Majors (2026-11-17; stage 1 of candidate 3; four seeds)
+
+**Switch.** `--label-blind-launch-scope=major|major-newcomer` (`Systems/LabelBlindLaunch.cs`) restricts the existing `foot`
+ablation to live singles at Major-tier labels (`major`), or to those whose act is NewSigning / Unsigned at launch
+(`major-newcomer`). A Major already covers every region, holds none and reaches every city, so for a Major `foot` lowers depth
+only: the regional launch factor (strong 1.35 / covered ~.95 → .72), the fit-exposure launch chance (~.95 → .57, label home no
+longer free) and launch stock (reference reach). National breadth is unchanged. The scope needs foot parts and refuses promo.
+Check cases added to `--label-blind-launch-check` (passes; so do `--major-volume-check` and `--footprint-craft-softening-check`).
+**Off is identical:** `lbsoff27-2002-sc` matches `zfg-2002-sc` row for row through week 26 (records, launch attribution, label
+finance, release slate, programme choices, material funnel, release judgements, writing launches).
+
+**Arms** (reference `zfg-{seed}-sc-request.json`, 104 weeks, seeds 2002 / 1001 / 3003 / 4004, with `--newcomer-connect-trace`):
+`mnfoot-*` = `--label-blind-launch=foot --label-blind-launch-scope=major-newcomer`; `mjfoot-*` = scope `major` (the bound).
+Scorers: `SimTools/analyze_footprint_scope.py SEEDS FMT...` (pooled premiums, shares, finance), `analyze_newcomer_exposure.py`
+(connected newcomers at launch), `analyze_regional_stagger.py SEEDS FMT` (now takes a run format).
+
+| Pooled 1960-61 launches to week 92 | `zfg` | `mnfoot` | `mjfoot` | History |
+|---|---:|---:|---:|---:|
+| Newcomer Top 10 premium (Big-5 / field) | 2.86 | **1.84** | 1.85 | ~1.2 |
+| Newcomer Hot 100 premium | 1.89 | 1.66 | 1.61 | |
+| Big-5 newcomer Top 10 per launch % | 3.82 | 2.54 | 2.55 | |
+| Established Top 10 premium | 1.86 | 1.65 | 1.39 | |
+| Established Hot 100 premium | 1.50 | 1.54 | 1.38 | |
+
+Per-seed newcomer Top 10 premium: `zfg` 4.0 / 2.8 / 3.0 / 1.4 → `mnfoot` 2.5 / 1.4 / 1.3 / 2.4 (down 3 of 4; 4004 rises).
+
+| Per-seed mean (seeds below `zfg`) | `zfg` | `mnfoot` | `mjfoot` | History |
+|---|---:|---:|---:|---:|
+| 1960 Big-5 Top 10 share | 26.8 | 23.3 (3/4) | 20.6 (3/4) | 34.2 |
+| 1961 Big-5 Top 10 share | 31.9 | 27.2 (3/4) | 26.6 (4/4) | 20.6 |
+| 1961 Big-5 Top 40 / Hot 100 share | 28.1 / 27.9 | 26.0 / 27.6 | 23.9 / 24.9 | |
+| 1961 CR4 | 31.5 | 28.1 (4/4) | 27.5 (4/4) | 27.9 |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 4.5 / 7.2 | 3.0 / 6.2 | 2.5 / 6.2 | ~4.5 |
+| 1961 Big-5 gross / net ($M) | 244 / 104 | 248 / 107 | 234 / 99 (4/4 down) | |
+| Labels defunct by week 104 | 96.2 | 96.0 | 101.5 | |
+| 1960 Big-5 Top 10 city lead ≥ 2 / gap ≥ 6 (%) | 9.4 / 3.8 | 9.1 / 6.9 | **25.8 / 15.3** | 0 / 0 |
+| 1960 indie Top 10 city lead ≥ 2 / gap ≥ 6 (%) | 26.9 / 24.7 | 24.5 / 20.3 | 24.2 / 18.6 | 18.5 / 14.6 |
+
+**Mechanism** (connected newcomers, seeds 2002 / 3003; control from `nctrace-*`): Big-5 fit-exposed regions at launch 6.4-6.6 →
+4.5 (field 4.1); launch stock 5.4k → 3.3k (field 2.9k); regional awareness at week 1 .155 → .11 (field .09); weeks 1-3 cleared
+units 361 / 494 → 273 / 259 (field ~255). Hot 100 entry .213 / .199 → .216 / .143; Top 10 .086 / .056 → .063 / .034.
+
+**Reading.**
+- **Go on stage 1.** Thin launch depth for Major newcomers cuts their Top 10 premium by 42% in log terms (2.86 → 1.84), the first
+  lever in this chase to clear seed noise on the per-launch premium. It keeps national breadth by construction and passes the
+  Big-5 stagger guard on the lead (9.4 → 9.1); the 6-week gap rises 3.8 → 6.9 (about two records of ~75).
+- **Established acts must keep their depth.** `mjfoot` adds no newcomer effect over `mnfoot` and takes the established premium
+  to 1.39, but it triples the Big-5 city lead (25.8%, history 0) and costs the Big-5 ~4% gross. That is §56's history from the
+  other side: the majors' established records broke everywhere at once; thin depth was for unknowns only.
+- 1960 Big-5 share falls further below history (26.8 → 23.3). That is the 1960 volume gap (Big-5 issue 6-8% of 1960 singles
+  against ~18%), which stage 4's volume package is meant to fill.
+- Not yet known: which read carries it (exposure vs launch factor; stock is inert by §51). The ablation sets the reference
+  everywhere; a period form (a keyed share of regions at reference) is still to build.
+
+**Status:** stage 1 done; the switch stays in code, off and identical. Next: stage 2 (scoped `expose` and `factor` arms, then a
+dose), per `Big5VolumeAndPremiumHandoff.md`.

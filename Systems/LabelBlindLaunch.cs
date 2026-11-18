@@ -24,6 +24,19 @@ using System.Collections.Generic;
 /// draw per record and region feeds all four reads. Lift only: a label's own covered, strong or home region never reads
 /// worse, launch stock is untouched, and Majors are never opened.
 ///
+/// --label-blind-launch-scope=major|major-newcomer (Big5VolumeAndPremiumHandoff.md, candidate 3): the foot parts apply only to a
+/// live single at a Major-tier label (major), or only to one whose act is NewSigning or Unsigned at launch (major-newcomer). A
+/// Major already covers every region, holds none and reaches every city, so for a Major the reference footprint lowers depth
+/// only (the launch factor, the fit-exposure chance and launch stock) and leaves national breadth alone. Needs foot parts; promo
+/// is never scoped, so the two are refused together. Every other single reads its own footprint.
+///
+/// --label-blind-launch-expose-shared (Big5ChartOpportunityInvestigation.md, 2026-11-17): with the expose part, a launch in
+/// scope makes one keyed fit-exposure draw for the whole record instead of one per region, so the record connects with buyers
+/// in every region at once or in none (the act's home region stays exposed). The chance is unchanged. Purpose: the per-region
+/// draw made Big-5 newcomers break city by city (LA-Minneapolis lead >= 2 wk 9.4 -> 15.7%), which history shows only for
+/// independents; a major's unknown either broke nationally or not at all. Needs the expose part. =P sets the shared
+/// draw's chance in place of the reference chance.
+///
 /// References are the 1960-61 launch-weighted means over every tier in fund-v1-*-gc_of (campaign impact 0.39,
 /// reputation 0.37, reach 0.38; payola is the founding draw's midpoint). Albums, the player's records and opening
 /// catalog are untouched. Weekly distribution (restock, rack shelf, uncovered terms) is not a launch read and is kept.
@@ -63,11 +76,41 @@ public static class LabelBlindLaunch {
 	private static float? doseExposure;
 	public static float DoseExposureChance => doseExposure ?? ReferenceExposureChance;
 
+	public const string ScopeSwitch = "--label-blind-launch-scope";
+	public enum FootTarget { All, Major, MajorNewcomer }
+	/// <summary>Which live singles the foot parts reach; All when the scope switch is off.</summary>
+	public static FootTarget Scope { get; private set; }
+
+	public const string SharedExposeSwitch = "--label-blind-launch-expose-shared";
+	/// <summary>One fit-exposure draw per record in scope, shared by all its regions; off unless named.</summary>
+	public static bool SharedExpose { get; private set; }
+	/// <summary>--label-blind-launch-expose-shared=P: the national connect chance of the shared draw in place of the reference
+	/// chance (0.57). Null for the bare switch.</summary>
+	public static float? SharedExposeChance { get; private set; }
+	/// <summary>The key the shared draw reads in place of a region id; no region is named this.</summary>
+	public const string SharedExposeKey = "shared-launch-exposure";
+
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
-		Promo = false; SetFoot(false); Dose = 0f; DoseHotActsOnly = false; doseExposure = null;
+		Promo = false; SetFoot(false); Dose = 0f; DoseHotActsOnly = false; doseExposure = null; Scope = FootTarget.All; SharedExpose = false; SharedExposeChance = null;
 		foreach (string arg in arguments ?? Array.Empty<string>()) {
 			if (arg == Switch) { Promo = true; SetFoot(true); continue; }
+			if (arg == SharedExposeSwitch) { SharedExpose = true; continue; }
+			if (arg.StartsWith(SharedExposeSwitch + "=", StringComparison.Ordinal)) {
+				if (!float.TryParse(arg.Substring(SharedExposeSwitch.Length + 1), System.Globalization.NumberStyles.Float,
+					System.Globalization.CultureInfo.InvariantCulture, out float p) || !float.IsFinite(p) || p < 0f || p > 1f)
+					throw new ArgumentException($"{SharedExposeSwitch}=P needs a chance between 0 and 1.");
+				SharedExpose = true; SharedExposeChance = p;
+				continue;
+			}
+			if (arg.StartsWith(ScopeSwitch + "=", StringComparison.Ordinal)) {
+				Scope = arg.Substring(ScopeSwitch.Length + 1) switch {
+					"major" => FootTarget.Major,
+					"major-newcomer" => FootTarget.MajorNewcomer,
+					string other => throw new ArgumentException($"{ScopeSwitch} is major or major-newcomer; got '{other}'.")
+				};
+				continue;
+			}
 			if (arg == DoseHotActsSwitch) { DoseHotActsOnly = true; continue; }
 			if (arg.StartsWith(DoseExposureSwitch + "=", StringComparison.Ordinal)) {
 				if (!float.TryParse(arg.Substring(DoseExposureSwitch.Length + 1), System.Globalization.NumberStyles.Float,
@@ -100,8 +143,19 @@ public static class LabelBlindLaunch {
 		}
 		if (DoseHotActsOnly && Dose <= 0f) throw new ArgumentException(DoseHotActsSwitch + " needs " + DoseSwitch + "=D.");
 		if (doseExposure.HasValue && Dose <= 0f) throw new ArgumentException(DoseExposureSwitch + " needs " + DoseSwitch + "=D.");
+		if (SharedExpose && !Expose) throw new ArgumentException(SharedExposeSwitch + " needs " + Switch + "= with the expose part (expose or foot).");
+		if (Scope != FootTarget.All && (!Foot || Promo))
+			throw new ArgumentException(ScopeSwitch + " needs " + Switch + "= foot parts (foot, factor, stock, city, hold, expose) and no promo.");
 		configured = true;
 	}
+
+	internal static void SetScopeForChecks(FootTarget scope) { configured = true; Scope = scope; footScope = 0; }
+
+	/// <summary>Whether a launch is inside <see cref="Scope"/>: always under All; otherwise a Major-tier label, and under
+	/// MajorNewcomer an act that is NewSigning or Unsigned at launch (a launch without an artist is outside).</summary>
+	public static bool InScope(AILabel label, SimulatedArtist artist) =>
+		Scope == FootTarget.All || label?.tier == LabelTier.Major && (Scope == FootTarget.Major ||
+			artist != null && artist.careerState is CareerState.NewSigning or CareerState.Unsigned);
 
 	internal static void SetDoseHotActsForChecks(bool on) { configured = true; DoseHotActsOnly = on; }
 	internal static void SetDoseExposureForChecks(float? chance) { configured = true; doseExposure = chance; }
@@ -135,9 +189,9 @@ public static class LabelBlindLaunch {
 	public static float Payola(RecordRuntimeData record, AILabel label) => PromoFor(record, label) ? ReferencePayola : label.payolaWillingness;
 
 	/// <summary>Opens the footprint scope for one launch; the launch-footprint reads below see it until disposed.</summary>
-	/// <paramref name="artist"/> and <paramref name="week"/> are read only under <see cref="DoseHotActsOnly"/>.
+	/// <paramref name="artist"/> and <paramref name="week"/> are read only under <see cref="DoseHotActsOnly"/> and <see cref="Scope"/>.
 	public static FootScope Launch(RecordRuntimeData record, AILabel label, SimulatedArtist artist = null, int week = 0) =>
-		new(Foot && AppliesTo(record, label), Dose > 0f && label?.tier != LabelTier.Major && AppliesTo(record, label)
+		new(Foot && AppliesTo(record, label) && InScope(label, artist), Dose > 0f && label?.tier != LabelTier.Major && AppliesTo(record, label)
 			&& (!DoseHotActsOnly || HotAct(artist, week)) ? record.baseRecord.recordId : null);
 
 	/// <summary>Inside a dosed launch: whether this region is opened to the reference footprint. False whenever the dose is off.</summary>
@@ -154,6 +208,8 @@ public static class LabelBlindLaunch {
 	public static bool InCity => InFoot && City;
 	public static bool InHold => InFoot && Hold;
 	public static bool InExpose => InFoot && Expose;
+	/// <summary>Inside a launch in scope whose fit exposure is one shared draw.</summary>
+	public static bool InSharedExpose => InExpose && SharedExpose;
 
 	public readonly struct FootScope : IDisposable {
 		private readonly bool active;

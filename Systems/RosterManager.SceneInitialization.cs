@@ -52,7 +52,8 @@ public partial class RosterManager {
             LabelTier.Small => (float)GameRandom.RandRange(0.3, 0.6),
             LabelTier.Boutique => (float)GameRandom.RandRange(0.5, 0.8), _ => 0.5f
         };
-        return Mathf.RoundToInt(label.maxRosterSize * fill);
+        // --major-opening-roster: a Major opens with at least N acts; the fill draw above is still consumed. Off: identity.
+        return MajorVolumeSwitches.OpeningTarget(label, Mathf.RoundToInt(label.maxRosterSize * fill));
     }
 
     private void InitializeSceneRosters(List<AILabel> labels, int year) {

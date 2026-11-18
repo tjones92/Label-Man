@@ -84,7 +84,8 @@ public static partial class MediaAtmosphereService {
 		if (!stockCausally && !MediaFollowerDemand.Shadow) return;
 		foreach (var (regionId, intent) in book.Intent) {
 			if (!record.regionalData.TryGetValue(regionId, out RegionalRecordData data) || data.unitsInStores <= 0) continue;
-			int copies = (int)MathF.Round(intent);
+			float stockShare = book.Format == ReleaseFormat.Single ? MediaFollowerDemand.SingleStockShare : 1f;
+			int copies = (int)MathF.Round(intent * stockShare);
 			book.StockedUnits += copies;
 			if (stockCausally) data.unitsInStores += copies;
 		}

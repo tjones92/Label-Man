@@ -57,6 +57,25 @@ static class Program {
 		Check(PlaylistMeeting.Resolve(probe).Seats.Count == 2, "New research audition uses reserved capacity");
 		audition.Rejection = "cooldown";
 		Check(PlaylistMeeting.Resolve(probe).Seats.All(s => s.Id != "audition"), "Research recommendations respect eligibility exclusions");
+		audition.TipMayAudition = true;
+		audition.Score = 999;
+		foreach (string veto in new[] { "format", "not-circulating", "cooldown" }) {
+			audition.Rejection = veto;
+			Check(PlaylistMeeting.Resolve(probe).Seats.All(s => s.Id != audition.Id), $"A tip must respect {veto}");
+		}
+		foreach (string geography in new[] { "awaiting-arrival", "city-not-reached" }) {
+			audition.Rejection = geography;
+			audition.TipMayAudition = false;
+			Check(PlaylistMeeting.Resolve(probe).Seats.All(s => s.Id != audition.Id), "Serviced-only control respects the geographic veto");
+			audition.TipMayAudition = true;
+			Check(PlaylistMeeting.Resolve(probe).Seats.Single(s => s.Id == audition.Id).Source == "research-trial",
+				"A tipped DJ may try a record outside distribution only in the reserved seat");
+			probe.ResearchSlots = 0;
+			Check(PlaylistMeeting.Resolve(probe).Seats.All(s => s.Id != audition.Id), "A tip cannot claim ordinary rotation");
+			probe.ResearchSlots = 1;
+		}
+		audition.ResearchOffer = false;
+		Check(PlaylistMeeting.Resolve(probe).Seats.All(s => s.Id != audition.Id), "A closed city needs an actual tip");
 		m.Candidates.AddRange(new[] { C("incumbent", 1), C("weak", .5f), C("return", .7f, true) });
 		var r = PlaylistMeeting.Resolve(m);
 		Check(r.Seats.Count == 2 && r.Seats.Any(s => s.Id == "return") && r.Seats.All(s => s.Id != "weak"), "Full sheet must admit a convincing return");
