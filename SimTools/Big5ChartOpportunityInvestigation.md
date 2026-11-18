@@ -430,6 +430,50 @@ The cost falls on the Big-5. Their hit acts already chart about 1.4 times histor
 
 **Reading.** `asz03g12` is the first arm where both tiers' hit-act follow-ups are near history and 1960 holds. It is a candidate, not adopted: it needs a closure check and probably S 0.4 for the climb premium. The remaining 1961 excess is the Big-5's non-hit singles; `plug4` (routine issues for non-hit singles) is the natural pair.
 
+**Package screen (`asz04g12p4`): size 0.4, Major hit-act gap 12, Major plug slots 4.** Four seeds:
+
+| | `mnsh40` | `plug4` | `asz03g12` | `asz04g12p4` | History |
+|---|---:|---:|---:|---:|---:|
+| Climb, T40 % proven / other | 42.3 / 46.8 | 42.7 / 45.5 | 48.6 / 45.3 | 51.9 / 46.8 | 60.5 / 38.1 |
+| T10 % proven / other | 20.0 / 20.1 | 20.6 / 20.6 | 24.0 / 19.6 | 26.3 / 17.4 | 21.6 / 15.3 |
+| Big-5 follow-ups: events / T40 / T10 | 4.19 / 2.07 / 0.95 | 4.53 / 2.06 / 1.01 | 2.99 / 1.77 / 1.07 | 2.75 / 1.57 / 0.90 | 2.9–3.2 / 2.2–2.3 / 1.1–1.2 |
+| Field follow-ups: events / T40 / T10 | 1.87 / 0.82 / 0.37 | 1.92 / 0.80 / 0.33 | 2.48 / 1.21 / 0.60 | 2.45 / 1.30 / **0.66** | 2.7–3.1 / 1.7–2.1 / 0.64–0.79 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 26.7 / 24.9% | 25.5 / 28.8% | 24.8 / **25.0%** | 34.2 / 20.6% |
+| Big-5 Top 10 per issue (field) | 7.8% (2.0%) | 7.1% | | 6.7% (2.13%) | ~1.9% (~1.7%) |
+| 1961 Big-5 hits by acts new to the chart | 25/137 | 32/173 | | 23/115 | 3/44 |
+| Defunct labels | 94.5 | 98.8 | 101.8 | 103.5 | |
+
+Plug outcomes (Big-5 singles launched weeks 1–92, per seed): hit act plugged 154.5 at 21.0% Top 10, other plugged 96.5 at 5.4%, routine 384.5 at 1.5%, against the field's 2.1%.
+
+- **Field hit acts now match history at the Top 10** (0.66 follow-up Top 10s per hit against 0.64–0.79) and reach about 70% of history's Top 40 follow-ups, up from 45%.
+- **Big-5 hit-act follow-ups now sit a little under history** (0.90 Top 10s against 1.1–1.2). The gap and the size term together overshoot the cut; W 10 would land closer.
+- **The 1961 Big-5 share is 25.0%**, the same as `plug4` alone: plug slots carry the share and the follow-up switches move whose hits they are. 1960 is 24.8%, 1.9 points below `plug4`.
+- **The climb premium is about half-way** (51.9 against 46.8; history 60.5 against 38.1). Proven records reach the Top 10 too often at S 0.4 (26.3% against 21.6%), so the premium cannot be raised through S alone.
+- **Closures rise by 9** (seeds 102 / 104 / 107 / 101, against control 89 / 101 / 89 / 99). All four seeds are above the control's mean, and the gain builds with each switch (`plug4` +4, `asz03g12` +7). This is the main obstacle to adoption.
+
+**Reading.** The package makes hit-act follow-ups historical at both tiers and takes the 1961 share from 30% to 25%, but costs about nine more label closures, and 1960 stays about nine points below history. Before adoption, the closures need attributing: which labels close (tier, and whether they had hits) and why. Lowering W to 10 should restore the Big-5's follow-ups.
+
+**Closure attribution.** Package against control, per seed: the extra closures are opening labels (+9.5; labels founded during the run −0.5) at Small, Independent and Boutique (+3 to +5 each, MidTier −1) that never had a Hot 100 record (+10.3; labels with Hot 100 records −1.3), closing in 1961 (+11.5; 1960 −2.5). By exit: Dormancy +7, Bankruptcy +2. Acts leaving those labels are not higher (34.8 in the second half of 1961 against 37.8).
+
+- **About 3 of the 10 are composition.** Field Top 10s now go to repeat hit acts, so fewer distinct labels chart: 309 never-charting opening field labels a seed against 300. Their dormancy rate rises only from 25% to 28%.
+- **Dormancy is mostly the control drawing low.** Dormancy needs a founder-run label with 12 months without a release, non-positive cash flow and less free cash than a production. The labels that closed this way stopped releasing in the first half of 1960. Across every arm on these seeds:
+
+| Arm | Size S | Dormancy | Bankruptcy | Total | Small/Indie/Boutique gross, H1 1960 |
+|---|---:|---:|---:|---:|---:|
+| `mnsh40` | 0 | **27.5** | 67.0 | 94.5 | 36.7M |
+| `g12` | 0 | 33.3 | 60.5 | 93.8 | 36.9M |
+| `plug4` | 0 | 33.5 | 65.3 | 98.8 | 37.0M |
+| `kaa55` | 0 | 29.5 | 70.0 | 99.5 | 35.3M |
+| `pca025` / `pca12` | 0 | 30.0 / 31.3 | 66.3 / 70.0 | 96.3 / 101.3 | 37.1 / 36.8M |
+| `asz03g12` | 0.3 | 30.0 | 71.8 | 101.8 | 35.6M |
+| `asz04g12p4` | 0.4 | 34.5 | 69.0 | 103.5 | 35.4M |
+| `asz05h0` / `asz05` | 0.5 | 34.8 / 36.5 | 75.5 / 78.0 | 110.3 / 114.5 | 36.0 / 34.2M |
+
+  The control has the fewest dormancies of any arm, and arms that never touch field labels (`g12`, `plug4`) have 33. Dormancy moves with the reshuffle, not the size term.
+- **The size term's real cost is bankruptcies, and it bites at 0.5.** Arms without it run 60.5–70 bankruptcies; 0.3–0.4 sit at the top of that range (69–72); 0.5 reaches 75.5–78. Small labels' gross in early 1960 falls with S (36.7M → 34.2M at 0.5): the singles purse is fixed, and opening hit acts count as proven (pre-1960 Top 40s via the hit-act clock), so their larger 1960 hits take units from small labels' records.
+
+**Reading.** At S 0.4 the package's closure excess is mostly noise against a low control: dormancy is in the S 0 range and bankruptcies are at its top. The closure guard limits S to about 0.4. Size 0.5 is excluded on closures as well as Top 10 rate.
+
 ## Reproduction
 
 Run these from the repository root with a Python interpreter that has pandas installed. The historical tables, national charts, radio decisions and regional traces live under the local ignored `SimLogs` directory. The analysis uses existing runs. It makes no gameplay changes.
