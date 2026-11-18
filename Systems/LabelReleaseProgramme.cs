@@ -41,6 +41,9 @@ public static class LabelReleaseProgramme {
 			throw new ArgumentException(LpAssembly.PackageGapSwitch + " requires " + LpAssembly.Switch);
 		SingleFloor = (int)Read(args, "--slate-single-floor=", 6, 1, 13);
 		ColdActGapWeeks = (int)Read(args, ColdActGapSwitch, 0, 7, 52);
+		MajorHitActGapWeeks = (int)Read(args, MajorHitActGapSwitch, 0, 7, 52);
+		if (args.Any(a => a.StartsWith(MajorHitActGapSwitch, StringComparison.Ordinal)) && !AllocationEnabled)
+			throw new ArgumentException(MajorHitActGapSwitch + " requires " + AllocationSwitch);
 		if (args.Any(a => a.StartsWith(ColdActGapSwitch, StringComparison.Ordinal)) && !AllocationEnabled)
 			throw new ArgumentException(ColdActGapSwitch + " requires " + AllocationSwitch);
 		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 30);
@@ -96,9 +99,20 @@ public static class LabelReleaseProgramme {
 	public const int ColdActRecentWeeks = 26;
 	public static int ColdActGapWeeks { get; private set; }
 	internal static void SetColdActGapForChecks(int weeks) => ColdActGapWeeks = weeks;
-	internal static int SingleGapWeeks(SimulatedArtist artist, int week) =>
-		ColdActGapWeeks <= 0 || artist == null || HitActCadence.WeeksSinceTop40(artist, week) <= ColdActRecentWeeks
+	internal static int SingleGapWeeks(SimulatedArtist artist, int week, AILabel label = null) {
+		if (MajorHitActGapWeeks > 0 && artist != null && label != null && label.tier == LabelTier.Major && !label.isPlayerOwned &&
+			HitActCadence.WeeksSinceTop40(artist, week) <= ColdActRecentWeeks)
+			return Math.Max(SingleFloor, MajorHitActGapWeeks);
+		return ColdActGapWeeks <= 0 || artist == null || HitActCadence.WeeksSinceTop40(artist, week) <= ColdActRecentWeeks
 			? SingleFloor : Math.Max(SingleFloor, ColdActGapWeeks);
+	}
+	// --slate-major-hit-act-gap=W (Big5ChartOpportunityInvestigation.md, "Field hit-act follow-ups"): at an AI Major, an act
+	// with a Top 40 in the last ColdActRecentWeeks waits W weeks between programme singles instead of SingleFloor. Big-5 hit
+	// acts chart about 4.2 follow-ups a year against history's ~3.0 (chart events); the roster programme picks them every
+	// SingleFloor weeks. Other labels, the player and cold acts keep their gaps. Off (0): SingleGapWeeks exactly.
+	public const string MajorHitActGapSwitch = "--slate-major-hit-act-gap=";
+	public static int MajorHitActGapWeeks { get; private set; }
+	internal static void SetMajorHitActGapForChecks(int weeks) => MajorHitActGapWeeks = weeks;
 	public const string BreakoutPlanningSwitch = "--slate-breakout-planning";
 	public static bool BreakoutPlanningEnabled { get; private set; }
 	// --slate-going-concern-reserve: a work-budget MidTier tests its slate reservations against a going-concern reserve.

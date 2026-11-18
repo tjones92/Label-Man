@@ -105,7 +105,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--midtier-hit-act-package-check")) { MidTierHitActPackageChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--zero-fee-material-gate-check")) { ZeroFeeMaterialGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--major-newcomer-action-push-check")) { MajorNewcomerActionPushChecks.Run(); GetTree().Quit(0); return; }
-			if (OS.GetCmdlineUserArgs().Contains("--major-volume-check")) { MajorVolumeSwitchesChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-volume-check")) { MajorVolumeSwitchesChecks.Run(); PromotionCapacityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--major-scale-gate-check")) { MajorScaleGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-footprint-parity-check")) { LabelFootprintParityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-blind-launch-check")) { LabelBlindLaunchChecks.Run(); GetTree().Quit(0); return; }
@@ -118,6 +118,8 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--artist-momentum-half-life-check")) { ArtistMomentumHalfLifeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--senior-cooling-check")) { SeniorCoolingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-cadence-check")) { HitActCadenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(ProvenActChartAdd.CheckSwitch)) { ProvenActChartAdd.RunChecks(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(MajorHitActGapChecks.Switch)) { MajorHitActGapChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-release-programme-check")) { LabelReleaseProgrammeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-follow-up-finance-check")) { HitFollowUpFinanceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--slate-preparation-headroom-check")) { PreparationHeadroomChecks.Run(); GetTree().Quit(0); return; }

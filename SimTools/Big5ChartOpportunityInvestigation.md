@@ -237,6 +237,199 @@ Retention works: the bench lasts through 1961. But quiet veterans with low recog
 
 The ratio of issue share to slot share is the measure. History has the Big-5 at about 18% of issues and 20.6% of slots, so the average Big-5 issue converted only slightly better than the average issue. In `vq2` the Big-5 hold 13.3% of issues and 33% of slots. Even a major's least-known act converts at about 2.5 times the average issue. Recognition does not carry that rate, and nor does who the act is. Making the roster older, quieter or more stable changes whose name is on a Big-5 hit, not how many there are. Not adopted. The remaining lever is per-issue conversion of a Big-5 single regardless of career, which the fit-exposure work (§ "Connection chance") addressed only for newcomers.
 
+## How well a Big-5 single converts (all careers)
+
+Every live single launched in weeks 1–92 on the adopted controls (`mnsh40-*`, four seeds), outcomes within launch +12, annualized per seed:
+
+| Tier | Singles a year | Top 10 titles a year | Per issue | History (1961) |
+|---|---:|---:|---:|---:|
+| Big-5 | 387 | 30.2 | **7.8%** | ~20 of ~1,080, about 1.9% |
+| MidTier | 368 | 25.0 | 6.8% | |
+| Independent | 1,917 | 37.2 | 1.9% | |
+| Small/Boutique | 1,635 | 17.4 | 1.1% | |
+| All non-Big-5 | 3,920 | 79.6 | 2.0% | ~85 of ~4,950, about 1.7% |
+
+The field matches history per issue, and the Big-5 do not. They issue a third as many singles as history and score half as many Top 10 titles again. The comparison inherits the issue-denominator caveats above, but a factor of four is well outside them.
+
+**Mix and within-career.** Against the field, a Big-5 single is 3.85 times as likely to reach the Top 10. Career mix accounts for 2.35×: 56% of Big-5 issues come from acts past the newcomer stage, against 15% of field issues. The remaining 1.64× is within career, and nearly equal for newcomers (1.78), mid-career acts (1.60) and stars (1.66). Run length adds nothing: a Big-5 Top 10 record spends 0.94 times as many weeks there as a field one.
+
+**Big-5 and MidTier are one group.** Within career, Big-5 Top 10 odds are 2.04 times the Independents' and MidTier odds are 2.01 times. A logit with career fixed effects (clustered by seed) moves the Big-5 odds ratio from 2.04 to 1.56 with log runtime quality, 1.43 with hook and production, 1.46 with launch campaign, 1.64 with launch stock and awareness, and 1.28 with all of them. These inputs move together by tier, so the logit shows where the premium travels, not what causes it.
+
+**No triage.** The candidate's `--launch-push-saturation=0 --launch-caps-major-only` clips every Big-5 launch campaign to exactly 0.55, from the 10th to the 90th percentile (raw 0.69–0.90). Every Big-5 single therefore launches with the full package: the 0.55 campaign, production 0.75 against 0.67 at Independents, about twice the Independent stock, and the Major fit-exposure chance for non-newcomers. Top 10 rate barely varies across the Big-5 slate. A period major issued about 20 singles a week and plugged a few. The sim's majors issue about 7.5 a week and plug all of them.
+
+**Reading.** The 1961 excess comes from too many fully launched Big-5 singles, not too few or too strong field ones. About 390 plugged issues at 7.8% give 30 Top 10 titles. History is consistent with roughly 200–250 plugged issues at a similar rate, plus a long tail of routine issues that rarely charted. Adding volume alone fails (`vetq`, `vq2`, the enlarged rosters) because each added issue arrives plugged. Lowering the strength of every Big-5 issue would lower 1960 too, and 1960 is already below history (25–29% of slots against 34.2%).
+
+**Proposed test: Major plug slots.** Each AI Major gives its full launch package to at most K singles a month, chosen by its own forecast (existing hit acts first). Its other singles launch as routine issues: campaign at the Independent median, routine first-run stock, and the shared reference exposure draw already adopted for newcomers. Run it alone, then with `--major-gate-exemption` so the routine tail can lift the issue share toward 18%. Guards: Big-5 Top 10 titles about 20 a year, 1961 slot share toward 20.6% without 1960 falling further, city lead and gap, Big-5 net and closures.
+
+## Promotion capacity (2026-11-18)
+
+**Where volume stalled.** The volume package was parked rather than failed. In §57, `--programme-major-singles=16 --slate-work-budget=0.85 --slate-work-budget-midtier=1 --major-gate-exemption` (plus a 58-act opening roster in `mvx`) took the 1961 Big-5 share of issues to 16.4–18.8%. But each added single launched with the full Major package, so the Top 10 share went to 39.8–48.8%, and the package was set aside until the per-issue premium was fixed. The candidate still runs the default 10 singles a month cap, the single capital-risk test and the material hold. Those cancel 200–250 Big-5 slots a year and leave issues at 7.2% (1960) and 11.7% (1961). At the sim's ~4,100 singles a year, history's ~18% share is about 750 Big-5 singles, not 1,080.
+
+**Mechanism.** `--major-plug-slots=K` (`Systems/PromotionCapacity.cs`; `--midtier-plug-slots=K` for MidTiers): an AI Major gives its full launch package to at most K singles a month.
+- Hit acts (Star, Superstar, or last run a Top 40) take slots first. Once the month's slots are gone the label may buy one more at its standard marketing budget, if cash covers four.
+- Other singles need a slot beyond the label's hit-act reserve (one slot per three hit acts on the roster) and a quality read (keyed error ±0.05) at or above the median of the label's last 24 reads.
+- Everything else launches as a routine issue with national distribution kept: reference campaign impact (launch and weekly push), reputation and payola; reference launch factor and stock; one shared exposure draw at 0.4. City reach and the arrival hold stay the label's own. Spend is unchanged in this version.
+
+Checks: `--major-volume-check` now also runs `PromotionCapacityChecks`. A 27-week off run (`plugoff27-2002-sc`) matches `mnsh40-2002-sc` on records, launches and label finance. Score with `python SimTools/score_plug_slots.py ARM`.
+
+**Screen** (`plug4-*` = K 4; `plug4v-*` = K 4 plus the volume package on a `--slate-work-budget=0.85` copy of the `mnsh40` request; four seeds, 104 weeks):
+
+| Big-5 singles launched weeks 1–92, per seed | Singles | Hot 100 | Top 10 |
+|---|---:|---:|---:|
+| `plug4` hit act, plugged | 207 | 64.1% | 15.6% |
+| `plug4` hit act, bought plug | 20 | 61.7% | 14.8% |
+| `plug4` other, plugged | 92 | 28.3% | 5.2% |
+| `plug4` routine | 345 | 12.5% | 2.4% |
+| `plug4v` routine | 584 | 12.3% | 2.4% |
+
+| Four seeds | Control | `plug4` | `plug4v` | History |
+|---|---:|---:|---:|---:|
+| Big-5 Top 10 per issue (a year) | 7.8% (30.2) | 7.1% (28.3) | 6.0% (33.1) | ~1.9% (~20) |
+| Big-5 share of issues 1960 / 1961 | 7.2 / 11.7% | 7.4 / 12.2% | 11.2 / 16.9% | ~18% |
+| Big-5 Top 10 share 1960 | 25.2% | 26.8% | 27.6% | 34.2% |
+| Big-5 Top 10 share 1961 | 30.0% | 24.9% | 36.0% | 20.6% |
+| By seed, 1961 | 40.6 / 26.2 / 30.0 / 23.1 | 26.3 / 14.0 / 30.8 / 28.5 | | |
+| 1961 points, Big-5 acts without a 1960 Top 10 | 17.6 | 12.0 | 18.2 | 4.2 |
+| 1961 points, Big-5 1960 hit acts | 12.3 | 12.9 | 17.8 | 16.4 |
+| Big-5 1960 Top 10s, city lead ≥ 2 / gap ≥ 6 | 7.1 / 7.5% | 6.0 / 3.8% | 8.8 / 8.0% | 0 / 0 |
+| Defunct labels by week 104 | 94.5 | 98.8 | 85.5 | |
+
+Routine issues convert at 2.4%, about the field's 2.1%, and the shared draw keeps Big-5 hits national. In `plug4` the group behind the 1961 excess falls by a third and 1960 rises slightly. The 1961 share falls strongly on two seeds and is flat or up on the other two, which is within the ±10-point reshuffle noise, so it is not yet a clean result. Closures rise on three of four seeds.
+
+**What capacity does not touch.** About 70% of Big-5 Top 10s now come from hit-act singles, and capacity never binds them. Follow-ups by the act's previous in-run single, eventual Top 10:
+
+| Previous single | Big-5 | MidTier | Independent | Small |
+|---|---:|---:|---:|---:|
+| Top 10 | 20.3% | 11.7% | 9.7% | 19.2% (25 a seed) |
+| 11–40 | 17.2% | 8.1% | 4.7% | 4.4% |
+| 41–100 | 10.8% | 8.8% | 5.1% | 2.3% |
+| Missed | 3.8% | 4.0% | 1.9% | 0.9% |
+
+With the volume package, 240 more routine issues at 2.4% add about six Top 10s a seed. A routine Big-5 issue is still an Independent single with national distribution, which history's marginal major issue was not. Two pieces remain: how far a Major's full package lifts a proven act's follow-up (twice to three times an Independent's), and what a routine national issue should convert at.
+
+## Hit-act follow-ups (2026-11-18)
+
+History can be compared through the Hot 100 alone, so misses drop out on both sides. An anchor is a record's first week in the Top 10. Its act's other titles debuting in the next 52 weeks are the follow-ups, and the anchor's label decides the group. Score with `python SimTools/analyze_hit_followups.py ARM`.
+
+| Per Top 10 anchor, next 52 weeks | Anchors | Hot 100 entries | Top 40 | Top 10 | Top 10 per entry |
+|---|---:|---:|---:|---:|---:|
+| History 1960–63, Big-5 | 95 | 4.35 | 2.93 | 1.13 | 26% |
+| History 1960–63, other | 325 | 3.30 | 1.89 | 0.66 | 20% |
+| History 1960, Big-5 | 26 | 3.81 | 2.96 | 1.31 | 34% |
+| History 1960, other | 68 | 4.01 | 2.49 | 0.85 | 21% |
+| `mnsh40` 1960 anchors, Big-5 (4 seeds) | 128 | 4.34 | 2.12 | 0.98 | 23% |
+| `mnsh40` 1960 anchors, other | 364 | 1.93 | 0.86 | 0.39 | 20% |
+| `plug4` 1960 anchors, Big-5 | 126 | 4.61 | 2.10 | 1.04 | 23% |
+| `plug4` 1960 anchors, other | 344 | 1.99 | 0.83 | 0.35 | 18% |
+
+**Big-5 hit-act follow-ups are historical.** After a Top 10, a Big-5 act gets 4.3–4.6 more Hot 100 entries and about one more Top 10 in a year, as in history. The 2–3× tier gap in follow-up conversion is the field falling short: other labels' hit acts get 1.9–2.0 entries against history's 3.3–4.0, and 0.35–0.39 Top 10s against 0.66–0.85. Per entry, both groups convert like history. The same split shows in 1961 slot points: Big-5 1960 hit acts hold 12.3–12.9 (history 16.4), and other labels' 1960 hit acts hold 18.9–21.9 (history 22.9).
+
+The field's shortfall has two parts: fewer releases and fewer that chart. In the year after a 1960 Top 10, a field hit act releases 3.7 singles against the Big-5's 6.1–6.4, and 52% of them reach the Hot 100 against 71%. About 6–10% of field hit acts change label in that year. For entry, recognition carries the tier gap. Big-5 follow-ups launch with recognition 0.40 against 0.19 at Independents, and adding it to a logit takes the Big-5 entry odds from 2.14 to 1.09. Launch stock and awareness take them to 1.30, campaign impact to 1.52 and quality to 1.84. Big-5 hit acts are mostly established names; a field hit act is usually on its first hit, and one Top 10 adds about 0.07 recognition.
+
+Earlier work on this (memories `hit-followups-lack-chart-access`, `field-hit-cadence-is-lane-clock`, `hit-act-hype-probe`): the hype lift (0.3, in the candidate) added about 11% to follow-up entries. Follow-up finance (`hff-v3`) raised field releases per hit act by about one but crowded out new acts and was not adopted. Neither touched the Big-5 side, which this table says needs no change.
+
+**Consequence for the 1961 Big-5 share.** Under `plug4` the Big-5 hold 24.9% of 1961 slots against 20.6%. Their 1960 hit acts are 3.5 points below history and their acts without a 1960 Top 10 are 7.8 points above. The remaining excess is the non-hit side (routine issues at 2.4% and plugged non-hit singles at 5.2%), plus the field's missing repeat hits.
+
+## Field hit-act follow-ups (2026-11-18)
+
+**Count chart events, not entries.** History's Hot 100 lists both sides of a two-sided hit, so raw entries overstate history's follow-ups. `analyze_hit_followups.py` now also counts chart events: an act's debuts under four weeks apart count once (as in `FollowUpGapFableHandoff.md` §6). Per Top 10 anchor, next 52 weeks:
+
+| | Events | Top 40 events | Top 10 events | Top 40 per event |
+|---|---:|---:|---:|---:|
+| History 1960–63 / 1960, Big-5 | 3.19 / 2.88 | 2.33 / 2.19 | 1.08 / 1.23 | 73 / 76% |
+| History 1960–63 / 1960, other | 2.69 / 3.06 | 1.72 / 2.12 | 0.64 / 0.79 | 64 / 69% |
+| `mnsh40`, Big-5 | 4.19 | 2.07 | 0.95 | 49% |
+| `mnsh40`, other | 1.87 | 0.82 | 0.37 | 44% |
+
+This corrects the previous section. Big-5 hit acts chart *more* follow-ups than history and climb less, and the two cancel at the Top 40 and Top 10. Field hit acts chart fewer follow-ups *and* climb less, so they get 0.4–0.5 of history's Top 40 follow-ups.
+
+**The sim has no climb premium for proven acts.** Of all chart events, the share reaching the Top 40, for acts with a Top 10 in the 52 weeks before the debut against everyone else (history debuts 1961–63; sim debuts weeks 40–92):
+
+| | Proven acts' events | Proven T40 % | Other T40 % | Proven T10 % | Other T10 % |
+|---|---:|---:|---:|---:|---:|
+| History | 583 | **60.5** | 38.1 | 21.6 | 15.3 |
+| `mnsh40` | 751 | 42.3 | 46.8 | 20.0 | 20.1 |
+| `kaa55` | 738 | 41.7 | 47.4 | 20.2 | 20.4 |
+
+History's charting record by a proven act reached the Top 40 1.6 times as often as anyone else's. In the sim it does slightly worse. The sim's other records also reach the Top 10 too often (20% against 15%), which bears on the Big-5 non-hit side.
+
+**Funnel (`mnsh40`, per 1960 anchor, 52 weeks).** Field hit acts launch 3.6 singles against 5.7 for the Big-5, and 0.40 of them chart against 0.70. Field follow-ups have similar quality (0.706 against 0.730) and arrive in all seven regions (`he095` is in the candidate), but launch with lower awareness (0.43 against 0.60), stock (32k against 68k) and campaign (0.36 against 0.55). Among follow-ups that never chart, the median commercial fit is 0.62 at the field and 1.65 at the Big-5. Launch awareness and push move the national connection kink (`SingleCommercialFit.National`).
+
+**Known-act airplay screen (`kaa55`, rejected).** The candidate carries `--known-act-airplay=0.1`: while a proven act's single is on the Hot 100, its weekly radio push is 0.1 whatever the label (Independent ~0.36, Big-5 0.55). No screen of 0.1 is documented; §17ab–ac rejected 0.6 and 0.4, and 0.1 entered with the 2026-11-03 combined-integration flag set. `kaa55-*` replaces it with 0.55 on the `mnsh40` requests, four seeds:
+
+| | `mnsh40` | `kaa55` | History |
+|---|---:|---:|---:|
+| Proven-act climb premium (T40 % proven / other) | 42.3 / 46.8 | 41.7 / 47.4 | 60.5 / 38.1 |
+| Follow-up events, Big-5 / other | 4.19 / 1.87 | 4.97 / 2.14 | ~3.0 / ~2.9 |
+| Follow-up Top 10 events, Big-5 / other | 0.95 / 0.37 | 1.40 / 0.45 | ~1.15 / ~0.7 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 27.0 / 32.5% | 34.2 / 20.6% |
+| Defunct labels by week 104 | 94.5 | 99.5 | |
+
+Radio push does not carry the climb. Restoring it mostly lifts Big-5 hit acts past history, so the 0.1 value works as a cut on Big-5 hit-act airplay. Not adopted.
+
+**Reading.** Proven acts get their advantage at entry (awareness, stock, connection odds) rather than in the climb, so each boost to their entry adds marginal entrants that stall below 40. In history the advantage showed on the chart as well. A historical mechanism would act after entry, independent of the label: programmers and dealers adding a proven act's charting record on its name (Top 40 playlist adds, one-stop reorders). That would apply to both tiers and narrow the Big-5's extra entries while the field gains.
+
+**Proven-act chart add (`pca`, rejected).** `--proven-act-chart-add=V` (`Systems/ProvenActChartAdd.cs`): a single whose act had a Top 10 in the 52 weeks before launch (the hit-act fit floor's saved launch capture), while it charts at 41–100, earns chart visibility V in the weekly awareness growth instead of the low-chart value (about 0.0014 a week at No. 60; Top 40 0.025, Top 5 0.12). It applies whatever the label and only after entry. It is off by default and draws nothing; `--proven-act-chart-add-check` passes; the 27-week off run `pcaoff27-2002-sc` matches `mnsh40-2002-sc` row for row in records and label finance.
+
+| Four seeds | `mnsh40` | `pca025` | `pca12` | History |
+|---|---:|---:|---:|---:|
+| Proven-act climb (T40 % proven / other) | 42.3 / 46.8 | 43.0 / 47.1 | 44.8 / 47.0 | 60.5 / 38.1 |
+| Follow-up Top 40 events, Big-5 / other | 2.07 / 0.82 | 2.01 / 0.75 | 2.09 / 0.78 | ~2.25 / ~1.9 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 23.5 / 29.0% | 26.0 / 36.1% | 34.2 / 20.6% |
+| Defunct labels | 94.5 | 96.3 | 101.3 | |
+
+Even at Top 5 visibility (applied on 689 record-weeks a seed in 1960 at 0.025), the climb premium does not appear. With `kaa55`, two different levers acting after entry fail, so the climb is settled at launch ([[top40-is-a-launch-week-bar]] in memory).
+
+**Where history's premium sits.** Top 40 % by debut position, chart events:
+
+| Debut | History proven | History other | `mnsh40` proven | `mnsh40` other |
+|---|---:|---:|---:|---:|
+| 41–60 | 100 (33) | 89 (9) | 57 (106) | 90 (58) |
+| 61–80 | 84 (198) | 70 (194) | 52 (197) | 72 (297) |
+| 81–100 | 43 (350) | 32 (1,075) | 33 (433) | 37 (1,031) |
+| Median debut | No. 84 | No. 92 | No. 85 | No. 89 |
+
+In history a proven act's record debuts higher *and* climbs more from the same debut. In the sim it debuts higher and then climbs less: launch awareness, stock and hype carry it onto the chart, but its demand underneath is no stronger, so it stalls. Other sim records debuting at 41–80 got there on their own demand and keep climbing. The hit-act fit floor explains little of this: in the follow-up trace only 68 of about 930 charting proven-act singles were floor-supported, and those that connected on their own still climb 57% against other records' 72% at 61–80.
+
+**Reading.** Proven acts' advantage enters the sim as launch awareness, a front-loaded push. History's looks like stronger demand: the record is better received, so it climbs. The candidate lever is to move part of the proven-act advantage from launch awareness (`--hit-act-hype=0.3`) into the size of a connected draw. That is the `ar1` direction that `FollowUpGapFableHandoff.md` rejected for Big-5 share (45–53%), so it would need a cap or a field-only scope.
+
+**Proven-act fit size (`asz`, not adopted yet).** `--single-commercial-fit-act-record-size=S` (`Systems/SingleCommercialFit.cs`, needs `--single-commercial-fit-act-record-odds-only`): a connected draw's national log rises by S × the act record (recency of the act's last Top 40, captured and saved at launch), so a proven act's record that connects sells more instead of only connecting more often. Misses and cold acts are unchanged. Off is the odds-only shape exactly; `--single-commercial-fit-shape-check` passes with six new cases; the 27-week off run `aszoff27-2002-sc` matches `mnsh40-2002-sc` row for row. `asz05` = S 0.5; `asz05h0` adds `--hit-act-hype=0`, swapping the launch awareness lift for size. Four seeds:
+
+| | `mnsh40` | `asz05` | `asz05h0` | History |
+|---|---:|---:|---:|---:|
+| Climb, T40 % proven / other | 42.3 / 46.8 | **55.5 / 42.4** | 53.6 / 45.2 | 60.5 / 38.1 |
+| T10 % proven / other | 20.0 / 20.1 | 31.5 / 15.9 | 29.5 / 17.8 | 21.6 / 15.3 |
+| Field follow-ups: events / T40 / T10 | 1.87 / 0.82 / 0.37 | 2.46 / 1.29 / 0.71 | 2.44 / 1.32 / 0.68 | 2.7–3.1 / 1.7–2.1 / 0.64–0.79 |
+| Big-5 follow-ups: events / T40 / T10 | 4.19 / 2.07 / 0.95 | 5.12 / 3.09 / 1.84 | 5.42 / 2.99 / 2.02 | 2.9–3.2 / 2.2–2.3 / 1.1–1.2 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 31.2 / 43.9% | 31.1 / 44.2% | 34.2 / 20.6% |
+| Defunct labels | 94.5 | 114.5 | 110.3 | |
+
+By debut band (`asz05`), proven acts now climb more than others from the same debut at 81–100 (45% against 35%), and other records' Top 10 rate lands on history's. The field's Top 10 follow-ups reach history's level and its Top 40 follow-ups close about half the gap.
+
+The cost falls on the Big-5. Their hit acts already chart about 1.4 times history's follow-ups (more than four events against about three), and the size term now makes each one climb, so their Top 10 follow-ups reach about 1.7 times history and the 1961 share goes to 44%. Removing hype does not cut those follow-ups (5.4 events). Proven records also reach the Top 10 too often (30% against 22%), so S 0.5 is too large at the top.
+
+**Reading.** The size term is the first lever to reproduce history's climb premium, and the field comes close to history. It can't be adopted while the Big-5's excess follow-up cadence stands: the size term multiplies it. The two ways forward are a field-only scope (non-Major labels), or the size term together with a cut in the Big-5's hit-act cadence (the roster programme gives Big-5 hit acts about 4 slots a year on top of the follow-up lane), with S lowered to about 0.3 for the Top 10 rate. The Big-5 hit acts' excess entries show up in history's frame only on chart events, the measure added in this section.
+
+**Size 0.3 with a Major hit-act gap (`asz03g12`, `g12`).** `--slate-major-hit-act-gap=W` (`Systems/LabelReleaseProgramme.cs`, read in `CanProgrammeArtist` and `HasConflictingIntention`): at an AI Major, an act with a Top 40 in the last 26 weeks waits W weeks between programme singles instead of the 6-week floor. Other labels, the player and cold acts are unchanged. `--major-hit-act-gap-check` passes; the 27-week off run `gapoff27-2002-sc` matches `mnsh40-2002-sc` row for row in records, label finance and the release slate. `g12` = W 12 alone; `asz03g12` = W 12 plus size 0.3. Four seeds:
+
+| | `mnsh40` | `g12` | `asz03g12` | History |
+|---|---:|---:|---:|---:|
+| Climb, T40 % proven / other | 42.3 / 46.8 | 42.0 / 46.2 | 48.6 / 45.3 | 60.5 / 38.1 |
+| T10 % proven / other | 20.0 / 20.1 | 20.5 / 20.2 | 24.0 / 19.6 | 21.6 / 15.3 |
+| Big-5 follow-ups: events / T40 / T10 | 4.19 / 2.07 / 0.95 | 2.51 / 1.31 / 0.72 | **2.99 / 1.77 / 1.07** | 2.9–3.2 / 2.2–2.3 / 1.1–1.2 |
+| Field follow-ups: events / T40 / T10 | 1.87 / 0.82 / 0.37 | 2.14 / 0.90 / 0.41 | 2.48 / 1.21 / 0.60 | 2.7–3.1 / 1.7–2.1 / 0.64–0.79 |
+| Big-5 Top 10 share 1960 / 1961 | 25.2 / 30.0% | 21.6 / **20.9%** | 25.5 / 28.8% | 34.2 / 20.6% |
+| Established-act premium | 1.85× | 1.65× | 1.80× | |
+| Defunct labels | 94.5 | 93.8 | 101.8 | |
+
+- **The gap does what it should for the Big-5, and does it alone:** follow-up events fall from 4.2 to 2.5–3.0 and the 1961 share lands on history in `g12`. But in `g12` the 1960 share also falls, from 25.2% to 21.6% against history's 34.2%, failing the guard that 1960 should not fall further. Big-5 follow-ups then sit below history (0.72 Top 10s against 1.1–1.2).
+- **The size term puts the Big-5's follow-ups back on history** (2.99 events, 1.07 Top 10) and holds 1960 at 25.5%. It lifts field follow-ups by about 40%, and freed Big-5 slots go partly to field repeat hits (field events 1.87 → 2.48).
+- **At 0.3 the climb premium is weak** (48.6 against 45.3), though the Top 10 rate of proven records is about right (24% against 21.6%). Other records still reach the Top 10 too often (19.6% against 15.3%). 0.5 gave the premium but too many Top 10s.
+- **Closures:** +7 with size (seeds 107 / 96 / 92 / 112 against control 89 / 101 / 89 / 99); the gap alone is flat. Control seeds span 12, so this needs a second look before adoption.
+- **The 1961 share in `asz03g12` (28.8%)** falls only 1.2 points: the size term gives back most of what the gap took. Big-5 hit-act follow-ups are now historical, so the rest of the 1961 excess sits on the non-hit side, as found under plug slots.
+
+**Reading.** `asz03g12` is the first arm where both tiers' hit-act follow-ups are near history and 1960 holds. It is a candidate, not adopted: it needs a closure check and probably S 0.4 for the climb premium. The remaining 1961 excess is the Big-5's non-hit singles; `plug4` (routine issues for non-hit singles) is the natural pair.
+
 ## Reproduction
 
 Run these from the repository root with a Python interpreter that has pandas installed. The historical tables, national charts, radio decisions and regional traces live under the local ignored `SimLogs` directory. The analysis uses existing runs. It makes no gameplay changes.

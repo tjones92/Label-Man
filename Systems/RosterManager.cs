@@ -485,6 +485,7 @@ public partial class RosterManager : Node {
 			SeniorCooling.CoolLadderForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
 		if (HitActCadence.AnyEnabled) HitActCadence.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		if (KnownActAirplay.Enabled) KnownActAirplay.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		if (ProvenActChartAdd.Enabled) ProvenActChartAdd.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;

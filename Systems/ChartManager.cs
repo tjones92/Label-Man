@@ -418,6 +418,7 @@ public partial class ChartManager : Node {
 		ActEarnedCampaignImpact.Configure(SimulationArguments.Get());
 		LabelFootprintParity.Configure(SimulationArguments.Get());
 		LabelBlindLaunch.Configure(SimulationArguments.Get());
+		PromotionCapacity.Configure(SimulationArguments.Get());
 		LaunchStockTrace.Configure(SimulationArguments.Get());
 		EarnedCampaignImpact.Configure(SimulationArguments.Get());
 		WorkloadStaffing.Configure(SimulationArguments.Get());
@@ -499,6 +500,7 @@ public partial class ChartManager : Node {
 		LocalRadioConsumptionProbe.Configure(SimulationArguments.Get());
 		BoundedAudienceProbe.Configure(SimulationArguments.Get());
 		HitActFitSupport.Configure(SimulationArguments.Get());
+		ProvenActChartAdd.Configure(SimulationArguments.Get());
 		LaunchStocking.Configure(SimulationArguments.Get());
 		MajorOffChartSingles.Configure(SimulationArguments.Get());
 		RecordClubChannel.Configure(SimulationArguments.Get());

@@ -181,7 +181,10 @@ public static class LabelBlindLaunch {
 	public static bool AppliesTo(RecordRuntimeData record, AILabel label) =>
 		record?.baseRecord != null && AppliesTo(record.baseRecord, label) && record.baseRecord.releaseDate > GameDate.StartDate;
 
-	public static bool PromoFor(RecordRuntimeData record, AILabel label) => Promo && AppliesTo(record, label);
+	/// <summary>Promo reads the reference for this record: under the promo part, or for a routine issue
+	/// (<see cref="PromotionCapacity"/>), at launch and in the weekly push.</summary>
+	public static bool PromoFor(RecordRuntimeData record, AILabel label) =>
+		Promo && AppliesTo(record, label) || PromotionCapacity.Enabled && PromotionCapacity.IsRoutine(record?.baseRecord?.recordId);
 
 	/// <summary>The label's campaign impact, or the reference for a live AI single under promo.</summary>
 	public static float Impact(float impact, RecordRuntimeData record, AILabel label) => PromoFor(record, label) ? ReferenceImpact : impact;
@@ -203,13 +206,15 @@ public static class LabelBlindLaunch {
 
 	/// <summary>Inside a live AI single's launch under any foot part.</summary>
 	public static bool InFoot => footScope > 0;
-	public static bool InFactor => InFoot && Factor;
-	public static bool InStock => InFoot && Stock;
+	// A routine issue (PromotionCapacity) reads the reference launch factor, stock and one shared exposure draw; its city
+	// reach and arrival hold stay the label's own.
+	public static bool InFactor => InFoot && Factor || PromotionCapacity.InRoutine;
+	public static bool InStock => InFoot && Stock || PromotionCapacity.InRoutine;
 	public static bool InCity => InFoot && City;
 	public static bool InHold => InFoot && Hold;
-	public static bool InExpose => InFoot && Expose;
-	/// <summary>Inside a launch in scope whose fit exposure is one shared draw.</summary>
-	public static bool InSharedExpose => InExpose && SharedExpose;
+	public static bool InExpose => InFoot && Expose || PromotionCapacity.InRoutine;
+	/// <summary>Inside a launch in scope whose fit exposure is one shared draw, or a routine issue's launch.</summary>
+	public static bool InSharedExpose => InFoot && Expose && SharedExpose || PromotionCapacity.InRoutine;
 
 	public readonly struct FootScope : IDisposable {
 		private readonly bool active;

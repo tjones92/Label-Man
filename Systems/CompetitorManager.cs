@@ -2528,7 +2528,7 @@ public partial class CompetitorManager : Node {
 		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtimeData.projectRole = record.projectRole;
 		CaptureSingleRiskExpectation(runtimeData, label, artist, decision);
-		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
+		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult, routePlug: true);
 		CaptureSingleOpportunity(runtimeData, label, date.year);
 		TrackRelease(label.labelId, record.recordId);
 		WeeklySingleReleases++;
@@ -4549,9 +4549,16 @@ public partial class CompetitorManager : Node {
 		projectById.TryGetValue(projectId, out AlbumProject project) ? project : null;
 	public bool HasPendingProjectForArtist(string artistId) => pendingAlbumProjects.Any(project => project.artistId == artistId);
 	
-	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult) {
+	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult,
+			bool routePlug = false) {
 		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
 		if (runtimeData == null) return;
+		// --major-plug-slots / --midtier-plug-slots: an own-roster single either gets one of the label's plugs this month or
+		// launches as a routine issue on the reference promotion and depth. Off, or any other launch: an inactive scope.
+		using PromotionCapacity.RoutineScope routineIssue = routePlug
+			? PromotionCapacity.Launch(runtimeData, label, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
+				price => RecordExpense(label, price, LabelCashKind.Campaign))
+			: default;
 		// --label-blind-launch=foot: the launch-footprint reads below see a reference label for a live AI single. Off: inert.
 		using LabelBlindLaunch.FootScope blindFoot = LabelBlindLaunch.Launch(runtimeData, label, artist,
 			ChartManager.Instance?.GetCurrentChartWeek() ?? 0);

@@ -53,6 +53,10 @@ public static class SingleCommercialFit {
 	/// <summary>Most a draw above the kink can lift the national log, so luck decides which records connect but not how far
 	/// past a just-connected record they sell. Off (0) leaves the upside unbounded as before.</summary>
 	public const string UpsideCapPrefix = "--single-commercial-fit-upside-cap=";
+	/// <summary>With the act-record weight in odds-only mode: a connected draw's log rises by S x the act record, so a
+	/// proven act's record that connects sells more (climbs), not only connects more often. Field hit-act follow-ups
+	/// section of Big5ChartOpportunityInvestigation.md. Off (0) is the odds-only shape exactly.</summary>
+	public const string ActRecordSizePrefix = "--single-commercial-fit-act-record-size=";
 	private const uint NationalDecision = 0x43460000U;
 	private const uint RegionalDecision = 0x43460100U;
 	private const string NationalKey = "national";
@@ -68,6 +72,7 @@ public static class SingleCommercialFit {
 	public static float OwnNormalization { get; private set; }
 	public static float ActRecordWeight { get; private set; }
 	public static float UpsideCap { get; private set; }
+	public static float ActRecordSize { get; private set; }
 	public static bool ActRecordOddsOnly { get; private set; }
 	private static bool fitForAwareBuyers;
 	private static double kink, logNormalizer;
@@ -100,6 +105,9 @@ public static class SingleCommercialFit {
 		if ((ActRecordWeight > 0f || UpsideCap > 0f) && HitShare >= 1f)
 			throw new ArgumentException(ActRecordWeightPrefix + " and " + UpsideCapPrefix + " need the kinked fit (" + HitSharePrefix + ").");
 		ActRecordOddsOnly = args.Contains(ActRecordOddsOnlySwitch);
+		ActRecordSize = Read(args, ActRecordSizePrefix, 0f, 0f, 3f);
+		if (ActRecordSize > 0f && !ActRecordOddsOnly)
+			throw new ArgumentException(ActRecordSizePrefix + " needs " + ActRecordOddsOnlySwitch + " (without it the whole kink already enlarges a connected draw).");
 		if (ActRecordOddsOnly && (ActRecordWeight <= 0f || OwnNormalization > 0f))
 			throw new ArgumentException(ActRecordOddsOnlySwitch + " needs " + ActRecordWeightPrefix + " and no own-normalization.");
 		if (ActRecordWeight > 0f && !HitActCadence.ClockEnabled)
@@ -112,11 +120,11 @@ public static class SingleCommercialFit {
 
 	internal static void SetForChecks(float sigma, float regionalSigma, float scale, ulong checkSeed, float hitShare = 1f, float upside = 0f,
 		float launchWeight = 0f, float pushWeight = 0f, float floor = 0f, float ownNormalization = 0f, float actRecordWeight = 0f, float upsideCap = 0f,
-		bool actRecordOddsOnly = false, bool awareBuyers = false) {
+		bool actRecordOddsOnly = false, bool awareBuyers = false, float actRecordSize = 0f) {
 		fitForAwareBuyers = awareBuyers;
 		configured = true; Sigma = sigma; RegionalSigma = regionalSigma; Scale = scale; seed = checkSeed;
 		HitShare = hitShare; UpsideSigma = upside; LaunchWeight = launchWeight; PushWeight = pushWeight; Floor = floor; OwnNormalization = ownNormalization;
-		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; Prepare();
+		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; ActRecordSize = actRecordSize; Prepare();
 	}
 
 	/// <summary>Kink at the (1 - hit share) normal quantile for a launch at the reference awareness.</summary>
@@ -159,6 +167,8 @@ public static class SingleCommercialFit {
 		if (ActRecordWeight > 0f) { k -= ActRecordWeight * actRecord; if (!ActRecordOddsOnly) sizeKink = k; }
 		double normalizer = OwnNormalization > 0f ? logNormalizer + OwnNormalization * (LogMean(k) - logNormalizer) : logNormalizer;
 		double above = UpsideSigma * Math.Max(0d, z - sizeKink);
+		// --single-commercial-fit-act-record-size: a connected draw by a proven act sells larger. Off: nothing added.
+		if (ActRecordSize > 0f && z >= k) above += ActRecordSize * actRecord;
 		if (UpsideCap > 0f) above = Math.Min(above, UpsideCap);
 		double log = (z < k ? Sigma * (z - k) : above) - normalizer;
 		return Floor > 0f ? Math.Max(log, Math.Log(Floor)) : log;

@@ -1267,6 +1267,8 @@ public static class ChartSimulator {
 				float normalizedRank = (101f - record.currentPosition) / 100f;
 				chartVisibility = Mathf.Pow(normalizedRank, 3f) * 0.02f;
 			}
+			// Off unless --proven-act-chart-add is named: a proven act's single at 41-100 earns the add's visibility.
+			chartVisibility = ProvenActChartAdd.Apply(record, chartVisibility);
 		}
 		
 		float organicGrowth = BASE_AWARENESS_GROWTH * quality;

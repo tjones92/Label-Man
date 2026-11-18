@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.Json;
 using Godot;
 
@@ -74,6 +75,22 @@ public static class SingleCommercialFitShapeChecks {
 			Check(SingleCommercialFit.National(-.5d, .2f, .35f, 1f) > SingleCommercialFit.UnexposedCapLog
 				&& SingleCommercialFit.National(-.5d, .2f, .35f, 0f) <= SingleCommercialFit.UnexposedCapLog, "odds only: a recent hit still connects a near-miss draw");
 			Check(Near(Mean(0f), 1d, 1e-3), "odds only leaves the cold reference at mean one");
+
+			// Act-record size: a connected draw by a proven act sells exp(S x record) more; misses and cold acts unchanged.
+			SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f, launchWeight: 0f, floor: 0f,
+				actRecordWeight: 2f, actRecordOddsOnly: true, actRecordSize: .4f);
+			var sizeOn = new[] { 2d, .5d, -.5d }.Select(z => SingleCommercialFit.National(z, .2f, .35f, 1f)).ToArray();
+			var sizeHalf = SingleCommercialFit.National(2d, .2f, .35f, .5f);
+			var sizeCold = new[] { 2d, -2.5d }.Select(z => SingleCommercialFit.National(z, .2f, .35f, 0f)).ToArray();
+			double sizeMiss = SingleCommercialFit.National(-2.5d, .2f, .35f, 1f);
+			SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f, launchWeight: 0f, floor: 0f,
+				actRecordWeight: 2f, actRecordOddsOnly: true);
+			var sizeOff = new[] { 2d, .5d, -.5d }.Select(z => SingleCommercialFit.National(z, .2f, .35f, 1f)).ToArray();
+			Check(sizeOn.Zip(sizeOff).All(p => Near(p.First - p.Second, .4d)), "size: a proven act's connected draw rises by S x record");
+			Check(Near(sizeHalf - SingleCommercialFit.National(2d, .2f, .35f, .5f), .2d), "size scales with the act record");
+			Check(Near(sizeCold[0], SingleCommercialFit.National(2d, .2f, .35f, 0f)) && Near(sizeCold[1], SingleCommercialFit.National(-2.5d, .2f, .35f, 0f)),
+				"size: a cold act is unchanged");
+			Check(Near(sizeMiss, SingleCommercialFit.National(-2.5d, .2f, .35f, 1f)), "size: a draw that misses even the act's kink is unchanged");
 			Set(2f, 0f);
 			Check(SingleCommercialFit.National(2d, .2f, .35f, 1f) > SingleCommercialFit.National(2d, .2f, .35f, 0f), "full kink mode still enlarges a connected draw");
 			Set(1f, 0f);

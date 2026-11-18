@@ -256,14 +256,14 @@ public partial class CompetitorManager {
 		if (!GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist) || artist.labelId != label.labelId || artist.members?.Count is not > 0) return false;
 		ProgrammeClock clock = ProgrammeClockFor(artist);
 		return week - (format == ReleaseFormat.Single ? clock.SingleWeek : clock.AlbumWeek) >=
-			(format == ReleaseFormat.Single ? LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek) : LabelReleaseProgramme.AlbumFloor) &&
+			(format == ReleaseFormat.Single ? LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek, label) : LabelReleaseProgramme.AlbumFloor) &&
 			(format != ReleaseFormat.Album || !HasPendingProjectForArtist(artist.artistId));
 	}
 
 	// An act may hold several open single intentions when they are spaced by the single floor; one open LP at most.
-	private bool HasConflictingIntention(SimulatedArtist artist, ReleaseFormat format, int week) =>
+	private bool HasConflictingIntention(SimulatedArtist artist, ReleaseFormat format, int week, AILabel label = null) =>
 		ProgrammeState.ItemsForArtist(artist.artistId).Any(i => i.Format == format && LabelReleaseProgramme.IsOpen(i) &&
-			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek)));
+			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek, label)));
 
 	private void PlanProgramme(AILabel label, GameDate date, int? from = null) {
 		// Snapshot today's national following once; future intentions must not read future audiences.
@@ -284,7 +284,7 @@ public partial class CompetitorManager {
 						// Preserve the original short circuit and its clock reads. Audit exclusions
 						// without evaluating a rejected artist's forecast or drawing anything new.
 						string reason = !CanProgrammeArtist(label, a, format, week) ? "artist-or-spacing-ineligible" :
-							HasConflictingIntention(a, format, week) ? "conflicting-intention" :
+							HasConflictingIntention(a, format, week, label) ? "conflicting-intention" :
 							financed && !IsHotProgrammeAct(a, week) ? "not-eligible-for-financed-slot" : null;
 						if (reason == null) return true;
 						audit?.Add(new ProgrammeCandidateAudit { ArtistId = a?.artistId, CareerState = a?.careerState.ToString(), Reason = reason });
