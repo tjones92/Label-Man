@@ -1406,7 +1406,8 @@ public partial class RosterManager : Node {
 	private void ProcessContractExpirations(AILabel label, GameDate date) {
 		int year = date.year;
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		var expiring = label.roster.Where(a => RenewalLiveEvidence.Enabled ? RenewalLiveEvidence.TermMatured(a, year, currentWeek) : IsContractMatured(a, year, currentWeek)).ToList();
+		var expiring = label.roster.Where(a => !MajorVolumeSwitches.RetainsVeteran(a, currentWeek) &&
+			(RenewalLiveEvidence.Enabled ? RenewalLiveEvidence.TermMatured(a, year, currentWeek) : IsContractMatured(a, year, currentWeek))).ToList();
 		foreach (var artist in expiring) {
 			ContractExpiryDecision decision = OnContractExpiry == null ? null : ContractExpiryDecision.Before(label, artist, year, currentWeek);
 			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) { decision?.Emit("bidder", false, false); continue; }

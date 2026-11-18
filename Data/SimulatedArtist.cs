@@ -159,6 +159,8 @@ public class SimulatedArtist {
 	// from it and the recognition stocks replayed from it, so the file and the numbers tell one story.
 	public List<PublicReleaseEntry> publicHistory = new List<PublicReleaseEntry>();
 	public OpeningCareerArchetype openingArchetype;
+	/// <summary>--major-catalog-veterans-retained: the chart week the opening term ends; 0 when not a retained veteran.</summary>
+	public int catalogVeteranTermWeek;
 
 	public int weeksSinceLastRelease = 999;
 	public List<string> releaseHistory = new List<string>();
@@ -389,6 +391,8 @@ public class SimulatedArtist {
 		// --hit-act-retention (§17y): the ladder does not drop an act within a year of its last Top 40. Off: never read.
 		if (HitActCadence.RetentionEnabled && nextState == CareerState.Dropped && priorState != CareerState.Dropped &&
 			HitActCadence.ProtectsFromDrop(this)) nextState = priorState;
+		// --major-catalog-veterans-retained: not dropped inside the opening term. Off: false.
+		if (nextState == CareerState.Dropped && priorState != CareerState.Dropped && MajorVolumeSwitches.RetainsVeteran(this)) nextState = priorState;
 		if (nextState == CareerState.Dropped && priorState != CareerState.Dropped) {
 			if (ArtistPopulationLifecycle.Enabled) {
 				lastPerformanceEvaluationMode = GetPerformanceEvaluationMode();

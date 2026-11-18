@@ -54,6 +54,24 @@ public static class MajorVolumeSwitches {
 	/// roster that turned over slowly. Player-driven signings (rival offers, master buyers) are not gated.
 	/// </summary>
 	public const string SigningQuotaSwitch = "--major-signing-quota=";
+	/// <summary>
+	/// --major-catalog-veterans-quiet (second version, 2026-11-17): a catalog veteran's history no longer ends in a forced
+	/// recent Top 40. Its last three sides missed or placed 61-100, and the two-flop cap is not applied, so the act starts
+	/// with low recognition and the live ladder reads its real flop streak. Only the tail shaping changes; the keyed draws
+	/// before it are the same. Needs --major-catalog-veterans.
+	/// </summary>
+	public const string QuietVeteransSwitch = "--major-catalog-veterans-quiet";
+	/// <summary>
+	/// --major-catalog-veterans-retained: a catalog veteran's opening contract runs at least through 1961 (expiry week
+	/// 105 or later), and while that opening term runs the act cannot be dropped on performance and its contract does not
+	/// mature early on delivered sides. Demotion on the ladder (Established to Declining) still happens. The protection
+	/// ends at the opening expiry week; renewal is then the ordinary decision. Needs --major-catalog-veterans.
+	/// </summary>
+	public const string RetainedVeteransSwitch = "--major-catalog-veterans-retained";
+	/// <summary>The first week a retained veteran's opening term may end: week 105 is the first week of 1962.</summary>
+	public const int RetainedTermWeek = 105;
+	public static bool QuietVeterans { get; private set; }
+	public static bool RetainedVeterans { get; private set; }
 	private static bool configured;
 	public static int CatalogVeterans { get; private set; }
 	/// <summary>The yearly in-run signing quota of an AI Major; -1 when off.</summary>
@@ -112,15 +130,47 @@ public static class MajorVolumeSwitches {
 			SigningQuota = k;
 		}
 		signingsThisYear.Clear(); quotaYear = int.MinValue;
+		QuietVeterans = args.Contains(QuietVeteransSwitch);
+		RetainedVeterans = args.Contains(RetainedVeteransSwitch);
+		if ((QuietVeterans || RetainedVeterans) && CatalogVeterans <= 0)
+			throw new ArgumentException(QuietVeteransSwitch + " and " + RetainedVeteransSwitch + " need " + CatalogVeteransSwitch + "N.");
 		if (GateExemption || OpeningRoster > 0 || SlatePoolSize > 0 || NewcomerCraftCap > 0f || CatalogVeterans > 0 || SigningQuota >= 0)
 			GD.Print($"MAJOR_VOLUME gateExemption={GateExemption} openingRoster={OpeningRoster} slatePool={SlatePoolSize} newcomerCraft={NewcomerCraftCap:F2} " +
-				$"catalogVeterans={CatalogVeterans} signingQuota={SigningQuota}");
+				$"catalogVeterans={CatalogVeterans} quiet={QuietVeterans} retained={RetainedVeterans} signingQuota={SigningQuota}");
 		configured = true;
 	}
 
 	private static void EnsureConfigured() { if (!configured) Configure(SimulationArguments.Get()); }
-	internal static void SetForChecks(bool gate, int roster, int pool = 0, float newcomerCraft = 0f) {
+	internal static void SetForChecks(bool gate, int roster, int pool = 0, float newcomerCraft = 0f, bool quiet = false, bool retained = false) {
 		configured = true; GateExemption = gate; OpeningRoster = roster; SlatePoolSize = pool; NewcomerCraftCap = newcomerCraft;
+		QuietVeterans = quiet; RetainedVeterans = retained;
+	}
+
+	/// <summary>True when the quiet tail shapes catalog veterans' histories.</summary>
+	public static bool QuietVeteranTail() { EnsureConfigured(); return QuietVeterans; }
+
+	/// <summary>Under --major-catalog-veterans-retained, lengthens a just-stamped veteran's opening term to run at least
+	/// through 1961 and records the week its protection ends. No-op when off.</summary>
+	public static void RetainOpeningTerm(SimulatedArtist artist, int year) {
+		EnsureConfigured();
+		if (!RetainedVeterans || artist == null) return;
+		if (artist.contractExpiresWeek < RetainedTermWeek) artist.contractExpiresWeek = RetainedTermWeek;
+		artist.contractExpiresYear = Math.Max(artist.contractExpiresYear, year + (artist.contractExpiresWeek - 1) / 52);
+		artist.catalogVeteranTermWeek = artist.contractExpiresWeek;
+	}
+
+	/// <summary>True while a retained catalog veteran is inside its opening term: no performance drop and no early
+	/// maturity. False when off, for any other act, and from the opening expiry week on.</summary>
+	public static bool RetainsVeteran(SimulatedArtist artist, int currentWeek) {
+		EnsureConfigured();
+		return RetainedVeterans && artist != null && artist.openingArchetype == OpeningCareerArchetype.CatalogVeteran &&
+			artist.catalogVeteranTermWeek > 0 && currentWeek < artist.catalogVeteranTermWeek;
+	}
+
+	/// <summary><see cref="RetainsVeteran(SimulatedArtist, int)"/> at the current chart week.</summary>
+	public static bool RetainsVeteran(SimulatedArtist artist) {
+		EnsureConfigured();
+		return RetainedVeterans && RetainsVeteran(artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 	}
 
 	/// <summary>The label craft a single's production reads. <paramref name="craft"/> exactly, unless the switch is on and an

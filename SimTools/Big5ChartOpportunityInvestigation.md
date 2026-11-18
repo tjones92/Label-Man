@@ -215,6 +215,28 @@ The runs `vetq-*` use N = 20 and K = 10 on top of `mnsh40`.
 
 The veterans release about 3.5 singles a year each, but 6.7–7.4% of their singles reach the Top 10, two and a half times the rate for signed newcomers. That moves 1960 toward history. The Established opening history ends in a recent Top 40 placing, which raises their recognition. The career ladder then drops most of them on flops: releasing veterans fall from 91 to 37 per seed in 1961. Newcomer singles from the 1960 cohort keep 1961 where it was, and closures rise by ten.
 
+**Second version: quiet, retained, deeper veterans.** Two more switches in `Systems/MajorVolumeSwitches.cs`, both needing `--major-catalog-veterans=N`:
+- `--major-catalog-veterans-quiet`: no forced recent Top 40. The last three sides missed or placed 61–100, and the two-flop cap is skipped, so recognition starts low (median 0.07 at launch, about the level of other Established acts) and the ladder reads the real streak.
+- `--major-catalog-veterans-retained`: the opening contract runs at least through 1961 (expiry week ≥ 105). Until then the act cannot be dropped on performance and its contract does not mature early. Demotion to Declining still happens.
+
+The runs `vq2-*` use N = 28 (140 veterans a seed, nearly the whole unstamped opening roster), quiet, retained and quota 10 on top of `mnsh40`.
+
+| Four seeds | Control (`mnsh40`) | `vetq` (20, quota 10) | `vq2` (28, quiet, retained, quota 10) |
+|---|---:|---:|---:|
+| Big-5 share of issues, 1960 / 1961 | 7.2 / 11.7% | 10.5 / 13.1% | 9.7 / 13.3% |
+| Big-5 Top 10 share, 1960 (history 34.2%) | 25.2% | 30.1% | 29.1% |
+| Big-5 Top 10 share, 1961 (history 20.6%) | 30.0% | 31.6% | **33.0%** |
+| 1961 slot points, Big-5 1960 hit acts (history 16.4) | 12.3 | 14.2 | 18.1 |
+| 1961 slot points, Big-5 acts without a 1960 Top 10 (history 4.2) | 17.6 | 17.4 | 14.9 |
+| Veterans releasing in 1961, per seed | – | 37 | 93 |
+| Veteran singles reaching the Top 10, 1960 / 1961 | – | 6.7 / 7.4% | 7.1 / 3.9% |
+| Big-5 newcomer launches, 1961 (to week 92) | 700 | 637 | 500 |
+| Defunct labels by week 104 | 94.5 | 104.8 | 102.0 |
+
+Retention works: the bench lasts through 1961. But quiet veterans with low recognition still put 7.1% of their 1960 singles in the Top 10, about 22 records a seed, against about 1.2–1.5% for field newcomers. Those 1960 hits turn them into "1960 hit acts", so 1961 points move from the newcomer bucket to the hit-act bucket instead of leaving the Big-5. The 1961 share rises to 33.0%.
+
+The ratio of issue share to slot share is the measure. History has the Big-5 at about 18% of issues and 20.6% of slots, so the average Big-5 issue converted only slightly better than the average issue. In `vq2` the Big-5 hold 13.3% of issues and 33% of slots. Even a major's least-known act converts at about 2.5 times the average issue. Recognition does not carry that rate, and nor does who the act is. Making the roster older, quieter or more stable changes whose name is on a Big-5 hit, not how many there are. Not adopted. The remaining lever is per-issue conversion of a Big-5 single regardless of career, which the fit-exposure work (§ "Connection chance") addressed only for newcomers.
+
 ## Reproduction
 
 Run these from the repository root with a Python interpreter that has pandas installed. The historical tables, national charts, radio decisions and regional traces live under the local ignored `SimLogs` directory. The analysis uses existing runs. It makes no gameplay changes.

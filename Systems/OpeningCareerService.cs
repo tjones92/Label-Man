@@ -179,6 +179,7 @@ public static class OpeningCareerService {
 					.OrderBy(a => BandLife.Unit("catalog-veteran|" + a.artistId)).ThenBy(a => a.artistId, StringComparer.Ordinal)
 					.Take(n).ToList()) {
 				Stamp(artist, label, CatalogVeteranSpec, CareerState.Established, year);
+				MajorVolumeSwitches.RetainOpeningTerm(artist, year);
 				chosen.Add(artist.artistId);
 				veterans++;
 			}
@@ -301,7 +302,8 @@ public static class OpeningCareerService {
 		bool superstar = rung == CareerState.Superstar;
 		int numberOnes = superstar ? rng.Range(spec.SuperstarNumberOnesMin, spec.SuperstarNumberOnesMax) : rng.Range(spec.NumberOnesMin, spec.NumberOnesMax);
 		SetNumberOnes(history, numberOnes, spec.Archetype == OpeningCareerArchetype.FormerStar ? 1954 : last, rng);
-		ShapeTail(history, rung, spec.Archetype == OpeningCareerArchetype.CriticsFavourite, rng);
+		bool quiet = spec.Archetype == OpeningCareerArchetype.CatalogVeteran && MajorVolumeSwitches.QuietVeteranTail();
+		ShapeTail(history, rung, spec.Archetype == OpeningCareerArchetype.CriticsFavourite, rng, quiet);
 		foreach (PublicReleaseEntry e in history) Finish(e, regional, rng);
 		return history;
 	}
@@ -335,10 +337,16 @@ public static class OpeningCareerService {
 	/// Top 40 placing is a hit, a side that missed or peaked below 60 is a flop. The tail is shaped so the rung is the
 	/// one the ladder would hold the act at, not one its first live record promotes or demotes it out of.
 	/// </summary>
-	private static void ShapeTail(List<PublicReleaseEntry> history, CareerState rung, bool lastLpCharted, IRandom rng) {
+	private static void ShapeTail(List<PublicReleaseEntry> history, CareerState rung, bool lastLpCharted, IRandom rng, bool quiet = false) {
 		int n = history.Count;
 		void Hit(PublicReleaseEntry e) { if (e.peakPosition is <= 0 or > 40) e.peakPosition = rng.Range(8, 35); }
 		void Flop(PublicReleaseEntry e) { if (e.peakPosition is > 0 and <= 60) e.peakPosition = rng.Chance(0.5) ? 0 : rng.Range(61, 100); }
+		if (quiet) {
+			// --major-catalog-veterans-quiet: a working contract act whose last few sides missed or placed low. No forced
+			// hit and no two-flop cap: the ladder reads the real streak, and retention (not a shaped tail) keeps the act.
+			for (int i = Math.Max(0, n - 3); i < n; i++) Flop(history[i]);
+			return;
+		}
 		switch (rung) {
 			case CareerState.Superstar:   // Star -> Superstar needs four straight hits; three flops would demote
 				for (int i = Math.Max(0, n - 4); i < n; i++) Hit(history[i]);

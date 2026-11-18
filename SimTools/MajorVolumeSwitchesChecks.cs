@@ -61,6 +61,26 @@ public static class MajorVolumeSwitchesChecks {
 				"craft: established acts, albums, other tiers, the player and no act are untouched");
 			Check(!MajorVolumeSwitches.SlatePoolCapped(Lab(LabelTier.Major, 40)) && !MajorVolumeSwitches.Exempt(Lab(LabelTier.Major, 40)),
 				"craft alone caps no pool and exempts nothing");
+			// Retained catalog veterans: protected only inside the opening term, and only when on.
+			var vet = Act(CareerState.Established);
+			vet.openingArchetype = OpeningCareerArchetype.CatalogVeteran; vet.contractExpiresWeek = 60; vet.contractExpiresYear = 1961;
+			MajorVolumeSwitches.SetForChecks(false, 0, 0, 0f, retained: false);
+			MajorVolumeSwitches.RetainOpeningTerm(vet, 1960);
+			Check(vet.contractExpiresWeek == 60 && vet.catalogVeteranTermWeek == 0 && !MajorVolumeSwitches.RetainsVeteran(vet, 10),
+				"retained off: the term and protection are untouched");
+			MajorVolumeSwitches.SetForChecks(false, 0, 0, 0f, retained: true);
+			MajorVolumeSwitches.RetainOpeningTerm(vet, 1960);
+			Check(vet.contractExpiresWeek == MajorVolumeSwitches.RetainedTermWeek && vet.contractExpiresYear == 1962 && vet.catalogVeteranTermWeek == 105,
+				"retained: a short opening term runs through 1961");
+			Check(MajorVolumeSwitches.RetainsVeteran(vet, 1) && MajorVolumeSwitches.RetainsVeteran(vet, 104) && !MajorVolumeSwitches.RetainsVeteran(vet, 105),
+				"retained: protected through week 104, not from the opening expiry week");
+			var longVet = Act(CareerState.Established);
+			longVet.openingArchetype = OpeningCareerArchetype.CatalogVeteran; longVet.contractExpiresWeek = 160; longVet.contractExpiresYear = 1963;
+			MajorVolumeSwitches.RetainOpeningTerm(longVet, 1960);
+			Check(longVet.contractExpiresWeek == 160 && longVet.contractExpiresYear == 1963 && MajorVolumeSwitches.RetainsVeteran(longVet, 150),
+				"retained: a longer opening term is kept and protected to its end");
+			var newcomer = Act(CareerState.NewSigning); newcomer.catalogVeteranTermWeek = 105;
+			Check(!MajorVolumeSwitches.RetainsVeteran(newcomer, 10) && !MajorVolumeSwitches.RetainsVeteran(null, 10), "retained: other acts are not protected");
 			MajorVolumeSwitches.SetForChecks(false, 0, 0, 0f);
 			GD.Print("MAJOR_VOLUME_CHECK passed");
 		} finally { MajorVolumeSwitches.SetForChecks(gate, roster, pool0, craft0); }

@@ -817,6 +817,8 @@ public partial class AILabel : Resource {
 		if (artist.careerState == CareerState.Superstar) return false;
 		// --hit-act-retention (§17y): an act with a Top 40 in the last year is not let go on flops. Off: never read.
 		if (HitActCadence.RetentionEnabled && HitActCadence.ProtectsFromDrop(artist)) return false;
+		// --major-catalog-veterans-retained: not let go inside the opening term. Off: false, nothing drawn either way.
+		if (MajorVolumeSwitches.RetainsVeteran(artist)) return false;
 		// Contract probation excludes stale history only while it is unresolved.
 		// Once a current-contract Top 40 clears probation, ordinary career-state
 		// review is again authoritative.
