@@ -32,6 +32,8 @@ public partial class CompetitorManager {
 			int SingleAge(ReleaseFormat format) {
 				var releases = ChartManager.Instance.GetAllRecords().Where(r => r.baseRecord.artistId == artist.artistId && r.baseRecord.format == format).ToList();
 				if (releases.Count > 0) return releases.Min(r => r.weeksSinceRelease);
+				// --opening-programme-clocks: an opening act is dated from its pre-1960 history, not its week-0 contract stamp.
+				if (OpeningProgrammeClocks.Applies(artist)) return OpeningProgrammeClocks.Age(artist, format);
 				// Old saves have no independent clock: an LP must not invent a recent single. Start from the contract,
 				// or the opening career's already elapsed interval, when that format has no surviving catalogue row.
 				return Math.Max(0, artist.contractStartWeek >= 0 ? pipelineWeek - artist.contractStartWeek : artist.weeksSinceLastRelease);

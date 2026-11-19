@@ -720,7 +720,9 @@ public partial class CompetitorManager : Node {
 	
 	private void PopulateInitialRecords() {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		
+		// --opening-programme-clocks: the opening roster, before any live signing. Off: not read.
+		OpeningProgrammeClocks.Capture(aiLabels, year);
+
 		if (historicalRecords != null) {
 			foreach (var record in historicalRecords) {
 				if (record.releaseDate <= TimeManager.Instance.CurrentDate) {

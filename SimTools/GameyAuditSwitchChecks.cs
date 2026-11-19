@@ -245,6 +245,26 @@ public static class GameyAuditSwitchChecks {
 				Check(evZ[0] >= OpeningEvergreenLps.ReceptionZFloor && OpeningEvergreenLps.ReceptionZ(1001UL, "gen_7") == OpeningEvergreenLps.ReceptionZ(1001UL, "gen_7")
 					&& Math.Abs(evZ[1000] - 1.2) < 0.06, "evergreen reception: keyed, at or above the floor, median about 1.2");
 				OpeningEvergreenLps.SetForChecks(0);
+				// --opening-programme-clocks (§86).
+				var ocAct = new SimulatedArtist { artistId = "artist_00042", weeksSinceLastRelease = 23, publicHistory = new System.Collections.Generic.List<PublicReleaseEntry>() };
+				OpeningProgrammeClocks.SetForChecks(false);
+				OpeningProgrammeClocks.SetOpeningActsForChecks(new[] { ocAct.artistId }, 1960);
+				Check(!OpeningProgrammeClocks.Applies(ocAct), "off dates no act from its history");
+				OpeningProgrammeClocks.SetForChecks(true);
+				Check(OpeningProgrammeClocks.Applies(ocAct) && !OpeningProgrammeClocks.Applies(new SimulatedArtist { artistId = "artist_09999" }),
+					"only opening-roster acts are dated from history");
+				Check(OpeningProgrammeClocks.Age(ocAct, ReleaseFormat.Single) == 23, "a single is dated from the act's elapsed interval");
+				var ocAges = Enumerable.Range(0, 4000).Select(i => OpeningProgrammeClocks.Age(new SimulatedArtist { artistId = $"artist_{i:D5}",
+					publicHistory = new System.Collections.Generic.List<PublicReleaseEntry>() }, ReleaseFormat.Album)).OrderBy(a => a).ToArray();
+				Check(ocAges[0] >= 0 && ocAges[^1] < 2 * LabelReleaseProgramme.AlbumFloor && Math.Abs(ocAges[2000] - LabelReleaseProgramme.AlbumFloor) <= 2
+					&& Math.Abs(ocAges[1000] - 9) <= 2 && Math.Abs(ocAges[3000] - 27) <= 2, "no LP history: keyed uniform age over twice the LP floor");
+				Check(OpeningProgrammeClocks.Age(ocAct, ReleaseFormat.Album) == OpeningProgrammeClocks.Age(ocAct, ReleaseFormat.Album), "keyed, so repeatable");
+				ocAct.publicHistory.Add(new PublicReleaseEntry { year = 1958, format = ReleaseFormat.Album });
+				ocAct.publicHistory.Add(new PublicReleaseEntry { year = 1959, format = ReleaseFormat.Single });
+				int ocLp = OpeningProgrammeClocks.Age(ocAct, ReleaseFormat.Album);
+				Check(ocLp > 52 && ocLp <= 104, "a 1958 LP dates the clock within 1958");
+				OpeningProgrammeClocks.SetForChecks(false);
+				OpeningProgrammeClocks.SetOpeningActsForChecks(null, 1960);
 				SoundtrackOriginationEarly.SetForChecks(1f);
 				Check(!SoundtrackOriginationEarly.Enabled && SoundtrackOriginationEarly.Scale(1960) == 1f, "off keeps soundtrack origination");
 				SoundtrackOriginationEarly.SetForChecks(0.5f);

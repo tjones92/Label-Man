@@ -4785,3 +4785,261 @@ in §78-80 because the 1960 releases then filled every long-runner slot. With an
 a lower R may fit both: R 0.03 left the 1960 releases at 8.4% (§80, `rpcr03h`). Next screen: `rpcq` +
 `--lp-hit-life-renewal=0.03` + `--album-heat-action-weeks=39` + `--opening-evergreen-lps=16`, with and without the
 evergreens. Read: evergreen slots in 1960 and late 1961, the 1960 releases' share (11-15), 1M+, Big-5.
+
+## 82. Screen: renewal brings the evergreens onto the chart, but tail + renewal is too sticky (2026-11-19; seeds 1001/2002, 104 weeks)
+
+**Arms** (current build, after commit `0efbad6`): `rpqrh` = `rpcq` + `--lp-hit-life-renewal=0.03
+--album-heat-action-weeks=39`; `rpqrhe` = `rpqrh` + `--opening-evergreen-lps=16`. Both ran on the same build, so `rpqrh`
+is the evergreens' control. `rpcq` ran on an older build (59CA…), so read that column as approximate.
+
+| Mean of seeds 1001/2002 | `rpcq` | `rpqrh` | **`rpqrhe`** | Target |
+|---|---|---|---|---|
+| Evergreen share of top-50 slots: 1960 Q1 / 1960 H2 / 1961 H1 / last 26 wk | – | – | **10.1 / 12.2 / 11.0 / 7.7** | charting; older tier 3-5 late 1961 |
+| Evergreens charting (of 16; 1001 / 2002); 40+ run weeks | – | – | 11 / 14; 5 / 7 | |
+| Artist 40+ share, whole of 1960 | 1.9 | 7.6 | 19.9 | ~15-20 (Jan 1960 Essential Inventory) |
+| Artist 40+ share, last 26 wk | 14.7 | 26.9 | 35.0 | 16-20 |
+| … evergreen / prewarm / 1960 / 1961 releases | 0 / 0 / 11.0 / 3.8 | 0 / 1.4 / 23.3 / 2.3 | 7.7 / 4.9 / 19.9 / 2.6 | older 3-5, 1960 11-15 |
+| Long-runner median position; store / rack k a week; rack share | 42; 2.0 / 7.0; 77% | 34; 2.4 / 10.0; 79% | 31.5; 1.8 / 10.5; 84% | #19-50 |
+| No. 1s 1960 / 1961 | 7.5 / 9.5 | 8 / 11.5 | 6 / 9.5 | 10 / 12 |
+| Longest No. 1 1960 / 1961 | 12.5 / 11 | 12.5 / 9.5 | 16 / 11 | 13 / 10+ |
+| 1M+ % (fixed scorer) | 0.42 | 0.86 | 0.91 | 0.44 |
+| 300k+ % | 2.28 | 2.53 | 2.10 | 1.31 |
+| Big-5 Top 10 singles 1961 (1001 / 2002) | 23.3 (27.5 / 19.0) | 25.7 (26.0 / 25.4) | 22.2 (24.8 / 19.6) | 20.6 |
+| Head gap 1960 / 1961 | 43 / 35 | 36 / 49 | 39 / 46 | 0 |
+| 1961 stores / racks (M) | 59.8 / 39.2 | 59.1 / 44.4 | 57.2 / 45.7 | 68 / 36-42 |
+| Labels defunct (1001; 2002) | 94; 102 | 99; 102 | 107; 106 | |
+
+- **Renewal is what the evergreens needed.** They now chart from week 1 and hold 10-12% of slots through 1960 and early
+  1961, falling to 7.7% by late 1961. Twelve of the 32 seeded titles stay 40+ weeks in the run; three on seed 2002 chart all
+  104 weeks, like Mathis's *Johnny's Greatest Hits*. Artist long-runners hold 19.9% of 1960's slots against 1.9-7.6%
+  without the evergreens.
+- **Tail and renewal compound.** R 0.03 without the tail (`rpcr03h`, §78) left the 1960 releases 8.4% of late-1961
+  slots. With the tail they take 23.3%, and 1M+ doubles (0.86%). The tail keeps the store decay up (0.3 against 0.02) and
+  renewal keeps exhaustion off its floor, so a hit stays well above the #50 bar.
+- **The evergreens displace a little of the 1960 releases, not enough.** The 1960 releases' share falls 23.3 → 19.9 and
+  1M+ is flat (0.86 → 0.91, inside noise). The older tier (evergreen + prewarm) is 36% of the late-1961 long-runner
+  slots, above 1963's 20-25%, and the total is 35% against 16-20.
+- **1M+ follows the long-runner share as in §80.** The fit (0.12 + 0.031 × share) gives 0.95 for `rpqrh`'s 26.9;
+  it measures 0.86.
+- **Big-5 holds with the heat cutoff** (22.2-25.7, inside the seed range). Store LPs ease 1-2M as racks gain 5-6M.
+
+**Status:** `rpqrhe` shows the evergreen tier works once artist LPs renew. Tail + renewal at R 0.03 is about twice as
+sticky as the targets: the 1960 releases need 11-15% (now 20-23) and the total 16-20% (now 35). Not adopted. Next: halve
+the strength with evergreens on. Arms: R 0.015 with the tail at 0.98, and R 0.03 with the tail at 0.96. Read the same rows;
+1M+ should land near 0.44 when the 1960 releases hold about 11%.
+
+## 83. Screen: half-strength tail + renewal with evergreens; the shape fits, 1M+ does not (2026-11-19; seeds 1001/2002, 104 weeks)
+
+**Arms**, all `rpcq` + `--album-heat-action-weeks=39 --opening-evergreen-lps=16`: `rq015e` (R 0.015, tail 0.98) and
+`rq96e` (R 0.03, tail 0.96). Each was built from a reference request with the values replaced in place: the argument
+parser reads the first copy of a flag, so a value appended through `-Extra` is ignored when the reference already
+carries the flag. The §77-82 screens appended only flags their references lacked, so they stand.
+
+| Mean of seeds 1001/2002 | `rpqrhe` (§82) | `rq015e` | `rq96e` | Target |
+|---|---|---|---|---|
+| Evergreen share of slots: 1960 Q1 / 1960 H2 / 1961 H1 / last 26 wk | 10.1 / 12.2 / 11.0 / 7.7 | 3.6 / 3.1 / 3.3 / 0.2 | 2.4 / 5.0 / 11.0 / 3.7 | charting; older 3-5 late 1961 |
+| Artist 40+ share, last 26 wk | 35.0 | 21.2 | 21.4 | 16-20 |
+| … evergreen / prewarm / 1960 / 1961 releases | 7.7 / 4.9 / 19.9 / 2.6 | 0.2 / 1.6 / 17.0 / 2.5 | 3.7 / 2.9 / **13.4** / 1.5 | older 3-5, 1960 11-15 |
+| Long-runner median position; store / rack k a week; rack share | 31.5; 1.8 / 10.5; 84% | 37; 2.0 / 8.8; 80% | 35.5; 0.6 / 11.1; 93% | #19-50, store-led |
+| No. 1s 1960 / 1961; longest | 6 / 9.5; 16 / 11 | 7 / 8; 14.5 / 13.5 | 6.5 / 10; 15.5 / 9.5 | 10 / 12; 13 / 10+ |
+| 1M+ % | 0.91 | 0.80 | 0.74 | 0.44 |
+| 300k+ % | 2.10 | 2.68 | 2.36 | 1.31 |
+| Big-5 Top 10 singles 1961 (1001 / 2002) | 22.2 (24.8 / 19.6) | 27.3 (26.5 / 28.1) | 29.3 (36.7 / 21.9) | 20.6 |
+| Head gap 1960 / 1961 | 39 / 46 | 43 / 48 | 42 / 45 | 0 |
+| Labels defunct (1001; 2002) | 107; 106 | 117; 106 | 119; 103 | |
+
+- **Halving brings the total to 21%**, near 1963's 16-20. `rq96e` also puts the 1960 releases inside 11-15 (13.4) and
+  keeps an older tier of 6.6% (evergreen + prewarm, 31% of the long-runner slots against 1963's 20-25%).
+- **1M+ stays 1.7× RIAA** (0.74-0.80). At a 21% share the §80 fit predicts 0.78. In `rq96e` the 1960 releases hold the
+  §80 candidate's share (13.4 against `rpcq`'s 11.0) yet sell 1.8× its million-sellers: renewal lifts every top-10 LP's
+  whole run, not just the long-runners.
+- **`rq96e`'s long-runners are rack-only again** (93%, store 0.6k): the 0.96 tail lets store demand die, which §79
+  found unhistorical. `rq015e` keeps them store-led (80%) but loses the evergreens by late 1961 (0.2%).
+- **Renewal's divisor grows without limit** (1 + R × (age − 12)): an evergreen 200 weeks old renews 7×, a 1960 hit 2-3×.
+  That is why `rq96e`'s evergreens rise again in 1961 (11%) as the tail decays them.
+- **Big-5 and closures drift up on the evergreen arms.** Big-5 is 27-29 (seed 1001 spans 25-38 across arms). Closures
+  on seed 1001 are 107-119 with evergreens against 94-99 without, which is unresolved and may be the evergreens'
+  3-4M-a-year purse.
+
+**Status:** neither arm is adopted. Tuning the tail and renewal can now fit the chart shape (`rq96e`), but not the shape,
+1M+, a store-led long-runner and the Big-5 guard at once. The constant across §77-83 is 300k+ at about 2× RIAA in every
+arm, which catalogue racks drive (§79). Each long-runner lever turns part of that excess into million-sellers.
+
+## 84. The 2× 300k+ excess is mostly the 1960 cohort: Majors' ramp year, not a heavy tail (2026-11-19; read-only)
+
+Question: why is 300k+ about 2× RIAA (1.31%) in every arm of §77-83, control included? No new runs. Scripts in the
+session scratchpad wrap `analyze_lp_riaa_1965.py`'s cohort. "Scale" below is the model's sales at RIAA's exceedance share
+divided by RIAA's threshold. For example, scale@20k is the model's 76.6th percentile over 20k, and 1.0 is on RIAA.
+
+**1. In the 104-week arms the whole distribution is shifted, not the tail.** For 1960 releases to week 104 (`audnet`,
+`rpcq`, seeds 1001/2002), the scale is 1.4-1.8 at every band from 2k to 100k. 300k+ is 1.3-1.4 (`audnet`) and 2.3-2.4
+(`rpcq`, whose tail lever fattens the top). 300k+ titles carry 33-43% of cohort units against about 35% in RIAA (band
+midpoints). The 20k+ / 50k+ / 100k+ shares are 30 / 16-17 / 8-10%; RIAA's are 23.4 / 11.2 / 5.1. The model releases
+too few LPs for the units it sells:
+
+| 1960 releases to wk 104, seeds 1001; 2002 | scale@4k | scale@20k | scale@100k | scale@300k | 300k+ % |
+|---|---|---|---|---|---|
+| `audnet` all tiers | 1.71; 1.72 | 1.52; 1.46 | 1.60; 1.79 | 1.26; 1.42 | 2.54; 2.68 |
+| … Major + MidTier | 5.28; 4.76 | 4.84; 4.88 | 3.53; 3.78 | 1.77; 2.10 | 7.1; 7.4 |
+| … Independent + Small + Boutique | 1.10; 1.03 | 0.92; 0.78 | 0.68; 0.65 | 0.44; 0.49 | 0.3; 0.2 |
+
+The RIAA sample is four majors plus Laurie and Kapp, but the model's majors sit 4-5× above it at every band below
+100k. Its small labels match RIAA below 20k, as found in §40.
+
+**2. 1960 is the Majors' ramp year.** Majors launch 84-86 LPs a label in 1960 and 139-141 in 1961 (`audnet`). The
+sourced range is 145-210 (`GameyBehaviorAudit.md` §2.18). The 104-week arms score a cohort that has about 60% of a mature
+year's Major releases. The market is near full size by then.
+
+**3. In RIAA's own year and window the excess roughly halves.** `acis260` (§65, four seeds, 260 weeks), each cohort
+scored over the RIAA window (a year of releases plus the following year):
+
+| `acis260`, mean of 4 seeds | n | Major n | units M | mean k | scale@20k | scale@100k | scale@300k | <4k % | 300k+ n / % | 1M+ n / % | Major 300k+ / <4k % |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1960 releases to wk 104 | 1,630 | 361 | 85.6 | 52.6 | 1.23 | 2.37 | 2.54 | 42.7 | 68.5 / 4.20 | 11.5 / 0.71 | 11.5 / 23.0 |
+| 1961 releases to wk 156 | 2,303 | 646 | 113.7 | 49.4 | 1.21 | 2.34 | 2.45 | 41.6 | 91.8 / 3.99 | 14.3 / 0.62 | 8.9 / 24.0 |
+| 1962 releases to wk 208 | 2,601 | 862 | 99.5 | 38.3 | 1.15 | 1.94 | 1.73 | 43.9 | 77.8 / 2.99 | 6.0 / 0.23 | 6.9 / 28.5 |
+| **1963 releases to wk 260** | **2,751** | **939** | 92.8 | **33.7** | **1.09** | **1.52** | **1.51** | 45.6 | 65.8 / **2.39** | 7.0 / **0.26** | 4.9 / 32.4 |
+| RIAA 1963 | 1,603 (six firms) | | | ~31 (midpoints) | 1.0 | 1.0 | 1.0 | 48.8 | 21 / 1.31 | 7 / 0.44 | |
+
+- **The count of 300k+ titles hardly moves; the denominator grows.** Across cohorts 300k+ titles stay at 66-92 a seed
+  while releases grow 1.7× (Majors 2.6×). Cohort units stay at 93-114M. The mean per release falls from 53k to 34k,
+  close to RIAA's ~31k, and the scale at 4-20k reaches 1.1.
+- **The 1963 cohort is still 1.5× at 100k+ and 1.8× at 300k+** (2.17-2.67%). 1M+ is under RIAA (0.18-0.38%).
+  This residual is in the upper tail, unlike the 1960 shift. `acis` predates the LP chain (§76) and the long-runner
+  arms, which in 1960 have 300k+ of 2.1-2.7% against `acis`'s 4.2. If that ratio carries over, `audnet` / `rpcq`
+  would give about 1.3-1.6% on the 1963 cohort. That needs a 260-week run to check.
+- **Two basis questions, of opposite sign, are open.** RIAA may count mono and stereo editions separately (§2.18, the
+  1,603 releases ≈ four majors × 150-200 titles × 2). If so, a title's sales split across two rows, so per title
+  RIAA's 300k+ share is higher. RIAA counts manufacturer sales, which may include club pressings (26% of 1961 LP
+  units, weighted to hits). The model's title counts exclude clubs, so on that basis RIAA's per-title store + rack
+  share would be lower. Neither is resolved by the source (p. 862 only says mono and stereo are covered).
+
+**Reading.** The 1960 cohort is the wrong yardstick for RIAA's 1963 survey. It is the Majors' ramp year, and its 2×
+300k+ is mostly too few releases selling a full-size market. Scored in RIAA's year, `acis` is 1.5-1.8× on 100k+ and
+300k+ and on or under RIAA for 1M+. §80's 1M+ fit (0.12 + 0.031 × long-runner share) and §79's "300k+ 2× in every
+arm" are both 1960-cohort measurements; read them as ramp-year numbers. Long-runner levers should not be tuned to pull
+the 1960 cohort's 300k+ down to 1.31.
+
+**Next:** score `audnet` and `rpcq` at 260 weeks (seeds 1001/2002) on the 1963 cohort (`--launch=157-208 --last=260`)
+and check that the residual 300k+ excess is under 1.5×. Until then, report 300k+ / 1M+ on the 1960 cohort as relative
+to the control, not to RIAA.
+
+## 85. How labels start 1960 cold: an audit of the opening state (2026-11-19; read-only, `audnet` and `acis260` seeds 1001/2002)
+
+Question (author): the 1960 Major LP shortfall (§84) is a weakness of the opening environment. What does the prewarm
+set up, what starts empty, and can labels start with forecasts?
+
+**What the opening does** (`ChartManager` init, `CompetitorManager.PopulateInitialRecords`):
+1. Rosters from the frozen 3,000-artist launch allocation; opening careers (public histories) for the canopy acts.
+2. About 500 opening records (`targetActiveRecords`), each 1-20 weeks old, spread by tier weight × roster size; the album
+   share by genre seed affinity. `--opening-soundtrack-catalogue` and `--opening-evergreen-lps` add older LPs.
+3. `PrewarmSimulation`: 8 weeks of chart simulation (`prewarmWeeks`) with the live genre market off. **No label
+   decision runs in the prewarm.** No release is planned, no gate is used, no forecast observes, no staff review
+   runs, no money moves through the company accounts. Records with no chart run and under 500 units are culled.
+4. Opening follower stock from the opening careers' last five years of hits (`SeedOpeningFollowing`).
+5. Learned state: the earned LP forecast is warm-started for opening Major and MidTier labels
+   (`--earned-lp-forecast-warm-start=20`, in the control). Format memory and the single forecast start at
+   their fitted priors with zero evidence.
+
+**Where labels limp, by measured effect:**
+
+| # | Cold start | Evidence (`audnet` 1001 unless noted) | Effect on 1960 |
+|---|---|---|---|
+| 1 | **Empty release pipeline.** The slate holds nothing at week 1, and every slot takes 8 weeks from first sighting to issue (median, every quarter). | Weeks 1-13: Major LPs 28-30 against ~140 the next quarter; Independent 12-16, Small 0, Boutique 1-2 (`acis260`, both seeds). Major singles 37-41 against 80-100. | About a quarter of a year's LPs lost for every tier; singles at Majors halved for a quarter. |
+| 2 | **Shallow opening Major rosters.** Majors open with ~39 acts and fill through scouting and earned capacity: 39 → 48 (end-1960) → 62 (end-1961) → 104-110 (1964, still rising; `acis260`). History: 70-90 releasing acts per major (Big5ChartOpportunityInvestigation; Columbia ~90-100). | Major LPs per roster act per quarter are flat at 0.63 (1960 Q2-4: 0.77 / 0.52 / 0.62; 1961: 0.66 / 0.60 / 0.64 / 0.62). Major LPs rise from ~130 a quarter to ~235 by 1963 with the roster; singles from ~90 to ~150. | After the first quarter, the **whole** 1960 → 1961 Major LP ramp is roster growth. |
+| 3 | **Staff sized to the opening roster.** Required staff rises with clients and projects; hiring adds at most 25% of a department a quarter (`LabelCorporateModel.ReviewOrganization`). | Major organisation coverage 0.93 → 0.74-0.77 in H2 1960 → 0.99 by 1962 (`acis260`); programme capacity is multiplied by it. | A consequence of #2: up to a quarter of Major programme capacity off in H2 1960. |
+| 4 | **Thin opening catalogue.** Only ~500 records, none older than 20 weeks apart from the switches in step 2; no back catalogue earning. | Median monthly gross H1 1960 against 1961: Major $3.4M vs ~$5.0M, MidTier $106k vs $150-180k, Independent $4.4k vs $7.5-8.5k, Small $14 vs $500-700 (`acis260` 1001). Major cash 1.8M → 9.3M by end-1961. | Low early earnings feed the earned roster capacity (whose week-9 review annualizes January-February, ReleaseVolumeCalibrationPlan.md), MidTier cash against payroll, and no budget editions or rack catalogue from noncurrent titles in 1960. |
+| 5 | **LP forecast warm start lands low.** The seed's ratio is 3.5, but shrinkage (n / (n + 4)) applies to the pseudo-LPs too, so an opening Major's multiplier is 3.5^(20/24) = 2.84. Learned Major multipliers in 1961 have a median of 3.7-4.4. | Major gate pass 49-57% in 1960 against 69% in mid-1961; median gate album profit lower. | About 30% low on the Major LP forecast in 1960. Volume barely moves (#2: per-act rate flat). The gate picks from the acts it has, so this changes which LPs pass, not how many. |
+| 6 | **Follower stock filling for years.** Seeded only from opening careers' public histories. | Year-end stock 27.4M (1960) → 40.5 → 51.3 → 60.2M (1963), still rising (`acis260` 1001 log). Equilibrium at the ~18% loss rate is ~110M (GameyBehaviorAudit #10). | Unknown size. Follower demand feeds veteran LPs (`veteran-excess` memory), so 1960 follower LP demand is below steady state. No target yet. |
+| 7 | **Learned memories at priors.** Format memory (career-banded) and the single forecast realization start with no evidence. | Neutral by design, at fitted priors (dec-awrw reference). | No cold bias; only as good as the priors. Not a limp. |
+
+**Seeding forecasts alone will not fix 1960.** The LP forecast is already seeded (#5), and its error changes which
+LPs pass, not how many: with the roster held, Majors issue the same 0.63 LPs per act a quarter in 1960 and 1961.
+The volume is set by the empty pipeline (#1) and the roster (#2, with #3 following).
+
+**Options** (none built):
+- **A. Warm pipeline** (#1). At week 1 each label's programme plans weeks 1-8 as work already under way since
+  November-December 1959: slots through the normal choice and gate, prepared on their intended week without the
+  8-week lead. Small and isolated; it changes only the first quarter.
+- **B. Historical Major roster depth** (#2, #3). Majors open with ~70-90 acts, mostly contracted veterans with public
+  histories (opening careers), operating target and staff sized to match. This is the largest lever and the author's
+  design call, because it changes the frozen launch allocation. It meets the Big-5 singles guard (§60-61: the adopted
+  1961 Big-5 fit rests on LP-starved Majors, and the fill is newcomers, two-thirds of Big-5 singles).
+- **C. Warm-start ratio without shrink** (#5). Exempt the pseudo-LPs from shrinkage, or seed the ratio at the 1961
+  learned median (~4). One-line change.
+- **D. Deeper opening catalogue** (#4). Older titles with a selling tail and noncurrent catalogue for budget editions
+  and racks. It overlaps the evergreen tier (§81) and needs the renewal question settled.
+- **E. A full 1959 spin-up.** Run every system from January 1959 and reset the clock, ledgers and telemetry at
+  January 1960. This is the general fix for #1-#6 at once. Costs: 1959 chart history and careers become
+  model-made, which collides with the historical seeding (opening careers, historical majors). The RNG stream
+  reshuffles, and the runtime rises about 20%.
+
+Suggested order: A, then C (both small, A/B-able at 104 weeks), then B as a design decision with the Big-5 guard
+read, then D. E only if several of A-D are adopted and the opening still drifts.
+
+## 86. Screen: warm opening (A + C), historical Major roster depth (B), opening evergreens (D) (2026-11-19; seeds 1001-4004, 104 weeks)
+
+**The cold pipeline was a clock bug, not a missing seed.** The release programme spaces an act's work from its last
+single and last LP (`ProgrammeClockFor`). An act with no catalogue row of a format is dated from `contractStartWeek`, and
+the opening roster is signed through the ordinary signing seam at chart week 0. So every opening act read as signed this
+week: in `audnet` no Major act was eligible for an LP slot before week 18 (programme-choices: all 768-849 Major album
+candidates `artist-or-spacing-ineligible` for intended weeks 1-10, then the album gap is exactly 18 for 1,120 of 1,121
+scored candidates at week 10), and singles only from week 6 outside the ~500 prewarm acts. The programme already plans an
+opening horizon (`PlanProgramme(label, date, pipelineWeek)`); it had nobody to put in it.
+
+**A. `--opening-programme-clocks`** (`Systems/OpeningProgrammeClocks.cs`; check in `--gamey-audit-switches-check`, passes).
+The opening roster is snapshotted before the first live week. An opening act with no row of the format is dated from its
+pre-1960 history: singles from `weeksSinceLastRelease` (seeded 0-52 at roster seeding); LPs from the year of its last
+pre-1960 LP in its public history (opening careers) at a keyed week, else a keyed uniform age in [0, 36). In the control's
+steady state (acis260, week 130) acts about to issue an LP had last issued one 8 / 16 / 29 weeks before (quartiles), half
+never; the uniform gives 9 / 18 / 27. Off is inert: `oc0` (current build, flag off) matches `audnet` on every scored row.
+
+**C. Warm-start ratios without the shrink loss.** No code: `--earned-lp-forecast-warm-ratios=4.5,4.1`. The 20 pseudo-LPs
+pass through the n / (n + 4) shrink, so a seeded ratio R applies as R^(20/24). The control's labels end 1961 at applied
+Major multipliers 3.1-3.9 and MidTier 3.1-3.4; 4.5 and 4.1 apply as ~3.5 and ~3.25 (the old 3.5 / 2.5 applied 2.84 / 2.15).
+
+**B. `--major-opening-roster=58`** (existing switch, §57): Majors open with 58 acts (§57: ~70-90 releasing acts per major
+historically, ~55-60 at the sim's issue scale). **D. `--opening-evergreen-lps=16`** (existing, §81) on this base.
+
+| Mean of seeds | control `audnet` (4) | A (2: 1001/2002) | **A + C** (4) | B = A + C + roster 58 (4) | D = A + C + evergreens (2) | Target |
+|---|---|---|---|---|---|---|
+| LPs launched weeks 1-13: Major / all tiers | 28 / 53 | 151 / 680 | **148 / 684** | 190 / 724 | 157 / 680 | ~a steady quarter (Major ~140) |
+| Major LPs per label 1960 / 1961 | 80 / 139 | 108 / 148 | **107 / 146** | 142 / 167 | 112 / 145 | 145-210 titles (Capitol, Columbia main lines) |
+| All LPs launched 1960 / 1961 | 1,776 / 2,437 | 2,476 / 2,594 | **2,543 / 2,578** | 2,665 / 2,636 | 2,544 / 2,545 | Billboard 3,112 / 2,927 (incl. classical) |
+| Store LPs 1960 / 1961 (M) | 35.6 / 53.9 | 47.4 / 57.5 | **48.0 / 56.6** | 51.1 / 59.2 | 48.0 / 56.6 | 1961 Billboard 68 |
+| Racks 1960 / 1961 (M) | 34.0 / 41.0 | 35.0 / 40.5 | 34.7 / 40.0 | 35.0 / 40.2 | 35.4 / 40.5 | 36-42 |
+| 1960 releases 300k+ / 1M+ % (to wk 104) | 2.70 / 0.08 | 2.55 / 0.09 | **2.22 / 0.09** | 2.16 / 0.08 | 2.27 / 0.06 | RIAA 1963 1.31 / 0.44 (§84: score 1963) |
+| Major median copies (k) / <4k % | 20.6 / 24.6 | 18.8 / 25.4 | 17.5 / 25.0 | 15.3 / 27.8 | 17.8 / 25.6 | RIAA majors-heavy: <4k 49% |
+| Major roster week 1 / 52 / 104 | 37 / 47 / 73 | 39 / 53 / 76 | 37 / 48 / 75 | 58 / 65 / 91 | 39 / 47 / 76 | 55-60 at sim scale |
+| Big-5 signings 1960 / 1961 | 69 / 178 | 79 / 190 | 74 / 191 | 72 / 203 | 53 / 203 | |
+| Major / MidTier singles 1961 | 408 / 319 | 438 / 334 | 460 / 344 | 480 / 287 | 422 / 301 | |
+| **Big-5 Top 10 share 1960** (per seed) | 25.6 (28 / 22 / 27 / 25) | 20.1 | **24.8** (24 / 23 / 29 / 23) | **36.6** (40 / 32 / 39 / 35) | 22.4 | 27 (adopted target) |
+| **Big-5 Top 10 share 1961** (per seed) | 21.2 (18 / 22 / 20 / 23) | 21.6 (28 / 15) | **25.6** (28 / 27 / 29 / 19) | **29.9** (34 / 28 / 27 / 30) | 25.6 | 20.6 |
+| Bankruptcies by week 104 | 71.5 | 64.5 | **60.2** | 66.2 | 59.0 | |
+
+- **A removes the cold quarter and most of the 1960 ramp.** First-quarter LPs rise from 53 to ~680 across tiers (Major 28 →
+  ~150, a steady quarter). 1960 LP releases rise 43% to 2,543 (82% of Billboard's all-format count) and 1960 store LPs from
+  35.6 to 48.0M; 1961 moves only +2.7M, so the 1960 / 1961 store ratio goes from 0.66 to 0.85. Bankruptcies fall 71.5 → 60.2.
+  The first quarter carries a small catch-up for the smaller tiers (MidTier ~85 against ~60-80 later): the keyed LP ages are
+  tier-blind, and small-label acts issue LPs less often than the Major-led steady state the uniform was sized on.
+- **C is a small refinement.** On the paired seeds A + C against A: Major LP gate pass 1960 57-68% against 46-54%; Major 1960
+  LPs a label +0-7% (107-115 against 107-109). Its job is the forecast level, not volume (§85 #5).
+- **300k+ falls a fifth** (2.70 → 2.22%) as the denominator grows (§84); 1M+ unchanged.
+- **The Big-5 guard.** A + C adds 4.4 points to 1961 (3 of 4 seeds up; 1960 flat). The channel is roster growth, not LP
+  credit: Big-5 signings rise (178 → 191 in 1961) because stronger 1960 LP earnings raise the earned roster capacity, and
+  the extra 1961 Big-5 singles are newcomers on contract-delivery slots (seed 1001: 143 → 259). This is §60's warm-start
+  result again, smaller (§60: +7.8): the adopted 1961 fit rests on LP-starved Majors.
+- **B puts Major LP volume on history (142 / 167 a label) and fails the guard on every seed**: 1960 Big-5 share 36.6
+  (target 27), 1961 29.9 (history 20.6). As in §57, the extra opening acts are newcomers from the launch pool, and each
+  launches with the Big-5 per-release premium; plug slots (`--major-plug-slots=4`, in the control) cut routine conversion
+  but not enough. MidTier 1961 singles fall 344 → 287 (the launch pool drains). Staff coverage stays 0.72-0.75 in H2 1960:
+  the opening staff is not sized to the larger roster.
+- **D adds 0.7-3.9M store LPs in 1960** (paired with A + C: 47.3 → 51.2, 44.2 → 44.9), about the 3-4M back-catalogue gap
+  measured from the steady state (§85 #4: titles over 26 weeks earn 22% of LP gross in steady state, 15% in 1960 under A + C).
+  The guard and closures move within noise. On this base (no past-peak tail) the evergreens sell without charting (§81).
+
+**Status.** A + C is a candidate: it fixes the opening clock bug, puts 1960 LP volume and the first quarter near steady
+state, cuts closures, and lowers 300k+. Its cost is 1961 Big-5 share 21.2 → 25.6. B is the author's decision: volume on
+history against a Big-5 share far over both years; it needs the per-launch premium closed first, as §57 concluded, now with
+plug slots in. D is a small positive on top of A + C and belongs with the long-runner decision (§83), since the evergreens
+chart only with renewal. Not adopted; no candidate request changed.
