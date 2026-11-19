@@ -28,6 +28,15 @@ public class RecordRuntimeData {
 	public List<float> fitReliveAwareness;
 	// --album-scale-career-milestones: the album run's best singles-equivalent position (0 = unset). Written only on.
 	public int albumCareerPeak;
+	// --act-lp-audience-net-credit: this week's net album position, the run's best net singles equivalent and the net
+	// chart blend. Written only on; runtime only (a fresh-world switch).
+	public int albumActNetPosition;
+	public int albumActNetCareerPeak;
+	public float albumActNetBlend;
+	// --lp-hit-life-top / -share: decay weeks removed from the LP's clock while it was held, and the count of held weeks.
+	// Written only on; runtime only (a fresh-world switch).
+	public float albumHitLifePausedWeeks;
+	public int albumHitLifeHeldWeeks;
 	// --album-chart-blend: the LP's trailing-blend chart points. Written only on; runtime only (not saved).
 	public float albumChartBlend;
 	public bool albumChartBlendSeen;

@@ -4276,3 +4276,261 @@ instead of 0.033, via `ref-rs20u05-rackscale030-request.json`, because the first
 **Status:** `rgf1s30` (`--album-chart-racks=1 --rack-genre-flatten=1 --rack-shopper-scale=0.030` on `rs20u05`) is the
 candidate rack setting. Not adopted. Next: seeds 3003/4004 (the Big-5 swing) and a 1962-64 look before adoption. The
 store-side TradPop/Easy Listening excess and Folk/Comedy shortfall are a separate question.
+
+## 73. The Beatles question, part 2: what a phenomenon LP needs (2026-11-18; read-only, `acis260` 1962-64 four seeds + code)
+
+§69 found three LP-side blockers: the genre pool, follower intent that only displaces (`ChartManager.ApplyFollowerAlbumIntent`
+→ `MediaFollowerDemand.ConserveAlbumIntent`), and fixed time decay (`AlbumSimulator.GetCatalogDecayMultiplier`). Two
+upstream facts sit in front of them.
+
+**1. The model's LP hits do not come from its singles stars.** The three biggest non-soundtrack LPs of 1962-64 per
+seed are a jazz LP, an orchestra, folk and surf acts, a TradPop singer: acts with 0-0.5M singles in the 26 weeks before
+release. The acts with the most singles sell little on LP:
+
+| `acis260`, 1963-64 | Singles (2 yr) | Share of singles | Peak following | Their LPs (each) |
+|---|---|---|---|---|
+| Top 4 singles acts per seed (16 acts) | 2.6-5.0M | 1.2-2.2% | 0.56-1.28M | 5-62k peak week; 16-200k typical; best 496k (hits package) and 551k |
+| Their LP chart peaks | | | | #1-#42, mostly #8-#20; TeenPop acts #13-#42 |
+
+Historically the youth acts in the LP head were the singles stars (§13, §26), and *Meet the Beatles!* (3.65M in ten
+weeks) sold on the back of the same act's singles run (the ratio to its singles is unsourced here). The live link is `HitPackageDemand` (candidate: K 0.4, youth-weighted,
+studio 0.75): a studio LP carrying released singles adds about 0.2 × those singles' buyers to its pool. Those buyers come
+from a peak→units table (a No. 1 counts 878k, the 1960-61 median) rather than from the singles' real sales, and the
+act's other current hits count for nothing unless they are on the LP.
+
+**2. The model makes no singles phenomenon.** Biggest single 1960-64: 1.4-1.7M lifetime, 100-205k in its best week
+(four seeds); no act takes more than 5-6% of a week's singles market (median 2.1M a week in 1964). Beatlemania was a
+singles event first (the Beatles held the top five of the Hot 100 on 4 April 1964). The singles purse is fixed and rationed
+(memory: singles ceiling is the flat ration), so an act cannot take a large share of it.
+
+**So a Beatles-scale LP needs a chain, and the LP side alone cannot produce it.** Proposed stages, each its own switch:
+
+| Stage | Mechanism | What it buys | Risk |
+|---|---|---|---|
+| A. Act audience on LP | An LP's pool adds K × the act's *actual* singles buyers in the region over the last N weeks (all its singles, not just those on the LP), replacing the peak table. Optionally a share n of follower LP grants is new market (not conserved). | Singles stars' LPs reach the head: the youth LP head (§70-72) is Billboard's star LPs (Elvis, Nelson, Brenda Lee, Checker). Scale: a 1M-in-26-weeks act at K 0.3 → +300k pool, LPs in the 150-300k band. | Duplicates `HitPackageDemand` for compilations; must replace, not stack. Big-5 channel (§61) via star LPs. |
+| B. Success-gated LP life | Time decay pauses (or slows) while the LP holds the top N or sells ≥ X% of its peak, generalizing the soundtrack hit tail (§64 item 3, §67). | Long-runners and ten-week plateaus. | Lengthens No. 1 reigns, which §66 just shortened. Gate tight. |
+| C. Singles phenomenon | Act-level singles demand above the genre pool and the ration (an act's followers add singles market, or the ration lets one act's records take a larger share). | The precondition for a 1964-style act; nothing in A or B makes one. | Touches the fixed-purse singles calibration, Top 10 turnover and the Big-5 guard. Largest project. |
+
+**Recommendation:** A first. It is sourced on the 1960-61 chart (star LPs), plugs into the youth head work, and can be
+screened on 104 weeks. B second, gated on A's hits. C is a separate singles project; without it the model's ceiling is a
+~0.5-1M star LP, not 3-4M. Unmeasured: real units of the model's top singles acts' LP-carried tracks (needs
+`album-track-links` + records), and the 1965-69 pools (§69).
+
+## 74. Screen: `--act-lp-audience=K`, an act's singles buyers on its LPs (Beatles stage A; 2026-11-18; seeds 1001/2002, 104 weeks)
+
+**Switch** (`ActLpAudience` in `Systems/GameyAuditSwitches.cs`; hooks in `ChartManager.CalculateLiveRegionalSalesWithMarketClearing`
+and `AlbumSimulator.CalculateRegionalSales`): each act keeps a regional ledger of its cleared single and EP units, halved
+every 13 weeks (`--act-lp-audience-half-life`). An act's LP (studio or compilation, not a soundtrack) adds K × the genre's
+Youth weight (with `--hit-package-demand-youth`) × the act's ledger to its buyer pool, taking the larger of this and the
+hit-package term so the same buyers count once. Fresh-world only (the ledger is not saved); no draws; off is
+byte-identical in code (the hit-package line is unchanged when off). Checks in `GameyAuditSwitchChecks` pass.
+Scorer: `SimTools/score_act_lp_audience.py`.
+
+Control `rgf1s30` (§72). Arms `aud05` (K 0.5) and `aud10` (K 1.0), with the demand trace. Judged on the distribution,
+not the peak: a Beatles-scale LP should be possible but very rare.
+
+| Seeds 1001/2002 | `rgf1s30` | **`aud05`** | `aud10` | Target |
+|---|---|---|---|---|
+| Top 10 singles acts of 1960-61: LPs; median store + rack (k) | 30; 157 | 34.5; 179 | 37.5; 204 | |
+| … share of their LPs reaching the album top 10 | 35% | 43% | 48% | |
+| 1961 top 50: LPs by acts with a Top 10 single in the prior year (youth) | 14.5 (4.5) | 16.5 (7.5) | 19 (9) | |
+| Youth 1960 / 1961 | 15 / 10 | **15 / 16** | 20 / 19 | 14 / 16 |
+| Head gap 1960 / 1961 | 37 / 35 | **33 / 31** | 41 / 30 | 0 |
+| LPs 300k+ / 1M+ (RIAA scorer, all 1960 releases) | 2.75 / 0.45% | 2.85 / 0.48% | 3.1 / 0.42% | 1.2 / 0.4% |
+| LPs <4k; losing; bankruptcies | 40.5%; 40.4%; 67 | 41%; 42%; 60 | 41%; 42%; 61 | |
+| Biggest LP in the run (k, store + rack) | 1,290 | 1,371 | 1,586 | |
+| **Big-5 Top 10 singles 1961** (1001 / 2002) | 19.4 (22.3 / 16.5) | **30.0** (30.0 / 30.0) | 29.8 (26.9 / 32.7) | 20.6 |
+
+- **The LP side does what stage A is for.** Singles stars' LPs reach the head and the youth head lands on Billboard at
+  K 0.5 (15 / 16). The 1961 gap falls to 31. The top of the distribution barely moves: 1M+ stays at the RIAA rate and
+  the biggest LP is 1.4M. A Beatles-scale LP is still out of reach without a singles phenomenon (§73 stage C), as it should be.
+- **Big-5 rises by ~10 at both K, and the rows say why.** `analyze_big5_1961_excess.py`, 1961 Top 10 slots:
+
+| 1961 Top 10 slots (%) | history | `rgf1s30` 1001 / 2002 | `aud05` 1001 / 2002 |
+|---|---|---|---|
+| Big-5 acts with a 1960 Top 10 | 16.4 | 7.3 / 6.4 | **12.7 / 15.2** |
+| … slot-weeks per such act | 4.45 | 1.9 / 1.8 | **3.9 / 4.2** |
+| Big-5 acts without one (newcomers) | 4.2 | 15.0 / 10.2 | 17.3 / 14.8 |
+| Other labels' 1960 hit acts | 22.9 | 26.7 / 26.7 | 25.0 / 18.1 |
+
+  The act audience brings Big-5 hit acts' 1961 follow-through up to history (the follow-up shortfall in memory: Big-5
+  follow-ups are historical, the field's are short). The total overshoots because Big-5 newcomers were already 2.5-3.5×
+  history in the control and stay there. On seed 2002 the label split also moves toward history (Columbia 5 → 27 slots
+  against 23, RCA 11 → 35 against 44, Decca 11 → 28 against 28, Mercury 59 → 42 against 12).
+- **Channel, partly measured.** With `--album-career-credit-off` (an LP's chart run credits nothing to the act) on both
+  control and arm, the act audience moves Big-5 by −1.3 (1001) and +8.6 (2002), against +7.7 and +13.5 with credit on.
+  Roughly two-thirds plausibly goes through §61's album-career ladder; two reshuffled seeds cannot pin it down.
+
+**Status:** `aud05` (K 0.5) is the stage A candidate for the LP and youth rows. Not adoptable on its own: it breaks the
+1961 Big-5 total, though through a historically correct row. Two ways forward: (1) pair it with the Big-5 newcomer fix
+(the 2.5-3.5× newcomer excess is the pre-existing gap; memory: Big-5 premium hub), or (2) stop double credit: an LP's career
+credit should not count sales to the act's own singles buyers, which its singles already credited. Seeds 3003/4004 before
+either.
+
+## 75. The Big-5 newcomer excess under stage A: per entry it is on history; earned indie coverage rejected (2026-11-18; seeds 1001-4004, 104 weeks)
+
+The author picked option (1) of §74: fix the Big-5 newcomer excess. Scorers `SimTools/analyze_big5_1961_newcomers.py`
+(1961 Big-5 Top 10s by career, prior chart best and plug outcome) and `SimTools/score_climb_by_prior.py` (Top 10 per Hot 100
+chart event by the act's prior best; history label-blind, since labels exist only for Top 10s).
+`score_chart_faller_depth.py` now reads `SEEDS=` (it divided pairs by four).
+
+**Per Hot 100 entry, Big-5 newcomers climb at history's rate; field first entries climb at half of it.** Chart events
+debuting weeks 40-92 (`aud05`, four seeds), Top 10 % per event:
+
+| Prior best of the act | History 1961-63 (label-blind) | Big-5 | MidTier | Field |
+|---|---|---|---|---|
+| none (first entry) | **20.8** (206/yr) | **23.2** (35/yr) | 18.6 | **10.1** (194/yr) |
+| 41-100 | 9.0 | 21.7 | 18.2 | 19.7 |
+| 11-40 | 10.2 | 27.6 | 17.6 | 14.4 |
+| Top 10 | 17.5 | 24.1 | 15.4 | 20.0 |
+
+History climbs best on a first entry. The sim climbs worst there, for the field, and repeat entries after a 11-100 best
+climb about twice history's rate in every group. Routine Big-5 newcomer singles (plug slots) enter the Hot 100 at the
+Independents' rate within each quality bin (19.3 vs 19.1% at q > .76). Their premium is after entry (Top 10 per entry
+21 vs 13%), with Plugged picks (q .77) on top. The Big-5 newcomer excess is therefore entry volume (35 first entries a year from
+~260 NewSigning issues, quality .71-.77) at a historical climb, set against a field whose first entries under-climb.
+
+**Stage A feeds the Big-5 newcomer row.** 1961 Top 10 slot points, Big-5 acts without a 1960 Top 10 (history 4.2):
+
+| | control | `aud05` |
+|---|---|---|
+| 1001 / 2002 (control `rgf1s30`) | 15.0 / 10.2 | 17.3 / 14.8 |
+| 3003 / 4004 (control `frd60pk`, no §60-72 LP flags) | 11.7 / 7.3 | 14.8 / 21.5 |
+| Big-5 1960 hit acts, same seeds (history 16.4) | 7.3 / 6.4; 10.0 / 11.0 | 12.7 / 15.2; 11.4 / 12.9 |
+
+On four seeds the 1961 Big-5 total is 30.0 / 30.0 / 26.2 / 34.4 (history 20.6). 1960 is 25.1 on 1001/2002 and 30.5 on
+3003/4004 (frd60pk 21.8; target 27). On 1001/2002 the added newcomer Top 10s are youth NewSigning singles. Big-5 youth
+NewSigning singles launched in weeks 40-92 reach the Top 10 at 0.4% in `rgf1s30` and 5.9% in `aud05`, from the same
+~128 issues a seed, with no singles-side code path. The act audience touches only LP pools. The rise comes through what
+an act's LPs feed back: §74's `--album-career-credit-off` probe puts about two-thirds of the Big-5 rise through the album
+career ladder.
+
+**Screen: `--earned-indie-coverage=1` on `aud05` (`aud05ec`, 1001/2002). Rejected.** The switch already exists
+(2026-11-11): it gives a charted non-Major record's uncovered regions covered-grade restock and shelf capacity. Field first
+entries stay at 10.2 → 11.7% Top 10. 1961 Big-5 is 30.0 → 29.3, and the newcomer row rises 16.1 → 17.9. 1960 Big-5 falls
+25.1 → 20.8 and closures rise 91 → 108.5. Shelf access does not hold field first entries back.
+
+**Reading.** With stage A, the newcomer excess has two parts. One is stage A's own feedback (LP chart runs → the
+career ladder → Big-5 youth newcomers), which is §74's option (2): a career credit for an LP's sales to buyers the act's
+singles already credited. The other is the pre-existing volume of Big-5 newcomer first entries. Per entry it is
+historical, so it is not a launch or climb lever. Of the two, the double credit is the one stage A created and has a
+measured channel. Next: build `--album-career-credit-net-of-act-audience` (career credit from an LP's sales above the act-audience
+term), 4 seeds paired with `aud05` on seeds 3003/4004 with an `rgf1s30` control on those seeds.
+
+## 76. Screen: `--act-lp-audience-net-credit`, an LP's career credit net of the act's own singles buyers (2026-11-18; seeds 1001-4004, 104 weeks)
+
+**Switch** (`ActLpAudience.NetCreditSwitch` in `Systems/GameyAuditSwitches.cs`; `ChartManager.AssignActNetAlbumPositions`,
+`AlbumScaleCareerMilestones.ObserveNetCareerPeak`; needs `--act-lp-audience=K` and `--album-scale-career-milestones`).
+`AlbumSimulator` records the share of each region's LP pool that stage A adds over the hit-package term. Each week, every
+ranked LP gets a net album position: its chart points (or trailing blend) times (1 − act-audience units / chart units),
+ranked against the other entries' real points. The act's career (milestone latches, run completion, recognition, contract
+evidence: every `ObserveActCareerPeak` / `ActCareerPeak` read) takes the best net position's singles equivalent. An LP that
+charts only on its act audience never charts for the act. The chart, LP demand, label hit credit, landmark, acclaim and
+evolution keep the real position. Checks pass. Off is byte-identical: `aud05id-1001-sc` on the new build matches
+`aud05-1001-sc` in records, weeks, label finance, album chart, label sales and launch attribution.
+
+Arms: control `rgf1s30` (3003/4004 run for this screen), `aud05`, and `audnet` (`aud05` + the switch).
+
+| Seeds 1001-4004 | `rgf1s30` | `aud05` | **`audnet`** | Target |
+|---|---|---|---|---|
+| **Big-5 Top 10 share 1961** (by seed) | 23.9 (22.3 / 16.5 / 27.9 / 29.0) | 30.1 (30.0 / 30.0 / 26.2 / 34.4) | **21.2** (18.5 / 22.5 / 20.4 / 23.3) | 20.6 |
+| Big-5 Top 10 share 1960 | 26.2 | 27.8 | 25.6 | 27 |
+| 1961 slot points: Big-5 acts with no 1960 Top 10 | 13.9 | 17.1 | 10.6 | 4.2 |
+| … Big-5 1960 hit acts | 10.1 | 13.0 | 10.6 | 16.4 |
+| … field 1960 hit acts / field new | 23.7 / 52.4 | 21.0 / 48.9 | 26.9 / 51.9 | 22.9 / 56.5 |
+| Proven / other events: T10 % | 21.6 / 15.4 | 19.6 / 15.2 | 20.8 / 14.0 | 21.6 / 15.3 |
+| Labels closed by week 104 | 98.2 | 93.0 | 96.8 | |
+| Top 10 singles acts' LPs reaching the album top 10 | 34.5% | 35.0% | 35.0% | |
+| … median LP (k, store + rack) | 170 | 177 | 175 | |
+| 1961 top 50: singles-star LPs (youth) | 15.0 (6.0) | 17.2 (7.2) | 13.8 (6.5) | |
+| Youth in the year-end top 50, 1960 / 1961 | 15.5 / 12.5 | 15 / 16 | 17.5 / 14.5 | 14 / 16 |
+| Album head gap 1960 / 1961 | 38 / 29 | 32 / 26 | 40 / 30 | 0 |
+
+- **The switch removes stage A's Big-5 rise.** 1961 Big-5 falls 30.1 → 21.2, down on 4/4 seeds against `aud05`. Against the control
+  it is 2.7 lower (2/4 seeds down), inside seed noise. Both rows that stage A raised come back: Big-5 newcomers 17.1 → 10.6
+  (control 13.9) and Big-5 1960 hit acts 13.0 → 10.6 (control 10.1). So §74's "historically correct" hit-act gain also
+  ran through the double credit. Closures and 1960 stay in their ranges.
+- **On four seeds stage A's LP gain is small.** §74's two-seed rows overstated it. The share of top singles acts' LPs
+  reaching the album top 10 is 34.5 / 35.0 / 35.0%; their median LP is 170 / 177 / 175k; the head gap is 38/29 against
+  32/26. What holds is the 1961 youth row: 12.5 → 16 under stage A and 14.5 with the net credit (target 16). Beatles
+  stage A buys a youth LP head through the act's own buyers, and with the double credit removed it keeps about half of that.
+- **The Big-5 mix is unchanged from the candidate.** Newcomers are 2.5× history and hit acts 0.65×, as before stage A
+  (§75: the newcomer surplus is first-entry volume at a historical climb).
+
+**Status:** `aud05` + `--act-lp-audience-net-credit` is safe on the singles side and adds a modest youth LP gain.
+It does not close the album head gap. Not adopted; the author decides whether the youth row justifies the pair, or
+whether stage A waits until §73's stage B (success-gated LP life) gives it something to carry.
+
+**ADOPTED 2026-11-18 by the author, with the LP chain underneath it.** `SimLogs/writing-calibration/candidate-request.json`
+(267 flags; previous `candidate-request-pre-lp-chain-audnet-2026-11-18.json`) now carries `--earned-lp-forecast-warm-start=20`,
+`--album-career-importance=1960:0.3,1964:0.5,1967:0.85,1969:1` (§62-63), `--lp-reception-sigma=2.0 --lp-reception-upper=1:0.5`
+(§66, replacing σ 1.5), `--album-chart-racks=1 --rack-genre-flatten=1 --rack-shopper-scale=0.030` (§68-72, replacing
+0.033), and `--act-lp-audience=0.5 --act-lp-audience-net-credit`. It matches the `audnet` requests except four telemetry
+flags (`--album-demand-trace[-weeks]`, `--newcomer-connect-trace`, `--regional-home-sales`). Controls for later screens:
+`audnet-{1001..4004}-sc`. Owed: the 1962-64 look at the rack setting (§72) and the decade check of the importance
+schedule (§63). Next: §73 stage B, success-gated LP life.
+
+## 77. Screen: success-gated LP life (§73 stage B): hold gates fail, a past-peak tail works (2026-11-18; seeds 1001/2002, 104 weeks)
+
+**Switch** (`LpHitLife` in `Systems/GameyAuditSwitches.cs`; `AlbumSimulator.UpdateAlbum` advances it, `CalculateRegionalSales`
+reads it). Each LP keeps a count of decay weeks taken off its 0.93 clock (`albumHitLifePausedWeeks`, runtime only). Two modes:
+
+- **Hold** (`--lp-hit-life-top=N`, `--lp-hit-life-share=X`): §73's literal spec. In a week past 8 where the LP stood in the
+  top N last week, or sold ≥ X × its best week, the clock stops (`--lp-hit-life-rate=S` keeps S of the week;
+  `--lp-hit-life-max=M` caps the weeks removed, default 104).
+- **Past-peak tail** (`--lp-hit-life-tail-top=N --lp-hit-life-tail=D`): an LP that peaked in the top N decays at D a week
+  (vs 0.93, or the hit-package decay for compilations) in each week past 8 that it stands outside the top N. Its top-N weeks
+  keep the normal clock, so reigns are not extended.
+
+Exhaustion is untouched in both modes. Profiled soundtracks keep their box-office path. No draws. Checks in
+`GameyAuditSwitchChecks` pass. Off is byte-identical: `hloff-1001-sc` matches `audnet-1001-sc` in records, weeks, label
+finance and the album chart. Scorer: `SimTools/score_lp_hit_life.py` (artist LP = any format but Soundtrack).
+
+Control `audnet` (the adopted candidate, §76). Arms: `hlt10` (top 10), `hls50` (X 0.5), `hlt10m26` (top 10, cap 26),
+`hlq96` / `hlq98` (tail, top 10, D 0.96 / 0.98). Mean of seeds 1001/2002:
+
+| | `audnet` | `hlt10` | `hls50` | `hlt10m26` | `hlq96` | **`hlq98`** | Billboard |
+|---|---|---|---|---|---|---|---|
+| No. 1s 1960 / 1961 | 7.5 / 6.5 | 5.5 / 6.5 | 7 / 10.5 | 6.5 / 9.5 | 6 / 11 | **9 / 10.5** | 10 / 12 |
+| Longest No. 1 run 1960 / 1961 | 12.5 / 13 | **32 / 32** | 23 / 9.5 | 27.5 / 15.5 | 17.5 / 12.5 | **13 / 9.5** | 13 / 10+ |
+| Slots held by 40+ week artist LPs 1960 / 1961 (%) | 0.3 / 0.0 | 1.4 / 2.7 | 0.7 / 0.1 | 1.4 / 1.8 | 0.7 / 0.8 | **1.5 / 5.4** | ~28 of 65 (Jan 1960) |
+| … all titles 1961 (%) | 18.9 | 21.2 | 18.7 | 19.6 | 19.7 | 24.5 | 38 |
+| Slots held by 20+ week artist LPs 1961 (%) | 7.6 | 15.2 | 11.0 | 14.3 | 10.8 | 20.4 | |
+| Artist LPs reaching 40 chart weeks | 0.5 | 6.5 | 0 | 5.5 | 3.5 | **10.5** | |
+| Median run: artist LPs debuting wk 2-40 / their top-10 titles | 12 / 20.8 | 12.5 / 32 | 13 / 24.5 | 12.5 / 32 | 12.5 / 25.5 | 13 / 28.5 | D7 12-18 |
+| Charted artist LPs 300k+ / 1M+ (demand trace, launched wk 2-52; ~85-90 a seed) | 33.5 / 0 | 28 / 3 | 35 / 1.5 | 30 / 3 | 30.5 / 1.5 | 25 / 5 | |
+| All 1960 releases 300k+ / 1M+ % (RIAA scorer, store + rack) | 2.95 / 0.45 | | | | | 2.9 / **0.73** | 1.2 / 0.44 |
+| Biggest artist LP (k) | 1,294 | **5,275** (9,041 on 1001) | 2,012 | 2,633 | 1,446 | 1,906 | |
+| Big-5 Top 10 singles 1961 (1960 hit acts + newcomers) | 20.5 | 18.5 | 24.7 | 19.8 | 25.1 | **19.8** | 20.6 |
+| Store LPs 1960 / 1961 (M) | 35.2 / 54.2 | | | | 36.7 / 56.4 | 37.4 / 59.1 | – / 68 |
+| Head gap 1960 / 1961 | 34 / 39 | | | | 36 / 35 | 37 / **50** | 0 |
+| Labels defunct (1001; 2002) | 96; 104 | | | | 106; 96 | 104; 101 | |
+
+- **The hold gates feed the monsters, not the long-runners.** Holding the top 10 is self-reinforcing: an LP that does
+  not decay stays at No. 1. On seed 1001 *Nicky and the Martians* (Comedy, the §64 monster draw) holds No. 1 for 103 weeks
+  and sells 9.0M. A 26-week cap still gives it a 42-week reign. The share gate is self-limiting, because exhaustion
+  pulls every other LP below half its best week by about chart week 10, so it extends only titles still selling at peak:
+  the monster again (23-week reign) and almost no long-runners (0.1%). §73 flagged this risk. The data show that
+  "success" read as *holding the top* selects the reception draw's upper tail.
+- **Long-runners live below the head, after the peak.** Under every hold arm, a top-10 artist LP keeps 0-1% of its best
+  week by chart week 30 and falls below the chart bottom (2.2-2.5k a week) around week 27. Billboard's evergreens
+  (Mathis, the Kingston Trio, Mitch Miller) sat at #20-50 for a year. The past-peak tail gives them that zone and leaves
+  reigns alone: `hlq98` puts No. 1 count and reign length on Billboard (9 / 10.5; 13 / 9.5). Artist long-runners rise from 0
+  to 10.5 titles and 5.4% of 1961 slots. On the RIAA scorer the 300k+ share is unchanged (2.95 → 2.9%) and 1M+ rises
+  0.45 → 0.73%, past RIAA's 0.44%, which the control matched: the tail turns a few 600k-1M hits into million-sellers. The Big-5 singles share is flat (19.8 against 20.5), so the §61 career channel does
+  not pick this up. Store LPs gain 4.9M.
+- **Cost: the tail amplifies whatever leads the LP head.** The 1961 head gap rises 39 → 50. Seed 2002's long-runners are 11
+  TradPop titles of 15 (TradPop 46 points in its 1961 top 50 against 22), because the year-end top 50 sums points and the
+  tail adds points to old hits. TradPop already swings 12-34 by seed (§65). Seed 1001's six long-runners are mixed: two
+  TradPop, two Easy Listening, a doo-wop hits package and a rock and roll act. `hlq96` holds the gap (35) but buys only a
+  seventh of the long-runner slots (0.8%).
+- **Still far from Billboard's long-runner share.** 5.4% against ~28% of a 65-title listing. Part of that is the window:
+  a 104-week run has no artist LPs older than 1960, while Billboard's 1960 evergreens dated to 1956-59 (the opening
+  catalogue seeds soundtracks only, §13).
+
+**Status:** the hold mode (§73 as written) is rejected. It extends monster reigns, and a cap does not prevent that.
+`hlq98` (`--lp-hit-life-tail-top=10 --lp-hit-life-tail=0.98`) is the stage B candidate: No. 1s, reigns and long-runners move
+toward history (1M+ overshoots RIAA), and the Big-5 share and closures hold. Not adopted on two seeds, because the 1961
+head gap worsens through seed 2002's TradPop. Next: seeds 3003/4004 (`audnet` controls exist), then decide whether the
+TradPop concentration is seed noise or the tail. If it is the tail, the lever is an opening artist-LP catalogue or a
+genre-neutral gate, not a lower D. Stage A + B together still cannot make a Beatles-scale LP without stage C.

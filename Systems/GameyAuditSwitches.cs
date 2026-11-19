@@ -589,6 +589,110 @@ public static class HitPackageDemand {
 }
 
 /// <summary>
+/// --act-lp-audience=K (LpGenreAllocationFollowup.md §73-74, the Beatles question stage A). An LP sells to its genre's
+/// pool plus, under --hit-package-demand, the buyers of the singles it carries, read from their chart peaks. The singles
+/// stars of 1963-64 (2.6-5.0M singles, 0.6-1.3M followers) sell 16-200k per LP, and the year's biggest LPs come from acts
+/// with almost no singles. With the switch on, each act keeps a ledger of its recent singles buyers by region: every
+/// cleared single or EP unit is added, and the ledger decays by half every --act-lp-audience-half-life weeks (default 13).
+/// An act's LP (studio or compilation, not a soundtrack) adds K × the genre's Youth segment weight × the act's ledger in
+/// the region to its buyer pool, taking the larger of this and the hit-package term so the same buyers count once. The
+/// Youth weight follows --hit-package-demand-youth: an adult act's singles buyers are already in its genre's LP pool.
+/// Market-clearing path only. A fresh-world research switch (the ledger is not saved). No draws. Off: never read.
+/// </summary>
+public static class ActLpAudience {
+	public const string Switch = "--act-lp-audience", HalfLifeSwitch = "--act-lp-audience-half-life";
+	/// <summary>--act-lp-audience-net-credit (§76): the act's career reads an LP's chart run net of this switch's buyers.
+	/// Each week every charting LP gets a net album position: where it would rank if its chart points lost the share of its
+	/// units that came from this switch's increment over the hit-package term (the act's own singles buyers, whom its
+	/// singles already credited). The act's career (milestone latches, run completion, recognition, contract evidence; via
+	/// <see cref="AlbumScaleCareerMilestones.ObserveActCareerPeak(RecordRuntimeData)"/> and
+	/// <see cref="AlbumScaleCareerMilestones.ActCareerPeak(RecordRuntimeData)"/>) reads the best net position's singles
+	/// equivalent; an LP that charts only on those buyers never charts for the act. The chart itself, the LP's demand and
+	/// label hit credit, landmark, acclaim and evolution keep the real position. Needs the switch and
+	/// --album-scale-career-milestones. No draws. Off: never read.</summary>
+	public const string NetCreditSwitch = "--act-lp-audience-net-credit";
+	public const float DefaultHalfLifeWeeks = 13f;
+	private static bool read;
+	private static bool netCredit;
+	private static float share;
+	private static double retain;
+	private static int lastWeek = int.MinValue;
+	private static readonly Dictionary<string, Dictionary<string, double>> ledger = new(StringComparer.Ordinal);
+	private static void Read() {
+		if (read) return;
+		share = GameyAuditArguments.Value(Switch, 0f, 5f) ?? 0f;
+		float? halfLife = GameyAuditArguments.Value(HalfLifeSwitch, 1f, 520f);
+		if (halfLife != null && share <= 0f) throw new ArgumentException(HalfLifeSwitch + " needs " + Switch + "=K.");
+		if (share > 0f && SimulationArguments.Get().Any(a => a.StartsWith("--resume-world", StringComparison.Ordinal) ||
+			a.StartsWith("--save-world", StringComparison.Ordinal)))
+			throw new ArgumentException(Switch + " is a fresh-world research switch; the act ledger is not saved.");
+		retain = Math.Pow(0.5, 1.0 / (halfLife ?? DefaultHalfLifeWeeks));
+		netCredit = SimulationArguments.Get().Contains(NetCreditSwitch);
+		if (netCredit && share <= 0f) throw new ArgumentException(NetCreditSwitch + " needs " + Switch + "=K.");
+		read = true;
+	}
+	internal static void SetForChecks(float k, float halfLife = DefaultHalfLifeWeeks, bool net = false) {
+		read = true; share = k; retain = Math.Pow(0.5, 1.0 / halfLife); ledger.Clear(); lastWeek = int.MinValue; netCredit = net && k > 0f;
+	}
+	public static bool Enabled { get { Read(); return share > 0f; } }
+	public static bool NetCredit {
+		get {
+			Read();
+			if (netCredit && !AlbumScaleCareerMilestones.AlbumScale)
+				throw new ArgumentException(NetCreditSwitch + " needs --album-scale-career-milestones with its album scale.");
+			return netCredit;
+		}
+	}
+
+	/// <summary>The pool this switch adds beyond the hit-package term (what the act audience adds over the control).</summary>
+	public static float Increment(float hitPackageBuyers, float actBuyers) => Math.Max(0f, actBuyers - hitPackageBuyers);
+
+	/// <summary>An LP's points net of the act-audience share of its chart units: points × (1 − audience / chart units).</summary>
+	public static float NetPoints(float points, double audienceUnits, float chartUnits) =>
+		chartUnits <= 0f ? points : points * (1f - (float)Math.Clamp(audienceUnits / chartUnits, 0d, 1d));
+
+	/// <summary>Where <paramref name="netPoints"/> would rank among the other entries' points (1 = top); 0 when past
+	/// <paramref name="chartSize"/>. Ties rank below the incumbent, so a net LP never displaces an equal.</summary>
+	public static int NetPosition(float netPoints, IEnumerable<float> otherPoints, int chartSize) {
+		int above = 0;
+		foreach (float p in otherPoints) if (p >= netPoints) above++;
+		return above < chartSize ? above + 1 : 0;
+	}
+
+	/// <summary>Once per clearing week, before demand: every act's ledger loses one week (or the weeks skipped).</summary>
+	public static void AdvanceWeek(int week) {
+		if (!Enabled || week == lastWeek) return;
+		if (lastWeek != int.MinValue) {
+			double factor = Math.Pow(retain, Math.Max(1, week - lastWeek));
+			foreach (Dictionary<string, double> regions in ledger.Values)
+				foreach (string region in regions.Keys.ToList()) regions[region] *= factor;
+		}
+		lastWeek = week;
+	}
+
+	/// <summary>After clearing: a single's or EP's cleared units join its act's ledger in the region.</summary>
+	public static void AddSingleUnits(Record record, string regionId, int units) {
+		if (!Enabled || units <= 0 || record == null || record.format == ReleaseFormat.Album || string.IsNullOrEmpty(record.artistId)) return;
+		if (!ledger.TryGetValue(record.artistId, out Dictionary<string, double> regions))
+			ledger[record.artistId] = regions = new Dictionary<string, double>(StringComparer.Ordinal);
+		regions[regionId] = regions.GetValueOrDefault(regionId) + units;
+	}
+
+	/// <summary>The act's recent singles buyers in the region (decayed units).</summary>
+	public static double ActBuyers(string artistId, string regionId) =>
+		!string.IsNullOrEmpty(artistId) && ledger.TryGetValue(artistId, out Dictionary<string, double> regions) ? regions.GetValueOrDefault(regionId) : 0d;
+
+	/// <summary>Buyers added to the region's pool for this LP: 0 when off, for a soundtrack or an LP with no act.</summary>
+	public static float RegionalBuyers(RecordRuntimeData record, MarketRegion region, int year) {
+		if (!Enabled || record?.baseRecord == null || region == null) return 0f;
+		Album album = record.baseRecord.album;
+		if (album?.albumFormat == AlbumFormat.Soundtrack) return 0f;
+		float k = HitPackageDemand.YouthWeighted ? share * HitPackageDemand.YouthWeight(record.baseRecord.primaryGenre, year) : share;
+		return (float)(k * ActBuyers(record.baseRecord.artistId, region.regionId));
+	}
+}
+
+/// <summary>
 /// --album-chart-reporting=Country=0.5,... (LpGenreAllocationFollowup.md §11). The album chart ranks LPs on store units,
 /// so a country star's LP that sells like a pop LP charts like one. Billboard's pop LP chart was compiled from pop
 /// dealers' reports; country LPs sold largely through country outlets, and Billboard's 1961 mono year-end top 50 has one
@@ -688,6 +792,92 @@ public static class SoundtrackHitTail {
 		if (record.peakPosition <= 0 || record.peakPosition > HitPeak) return 1f;
 		return 1f + Rate * Math.Max(0, record.weeksSinceRelease - StartWeek);
 	}
+}
+
+/// <summary>
+/// --lp-hit-life-top=N / --lp-hit-life-share=X (LpGenreAllocationFollowup.md §73 stage B, §77). A non-soundtrack LP's
+/// demand decays by a fixed 0.93 a week from week 8 whatever its success (AlbumSimulator.GetCatalogDecayMultiplier), so
+/// hits decay like flops and 96% of 40+ week chart slots are soundtracks (§64). Billboard's 1960 Essential Inventory had
+/// 18 non-soundtrack long-runners in its top 25. With the switch on, an LP's decay clock stops in a week it is held:
+/// last week it stood in the album top N (N &gt; 0), or its store units were at least X × its best week (X &gt; 0).
+/// Either test holds it. A held week adds <see cref="Rate"/> of a decay week (--lp-hit-life-rate, default 0 = a full
+/// pause), and at most <see cref="MaxPausedWeeks"/> weeks are ever removed from the clock (--lp-hit-life-max, default
+/// 104). Exhaustion is untouched, so a held LP still spends its buyer pool. Soundtracks with a film or show profile keep
+/// their box-office path. Runtime only (not saved); no draws. Off: never read.
+/// </summary>
+public static class LpHitLife {
+	public const string TopSwitch = "--lp-hit-life-top";
+	public const string ShareSwitch = "--lp-hit-life-share";
+	public const string RateSwitch = "--lp-hit-life-rate";
+	public const string MaxSwitch = "--lp-hit-life-max";
+	// §77 variant: --lp-hit-life-tail-top=N --lp-hit-life-tail=D. An LP that peaked in the top N decays at D a week (in place
+	// of 0.93, or the hit-package decay for a compilation) in every week past 8 that it stands outside the top N. Its weeks in
+	// the top N keep the normal clock, so reigns are untouched; the slow tail is for the long-runner zone below the head.
+	public const string TailTopSwitch = "--lp-hit-life-tail-top";
+	public const string TailSwitch = "--lp-hit-life-tail";
+	public const float DefaultMaxPausedWeeks = 104f;
+	private static bool read;
+	private static int top, tailTop;
+	private static float share, rate, max = DefaultMaxPausedWeeks, tail;
+	private static void Read() {
+		if (read) return;
+		top = (int)(GameyAuditArguments.Value(TopSwitch, 0f, 200f) ?? 0f);
+		share = GameyAuditArguments.Value(ShareSwitch, 0f, 1f) ?? 0f;
+		rate = GameyAuditArguments.Value(RateSwitch, 0f, 0.99f) ?? 0f;
+		max = GameyAuditArguments.Value(MaxSwitch, 1f, 520f) ?? DefaultMaxPausedWeeks;
+		tailTop = (int)(GameyAuditArguments.Value(TailTopSwitch, 0f, 200f) ?? 0f);
+		tail = GameyAuditArguments.Value(TailSwitch, 0.5f, 0.999f) ?? 0f;
+		if (tailTop > 0 && tail <= 0f) throw new ArgumentException(TailTopSwitch + " requires " + TailSwitch + "=D.");
+		read = true;
+	}
+	internal static void SetForChecks(int topN, float peakShare, float slowRate = 0f, float maxWeeks = DefaultMaxPausedWeeks,
+		int tailTopN = 0, float tailDecay = 0f) {
+		read = true; top = topN; share = peakShare; rate = slowRate; max = maxWeeks; tailTop = tailTopN; tail = tailDecay;
+	}
+	public static bool Enabled { get { Read(); return top > 0 || share > 0f || tailTop > 0; } }
+	public static int TailTop { get { Read(); return tailTop; } }
+	public static float Tail { get { Read(); return tail; } }
+
+	/// <summary>True when the LP peaked in the tail top N and stands outside it now (last week's chart).</summary>
+	public static bool InTail(RecordRuntimeData record) =>
+		Enabled && TailTop > 0 && record != null && record.peakPosition > 0 && record.peakPosition <= TailTop
+		&& (record.currentPosition <= 0 || record.currentPosition > TailTop);
+	public static int Top { get { Read(); return top; } }
+	public static float Share { get { Read(); return share; } }
+	public static float Rate { get { Read(); return rate; } }
+	public static float MaxPausedWeeks { get { Read(); return max; } }
+
+	/// <summary>True when last week's chart position or store units hold the LP's decay clock.</summary>
+	public static bool Held(RecordRuntimeData record) {
+		if (!Enabled || record == null) return false;
+		if (Top > 0 && record.currentPosition > 0 && record.currentPosition <= Top) return true;
+		return Share > 0f && record.peakWeeklyUnits > 0 && record.unitsThisWeek >= Share * record.peakWeeklyUnits;
+	}
+
+	/// <summary>Called once a week per LP, after its age advances: a held week past <paramref name="decayStartWeeks"/>
+	/// removes (1 − Rate) of a week from its decay clock, up to the cap. Soundtracks with a profile are skipped.</summary>
+	public static void Advance(RecordRuntimeData record, float decayStartWeeks) {
+		if (!Enabled || record == null) return;
+		Album album = record.baseRecord?.album;
+		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null) return;
+		if (record.weeksSinceRelease <= decayStartWeeks) return;
+		if (Held(record)) {
+			record.albumHitLifePausedWeeks = Math.Min(MaxPausedWeeks, record.albumHitLifePausedWeeks + (1f - Rate));
+			record.albumHitLifeHeldWeeks++;
+		}
+		else if (InTail(record)) {
+			// A week at D is ln D / ln base of a base-decay week; the rest comes off the clock.
+			float baseDecay = HitPackageDemand.DecayEnabled && album?.albumFormat == AlbumFormat.Compilation ? HitPackageDemand.Decay : LpDemandProbe.WeeklyDecay;
+			if (Tail <= baseDecay || baseDecay >= 1f) return;
+			float counted = (float)(Math.Log(Tail) / Math.Log(baseDecay));
+			record.albumHitLifePausedWeeks = Math.Min(MaxPausedWeeks, record.albumHitLifePausedWeeks + (1f - counted));
+			record.albumHitLifeHeldWeeks++;
+		}
+	}
+
+	/// <summary>The age the decay reads: weeks since release less the paused weeks. Off: weeks since release.</summary>
+	public static float DecayAge(RecordRuntimeData record, int weeksSinceRelease) =>
+		!Enabled || record == null ? weeksSinceRelease : weeksSinceRelease - record.albumHitLifePausedWeeks;
 }
 
 /// <summary>

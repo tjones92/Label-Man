@@ -47,6 +47,8 @@ public static class AlbumSimulator {
 				singleHeat = Mathf.Max(singleHeat, Mathf.Clamp(cut.radioHeat, 0f, 1f));
 			}
 		record.linkedPromoSingleHeat = singleHeat;
+		// --lp-hit-life-top / -share: a held LP's decay clock stops this week (last week's chart and units). Off: not read.
+		if (LpHitLife.Enabled) LpHitLife.Advance(record, CatalogDecayStartWeeks);
 		record.albumSubstitutionPropensity = substitutionPropensity;
 		record.cannibalizationSuppression = Mathf.Clamp(CompetitorManager.Instance?.CannibalizationStrength ?? 0f, 0f, 1f)
 			* singleHeat * substitutionPropensity;
@@ -98,7 +100,16 @@ public static class AlbumSimulator {
 			? region.GetSoundtrackAlbumMarketSize(album.externalMedia, year)
 			: region.GetAlbumMarketSize(record.baseRecord.primaryGenre, year);
 		// --hit-package-demand: a hits package also sells to the buyers of the singles it carries. Off: not read.
-		if (HitPackageDemand.Enabled) buyerPool += HitPackageDemand.RegionalBuyers(album, region, record.baseRecord.primaryGenre, year);
+		// --act-lp-audience: the act's recent singles buyers; the larger of that and the hit-package term, so they count once. Off: not read.
+		if (ActLpAudience.Enabled) {
+			float hitPackage = HitPackageDemand.Enabled ? HitPackageDemand.RegionalBuyers(album, region, record.baseRecord.primaryGenre, year) : 0f;
+			float actBuyers = ActLpAudience.RegionalBuyers(record, region, year);
+			buyerPool += Mathf.Max(hitPackage, actBuyers);
+			// --act-lp-audience-net-credit: the increment's share of the pool, for the act's net career read. Off: not written.
+			if (ActLpAudience.NetCredit)
+				data.albumActAudienceShareThisWeek = buyerPool > 0f ? ActLpAudience.Increment(hitPackage, actBuyers) / buyerPool : 0f;
+		}
+		else if (HitPackageDemand.Enabled) buyerPool += HitPackageDemand.RegionalBuyers(album, region, record.baseRecord.primaryGenre, year);
 		// --soundtrack-pool-breadth: a wider, slower soundtrack audience (conversion divided below). Off: not read.
 		bool broadSoundtrack = SoundtrackPoolBreadth.Enabled && album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null;
 		if (broadSoundtrack) buyerPool *= SoundtrackPoolBreadth.Breadth;
@@ -124,7 +135,10 @@ public static class AlbumSimulator {
 		conversion *= 0.85f + Mathf.Max(0f, data.sentiment) * 0.25f;
 		conversion *= 1f + AlbumModel.GetAlbumEraWeight(year) * (album?.packaging ?? 0f) * 0.12f;
 		conversion *= record.weeksSinceRelease switch { <= 2 => 0.72f, <= 6 => 1.05f, <= 12 => 1f, _ => 0.92f };
-		float catalogDecayMultiplier = GetAlbumTimeDecayMultiplier(album, record.weeksSinceRelease, month);
+		// --lp-hit-life-top / -share: the decay reads the LP's clock net of its held weeks. Off: the legacy call.
+		float catalogDecayMultiplier = LpHitLife.Enabled
+			? GetAlbumTimeDecayMultiplier(album, record.weeksSinceRelease, month, LpHitLife.DecayAge(record, record.weeksSinceRelease))
+			: GetAlbumTimeDecayMultiplier(album, record.weeksSinceRelease, month);
 		conversion *= catalogDecayMultiplier;
 		conversion *= MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick);
 		float formatTilt = GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
@@ -214,6 +228,19 @@ public static class AlbumSimulator {
 		if (HitPackageDemand.DecayEnabled && album?.albumFormat == AlbumFormat.Compilation)
 			return weeksSinceRelease > CatalogDecayStartWeeks ? Mathf.Pow(HitPackageDemand.Decay, weeksSinceRelease - CatalogDecayStartWeeks) : 1f;
 		return GetCatalogDecayMultiplier(album?.albumFormat ?? AlbumFormat.Standard, weeksSinceRelease);
+	}
+
+	// --lp-hit-life-top / -share: the same decay read at a held LP's decay age. A profiled soundtrack keeps its box-office
+	// path on its real age. Called only when the switch is on.
+	internal static float GetAlbumTimeDecayMultiplier(Album album, int weeksSinceRelease, int month, float decayAge) {
+		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null)
+			return GetSoundtrackBoxOfficeMultiplier(album.externalMedia, weeksSinceRelease, month);
+		if (HitPackageDemand.DecayEnabled && album?.albumFormat == AlbumFormat.Compilation)
+			return decayAge > CatalogDecayStartWeeks ? Mathf.Pow(HitPackageDemand.Decay, decayAge - CatalogDecayStartWeeks) : 1f;
+		(float startWeeks, float weeklyDecay) = album?.albumFormat == AlbumFormat.Soundtrack
+			? (SoundtrackCatalogDecayStartWeeks, SoundtrackCatalogWeeklyDecay)
+			: (CatalogDecayStartWeeks, LpDemandProbe.WeeklyDecay);
+		return decayAge > startWeeks ? Mathf.Pow(weeklyDecay, decayAge - startWeeks) : 1f;
 	}
 
 	// Weekly catalog-decay multiplier, branched by format. Normal albums (Standard/Concept/Live/

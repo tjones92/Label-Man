@@ -91,6 +91,8 @@ public class RegionalRecordData {
 	// Population-complete Album realization snapshots. These are assigned during
 	// the demand pass and consumed only by the enabled settlement audit.
 	public float albumBuyerPoolThisWeek;
+	// --act-lp-audience-net-credit: the share of this week's pool that the act-audience increment added. Written only on.
+	public float albumActAudienceShareThisWeek;
 	public float albumAwarenessThisWeek;
 	public float albumObservedPenetrationThisWeek;
 	public float albumEffectivePenetrationThisWeek;

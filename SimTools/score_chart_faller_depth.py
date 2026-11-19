@@ -15,7 +15,7 @@ import sys
 import pandas as pd
 
 LOG = Path(__file__).resolve().parents[1] / "SimLogs"
-SEEDS = (1001, 2002, 3003, 4004)
+SEEDS = tuple(int(s) for s in __import__("os").environ.get("SEEDS", "1001,2002,3003,4004").split(","))  # SEEDS=1001,2002 for a pair
 B5 = {f"label_000{i}" for i in range(1, 6)}
 pd.set_option("display.width", 220)
 
@@ -120,7 +120,7 @@ def arm(name):
         gd["closed: total"] = len(last)
         guards.append(gd)
     c = pd.concat(parts, ignore_index=True)
-    o = chart(c[["wk", "rec", "act", "pos"]], 53, 105, 4, 104, 40, 93, 4 * 53 / 52)
+    o = chart(c[["wk", "rec", "act", "pos"]], 53, 105, len(SEEDS), 104, 40, 93, len(SEEDS) * 53 / 52)
     o.update(pd.DataFrame(guards).mean().to_dict())
     o["closed by seed"] = " / ".join(str(int(g["closed: total"])) for g in guards)
     o["Big-5 T10 share 1961 by seed"] = " / ".join(f"{g['Big-5 T10 share 1961 %']:.1f}" for g in guards)

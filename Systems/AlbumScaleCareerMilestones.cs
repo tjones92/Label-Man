@@ -60,6 +60,8 @@ public static class AlbumScaleCareerMilestones {
 	private static bool albumScale;
 	private static bool neverChartedPenalty;
 	public static bool Enabled => enabled;
+	/// <summary>The album-scale half is on (not part b2).</summary>
+	public static bool AlbumScale => albumScale;
 
 	// ---- --album-career-importance (LpGenreAllocationFollowup.md §62) ---------------------------------------------
 	// The album chart mattered less to an act's stardom in 1960 than in 1969. With this switch the ACT's career reads
@@ -138,14 +140,28 @@ public static class AlbumScaleCareerMilestones {
 		importance == null || !albumScale || !IsAlbum(record) ? peak : WeightedActPeak(peak, Importance(year));
 
 	/// <summary>ObserveCareerPeak as the act's career reads it (milestone latches).</summary>
-	public static int ObserveActCareerPeak(RecordRuntimeData record) => ActWeighted(record, ObserveCareerPeak(record), CurrentYear());
-	internal static int ObserveActCareerPeak(RecordRuntimeData record, int albumChartSize, int year) =>
-		ActWeighted(record, ObserveCareerPeak(record, albumChartSize), year);
+	public static int ObserveActCareerPeak(RecordRuntimeData record) => ObserveActCareerPeak(record, CurrentAlbumChartSize(), CurrentYear());
+	internal static int ObserveActCareerPeak(RecordRuntimeData record, int albumChartSize, int year) {
+		int peak = ObserveCareerPeak(record, albumChartSize);
+		// --act-lp-audience-net-credit: the act reads the LP's best net position instead. Off: not read.
+		if (albumScale && IsAlbum(record) && ActLpAudience.NetCredit) peak = ObserveNetCareerPeak(record, albumChartSize);
+		return ActWeighted(record, peak, year);
+	}
 
 	/// <summary>CareerPeak as the act's career reads it (run completion, recognition run credit).</summary>
-	public static int ActCareerPeak(RecordRuntimeData record) => ActWeighted(record, CareerPeak(record), CurrentYear());
+	public static int ActCareerPeak(RecordRuntimeData record) => ActCareerPeak(record, CurrentAlbumChartSize(), CurrentYear());
 	internal static int ActCareerPeak(RecordRuntimeData record, int albumChartSize, int year) =>
-		ActWeighted(record, CareerPeak(record, albumChartSize), year);
+		ActWeighted(record, albumScale && IsAlbum(record) && ActLpAudience.NetCredit ? record.albumActNetCareerPeak : CareerPeak(record, albumChartSize), year);
+
+	/// <summary>--act-lp-audience-net-credit: folds this week's net album position into the run's best net equivalent
+	/// (0 while the LP has never charted net of its act-audience buyers).</summary>
+	internal static int ObserveNetCareerPeak(RecordRuntimeData record, int albumChartSize) {
+		if (record.currentPosition > 0) {
+			int scaled = SinglesEquivalent(record.albumActNetPosition, albumChartSize);
+			if (scaled > 0 && (record.albumActNetCareerPeak == 0 || scaled < record.albumActNetCareerPeak)) record.albumActNetCareerPeak = scaled;
+		}
+		return record.albumActNetCareerPeak;
+	}
 
 	/// <summary>The factor on an album run's sustain/breadth recognition credit: the year's importance; 1 otherwise.</summary>
 	public static float ActCreditScale(RecordRuntimeData record) =>

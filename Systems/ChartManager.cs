@@ -1414,6 +1414,8 @@ public partial class ChartManager : Node {
 				if (record.baseRecord.format != ReleaseFormat.Album) continue;
 				bool seed = AlbumChartBlend.Seeds(record.albumChartBlendSeen, record.weeksSinceRelease);
 				record.albumChartBlend = AlbumChartBlend.Next(record.albumChartBlend, AlbumSimulator.CalculateChartPoints(record), seed);
+				// --act-lp-audience-net-credit: the same trailing blend over the net points. Off: not written.
+				if (ActLpAudience.NetCredit) record.albumActNetBlend = AlbumChartBlend.Next(record.albumActNetBlend, ActNetAlbumPoints(record), seed);
 				record.albumChartBlendSeen = true;
 			}
 			albumPoints = record => record.albumChartBlend;
@@ -1433,6 +1435,8 @@ public partial class ChartManager : Node {
 			.ThenByDescending(record => record.unitsThisWeek)
 			.Take(albumChartSize + BubblingUnderSize)
 			.ToList();
+		// --act-lp-audience-net-credit: each LP's position net of its act-audience buyers, read by the act's career. Off: not run.
+		if (ActLpAudience.NetCredit) AssignActNetAlbumPositions(allRecords, albumRanking, albumPoints, albumChartSize);
 		AssignChartPositions(albumRanking, triggerEvents, ReleaseFormat.Album, albumChartSize, albumBubblingUnderPositions);
 		currentAlbumChart = albumRanking.Take(albumChartSize).ToList();
 		OnAlbumChartCalculated?.Invoke(new List<RecordRuntimeData>(currentAlbumChart));
@@ -1447,6 +1451,7 @@ public partial class ChartManager : Node {
 		float acceptanceYear, float singleOpportunityNormalization) {
 		using var demandCache = GenreAcceptanceService.MemoizeRegionalDemand();
 		BoundedAudienceProbe.PrepareWeek(allRecords, allRegions, currentChartWeek);
+		ActLpAudience.AdvanceWeek(currentChartWeek);
 		lastMarketClearingSummaries.Clear();
 		lastMarketSpilloverTransfers.Clear();
 		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(allRecords.Count), StringComparer.Ordinal);
@@ -1706,6 +1711,7 @@ public partial class ChartManager : Node {
 					intent.ObservedFollowerGrant, intent.Cleared, applyFollowerIntent);
 				ReplayDemandObserver?.Invoke("after-clearing", intent.Record, region, intent.Data, intent.Cleared);
 				intent.Data.unitsSoldTotal += intent.Cleared;
+				if (!album) ActLpAudience.AddSingleUnits(intent.Record.baseRecord, region.regionId, intent.Cleared);
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
 			if (applyFollowerIntent) BookFanDisplacedBuyers(intents, summary);
@@ -2034,6 +2040,28 @@ public partial class ChartManager : Node {
 		if (record.currentPosition > 0) return record.currentPosition;
 		var positions = record.baseRecord.format == ReleaseFormat.Album ? albumBubblingUnderPositions : bubblingUnderPositions;
 		return positions.TryGetValue(record, out int position) ? position : 0;
+	}
+
+	/// <summary>--act-lp-audience-net-credit: this week's album chart points without the act-audience share of its units.</summary>
+	private static float ActNetAlbumPoints(RecordRuntimeData record) {
+		double audience = 0d;
+		foreach (var data in record.regionalData.Values) audience += data.unitsSoldThisWeek * (double)data.albumActAudienceShareThisWeek;
+		float chartUnits = AlbumChartRacks.Enabled ? AlbumChartRacks.ChartUnits(record.unitsThisWeek, record.rackUnitsThisWeek) : record.unitsThisWeek;
+		return ActLpAudience.NetPoints(AlbumSimulator.CalculateChartPoints(record), audience, chartUnits);
+	}
+
+	/// <summary>--act-lp-audience-net-credit: every LP's net album position this week (0 = off the chart for the act). Only
+	/// ranked LPs can place: an unranked LP's net points sit below every ranked one.</summary>
+	private static void AssignActNetAlbumPositions(List<RecordRuntimeData> allRecords, List<RecordRuntimeData> ranking,
+		Func<RecordRuntimeData, float> points, int chartSize) {
+		foreach (var record in allRecords)
+			if (record.baseRecord.format == ReleaseFormat.Album) record.albumActNetPosition = 0;
+		float[] rankedPoints = ranking.Select(points).ToArray();
+		for (int i = 0; i < ranking.Count; i++) {
+			var record = ranking[i];
+			float net = AlbumChartBlend.Enabled ? record.albumActNetBlend : ActNetAlbumPoints(record);
+			record.albumActNetPosition = ActLpAudience.NetPosition(net, rankedPoints.Where((_, j) => j != i), chartSize);
+		}
 	}
 
 	public int GetAlbumChartSize(GameDate date) {

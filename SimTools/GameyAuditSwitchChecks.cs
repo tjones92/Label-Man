@@ -79,6 +79,63 @@ public static class GameyAuditSwitchChecks {
 				&& HitPackageDemand.RegionalBuyers(soundtrack, half, Genre.TraditionalPop, 1961) == 0f, "studio LPs get S x K; soundtracks none");
 			HitPackageDemand.SetForChecks(0f, 0f);
 			HitPackageDemand.SetPopulationForChecks(0.0);
+			// --act-lp-audience=K: a decayed ledger of an act's singles buyers by region.
+			{
+				var r1 = new MarketRegion { regionId = "r1", population = 5f };
+				Record Single(string artist, ReleaseFormat format = ReleaseFormat.Single) => new() { recordId = "s_" + artist, artistId = artist, format = format };
+				RecordRuntimeData Lp(string artist, AlbumFormat format, Genre genre) => new(new Record { recordId = "lp_" + artist, artistId = artist,
+					format = ReleaseFormat.Album, primaryGenre = genre, album = new Album { albumFormat = format } });
+				ActLpAudience.SetForChecks(0f);
+				ActLpAudience.AddSingleUnits(Single("a"), "r1", 1000);
+				Check(!ActLpAudience.Enabled && ActLpAudience.ActBuyers("a", "r1") == 0d && ActLpAudience.RegionalBuyers(Lp("a", AlbumFormat.Standard, Genre.TeenPop), r1, 1961) == 0f,
+					"act LP audience off: no ledger, no buyers");
+				ActLpAudience.SetForChecks(0.5f, 13f);
+				ActLpAudience.AdvanceWeek(10);
+				ActLpAudience.AddSingleUnits(Single("a"), "r1", 1000);
+				ActLpAudience.AddSingleUnits(Single("a", ReleaseFormat.EP), "r1", 200);
+				ActLpAudience.AddSingleUnits(new Record { recordId = "lp", artistId = "a", format = ReleaseFormat.Album }, "r1", 5000);
+				ActLpAudience.AddSingleUnits(Single(""), "r1", 5000);
+				Check(ActLpAudience.ActBuyers("a", "r1") == 1200d && ActLpAudience.ActBuyers("a", "r2") == 0d && ActLpAudience.ActBuyers("b", "r1") == 0d,
+					"singles and EPs join the act's regional ledger; LPs and actless records do not");
+				ActLpAudience.AdvanceWeek(10);
+				Check(ActLpAudience.ActBuyers("a", "r1") == 1200d, "one decay a week");
+				ActLpAudience.AdvanceWeek(23);
+				Check(Math.Abs(ActLpAudience.ActBuyers("a", "r1") - 600d) < 1e-6, "half-life 13 weeks halves the ledger in 13 weeks");
+				Check(Rel(ActLpAudience.RegionalBuyers(Lp("a", AlbumFormat.Standard, Genre.TeenPop), r1, 1961), 0.5f * 600f)
+					&& Rel(ActLpAudience.RegionalBuyers(Lp("a", AlbumFormat.Compilation, Genre.Jazz), r1, 1961), 0.5f * 600f)
+					&& ActLpAudience.RegionalBuyers(Lp("a", AlbumFormat.Soundtrack, Genre.TeenPop), r1, 1961) == 0f
+					&& ActLpAudience.RegionalBuyers(Lp("", AlbumFormat.Standard, Genre.TeenPop), r1, 1961) == 0f, "K x ledger for studio and compilation LPs; soundtracks and actless LPs none");
+				HitPackageDemand.SetForChecks(0.4f, 0f, true);
+				Check(Rel(ActLpAudience.RegionalBuyers(Lp("a", AlbumFormat.Standard, Genre.TeenPop), r1, 1961), 0.5f * teen * 600f)
+					&& ActLpAudience.RegionalBuyers(Lp("a", AlbumFormat.Standard, Genre.Jazz), r1, 1961) == 0f, "youth-weighted with --hit-package-demand-youth");
+				HitPackageDemand.SetForChecks(0f, 0f);
+				// --act-lp-audience-net-credit: the act reads an LP's run net of the increment over the hit-package term.
+				Check(ActLpAudience.Increment(300f, 1000f) == 700f && ActLpAudience.Increment(1000f, 300f) == 0f, "increment is the act audience above the hit-package term");
+				Check(ActLpAudience.NetPoints(100f, 250d, 1000f) == 75f && ActLpAudience.NetPoints(100f, 2000d, 1000f) == 0f
+					&& ActLpAudience.NetPoints(100f, 0d, 0f) == 100f, "net points lose the audience share of chart units, clamped");
+				float[] others = { 900f, 500f, 400f, 100f };
+				Check(ActLpAudience.NetPosition(450f, others, 40) == 3 && ActLpAudience.NetPosition(1000f, others, 40) == 1
+					&& ActLpAudience.NetPosition(400f, others, 40) == 4 && ActLpAudience.NetPosition(50f, others, 4) == 0, "net position ranks among the others; past the chart is 0");
+				ActLpAudience.SetForChecks(0.5f, 13f, net: true);
+				AlbumScaleCareerMilestones.SetForChecks(true);
+				var netLp = Lp("n", AlbumFormat.Standard, Genre.TeenPop);
+				netLp.currentPosition = 3; netLp.peakPosition = 3; netLp.albumActNetPosition = 30;
+				int actPeak = AlbumScaleCareerMilestones.ObserveActCareerPeak(netLp, 40, 1961);
+				Check(actPeak == 75 && netLp.albumCareerPeak == 8 && AlbumScaleCareerMilestones.CareerPeak(netLp, 40) == 8
+					&& AlbumScaleCareerMilestones.ActCareerPeak(netLp, 40, 1961) == 75, "the act reads the net equivalent (#30 of 40 = 75); the label keeps the real one (#3 = 8)");
+				netLp.currentPosition = 2; netLp.albumActNetPosition = 0;
+				Check(AlbumScaleCareerMilestones.ObserveActCareerPeak(netLp, 40, 1961) == 75, "a week off the chart net keeps the run's best net");
+				var onlyAudience = Lp("o", AlbumFormat.Standard, Genre.TeenPop);
+				onlyAudience.currentPosition = 5; onlyAudience.peakPosition = 5; onlyAudience.albumActNetPosition = 0;
+				Check(AlbumScaleCareerMilestones.ObserveActCareerPeak(onlyAudience, 40, 1961) == 0
+					&& AlbumScaleCareerMilestones.ActCareerPeak(onlyAudience, 40, 1961) == 0, "an LP that charts only on its act audience never charts for the act");
+				ActLpAudience.SetForChecks(0.5f, 13f);
+				var plainLp = Lp("p", AlbumFormat.Standard, Genre.TeenPop);
+				plainLp.currentPosition = 3; plainLp.peakPosition = 3; plainLp.albumActNetPosition = 30;
+				Check(AlbumScaleCareerMilestones.ObserveActCareerPeak(plainLp, 40, 1961) == 8, "net credit off: the act reads the real position");
+				AlbumScaleCareerMilestones.SetForChecks(false);
+				ActLpAudience.SetForChecks(0f);
+			}
 			// Album chart reporting weight and soundtrack pool breadth.
 			AlbumChartReporting.SetForChecks(null);
 			Check(!AlbumChartReporting.Enabled && AlbumChartReporting.Weight(Genre.Country, AlbumFormat.Standard) == 1f, "off reports every genre whole");
@@ -109,6 +166,48 @@ public static class GameyAuditSwitchChecks {
 				st.peakPosition = 4; st.baseRecord.album.albumFormat = AlbumFormat.Standard;
 				Check(SoundtrackHitTail.Renewal(st) == 1f, "a non-soundtrack is untouched");
 				SoundtrackHitTail.SetForChecks(0f);
+				// --hl-hit-life-top / -share (§77).
+				var hl = new RecordRuntimeData { baseRecord = new Record { album = new Album { albumFormat = AlbumFormat.Standard } },
+					currentPosition = 3, peakWeeklyUnits = 1000, unitsThisWeek = 200, weeksSinceRelease = 20 };
+				LpHitLife.SetForChecks(0, 0f);
+				LpHitLife.Advance(hl, 8f);
+				Check(!LpHitLife.Enabled && !LpHitLife.Held(hl) && hl.albumHitLifePausedWeeks == 0f && LpHitLife.DecayAge(hl, 20) == 20f, "off holds nothing");
+				LpHitLife.SetForChecks(10, 0f);
+				LpHitLife.Advance(hl, 8f);
+				Check(hl.albumHitLifePausedWeeks == 1f && LpHitLife.DecayAge(hl, 20) == 19f, "a top-10 LP's clock stops a week");
+				Check(Near(AlbumSimulator.GetAlbumTimeDecayMultiplier(hl.baseRecord.album, 20, 6, 19f), Mathf.Pow(LpDemandProbe.WeeklyDecay, 11f))
+					&& AlbumSimulator.GetAlbumTimeDecayMultiplier(hl.baseRecord.album, 20, 6, 20f) == AlbumSimulator.GetAlbumTimeDecayMultiplier(hl.baseRecord.album, 20, 6),
+					"decay reads the paused age; an unpaused age matches the legacy call");
+				hl.currentPosition = 11;
+				LpHitLife.Advance(hl, 8f);
+				Check(hl.albumHitLifePausedWeeks == 1f, "an LP below the top N decays");
+				LpHitLife.SetForChecks(10, 0.5f);
+				Check(!LpHitLife.Held(hl), "below half its peak is not held");
+				hl.unitsThisWeek = 500;
+				Check(LpHitLife.Held(hl), "half its peak holds it");
+				LpHitLife.SetForChecks(10, 0.5f, 0.5f, 1.25f);
+				LpHitLife.Advance(hl, 8f);
+				Check(Near(hl.albumHitLifePausedWeeks, 1.25f), "rate slows the clock; the cap binds");
+				hl.albumHitLifePausedWeeks = 0f; hl.weeksSinceRelease = 6;
+				LpHitLife.Advance(hl, 8f);
+				Check(hl.albumHitLifePausedWeeks == 0f, "no pause before decay starts");
+				hl.weeksSinceRelease = 20; hl.baseRecord.album.albumFormat = AlbumFormat.Soundtrack; hl.baseRecord.album.externalMedia = new ExternalMediaProfile();
+				LpHitLife.Advance(hl, 8f);
+				Check(hl.albumHitLifePausedWeeks == 0f, "a profiled soundtrack keeps its box-office path");
+				hl.baseRecord.album.albumFormat = AlbumFormat.Standard; hl.baseRecord.album.externalMedia = null;
+				LpHitLife.SetForChecks(0, 0f, tailTopN: 10, tailDecay: 0.98f);
+				hl.peakPosition = 4; hl.currentPosition = 5;
+				LpHitLife.Advance(hl, 8f);
+				Check(LpHitLife.Enabled && hl.albumHitLifePausedWeeks == 0f, "the tail leaves a top-10 week on the normal clock");
+				hl.currentPosition = 25;
+				LpHitLife.Advance(hl, 8f);
+				float tailAge = 20f - hl.albumHitLifePausedWeeks;
+				Check(Near(Mathf.Pow(LpDemandProbe.WeeklyDecay, tailAge - 8f), Mathf.Pow(LpDemandProbe.WeeklyDecay, 11f) * 0.98f),
+					"a past-peak week outside the top N decays at D");
+				hl.albumHitLifePausedWeeks = 0f; hl.peakPosition = 11;
+				LpHitLife.Advance(hl, 8f);
+				Check(hl.albumHitLifePausedWeeks == 0f, "an LP that never reached the top N keeps the normal decay");
+				LpHitLife.SetForChecks(0, 0f);
 				OpeningSoundtrackCatalogue.SetForChecks(0);
 				Check(!OpeningSoundtrackCatalogue.Enabled && OpeningSoundtrackCatalogue.Count == 0, "off seeds no opening soundtracks");
 				OpeningSoundtrackCatalogue.SetForChecks(8);
