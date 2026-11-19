@@ -408,6 +408,8 @@ public partial class ChartManager : Node {
 		ZeroFeeMaterialGate.Configure(SimulationArguments.Get());
 		MajorNewcomerActionPush.Configure(SimulationArguments.Get());
 		MajorVolumeSwitches.Configure(SimulationArguments.Get());
+		OpeningTierQuotas.Configure(SimulationArguments.Get());
+		OpeningStaffCatchUp.Configure(SimulationArguments.Get());
 		QualityResponseProbe.Configure(SimulationArguments.Get());
 		MajorScaleGate.Configure(SimulationArguments.Get());
 		IndieDistributorAccess.Configure(SimulationArguments.Get());

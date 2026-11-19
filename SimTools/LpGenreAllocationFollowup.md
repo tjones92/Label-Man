@@ -5043,3 +5043,487 @@ state, cuts closures, and lowers 300k+. Its cost is 1961 Big-5 share 21.2 → 25
 history against a Big-5 share far over both years; it needs the per-launch premium closed first, as §57 concluded, now with
 plug slots in. D is a small positive on top of A + C and belongs with the long-runner decision (§83), since the evergreens
 chart only with renewal. Not adopted; no candidate request changed.
+
+## 87. The Big-5 newcomer premium after launch depth, and where B's Big-5 excess comes from (2026-11-19; seeds 1001-4004, 104 weeks)
+
+The question (§86): A + C and B both fail the Big-5 guard; is the Big-5 newcomer per-launch premium the shared cause, and
+can launch depth close it? Launch depth's stage 2 (§59, expose / factor / stock arms) was run on 2026-11-17, and its shared
+national draw at 0.4 is in the control (`--label-blind-launch=expose --label-blind-launch-scope=major-newcomer
+--label-blind-launch-expose-shared=0.4`). Routine plug-slot issues already read the reference launch factor, stock and one
+shared draw (`PromotionCapacity.InRoutine`). Scorers: `score_newcomer_depth.py`, `score_newcomer_quality_split.py`,
+`analyze_opening_star_owners.py`, `analyze_big5_1961_newcomers.py`.
+
+**At matched quality the newcomer launch premium is near history's per-release ratio.** NewSigning/Unsigned launches
+weeks 1-92 (+12), Big-5 against the field excluding MidTiers, field rates re-weighted to the Big-5 quality mix:
+
+| | `audnet` | `ocAC` | `ocB` | `mnfs` |
+|---|---|---|---|---|
+| Raw Top 10 premium (vs field ex-MidTier) | 2.14 | 2.29 | 2.76 | 2.98 |
+| Hot 100 entry at matched quality | 1.17 | **1.01** | 0.97 | 1.20 |
+| Top 10 at matched quality | 1.32 | **1.26** | 1.53 | 1.68 |
+| Big-5 newcomer quality / field | .72 / .67 | .72 / .66 | .72 / .66 | .72 / .66 |
+| MidTier newcomer Top 10 % (Big-5) | 2.80 (1.75) | 2.06 (1.92) | 3.26 (2.01) | 1.91 (2.33) |
+
+The raw 2.1-2.3× is quality mix. Routine Big-5 newcomer singles enter at 0.9-1.15× the field at the same quality. MidTier
+newcomers convert as well as the Big-5's or better.
+
+**History does not ask for less newcomer quality.** History's ~1.2× (§57) is all-release (Big-5 Top 10 share over issue
+share, all careers), not a newcomer target. The newcomer target is ~4.5 Big-5 newcomer Top 10 records a year (1961-64).
+Per seed, by year of first Top 10: `audnet` 4.0 / 3.75 (1960 / 1961), `ocAC` 2.0 / 6.5, `ocB` 3.0 / 7.25. Two-year totals
+are 7.75 / 8.5 / 10.25 against ~9. A + C's 1961 newcomer rise (slot points 3.8 → 7.4) moves 1960 newcomer hits (4.2 → 2.2
+points) into 1961: the warm pipeline fills 1960 with opening acts.
+
+**Screen `mnfs` (`ocAC` + `--label-blind-launch=factor,stock`: Major newcomers' Plugged picks also read the reference launch
+factor and stock). Inert, rejected.** The newcomer premium went 2.08 → 2.70 (2.73 / 2.37 / 2.35 / 3.45 against
+2.31 / 2.93 / 1.17 / 2.15), Big-5 newcomer Top 10 30 → 37, mostly Plugged picks (2.75 → 4.5 a seed). Big-5 Top 10 share
+1960 24.8 → 23.8, 1961 25.6 → 24.0. As on `zfg` (§59 stage 2), factor and stock do not bind. Launch depth is used up.
+
+**B's excess is established careers, not newcomers.** Big-5 slot points by career at launch, `ocAC` → `ocB`: 1960
+established 20.1 → 28.4, newcomer 2.2 → 3.7, prewarm 2.4 → 4.4; 1961 established 18.2 → 24.0, newcomer 7.4 → 5.8. Big-5
+NewSigning launches stay 391 → 398 a seed, with Top 10s 7.5 → 8.0. What moves is star careers: Big-5 Star / Superstar
+launches 50.5 → 75.5 a seed while the field's fall 94 → 69 (total 144.5 in both arms), plus Rising +23 and Established +13.
+
+**Mechanism: the opening star stamp follows the draft.** The opening allocation (`RosterManager.InitializeSceneRostersCore`)
+drafts in rounds, Majors first in each round, by perceived quality and genre fit. Afterwards `OpeningCareerService.Seed`
+stamps Star / Superstar careers on the best-quality acts on Major and MidTier rosters (caps: 4 Stars, 2 Superstars, 6
+opening acts a label). `--major-opening-roster=58` keeps the Majors drafting after MidTiers reach their targets, so they hold
+more of the top-quality acts and the stamp lands on them. Opening star-archetype acts by tier at first launch: `ocAC`
+Big-5 9.2 / MidTier 18.8 / Independent 2.0 a seed; `ocB` 13.2 / 14.2 / 2.2. The Big-5's share of stars goes 31 → 45%;
+history's Big-5 share of 1960 acts with two or more Top 10s is ~37% (studio-parent screen, 2026-10-22).
+
+**In-run retention is not the problem.** Opening stars whose label changes over weeks 1-104 (4 seeds): MidTier → Big-5 is
+4-7 (about one a seed in two years), the rest is MidTier → Independent / Boutique / Small. That is history's pace: Sam
+Cooke Keen → RCA (1960), Bobby Darin Atco → Capitol (1962), Fats Domino Imperial → ABC (1963). Historically the stars
+stayed because the label that found them held them: rock'n'roll, R&B and teen acts the majors' A&R passed over,
+option-year contracts, producer ties (Bleyer at Cadence, Ertegun and Wexler at Atlantic, Bartholomew at Imperial). When a
+star moved, the money was often a MidTier's with a film or broadcast parent (Ray Charles to ABC-Paramount 1959, the Everly
+Brothers to Warner Bros. 1960).
+
+**Status.** No change adopted. The per-launch newcomer premium is not the lever for either arm: A + C's 1961 cost is a
+timing shift of newcomer hits, and B's is the opening star allocation. Candidate fix for B (not built): draft a Major's
+opening slots above its drawn target after every other label has reached its target, so roster depth adds working acts
+and the star stamp keeps A + C's split. `--studio-parent-labels` (not in the control) is the existing switch that pins the
+studio MidTiers' historical stars.
+
+## 88. Screen: opening tier quotas on B (stars and the opening catalogue by tier) (2026-11-19; seeds 1001-4004, 104 weeks)
+
+The author's direction after §87: fix the January 1960 state by tier, then leave it alone. §87 traced B's excess to the
+opening draft. Majors pick first in every round, so a deeper Major roster takes more of the best acts, the star stamp lands on
+them, and the opening catalogue (CompetitorManager.CalculateInitialQuotas: tier weight × roster size) gives the Majors more of
+the opening chart. A further channel stays open: each drafted act has a label-blind 12% / 4.5% chance of a Rising /
+Established career at signing (`RosterManager.InitialSignArtist`), so roster depth still adds career acts.
+
+**Switches** (`Systems/OpeningTierQuotas.cs`; hooks in `RosterManager.InitializeSceneRostersCore`,
+`OpeningCareerService.ReserveStars` / `Seed`, `CompetitorManager.CalculateInitialQuotas`; checks in
+`--gamey-audit-switches-check`, pass):
+- `--opening-star-tier-share=S`: the opening Superstars and Stars are chosen from the launch pool before the draft, by the
+  stamp's own ranking (spec genres, base quality, id). They are signed to a Major (share S of each rung, interleaved down the
+  quality order) or a MidTier label: one that can reach the act and has room, preferred genre first, then a keyed order. The
+  stamp then gives exactly those acts their careers. The studio rows (`--studio-parent-labels`, on through the profile) and
+  Imperial's rows are reserved first, out of the same budget, and count on the field side.
+- `--opening-catalogue-major-share=S`: the Majors' weight in the opening-catalogue split is scaled so the tier holds S of it,
+  whatever its roster size.
+- Off is identical: `otqoff27-2002-sc` (27 weeks, current build) matches `ocAC-2002-sc` in records, launches and label sales.
+  company-monthly differs only in column dtypes from the 27-week cut.
+
+**Settings.** S(stars) = 0.37: the Big-5's share of 1960 acts with two or more Top 10s (studio-parent screen, 2026-10-22).
+S(catalogue) = 0.16: A+C's own roster-weighted Major share (1-week probes `otqp-*`: 0.161 / 0.161 / 0.127 / 0.161; B reads
+0.227). Under A+C the opening records already chart at history's level (below).
+
+Arm `otqB2` = `ocB` (A + C + `--major-opening-roster=58`) + both switches. The first launch (`otqB-*`) refused the studio switch
+at startup and ran no weeks. The reservation: 30 acts a seed, Majors 2-3 of 6 Superstars and 9 of 23 Stars (11.25 star
+acts against B's 13.25 and A+C's 9.25). One Superstar on seed 1001 fell to a Major because no MidTier could reach it.
+
+| Mean of 4 seeds | A+C `ocAC` | B `ocB` | **B + quotas `otqB2`** | Target |
+|---|---|---|---|---|
+| **Big-5 Top 10 share 1960** (per seed) | 24.8 (24/23/29/23) | 36.6 (40/32/39/35) | **23.9** (18/26/24/27) | 27 (adopted) |
+| **Big-5 Top 10 share 1961** (per seed) | 25.6 (28/27/29/19) | 29.9 (34/28/27/30) | **26.4** (20/29/34/23) | 20.6 |
+| 1960 points: newcomer / other careers / prewarm records | 2.2 / 20.1 / 2.4 | 3.7 / 28.4 / 4.4 | 3.7 / 17.6 / 2.6 | |
+| 1961 points: newcomer / other | 7.4 / 18.2 | 5.8 / 24.0 | 7.6 / 18.8 | |
+| Opening chart: Big-5 % of week-1 Hot 100 / weeks 1-4 Top 10 | 24.8 / 36.5 | 38.5 / 64.5 | 30.8 / **33.5** | ~24% of top-20 records 1959-60; Q1 1960 Top 10 32% |
+| Opening star acts: Big-5 / MidTier | 9.25 / 18.75 | 13.25 / 14.25 | 11.25 / 16.5 | ~37% Big-5 |
+| Big-5 Top 10s from wk 1-92 launches: NewSigning / Rising+Established / Star+Superstar | 7.5 / 19.25 / 15.0 | 8.0 / 29.5 / 22.25 | 8.5 / 21.25 / 18.0 | |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 2.0 / 6.5 | 3.0 / 7.25 | 3.5 / 6.5 | ~4.5 / yr |
+| Big-5 LPs a label 1960 / 1961 (album projects) | 98 / 143 | 133 / 164 | **126 / 165** | 145-210 titles |
+| Major singles a label 1961 | 92 | 96 | 94 | |
+| Labels inactive at week 104 (company-monthly) | 89.0 | 92.0 | 91.25 | |
+
+- **The quotas remove B's guard failure.** The Big-5 1960 share falls 36.6 → 23.9 (4 of 4 seeds down) and 1961 29.9 → 26.4,
+  A+C's level in both years. The "other careers" points that carried B's excess go back to A+C's (1960 28.4 → 17.6; 1961
+  24.0 → 18.8). The opening Top 10 goes 64.5 → 33.5%, on history's Q1 32%. The Hot 100 share (30.8%) is above A+C's 24.8: the
+  catalogue is fixed by count, and the Majors' deeper rosters still issue their share across more acts.
+- **B's volume survives.** Big-5 LPs a label stay 126 / 165 (B 133 / 164; A+C 98 / 143). Major singles and closures move
+  within noise.
+- **Rising/Established Top 10s come back to A+C's level (29.5 → 21.25).** So the signing-time career draw on the extra acts
+  is small next to the catalogue. Those careers come from charting opening records.
+- **What stays is A+C's 1961 cost.** 1961 Big-5 is 26.4 against history's 20.6, the same as A+C (§87: newcomer hits move from
+  1960 into 1961). Per seed it spans 20-34, so four seeds put the mean within ±3.
+
+**Status.** B + quotas gives history's Major LP volume and opening chart at A+C's Big-5 share. Not adopted; no candidate
+request changed. Owed before adoption: the 1961 Big-5 excess shared with A+C, and a 260-week look, since the opening quotas
+only set the start.
+
+## 89. Opening staff catch-up and archetype star shares on B + quotas (2026-11-19; seeds 1001-4004, 104 weeks)
+
+**Why 1960 newcomer hits land in 1961.** Big-5 newcomer Top 10s in 1960 come almost only from opening-roster acts; acts
+signed during the run barely launch before 1961 (signings begin week 5). Majors issue 58-62 singles a label in 1960 against
+92-94 in 1961 (history ~216 a label in 1960): 9-13 a quarter in Q1-Q3 1960 against 23-25 from Q5. Major programme telemetry
+(`programme-resources`, `programme-issue-refusals`) shows two throttles.
+- **Staff coverage.** Majors run 0.85 in Q1, 0.73 in Q2-Q3 and 0.78 in Q4 1960, and 0.93 by late 1961. Every other tier holds
+  0.9 or above. The planned single rate falls with coverage (2.44 a week at 0.85, 1.98 at 0.73). The opening organization
+  (`LabelCorporateModel.InitializeOpeningOrganization`) is sized with no distribution clients and projects capped at the
+  label's release rate. The monthly review then sees the real programme and the P&D clients arriving, and hiring is capped
+  at 25% a department a quarter.
+- **The profit gate in Q1-Q2 1960:** 6.8 and 3.4 refusals a label a quarter. Not addressed here.
+
+**Switches.**
+- `--opening-staff-catch-up=M` (`Systems/OpeningStaffCatchUp.cs`, hook in `LabelCorporateModel.ReviewOrganization`): for the
+  first M months, each monthly review hires each department's whole gap under the same cash test. Contraction stays
+  quarterly. After the window the 25% cap applies. Screened at M = 12 (1960).
+- `--opening-star-tier-share=AdultStandardBearer:S,CurrentHitmaker:S,EstablishedHitmaker:S`: a Major share per archetype, split
+  within each archetype over both rungs (the single-share form is unchanged and reproduces `otqB2`'s reservation and stamps
+  on seed 1001). Shares 0.85 / 0.25 / 0.6 come from the January 1960 holders (author agreed with the tally):
+  - Adult standard-bearers, ~7 of 8 on majors: Sinatra, Como, Cole, Mathis, Bennett, Day, Page, Martin.
+  - Current hitmakers, ~2-3 of 10: Elvis and Brenda Lee on majors; Nelson, Anka, Darin, Francis, the Everlys, Avalon elsewhere.
+  - Established hitmakers, ~7 of 12: Robbins, Cash, Horton, Reeves, the Platters, Benton, the Kingston Trio on majors;
+    Domino, Ray Charles, the Drifters, Berry elsewhere.
+- Checks in `--gamey-audit-switches-check` pass. No off-identity run was made for this build; the off paths are guarded
+  conditionals, as in §88.
+
+Arms on `otqB2` (§88): `stB` = + `--opening-staff-catch-up=12`. `stArB` = `ocB` + catalogue 0.16 + catch-up 12 + archetype
+shares (Majors hold 4 of 6 Superstars and 13 of 23 Stars; 7/8, 3/10, 7/11 by archetype).
+
+| Mean of 4 seeds | `otqB2` | **`stB`** | `stArB` | History |
+|---|---|---|---|---|
+| Big-5 Top 10 share 1960 (per seed) | 23.9 (18/26/24/27) | **26.2** (29/30/25/20) | 32.7 (39/36/33/23) | 27 adopted (34.2 raw) |
+| Big-5 Top 10 share 1961 (per seed) | 26.4 (20/29/34/23) | 29.5 (36/27/34/22) | 33.3 (28/39/33/33) | 20.6 |
+| 1961: Big-5 1960 hit acts / other Big-5 acts | 13.4 / 12.9 | **17.8** / 11.7 | 16.9 / 16.4 | 16.4 / 4.2 |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 3.5 / 6.5 | **6.0 / 5.0** | 5.25 / 8.0 | ~4.5 / ~4.5 |
+| … opening-roster acts 1960 / 1961 | 3.25 / 4.0 | 5.25 / 1.75 | 4.75 / 3.75 | |
+| Major singles a label 1960 / 1961 | 62 / 94 | 72 / 101 | 78 / 109 | ~216 (1960) |
+| Major staff coverage 1960 / 1961 | 0.77 / 0.88 | 0.90 / 0.96 | 0.91 / 0.96 | |
+| Opening star acts Big-5 / MidTier | 11.25 / 16.5 | 11.25 / 16.75 | 17.0 / 10.75 | ~16-17 Big-5 |
+| Opening chart: Big-5 % week-1 Hot 100 / weeks 1-4 Top 10 | 30.8 / 33.5 | 30.8 / 33.5 | 37.5 / 40.0 | ~24 / 32 |
+| Big-5 LPs a label 1960 / 1961 | 126 / 165 | 128 / 166 | 137 / 175 | 145-210 |
+| Labels inactive at week 104 (Small / Indep. / MidTier) | 91.3 (37 / 35 / 11) | 94.0 (41 / 34 / 9) | 106.3 (46.5 / 37 / 13) | |
+
+- **Staff catch-up moves newcomer hits into 1960.** Coverage reaches 0.90 in 1960, and Major singles rise 62 → 72 a label.
+  Big-5 newcomer Top 10 records go 3.5 → 6.0 in 1960 and 6.5 → 5.0 in 1961; opening-roster newcomers' 1961 hits fall
+  4.0 → 1.75. 1960 Big-5 share is 26.2 (target 27).
+- **The 1961 total rises (26.4 → 29.5) through the 1960 hit acts' follow-ups.** They now hold 17.8 points, on history's 16.4.
+  The 1961 excess is the other Big-5 acts: 11.7 points against 4.2. Newcomers are ~4.8 of them (on history's count); the rest
+  is Rising acts (3.8) and Established acts (~2.3) with Top 11-100 placings but no 1960 Top 10.
+- **Those acts over-climb on repeat entries** (`score_climb_by_prior.py`, debuts weeks 40-92, `stB`). Top 10 per Hot 100
+  event, prior best 11-40: Big-5 28.2%, MidTier 21.9, field 13.4, history 10.2 (label-blind). Prior best 41-100: Big-5 18.4,
+  history 9.0. Prior Top 10: Big-5 28.3, history 17.5. First entries: Big-5 17.7, field 9.9, history 20.8. This is §75's
+  pattern; it is the main 1961 residual once the opening is fixed.
+- **History's star ownership raises the Big-5 in both years** (`stArB`: 32.7 / 33.3). 1961 Big-5 1960 hit acts stay on history
+  (16.9); other Big-5 acts rise to 16.4, newcomers 9.0 points among them (more stars → more Major LP earnings → earned roster
+  capacity → more signings, §86's channel; Major singles 109 a label in 1961). Closures rise 94 → 106 (Small +5.5, MidTier
+  +3.75): the MidTiers lose the stars.
+
+**Status.** `stB` (B + both quotas + staff catch-up 12) is the candidate shape: 1960 on target, 1961's Big-5 1960 hit acts on
+history, newcomer hits by year near history, LP volume kept. Archetype shares are the historical ownership but cannot be
+afforded until the Big-5 repeat-entry over-climb (prior #11-100: 2-3× history) is fixed. Not adopted; no candidate request
+changed.
+
+## 90. The Big-5 repeat-entry over-climb is the plug; a Top 10 hit-act rung moves plugs to the wrong acts (2026-11-19; seeds 1001-4004, 104 weeks)
+
+The question (§89): on `stB`, Big-5 chart events by acts whose best was #11-40 reach the Top 10 28.2% of the time, against
+history's 10.2% (label-blind; field 13.4). Why? Scratch scorers (per launch, weeks 36-88, joined to `PROMO_PLUG` lines in the
+engine logs).
+
+**Where it comes from: plugged follow-ups.** Big-5 singles by acts whose prior best was #11-40, `stB`, 4 seeds:
+
+| | launches | Hot 100 | Top 10 per launch | Top 10 per entry | launch awareness | launch stock |
+|---|---|---|---|---|---|---|
+| Big-5 plugged | 90 | 64% | **15.6%** | 24% | 0.40 | 35k |
+| Big-5 routine | 75 | 27% | 4.0% | 15% | 0.28 | 26k |
+| MidTier (no plug switch; full package) | 146 | 50% | 11.6% | 23% | 0.38 | 29k |
+| field | 732 | 37% | 4.5% | 12% | 0.25 | 12k |
+
+- A Big-5 routine issue converts at the field's rate. The premium is the full package, and under the plug rule
+  (`PromotionCapacity.HitAct`: Star/Superstar or `consecutiveHits > 0`, a Top 40 streak broken only by a peak worse than 60)
+  every act whose last run was #11-40 counts as a hit act. Hit acts always get a plug and may buy one more.
+- The edge is at launch, not after entry. Plugged records start at the 0.6 awareness cap in week 1 (the field reaches it in
+  week 6), and units in weeks 1-5 run about 2× the field's. Radio heat, panel share and word of mouth match the field.
+  Follow-up campaigns are rare (5 records). Fit draws can't be compared: `single-demand-stages` traces only 19% of these records.
+- Matched quality doesn't close it. Top quality bin (0.8+): Big-5 22% Top 10 per launch, field 8%.
+
+**Screen `pt10B` = `stB` + `--plug-hit-act-top10`.** `Systems/PromotionCapacity.cs`: the hit act is a Star/Superstar or an act
+whose last completed run reached the Top 10 (new `SimulatedArtist.lastRunPeak`, written by `CompleteChartRun` and by the
+opening `DeriveCounters`, read only by the switch). The hit-act reserve counts the same acts. Checks in `--major-volume-check`
+pass. No off-identity run was made: `lastRunPeak` is written but read only under the switch.
+
+| Mean of 4 seeds | `stB` | `pt10B` | History |
+|---|---|---|---|
+| Big-5 Top 10 share 1960 (per seed) | 26.2 (29/30/26/20) | 21.8 (20/26/22/19) | 27 |
+| Big-5 Top 10 share 1961 (per seed) | 29.5 (36/27/34/22) | 23.5 (29/24/23/19) | 20.6 |
+| 1961: Big-5 1960 hit acts / other Big-5 acts | 17.8 / 11.6 | **8.7 / 14.8** | 16.4 / 4.2 |
+| Big-5 Top 10 per event, prior #11-40 / #41-100 / Top 10 | 28.2 / 18.4 / 28.3 | 15.7 / 15.3 / 21.8 | 10.2 / 9.0 / 17.5 |
+| Big-5 events a year, prior #41-100 | 9.3 | 14.5 | |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 6.0 / 5.0 | 3.0 / 7.5 | ~4.5 / ~4.5 |
+| Plugs (plugged / bought / routine, 4 seeds) | 1,175 / 21 / 1,897 | 1,103 / 3 / 1,781 | |
+| Major singles a label 1961 | 101 | 92 | |
+| Labels inactive at week 104 | 94.0 | 95.5 | |
+
+- The per-event rate falls as aimed (#11-40: 28.2 → 15.7). But the 1961 drop is in the wrong row: Big-5 1960 hit acts fall
+  17.8 → 8.7 (history 16.4), and other Big-5 acts *rise*, 11.6 → 14.8 (history 4.2).
+- Why: a real hit act whose latest single stalled at #11-40 loses its plug. The freed reserve goes through the read bar,
+  where higher-quality #11-100 repeat acts beat the opening-roster newcomers to the free slots. Newcomer 1960 Top 10s
+  fall 6.0 → 3.0 and slide into 1961, and #41-100 repeat events rise 9.3 → 14.5 a year at 15% Top 10.
+- 1960 falls to 21.8 (target 27).
+
+**Status.** `--plug-hit-act-top10` rejected; it stays in the code, off. Who counts as a hit act only moves plugs between
+Big-5 acts. A plug turns any Big-5 act's single into a hit-act launch (15.6% a launch against 4% routine), and the
+plug count (4 a month plus bought plugs) decides how many non-proven acts get one. The over-climb is plug strength on
+non-proven acts, not the hit-act rung. Next candidates: (a) a plug's strength by the act's standing (the full
+package only for a Top 10 last run or a star, a partial package for #11-40, routine below); (b) fewer slots for non-hit
+reads with the Top 40 rung kept.
+
+## 91. Screen: graded plug strength (held plugs for #11-60 hit acts) does not fix it either (2026-11-19; seeds 1001/2002, 104 weeks)
+
+**Switch** `--plug-graded=G` (`Systems/PromotionCapacity.cs`; checks in `--major-volume-check` pass). The Top 40 hit-act rule
+still decides slots and the reserve. A Star, a Superstar or an act whose last run reached the Top 10 gets the full package.
+Any other hit act (last run #11-60 on an unbroken Top 40 streak) takes its slot as before and launches with the full package
+at keyed chance G, else as a routine issue (a "held plug"). It buys no extra plug. Unlike `pt10B` (§90), no slot is freed
+for other acts. Arms on `stB`: `pg0B` (G = 0) and `pg5B` (G = 0.5). The first 4-seed launch ran 8 worlds at once, and
+`pg5B-2002` died with OutOfMemoryException. Seeds 3003/4004 were stopped, and `pg5B-2002` was rerun alone.
+
+| Seeds 1001/2002 | `stB` | `pt10B` | `pg0B` | `pg5B` | History |
+|---|---|---|---|---|---|
+| Big-5 Top 10 share 1960 | 29.6 | 23.3 | 24.9 | 25.5 | 27 |
+| Big-5 Top 10 share 1961 (per seed) | 31.2 (36/27) | 26.4 (29/24) | **34.4** (39/30) | 26.2 (31/22) | 20.6 |
+| 1961: Big-5 1960 hit acts / other Big-5 acts | 18.4 / 12.8 | 10.5 / 16.0 | 13.0 / **21.2** | 12.8 / 13.4 | 16.4 / 4.2 |
+| Big-5 Top 10 per event, prior #11-40 | 26.9 | – | 20.9 | 20.5 | 10.2 |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 8.0 / 6.0 | 2.5 / 9.5 | 5.0 / 10.0 | 4.5 / 7.5 | ~4.5 / ~4.5 |
+| Plugs: full / held / bought / routine | 589 / – / 11 / 926 | | 427 / 148 / 6 / 919 | 529 / 73 / 3 / 1,056 | |
+| Major singles a label 1961 | 99 | 94 | 104 | 106 | |
+| Labels inactive at week 104 | 93.5 | 91.5 | 90.0 | 93.0 | |
+
+- The held plugs did replace full plugs (`pg0B`: 148 held, full plugs 589 → 427). Yet the "other Big-5 acts" row did not
+  fall: 12.8 → 21.2 at G = 0 and 13.4 at G = 0.5. The 1960 hit acts fall again (18.4 → 13), as in §90, because a real hit
+  act whose latest single stalled loses its package.
+- Even when every #11-60 act's single is routine (G = 0), the Big-5 #11-40 Top 10 rate per event stays at 21% (history 10,
+  field 12). So the plug is part of the over-climb, not all of it. A routine Big-5 issue still has the label's national
+  distribution, city reach, arrival hold and roster programme, and the act's recognition and act-record fit terms.
+- At two seeds a 1961 point is noisy (per-seed spreads of 6-9 points), but no arm moves the target row in the right
+  direction without cutting the 1960 hit acts.
+
+**Status.** `--plug-graded` rejected; it stays in the code, off. Launch-package levers on #11-60 acts are exhausted (§90-91):
+they trade the 1960 hit acts' follow-ups for other Big-5 acts. Before another lever, the "other Big-5 acts" row needs
+attributing: by launch career, plug outcome and prior band per record, on `stB` and `pg0B` (where the newcomer 1961 points
+rose 6.3 → 11.4).
+
+## 92. Who holds the 1961 "other Big-5 acts" slots: acts that charted below the Top 10 in 1960, which history has none of (2026-11-19; read-only)
+
+Scorer `SimTools/attribute_big5_1961_other.py SEEDS ARM`. Points = share of 1961 Top 10 slot-weeks. History: the operating-
+label 1961 Top 10 (`historical-top10-1961`); the act's best 1960 Hot 100 peak from `hot100_weekly`.
+
+**History's 4.2 points are five records, all by acts with no 1960 Hot 100 entry**: Jimmy Dean "Big Bad John" (10 slots),
+Leroy Van Dyke, Buzz Clifford, the Tokens, Patsy Cline. No Big-5 act with a 1960 #11-100 best had a 1961 Top 10.
+
+`stB` (4 seeds), 11.7 points:
+
+| By the act's 1960 best | points | of which plugged / routine / not routed |
+|---|---|---|
+| #11-40 | 1.8 | 1.5 / 0.3 / 0 |
+| #41-100 | 2.2 | 1.9 / 0 / 0.2 |
+| no 1960 Hot 100 entry | 7.6 (history 4.2) | 4.0 / 2.0 / 1.7 |
+
+- By launch career: NewSigning 4.8, Rising 3.8, Established 2.3, Declining 0.7. Opening careers hold only 1.5. Nearly all
+  (11.2) are singles launched in 1961.
+- The no-1960-entry 7.6 is newcomers 4.3, Rising 2.5 (signing-time Rising draws and acts that charted only in 1961) and
+  Established 0.8.
+
+**Label-blind: acts that charted below the Top 10 convert too often, and fresh acts too rarely.** 1961 Top 10 points by the act's
+1960 best, and the share of 1960 acts in each band with a 1961 Top 10:
+
+| | History | `stB` | `pg0B` | `pg5B` |
+|---|---|---|---|---|
+| Points: no 1960 entry / 1960 Top 10 / #11-40 / #41-100 | 46.0 / 39.2 / 11.5 / 3.3 | 32.6 / 47.1 / 11.3 / 8.9 | 32.1 / 38.3 / 19.6 / 10.0 | 35.2 / 41.2 / 13.4 / 10.2 |
+| 1960 acts with best #41-100 (count; % with a 1961 Top 10) | 148; 1.4% | Big-5 28; 7.1% · other 255; 3.0% | | |
+| 1960 acts with best #11-40 | 96; 7.3% | Big-5 13.5; 18.5% · other 76; 11.8% | Big-5 26.1% | Big-5 16.7% |
+| 1960 acts with a Top 10 | 74; 33.8% | Big-5 23; 44.0% · other 65; 31.5% | | |
+
+- The sim has twice history's #41-100 acts (283 a seed against 148), and they reach a 1961 Top 10 at 2× (field) to 5× (Big-5)
+  history's 1.4%. #11-40 acts convert at 1.6× (field) and 2.5× (Big-5) history's 7.3%.
+- Fresh acts are short across the chart: 32.6 points against 46. The Big-5's fresh row is over (7.6 against 4.2), so the
+  field's fresh acts carry about 25 against history's ~42.
+- Within an act, consecutive singles' quality correlates at 0.34 (hook 0.32); the within-act SD is 0.062 against 0.086
+  overall. That is modest, and history has no comparable measure.
+
+**Reading.** The "other Big-5 acts" excess is about 4.0 points from acts that charted #11-100 in 1960 (history 0) and
+about 3.4 points of extra fresh Big-5 acts. It belongs to a chart-wide pattern: a modest chart record carries forward to the
+next records far more than in history, most strongly at the Big-5, while fresh acts break through too rarely. The plug is
+one carrier (§90-91), but cutting it moves slots between the same Big-5 acts. Candidate carriers to screen next are the
+act-level terms a #41-100 act gains: recognition at launch (`ArtistRecognitionService` awareness and stock lifts), follower
+demand (`--follower-demand`), the Rising career at signing and its stock scale, and the act-record fit (Top 40 acts only).
+
+## 93. Entries per act match history; the climb per entry is flat in the act's past. An act-level fit share does not order it (2026-11-19; seeds 1001/2002, 104 weeks)
+
+**Decomposition** (per 1960 band, 1961 debuts; history's Hot 100 1960-61, label-blind; sim `stB`):
+
+| Act's 1960 best | History: acts / entries per act / Top 10 per entry | `stB` Big-5 | `stB` field |
+|---|---|---|---|
+| Top 10 | 74 / 2.72 / 19.4% | 2.66 / 23.8% | 2.06 / 16.8% |
+| #11-40 | 96 / 1.04 / **8.0%** | 1.25 / 14.7% | 0.83 / 13.3% |
+| #41-100 | 148 / 0.28 / **7.1%** | 0.23 / 27.2% | 0.24 / 12.9% |
+| no 1960 entry (fresh) | 242 / 1.43 / **16.7%** | 1.43 / 17.7% | 1.26 / 11.7% |
+
+(Seeds 1001/2002; the 4-seed figures in §92 agree.) The number of chart entries per act is on history in every band. What is
+off is the climb: in history a modest act's next record usually stalls (7-8% Top 10 an entry), while a fresh act's first
+records climb best (17%). In the sim the climb hardly depends on the act's past (field 12-17% in every band). Modest acts
+climb too often everywhere, most at the Big-5, and the field's fresh acts climb too rarely.
+
+**Screen `--single-commercial-fit-act-share=R`** (`Systems/SingleCommercialFit.cs` `NationalZ`): the national fit draw becomes
+sqrt(R) × an act-keyed draw + sqrt(1 - R) × the record's draw. Every record keeps a standard normal draw, and an act's
+records correlate at R. `--single-commercial-fit-shape-check` passes (42 checks; off identical, same-act correlation 0.5 at
+R = 0.5). Arms on `stB`: `as3B` (R 0.3) and `as6B` (R 0.6).
+
+| Seeds 1001/2002 | `stB` | `as3B` | `as6B` | History |
+|---|---|---|---|---|
+| Top 10 per entry, field: Top 10 / #11-40 / #41-100 / fresh | 16.8 / 13.3 / 12.9 / 11.7 | 15.5 / 14.6 / 11.5 / 10.6 | 25.3 / 13.9 / 11.1 / **8.0** | 19.4 / 8.0 / 7.1 / 16.7 |
+| Top 10 per entry, Big-5: #11-40 / #41-100 | 14.7 / 27.2 | 22.0 / 40.4 | 18.6 / 14.7 | |
+| Big-5 Top 10 share 1960 / 1961 | 29.6 / 31.2 | 24.9 / 32.9 | 26.9 / 27.6 | 27 / 20.6 |
+| 1961: 1960 hit acts / other Big-5 acts | 18.4 / 12.8 | 16.6 / 16.2 | 16.0 / 11.6 | 16.4 / 4.2 |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 8.0 / 6.0 | 3.5 / 6.0 | 3.5 / **2.0** | ~4.5 / ~4.5 |
+| Labels inactive at week 104 | 93.5 | 96.0 | **104.0** | |
+
+- **The shared draw makes hit acts persistent but does not mark modest acts as modest.** At R 0.6 the field's Top 10 acts
+  climb more (16.8 → 25.3), the #11-100 rows barely move, and fresh acts climb less (11.7 → 8.0). With a fixed purse, hit acts'
+  extra share comes out of fresh acts. A #41-100 run does not reveal a low act draw, because such records chart mainly on
+  launch strength (awareness, stock, plug), not on the draw.
+- At R 0.6 the 1961 Big-5 share falls to 27.6 only because newcomers lose (6.0 → 2.0 Top 10 records). The other-Big-5 row
+  stays at 11.6 (history 4.2), and closures rise by 10.5.
+
+**Status.** `--single-commercial-fit-act-share` rejected; it stays in the code, off. With §90-91, three levers have now
+moved Big-5 slots between groups without restoring the history pattern. The pattern to fix is chart-wide: modest acts'
+records climb at 12-27% an entry (history 7-8%), and the field's fresh acts' at 12% (history 17%). The fresh-act deficit has
+stood since §75 (field first entries 10% against 21%). Raising it would take slots from the modest repeat acts on a fixed
+chart, which may be the more direct lever.
+
+## 94. Fresh field acts: opening the Top 40 gates to the whole Hot 100 lifts their climb to history's (2026-11-19; seed 1001, 52 weeks)
+
+**What holds a fresh field act** (`stB`, an act's first chart entry, weeks 40-92, 4 seeds). Field first entries debut with
+4.1 covered regions and reach only 4.4 at most. Their Top 10 rate climbs with coverage: 2.6% at 1 region, 8-11% at 2-5, 16.5% at
+6-7, where it equals the Big-5 newcomers' rate (7 regions, 18.9%). Small labels sit at 1.6 regions and 3.2%. Three gates
+open for an uncovered region only inside the national top 40: fit exposure (`RegionalFitExposure.NationalRank`), held-region
+arrival (`--regional-arrival`, depth 40) and restock service (uncovered regions are served at 0.18 + 0.25 × strength). So a
+fresh record debuting at #90 must climb about 50 places on 3-4 regions before the rest of the map can buy it. In 1960, one-stops and
+independent distributors ordered off the whole chart.
+
+**Screen** (existing switches in `Systems/LabelFootprintParity.cs` and `EarnedIndieCoverage.cs`, one seed, 52 weeks, a 52-week
+control `fc52` on `stB-1001`'s flags):
+- `fn52`: `--regional-fit-exposure-national-rank=100 --regional-arrival-chart-depth=100`.
+- `fnec52`: `fn52` + `--earned-indie-coverage=1`.
+
+| Seed 1001, 1960 | `fc52` | `fn52` | `fnec52` | History |
+|---|---|---|---|---|
+| Field first entries (debut wk 12-48): Top 10 / Top 40 per entry | 10.1 / 31.5 | 16.3 / 30.4 | **19.0 / 35.8** | 16.7-20.8 / ~46 |
+| … Independent / Boutique Top 10 per entry | 11.1 / 5.6 | 15.4 / 26.3 | 17.4 / 34.4 | |
+| Fresh acts' Top 10 records (all labels) | 46 | 54 | 59 | |
+| Big-5 Top 10 / Top 40 share | 29.2 / 24.0 | **18.3 / 17.9** | **19.8 / 18.3** | 27 (adopted) |
+| Top 10 records in the year | 120 | 133 | 135 | ~111 (1961) |
+| Hot 100 units (M) | 110.4 | 110.7 | 113.0 | |
+| Labels inactive at week 52 | 14 | 14 | 12 | |
+
+- **The effect takes.** Opening exposure and arrival to the whole chart moves field first entries' Top 10 rate from 10% to
+  16%, and restock lifts it to 19%, on history's 17-21%. Chart units are flat, and no more labels close in the first year.
+- **Cost: 1960 Big-5 share drops about 10 points** (29.2 → 18-20 against the 27 target). Fresh field hits take Big-5 slots
+  already in 1960, and Top 10 turnover rises (120 → 135 records against ~111).
+- One seed and one year. The 1961 target rows (§92-93: modest repeat acts, the other-Big-5 row) need 104 weeks.
+
+**Status.** Not adopted. The lever works on the fresh-act deficit. Next: dose the depth (60-80) to keep 1960 Big-5 near 27,
+then 104 weeks on 2 seeds scored on §93's band table and closures.
+
+**Dose (2026-11-19; seed 1001, 52 weeks).** The arms below set exposure, arrival and earned coverage to depth N
+(`--earned-indie-coverage-position=N`):
+
+| Seed 1001, 1960 | control | N = 60 | N = 80 | N = 100 (`fnec52`) | History |
+|---|---|---|---|---|---|
+| Field first entries: Top 10 per entry | 10.1 | 12.1 | 13.4 | **19.0** | 16.7-20.8 |
+| Fresh acts' Top 10 records | 46 | 52 | 51 | 59 | |
+| Big-5 Top 10 share (H1 / H2) | 29.2 (26.7 / 31.9) | 23.2 (18.5 / 28.1) | 22.6 (20.4 / 25.0) | 19.8 (23.3 / 16.2) | 27 |
+| Top 10 records | 120 | 126 | 123 | 135 | |
+| Labels inactive at week 52 | 14 | 16 | 15 | 12 | |
+
+- The fresh-act gain is nearly all at depth 100. Fresh records debut around #90, so a gate at 60 or 80 still sits above most
+  of them.
+- The Big-5 share does not dose with it: N 60/80 cost 6-7 points for a fraction of the gain. Single-seed 1960 Top 10 share
+  moves ±4-5 points with any perturbation (the H1 halves differ before most of the run diverges). Below 100 there is no
+  depth that keeps the Big-5 at 27 and fixes fresh acts.
+- Reading: if fresh field hits are to come up to history, Big-5 share has to be held by Big-5-side levers that are now
+  affordable. §89's historical star ownership (`stArB`, 32.7 / 33.3 alone) is the natural pair. Next: 104 weeks × 2
+  seeds, `fnec` depth 100 on `stB` and on `stArB`, scored on 1960/1961 share, §93's band table and closures.
+
+## 95. Screen: depth 100 (exposure, arrival, earned coverage) at 104 weeks, alone and with historical star ownership (2026-11-19; seeds 1001/2002)
+
+Arms: `fnB` = `stB` + `--regional-fit-exposure-national-rank=100 --regional-arrival-chart-depth=100 --earned-indie-coverage=1`;
+`fnArB` = `stArB` (§89 archetype star shares) + the same three.
+
+| Seeds 1001/2002 | `stB` | `fnB` | `stArB` | `fnArB` | History |
+|---|---|---|---|---|---|
+| Big-5 Top 10 share 1960 | 29.6 | 16.2 | 37.4 | **27.2** | 27 |
+| Big-5 Top 10 share 1961 | 31.2 | 30.4 | 33.2 | 28.0 | 20.6 |
+| 1961: 1960 hit acts / other Big-5 acts | 18.4 / 12.8 | 11.5 / 19.0 | 18.2 / 15.1 | 11.9 / 16.2 | 16.4 / 4.2 |
+| 1961 field Top 10 per entry: fresh / #41-100 / #11-40 / Top 10 | 11.7 / 12.9 / 13.3 / 16.8 | 11.3 / 15.2 / 15.8 / 17.9 | 12.8 / 19.7 / 15.6 / 11.6 | 14.7 / 22.5 / 21.3 / 17.2 | 16.7 / 7.1 / 8.0 / 19.4 |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 8.0 / 6.0 | 3.0 / 10.5 | 7.0 / 4.0 | 5.0 / 8.0 | ~4.5 / ~4.5 |
+| Major singles a label 1961 | 99 | 101 | 110 | 119 | |
+| Labels inactive at week 104 | 93.5 | **102.0** | 108.0 | **111.5** | |
+
+- **1960 lands.** Star ownership plus depth 100 puts 1960 at 27.2. Depth 100 alone overshoots to 16.2.
+- **1961 does not move.** It stays at 28-30. The fresh field acts' 1961 gain mostly disappears (11.7 → 11.3 in `fnB`, 12.8 → 14.7
+  with stars). Opening the bottom of the chart lifts every field record there, and modest repeat acts gain more than fresh ones
+  (#41-100 22.5% against history's 7.1). So the flat-in-the-past pattern of §93 gets worse.
+- **The 1960 hit acts' 1961 follow-ups fall** (18 → 12, history 16.4), and the other-Big-5 row stays high. In `fnArB` it
+  holds 16.2: #11-40 3.3, #41-100 4.1, fresh 8.8 (newcomers 5.4), plugged 10.0.
+- **Closures rise by 8.5 to 18** (`fnB` 102, `fnArB` 111.5 against `stB` 93.5).
+
+**Status.** Not adopted. Depth 100 fixes the first-year fresh climb and, paired with star ownership, the 1960 share.
+It doesn't fix 1961 or §93's ordering: the open bottom helps modest acts too, and closures rise. The 1961 Big-5 excess
+has stood at 28-31 through every lever in §88-95.
+
+## 96. Audit of the 1961 Big-5 target: 20.6 is one noisy year; the sim's 29.5 is about 1.4 SE away (2026-11-19; read-only)
+
+Sources: `SimLogs/historical-top10-{1960..1964}/records_YYYY_final.csv` (52 weekly Top 10s each, operating labels). Sim:
+`stB`, 4 seeds.
+
+**1. Scope: marquee labels against corporate families.** 20.6 counts only the five marquee labels. The sim has no Epic, Okeh,
+Coral, Brunswick, Smash or Philips (HistoricalLabelTierBalanceResearch.md §11), so its five Majors stand for the whole groups.
+Family share (Columbia + Epic/Okeh; RCA + Groove/Vik/Camden; Capitol; Decca + Coral/Brunswick; Mercury + Smash/Philips):
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| Marquee share (current targets) | 34.2 | 20.6 | 21.2 | 26.0 | 18.7 |
+| Family share | 35.6 | **22.1** | 26.0 | 38.8 | 34.4 |
+| Bootstrap SD (resampling records) | 5.6 | **4.3** | 4.7 | 5.1 | 5.0 |
+
+In 1961 the subsidiaries add only 1.5 points (Smash 7 slots, Brunswick 1). From 1962 they matter (Epic, Smash, Philips), and
+1963-64 marquee targets understate the groups by 13-16 points.
+
+**2. Noise.** A year's Top 10 is about 115 records, and a few long runs move the share. 1961's bootstrap SD is 4.3 points, so
+the 95% range on the family share is about 13.5-30.7. `stB`'s seeds run 36.0 / 26.5 / 33.7 / 21.7 (SD 6.4). Mean against
+history: 29.5 against 22.1, a gap of 7.4 against a combined SE of about 5.3 (history 4.3, sim mean 3.2), i.e. about 1.4 SE.
+Pooled 1961-62 family history is 24.0 (SD about 3.2), so the gap is 5.5 at about 1.2 SE.
+
+**3. Per firm, 1961** (`stB` mean / history family): Columbia 4.7 / 4.4, RCA 6.6 / 8.5, **Capitol 2.9 / 0.0**,
+**Decca 9.2 / 5.6**, **Mercury 6.1 / 3.7**. Capitol's zero is a real slump: no Capitol single reached the 1961 Top 10. The sim's
+excess sits in Decca, Mercury and Capitol, while RCA (Elvis) is under. Per firm, the sim swings 1-14 points between seeds.
+
+**4. Two-year view.** Family history 1960 + 1961 averages 28.9, and `stB` 29.6 / 29.5 averages 29.6. Over the two years the sim
+is on history. What it lacks is history's swing (35.6 → 22.1), which the 1960-dip screen (memory big5-1960-dip-is-run-length) traced to one 1960 event
+cluster (Elvis's return, the "Summer Place" blockbusters). That cluster is why 1960 was adopted at 27 and not 34.2. Taking that
+down-weighting for 1960 and not for 1961 sets the two years' targets on different bases.
+
+**Reading.** The 20.6 target treats one year's marquee share as a point. Corrected for scope, it is 22.1 ± 4.3, and the sim's
+1961 excess is inside about 1.5 SE of it. §88-95's levers were judged against 20.6 and kept failing on 1961. The 1960-61 mean is on
+history. Proposed target, for the author: judge Big-5 share on corporate families, as a band (1961: 22 ± 4.3; pooled 1961-62: 24
+± 3.2) or on the 1960-61 mean (history 28.9), with at least 4 seeds. Under that rule `stB` (29.6 / 29.5) passes 1960 and sits at
+the edge of the 1961 band.
+
+**ADOPTED 2026-11-19 (author).** The Big-5 Top 10 share is scored on corporate families, as a band, with at least 4 seeds:
+1960 27 (unchanged), 1961 22.1 ± 4.3 (pooled 1961-62 24.0 ± 3.2). `score_chart_faller_depth.py` and
+`score_opening_tier_quotas.py` now print 22.1 for 1961. Under the band, `stB` (§89) passes 1960 (26.2); its 1961 (29.5) sits 3.1 above
+the band top of 26.4, within about one SE of the four-seed mean. The §90-95 switches stay off. The 1962-64 targets (marquee
+21.2 / 26.0 / 18.7, families 26.0 / 38.8 / 34.4) need re-basing before any late-decade Major work.

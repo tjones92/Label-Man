@@ -109,6 +109,23 @@ public static class SingleCommercialFitShapeChecks {
 			double prev = double.NegativeInfinity; bool monotone = true;
 			for (double z = -1.5d; z < 4d; z += 1e-3) { double v = SingleCommercialFit.National(z, .2f, .35f, 1f); monotone &= v >= prev - 1e-9; prev = v; }
 			Check(monotone, "taper: a better draw never sells less");
+
+			// Act share: off keeps the record draw; on, an act's records share a component (correlation R) and stay standard normal.
+			Record Rec(string id, string act) => new Record { recordId = id, artistId = act };
+			SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f);
+			double offZ = SingleCommercialFit.NationalZ(Rec("as-r1", "as-a1"));
+			SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f, actShare: 0f);
+			Check(offZ == SingleCommercialFit.NationalZ(Rec("as-r1", "as-a1")), "act share off: the record draw alone");
+			SingleCommercialFit.SetForChecks(2.5f, .5f, 1f, 1001UL, hitShare: .15f, upside: 1f, actShare: .5f);
+			Check(SingleCommercialFit.NationalZ(Rec("as-r1", "")) == offZ, "act share: a record with no act keeps its own draw");
+			int n = 4000; double sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
+			for (int i = 0; i < n; i++) {
+				double x = SingleCommercialFit.NationalZ(Rec("as-x" + i, "as-act" + i)), y = SingleCommercialFit.NationalZ(Rec("as-y" + i, "as-act" + i));
+				sa += x; sb += y; saa += x * x; sbb += y * y; sab += x * y;
+			}
+			double ma = sa / n, va = saa / n - ma * ma, corr = (sab / n - ma * sb / n) / Math.Sqrt(va * (sbb / n - (sb / n) * (sb / n)));
+			Check(Math.Abs(ma) < .06 && Math.Abs(va - 1d) < .08 && Math.Abs(corr - .5d) < .06,
+				$"act share .5: standard normal draws, same-act correlation .5 (mean {ma:F3}, var {va:F3}, corr {corr:F3})");
 			Set(2f, 0f);
 			Check(SingleCommercialFit.National(2d, .2f, .35f, 1f) > SingleCommercialFit.National(2d, .2f, .35f, 0f), "full kink mode still enlarges a connected draw");
 			Set(1f, 0f);

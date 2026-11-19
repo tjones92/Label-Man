@@ -85,7 +85,9 @@ def history():
     o = chart(w.rename(columns={"position": "pos"})[["wk", "rec", "act", "pos"]], 52, 208, 3, w.wk.max(), 52, 208, 3)
     # 1960 target is 27, not the raw 34.2: history net of the one-off blockbuster cluster (Elvis's return, Summer Place;
     # Big5ChartOpportunityInvestigation.md "The 1960 dip", adopted 2026-11-18).
-    o.update({"Big-5 T10 share 1960 %": 27.0, "Big-5 T10 share 1961 %": 20.6})
+    # 1961: corporate-family share 22.1, a band of +/- 4.3 (one year's bootstrap SD), adopted 2026-11-19
+    # (LpGenreAllocationFollowup.md §96); the old 20.6 counted the five marquee labels only.
+    o.update({"Big-5 T10 share 1960 %": 27.0, "Big-5 T10 share 1961 %": 22.1})
     return o
 
 

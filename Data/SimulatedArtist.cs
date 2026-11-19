@@ -152,6 +152,9 @@ public class SimulatedArtist {
 	public int regionalBreakouts;
 	public int consecutiveHits;
 	public int consecutiveFlops;
+	/// <summary>Peak of the act's last completed chart run (0: none or never charted). Written always, read only by
+	/// --plug-hit-act-top10 (<see cref="PromotionCapacity.HitAct"/>).</summary>
+	public int lastRunPeak;
 	public int totalUnitsSold;
 
 	// The act's public career before the simulation started (SimTools/OpeningCareersDesign.md). Display and
@@ -337,6 +340,7 @@ public class SimulatedArtist {
 		int regionalBreakoutMarkets = 0, bool penalizeNeverCharted = false) {
 		totalUnitsSold += unitsSold;
 		bool charted = peakPosition > 0 && peakPosition <= 100;
+		lastRunPeak = charted ? peakPosition : 0;
 		bool brokeOutRegionally = regionalBreakoutMarkets > 0;
 		if (brokeOutRegionally) regionalBreakouts++;
 		// The lifetime streak keeps its authored peak-60 definition because the normal

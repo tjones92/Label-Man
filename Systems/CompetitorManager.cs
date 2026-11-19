@@ -827,18 +827,32 @@ public partial class CompetitorManager : Node {
 	
 	private Dictionary<string, int> CalculateInitialQuotas(int totalNeeded) {
 		var quotas = new Dictionary<string, int>();
-		float totalWeight = aiLabels.Sum(l => GetTierWeight(l.tier) * l.roster.Count);
+		// --opening-catalogue-major-share (OpeningTierQuotas): the Majors' weight is scaled so the tier holds a fixed share of
+		// the opening catalogue whatever its roster size. Off: the scale is 1 and every weight is unchanged.
+		float majorScale = 1f;
+		if (OpeningTierQuotas.CatalogueEnabled) {
+			float majorWeight = aiLabels.Where(l => l.tier == LabelTier.Major).Sum(l => GetTierWeight(l.tier) * l.roster.Count);
+			float otherWeight = aiLabels.Where(l => l.tier != LabelTier.Major).Sum(l => GetTierWeight(l.tier) * l.roster.Count);
+			majorScale = OpeningTierQuotas.MajorWeightScale(majorWeight, otherWeight);
+			GD.Print($"OPENING_CATALOGUE_TIERS rosterShare={majorWeight / Mathf.Max(1f, majorWeight + otherWeight):F4} " +
+				$"share={OpeningTierQuotas.CatalogueShare:F4} majorScale={majorScale:F4} records={totalNeeded}");
+		}
+		float Weight(AILabel l) => GetTierWeight(l.tier) * l.roster.Count * (l.tier == LabelTier.Major ? majorScale : 1f);
+		float totalWeight = aiLabels.Sum(Weight);
 		if (totalWeight <= 0) {
 			int perLabel = totalNeeded / Mathf.Max(1, aiLabels.Count);
 			foreach (var label in aiLabels) quotas[label.labelId] = perLabel;
 			return quotas;
 		}
 		foreach (var label in aiLabels) {
-			float weight = GetTierWeight(label.tier) * label.roster.Count;
+			float weight = Weight(label);
 			int quota = Mathf.RoundToInt((weight / totalWeight) * totalNeeded);
 			quota = Mathf.Min(quota, label.roster.Count * 3);
 			quotas[label.labelId] = quota;
 		}
+		if (OpeningTierQuotas.CatalogueEnabled)
+			GD.Print($"OPENING_CATALOGUE_TIERS majorRecords={aiLabels.Where(l => l.tier == LabelTier.Major).Sum(l => quotas[l.labelId])} " +
+				$"allRecords={quotas.Values.Sum()}");
 		return quotas;
 	}
 	

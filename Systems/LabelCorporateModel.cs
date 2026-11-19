@@ -260,13 +260,19 @@ public static class LabelCorporateModel {
         if (company == null || company.lastOrganizationReviewPeriod >= period) return;
         company.lastOrganizationReviewPeriod = period;
         SetRequiredStaff(label, company, projectsPerMonth, clients);
-        if (Staff && (Month(period) % 3 == 0)) {
+        // --opening-staff-catch-up: inside the opening window every monthly review hires the whole gap (OpeningStaffCatchUp).
+        // Off: Applies is false and the quarterly 25% review is unchanged.
+        bool catchUp = Staff && OpeningStaffCatchUp.Applies(period);
+        bool quarter = Month(period) % 3 == 0;
+        if (Staff && (quarter || catchUp)) {
             foreach (var department in company.departments) {
                 double difference = department.requiredEmployees - department.employees;
                 if (difference > 0) {
                     department.excessReviews = 0;
                     if (label.cashReserves > ProtectedCash(label) + company.payrollQuote * 3)
-                        department.employees += Math.Min(difference, Math.Max(.25, department.employees * .25));
+                        department.employees += catchUp ? difference : Math.Min(difference, Math.Max(.25, department.employees * .25));
+                } else if (!quarter) {
+                    // a catch-up month outside the quarterly review: hiring only
                 } else if (difference < -.24) {
                     // Two quarterly excess-capacity reviews before contraction; one month's severance.
                     if (++department.excessReviews >= 2) {

@@ -28,12 +28,26 @@ using Godot;
 /// at the shared chance (--label-blind-launch-expose-shared=P, else the reference chance). City reach and the arrival hold
 /// stay the label's own. What the label spent on the record is unchanged in this version.
 ///
+/// --plug-hit-act-top10 (with a plug switch): rule 1's hit act is a Star or Superstar, or an act whose last completed chart
+/// run reached the Top 10; a last run at #11-40 is an ordinary single under rule 2, and the hit-act reserve counts only these
+/// acts. Repeat entries by Big-5 acts whose best was #11-40 reached the Top 10 at 28% a chart event against history's 10%
+/// (label-blind), and the plugged ones carried it: 15.6% a launch against 4.0% routine and 4.5% in the field
+/// (LpGenreAllocationFollowup.md §90). Off: the Top 40 rule above.
+///
+/// --plug-graded=G (with a plug switch; not with --plug-hit-act-top10): a hit act keeps the Top 40 rule for slots and the
+/// reserve, but only a Star, a Superstar or an act whose last completed run reached the Top 10 gets the full package. Any other
+/// hit act (last run #11-60 on an unbroken Top 40 streak) takes its slot as before and launches with the full package at keyed
+/// chance G, else as a routine issue (a held plug); with the month's slots spent it goes routine and buys none. So slots are not
+/// freed for other acts (§90: that moved plugs to the excess). G = 0: a held plug always; G = 1: the Top 40 rule but no bought plugs.
+///
 /// Albums, promo singles cut from albums, the player's records, records bought as masters and opening catalog are never
 /// routed. Draws nothing from any stream; the read error is a counter-based keyed unit.
 /// </summary>
 public static class PromotionCapacity {
 	public const string MajorSwitch = "--major-plug-slots=";
 	public const string MidTierSwitch = "--midtier-plug-slots=";
+	public const string HitActTop10Switch = "--plug-hit-act-top10";
+	public const string GradedPrefix = "--plug-graded=";
 	public const int ReadWindow = 24, MinReadsForBar = 6, HitActsPerReservedSlot = 3;
 	public const float ReadError = .05f, ExtraPlugCostMultiple = 1f, ExtraPlugCashCover = 4f;
 
@@ -41,6 +55,9 @@ public static class PromotionCapacity {
 	public static int MajorSlots { get; private set; } = -1;
 	public static int MidTierSlots { get; private set; } = -1;
 	public static bool Enabled => MajorSlots >= 0 || MidTierSlots >= 0;
+	public static bool HitActTop10 { get; private set; }
+	/// <summary>--plug-graded: the full-package chance for a hit act below the Top 10 rung; -1 when off.</summary>
+	public static float Graded { get; private set; } = -1f;
 
 	private static readonly Dictionary<string, (int Month, int Used)> used = new(StringComparer.Ordinal);
 	private static readonly Dictionary<string, List<float>> reads = new(StringComparer.Ordinal);
@@ -53,8 +70,19 @@ public static class PromotionCapacity {
 		var args = (arguments ?? Array.Empty<string>()).ToArray();
 		MajorSlots = Parse(args, MajorSwitch);
 		MidTierSlots = Parse(args, MidTierSwitch);
+		HitActTop10 = args.Contains(HitActTop10Switch);
+		if (HitActTop10 && !Enabled) throw new ArgumentException(HitActTop10Switch + " needs " + MajorSwitch.TrimEnd('=') + " or " + MidTierSwitch.TrimEnd('=') + ".");
+		var graded = args.Where(a => a.StartsWith(GradedPrefix, StringComparison.Ordinal)).ToArray();
+		if (graded.Length > 1) throw new ArgumentException("Name " + GradedPrefix.TrimEnd('=') + " once.");
+		Graded = -1f;
+		if (graded.Length == 1) {
+			if (!float.TryParse(graded[0].Substring(GradedPrefix.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out float g) || !(g >= 0f && g <= 1f))
+				throw new ArgumentException(GradedPrefix.TrimEnd('=') + " needs a chance in [0, 1].");
+			if (!Enabled || HitActTop10) throw new ArgumentException(GradedPrefix.TrimEnd('=') + " needs a plug switch and not " + HitActTop10Switch + ".");
+			Graded = g;
+		}
 		Reset();
-		if (Enabled) GD.Print($"PROMOTION_CAPACITY majorSlots={MajorSlots} midTierSlots={MidTierSlots}");
+		if (Enabled) GD.Print($"PROMOTION_CAPACITY majorSlots={MajorSlots} midTierSlots={MidTierSlots} hitActTop10={HitActTop10} graded={Graded}");
 		configured = true;
 	}
 
@@ -67,11 +95,13 @@ public static class PromotionCapacity {
 		return k;
 	}
 
-	private static void Reset() { used.Clear(); reads.Clear(); routine.Clear(); routineScope = 0; Plugged = Routine = Bought = 0; }
+	private static void Reset() { used.Clear(); reads.Clear(); routine.Clear(); routineScope = 0; Plugged = Routine = Bought = Held = 0; }
 
 	private static void EnsureConfigured() { if (!configured) Configure(SimulationArguments.Get()); }
 
-	internal static void SetForChecks(int major, int midTier) { configured = true; MajorSlots = major; MidTierSlots = midTier; Reset(); }
+	internal static void SetForChecks(int major, int midTier, bool hitActTop10 = false, float graded = -1f) {
+		configured = true; MajorSlots = major; MidTierSlots = midTier; HitActTop10 = hitActTop10; Graded = graded; Reset();
+	}
 
 	/// <summary>The month's plug slots for an AI label; -1 when the label is outside every switch.</summary>
 	public static int SlotsFor(AILabel label) {
@@ -80,9 +110,14 @@ public static class PromotionCapacity {
 		return label.tier switch { LabelTier.Major => MajorSlots, LabelTier.MidTier => MidTierSlots, _ => -1 };
 	}
 
-	/// <summary>A hit act: Star or Superstar, or the act's last completed chart run was a Top 40.</summary>
+	/// <summary>A hit act: Star or Superstar, or the act's last completed chart run was a Top 40 (--plug-hit-act-top10: a Top 10).</summary>
 	public static bool HitAct(SimulatedArtist artist) =>
-		artist != null && (artist.careerState is CareerState.Star or CareerState.Superstar || artist.consecutiveHits > 0);
+		artist != null && (artist.careerState is CareerState.Star or CareerState.Superstar ||
+			(HitActTop10 ? artist.lastRunPeak is > 0 and <= 10 : artist.consecutiveHits > 0));
+
+	/// <summary>--plug-graded: a hit act that earns the full package (a star or a Top 10 last run).</summary>
+	public static bool FullPackageAct(SimulatedArtist artist) =>
+		artist != null && (artist.careerState is CareerState.Star or CareerState.Superstar || artist.lastRunPeak is > 0 and <= 10);
 
 	/// <summary>The label's read of a record: quality plus a keyed error in [-ReadError, +ReadError].</summary>
 	public static float Read(string recordId, float quality) =>
@@ -94,7 +129,9 @@ public static class PromotionCapacity {
 	/// <summary>Inside the launch of a routine issue: the launch-footprint reads see the reference footprint.</summary>
 	public static bool InRoutine => routineScope > 0;
 
-	public enum Outcome { NotRouted, Plugged, BoughtPlug, Routine }
+	/// <summary>HeldPlug (--plug-graded): the slot is used but the single launches as a routine issue.</summary>
+	public enum Outcome { NotRouted, Plugged, BoughtPlug, Routine, HeldPlug }
+	public static long Held;
 
 	/// <summary>The decision for one launch, with no side effects except the label's month counter, its read history and
 	/// (for a bought plug) the charge passed to <paramref name="charge"/>. <paramref name="month"/> is year * 12 + month.</summary>
@@ -111,7 +148,11 @@ public static class PromotionCapacity {
 		if (history.Count > ReadWindow) history.RemoveAt(0);
 
 		Outcome outcome;
-		if (hit) {
+		bool partial = hit && Graded >= 0f && !FullPackageAct(artist);
+		if (partial) {
+			outcome = u.Used >= k ? Outcome.Routine
+				: BandLife.Unit("plug-grade|" + recordId) < Graded ? Outcome.Plugged : Outcome.HeldPlug;
+		} else if (hit) {
 			if (u.Used < k) outcome = Outcome.Plugged;
 			else {
 				float price = ExtraPlugCostMultiple * label.GetStandardMarketingBudget();
@@ -129,6 +170,7 @@ public static class PromotionCapacity {
 			case Outcome.Plugged: Plugged++; break;
 			case Outcome.BoughtPlug: Bought++; Plugged++; break;
 			case Outcome.Routine: Routine++; routine.Add(recordId); break;
+			case Outcome.HeldPlug: Held++; Routine++; routine.Add(recordId); break;
 		}
 		return outcome;
 	}
@@ -152,7 +194,7 @@ public static class PromotionCapacity {
 		if (outcome == Outcome.NotRouted) return new RoutineScope(false);
 		GD.Print($"PROMO_PLUG week={week} label={label.labelId} tier={label.tier} record={recordId} artist={artist?.artistId} " +
 			$"career={artist?.careerState} hit={HitAct(artist)} quality={quality:F3} outcome={outcome}");
-		return new RoutineScope(outcome == Outcome.Routine);
+		return new RoutineScope(outcome is Outcome.Routine or Outcome.HeldPlug);
 	}
 
 	public readonly struct RoutineScope : IDisposable {

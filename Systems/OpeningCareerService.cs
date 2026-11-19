@@ -97,6 +97,106 @@ public static class OpeningCareerService {
 		("Imperial", OpeningCareerArchetype.EstablishedHitmaker, CareerState.Star, new[] { Genre.RnB, Genre.RockAndRoll }),
 	};
 
+	private static bool IsStarSpec(Spec s) => s.Rung == CareerState.Star;
+
+	/// <summary>
+	/// --opening-star-tier-share (OpeningTierQuotas): before the opening draft, picks the opening Superstars and Stars from the
+	/// launch pool with the stamp's ranking (spec genres, base quality, id) and signs each to a Major or a MidTier label by the
+	/// tier share; <see cref="Seed"/> then stamps exactly these acts. <paramref name="room"/> is a label's remaining opening
+	/// target; <paramref name="sign"/> signs an act through the ordinary opening signing. Draws nothing itself.
+	/// </summary>
+	public static void ReserveStars(List<AILabel> labels, int year, List<SimulatedArtist> pool, Func<AILabel, int> room,
+			Action<AILabel, SimulatedArtist> sign) {
+		OpeningTierQuotas.ClearReservations();
+		var taken = new HashSet<string>(StringComparer.Ordinal);
+		var perLabel = new Dictionary<string, (int Superstars, int Stars, int Total)>(StringComparer.Ordinal);
+		bool Fits(AILabel l, SimulatedArtist a, CareerState rung) {
+			if (l == null || l.isPlayerOwned || room(l) <= 0 || !SceneRecruitmentService.CanAccess(l, a, 0)) return false;
+			perLabel.TryGetValue(l.labelId, out var used);
+			if (used.Total >= MaxOpeningActsPerLabel) return false;
+			return rung == CareerState.Superstar ? used.Superstars < MaxSuperstarsPerLabel : used.Stars < MaxStarsPerLabel;
+		}
+		void Take(AILabel l, SimulatedArtist a, OpeningCareerArchetype archetype, CareerState rung, bool independent) {
+			sign(l, a);
+			taken.Add(a.artistId);
+			perLabel.TryGetValue(l.labelId, out var used);
+			perLabel[l.labelId] = Count(used, rung, +1);
+			OpeningTierQuotas.Reserve(new(a.artistId, l.labelId, archetype, rung, independent));
+			GD.Print($"OPENING_STAR_RESERVED artist={a.artistId} label={l.labelId} tier={l.tier} archetype={archetype} rung={rung} " +
+				$"genre={a.primaryGenre} quality={a.CalculateBaseQuality():F3}{(independent ? " independent=True" : "")}");
+		}
+		IEnumerable<SimulatedArtist> Ranked(Genre[] genres) => pool
+			.Where(a => a != null && !taken.Contains(a.artistId) && a.members?.Count > 0 && genres.Contains(GenreCatalog.MapLegacy(a.primaryGenre, year)))
+			.OrderByDescending(a => a.CalculateBaseQuality()).ThenBy(a => a.artistId, StringComparer.Ordinal);
+
+		// Named rows first, out of the same budget as the stamp's: the studio labels' 1960 stars (--studio-parent-labels) and the
+		// named Independents' (--historical-independent-stars). Both sit outside the Majors, so they count on the field side
+		// of the tier split below.
+		var rowActs = new Dictionary<OpeningCareerArchetype, (int Acts, int Superstars)>();
+		// The split runs per rung across the three archetypes (single share), or per archetype over both rungs (pair form).
+		var index = new Dictionary<string, int>(StringComparer.Ordinal); var majors = new Dictionary<string, int>(StringComparer.Ordinal);
+		string Key(OpeningCareerArchetype archetype, CareerState rung) => OpeningTierQuotas.ByArchetype ? "a:" + archetype : "r:" + rung;
+		bool MajorNext(OpeningCareerArchetype archetype, CareerState rung) {
+			string k = Key(archetype, rung);
+			return OpeningTierQuotas.NextIsMajor(OpeningTierQuotas.StarShareFor(archetype), index.GetValueOrDefault(k), majors.GetValueOrDefault(k));
+		}
+		void Row(string owner, AILabel label, OpeningCareerArchetype archetype, CareerState rung, Genre[] genres) {
+			SimulatedArtist artist = label == null ? null : Ranked(genres).FirstOrDefault(a => Fits(label, a, rung));
+			if (artist == null) { GD.Print($"OPENING_STAR_RESERVED {owner} skipped=no-act"); return; }
+			Take(label, artist, archetype, rung, true);
+			var n = rowActs.GetValueOrDefault(archetype);
+			rowActs[archetype] = (n.Acts + 1, n.Superstars + (rung == CareerState.Superstar ? 1 : 0));
+			if (rung is CareerState.Star or CareerState.Superstar) index[Key(archetype, rung)] = index.GetValueOrDefault(Key(archetype, rung)) + 1;
+		}
+		if (StudioParentLabels.Enabled)
+			foreach (var row in StudioStars)
+				Row($"studio=\"{row.Parent}\"", labels.FirstOrDefault(l => StudioParentLabels.IsStudioLabel(l) && l.studioParent == row.Parent),
+					row.Archetype, row.Rung, row.Genres);
+		if (OpeningCareers.IndependentStars)
+			foreach (var row in IndependentStars)
+				Row($"independent=\"{row.Label}\"", labels.FirstOrDefault(l => IsNamed(l, row.Label)), row.Archetype, row.Rung, row.Genres);
+
+		int LabelOrder(AILabel l, SimulatedArtist a) =>
+			l.preferredGenres?.Contains(a.primaryGenre) == true ? 0 : l.secondaryGenres?.Contains(a.primaryGenre) == true ? 1 : 2;
+		AILabel Home(SimulatedArtist a, LabelTier tier, CareerState rung) => labels
+			.Where(l => l?.tier == tier && !StudioParentLabels.IsStudioLabel(l) && Fits(l, a, rung))   // studio rows are their whole allocation
+			.OrderBy(l => LabelOrder(l, a)).ThenBy(l => BandLife.Unit("opening-star-label|" + a.artistId + "|" + l.labelId))
+			.ThenBy(l => l.labelId, StringComparer.Ordinal).FirstOrDefault();
+
+		foreach (Spec spec in Specs.Where(IsStarSpec)) {
+			var row = rowActs.GetValueOrDefault(spec.Archetype);
+			int count = spec.Count - row.Acts, superstars = spec.Superstars - row.Superstars, picks = 0;
+			foreach (SimulatedArtist artist in Ranked(spec.Genres).ToList()) {
+				if (picks >= count) break;
+				CareerState rung = picks < superstars ? CareerState.Superstar : spec.Rung;
+				AILabel Place(CareerState r) {
+					LabelTier first = MajorNext(spec.Archetype, r) ? LabelTier.Major : LabelTier.MidTier;
+					return Home(artist, first, r) ?? Home(artist, first == LabelTier.Major ? LabelTier.MidTier : LabelTier.Major, r);
+				}
+				AILabel label = Place(rung);
+				if (label == null && rung == CareerState.Superstar) {   // every label at its Superstar cap: a Star instead, as the stamp does
+					rung = spec.Rung;
+					label = Place(rung);
+				}
+				if (label == null) continue;
+				Take(label, artist, spec.Archetype, rung, false);
+				string key = Key(spec.Archetype, rung);
+				index[key] = index.GetValueOrDefault(key) + 1;
+				if (label.tier == LabelTier.Major) majors[key] = majors.GetValueOrDefault(key) + 1;
+				picks++;
+			}
+		}
+		var byId = labels.Where(l => l != null).ToDictionary(l => l.labelId, StringComparer.Ordinal);
+		string Tally(Func<OpeningTierQuotas.Reservation, bool> where) {
+			var rs = OpeningTierQuotas.Reserved.Where(where).ToList();
+			return $"{rs.Count(r => byId[r.LabelId].tier == LabelTier.Major)}/{rs.Count}";
+		}
+		GD.Print($"OPENING_STAR_RESERVATION share={OpeningTierQuotas.StarShare:F3} byArchetype={OpeningTierQuotas.ByArchetype} acts={OpeningTierQuotas.Reserved.Count} " +
+			$"majorSuperstars={Tally(r => r.Rung == CareerState.Superstar)} majorStars={Tally(r => r.Rung == CareerState.Star)} " +
+			string.Join(" ", OpeningTierQuotas.StarArchetypes.Select(a => $"{a}={Tally(r => r.Archetype == a && r.Rung is CareerState.Star or CareerState.Superstar)}")) +
+			$" namedRows={rowActs.Values.Sum(v => v.Acts)}");
+	}
+
 	private static bool IsNamed(AILabel l, string name) =>
 		l != null && l.isHistorical && l.labelName != null && (l.labelName == name || l.labelName.StartsWith(name + " ", StringComparison.Ordinal));
 
@@ -123,16 +223,33 @@ public static class OpeningCareerService {
 			count.TryGetValue(archetype, out var n);
 			count[archetype] = (n.Acts + 1, n.Superstars + (rung == CareerState.Superstar ? 1 : 0));
 		}
-		if (StudioParentLabels.Enabled)
+		// --opening-star-tier-share: the stars were chosen and signed before the draft; stamp exactly those and skip the star
+		// specs' own selection below. Off: Reserved is empty and nothing here runs.
+		bool reservedStars = OpeningTierQuotas.StarsEnabled;
+		if (reservedStars) {
+			var byId = labels.Where(l => l != null).ToDictionary(l => l.labelId, StringComparer.Ordinal);
+			foreach (var r in OpeningTierQuotas.Reserved) {
+				AILabel label = byId.GetValueOrDefault(r.LabelId);
+				SimulatedArtist artist = label?.roster?.FirstOrDefault(a => a?.artistId == r.ArtistId);
+				if (artist == null) throw new InvalidOperationException($"Reserved opening star {r.ArtistId} is not on {r.LabelId}.");
+				Stamp(artist, label, Specs.First(s => s.Archetype == r.Archetype), r.Rung, year);
+				chosen.Add(artist.artistId);
+				perLabel.TryGetValue(label.labelId, out var used);
+				perLabel[label.labelId] = Count(used, r.Rung, +1);
+				tally[r.Archetype] = tally.GetValueOrDefault(r.Archetype) + 1;
+			}
+		}
+		if (StudioParentLabels.Enabled && !reservedStars)
 			foreach (var row in StudioStars)
 				SeedRow("STUDIO_OPENING_CAREER", $"parent=\"{row.Parent}\"",
 					labels.FirstOrDefault(l => StudioParentLabels.IsStudioLabel(l) && l.studioParent == row.Parent),
 					row.Archetype, row.Rung, row.Genres, studioCount);
-		if (OpeningCareers.IndependentStars)
+		if (OpeningCareers.IndependentStars && !reservedStars)
 			foreach (var row in IndependentStars)
 				SeedRow("INDEPENDENT_OPENING_CAREER", $"name=\"{row.Label}\"", labels.FirstOrDefault(l => IsNamed(l, row.Label)),
 					row.Archetype, row.Rung, row.Genres, independentCount);
 		foreach (Spec spec in Specs) {
+			if (reservedStars && IsStarSpec(spec)) continue;
 			studioCount.TryGetValue(spec.Archetype, out var studio);
 			independentCount.TryGetValue(spec.Archetype, out var independent);
 			var candidates = new List<(SimulatedArtist Artist, AILabel Label)>();
@@ -396,6 +513,7 @@ public static class OpeningCareerService {
 			if (p is > 0 and <= 10) a.top10Hits++;
 			if (p == 1) { a.numberOnes++; a.weeksAtNumberOne += Math.Max(1, Math.Min(e.weeksInTopTen, rng.Range(1, 5))); }
 			if (p <= 0 || p > 60) { a.consecutiveFlops++; a.consecutiveHits = 0; }
+			a.lastRunPeak = p is > 0 and <= 100 ? p : 0;
 		}
 	}
 

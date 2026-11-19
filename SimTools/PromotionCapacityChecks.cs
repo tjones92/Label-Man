@@ -63,6 +63,46 @@ public static class PromotionCapacityChecks {
 			Check(Math.Abs(PromotionCapacity.Read("x", .7f) - .7f) <= PromotionCapacity.ReadError + 1e-6f &&
 				PromotionCapacity.Read("x", .7f) == PromotionCapacity.Read("x", .7f), "the read error is keyed and bounded");
 
+			// --plug-hit-act-top10: a last run at #11-40 is no longer a hit act; a Top 10 last run or a star is.
+			SimulatedArtist Ran(int top40Streak, int lastPeak) { var a = Act(CareerState.Established, top40Streak); a.lastRunPeak = lastPeak; return a; }
+			PromotionCapacity.SetForChecks(2, -1);
+			Check(PromotionCapacity.HitAct(Ran(1, 25)) && PromotionCapacity.HitAct(Ran(1, 8)), "off: a Top 40 last run is a hit act");
+			PromotionCapacity.SetForChecks(2, -1, hitActTop10: true);
+			Check(!PromotionCapacity.HitAct(Ran(1, 25)) && PromotionCapacity.HitAct(Ran(1, 8)) && PromotionCapacity.HitAct(Ran(0, 8)) &&
+				PromotionCapacity.HitAct(Act(CareerState.Star)) && !PromotionCapacity.HitAct(Ran(0, 0)) && !PromotionCapacity.HitAct(null),
+				"top10: star or a Top 10 last run");
+			var mixed = Lab(LabelTier.Major);
+			for (int i = 0; i < 6; i++) mixed.roster.Add(Ran(1, 30));
+			Check(PromotionCapacity.Decide(mixed, Ran(1, 30), "t1", .5f, month, null) == PromotionCapacity.Outcome.Plugged,
+				"top10: #11-40 acts hold no reserve, so a first #11-40 single plugs on a free slot");
+			PromotionCapacity.Decide(mixed, Ran(1, 30), "t2", .5f, month, null);
+			Check(PromotionCapacity.Decide(mixed, Ran(1, 30), "t3", .5f, month, p => charged += 1e9f) == PromotionCapacity.Outcome.Routine && charged < 1e8f,
+				"top10: a #11-40 act does not buy a plug once slots are spent");
+			var a1 = new SimulatedArtist(); a1.CompleteChartRun(7, 10, 1000); var a2 = new SimulatedArtist(); a2.CompleteChartRun(7, 10, 1000); a2.CompleteChartRun(0, 0, 10);
+			Check(a1.lastRunPeak == 7 && a2.lastRunPeak == 0, "a completed run stamps its peak; an uncharted run clears it");
+
+			// --plug-graded: a #11-40 hit act holds its slot; at G = 0 it launches routine, at G = 1 with the full package.
+			PromotionCapacity.SetForChecks(2, -1, graded: 0f);
+			var held = Lab(LabelTier.Major);
+			Check(PromotionCapacity.Decide(held, Ran(1, 25), "g1", .5f, month, null) == PromotionCapacity.Outcome.HeldPlug && PromotionCapacity.IsRoutine("g1"),
+				"graded 0: a #11-40 hit act holds a plug and launches routine");
+			Check(PromotionCapacity.Decide(held, Ran(1, 8), "g2", .5f, month, null) == PromotionCapacity.Outcome.Plugged && !PromotionCapacity.IsRoutine("g2"),
+				"graded: a Top 10 last run keeps the full package");
+			Check(PromotionCapacity.Decide(held, Act(CareerState.NewSigning), "g3", .9f, month, null) == PromotionCapacity.Outcome.Routine,
+				"graded: the held plug used its slot, so nothing is freed");
+			charged = 0f;
+			Check(PromotionCapacity.Decide(held, Ran(1, 25), "g4", .5f, month, p => charged += p) == PromotionCapacity.Outcome.Routine && charged == 0f,
+				"graded: a #11-40 hit act buys no plug once slots are spent");
+			Check(PromotionCapacity.Decide(held, Act(CareerState.Star), "g5", .5f, month, p => charged += p) == PromotionCapacity.Outcome.BoughtPlug,
+				"graded: a star still buys a plug");
+			PromotionCapacity.SetForChecks(2, -1, graded: 1f);
+			Check(PromotionCapacity.Decide(Lab(LabelTier.Major), Ran(1, 25), "g6", .5f, month, null) == PromotionCapacity.Outcome.Plugged,
+				"graded 1: a #11-40 hit act gets the full package");
+			PromotionCapacity.SetForChecks(2, -1, graded: .5f);
+			var half = Lab(LabelTier.Major); int full = 0;
+			for (int i = 0; i < 400; i++) { half = Lab(LabelTier.Major); if (PromotionCapacity.Decide(half, Ran(1, 25), "h" + i, .5f, month, null) == PromotionCapacity.Outcome.Plugged) full++; }
+			Check(full > 160 && full < 240, "graded 0.5: about half get the full package (" + full + "/400)");
+
 			PromotionCapacity.SetForChecks(-1, 3);
 			Check(PromotionCapacity.SlotsFor(Lab(LabelTier.MidTier)) == 3 && PromotionCapacity.SlotsFor(Lab(LabelTier.Major)) == -1,
 				"midtier switch: only AI MidTiers have slots");

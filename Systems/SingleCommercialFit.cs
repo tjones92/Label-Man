@@ -61,8 +61,16 @@ public static class SingleCommercialFit {
 	/// kink sell at the just-connected level) and falls linearly to zero T standard deviations above the size kink, so a proven act's marginal record is carried into the Top 40 but its strong draw is not enlarged.
 	/// Needs S &lt;= T x upside so a better draw never sells less. Off (0): a flat lift.</summary>
 	public const string ActRecordSizeTaperPrefix = "--single-commercial-fit-act-record-size-taper=";
+	/// <summary>Share R of the national draw's variance that belongs to the act: z = sqrt(R) x (act draw) + sqrt(1 - R) x (record
+	/// draw), both keyed, so every record keeps a standard normal draw and aggregate units do not move. History's acts carry
+	/// their appeal from record to record: 1961 records by acts whose 1960 best was #41-100 reached the Top 10 at 7% an entry,
+	/// #11-40 acts at 8%, against 21% for a first entry; the sim's reached 13-25% whatever the act's past
+	/// (LpGenreAllocationFollowup.md §93). Off (0): the record draw alone, byte-identical.</summary>
+	public const string ActSharePrefix = "--single-commercial-fit-act-share=";
 	private const uint NationalDecision = 0x43460000U;
 	private const uint RegionalDecision = 0x43460100U;
+	private const uint ActDecision = 0x43460200U;
+	private const string ActKey = "act-national";
 	private const string NationalKey = "national";
 	private static bool configured;
 	public static float Sigma { get; private set; }
@@ -79,6 +87,7 @@ public static class SingleCommercialFit {
 	public static float ActRecordSize { get; private set; }
 	public static float ActRecordSizeTaper { get; private set; }
 	public static bool ActRecordOddsOnly { get; private set; }
+	public static float ActShare { get; private set; }
 	private static bool fitForAwareBuyers;
 	private static double kink, logNormalizer;
 	/// <summary>Regional sync §9s: the most an unexposed region reads of the national log, the reference launch's median
@@ -114,6 +123,8 @@ public static class SingleCommercialFit {
 		if (ActRecordSize > 0f && !ActRecordOddsOnly)
 			throw new ArgumentException(ActRecordSizePrefix + " needs " + ActRecordOddsOnlySwitch + " (without it the whole kink already enlarges a connected draw).");
 		ActRecordSizeTaper = Read(args, ActRecordSizeTaperPrefix, 0f, 0f, 10f);
+		ActShare = Read(args, ActSharePrefix, 0f, 0f, 1f);
+		if (ActShare > 0f && Sigma <= 0f) throw new ArgumentException(ActSharePrefix + " needs " + SigmaPrefix + ".");
 		if (ActRecordSizeTaper > 0f && (ActRecordSize <= 0f || ActRecordSize > ActRecordSizeTaper * UpsideSigma + 1e-6f))
 			throw new ArgumentException(ActRecordSizeTaperPrefix + " needs " + ActRecordSizePrefix + " with size <= taper x upside (a better draw must not sell less).");
 		if (ActRecordOddsOnly && (ActRecordWeight <= 0f || OwnNormalization > 0f))
@@ -128,11 +139,11 @@ public static class SingleCommercialFit {
 
 	internal static void SetForChecks(float sigma, float regionalSigma, float scale, ulong checkSeed, float hitShare = 1f, float upside = 0f,
 		float launchWeight = 0f, float pushWeight = 0f, float floor = 0f, float ownNormalization = 0f, float actRecordWeight = 0f, float upsideCap = 0f,
-		bool actRecordOddsOnly = false, bool awareBuyers = false, float actRecordSize = 0f, float actRecordSizeTaper = 0f) {
+		bool actRecordOddsOnly = false, bool awareBuyers = false, float actRecordSize = 0f, float actRecordSizeTaper = 0f, float actShare = 0f) {
 		fitForAwareBuyers = awareBuyers;
 		configured = true; Sigma = sigma; RegionalSigma = regionalSigma; Scale = scale; seed = checkSeed;
 		HitShare = hitShare; UpsideSigma = upside; LaunchWeight = launchWeight; PushWeight = pushWeight; Floor = floor; OwnNormalization = ownNormalization;
-		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; ActRecordSize = actRecordSize; ActRecordSizeTaper = actRecordSizeTaper; Prepare();
+		ActRecordWeight = actRecordWeight; UpsideCap = upsideCap; ActRecordOddsOnly = actRecordOddsOnly; ActRecordSize = actRecordSize; ActRecordSizeTaper = actRecordSizeTaper; ActShare = actShare; Prepare();
 	}
 
 	/// <summary>Kink at the (1 - hit share) normal quantile for a launch at the reference awareness.</summary>
@@ -217,12 +228,12 @@ public static class SingleCommercialFit {
 	/// <summary>Audit read: the latent national draw and launch push that <see cref="NationalLog"/> combines with launch
 	/// awareness. Keyed, so reading it draws nothing.</summary>
 	public static (double Z, float Push) NationalInputs(RecordRuntimeData record, AILabel label) =>
-		(Normal(record.baseRecord.recordId, NationalKey, NationalDecision),
+		(NationalZ(record.baseRecord),
 			ActEarnedCampaignImpact.Apply(ChartSimulator.GetCampaignImpact(label), record.baseRecord.recordId) * RecordCampaignSpend.PushFactor(record));
 
 	private static double RawNationalLog(RecordRuntimeData record, AILabel label) {
 		float push = ActEarnedCampaignImpact.Apply(ChartSimulator.GetCampaignImpact(label), record.baseRecord.recordId) * RecordCampaignSpend.PushFactor(record);
-		return National(Normal(record.baseRecord.recordId, NationalKey, NationalDecision), record.initialLaunchAwareness, push,
+		return National(NationalZ(record.baseRecord), record.initialLaunchAwareness, push,
 			record.actChartRecordAtLaunch ?? 0f);
 	}
 
@@ -260,6 +271,13 @@ public static class SingleCommercialFit {
 	private static double Lognormal(float sigma, double z) => sigma * z - .5 * sigma * sigma;
 
 	/// <summary>Box-Muller over two counter draws; week 0 because the response never changes.</summary>
+	/// <summary>The record's standard normal national draw; with the act share, part of it is the act's own keyed draw.</summary>
+	internal static double NationalZ(Record record) {
+		double z = Normal(record.recordId, NationalKey, NationalDecision);
+		if (ActShare <= 0f || string.IsNullOrEmpty(record.artistId)) return z;
+		return Math.Sqrt(ActShare) * Normal(record.artistId, ActKey, ActDecision) + Math.Sqrt(1d - ActShare) * z;
+	}
+
 	private static double Normal(string recordId, string key, uint decision) {
 		double u1 = PhiloxCounterRandom.Unit(Seed, recordId, key, 0, decision);
 		double u2 = PhiloxCounterRandom.Unit(Seed, recordId, key, 0, decision | 1U);

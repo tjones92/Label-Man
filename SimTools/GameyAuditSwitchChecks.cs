@@ -265,6 +265,33 @@ public static class GameyAuditSwitchChecks {
 				Check(ocLp > 52 && ocLp <= 104, "a 1958 LP dates the clock within 1958");
 				OpeningProgrammeClocks.SetForChecks(false);
 				OpeningProgrammeClocks.SetOpeningActsForChecks(null, 1960);
+				// --opening-star-tier-share / --opening-catalogue-major-share (§88).
+				OpeningTierQuotas.SetForChecks(-1f, -1f);
+				Check(!OpeningTierQuotas.StarsEnabled && !OpeningTierQuotas.CatalogueEnabled && OpeningTierQuotas.MajorWeightScale(925f, 4000f) == 1f,
+					"off: no reservation and the Majors' catalogue weight is unchanged");
+				OpeningTierQuotas.SetForChecks(0.37f, 0.2f);
+				int otqMajors = 0;
+				var otqSplit = Enumerable.Range(0, 24).Select(i => { bool m = OpeningTierQuotas.NextIsMajor(i, otqMajors); if (m) otqMajors++; return m; }).ToArray();
+				Check(otqMajors == 9 && !otqSplit[0] && otqSplit.Take(6).Count(x => x) == 2, "24 Stars at 0.37: 9 Majors, interleaved down the order");
+				int otqSup = 0; for (int i = 0; i < 6; i++) if (OpeningTierQuotas.NextIsMajor(i, otqSup)) otqSup++;
+				Check(otqSup == 2, "6 Superstars at 0.37: 2 Majors");
+				float otqScale = OpeningTierQuotas.MajorWeightScale(1850f, 4000f);
+				Check(Math.Abs(1850f * otqScale / (1850f * otqScale + 4000f) - 0.2f) < 1e-5f, "the scaled Major weight is the named share of the total");
+				OpeningTierQuotas.SetArchetypeSharesForChecks(new System.Collections.Generic.Dictionary<OpeningCareerArchetype, float> {
+					[OpeningCareerArchetype.AdultStandardBearer] = 0.85f, [OpeningCareerArchetype.CurrentHitmaker] = 0.25f,
+					[OpeningCareerArchetype.EstablishedHitmaker] = 0.6f });
+				int otqAdult = 0; for (int i = 0; i < 8; i++) if (OpeningTierQuotas.NextIsMajor(OpeningTierQuotas.StarShareFor(OpeningCareerArchetype.AdultStandardBearer), i, otqAdult)) otqAdult++;
+				Check(OpeningTierQuotas.ByArchetype && otqAdult == 7 && OpeningTierQuotas.StarShareFor(OpeningCareerArchetype.CurrentHitmaker) == 0.25f,
+					"archetype shares: 8 standard-bearers at 0.85 put 7 on Majors; each archetype reads its own share");
+				OpeningTierQuotas.SetForChecks(-1f, -1f);
+				Check(!OpeningTierQuotas.ByArchetype, "the single-share form clears the archetype shares");
+				// --opening-staff-catch-up (§89).
+				OpeningStaffCatchUp.SetForChecks(0, 1960 * 12);
+				Check(!OpeningStaffCatchUp.Applies(1960 * 12), "off: no catch-up month");
+				OpeningStaffCatchUp.SetForChecks(12, 1960 * 12);
+				Check(OpeningStaffCatchUp.Applies(1960 * 12) && OpeningStaffCatchUp.Applies(1960 * 12 + 11) && !OpeningStaffCatchUp.Applies(1961 * 12),
+					"12 months: January to December 1960");
+				OpeningStaffCatchUp.SetForChecks(0, int.MinValue);
 				SoundtrackOriginationEarly.SetForChecks(1f);
 				Check(!SoundtrackOriginationEarly.Enabled && SoundtrackOriginationEarly.Scale(1960) == 1f, "off keeps soundtrack origination");
 				SoundtrackOriginationEarly.SetForChecks(0.5f);

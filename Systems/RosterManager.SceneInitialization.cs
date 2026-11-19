@@ -74,6 +74,20 @@ public partial class RosterManager {
             label.InitializeRoster();
             targets.Add(label.labelId, DrawSceneInitialTarget(label));
         }
+        // --opening-star-tier-share: the opening stars are signed by tier quota before the draft (OpeningTierQuotas). Off: not run.
+        if (OpeningTierQuotas.StarsEnabled) {
+            if (!OpeningCareers.Enabled)
+                throw new InvalidOperationException(OpeningTierQuotas.StarShareSwitch.TrimEnd('=') + " stamps opening careers; opening careers are off.");
+            var pool = ArtistManager.Instance.GetLaunchRosterCandidates().DistinctBy(a => a.artistId)
+                .Where(a => !IsHeldForPlayer(a.artistId) && (initialUnsigned == null || initialUnsigned.Contains(a.artistId)))
+                .OrderBy(a => a.artistId, StringComparer.Ordinal).ToList();
+            OpeningCareerService.ReserveStars(labels, year, pool,
+                l => Math.Min(targets[l.labelId], l.maxRosterSize) - l.CurrentRosterSize,
+                (l, a) => {
+                    InitialSignArtist(l, a, year);
+                    if (a.labelId == l.labelId) initialUnsigned?.Remove(a.artistId);
+                });
+        }
         var remaining = labels.Where(l => l.CurrentRosterSize < targets[l.labelId]).ToList();
         // MidTier national A&R (opt-in) opens once the Majors are done; capable MidTiers that ran dry wait for it.
         var waiting = new List<AILabel>();
