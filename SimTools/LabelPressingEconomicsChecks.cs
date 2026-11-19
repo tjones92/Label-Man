@@ -185,6 +185,29 @@ public static class LabelPressingEconomicsChecks {
 		float x2 = MathF.Log(.25f), m = (x1 + x2) / 2f, v = (x1 - x2) * (x1 - x2) / 2f;
 		Check(Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(logLearner), MathF.Exp(m + v / 2f)),
 			"log mode: LPs weigh equally early, and the label's own spread restores the mean");
+		// --earned-lp-forecast-warm-start: opening Majors / MidTiers start with K pseudo-LPs at the tier ratio; others empty.
+		EarnedLpForecast.SetForChecks(true, log: true, warmStart: 20, warmMajor: 3.5f, warmMidTier: 2.5f, warmVariance: 3.5f);
+		var warmMajor = new AILabel { labelId = "warm-major", tier = LabelTier.Major, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		var warmMid = new AILabel { labelId = "warm-mid", tier = LabelTier.MidTier, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		var warmIndie = new AILabel { labelId = "warm-indie", tier = LabelTier.Independent, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		var warmBirth = new AILabel { labelId = "warm-birth", tier = LabelTier.Major, populationOrigin = LabelPopulationOrigin.RuntimeFounded };
+		float majorMultiplier = EarnedLpForecast.Multiplier(warmMajor);
+		Check(warmMajor.lpForecastObservations == 20 && Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(warmMajor), 3.5f)
+			&& Mathf.IsEqualApprox(EarnedLpForecast.LogVariance(warmMajor), 3.5f)
+			&& Mathf.IsEqualApprox(majorMultiplier, MathF.Pow(3.5f, 20f / 24f)),
+			"warm start: an opening Major prices its first LP at the tier ratio, shrunk by K / (K + 4)");
+		Check(Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(warmMid), MathF.Pow(2.5f, 20f / 24f)),
+			"warm start: opening MidTiers use the MidTier ratio");
+		Check(EarnedLpForecast.Multiplier(warmIndie) == 1f && warmIndie.lpForecastObservations == 0
+			&& EarnedLpForecast.Multiplier(warmBirth) == 1f && warmBirth.lpForecastObservations == 0,
+			"warm start: small tiers and runtime births keep the empty memory");
+		warmMajor.tier = LabelTier.MidTier; EarnedLpForecast.Multiplier(warmMajor);
+		Check(warmMajor.lpForecastObservations == 20 && Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(warmMajor), 3.5f),
+			"warm start: the seed is applied once");
+		var lpW = Fresh(ReleaseFormat.Album, 52, "earned-w"); lpW.releaseTimeExpectedLpUnits = 9999f; lpW.pressingBookSold = 99;
+		var coldMid = new AILabel { labelId = "warm-cold", tier = LabelTier.MidTier, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		EarnedLpForecast.Observe(coldMid, lpW);
+		Check(coldMid.lpForecastObservations == 21, "warm start: an observation before any gate use lands on the seed");
 		EarnedLpForecast.SetForChecks(false);
 
 		// --small-home-territory (§11): factory Small labels start in their home region only, with every draw still made.

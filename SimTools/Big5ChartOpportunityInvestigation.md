@@ -670,7 +670,64 @@ Clearing fallers off the bottom gives early-charting records a higher position a
 
 **Reading.** The rule needs the plug slots, and the 1961 share needs them too. The size term buys the proven side (Top 40 39.3% against 33.3% without it; Top 10 22.3% against 16.7%, history 60.6 / 21.6) for about 8.5 closures a seed. The next screen is `frd60gp` (D 60, gap 12, plug slots 4, no size) to price the rule with the parts of the package that cost nothing. A size 0.3 arm on top of it shows what the proven side is worth per closure.
 
-**Adopted (2026-11-18): `frd60pk`.** The author adopted the full arm, accepting its two costs: more opening-label closures (91 → 108 a seed), and a lower 1960 Big-5 share (Top 10 25.2 → 22.1%, Hot 100 20.3 → 15.9%; history 34.2% at the Top 10). The 1960 dip is already treated as an opening-roster question. Closures were judged low to begin with. `SimLogs/writing-calibration/candidate-request.json` now ends with `--chart-faller-report-depth=60 --single-commercial-fit-act-record-size=0.4 --slate-major-hit-act-gap=12 --major-plug-slots=4` (260 flags; previous file `candidate-request-pre-faller-depth-2026-11-18.json`). Apart from `--run`, `--seed`, `--weeks` and the telemetry switches `--regional-home-sales`, `--gzip-telemetry` and `--newcomer-connect-trace`, it equals the `frd60pk-*-sc` run requests, which are the 104-week controls for the next screens. In 1961 the adopted candidate gives: Big-5 Top 10 share 21.9% (history 20.6%); CR4 26.2% (27.9%); 656 chart events (620), with records leaving at No. 48 (No. 50); non-proven Top 40 rate 35.3% (38.1%); follow-ups per hit 3.10 field and 3.19 Big-5 (2.7–3.1 and 2.9–3.2); Big-5 net $104M (control $103M). Open items: the proven Top 40 rate (39% against 61%), Top 40 records a year (221 against 293), 1960, and the sales-ranked #10 ÷ #100 (12.8 for the rule alone, not yet measured with the size term).
+**Adopted (2026-11-18): `frd60pk`.** The author adopted the full arm, accepting its two costs: more opening-label closures (91 → 108 a seed), and a lower 1960 Big-5 share (Top 10 25.2 → 22.1%, Hot 100 20.3 → 15.9%; history 34.2% at the Top 10). The 1960 dip was then treated as an opening-roster question; "The 1960 dip" below finds it is Top 10 run length instead. Closures were judged low to begin with. `SimLogs/writing-calibration/candidate-request.json` now ends with `--chart-faller-report-depth=60 --single-commercial-fit-act-record-size=0.4 --slate-major-hit-act-gap=12 --major-plug-slots=4` (260 flags; previous file `candidate-request-pre-faller-depth-2026-11-18.json`). Apart from `--run`, `--seed`, `--weeks` and the telemetry switches `--regional-home-sales`, `--gzip-telemetry` and `--newcomer-connect-trace`, it equals the `frd60pk-*-sc` run requests, which are the 104-week controls for the next screens. In 1961 the adopted candidate gives: Big-5 Top 10 share 21.9% (history 20.6%); CR4 26.2% (27.9%); 656 chart events (620), with records leaving at No. 48 (No. 50); non-proven Top 40 rate 35.3% (38.1%); follow-ups per hit 3.10 field and 3.19 Big-5 (2.7–3.1 and 2.9–3.2); Big-5 net $104M (control $103M). Open items: the proven Top 40 rate (39% against 61%), Top 40 records a year (221 against 293), 1960, and the sales-ranked #10 ÷ #100 (12.8 for the rule alone, not yet measured with the size term).
+
+## The 1960 dip (2026-11-18)
+
+On the adopted controls (`frd60pk-*`, four seeds) the Big-5 hold 22.0% of 1960 Top 10 slots (27.9 / 16.5 / 23.7 / 19.8 by seed) against history's 34.2%: 114 slot-weeks a seed against 178. The working guess was the opening roster. The gap is not there. Score with `python SimTools/analyze_big5_1960_dip.py frd60pk`. History's year is the 52 charts from 1959-12-28; the sim's is weeks 0–51.
+
+| 1960 Top 10 | History Big-5 | `frd60pk` Big-5 | History field | `frd60pk` field |
+|---|---:|---:|---:|---:|
+| Records | 28 | 27.3 | 74 | 91.5 |
+| Acts | 20 | 18.5 | 54 | 65.5 |
+| Records per act | 1.40 | 1.47 | 1.37 | 1.40 |
+| Weeks per record | **6.36** | **4.23** | 4.62 | 4.47 |
+| Records with 7+ / 10+ weeks | 12 / 6 | 4.0 / 1.3 | 19 / 3 | 18.0 / 5.3 |
+
+**The count is right; the run length is not.** The Big-5 place history's number of records and acts in the Top 10. Their records stay 4.2 weeks against history's 6.4, which accounts for about 58 of the 64 missing slot-weeks (27.3 × 2.1). The gap opens mid-year: Big-5 share by quarter is 28.1 / 17.5 / 15.8 / 26.5% against history's 31.5 / 47.7 / 30.0 / 26.2%. History's second quarter is where several long runs overlap (Summer Place, He'll Have to Go, Stuck On You, Greenfields, Sink the Bismark, Cradle of Love).
+
+**History's premium belongs to 1960 alone.** Big-5 weeks per Top 10 record were 6.36, 4.46, 4.58, 4.22 and 5.11 in 1960–64, and the field's were 4.43–4.62 every year. Big-5 records with 7+ weeks numbered 12 in 1960 and 5–7 in each later year. The sim gives the Big-5 4.2–4.6 weeks in every arm checked (`mnsh40` 4.16, `plug4` 4.49, `frd60` 4.55, `frd60pk` 4.23) and 4.29 in 1961. It reproduces history's 1961–63, not its 1960.
+
+**It is not the stars.** History's 1960 Top 10 split by the act's pre-1960 record (hand-coded: a pop Top 10 before 1960, a Top 40 only, or neither; approximate):
+
+| 1960 Top 10, history | Records | Slots | Weeks per record |
+|---|---:|---:|---:|
+| Big-5, new acts | 11 | 72 | 6.55 |
+| Big-5, prior Top 10 acts | 15 | 89 | 5.93 |
+| Big-5, prior Top 40 only (Reeves, Peterson) | 2 | 17 | 8.50 |
+| Field, new acts | 32 | 157 | 4.91 |
+| Field, prior Top 10 acts | 35 | 160 | 4.57 |
+
+Brenda Lee, Johnny Preston, the Brothers Four, Floyd Cramer and Jeanne Black ran as long as Elvis, Percy Faith and Johnny Horton. Across all labels, records by prior hitmakers ran no longer than records by new acts (5.0 against 5.3 weeks).
+
+**Nor the genre.** Six of the twelve 7+-week Big-5 records were Nashville crossovers (Reeves, Robbins, Horton, Cramer, Brenda Lee twice), and in the sim Country, EasyListening and Folk Top 10 records run shortest (3.0–3.5 weeks). But the Big-5's 1961 Top 10 is the same acts in the same genres (Jimmy Dean, Robbins, Cramer three times, Lee four times, Van Dyke, Cline, Elvis six times), and those records averaged 4.5 weeks. Lee went from 29 slots on four records in 1960 to 19 on four in 1961. The long runs were a 1960 condition on Big-5 records, not a property of the acts or their genres. The next subsection identifies it.
+
+**The opening roster is thin at the Big-5, but that cannot close this.** The Big-5 receive 9.25 of the 30 hitmaker opening careers a seed (4.5 adult standard-bearers, 2.75 current hitmakers, 2.0 established hitmakers), and the 27–35 MidTiers receive 18.75. `OpeningCareerService` ranks Major and MidTier rosters together by quality. Those nine acts supply about 30 Big-5 slots, and prior-hit acts supply about 30% of Big-5 Top 10 records against history's 61% (17 of 28, by the table above). Moving hitmakers to the Big-5 would change the names on a Big-5 record count that already matches history, as `vq2` found for 1961. It could also add records beyond history's 28 at 4.2 weeks each. Either way it would not reproduce history's 1960 run length. The allocation does show in 1961's mix: Big-5 acts with a 1960 Top 10 hold 10.9 points of 1961 slots (history 16.4) and Big-5 acts without one hold 11.0 (history 4.2), though the 1961 total (21.9%) is on history.
+
+**Reading.** The 1960 dip is a Big-5 run-length premium (+1.7 weeks over the field) that history shows only in 1960. The roster already supplies history's count of Big-5 hits. Either guard 1960 on Big-5 Top 10 record count (28) and acts (20) instead of slot share, or treat 1960's premium as a period condition and research it before modelling. The 1961 hit-act mix is a separate, smaller roster question.
+
+**What made 1960 different.** Complete runs avoid calendar truncation. Each record that entered the Top 10 is followed through its whole run on the 1960–64 weekly Hot 100 (runs cut off at either end are dropped) and grouped by the year it entered. The same scorer prints both tables.
+
+| Entered the Top 10 in | Records, Big-5 / field | Top 10 weeks | Top 10 weeks after the peak | Weeks at No. 1 per record | Records with 10+ weeks |
+|---|---:|---:|---:|---:|---:|
+| 1960 | 23 / 60 | **6.87** / 5.08 | 4.22 / 2.48 | 1.35 / 0.33 | **7** / 3 |
+| 1961 | 19 / 86 | 5.26 / 4.78 | 2.47 / 2.03 | 0.53 / 0.49 | 1 / 2 |
+| 1962 | 20 / 86 | 5.25 / 4.62 | 2.25 / 2.14 | 0.30 / 0.50 | 1 / 5 |
+| 1963 | 30 / 81 | 4.30 / 4.86 | 1.77 / 2.19 | 0.27 / 0.56 | 0 / 1 |
+| 1964 | 15 / 76 | 5.53 / 4.70 | 2.93 / 1.86 | 1.13 / 0.29 | 1 / 2 |
+| `frd60pk` 1960, per seed | 21.0 / 81.0 | 4.75 / 4.92 | 2.39 / 2.45 | 0.40 / 0.53 | 1.3 / 6.0 |
+| `frd60pk` 1961 (entries to week 90) | 18.5 / 64.3 | 4.50 / 4.70 | 2.23 / 2.23 | 0.64 / 0.42 | 1.0 / 4.0 |
+
+- **A cluster of blockbusters.** The premium sits after the peak and at No. 1. Before their peak, Big-5 records spent as long in the Top 10 as the field's (1.65 against 1.60 weeks). Seven Big-5 entrants stayed 10 weeks or more: Elvis Presley's three post-Army singles, "Theme from A Summer Place" (nine weeks at No. 1), "I'm Sorry", and the instrumentals "Last Date" and "Wonderland by Night". Two more ("He'll Have to Go", "Running Bear") carried in from 1959. Dropping the six longest Big-5 entrants takes the premium from 1.79 to 0.39 weeks, near 1961–64's pooled 0.23. Drawing 23 records from the 1961–64 Big-5 records reaches a mean of 6.87 weeks in about 1 in 10,000 bootstrap draws, so the year is not sampling noise.
+- **The trade record agrees.** Deacon Street's label tallies give the five majors 37 of 150 top-twenty records in 1960, no better than 1959's 24%, while their share of popularity points rose from 23% to 34%. In 1961 it fell to 20.6% of records and 21.5% of points. The tallies credit RCA's lead to Elvis's three No. 1s, Sam Cooke and Jim Reeves, and Columbia's to "El Paso" and "A Summer Place". Variety in January 1961 called RCA, with Presley, the strongest singles company in a year when most hits failed to reach 200,000 copies. RCA shipped about 1.4 million copies of "Stuck on You", Elvis's first record after two years in the Army, without waiting for orders. [Deacon Street 1960](https://www.deaconstreet.com/ElvisEra/1960/1960recordlabels.html) · [Deacon Street 1961](https://www.deaconstreet.com/ElvisEra/1961/1961recordlabels.html) · [Variety, January 1961](https://lantern.mediahist.org/catalog/variety221-1961-01_0208) · ["Stuck on You"](https://en.wikipedia.org/wiki/Stuck_on_You_(Elvis_Presley_song)) · ["Theme from A Summer Place"](https://en.wikipedia.org/wiki/Theme_from_A_Summer_Place)
+- **Not payola.** The premium runs through both halves of 1960 (+1.65 and +1.96 weeks) and stops in January 1961 (+0.19). That follows the blockbusters' release dates, not the hearings (early 1960) or the law (September 1960), whose effect should have lasted. The majors' share of hit records did not rise. A small contribution cannot be ruled out.
+- **A slightly slower year for everyone.** All Top 10 entrants ran 5.58 weeks in 1960 against 4.71–4.87 afterwards, and the field alone 5.08 against 4.62–4.86. Billboard reviewed fewer singles (5,797 in 1960, 6,036 in 1961, 6,700 in 1962), and Variety describes a shrinking singles market. The sim's field already runs 4.92 weeks in 1960.
+- **Without the cluster, 1960 is within the sim's range.** Counting the six calendar-1960 Big-5 records with 10+ weeks as average-length records leaves a Big-5 share of 26.9%. Removing Elvis and Percy Faith outright leaves 26.7%. `frd60pk` gives 22.0% (seeds 16.5–27.9), and earlier arms gave 25–28%.
+- **The sim makes blockbusters, but at the field.** It gives 7.3 records a seed with 10+ Top 10 weeks among 1960 entrants (history 10), but only 1.3 at the Big-5 against history's 7. That is history's 1961–64 pattern (Big-5 0–1 a year). Its Elvis analogue does not drive the Big-5 share: a CurrentHitmaker Superstar is seeded at a Big-5 label (RCA) in two of four seeds, and those seeds' 1960 shares are 23.7% and 19.8%, against 27.9% and 16.5% for the other two.
+
+**Reading.** History's 1960 was the majors' blockbuster year. Elvis's return from the Army and a film theme with a nine-week No. 1 account for most of the excess, and a few more long runs make up the rest. These were one-off events, not a market condition worth a mechanism. Net of the cluster, the 1960 target is a Big-5 share of about 27%, with 28 Big-5 Top 10 records and 20 acts. The sim matches the count and the acts, and `frd60pk` sits about five points under the share, inside its own seed spread. One smaller, general gap remains. History's Big-5 records ran about 0.2 weeks longer than the field's in 1961–64 (half-years swing from −1.7 to +2.2), and the sim's run about 0.2 shorter. That is worth about two points of share and belongs with the proven-act climb premium, not with 1960.
+
+**Adopted (2026-11-18).** The author accepted 1960 as an anomaly. The 1960 guard is now a Big-5 Top 10 share of **27%**, plus 28 Big-5 Top 10 records and 20 acts. The raw 34.2% stays as the historical fact. `score_chart_faller_depth.py` now prints 27.0 as its 1960 history column. On this target `frd60pk` sits 5 points under, inside its seed spread (16.5–27.9%).
 
 ## Reproduction
 
@@ -684,6 +741,7 @@ python SimTools/score_chart_faller_depth.py mnsh40 frd50 g12 plug4 kaa55 pca025
 python SimTools/analyze_hit_followups.py mnsh40 frd50
 python SimTools/score_sales_rank_guard.py srkc-1001-sc srkc-2002-sc srkf60-1001-sc srkf60-2002-sc
 python SimTools/analyze_footprint_scope.py 1001,2002,3003,4004 'mnsh40-{s}-sc' 'frd60-{s}-sc' 'frd60pk-{s}-sc'
+python SimTools/analyze_big5_1960_dip.py frd60pk
 ```
 
 The faller screen's run requests are `SimLogs/writing-calibration/frd50-{1001,2002,3003,4004}-sc-request.json` (the `mnsh40` requests plus `--chart-faller-report-depth=50`), launched with `SimTools/run_request_arm.ps1`.

@@ -293,6 +293,8 @@ public partial class ChartAuditRunner : Node {
 	// --album-demand-trace: per charted LP and week, its store demand terms summed over regions (telemetry only; why youth
 	// and country LPs leave the album chart in three weeks, genre follow-up §9). Rows run from launch to week 40 once charted.
 	private bool albumDemandTrace;
+	// --album-demand-trace-weeks=N: trace rows to release week N instead of 40 (telemetry only; LP follow-up §67).
+	private int albumDemandTraceWeeks = 40;
 	private StreamWriter albumDemandTraceWriter;
 	private readonly HashSet<string> albumDemandTraceCharted = new(StringComparer.Ordinal);
 	// Read-only follow-up diagnosis: keep off-chart observations for recent non-opening hit acts.
@@ -582,6 +584,8 @@ public partial class ChartAuditRunner : Node {
 				albumChartHistory = true;
 			} else if (argument == "--album-demand-trace") {
 				albumDemandTrace = true;
+			} else if (argument.StartsWith("--album-demand-trace-weeks=", StringComparison.Ordinal)) {
+				albumDemandTraceWeeks = int.Parse(argument.Substring("--album-demand-trace-weeks=".Length), CultureInfo.InvariantCulture);
 			} else if (argument == "--lean-probe") {
 				leanProbe = true;
 				aggregateOnly = true;
@@ -3694,13 +3698,13 @@ public partial class ChartAuditRunner : Node {
 			albumDemandTraceWriter = CreateWriter(Path.Combine(ProjectSettings.GlobalizePath("res://SimLogs"), $"{runName}-album-demand-trace.csv"));
 			albumDemandTraceWriter.WriteLine("week,year,recordId,artistId,labelTier,genre,albumFormat,age,position,units,rackUnits,followerUnits," +
 				"rawDemand,inStoresBefore,backordered,pool,penetration,exhaustion,decay,formatTilt,conversion,awareness,wordOfMouth,regions," +
-				"appeal,regionalAwareness,blendedAwareness");
+				"appeal,regionalAwareness,blendedAwareness,reception,stSource,stBoxOffice,stBlockbuster,stRenewal");
 		}
 		foreach (RecordRuntimeData record in records) {
 			if (record.baseRecord.format != ReleaseFormat.Album || record.baseRecord.isPlayerOwned) continue;
 			string id = record.baseRecord.recordId;
 			if (record.currentPosition > 0) albumDemandTraceCharted.Add(id);
-			if (!albumDemandTraceCharted.Contains(id) || record.weeksSinceRelease > 40) continue;
+			if (!albumDemandTraceCharted.Contains(id) || record.weeksSinceRelease > albumDemandTraceWeeks) continue;
 			double pool = 0, pen = 0, exh = 0, dec = 0, tilt = 0, conv = 0, raw = 0, follower = 0, regAware = 0, blend = 0;
 			long stock = 0, back = 0; int regions = 0;
 			foreach (RegionalRecordData d in record.regionalData.Values) {
@@ -3729,7 +3733,12 @@ public partial class ChartAuditRunner : Node {
 				F((float)follower), F((float)raw), stock.ToString(CultureInfo.InvariantCulture), back.ToString(CultureInfo.InvariantCulture),
 				F((float)pool), F((float)(pen / w)), F((float)(exh / w)), F((float)(dec / w)), F((float)(tilt / w)), F((float)(conv / w)),
 				F(record.awareness), F(record.wordOfMouth), regions.ToString(CultureInfo.InvariantCulture),
-				F(record.GetQuality()), F((float)(regAware / w)), F((float)(blend / w))
+				F(record.GetQuality()), F((float)(regAware / w)), F((float)(blend / w)),
+				F(float.IsNaN(record.lpReception) ? 1f : record.lpReception),
+				record.baseRecord.album?.externalMedia?.sourceType.ToString() ?? string.Empty,
+				F(record.baseRecord.album?.externalMedia?.boxOfficeTrajectory ?? -1f),
+				record.baseRecord.album?.externalMedia?.isBlockbuster == true ? "1" : "0",
+				F(SoundtrackHitTail.Renewal(record))
 			}));
 		}
 	}

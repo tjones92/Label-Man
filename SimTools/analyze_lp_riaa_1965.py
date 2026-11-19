@@ -6,7 +6,8 @@ sales counted through the end of 1964 (12-24 months). Model analogue: LPs launch
 live-records-snapshot totalUnitsSold) and, separately, store + rack (rack-title-weekly). Record clubs are logged by label
 only, so they are not in a title's count (RIAA manufacturer sales would include club sales).
 
-Run from SimLogs/: python ../SimTools/analyze_lp_riaa_1965.py [--compact] [--launch=105-156 --last=208] run ...
+Run from SimLogs/: python ../SimTools/analyze_lp_riaa_1965.py [--compact] [--no-soundtracks] [--launch=105-156 --last=208] run ...
+Soundtracks (no album project, no roster act) are in the cohort by default since 2026-11-18 (§67); --no-soundtracks drops them.
 --launch=A-B picks LPs dropped in weeks A-B (default 1-52); --last caps rack weeks (default 104). At 208 weeks use
 --launch=105-156 --last=208: 1962 releases with sales to end-1963, the RIAA window.
 """
@@ -24,12 +25,18 @@ def cohort(t, last_week):
     u = pd.concat([ro.rename(columns={'pressingBookSold': 'units', 'realizedNet': 'net'})[['recordId', 'format', 'units', 'net']],
                    lv.rename(columns={'totalUnitsSold': 'units', 'observedNetLowerBound': 'net'})[['recordId', 'format', 'units', 'net']]]
                   ).drop_duplicates('recordId', keep='last').set_index('recordId')
-    cen = pd.read_csv(f'{t}-demand-release-census.csv', usecols=['recordId', 'artistId', 'genre', 'observationKind', 'launchTier'])
+    cen = pd.read_csv(f'{t}-demand-release-census.csv', usecols=['recordId', 'artistId', 'genre', 'observationKind', 'launchTier', 'observedAuditWeek'])
     cen = cen[cen.observationKind == 'Launch'].drop_duplicates('recordId')
     pr = pd.read_csv(f'{t}-album-projects.csv', usecols=['albumRecordId', 'dropWeek', 'careerStateAtSchedule', 'tierAtSchedule'])
     pr = pr.dropna(subset=['albumRecordId']).drop_duplicates('albumRecordId').set_index('albumRecordId')
     lp = cen.join(u, on='recordId', how='inner')
-    lp = lp[lp.format == 'Album'].join(pr, on='recordId', how='inner')
+    # Soundtracks are minted outside the album-project pipeline (no project row, no roster act). Before 2026-11-18
+    # (LpGenreAllocationFollowup.md §67) the inner join dropped them all; --no-soundtracks restores that cohort.
+    # Their launch week is the census observation week; opening-catalogue titles (week 1, no project) stay out.
+    lp = lp[lp.format == 'Album'].join(pr, on='recordId', how='left' if INCLUDE_ST else 'inner')
+    lp['soundtrack'] = lp.dropWeek.isna() & lp.artistId.isna()
+    lp = lp[lp.dropWeek.notna() | (lp.soundtrack & (lp.observedAuditWeek > 1))]
+    lp['dropWeek'] = lp.dropWeek.fillna(lp.observedAuditWeek)
     # first in-run LP per act (by drop week) among all launched LPs
     lp = lp.sort_values('dropWeek')
     lp['firstLp'] = ~lp.artistId.duplicated() & lp.artistId.notna()
@@ -67,6 +74,7 @@ def compact(t):
         o[f'{name}: <4k / <8k %'] = '%.0f / %.0f' % (100 * (s < 4000).mean(), 100 * (s < 8000).mean())
         o[f'{name}: median / mean k'] = '%.1f / %.1f' % (s.median() / 1e3, s.mean() / 1e3)
         o[f'{name}: 300k+ %'] = round(100 * (s >= 300000).mean(), 1)
+        o[f'{name}: 1M+ %'] = round(100 * (s >= 1000000).mean(), 2)
         o[f'{name}: units M'] = round(s.sum() / 1e6, 2)
     cen = pd.read_csv(f'{t}-demand-release-census.csv', usecols=['recordId', 'labelId', 'format', 'observationKind', 'launchTier', 'observedYear'])
     cen = cen[(cen.observationKind == 'Launch') & (cen.format == 'Album') & (cen.launchTier == 'Major')].drop_duplicates('recordId')
@@ -80,6 +88,8 @@ def compact(t):
         o['Major LP gate pass % (all / NewSigning)'] = '%.0f / %.0f' % (100 * g.commit.mean(), 100 * g[g.careerState == 'NewSigning'].commit.mean())
     except FileNotFoundError:
         pass
+    st = lp[lp.soundtrack].storeRack
+    o['soundtracks: n / 300k+ / 1M+'] = '%d / %d / %d' % (len(st), (st >= 300000).sum(), (st >= 1000000).sum())
     o['Major share of cohort units %'] =round(100 * lp[lp.tier == 'Major'].storeRack.sum() / lp.storeRack.sum(), 1)
     o['all: log-sd'] = round(np.log(lp.storeRack.clip(lower=1)).std(), 2)
     o['Major: log-sd'] = round(np.log(lp[lp.tier == 'Major'].storeRack.clip(lower=1)).std(), 2)
@@ -97,6 +107,7 @@ def compact(t):
 
 import numpy as np
 runs = [a for a in sys.argv[1:] if not a.startswith('--')]
+INCLUDE_ST = '--no-soundtracks' not in sys.argv
 LAST = next((int(a[7:]) for a in sys.argv[1:] if a.startswith('--last=')), 104)
 LAUNCH = next((tuple(int(x) for x in a[9:].split('-')) for a in sys.argv[1:] if a.startswith('--launch=')), (1, 52))
 riaa = pd.Series(RIAA, index=LABELS); riaa = riaa / riaa.sum() * 100

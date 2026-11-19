@@ -3596,3 +3596,464 @@ units 361 / 494 → 273 / 259 (field ~255). Hot 100 entry .213 / .199 → .216 /
 
 **Status:** stage 1 done; the switch stays in code, off and identical. Next: stage 2 (scoped `expose` and `factor` arms, then a
 dose), per `Big5VolumeAndPremiumHandoff.md`.
+
+## 60. LP chart against Billboard under frd60pk, and the opening-label warm start (2026-11-18; four seeds; not adopted)
+
+### Where the LP chart stands (frd60pk, read-only)
+
+`analyze_album_chart_health.py` and `analyze_album_head_gap.py` on `frd60pk-{1001..4004}` (both read `.csv`; the `.gz`
+files need a `read_csv` shim). The chart has moved since §25:
+
+| 1960 / 1961 | frd60pk | Billboard | §25 (k4t20) |
+|---|---|---|---|
+| Distinct No. 1 titles | 5.8 / 7.5 | 10 / 12 | 8-9 / 13-14.5 |
+| Longest No. 1 run | 21 / 20 (seeds to 29-32) | 13 / 10+ | |
+| Top-10 titles there by chart week 2 | 61 / 42% | rare | |
+| Debuts inside the top 10 a year | 11 / 9 | rare | |
+| Median debut, % of chart depth | 82 | 70-99 | 73-80 |
+| Slots held by 40+ week titles | 19 / 14% | 38% (Jan 1960) | |
+| Year-end top-50 gap (7 rows) | 38 / 37 | 0 | 24 / 26 |
+| Store LPs (M) | 33.1 / 52.6 | – / 68 | 42-46 / 67-69 (gfo260) |
+
+Head, mean of four seeds (% of the top 50, 1960 / 1961; Billboard in brackets): Soundtrack 19 / 14 (16 / 24), TradPop
+24 / 26.5 (28 / 22), Folk 5.5 / 10.5 (14 / 10), Youth 17.5 / 13.5 (14 / 16), Comedy 4 / 5 (12 / 12), Easy Listening 14.5 / 21
+(6 / 10), Country 0 / 0.5 (2 / 2); Jazz, Classical, Blues, Soul and others 15 / 9 (6 / 4). Soundtracks hold 2 of 48 No. 1s.
+
+**Where store volume went** (seed 2002 for gfo260, which lacks seed 1001's market file; 1961 store / rack, M): gfo260
+67.6 / 38.3, `lrs260` (σ 1.5) 63.6 / 42.7, `pkg260` (+ price 0.50 + earned log) 57.7 / 43.5, `hm104` 54.0 / 43.7, frd60pk
+49.6-55.4 / 40.6-43.9. Each LP package step and the historical majors take a share; racks gain ~5M. Major LPs a quarter
+under frd60pk run ~40% of gfo260 from Q1 to Q5 and ~60% after (fewer Majors). The five Majors learn 3.1-4.4 by the end of
+1961 (pooled 2.3-3.6), against 2.0-2.2 for pkg260's procedural Majors; MidTiers 1.8-5.1. In 1960 every tier's first
+observations are early-retired flops (pooled 0.01-0.2), so a label's first learned ratio is the 0.25 clamp.
+
+### `--earned-lp-forecast-warm-start=K`
+
+§47 option 1, `Systems/EarnedLpForecast.cs`. Before an opening (LaunchPopulation) Major or MidTier label's first gate use or
+observation, its log memory is seeded with K pseudo-LPs whose moments give the tier ratio
+(`--earned-lp-forecast-warm-ratios=Major,MidTier`, default 3.5, 2.5) and a log variance (`--earned-lp-forecast-warm-variance`,
+default 3.5). Runtime births and small tiers start empty. Log mode only; no draws; off is an early return. Checks in
+`LabelPressingEconomicsChecks` (five new). Arm `ews20` = frd60pk + K 20 (first-LP multiplier 3.5^(20/24) = 2.84).
+
+| Mean of 4 seeds | frd60pk | ews20 | History |
+|---|---|---|---|
+| Major LPs, Q1-Q5 (sum) | 254 | 400 | |
+| Major LPs, Q6-Q8 (sum) | 479 | 486 | |
+| Store LPs 1960 / 1961 (M) | 33.1 / 52.6 | **38.5 / 56.1** | – / 68 |
+| Head gap 1960 / 1961 | 38 / 37 | 31 / 36 | |
+| No. 1 titles; longest run | 5.8 / 7.5; 21 / 20 | 6.5 / 6.8; 23 / 21.5 | 10 / 12; 13 / 10+ |
+| Opening labels closed by wk 104 | 107.8 | **96.2** | neutral 89-96 |
+| **Big-5 Top 10 share 1961** | 21.9 | **29.7** (26.3-33.5) | 20.6 |
+| Big-5 Top 10 share 1960 | 22.1 | 23.9 | 27.0 |
+| Big-5 Top 10 records 1961 | 26.5 | 36.0 | |
+| of which LP promo singles | 0.2 | 1.8 | |
+| Big-5 single issues 1961 | 422 | 458 | |
+
+The chart-bottom metrics (events, life, faller exit, proven/other climb) are unchanged.
+
+- **Volume:** the warm start restores the Q1-Q5 Major LP count (~1.6x) and 1960 store LPs by 5.4M, but 1961 by only 3.5M:
+  after Q5 Major counts match the control, so the rest of the 1961 gap is the smaller Major field and the lower margin,
+  not the memory.
+- **It breaks the 1961 Big-5 singles share** on every seed (+8, history 20.6). The extra Big-5 Top 10 records are not LP
+  promo singles (+1.6 of +9.5). They are Established (+4.7), NewSigning (+3) and Star (+2) acts; Big-5 single issues
+  rise 8.5%. **The adopted frd60pk 1961 Big-5 share rests partly on the Majors being LP-starved through Q5.** The channel
+  (LP-fed follower books and recognition, or Big-5 cash into promotion and singles) is not yet measured.
+- LP chart shape is unchanged: the No. 1 stickiness is not a volume effect.
+
+**Status:** not adopted; the switch stays in code, off. Next: find the channel from LP volume to Big-5 single hits before
+any LP volume fix; any fix that restores Major LPs will meet the same guard.
+
+## 61. How Major LP volume reaches Big-5 single hits: album chart runs climb the singles career ladder (2026-11-18; four seeds)
+
+§60's warm start (`ews20`) raised the 1961 Big-5 Top 10 share 21.9 → 29.7%. Traced on `frd60pk` vs `ews20`, seeds 1001-4004.
+
+### Ruled out
+
+| 1961 Big-5 singles | frd60pk | ews20 |
+|---|---|---|
+| Top 10 records / of them LP promo singles | 26.5 / 0.2 | 36.0 / 1.8 |
+| Single issues; Top 40 per issue; Top 10 per issue | 440; 11.1%; 4.8% | 478; 11.2%; 6.3% |
+| Hit-act plugs (`score_plug_slots.py`), Top 10 rate | 153; 17.6% | 156; 21.6% |
+| Big-5 cash wk 52 / wk 104 ($M); marketing per single | 32.6 / 43.0; $284 | 34.3 / 43.7; $282 |
+| Mean follower book on a launch | 13.6k | 14.0k |
+
+Top 10 per issue rises in every follower-book bucket (no book 1.3 → 1.9%, 50k+ 19.6 → 25.0%) and as much for acts with no
+album heat (Top 10 / Top 40 0.42 → 0.52) as with it. So it is not promo singles, plug capacity, cash, follower books or album
+heat on singles.
+
+### The channel
+
+- **Act-level, paired.** Opening acts keep their IDs across arms. The ~136 Big-5 acts a seed that got more 1960 LPs under
+  `ews20` carry the excess: 1961 Top 10 records 7.75 → 16.0 (+8.25 of +9.5); acts with unchanged LP counts −0.25. Their
+  1961 Big-5 singles 116 → 176 and LPs 165 → 265; drops are rare in both arms.
+- **They climb.** In 1960 these acts earn more album Top 40-equivalent runs (10.5 → 17; under `--album-scale-career-milestones`
+  that is the top 40% of the 40-slot album chart, #16) and more single Top 40s (18 → 26). Their 1961 release decisions are
+  Established 33 → 65, Rising 33 → 66, Star 0.5 → 11.
+- **Climbing pays three ways.** Renewal: Big-5 acts with a 1960 LP renew at 49-57% at expiry, without one 3-8%
+  (`ShouldResignArtist` reads career state and contract chart records). Volume: the single prior's career band lifts the
+  projected single net (median $1.8k → $2.0k), so the label makes 441 release decisions a seed for these acts against 281.
+  Launch: their Top 40 singles launch with ~50% more stock and higher recognition.
+
+### Probe: `--album-career-credit-off`
+
+`Systems/AlbumCareerCreditProbe.cs`, read in `ArtistManager.OnRecordChartUpdated` / `OnRecordLeftChart`: an LP's chart run
+credits nothing to the act (entry/Top 40/Top 10/#1 latches, run completion, recognition gains). Singles and the other
+album-chart readers (label hit credit, landmark, acclaim, genre-market run log) are unchanged. 2×2, four seeds:
+
+| Mean of 4 seeds | frd60pk | ews20 | acc0 (probe) | ews20acc0 (probe + K 20) |
+|---|---|---|---|---|
+| Big-5 T10 share 1961 (hist 20.6) | 21.9 | 29.7 | 24.5 | 25.6 |
+| by seed | 19.4 / 28.1 / 21.7 / 18.3 | 26.3 / 33.5 / 32.5 / 26.3 | 24.8 / 19.0 / 22.3 / 31.9 | 26.5 / 29.2 / 22.7 / 23.8 |
+| Big-5 T10 share 1960 (hist 27.0) | 22.1 | 23.9 | 25.5 | 25.3 |
+| Big-5 T10 records 1961 | 26.5 | 36.0 | 27.5 | 27.8 |
+| Big-5 LPs 1960 | 197 | 362 | 200 | 363 |
+| Big-5 singles 1961 (Rising / Established / Star) | 422 (47 / 64 / 17) | 458 (60 / 70 / 21) | 398 (31 / 40 / 15) | 390 (32 / 45 / 13) |
+| Store LPs 1960 / 1961 (M) | 33.1 / 52.6 | 38.4 / 56.1 | 36.3 / 53.0 | 37.1 / 55.7 |
+
+- **Confirmed.** With the credit on, the warm start adds +7.8 points (paired by seed +6.9 / +5.4 / +10.8 / +8.0); with it
+  off, +1.1 (+1.7 / +10.2 / +0.4 / −8.1, noise). About 90% of the excess runs through album runs crediting the act's career.
+- **The LP volume survives without it:** store LPs 1961 55.7 under `ews20acc0`.
+- **The probe moves the base too:** with no album credit, Big-5 share rises 1960 22.1 → 25.5 and 1961 21.9 → 24.5 (one seed
+  at 31.9); every label's album acts lose rungs, and the field (more LP-reliant late in 1961?) loses more. Not measured here.
+- **Reading.** The adopted 1961 Big-5 fit leans on the Big-5 being LP-starved in 1960: with fewer LPs, fewer Big-5 acts
+  climb through album runs. Any LP-volume fix will lift Big-5 singles until the ladder reads album runs differently.
+
+**Status:** probe only, off by default and not for adoption (removing album credit entirely is not a period rule: an album
+#1 was a star-making event, AlbumScaleCareerMilestones). Open design question for the author: how much an album run should
+count on the singles ladder (e.g. album Top 10-equivalents only, album credit to renewal but not to the single prior's
+career band, or the album chart's real 1961 depth of 150 mono for the percentile scale). Not yet run.
+
+## 62. `--album-career-importance`: album runs weigh less in an act's career early in the decade (2026-11-18; four seeds, 104 weeks)
+
+The author's rule (2026-11-18): the album chart must score differently from the Hot 100 because (1) its size changed over
+the decade and (2) its weight in stardom grew; a 1960 #1 LP meant much less than a 1969 one. (1) is
+`--album-scale-career-milestones` (percentile of that week's album chart size, already in the candidate). (2) is new.
+
+**Rule** (`Systems/AlbumScaleCareerMilestones.cs`). The act's career reads an album's singles equivalent e as
+ceil(e / w(year)) while that is still a Top 40 hit, otherwise max(e, 41), so losing the hit to the weight costs at most the
+mildest non-hit bucket. Weighted readers: the milestone latches (`ArtistManager.OnRecordChartUpdated`), run completion
+(`ArtistManager.OnRecordLeftChart`, `RosterManager` `UpdateAfterChartRun`) and the recognition run credit (peak, plus the
+sustain/breadth gain × w). Label hit credit, landmark, acclaim and evolution keep e. Keyframes `YEAR:W`, linear, flat
+outside; default = the author's LP unit-share target over 1969's (0.55 / 0.64 / 0.73 / 0.91 / 1.0 in 1960/63/65/67/69).
+At 0.55 an LP needs #8 of 40 for a Top 40 credit and an album #1 reads #2 (no #1 toward Star). Checks in
+`AlbumScaleCareerMilestonesChecks`.
+
+Arms on the §60 warm start (frd60pk + `--earned-lp-forecast-warm-start=20`): `aciu` (default schedule) and `acis`
+(`=1960:0.3,1964:0.5,1967:0.85,1969:1`; 0.3 means #4 of 40 for a Top 40 credit and an album #1 reads #4).
+
+| Mean of 4 seeds | frd60pk | ews20 | aciu | acis | History |
+|---|---|---|---|---|---|
+| Big-5 T10 share 1960 | 22.1 | 23.9 | 25.7 | **27.5** | 27.0 |
+| Big-5 T10 share 1961 | 21.9 | 29.7 | 28.1 | **24.6** | 20.6 |
+| by seed (1001/2002/3003/4004) | 19.4 / 28.1 / 21.7 / 18.3 | 26.3 / 33.5 / 32.5 / 26.3 | 29.6 / 21.9 / 26.2 / 34.8 | 31.2 / 16.7 / 25.4 / 25.0 | |
+| Big-5 T10 records 1961 | 26.5 | 36.0 | 29.8 | 27.2 | |
+| Big-5 1961 singles (Rising / Established / Star) | 422 (47 / 64 / 17) | 458 (60 / 70 / 21) | 404 (51 / 56 / 12) | 431 (48 / 51 / 10) | |
+| Big-5 LPs 1960 | 197 | 362 | 362 | 365 | |
+| Store LPs 1960 / 1961 (M) | 33.1 / 52.6 | 38.4 / 56.1 | 35.7 / 57.3 | 36.8 / 55.0 | – / 68 |
+| Opening labels closed by wk 104 | 107.8 | 96.2 | 98.2 | 99.2 | neutral 89-96 |
+
+Chart structure (`score_chart_faller_depth.py`: events, life, faller exit, proven/other climb, #10/#100) and the LP chart
+(No. 1s 7.2 / 6.8, head gap 38 / 37 for `acis`) are unchanged in every arm.
+
+- **The default schedule barely binds in 1960-61** (28.1 vs 29.7): w 0.55-0.58 still lets a #8 of 40 LP make an act.
+- **The steep schedule takes most of the warm start's excess out** (29.7 → 24.6, 4 points over history) and puts 1960 on
+  history (27.5 vs 27.0, the open 1960 dip): album credit had been helping field acts climb in 1960 more than Big-5 acts
+  (the §61 probe showed the same, 22.1 → 25.5). It keeps most of the LP volume (+3.7M 1960, +2.4M 1961 over frd60pk) and
+  the lower closures.
+- **Seed spread is wide** (acis 1961 16.7-31.2; paired against ews20 +4.9 / −16.8 / −7.1 / −1.3). The 4-point residual
+  is inside it.
+- Big-5 Star decisions fall below the control (17 → 10): fewer 1960 Stars made by album #1s. No period count to check.
+- **Untested:** the late-decade end of the schedule. At 0.5-0.7 in 1964-66, album-led acts may climb too slowly; that needs
+  a decade A/B (memory: decade A/B at audit end).
+
+**Status:** not adopted. `acis` is the candidate shape for 1960-61.
+
+## 63. `acis` on six seeds: the 1961 residual was seed noise (2026-11-18; 104 weeks)
+
+§62 left `acis` (warm start K 20 + `--album-career-importance=1960:0.3,1964:0.5,1967:0.85,1969:1`) 4 points over the 1961
+history on four seeds. Seeds 5005 and 6006 added to both `frd60pk` and `acis` (same requests, `run_request_arm.ps1`).
+
+**Why not steepen the schedule first.** In §61 the probe that removes album credit entirely (`ews20acc0`) left 1961 at
+25.6; `acis` was already at 24.6. The importance weight had nothing left to take out. And the four-seed residual was run
+length, not records: `acis` Big-5 Top 10 records 27.25 (control 26.5), weeks per record 4.71 (control 4.30; field 4.4;
+history 1961 4.46 Big-5, ~4.5 field).
+
+| Mean of 6 seeds | frd60pk | acis | History |
+|---|---|---|---|
+| Big-5 T10 share 1960 | 23.0 | **25.0** | 27.0 |
+| Big-5 T10 share 1961 | 23.0 | **22.2** | 20.6 |
+| 1961 by seed (1001-6006) | 19.4 / 28.1 / 21.7 / 18.3 / 24.4 / 26.3 | 31.2 / 16.7 / 25.4 / 25.0 / 17.1 / 17.9 | |
+| Big-5 T10 records 1961; weeks each | 26.2; 4.59 | 25.3; 4.56 | ~24; 4.46 |
+| Field weeks per T10 record 1961 | 4.41 | 4.36 | ~4.5 |
+| Store LPs 1960 / 1961 (M) | 33.5 / 51.6 | **37.7 / 54.9** | – / 68 |
+| Opening labels closed by wk 104 (bankrupt) | 104.7 (71.8) | **98.8 (66.2)** | neutral 89-96 |
+| Big-5 share of single units | 19.7 | 18.8 | |
+
+Chart structure (`score_chart_faller_depth.py`, six seeds) is unchanged: events 657 / 653, life 7.2, last position 47 / 49,
+faller exit 62 / 62%, T40 % proven 39.6 / 40.3, T10 % proven 22.5 / 20.4, #10/#100 19.0 / 19.3.
+
+- **1961 is on the control's fit.** Paired by seed `acis` − `frd60pk` = +11.8 / −11.4 / +3.7 / +6.7 / −7.3 / −8.4, mean
+  −0.8. The four-seed +2.7 and the Big-5 run-length premium (4.71) were seeds 1001-4004; on six seeds weeks per record match.
+- **1960 moves 2 points toward the adopted 27% guard**, and the warm start keeps +4.2 / +3.3M store LPs and 6 fewer closures.
+- Further tuning of the 1960-61 weights is below the noise: the per-seed paired SD is ~9 points (SE ~3.7 on six seeds).
+
+**Status:** `acis` is the 1960-61 candidate: it passes every 104-week guard and improves LP volume and closures. Not
+adopted: the schedule's 1964-69 end is still untested (1960-64 runs `acis260-{1001..4004}` in progress, §64).
+
+## 64. Why the 1960-61 LP chart is out of shape (2026-11-18; read-only, `acis` six seeds and earlier arms)
+
+`analyze_album_chart_health.py` (now reads `.csv.gz`) down the adoption sequence, seeds 1001/2002, 1960 / 1961:
+
+| Arm | No. 1s | Longest No. 1 | #1/#10 units | Top-10 by chart wk 2 | Top-10 debuts | 40+ wk slots | ST % of top-10 titles |
+|---|---|---|---|---|---|---|---|
+| `gfo260` (before the LP package) | 10 / 11 | 16 / 12 | 2.4 / 2.8 | 66 / 72% | 21.5 / 20.5 | 14.5 / 12.5 | 15 / 10 |
+| `lrs10` (σ 1.0) | 9.5 / 9.5 | 9.5 / 13 | 2.9 / 2.6 | 65 / 48% | 15 / 11.5 | 14.5 / 10.5 | |
+| `lrs260` (σ 1.5) | 4.5 / 5 | 22 / 27.5 | 7.0 / 4.8 | 51 / 27% | 10 / 4.5 | 18 / 12 | 12 / 2 |
+| `pkg260`, `hm104`, `frd60pk` | 5-6 / 3-9 | 18-31 / 20-25 | 4-10 | 57-64 / 44-48% | 10-13 / 9-12 | 16-19 / 13-14 | 12-14 / 2-5 |
+| `acis` (six seeds) | 6.7 / 6.8 | 21.5 / 18.7 | 5.1 / 4.1 | 56 / 34% | 10 / 6.2 | 16.7 / 14.3 | 11 / 3 |
+| Billboard | 10 / 12 | 13 / 10+ | | rare | rare | 38% (Jan 1960, 65 listings) | |
+
+### 1. Too few No. 1s, reigns too long: the reception draw's upper tail
+
+`--lp-reception-sigma=1.5` (§41, adopted for the flop share) is a mean-preserving lognormal on store conversion:
+one LP in 44 sells 6.5× the mean every week, one in 740 29×. σ alone moves the No. 1 count from 9.5 to 4.5-5 and the
+longest reign from 10-13 to 22-28 (table). The long `acis` reigns are these titles: *Monster Dracula* (Comedy, 35 weeks
+at No. 1, 5.0M copies in two years), *Nicky and the Martians* (31 weeks, 3.0M), and 1.0-2.0M TradPop/Blues/compilation
+titles at 20-25 weeks. In reigns of 8+ weeks No. 1 outsells No. 2 by 1.45× (1.16× in short reigns).
+
+The RIAA survey supports a thinner top (`analyze_lp_riaa_1965.py`, 1960 releases to week 104, store + rack, seeds
+1001-3003): 300-600k 1.2-2.0% (RIAA 0.7), 600k-1M 0.4-0.6% (0.1), 1M+ 0.1-0.4% (0.4); overall log-sd 2.0 (RIAA ~2.0),
+<4k matches (§41). The bottom fits; the 300k-1M band is 2-4× RIAA. One σ cannot fit both ends. *Correction (§66): the
+300k+ bands do not move when the draw's top is cut; they are set by act, label and racks, so RIAA does not discriminate
+here. The case for a thinner top rests on the weekly chart.*
+
+### 2. Soundtracks fade in 1961: the same tail, through the hit-tail bar
+
+Year-end 1961 top 50, seeds 1001/2002 (Billboard 24 = 10 pre-1960 / 10 from 1960 / 4 from 1961):
+
+| Arm | 1961 ST points | pre-1960 (opening) | 1960 releases | 1961 releases | new ST reaching top 10 / 20, 1960 / 1961 |
+|---|---|---|---|---|---|
+| `gfo260` | 20 | 7 | 9 | 4 | 3 / 5; 1.5 / 4.5 |
+| `pkg260` | 15 | 8 | 3 | 4 | 0 / 3; 0 / 1.5 |
+| `acis` | 15 | 10 | 3 | 2 | 0.5 / 4.5; 0 / 1 |
+
+Soundtracks charting is not short (median 103 chart weeks, 16.5 in the top 10, six seeds). They carry no roster act, so
+they get no reception draw (factor 1): new soundtracks still peak at 5-8k copies a week, but σ 1.5 raised the #10 bar
+from 5-7k (`gfo260`) to 8-11k and the #20 bar by 1-2.5k. They miss the top 20, `--soundtrack-hit-tail-peak=20` never
+fires, and 1960 releases carry 3 points into 1961 instead of 9-10. The opening catalogue is on target (10 vs 10).
+
+### 3. Too few long-runners: hits decay like flops
+
+Titles 40+ weeks on the chart hold 14-17% of slots, and **96% of those slot-weeks are soundtracks**; non-soundtrack LPs
+hold 0-1.2%. Billboard's Essential Inventory of 4 April 1960 (top 25 of titles 40+ weeks old, §13) had 7 cast/film
+albums; the other 18 were non-soundtrack long-runners (not classified here). Normal LPs decay by a fixed `0.93^(weeks − 8)`
+(`AlbumSimulator.cs:26`, `LpDemandProbe.LegacyDecay`; D7's 12-18 week median life target), whatever their peak. Top-10
+LPs follow it: units 0.74 of peak at chart week 3, 0.32 at week 10, 0.11 at week 20; median chart life 20 weeks
+(Standard), 18 (Compilation). Only soundtracks have a success-dependent tail (box office + hit tail). The 38% figure
+is for 65 listings (Action 40 + EI 25); a like-for-like target is ~18 evergreen titles in the top 65, which the model's
+40-slot 1960 chart cannot show directly.
+
+### 4. Fast top-10 entries: launch-loaded demand, not σ
+
+Top-10 titles reaching the top 10 by chart week 2 were 66-72% before σ (`gfo260`) and 34-56% after. By format (`acis`):
+Compilation 71%, TeenPop 64%, Classical 54%, Soundtrack 55%, Standard 36%. Hit packages and youth LPs spend their
+follower books in three weeks (memory: youth LP runs are the follower window), and the 0.22 blend still lets a launch
+of 4.5× the #10's level into the top 10 in week 1. This one fades as the chart deepens (`pkg260` 1962-64: 17-28%).
+
+### Reading
+
+Items 1 and 2 are one cause: the reception draw's upper tail, adopted for the flop share. An asymmetric draw (σ 1.5
+below the median, ~1.0 above, renormalized to mean 1 while keeping the <4k share) would test both at once. Item 3 needs a
+success-dependent catalogue tail for non-soundtrack LPs (the soundtrack hit tail generalized, e.g. by peak), which runs
+against D7's 12-18 week median unless it binds only on hits. Item 4 is the follower window and is minor once the chart
+deepens. None built yet.
+
+## 65. `acis` 1960-64: the LP chart and the Big-5 share past 1961 (2026-11-18; four seeds, 260 weeks)
+
+Runs `acis260-{1001..4004}` (the §62-63 candidate at 260 weeks; `run_request_arm.ps1 -Weeks 260`). No `frd60pk` 260-week
+control exists, so 1962-64 is scored against history only.
+
+### LP chart shape (`analyze_album_chart_health.py`)
+
+| Mean of 4 seeds | 1960 | 1961 | 1962 | 1963 | 1964 | Billboard |
+|---|---|---|---|---|---|---|
+| Chart size (model) | 40 | 50 | 50 | 150 (Aug) | 150 | mono 150 from ~Apr 1961 |
+| Distinct No. 1s | 7.2 | 6.8 | 10.8 | 7.8 | 8.8 | 10 / 12 (1960/61), 9 (1965) |
+| Longest No. 1 run | 19.2 | 20.2 | 11.5 | 17.0 | 17.0 | 13 / 10+ / 13 (1965) |
+| #1 / #10 units | 4.7 | 4.2 | 3.0 | 4.2 | 3.2 | |
+| Top-10 titles there by chart week 2 | 55% | 35% | 25% | 23% | 27% | rare |
+| Slots held by 40+ week titles | 17.5 | 14.5 | 8.8 | 4.8 | 6.5 | 38% (Jan 1960, 65 listings) |
+| Soundtrack share of top-10 titles | 11.2 | 3.2 | 0.5 | 1.0 | 1.2 | |
+| Median debut, % of depth | 84 | 83 | 84 | 74 | 60 | 70-99 (1962) |
+
+- **No. 1s recover in 1962** (10.8, longest 11.5), but 1963-64 reigns run 17 weeks again. The §64 reading holds: the
+  reception tail dominates most where volume is low and the chart short.
+- **Long-runners get worse as the chart deepens:** 4.8-8.8% of slots from 1962. Billboard's 150-deep mono chart carried
+  multi-year titles (memory: blockbuster soundtrack longevity, *West Side Story* 341 weeks). §64's flat 0.93 decay is the
+  cause for normal LPs, and soundtracks no longer reach the top.
+- **Launch spikes fade** to 23-27% from 1962, and debuts sit lower as the chart deepens (60% of depth in 1964).
+
+### Year-end top 50 by genre (Billboard 1960-63, memory: Billboard 1961-63 album genre targets)
+
+| % of top 50, mean of 4 seeds (by seed) | 1962 | Billboard | 1963 | Billboard |
+|---|---|---|---|---|
+| Soundtrack/cast | **7** (8/4/6/10) | 22 | 13 (12/14/10/16) | 18 |
+| TradPop | 26 (34/30/20/20) | 18 | **17** (24/18/12/14) | 28 |
+| Youth + R&B | **18.5** (20/18/18/18) | 30 | 22 (20/28/20/20) | 20 |
+| Folk (+ ContemporaryFolk) | 10 + 2 | 14 | 9.5 + 6 | 16 |
+| Comedy | 5.5 | 4 | **4** | 10 |
+| Easy Listening | 13.5 | 8 | **11.5** | 2 |
+| Jazz / Blues / Gospel / Classical / Childrens / Latin | 4 / 3.5 / 0.5 / 2.5 / 2 / 0.5 | Jazz 4 | 4 / 4 / 2 / 2 / 1 / 0 | 0 |
+| BossaNova | 1.5 | 0 | 3 | 4 |
+| Gap (7 rows) | 48 (≈46 with ContemporaryFolk as Folk) | | 41 (≈35) | |
+
+1960 / 1961 gaps are 38 / 37 (§60's 38 / 37 on `frd60pk`).
+- **Soundtracks are the largest row in 1962** (7 vs 22, the *West Side Story* year). This is §64's mechanism: no
+  reception draw, below the hit-tail bar, so no carry-over.
+- **Youth 1962** (18.5 vs 30) is the twist LP year (memory: half the youth titles were hit collections, most of the
+  rest 1962 twist LPs).
+- **Blues, Gospel, Childrens and Latin** hold 5.5-9 points every year (1960-64) where Billboard has about 0 (Ray Charles counted as
+  R&B). Easy Listening is over in every year (means 15 / 19.5 / 13.5 / 11.5 in 1960-63 vs 6 / 10 / 8 / 2).
+- Folk is near target (12 vs 14, 15.5 vs 16) once ContemporaryFolk (PP&M, Baez in Billboard's classification) is counted as Folk.
+- TradPop swings by seed (12-34), so its 1962/1963 misses go opposite ways and need more seeds before a lever.
+
+### Big-5 Top 10 share past 1961 (`records.csv`; history from the weekly Top 10 records files)
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| `acis` share (by seed 1001/2002/3003/4004) | 27.6 | 24.6 | 24.8 (26.2/26.3/26.5/20.2) | 28.2 (42.3/31.5/26.2/12.7) | 25.9 (28.3/29.4/24.2/21.5) |
+| History | 34.2 (guard 27) | 20.6 | 21.2 | 26.0 | 18.7 |
+| `acis` Big-5 Top 10 records; weeks each | 30.8; 4.81 | 27.3; 4.71 | 32.8; 4.00 | 33.8; 4.28 | 32.0; 4.23 |
+| History records; weeks each | 28; 6.36 | 24; 4.46 | 24; 4.58 | 32; 4.22 | 19; 5.11 |
+
+- 1962-64 run +3.6 / +2.2 / +7.2 over history, all in **record count** (33 vs 24 / 32 / 19); weeks per record are at or
+  under history. Seed spread is wide (1963: 12.7-42.3), and four-seed 1961 read 24.6 where six seeds read 22.2 (§63).
+- Without a 260-week control it is unknown whether `acis` causes any of this (album weights 0.35-0.5 in 1961-64) or it was
+  already in `frd60pk`. 1964 history (19 records, the British Invasion year) is the lowest of the five.
+
+### LP volume
+
+Store LPs 36.8 / 55.0 / 57.3 / 53.7 / 49.5M fall after 1962 while racks rise 31.9 → 50.3M; store + rack is flat at
+~100M in 1962-64. The same store decline is in `gfo260` (67.4 → 57.4) and `pkg260` (62.0 → 54.0): a channel shift that
+predates the LP package, not new here. Clubs and budget lines are not counted (memory: LP units need all four channels).
+
+**Status:** the 1960-61 shape problems persist through 1964 except No. 1 count (1962) and launch spikes (fade with depth).
+Soundtracks (1962 worst) and long-runners (worse with depth) are the largest misses; both trace to §64. Owed: a
+`frd60pk` 260-week control to attribute the 1962-64 Big-5 excess.
+
+## 66. Screen: `--lp-reception-upper=K:U`, a thinner top on the reception draw (2026-11-18; seeds 1001/2002, 104 weeks)
+
+**Switch** (`Systems/GameyAuditSwitches.cs`, `LpReception`). Above z = K the log multiplier rises at slope U instead of
+σ: σz up to the knee, σK + U(z − K) beyond, divided by its own mean (quadrature at configure), so the mean stays 1.
+Requires `--lp-reception-sigma`; off never read and the symmetric formula unchanged. Checks in `GameyAuditSwitchChecks`
+(mean 1 on 200k keyed draws, slopes below/above the knee, symmetric unchanged) pass. Because a mean-1 lognormal takes most
+of its mean from its top, cutting the top raises the median: σ 1.5 knee 0 / U 1.0 has median 0.63 (symmetric 0.32) and
+27% of draws under 0.25× (43%); σ 2.0 knee 1 / U 0.5 restores 42.5% under 0.25× with the top 0.13% at 7.3× (29×).
+
+Arms on `acis` (seeds 1001/2002 only, per the author; σ 2.0 via reference copy `ref-acis-sigma20-request.json`, since the
+first copy of a flag wins): `rup0u10` (σ 1.5, 0:1.0), `rup1u05` (σ 1.5, 1:0.5), `rs20u05` (σ 2.0, 1:0.5).
+
+| Mean of seeds 1001/2002 | `acis` | `rup0u10` | `rup1u05` | `rs20u05` | Target |
+|---|---|---|---|---|---|
+| No. 1s 1960 / 1961 | 7 / 7 | 9.5 / 11 | 10 / 17 | **10 / 12.5** | 10 / 12 |
+| Longest No. 1 run | 22 / 22.5 | 20 / 11 | 16.5 / 7.5 | **16.5 / 11** | 13 / 10+ |
+| #1 / #10 units | 4.8 / 4.7 | 3.0 / 3.0 | 2.6 / 2.6 | 2.6 / 2.9 | |
+| Top-10 by chart wk 2, 1960 / 1961 | 59 / 38% | 63 / 41% | 57 / 45% | 51 / 40% | rare |
+| 40+ wk slots 1960 / 1961 | 18.5 / 16 | 18 / 14 | 18.5 / 16 | 19 / 15.5 | 38% |
+| ST in 1961 top 50 (1960 releases) | 15 (3) | 15 (5) | 19 (7) | 17 (5) | 24 (10) |
+| New ST reaching top 10, 1960 | 0.5 | 2.5 | 2.0 | 1.5 | 1-2 |
+| Head gap 1960 / 1961 | 36 / 39 | 35 / 46 | 43 / 44 | 49 / 43 | 0 |
+| LPs <4k (1960 releases, store + rack) | 43% | 32.5% | 34% | **39.5%** | RIAA 49% |
+| Losing LPs | 43.6% | 32.3% | 34.3% | **41.2%** | RIAA 61% |
+| 300k+ / 1M+ (store + rack) | 2.45 / 0.15% | 2.4 / 0.1% | | 2.6 / 0.1% | 1.2 / 0.4% |
+| Store LPs 1960 / 1961 (M) | 35.2 / 53.4 | 37.9 / 59.7 | 37.4 / 58.3 | 36.5 / 57.0 | – / 68 |
+| Bankruptcies (opening labels) | 69 | 61 | 66.5 | 72 | |
+| Big-5 T10 1961 (1001 / 2002) | 23.9 (31.2 / 16.7) | 28.1 (32.3 / 23.8) | 29.0 (36.3 / 21.7) | **23.2 (24.0 / 22.3)** | 20.6 |
+| Big-5 T10 1960 | 28.8 | 24.9 | 26.5 | 25.4 | 27 |
+| Big-5 LPs charting 1960; top 4 (1001 / 2002) | 72 / 72; 18 / 17 | 73 / 91; 16 / 25 | 76 / 87; 20 / 23 | 77 / 76; 22 / 27 | |
+
+- **No. 1s and reigns are the draw's top.** Every arm cuts #1/#10 from 4.7 to 2.6-3.0; `rs20u05` puts 1961 on Billboard
+  (12.5 No. 1s, longest 11) and 1960 at 10 No. 1s; 1960's longest reign is still 16.5 (13).
+- **The median rise is the cost.** With σ 1.5 the bottom thins (<4k 43 → 33%, losing 44 → 33%), store LPs gain 5-6M and
+  more Big-5 LPs chart (seed 2002 72 → 87-91), which lifts the 1961 Big-5 singles share on both seeds (+1 to +7; §61's
+  album-career channel). σ 2.0 below the knee holds the bottom (39.5% <4k, losing 41%), the Big-5 share (23.2) and
+  bankruptcies (+3), with +1.3 / +3.6M store LPs.
+- **Soundtracks improve only a little** (1961 15 → 17-19, 1960 releases carrying 5-7 against 10); new 1961 soundtracks
+  still miss the top 20 (0.5-2.5). The #10 bar falls but not to their 5-8k peaks: the carry-over needs its own lever
+  (hit-tail bar, or a draw for soundtracks).
+- **The 300k+ bands do not move** in any arm (§64's RIAA reading corrected above), and long-runners and launch spikes are
+  unchanged, as expected.
+- **Head gap is worse on `rs20u05` in 1960** (49 vs 36): TradPop 37 vs 28 (acis 28) and Easy Listening 18 vs 15 on both
+  seeds; Youth 10 vs 19. Two seeds swing rows ±5-10, so this is a flag, not a finding.
+
+**Status:** `rs20u05` (`--lp-reception-sigma=2.0 --lp-reception-upper=1:0.5`) is the candidate shape: it fixes the
+1961 No. 1 count and reign length and holds flops, closures and the Big-5 guard on two seeds. Not adopted; more seeds,
+the 1960 TradPop flag and 1962-64 wait on the Big-5 attribution (§65).
+
+## 67. Soundtracks and the 300k+ / 1M+ LPs (2026-11-18; read-only on `rs20u05`, seeds 1001/2002)
+
+Trace runs `rs20tr-{1001,2002}` = `rs20u05` + `--album-demand-trace --album-demand-trace-weeks=104` (new: trace rows to
+release week N; new columns `reception`, `stSource`, `stBoxOffice`, `stBlockbuster`, `stRenewal`; `ChartAuditRunner.cs`).
+Inert: album chart and records byte-identical to `rs20u05`.
+
+### Scorer fix: the RIAA cohort had no soundtracks
+
+`analyze_lp_riaa_1965.py` inner-joined the census on album projects, and soundtracks are minted outside the project
+pipeline, so **every soundtrack was dropped** from §41-46 and §64-66 RIAA bands. Fixed: soundtracks (no project, no
+roster act) join with their census launch week, opening catalogue excluded; `--no-soundtracks` reproduces the old cohort
+(checked: `acis` 1001 300k+ 2.0%, <4k 44%), and the compact output adds `1M+ %` and `soundtracks: n / 300k+ / 1M+`.
+
+| 1960 releases to week 104, store + rack | `rs20u05` 1001 / 2002 | `acis` 1001 / 2002 | RIAA 1963 |
+|---|---|---|---|
+| All LPs 300k+ | 3.2 / 3.7% | 2.9 / 3.3% | 1.2% |
+| All LPs 1M+ | 0.66 / 0.55% | 0.72 / 0.63% | 0.44% (7 of 1,603) |
+| Artist LPs 300k+ / 1M+ | 2.3 / 2.9%; 0.06 / 0.13% | 2.0 / 2.8%; 0.06 / 0.19% | |
+| New soundtracks: n / 300k+ / 1M+ | 31 / 15 / 10; 28 / 14 / 7 | 24 / 16 / 11; 24 / 9 / 7 | |
+
+**Nothing stops 300k+ LPs**: the model has 2.5-3× RIAA's share. The composition is off: artist LPs crowd 300k-1M and
+almost never pass 1M (1-3 a seed), while a third of new soundtracks pass 1M within two years. (RIAA counts manufacturer
+sales including clubs; the model's title counts exclude clubs and budget editions, so its totals are if anything low.)
+
+### Why artist LPs stop near 1M: genre pool exhaustion plus the 0.93 decay
+
+Top 20 artist LPs (0.73-1.11M store + rack; TradPop / Easy Listening Majors, reception 1.7-6.7), median by release week:
+
+| Week | 2 | 4 | 8 | 12 | 16 | 20 | 26 | 40 |
+|---|---|---|---|---|---|---|---|---|
+| Store / rack units (k) | 32 / 31 | 21 / 22 | 18 / 18 | 12 / 14 | 8 / 11 | 4.7 / 8.0 | 2.9 / 7.6 | 1.7 / 0 |
+| Penetration (units ÷ genre pool ~470k) | 0.24 | 0.43 | 0.82 | 1.13 | 1.32 | 1.43 | 1.58 | 1.78 |
+| Exhaustion `max(0.15, 1/(1+4p))` | 0.52 | 0.37 | 0.23 | 0.18 | 0.16 | 0.15 | 0.15 | 0.15 |
+| Catalogue decay (0.93 from wk 8) | 1 | 1 | 1 | 0.75 | 0.56 | 0.42 | 0.27 | 0.10 |
+
+A title's pool is its genre's national LP buyer pool (~460-500k for TradPop and Easy Listening), counted separately per
+title; store, rack (`--rack-shared-exhaustion`) and budget units all count against it. Exhaustion reaches its floor by
+week 16-20 and the time decay finishes the run, so a hit's lifetime is about 1.8× its genre pool: 0.7-1.1M. The same two
+terms are §64's missing long-runners. Only soundtracks escape them.
+
+### Why soundtracks sell millions but chart low
+
+Top 8 new soundtracks, median by release week: penetration stays 0.31-0.37 from week 8 to 78 while they sell 4.4-7.4k
+store + 9-19k rack a week. `--soundtrack-hit-tail=0.15` (peak top 20) divides penetration by 1 + 0.15 × (weeks − 12)
+(×10.9 by week 78), and box-office decay is 0.70-0.84 at weeks 12-40. So a top-20 soundtrack never exhausts and sells
+for years, two-thirds through racks (rack/store 1.88 vs 1.08 for artist LPs, at `--rack-soundtrack-weight=0.3`).
+
+Its store side is weak: blended awareness 0.24-0.42 vs ~0.6 for top artist LPs (premiere buzz × 0.25,
+`--soundtrack-launch-awareness`), no reception draw, and rack units spend its store buyers. **The album chart counts
+store units only** (`AlbumSimulator.CalculateChartPoints`; `RackJobberChannel`: rack units "never enter chart points").
+Billboard counted racks from 4 January 1960, announcing the "inclusion of rack sales data in the total chart
+computations" in place of its separate rack charts (the issue that split off Essential Inventory; `SimLogs/album-promo-research/
+billboard-1960-01-04.txt`). Budget ("Low Price") and classical LPs got their own charts.
+
+Offline re-rank of the traced titles by store + rack units (unblended weekly ranks, so only differences count):
+soundtrack share of the weekly top 10 rises 18 → 27% (1960) and 3.8 → 14% (1961); top-40 share is unchanged (15-17%);
+1961 year-end top-50 soundtrack points 17 → 19 (Billboard 24); the share of slots held by titles 26+ weeks old is
+unchanged (~15%). Racks in the chart lift soundtracks into the top 10 but do not make long-runners.
+
+### Reading
+
+- The 1961 soundtrack gap is store visibility, not sales: the model's soundtracks outsell history, through racks the
+  chart ignores. Counting racks is sourced and moves the top 10; the remaining year-end gap needs store awareness.
+- A third of new soundtracks passing 1M in two years is too strong per title: the hit-tail renewal is uncapped while
+  racks carry the volume. Counting racks in the chart would also let the tail fire more often (it keys on chart peak).
+- Artist LPs need what soundtracks have: a hit's audience reaching past its genre pool and lasting past week 20. A
+  peak-gated pool renewal for all LPs (the soundtrack hit tail generalized) would address the 1M+ artist LPs and §64's
+  long-runners together, but it lengthens reigns too, so it should sit on the `rs20u05` draw.

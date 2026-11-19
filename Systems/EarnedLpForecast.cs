@@ -21,6 +21,13 @@ using System.Linq;
 ///   Single LPs are not clamped (that would cut off the hits v must see); only the learned ratio is.
 /// Copies to date at 52 weeks undercount an LP still selling, so both are lower bounds for long sellers.
 /// No random draws. Off: nothing is read or written and the gate is unchanged.
+///
+/// --earned-lp-forecast-warm-start=K (log mode only; LpGenreAllocationFollowup.md §47 option 1, §60): opening Major and
+/// MidTier labels sold LPs for years before 1960, so before the label's first gate use or observation their memory is
+/// seeded with K pseudo-LPs whose log moments give the tier's learned ratio (--earned-lp-forecast-warm-ratios=Major,MidTier,
+/// default the 1961 learned medians under frd60pk) and a within-label log variance (--earned-lp-forecast-warm-variance).
+/// Runtime births and the smaller tiers start empty as before. Real LPs then enter at weight max(Alpha, 1 / (n + 1)), so
+/// with K >= 10 the seed washes out over the label's next 20-30 LPs. No draws.
 /// </summary>
 public static class EarnedLpForecast {
 	public const string Switch = "--earned-lp-forecast";
@@ -28,7 +35,15 @@ public static class EarnedLpForecast {
 	public const string ShrinkSwitch = "--earned-lp-forecast-shrink";
 	public const int ObserveAgeWeeks = 52;
 	public const float Alpha = .1f, DefaultShrink = 4f, MinRatio = .25f, MaxRatio = 6f;
+	public const string WarmStartSwitch = "--earned-lp-forecast-warm-start";
+	public const string WarmRatiosSwitch = "--earned-lp-forecast-warm-ratios";
+	public const string WarmVarianceSwitch = "--earned-lp-forecast-warm-variance";
+	public const float DefaultWarmMajorRatio = 3.5f, DefaultWarmMidTierRatio = 2.5f, DefaultWarmVariance = 3.5f;
 	private static bool configured, enabled, logMode;
+	public static int WarmStartRecords { get; private set; }
+	public static float WarmMajorRatio { get; private set; } = DefaultWarmMajorRatio;
+	public static float WarmMidTierRatio { get; private set; } = DefaultWarmMidTierRatio;
+	public static float WarmVariance { get; private set; } = DefaultWarmVariance;
 	public static bool Enabled => enabled;
 	public static bool LogMode => enabled && logMode;
 	public static float ShrinkRecords { get; private set; } = DefaultShrink;
@@ -48,10 +63,46 @@ public static class EarnedLpForecast {
 		ShrinkRecords = LabelPressingEconomics.ReadParameter(args, ShrinkSwitch + "=", DefaultShrink, 0f, 100f);
 		if (!enabled && (logMode || ShrinkRecords != DefaultShrink))
 			throw new ArgumentException(LogSwitch + " and " + ShrinkSwitch + " require " + Switch + ".");
+		WarmStartRecords = (int)LabelPressingEconomics.ReadParameter(args, WarmStartSwitch + "=", 0f, 0f, 200f);
+		WarmVariance = LabelPressingEconomics.ReadParameter(args, WarmVarianceSwitch + "=", DefaultWarmVariance, 0f, 10f);
+		string ratios = args.FirstOrDefault(a => a.StartsWith(WarmRatiosSwitch + "=", StringComparison.Ordinal));
+		if (ratios != null) {
+			string[] parts = ratios.Substring(WarmRatiosSwitch.Length + 1).Split(',');
+			if (parts.Length != 2 || !float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float major)
+				|| !float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float mid)
+				|| major < MinRatio || major > MaxRatio || mid < MinRatio || mid > MaxRatio)
+				throw new ArgumentException(WarmRatiosSwitch + "=Major,MidTier takes two ratios in [" + MinRatio + ", " + MaxRatio + "].");
+			WarmMajorRatio = major; WarmMidTierRatio = mid;
+		}
+		bool warmTuned = ratios != null || args.Any(a => a.StartsWith(WarmVarianceSwitch + "=", StringComparison.Ordinal));
+		if ((WarmStartRecords > 0 || warmTuned) && !(enabled && logMode))
+			throw new ArgumentException(WarmStartSwitch + " requires " + Switch + " and " + LogSwitch + ".");
+		if (warmTuned && WarmStartRecords <= 0)
+			throw new ArgumentException(WarmRatiosSwitch + " and " + WarmVarianceSwitch + " require " + WarmStartSwitch + "=K.");
 		configured = true;
 	}
-	internal static void SetForChecks(bool value, bool log = false, float shrink = DefaultShrink) {
+	internal static void SetForChecks(bool value, bool log = false, float shrink = DefaultShrink, int warmStart = 0,
+		float warmMajor = DefaultWarmMajorRatio, float warmMidTier = DefaultWarmMidTierRatio, float warmVariance = DefaultWarmVariance) {
 		configured = true; enabled = value; logMode = log; ShrinkRecords = shrink;
+		WarmStartRecords = warmStart; WarmMajorRatio = warmMajor; WarmMidTierRatio = warmMidTier; WarmVariance = warmVariance;
+	}
+
+	/// <summary>Seeds an opening Major or MidTier label's empty memory with <see cref="WarmStartRecords"/> pseudo-LPs at the
+	/// tier ratio, once (by the label's tier at its first gate use or observation). The moments are set so that LearnedRatio
+	/// is the tier ratio and LogVariance is <see cref="WarmVariance"/>.</summary>
+	public static void EnsureWarmStart(AILabel label) {
+		if (WarmStartRecords <= 0 || !enabled || !logMode || label == null || label.isPlayerOwned || label.lpForecastWarmStartApplied) return;
+		label.lpForecastWarmStartApplied = true;
+		if (label.populationOrigin != LabelPopulationOrigin.LaunchPopulation || label.lpForecastObservations > 0) return;
+		float ratio = label.tier switch { LabelTier.Major => WarmMajorRatio, LabelTier.MidTier => WarmMidTierRatio, _ => 0f };
+		if (ratio <= 0f) return;
+		int n = WarmStartRecords;
+		float effective = Math.Min(n, 2f / Alpha - 1f);
+		float v = n >= 2 ? WarmVariance : 0f;
+		float m = MathF.Log(ratio) - v / 2f;
+		label.lpForecastLogMean = m;
+		label.lpForecastLogSquare = m * m + (n >= 2 ? v * (effective - 1f) / effective : 0f);
+		label.lpForecastObservations = n;
 	}
 
 	/// <summary>The label's learned mean ratio of copies sold to forecast, before shrinkage; 1 with no observation.</summary>
@@ -73,6 +124,7 @@ public static class EarnedLpForecast {
 
 	/// <summary>The factor on the gate's LP unit forecast for this label; 1 while off or before any observation.</summary>
 	public static float Multiplier(AILabel label) {
+		EnsureWarmStart(label);
 		if (!enabled || label == null || label.isPlayerOwned || label.lpForecastObservations <= 0) return 1f;
 		float weight = label.lpForecastObservations / (label.lpForecastObservations + ShrinkRecords);
 		return MathF.Exp(weight * MathF.Log(LearnedRatio(label)));
@@ -83,6 +135,7 @@ public static class EarnedLpForecast {
 	public static void Observe(AILabel label, RecordRuntimeData record) {
 		if (!enabled || label == null || label.isPlayerOwned || record?.baseRecord?.format != ReleaseFormat.Album
 			|| record.lpForecastObserved || record.releaseTimeExpectedLpUnits <= 0f) return;
+		EnsureWarmStart(label);
 		record.lpForecastObserved = true;
 		float sold = Math.Max(0, record.pressingBookSold), forecast = record.releaseTimeExpectedLpUnits;
 		label.lpForecastMemorySold = (1f - Alpha) * label.lpForecastMemorySold + Alpha * sold;

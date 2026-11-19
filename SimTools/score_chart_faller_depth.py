@@ -83,7 +83,9 @@ def history():
     w["rec"] = [x[1] for x in k]
     w["wk"] = ((w.chartDate - w.chartDate.min()).dt.days // 7).astype(int)
     o = chart(w.rename(columns={"position": "pos"})[["wk", "rec", "act", "pos"]], 52, 208, 3, w.wk.max(), 52, 208, 3)
-    o.update({"Big-5 T10 share 1960 %": 34.2, "Big-5 T10 share 1961 %": 20.6})
+    # 1960 target is 27, not the raw 34.2: history net of the one-off blockbuster cluster (Elvis's return, Summer Place;
+    # Big5ChartOpportunityInvestigation.md "The 1960 dip", adopted 2026-11-18).
+    o.update({"Big-5 T10 share 1960 %": 27.0, "Big-5 T10 share 1961 %": 20.6})
     return o
 
 

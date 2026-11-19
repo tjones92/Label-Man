@@ -113,17 +113,20 @@ public static class ArtistRecognitionService {
 	public static void OnChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
 		if (!ArtistRecognition.Observing || artist == null || record == null) return;
 		// The raw peak unless --album-scale-career-milestones scores an album on its own chart's scale.
-		CreditChartRun(artist, AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.weeksInTopTen, record.regionalBreakoutCount);
+		// --album-career-importance: an album run's peak and sustain credit read through the year's album weight.
+		CreditChartRun(artist, AlbumScaleCareerMilestones.ActCareerPeak(record), record.weeksOnChart, record.weeksInTopTen, record.regionalBreakoutCount,
+			AlbumScaleCareerMilestones.ActCreditScale(record));
 	}
 
 	/// <summary>The run-complete credit from its facts alone, so a pre-1960 history (OpeningCareerService) is replayed
 	/// through exactly the rule a live record pays.</summary>
-	internal static void CreditChartRun(SimulatedArtist artist, int peakPosition, int weeksOnChart, int weeksInTopTen, int regionalBreakouts) {
+	internal static void CreditChartRun(SimulatedArtist artist, int peakPosition, int weeksOnChart, int weeksInTopTen, int regionalBreakouts,
+		float scale = 1f) {
 		if (peakPosition <= 0 || peakPosition > 100) return;   // never charted -> no sustain to reward
 		float sustain = 0.020f * Mathf.Clamp(weeksOnChart / 40f, 0f, 1f);
 		float topTen  = 0.030f * Mathf.Clamp(weeksInTopTen / 12f, 0f, 1f);
 		float breadth = 0.020f * Mathf.Clamp(regionalBreakouts / 6f, 0f, 1f);
-		AddPublicRecognition(artist, sustain + topTen + breadth);
+		AddPublicRecognition(artist, scale >= 1f ? sustain + topTen + breadth : (sustain + topTen + breadth) * scale);
 	}
 
 	/// <summary>The weekly calendar decay applied <paramref name="weeks"/> times to one act and its members, for the

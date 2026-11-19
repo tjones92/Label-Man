@@ -168,6 +168,8 @@ public partial class AILabel : Resource {
 	public float lpForecastMemorySold, lpForecastMemoryForecast;
 	public int lpForecastObservations;
 	public float lpForecastLogMean, lpForecastLogSquare;
+	// --earned-lp-forecast-warm-start: the opening-experience seed has been considered (applied or not). False when off.
+	public bool lpForecastWarmStartApplied;
 	// Publishing goldmine (Phase 3b). Composition income this label collects when OTHER labels record a
 	// song it controls; accrued during any label's settlement and banked in a pass after the main loop.
 	public float weeklyPublishingReceipts;

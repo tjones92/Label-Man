@@ -184,7 +184,10 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	var artist = GetArtist(record.baseRecord.artistId);
 	if (artist == null) return;
 	// --album-scale-career-milestones: an album's peak on the album chart's own scale; the raw peak otherwise.
-	int peak = AlbumScaleCareerMilestones.ObserveCareerPeak(record);
+	// --album-career-importance: the act reads an album's equivalent through the year's album weight. Off: identical.
+	int peak = AlbumScaleCareerMilestones.ObserveActCareerPeak(record);
+	// --album-career-credit-off (probe): an LP's chart run credits nothing to the act. Off: not read.
+	if (AlbumCareerCreditProbe.Withholds(record)) return;
 
 	if (peak > 0 && !record.artistChartEntryCredited) {
 		artist.RegisterChartEntry();
@@ -248,10 +251,13 @@ public sealed class LaborMarketWeeklySnapshot {
 		if (artist == null) return;
 
 		if (record.artistChartRunCompleted) return;
-		artist.CompleteChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
-			CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
-			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
-		ArtistRecognitionService.OnChartRunComplete(artist, record);
+		// --album-career-credit-off (probe): no career or recognition credit for an LP's run. Off: not read.
+		if (!AlbumCareerCreditProbe.Withholds(record)) {
+			artist.CompleteChartRun(AlbumScaleCareerMilestones.ActCareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+				CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
+				AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
+			ArtistRecognitionService.OnChartRunComplete(artist, record);
+		}
 		record.artistChartRunCompleted = true;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
 			RosterManager.Instance?.RecordChartRunComplete(artist, record);

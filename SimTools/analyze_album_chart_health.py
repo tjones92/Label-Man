@@ -25,7 +25,7 @@ Per calendar year (years with fewer than 40 chart weeks are skipped), per run, t
   st%T10      soundtrack share of top-10 titles
   #1/#10      median ratio of No. 1 to No. 10 weekly units
 """
-import sys
+import os, sys
 import pandas as pd
 
 BILLBOARD = {
@@ -51,7 +51,7 @@ def longest_run(ids):
 
 
 def health(tag):
-    a = pd.read_csv(f'{tag}-album-chart.csv', usecols=['week', 'year', 'chartSize', 'position', 'recordId',
+    a = pd.read_csv(next(p for p in (f'{tag}-album-chart.csv', f'{tag}-album-chart.csv.gz') if os.path.exists(p) or p.endswith('.gz')), usecols=['week', 'year', 'chartSize', 'position', 'recordId',
                                                        'albumFormat', 'unitsThisWeek', 'weeksOnChart'])
     first = a.groupby('recordId').week.min()
     a['firstWeek'] = a.recordId.map(first)

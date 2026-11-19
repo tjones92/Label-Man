@@ -379,19 +379,53 @@ public static class LpLaunchStanding {
 /// reception multiplier on store conversion, exp(S z - S^2 / 2) with z standard normal, so the mean multiplier is 1 and the
 /// median falls by exp(S^2 / 2). z is keyed on the record id and the world seed (PhiloxCounterRandom), so it consumes no
 /// RNG stream, needs no saved state and is the same after a resume. The labels' forecasts do not see it. Off: never read.
+///
+/// --lp-reception-upper=K:U (LpGenreAllocationFollowup.md §64-66): the same draw with a thinner top. Above z = K the
+/// exponent rises at slope U instead of S, so the log multiplier is S z up to the knee and S K + U (z - K) beyond it. The
+/// result is divided by its own mean (computed once by quadrature), so the mean multiplier stays 1; the median rises
+/// because a mean-1 lognormal takes most of its mean from the top. §64: S 1.5's top makes 1960-61 LP No. 1s too few and
+/// too long and lifts the top-10 bar past the soundtracks (which carry no draw); RIAA's 300k-1M band is 2-4x under the
+/// model's while its <4k share matches. Requires --lp-reception-sigma. Off: never read, the symmetric formula unchanged.
 /// </summary>
 public static class LpReception {
 	public const string Switch = "--lp-reception-sigma";
+	public const string UpperSwitch = "--lp-reception-upper";
 	private const uint Decision = 0x4C505200U; // "LPR\0"
 	private static bool read;
 	private static float sigma;
+	private static bool upper;
+	private static double knee, upperSlope, upperLogMean;
 	public static bool Enabled { get { Read(); return sigma > 0f; } }
+	public static bool UpperEnabled { get { Read(); return upper; } }
 	private static void Read() {
 		if (read) return;
 		sigma = GameyAuditArguments.Value(Switch, 0.01f, 3f) ?? 0f;
+		string spec = SimulationArguments.Get().FirstOrDefault(a => a.StartsWith(UpperSwitch + "=", StringComparison.Ordinal));
+		upper = false;
+		if (spec != null) {
+			string[] kv = spec.Substring(UpperSwitch.Length + 1).Split(':');
+			if (kv.Length != 2 || !double.TryParse(kv[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double k)
+				|| !double.TryParse(kv[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double u)
+				|| !double.IsFinite(k) || k < -3 || k > 3 || !double.IsFinite(u) || u < 0 || u > 3)
+				throw new ArgumentException(UpperSwitch + "=K:U takes a knee in [-3, 3] and an upper slope in [0, 3]; got '" + spec + "'.");
+			if (sigma <= 0f) throw new ArgumentException(UpperSwitch + " requires " + Switch + ".");
+			SetUpper(k, u);
+		}
 		read = true;
 	}
-	internal static void SetForChecks(float value) { read = true; sigma = value; }
+	private static void SetUpper(double k, double u) {
+		upper = true; knee = k; upperSlope = u;
+		// Mean of exp(raw(z)) over the standard normal, trapezoid on [-12, 12] (error far below float precision).
+		const int steps = 48000; const double lo = -12, hi = 12; double h = (hi - lo) / steps, sum = 0;
+		for (int i = 0; i <= steps; i++) {
+			double z = lo + i * h, w = i == 0 || i == steps ? 0.5 : 1.0;
+			sum += w * Math.Exp(RawExponent(z) - z * z / 2);
+		}
+		upperLogMean = Math.Log(sum * h / Math.Sqrt(2 * Math.PI));
+	}
+	private static double RawExponent(double z) => z <= knee ? sigma * z : sigma * knee + upperSlope * (z - knee);
+	internal static void SetForChecks(float value) { read = true; sigma = value; upper = false; }
+	internal static void SetForChecks(float value, double kneeZ, double slope) { read = true; sigma = value; SetUpper(kneeZ, slope); }
 
 	/// <summary>The standard normal draw for a record (Box-Muller on two keyed units).</summary>
 	internal static double Z(ulong seed, string recordId) {
@@ -400,7 +434,9 @@ public static class LpReception {
 		return Math.Sqrt(-2.0 * Math.Log(Math.Max(u1, 1e-300))) * Math.Cos(2.0 * Math.PI * u2);
 	}
 
-	internal static float Multiplier(double z) => (float)Math.Exp(sigma * z - sigma * (double)sigma / 2.0);
+	internal static float Multiplier(double z) => upper
+		? (float)Math.Exp(RawExponent(z) - upperLogMean)
+		: (float)Math.Exp(sigma * z - sigma * (double)sigma / 2.0);
 
 	/// <summary>The record's reception multiplier, cached on the record. 1 when off or for an LP with no roster act.</summary>
 	public static float Factor(RecordRuntimeData record) {

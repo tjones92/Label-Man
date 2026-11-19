@@ -1524,7 +1524,7 @@ public partial class RosterManager : Node {
 				TransitionDroppedArtist(creditedLabel, artist, year, ArtistDropReason.Performance);
 			return;
 		}
-		artist.UpdateAfterChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+		artist.UpdateAfterChartRun(AlbumScaleCareerMilestones.ActCareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
 			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
 			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
 		record.artistChartRunCompleted = true;

@@ -202,7 +202,26 @@ public static class GameyAuditSwitchChecks {
 			var artistless = new RecordRuntimeData { baseRecord = new Record { recordId = "gen_check_2", format = ReleaseFormat.Album } };
 			Check(LpReception.Factor(artistless) == 1f, "an LP with no roster act is untouched");
 			Check(LpReception.Factor(lpRec) > 0f && LpReception.Factor(lpRec) == lpRec.lpReception, "the draw is cached on the record");
+			// --lp-reception-upper=K:U.
+			LpReception.SetForChecks(1.5f);
+			float symAt2 = LpReception.Multiplier(2.0), symAtMinus1 = LpReception.Multiplier(-1.0);
+			Check(!LpReception.UpperEnabled && Math.Abs(symAt2 - (float)Math.Exp(3.0 - 1.125)) < 1e-4f, "without the upper switch the symmetric formula is unchanged");
+			foreach (var (k, u) in new[] { (0.0, 1.0), (1.0, 0.5) }) {
+				LpReception.SetForChecks(1.5f, k, u);
+				double mean = 0; const int n = 200000;
+				for (int i = 0; i < n; i++) { double z = LpReception.Z(2002UL, "gen_up_" + i); mean += LpReception.Multiplier(z); }
+				mean /= n;
+				Check(LpReception.UpperEnabled && Math.Abs(mean - 1.0) < 0.02, $"upper {k}:{u} keeps the mean multiplier at 1 (got {mean:F3})");
+				Check(Math.Abs(LpReception.Multiplier(-1.0) / LpReception.Multiplier(-2.0) - Math.Exp(1.5)) < 1e-3,
+					$"upper {k}:{u} keeps slope 1.5 below the knee");
+				Check(Math.Abs(LpReception.Multiplier(k + 2.0) / LpReception.Multiplier(k + 1.0) - Math.Exp(u)) < 1e-3,
+					$"upper {k}:{u} uses slope {u} above the knee");
+				Check(LpReception.Multiplier(2.0) < symAt2 && LpReception.Multiplier(-1.0) > symAtMinus1,
+					$"upper {k}:{u} thins the top and lifts the bottom against the symmetric draw");
+			}
 			LpReception.SetForChecks(0f);
+			Check(!LpReception.UpperEnabled && LpReception.Factor(new RecordRuntimeData { baseRecord = new Record { recordId = "gen_check_3", artistId = "a", format = ReleaseFormat.Album } }) == 1f,
+				"off clears the upper shape");
 
 			// Renewal earned option.
 			Check(!RenewalEarnedOption.Decide(5000f, 0, 1f, 1000f), "an act never released under the deal lapses");
