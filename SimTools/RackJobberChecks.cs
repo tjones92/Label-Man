@@ -104,6 +104,22 @@ public static class RackJobberChecks {
 			var again = cat.Select(c => Cand(c.Record.baseRecord.recordId, c.StoreUnits, 0, c.PastPeak)).ToList();
 			RackJobberChannel.AssignTiers(again, 1, 5);
 			Check(again.Select(c => c.Tier).SequenceEqual(cat.Select(c => c.Tier)), "tiers deterministic");
+			// --rack-proven-catalogue=K:N: proven past-peak titles take the first K catalogue slots, the rest fill by store units.
+			Check(Rejects(RackJobberChannel.ProvenCatalogueSwitch + "5:10") && Rejects(RackJobberChannel.Switch, RackJobberChannel.ProvenCatalogueSwitch + "5")
+				&& !Rejects(RackJobberChannel.Switch, RackJobberChannel.ProvenCatalogueSwitch + "25:10") && RackJobberChannel.ProvenCatalogueSlots == 25
+				&& RackJobberChannel.ProvenCataloguePeak == 10, "proven catalogue parses K:N and needs racks");
+			RackJobberChannel.ResetForChecks();
+			var prov = new List<RackJobberChannel.Candidate> { Cand("q1", 40, pastPeak: true), Cand("q2", 30, pastPeak: true), Cand("q3", 20, pastPeak: true), Cand("q4", 10, pastPeak: true) };
+			prov[2].Record.peakPosition = 4; prov[3].Record.peakPosition = 9; prov[0].Record.peakPosition = 30;
+			RackJobberChannel.AssignTiers(prov, 0, 2);
+			Check(prov[0].Tier == RackJobberChannel.TierCatalogue && prov[1].Tier == RackJobberChannel.TierCatalogue && prov[2].Tier == 0 && prov[3].Tier == 0,
+				"off: catalogue by store units");
+			foreach (var c in prov) c.Tier = 0;
+			RackJobberChannel.SetProvenCatalogueForChecks(1, 10);
+			RackJobberChannel.AssignTiers(prov, 0, 2);
+			Check(prov[2].Tier == RackJobberChannel.TierCatalogue && prov[0].Tier == RackJobberChannel.TierCatalogue && prov[1].Tier == 0 && prov[3].Tier == 0,
+				"the best proven title takes the reserved slot; the rest fill by store units");
+			RackJobberChannel.SetProvenCatalogueForChecks(0, 0);
 
 			// Allocation: exact under demand, capped by shelf, stable by id.
 			var alloc = new List<RackJobberChannel.Candidate> { Cand("x", 1), Cand("y", 1), Cand("w", 1) };

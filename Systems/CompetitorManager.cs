@@ -762,7 +762,65 @@ public partial class CompetitorManager : Node {
 				if (format != ReleaseFormat.Album) artist.releasedSingleIds.Add(record.recordId);
 			}
 		}
+		// --opening-evergreen-lps: the 1956-59 artist LPs of Billboard's Essential Inventory, still selling at the start. Off: not read.
+		if (OpeningEvergreenLps.Enabled) SeedOpeningEvergreenLps(year);
 		if (debugMode) GD.Print($"CompetitorManager: Populated {needed} initial records from rosters");
+	}
+
+	// --opening-evergreen-lps=N (LpGenreAllocationFollowup.md §81): the first N Essential Inventory slots, each to the strongest
+	// unused roster act of its genre. No act of the genre: the slot is skipped.
+	private void SeedOpeningEvergreenLps(int year) {
+		var used = new HashSet<string>(System.StringComparer.Ordinal);
+		var acts = aiLabels.Where(l => !l.isPlayerOwned).OrderBy(l => l.labelId, System.StringComparer.Ordinal)
+			.SelectMany(l => l.roster.Select(a => (Label: l, Artist: a))).ToList();
+		for (int slot = 0; slot < OpeningEvergreenLps.Count; slot++) {
+			var (genre, chartWeeks) = OpeningEvergreenLps.Inventory[slot];
+			var pick = acts.Where(x => !used.Contains(x.Artist.artistId) && GenreCatalog.MapLegacy(x.Artist.primaryGenre, year) == genre)
+				.OrderByDescending(x => OpeningEvergreenLps.TierWeight(x.Label.tier) * x.Artist.reputation * x.Artist.CalculateBaseQuality())
+				.ThenBy(x => x.Artist.artistId, System.StringComparer.Ordinal).FirstOrDefault();
+			if (pick.Artist == null) { GD.Print($"OPENING_EVERGREEN_LP slot={slot + 1} genre={genre} skipped=no-act"); continue; }
+			used.Add(pick.Artist.artistId);
+			MintOpeningEvergreenLp(pick.Label, pick.Artist, year, slot, chartWeeks);
+		}
+	}
+
+	// A top-10 LP released ReleaseToChartWeeks + chartWeeks ago: printed chart weeks, a keyed top-10 peak, past its sales
+	// peak, SpentPool of each region's buyer pool sold, and the decay clock the configured tail would have given it.
+	private void MintOpeningEvergreenLp(AILabel label, SimulatedArtist artist, int year, int slot, int chartWeeks) {
+		var record = GenerateRecordFromArtist(label, artist, year, ReleaseFormat.Album);
+		if (record == null) return;
+		int age = chartWeeks + OpeningEvergreenLps.ReleaseToChartWeeks;
+		record.releaseDate = TimeManager.Instance.CurrentDate.SubtractWeeks(age);
+		ChartManager.Instance.ReleaseRecord(record);
+		BootstrapPrewarmRecord(record, artist, label, age);
+		TrackRelease(label.labelId, record.recordId);
+		artist.totalReleases++;
+		artist.releaseHistory.Add(record.recordId);
+		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData == null) return;
+		int peak = 1 + Mathf.Min(9, (int)(LabelReleaseProgramme.Roll("opening-evergreen", artist.artistId, "peak", 0, 43) * 10));
+		runtimeData.weeksSinceRelease = age;
+		runtimeData.peakPosition = peak;
+		runtimeData.weeksOnChart = chartWeeks;
+		runtimeData.lastChartedAge = age;
+		runtimeData.lastSalesAboveRetirementFloorAge = age;
+		runtimeData.peakWeeklyUnits = OpeningEvergreenLps.PeakWeeklyUnits;
+		runtimeData.weeksSincePeakUnits = age - OpeningEvergreenLps.PeakAgeWeeks;
+		runtimeData.wordOfMouth = Mathf.Pow(runtimeData.GetQuality(), 2f) * 0.62f;
+		runtimeData.albumHitLifePausedWeeks = OpeningEvergreenLps.PausedWeeks(age, peak, AlbumSimulator.CatalogDecayStartWeeks);
+		// A hit's reception, from the upper tail the model's own long-runners come from. Off (no sigma): the factor stays 1.
+		if (LpReception.Enabled)
+			runtimeData.lpReception = LpReception.Multiplier(OpeningEvergreenLps.ReceptionZ(RegionalSalesRandom.SavedSeedOrWorld, record.recordId));
+		int sold = 0;
+		foreach (MarketRegion region in ChartManager.Instance.GetAllRegions()) {
+			if (!runtimeData.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+			data.unitsSoldTotal = Mathf.RoundToInt(region.GetAlbumMarketSize(record.primaryGenre, year) * OpeningEvergreenLps.SpentPool);
+			sold += data.unitsSoldTotal;
+		}
+		runtimeData.totalUnitsSold = sold;
+		GD.Print($"OPENING_EVERGREEN_LP slot={slot + 1} record={record.recordId} artist={artist.artistId} label={label.labelId} tier={label.tier} " +
+			$"genre={record.primaryGenre} age={age} chartWeeks={chartWeeks} peak={peak} paused={runtimeData.albumHitLifePausedWeeks:F1} " +
+			$"quality={runtimeData.GetQuality():F2} reception={(float.IsNaN(runtimeData.lpReception) ? 1f : runtimeData.lpReception):F2} sold={sold}");
 	}
 	
 	private Dictionary<string, int> CalculateInitialQuotas(int totalNeeded) {

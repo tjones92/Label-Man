@@ -4534,3 +4534,254 @@ toward history (1M+ overshoots RIAA), and the Big-5 share and closures hold. Not
 head gap worsens through seed 2002's TradPop. Next: seeds 3003/4004 (`audnet` controls exist), then decide whether the
 TradPop concentration is seed noise or the tail. If it is the tail, the lever is an opening artist-LP catalogue or a
 genre-neutral gate, not a lower D. Stage A + B together still cannot make a Beatles-scale LP without stage C.
+
+## 78. Long-runner artist LPs: the rack catalogue, renewal and catalogue heat (2026-11-18; seeds 1001/2002, 104 weeks)
+
+### Target: Billboard's 1963 merged Top LPs, top 50
+
+§13's 38% (25 of 65 listings, January 1960) counts every Essential Inventory title as if all 25 would rank in a merged
+top 65; the model's chart is 40-50 deep. The August and November 1963 issues (`SimLogs/album-promo-research/`) print the
+merged 150 with weeks on chart. In their top 50:
+
+| Top 50 slots held by 40+ week titles | 24 Aug 1963 | 9 Nov 1963 |
+|---|---|---|
+| Artist LPs | **8 (16%)**: Mathis *Johnny's Greatest Hits* (277 wk), Baez ×2, PP&M, Andy Williams, Bennett, Allan Sherman, *Jazz Samba* | **10 (20%)**: PP&M ×2, Baez ×3, Bennett, Williams, Orbison and Kingston Trio hits packages, Nat Cole |
+| Cast / film | 5 (10%) | 4 (8%) |
+| All | 13 (26%) | 14 (28%) |
+
+Target: **artist LPs of 40+ weeks hold about 16-20% of top-50 slots**, sitting at #19-50; greatest-hits packages, folk and
+vocal standards. Measured over the run's last 26 weeks (`score_lp_hit_life.py` now prints it), because a 1960 release
+needs most of a year to reach 40 weeks.
+
+### Why the model's hits leave: the rack catalogue tier churns
+
+With racks in the chart (`--album-chart-racks=1`), an LP's chart points are store + rack units, and the #50 bar is about
+6k (the album chart CSV's `unitsThisWeek` is store only; the §77 "chart bottom 2.2-2.5k" was store units and is wrong).
+Top-10 artist LPs in `audnet` sell 5.5k a week on racks at chart week 20 and 0 by week 30. Racks have no time decay. The
+racks drop the title: from week ~16 it moves from the hit tier to the catalogue tier (`RackJobberChannel.AssignTiers`), and
+the catalogue tier (50 slots a region) refills every week from any past-peak LP by this week's store units. It takes 7.5
+new titles a region-week, median tenure 7 weeks, median age 13; half its entrants were never rack hits.
+
+### Switches (checks pass)
+
+- `--rack-proven-catalogue=K:N` (`RackJobberChannel`): the first K catalogue slots go to past-peak titles that peaked at N
+  or better on the album chart, same store-unit rank and hysteresis; the rest fill as before. Source: Billboard printed
+  Essential Inventory in 1960 as a stocking guide to proven catalogue.
+- `--lp-hit-life-renewal=R` (+ `-peak=N`, default 10; `-racks-only`) (`LpHitLife`): `--soundtrack-hit-tail`'s renewal for
+  artist LPs. After week 12, an LP that peaked at N or better reads its store and rack penetration divided by 1 + R per week.
+- `--album-heat-action-weeks=W` (`ArtistHeatAttribution`): under `--single-artist-heat-current-albums`, an LP with more
+  than W chart weeks adds no current-position heat to its act's singles. The authored heat and peak credits are unchanged.
+  Source: Billboard's 1960 split of Action Albums (≤39 weeks) from Essential Inventory.
+
+### Screen (control `audnet`; seeds 1001/2002)
+
+| | `audnet` | `hlq98` (§77) | `rpc50` | `rpcr05` | **`rpcr05h`** | `rpcr03h` | `rpck05` | Target |
+|---|---|---|---|---|---|---|---|---|
+| Proven catalogue / renewal / heat cutoff | – | tail 0.98 | 50:10 | 50:10, R .05 | 50:10, R .05, W 39 | 50:10, R .03, W 39 | 50:10, R .05 racks, W 39 | |
+| **Artist 40+ wk share, last 26 wk** | 0.1 | 5.9 | 3.7 | 18.2 | **22.0** | 11.5 | 19.6 | 16-20 |
+| All 40+ wk share, last 26 wk | 18.7 | 24.0 | 23.1 | 37.7 | 40.2 | 32.9 | 39.3 | 26-28 |
+| Artist LPs reaching 40 chart weeks | 0.5 | 10.5 | 10.5 | 22 | 22.5 | 19 | 19.5 | |
+| No. 1s 1960 / 1961 | 7.5 / 6.5 | 9 / 10.5 | 7.5 / 13 | 8 / 10.5 | 8 / 9.5 | 8 / 9.5 | 10.5 / 9.5 | 10 / 12 |
+| Longest No. 1 1960 / 1961 | 12.5 / 13 | 13 / 9.5 | 12.5 / 9 | 14 / 11 | 14 / 12 | 13.5 / 13 | 12 / 15.5 | 13 / 10+ |
+| **Big-5 Top 10 singles 1961** (1001 / 2002) | 20.5 (18.5 / 22.5) | 19.8 | 29.7 (32.9 / 26.5) | **35.4** (39.8 / 31.0) | **20.2** (25.0 / 15.4) | 28.3 (29.0 / 27.5) | 25.0 (24.4 / 25.6) | 20.6 |
+| 1M+ % of 1960 releases (RIAA scorer) | 0.45 | 0.73 | 0.51 | 1.04 | **1.13** | 0.93 | 1.18 | 0.44 |
+| 300k+ % | 2.95 | 2.9 | 2.95 | 2.8 | 2.95 | 2.9 | 2.85 | 1.2 |
+| Head gap 1960 / 1961 | 34 / 39 | 37 / 50 | 45 / 44 | 39 / 44 | 37 / 41 | 42 / 38 | 39 / 44 | 0 |
+| Store LPs 1961 (M) | 54.2 | 59.1 | 57.4 | 54.8 | 56.8 | 58.2 | 56.4 | 68 |
+| Labels defunct (1001; 2002) | 96; 104 | 104; 101 | 116; 108 | 100; 94 | 94; 89 | 101; 88 | 110; 90 | |
+
+(`rpcq` = `rpc50` + `hlq98`: 14.7% long-runners, Big-5 23.3, 1M+ 0.79%. `rpck10` = racks-only R 0.10: 25.2%, Big-5 24.9,
+1M+ 1.36%. `rpc25` (25:10) moved nothing, because half the catalogue was already ever-hit titles.)
+
+- **The proven catalogue keeps hits on the rack, but it is not enough on its own.** Under `rpc50`, top-10 artist LPs sell
+  4.1-4.8k a week on racks from chart week 26 to week 52. About 85 proven titles then compete for the lower half of a
+  50-slot chart, and rack exhaustion ranks the newest first, so few pass 40 weeks (3.7%).
+- **Renewal makes the biggest hits the evergreens.** With R 0.05 a proven title's audience renews, and the best-selling
+  hits hold the lower chart: 18-22% of slots over the last 26 weeks. They sit at median #32-36, as in 1963. In `rpcr05h`
+  they are 22-25 titles a seed, 59-64% Big-5: TradPop 8-16, Easy Listening 4-6, few folk (Folk is already short at the
+  head, §65), and greatest-hits and live LPs 4-6.
+- **Long LP runs leak into singles through current-album heat.** `rpcr05` lifts the 1961 Big-5 share to 35.4 on both seeds
+  (newcomers 10 → 20 slot points). The candidate's `--single-artist-heat-current-albums` lets a 45-week LP at #35 heat its
+  act's singles like a new one. The 39-week cutoff (`rpcr05h`) returns Big-5 to 20.2 and keeps the long-runners (22.0%).
+  Two seeds are noisy here: `rpcr03h` and `rpck05` carry the same cutoff and read 25-28, so the guard needs seeds 3003/4004.
+- **Cost: million-sellers.** Every renewal arm puts 1M+ at 0.9-1.4% of 1960 releases (RIAA 0.44%, control on target). The
+  excess comes from the racks: racks-only renewal does not lower it, and the long-runners sell ~5k a week on racks for a
+  year. The RIAA window (12-24 months, manufacturer sales including clubs) may undercount multi-year evergreens, but the
+  model is 2.5× over within two years. 300k+ is unchanged.
+
+**Status:** `rpcr05h` (`--rack-proven-catalogue=50:10 --lp-hit-life-renewal=0.05 --album-heat-action-weeks=39`) is the
+long-runner candidate. On two seeds it puts artist long-runners on 1963's share, holds No. 1s, reigns and the Big-5 share,
+and slightly lowers closures; it overshoots 1M+ 2.5×. Not adopted. Next: seeds 3003/4004 (`audnet` controls exist) for the
+Big-5 guard and the 1M+ count. `hlq98` (§77) is superseded: it buys a quarter of the long-runners for a larger head-gap cost.
+
+## 79. The 1M+ overshoot is catalogue racks, and the scorer counted the opening soundtracks (2026-11-18; seeds 1001/2002, 104 weeks)
+
+Question: is `rpcr05h`'s 1M+ excess (§78) rack sales? No new runs; the §77-78 runs re-read.
+
+**Scorer bug, fixed.** `--opening-soundtrack-catalogue=8` mints its 1956-59 titles in the first live week, which the
+census logs as week 2. The week-1 filter that `analyze_lp_riaa_1965.py` uses to drop the opening catalogue (§67) let them
+in as 1960 releases: 6 a seed, every one 1M+ (store + rack 1.9-3.3M). They were the control's whole 1M+ count. The
+scorer now drops a soundtrack whose age at first sighting exceeds its weeks since launch by more than 8.
+`score_lp_hit_life.py` counts artist LPs only and is unaffected.
+
+| Mean of seeds 1001/2002 | `audnet` | `hlq98` | `rpc50` | `rpcr05` | `rpcr05h` | `rpck05` | RIAA 1963 |
+|---|---|---|---|---|---|---|---|
+| 1M+ % as scored in §77-78 | 0.45 | 0.73 | 0.51 | 1.04 | 1.13 | 1.18 | 0.44 |
+| **1M+ %, opening catalogue out** | **0.09** | **0.37** | 0.15 | 0.69 | **0.77** | 0.82 | 0.44 |
+| 1M+ artist / new soundtrack (titles, both seeds) | 0 / 3 | 10 / 2 | 2 / 3 | 20 / 3 | 24 / 2 | 24 / 3 | |
+| 300k+ % | 2.61 | 2.56 | 2.61 | 2.48 | 2.59 | 2.49 | 1.31 |
+| 1M+ as a share of 300k+ | 3% | 14% | 6% | 28% | 30% | 33% | 33% |
+| 1M+ % on store + hit-tier racks only | 0.06 | 0.25 | 0.09 | 0.12 | 0.09 | 0.12 | |
+| 300k+ % on store + hit-tier racks only | 1.57 | 1.59 | 1.74 | 1.64 | 1.91 | 1.88 | |
+| Artist 300k+ units: all racks / catalogue tier (%) | 51 / 16 | 50 / 21 | 65 / 39 | 69 / 47 | 69 / 46 | 69 / 46 | |
+
+Long-runners and the rack catalogue tier (`audnet` → `rpcr05h`, seeds 1001; 2002):
+
+| | `audnet` | `rpcr05h` |
+|---|---|---|
+| #35, weeks 79-104: store / rack k a week | 3.5 / 7.3; 3.2 / 6.4 | 0.9 / 11.3; 0.1 / 12.1 |
+| #50: store / rack k a week | 2.3 / 6.4; 2.6 / 6.5 | 0.9 / 9.1; 0.2 / 8.5 |
+| Artist LPs past 40 chart weeks, weeks 79-104: median position; store / rack k a week; rack share | – | #36; 0.2 / 11.4; 95% · #33; 0.1 / 12.5; 99% |
+| Titles under 20 chart weeks at #25-45: store / rack k a week | 3.2 / 7.7; 3.5 / 7.2 | 4.7 / 7.2; 4.6 / 8.3 |
+| 1961 rack units, hit / catalogue tier (M) | 21.7 / 19.2; 21.7 / 20.2 | 21.4 / 25.1; 20.6 / 26.9 |
+| 1961 catalogue-tier titles; top-20 share of its units | 522, 33%; 532, 32% | 222, 45%; 227, 48% |
+
+- **Yes, the excess is rack sales: the catalogue tier.** In no arm does an artist LP reach 1M on store and hit-tier rack
+  units (at most 0.25%). Under `rpcr05h` the catalogue tier carries 46% of artist 300k+ units (control 16%). The
+  proven catalogue narrows that tier from ~525 to ~225 titles and grows it 6-7M in 1961 (+31-33%), so each proven title
+  sells ~12k a week on racks for a year.
+- **The overshoot is 1.75×, not 2.5×, and the control was never on target.** Without the opening catalogue the control
+  makes 0.09% 1M+ (no artist LP at all), a fifth of RIAA. `hlq98` (§77) lands on RIAA's 0.44 (0.37).
+- **The 1M+ excess is the 300k+ excess carried up.** 300k+ is 2× RIAA in every arm, the control included, and catalogue
+  racks cause that too: on store and hit-tier racks it is 1.6-1.9%. Under the renewal arms 28-33% of 300k+ titles pass
+  1M, which is RIAA's 33% (7 of 21). With 300k+ on RIAA, `rpcr05h`'s ratio would give 0.39% 1M+.
+- **A rack-only long-runner is not historical.** At #25-45 a young title sells ~38% in stores; a 40-week artist LP sells
+  1-5%. Store demand dies on the 0.93 clock (decay multiplier 0.017-0.025 by chart week 40), while rack demand has no time
+  term (pool × exposure × conversion × exhaustion) and the renewal holds rack exhaustion near 0.3. At the 1962 NARM
+  convention RCA's George Marek said "a national best seller becomes generally a rack best seller". The racks' own best
+  sellers were economy-priced lines (101 Strings, Living Strings), and Capitol's Glenn Wallichs pressed the rack
+  jobbers on the manufacturers' stake in catalogue
+  (`SimLogs/album-promo-research/billboard-1962-04-21.txt`). Marek's 1961 national best sellers include long-runners
+  (*Sing Along With Mitch*, *Portrait of Johnny*). Racks followed store best sellers; no source gives a per-title
+  channel split.
+- **Fixing the split alone does not move 1M+.** Chart points are store + rack, so a title that holds #33-36 sells
+  ~12k a week either way, and 60 weeks there is ~700k. Units fall only if racks stop carrying titles that stores have
+  dropped: `--rack-store-standing-bound=K` already does this (GameyBehaviorAudit §2.10: K 2 works at 104 weeks; at 208
+  it fails on soundtracks because it reads store intent). With the bound, a long-runner needs a store tail to stay on
+  the chart, which is `hlq98`'s past-peak tail.
+
+**Status:** scorer fixed. `rpcr05h` overshoots 1M+ 1.75×. The cause is the proven catalogue rack tier, which has no store
+standing behind it. Next screen: `rpcr05h` + `--lp-hit-life-tail-top=10 --lp-hit-life-tail=0.98` +
+`--rack-store-standing-bound=K` (K 2 and 3). Read the long-runner share, the store share of long-runners, 300k+ / 1M+
+(fixed scorer), the Big-5 share and soundtrack racks, which the bound also cuts.
+
+## 80. Screen: store-led long-runners (tail + rack store-standing bound) fail; 1M+ is set by long-runner share (2026-11-18; seeds 1001/2002, 104 weeks)
+
+**Arms** (on `rpcr05h`, §78): `rptb2` / `rptb3` add `--lp-hit-life-tail-top=10 --lp-hit-life-tail=0.98` (§77's store tail)
+and `--rack-store-standing-bound=2` / `=3`, so racks follow store sales (§79). Built on the current assembly (3FBE…; `rpcr05h`
+ran on 4398…, which lacks only the racks-only renewal switch). `rpcq` (§78 footnote: `rpc50` + `hlq98`, no renewal, no heat
+cutoff) is scored in full alongside them. RIAA rows use the §79-fixed scorer.
+
+| Mean of seeds 1001/2002 | `audnet` | `rpcr05h` | `rptb2` | `rptb3` | **`rpcq`** | Target |
+|---|---|---|---|---|---|---|
+| Artist 40+ wk share, last 26 wk | 0.1 | 22.0 | 27.4 | 32.9 | **14.7** | 16-20 |
+| … of it 1960 debuts (opening / 1960 / 1961 debuts) | – | 2.4 / 16.4 / 3.3 | | | 0 / **11.0** / 3.8 | 11-15 from 1960 (below) |
+| Long-runner store / rack k a week; rack share | – | 0.2 / 12.0; 97% | 3.6 / 9.4; 71% | 3.0 / 10.7; 76% | 2.0 / 7.0; 77% | store-led |
+| Long-runner median position | – | 33-36 | 33-34 | 33 | 42 | #19-50 |
+| No. 1s 1960 / 1961 | 7.5 / 6.5 | 8 / 9.5 | 7.5 / 8 | 10 / 11 | 7.5 / 9.5 | 10 / 12 |
+| Longest No. 1 1960 / 1961 | 12.5 / 13 | 14 / 12 | 15 / 13.5 | 12.5 / 13 | 12.5 / 11 | 13 / 10+ |
+| **1M+ %** (fixed scorer) | 0.09 | 0.77 | 0.97 | 1.05 | **0.42** | 0.44 |
+| 300k+ % | 2.61 | 2.59 | 2.09 | 2.09 | 2.28 | 1.31 |
+| 1M+ / 300k+ % on store + hit-tier racks only | 0.06 / 1.57 | 0.09 / 1.91 | 0.35 / 1.37 | 0.44 / 1.63 | 0.15 / 1.65 | |
+| 1961 rack catalogue tier (M) | 19.7 | 26.0 | 18.3 | 22.2 | 18.3 | |
+| 1961 stores / racks / soundtrack racks (M) | 54.2 / 41.4 / 12.3 | 56.8 / 47.0 / 9.1 | 62.0 / 38.7 / 6.9 | 60.2 / 42.5 / 8.1 | 59.8 / 39.2 / 9.5 | 68 / 36-42 / |
+| **Big-5 Top 10 singles 1961** (1001 / 2002) | 20.5 (18.5 / 22.5) | 20.2 (25.0 / 15.4) | **32.8** (38.3 / 27.3) | **34.4** (32.3 / 36.5) | 23.3 (27.5 / 19.0) | 20.6 |
+| … 1960 hit acts / no 1960 Top 10 | | 10.3 / 9.9 | 16.9 / 15.9 | 13.0 / 21.4 | | 16.4 / 4.2 |
+| Head gap 1960 / 1961 | 34 / 39 | 37 / 41 | 30 / 45 | 42 / 49 | 43 / 35 | 0 |
+| Labels defunct (1001; 2002) | 96; 104 | 94; 89 | 111; 102 | 97; 114 | 94; 102 | |
+
+- **The bound and tail make long-runners store-led and sell more.** The store tail lifts their store decay multiplier from
+  0.02 to 0.23, so their rack share drops 97 → 71-76%. The bound barely touches them: it caps only the racks' own demand,
+  store buyers who switch to the rack are added after it (`ClearWeek`), and their racks stay at 9-11k a week. It cuts the
+  rest of the catalogue tier (26 → 18-22M in 1961). Long-runners rise to 27-33% of
+  slots and 1M+ to 0.97-1.05%. 300k+ falls to 2.09%, because borderline hits lose catalogue rack sales.
+- **The Big-5 guard breaks on all four seed-runs** (27-38), mostly through newcomers (9.9 → 16-21 slot points; history
+  4.2). Longer LP runs heat singles before the 39-week cutoff, the §78 channel.
+- **1M+ is set by the long-runner share, whatever the mechanism.** Over all 13 arms of §77-80 (tail, hold, renewal,
+  racks-only, proven catalogue, bound): 1M+ % ≈ 0.12 + 0.031 × artist 40+ share, r = 0.975. RIAA's 0.44 falls at a 10.4%
+  share. A long-runner holds ~#33-42 for most of a year at 7-14k a week, and that is the million.
+- **Opening catalogue, corrected.** §77 said the run has no artist LPs older than 1960. The prewarm (`CompetitorManager`,
+  "PREWARM SEEDING") does seed artist LPs, released 1-20 weeks before the start, so the week-1 chart is 40 artist LPs with a
+  median 9-10 chart weeks and at most 14-23. Six a seed still chart in the last 26 weeks of `rpcr05h`. Nothing older is seeded: there is no Essential
+  Inventory tier (Billboard January 1960: ~25 of 65 listings).
+- **The 16-20% target needs a cohort split.** By release year, Billboard's artist 40+ week titles in the top 50 were:
+  24 Aug 1963: 6 of 8 from 1962, one 1961, Mathis's 1958 *Greatest Hits*. 9 Nov 1963: 7 of 10 from 1962, one each from
+  1960, 1961 and 1963 (debut weeks from the weeks-on-chart column, `billboard-1963-*.txt`). So 70-75% of those slots come
+  from the previous year's releases and 20-25% from older ones. The run's last 26 weeks correspond to the second half of
+  1961, so the 1960 releases are the previous year and should hold **11-15%** of top-50 slots. `rpcq`'s 1960 releases hold
+  11.0% on both seeds and its 1M+ is 0.42%: both on target. `rpcr05h`'s 16.4% asks one release year to fill the older
+  catalogue's slots too, and the million-sellers follow from that. The rest of the 16-20% gap is the missing pre-1959 tier,
+  not the 1960 releases.
+
+**Status:** `rptb2` / `rptb3` rejected (Big-5 33-34, 1M+ up). `rpcq` (`--rack-proven-catalogue=50:10
+--lp-hit-life-tail-top=10 --lp-hit-life-tail=0.98`) replaces `rpcr05h` as the long-runner candidate: 1960 releases on the
+1963 share for one cohort, 1M+ on RIAA, long-runners at median #42, No. 1s and reigns on history, closures at the
+control. Costs: Big-5 23.3 (27.5 / 19.0) without the heat cutoff, head gap 43 / 35, long-runners still 77% rack. Next:
+`rpcq` + `--album-heat-action-weeks=39` on seeds 1001-4004 (`audnet` controls exist) for the Big-5 guard. Separately,
+the author decides whether to seed a pre-1960 evergreen artist-LP tier for the older 20-25% of long-runner slots.
+
+## 81. An opening evergreen artist-LP tier: built, but it cannot chart without audience renewal (2026-11-19; seeds 1001/2002, 104 weeks)
+
+**Source.** Billboard 4 Jan 1960, Essential Inventory (mono top 25, titles 40+ weeks on the chart;
+`SimLogs/album-promo-research/billboard-1960-01-04.txt`): 8 cast/film albums, Van Cliburn, and **16 artist LPs from
+1956-59**: TradPop 7 (Mathis ×3 incl. *Johnny's Greatest Hits*, Mitch Miller ×2, Sinatra ×2), Easy Listening 3
+(Mantovani ×2, Mancini's *Peter Gunn*), Jazz 2 (Dakota Staton, Ahmad Jamal), rock and roll 2 (*Elvis' Golden Records*,
+Duane Eddy), Folk 1 (Kingston Trio, *From the Hungry i*), Country 1 (Tennessee Ernie Ford, *Hymns*), 40-130 weeks on
+the chart (median ~51). 14 of the 16 are on Major or Major-distributed labels.
+
+**Switch** `--opening-evergreen-lps=N` (`OpeningEvergreenLps`, `CompetitorManager.SeedOpeningEvergreenLps`). After the
+prewarm, it mints the first N of those 16 in rank order. Each goes to the strongest unused roster act of the slot's genre
+(reputation × base quality × tier weight: Major 1, MidTier 0.3, other 0.1). Each gets:
+- a keyed top-10 peak and its printed chart weeks; release 2 weeks before the chart debut; sales peak at week 6;
+- 1.5× each region's buyer pool already sold, so exhaustion sits at its 0.15 floor;
+- the decay clock the configured `--lp-hit-life-tail` would have given it: 6 weeks held in the top 10, then D a week.
+  Without the tail its store sales die at once, as the opening soundtracks do without `--soundtrack-hit-tail`;
+- under `--lp-reception-sigma`, a reception z drawn from the standard normal above 0.75 (median 1.2, keyed). `rpcq`'s own
+  40+ week artist LPs have a median z of 1.0 / 1.4 (multiplier 2.6 / 3.3; all LPs 0.7, an ordinary draw's median
+  multiplier 0.37).
+
+Checks pass. Off is inert: `evoff-1001-sc` (27 weeks, new build) matches `rptb2-1001-sc` in 74 weekly streams, and only
+close-of-run rows differ (format-mix's 2 summary rows, retirement's week-27 status snapshot). Evergreens log one
+`OPENING_EVERGREEN_LP` line each. They are census week 0, so the RIAA cohort excludes them.
+
+**Screen** (on `rpcq`): `rpcqe8` / `rpcqe16` (first build: ordinary reception, tier weights 1 / 0.6 / 0.3) and
+`rpcqf8` / `rpcqf16` (hit reception, Major-weighted).
+
+| Mean of seeds 1001/2002 | `rpcq` | `rpcqe16` | `rpcqf8` | `rpcqf16` | Target |
+|---|---|---|---|---|---|
+| Evergreen chart weeks (all titles, both seeds) | – | 1 | 5 | 14 (4 titles, seed 2002, best #30, gone by week 19) | most chart in 1960 |
+| Evergreen weekly units, 1960 (store / rack, per title) | – | 0.4 / 2.3k | | 1.2-1.9 / 2.5-3.4k | above the #40 bar (~8k) |
+| Artist 40+ share, last 26 wk (evergreen / prewarm / 1960 / 1961) | 14.7 (0 / 0 / 11.0 / 3.8) | 15.2 | 14.7 | 18.7 (0 / 1.2 / 15.9 / 1.6) | 16-20, older 3-5 |
+| 1M+ % | 0.42 | 0.58 | 0.49 | 0.40 | 0.44 |
+| Big-5 Top 10 singles 1961 (1001 / 2002) | 23.3 (27.5 / 19.0) | 24.1 | 29.8 (38.5 / 21.2) | 26.8 (35.2 / 18.5) | 20.6 |
+| Store LPs 1960 (M) | 36.4 | 40.3 | 38.8 | 41.7 | |
+| Labels defunct (1001; 2002) | 94; 102 | 104; 103 | 108; 114 | 112; 102 | |
+
+- **Evergreens sell 4-6k a week and miss the chart.** With hit-level reception the best sell 2.8k in stores and 3.4k
+  on racks (week 3), most 1.5 + 3k. The 1960 bar (40 deep, racks counted) is about 8k. Racks place them: they sit in
+  the proven catalogue tier from week 1.
+- **The binding term is the spent pool.** At the exhaustion floor and the tail's decay clock (0.06-0.37 at the start),
+  a 1956-59 hit sells like the model's own 1961 long-runners at #40-45 (2 / 7k), and 1960 racks are 15% smaller. Billboard's
+  Essential Inventory titles still sold like hits in 1960: their audience kept renewing as new households bought their
+  first LPs. The model gives that renewal only to soundtracks (`--soundtrack-hit-tail`). That is why the 8 opening
+  soundtracks chart and the evergreens do not.
+- **The other rows move within seed noise.** Seeding reshuffles the world's random stream. Big-5 on seed 1001 spans 25-38
+  across arms that differ only in uncharted evergreens. Store LPs in 1960 gain 2-5M (the evergreens' own sales, about 3-4M
+  a year at N 16). Closures rise 0-18 a seed, which is unresolved.
+
+**Status:** built, inert when off, not adopted. Under `rpcq`'s rules (tail, no renewal) a pre-1960 hit cannot hold a
+1960 chart slot. The evergreens need the audience renewal that `--lp-hit-life-renewal` gives (§78). Renewal overshot 1M+
+in §78-80 because the 1960 releases then filled every long-runner slot. With an older tier taking 20-25% of those slots,
+a lower R may fit both: R 0.03 left the 1960 releases at 8.4% (§80, `rpcr03h`). Next screen: `rpcq` +
+`--lp-hit-life-renewal=0.03` + `--album-heat-action-weeks=39` + `--opening-evergreen-lps=16`, with and without the
+evergreens. Read: evergreen slots in 1960 and late 1961, the 1960 releases' share (11-15), 1M+, Big-5.

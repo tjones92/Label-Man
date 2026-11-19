@@ -8,6 +8,7 @@ only, so they are not in a title's count (RIAA manufacturer sales would include 
 
 Run from SimLogs/: python ../SimTools/analyze_lp_riaa_1965.py [--compact] [--no-soundtracks] [--launch=105-156 --last=208] run ...
 Soundtracks (no album project, no roster act) are in the cohort by default since 2026-11-18 (§67); --no-soundtracks drops them.
+The opening soundtrack catalogue (1956-59 titles minted in week 2) is excluded since §79.
 --launch=A-B picks LPs dropped in weeks A-B (default 1-52); --last caps rack weeks (default 104). At 208 weeks use
 --launch=105-156 --last=208: 1962 releases with sales to end-1963, the RIAA window.
 """
@@ -40,6 +41,15 @@ def cohort(t, last_week):
     lp = lp[lp.format == 'Album'].join(pr, on='recordId', how='left' if INCLUDE_ST else 'inner')
     lp['soundtrack'] = lp.dropWeek.isna() & lp.artistId.isna()
     lp = lp[lp.dropWeek.notna() | (lp.soundtrack & (lp.observedAuditWeek > 1))]
+    # --opening-soundtrack-catalogue mints its 1956-59 titles in the first live week (census week 2), already aged.
+    # They are not 1960 releases (§79: 6 a seed, all 1M+, were the whole control 1M+ count). A title is opening
+    # catalogue when its age at first sighting exceeds the weeks since its census launch by more than 8.
+    seen = pd.concat([pd.read_csv(f'{t}-live-records-snapshot.csv', usecols=['week', 'recordId', 'ageWeeks']).rename(columns={'ageWeeks': 'age'}),
+                      pd.read_csv(f'{t}-rack-title-weekly.csv', usecols=['week', 'recordId', 'age'])]
+                     ).sort_values('week').drop_duplicates('recordId').set_index('recordId')
+    st = lp[lp.soundtrack]
+    offset = seen.age.reindex(st.recordId).values - (seen.week.reindex(st.recordId).values - st.observedAuditWeek.values)
+    lp = lp[~lp.recordId.isin(st.recordId[offset > 8])]
     lp['dropWeek'] = lp.dropWeek.fillna(lp.observedAuditWeek)
     # first in-run LP per act (by drop week) among all launched LPs
     lp = lp.sort_values('dropWeek')

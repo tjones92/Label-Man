@@ -3,6 +3,8 @@
 Per arm, seed means, non-soundtrack LPs ("artist LPs": every format but Soundtrack) unless stated:
 - slots held by titles 40+ / 20+ weeks on the chart, all titles and artist LPs only (1960, 1961; Billboard Jan 1960 38% of
   65 listings, ~18 evergreen non-soundtrack titles in the top 65);
+- the same 40+ share over the run's last 26 weeks (a 1960 release needs most of a year to reach 40 weeks; Billboard
+  Aug / Nov 1963 top 50: artist 16 / 20%, all 26 / 28%);
 - artist LPs reaching 40 chart weeks (distinct, debuting in the run);
 - median total chart weeks of artist LPs debuting weeks 2-40 (D7's 12-18 week median) and of those reaching the top 10;
 - top-10 artist LPs: median weeks in the top 10, and units at chart weeks 10 / 20 / 30 as a share of their best week;
@@ -53,6 +55,9 @@ for pre in sys.argv[1:]:
             no1 = x[x.position == 1].sort_values('week').recordId
             r[f'No. 1s {y}'] = no1.nunique()
             r[f'longest No. 1 {y}'] = longest(list(no1))
+        h2 = a[a.week >= a.week.max() - 25]
+        r['old40 artist, last 26 wk'] = 100 * ((h2.weeksOnChart >= 40) & h2.artist).mean()
+        r['old40 all, last 26 wk'] = 100 * (h2.weeksOnChart >= 40).mean()
         r['artist LPs 40+ chart wk'] = fresh[fresh.idx >= 40].recordId.nunique()
         early = fresh[(fresh['first'] >= run0 + 1) & (fresh['first'] <= 40)].recordId.unique()
         r['median run, artist LPs debuting wk 2-40'] = float(total.reindex(early).median())

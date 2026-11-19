@@ -208,11 +208,43 @@ public static class GameyAuditSwitchChecks {
 				LpHitLife.Advance(hl, 8f);
 				Check(hl.albumHitLifePausedWeeks == 0f, "an LP that never reached the top N keeps the normal decay");
 				LpHitLife.SetForChecks(0, 0f);
+				Check(!LpHitLife.RenewalEnabled && LpHitLife.Renewal(hl) == 1f, "renewal off divides nothing");
+				LpHitLife.SetForChecks(0, 0f, renewalRate: 0.05f);
+				hl.peakPosition = 4; hl.weeksSinceRelease = 32;
+				Check(!LpHitLife.Enabled && Near(LpHitLife.Renewal(hl), 2f), "a top-10 LP renews 1 + R per week after 12, decay modes off");
+				hl.peakPosition = 11;
+				Check(LpHitLife.Renewal(hl) == 1f, "an LP that peaked below the bar is untouched");
+				hl.peakPosition = 4; hl.baseRecord.album.albumFormat = AlbumFormat.Soundtrack; hl.baseRecord.album.externalMedia = new ExternalMediaProfile();
+				Check(LpHitLife.Renewal(hl) == 1f, "a profiled soundtrack keeps its own hit tail");
+				LpHitLife.SetRenewalRacksOnlyForChecks(true);
+				Check(LpHitLife.RenewalEnabled && !LpHitLife.StoreRenewalEnabled, "racks-only leaves store penetration whole");
+				LpHitLife.SetForChecks(0, 0f);
 				OpeningSoundtrackCatalogue.SetForChecks(0);
 				Check(!OpeningSoundtrackCatalogue.Enabled && OpeningSoundtrackCatalogue.Count == 0, "off seeds no opening soundtracks");
 				OpeningSoundtrackCatalogue.SetForChecks(8);
 				Check(OpeningSoundtrackCatalogue.Enabled && OpeningSoundtrackCatalogue.Count == 8, "opening soundtrack count reads");
 				OpeningSoundtrackCatalogue.SetForChecks(0);
+				// --opening-evergreen-lps (§81).
+				OpeningEvergreenLps.SetForChecks(0);
+				Check(!OpeningEvergreenLps.Enabled && OpeningEvergreenLps.Count == 0, "off seeds no evergreen LPs");
+				OpeningEvergreenLps.SetForChecks(8);
+				Check(OpeningEvergreenLps.Enabled && OpeningEvergreenLps.Count == 8, "evergreen count reads");
+				Check(OpeningEvergreenLps.Inventory.Length == 16 && OpeningEvergreenLps.Inventory.All(x => x.Weeks >= 40),
+					"the inventory is the 16 Essential Inventory artist LPs, all 40+ weeks");
+				Check(AlbumSimulator.CalculateAlbumExhaustion(OpeningEvergreenLps.SpentPool) == 0.15f, "the spent pool sits at the exhaustion floor");
+				LpHitLife.SetForChecks(0, 0f);
+				Check(OpeningEvergreenLps.PausedWeeks(54, 3, 8f) == 0f, "no tail, no paused weeks");
+				LpHitLife.SetForChecks(0, 0f, tailTopN: 10, tailDecay: 0.98f);
+				float evPaused = OpeningEvergreenLps.PausedWeeks(54, 3, 8f);
+				Check(Near(Mathf.Pow(LpDemandProbe.WeeklyDecay, 54f - evPaused - 8f), Mathf.Pow(LpDemandProbe.WeeklyDecay, 6f) * Mathf.Pow(0.98f, 40f)),
+					"an evergreen's clock reads 6 held weeks then 40 tail weeks");
+				Check(OpeningEvergreenLps.PausedWeeks(54, 11, 8f) == 0f && OpeningEvergreenLps.PausedWeeks(12, 3, 8f) == 0f,
+					"no pause outside the tail's top N or before the held weeks end");
+				LpHitLife.SetForChecks(0, 0f);
+				var evZ = Enumerable.Range(0, 2001).Select(i => OpeningEvergreenLps.ReceptionZ(1001UL, $"gen_{i}")).OrderBy(z => z).ToArray();
+				Check(evZ[0] >= OpeningEvergreenLps.ReceptionZFloor && OpeningEvergreenLps.ReceptionZ(1001UL, "gen_7") == OpeningEvergreenLps.ReceptionZ(1001UL, "gen_7")
+					&& Math.Abs(evZ[1000] - 1.2) < 0.06, "evergreen reception: keyed, at or above the floor, median about 1.2");
+				OpeningEvergreenLps.SetForChecks(0);
 				SoundtrackOriginationEarly.SetForChecks(1f);
 				Check(!SoundtrackOriginationEarly.Enabled && SoundtrackOriginationEarly.Scale(1960) == 1f, "off keeps soundtrack origination");
 				SoundtrackOriginationEarly.SetForChecks(0.5f);

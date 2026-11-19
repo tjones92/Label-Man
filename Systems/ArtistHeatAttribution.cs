@@ -18,6 +18,13 @@ public static class ArtistHeatAttribution {
 	public const string NoRetainedLpRadioSwitch = "--single-radio-no-retained-lp-heat";
 	public static bool SinglesRadioWithoutRetainedLpHeat { get; private set; }
 	public static bool AdjustsSingles => SinglesWithoutAlbums || SinglesWithCurrentAlbums || SinglesRadioWithoutRetainedLpHeat;
+	/// <summary>--album-heat-action-weeks=W (LpGenreAllocationFollowup.md §78). Billboard's 1960 LP chart split "Action Albums"
+	/// (39 weeks or less on the chart) from "Essential Inventory" (40+ weeks): the trade read a long-running LP as catalogue,
+	/// not current action. With the switch on, an LP with more than W chart weeks adds no current-position heat to its act's
+	/// singles under --single-artist-heat-current-albums (and the radio diagnostic). The authored heat, the LP's own heat and
+	/// the act's peak credits are unchanged. 0 (default): off.</summary>
+	public const string ActionWeeksSwitch = "--album-heat-action-weeks=";
+	public static int ActionWeeks { get; private set; }
 	private static StreamWriter heatWriter, launchWriter;
 	private static bool configured;
 
@@ -28,6 +35,12 @@ public static class ArtistHeatAttribution {
 		SinglesWithoutAlbums = args.Contains("--single-artist-heat-no-albums");
 		SinglesWithCurrentAlbums = args.Contains("--single-artist-heat-current-albums");
 		SinglesRadioWithoutRetainedLpHeat = args.Contains(NoRetainedLpRadioSwitch);
+		string action = args.FirstOrDefault(a => a.StartsWith(ActionWeeksSwitch, StringComparison.Ordinal));
+		if (action != null) {
+			if (!int.TryParse(action[ActionWeeksSwitch.Length..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int weeks) || weeks < 1 || weeks > 520)
+				throw new ArgumentException("Invalid " + action + " (chart weeks 1-520).");
+			ActionWeeks = weeks;
+		}
 		if ((SinglesWithoutAlbums && SinglesWithCurrentAlbums) ||
 			(SinglesRadioWithoutRetainedLpHeat && (SinglesWithoutAlbums || SinglesWithCurrentAlbums)))
 			throw new ArgumentException("Choose only one singles' artist-heat diagnostic.");
@@ -76,7 +89,9 @@ public static class ArtistHeatAttribution {
 				: record.currentPosition > 0 ? 0.05f : 0f;
 			float peak = record.peakPosition > 0 && record.peakPosition <= 10 ? 0.1f
 				: record.peakPosition > 0 && record.peakPosition <= 40 ? 0.05f : 0f;
-			currentAlbumsRaw += current;
+			// --album-heat-action-weeks: a catalogue LP (past W chart weeks) lends its act's singles no current heat. Off: current.
+			bool catalogueLp = ActionWeeks > 0 && record.baseRecord.format != ReleaseFormat.Single && record.weeksOnChart > ActionWeeks;
+			currentAlbumsRaw += catalogueLp ? 0f : current;
 			if (record.baseRecord.format == ReleaseFormat.Single) {
 				sc += current; sp += peak;
 				// Preserve the authored addition order for the single-only counterfactual.
@@ -100,8 +115,8 @@ public static class ArtistHeatAttribution {
 		return SinglesWithoutAlbums ? singlesOnlyHeat : SinglesWithCurrentAlbums ? currentAlbumsHeat : authoredHeat;
 	}
 
-	internal static void SetPolicyForChecks(bool withoutAlbums, bool currentAlbums = false) {
-		SinglesWithoutAlbums = withoutAlbums; SinglesWithCurrentAlbums = currentAlbums;
+	internal static void SetPolicyForChecks(bool withoutAlbums, bool currentAlbums = false, int actionWeeks = 0) {
+		SinglesWithoutAlbums = withoutAlbums; SinglesWithCurrentAlbums = currentAlbums; ActionWeeks = actionWeeks;
 	}
 
 	public static void CaptureHeat(int week, int year, string artistId, HeatSplit split) {

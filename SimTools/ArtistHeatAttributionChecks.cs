@@ -31,6 +31,16 @@ public static class ArtistHeatAttributionChecks {
 			Check(manyHits.CurrentAlbumsExcluding(20, 5) == 1f, "other singles can keep the heat clamped after both exclusions");
 			float rawSingleHeat = 0.15f + 0.1f + 0.05f;
 			Check(ArtistHeatAttribution.Describe(new[] { single }, rawSingleHeat).SinglesOnly == rawSingleHeat, "a single-only catalog retains the authored addition order");
-		} finally { ArtistHeatAttribution.SetPolicyForChecks(was, wasCurrent); }
+			// --album-heat-action-weeks=W: a catalogue LP (more than W chart weeks) lends its act's singles no current heat.
+			album.weeksOnChart = 45;
+			ArtistHeatAttribution.SetPolicyForChecks(false, true, 39);
+			var catalogue = ArtistHeatAttribution.Describe(new[] { single, album }, 0.75f);
+			Check(Math.Abs(catalogue.CurrentAlbums - 0.3f) < 1e-6f && catalogue.Original == split.Original, "a 45-week LP drops its 0.30 current heat; authored heat unchanged");
+			album.weeksOnChart = 39;
+			Check(Math.Abs(ArtistHeatAttribution.Describe(new[] { single, album }, 0.75f).CurrentAlbums - 0.6f) < 1e-6f, "an action LP keeps it");
+			ArtistHeatAttribution.SetPolicyForChecks(false, true, 0);
+			album.weeksOnChart = 45;
+			Check(Math.Abs(ArtistHeatAttribution.Describe(new[] { single, album }, 0.75f).CurrentAlbums - 0.6f) < 1e-6f, "off: every current LP counts");
+		} finally { ArtistHeatAttribution.SetPolicyForChecks(was, wasCurrent, 0); }
 	}
 }

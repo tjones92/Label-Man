@@ -84,6 +84,20 @@ public static class RackJobberChannel {
 
 	public const int TierNone = 0, TierHit = 1, TierCatalogue = 2;
 
+	/// <summary>--rack-proven-catalogue=K:N (LpGenreAllocationFollowup.md §78). Billboard printed its 1960 "Essential
+	/// Inventory" chart (the top 25 LPs 40+ weeks on the chart) as a stocking guide: the proven catalogue a dealer should keep
+	/// in stock. In 1963 artist LPs of 40+ weeks held 16-20% of the merged chart's top 50 (Mathis, Baez, PP&amp;M, Bennett).
+	/// The model's catalogue tier refills every week from any past-peak LP by this week's store units, so a region's 50
+	/// catalogue slots turn over in about 7 weeks and a hit leaves the rack, and the chart, by chart week 25-30. With the
+	/// switch on, the first K catalogue slots go to past-peak titles whose album chart peak is N or better (same store-unit
+	/// rank and hysteresis); the rest fill as before. 0 (default): unchanged.</summary>
+	public const string ProvenCatalogueSwitch = "--rack-proven-catalogue=";
+	public static int ProvenCatalogueSlots { get; private set; }
+	public static int ProvenCataloguePeak { get; private set; }
+	internal static void SetProvenCatalogueForChecks(int slots, int peak) { ProvenCatalogueSlots = slots; ProvenCataloguePeak = peak; }
+	internal static bool IsProven(RecordRuntimeData record) =>
+		ProvenCatalogueSlots > 0 && record.peakPosition >= 1 && record.peakPosition <= ProvenCataloguePeak;
+
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		var args = (arguments ?? Array.Empty<string>()).ToArray();
@@ -122,6 +136,14 @@ public static class RackJobberChannel {
 				!float.IsFinite(value) || value < 0f || value > 1f) throw new ArgumentException("Invalid " + flatten);
 			GenreFlatten = value;
 		}
+		string proven = args.FirstOrDefault(a => a.StartsWith(ProvenCatalogueSwitch, StringComparison.Ordinal));
+		if (proven != null) {
+			string[] kn = proven[ProvenCatalogueSwitch.Length..].Split(':');
+			if (!Enabled || kn.Length != 2 || !int.TryParse(kn[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int k)
+				|| !int.TryParse(kn[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || k < 0 || k > CatalogueTitles || n < 1 || n > 200)
+				throw new ArgumentException("Invalid " + proven + " (K:N, K catalogue slots 0-" + CatalogueTitles + ", chart peak N 1-200; needs " + Switch + ").");
+			ProvenCatalogueSlots = k; ProvenCataloguePeak = n;
+		}
 		if (scale != null) {
 			if (!Enabled) throw new ArgumentException(ScaleSwitch + " requires " + Switch + ".");
 			if (!float.TryParse(scale.Substring(ScaleSwitch.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
@@ -132,7 +154,7 @@ public static class RackJobberChannel {
 		configured = true;
 	}
 
-	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; SoundtrackWeight = SoundtrackGenreWeight; GenreFlatten = 0f; ResetTelemetry(); }
+	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; SoundtrackWeight = SoundtrackGenreWeight; GenreFlatten = 0f; ProvenCatalogueSlots = 0; ProvenCataloguePeak = 0; ResetTelemetry(); }
 	internal static void SetGenreFlattenForChecks(float flatten) => GenreFlatten = flatten;
 	internal static void SetStoreBoundForChecks(float bound) => StoreStandingBound = bound;
 	internal static float BoundByStoreStanding(float demand, int storeUnits) =>
@@ -222,7 +244,14 @@ public static class RackJobberChannel {
 			return chosen;
 		}
 		Fill(ranked, hitTitles, TierHit);
-		Fill(ranked.Where(c => c.Tier == TierNone && c.PastPeak).ToList(), catalogueTitles, TierCatalogue);
+		var pastPeak = ranked.Where(c => c.Tier == TierNone && c.PastPeak).ToList();
+		// --rack-proven-catalogue=K:N: proven titles take the first K catalogue slots. Off: the single fill.
+		int provenSlots = Math.Min(ProvenCatalogueSlots, catalogueTitles);
+		if (provenSlots > 0) {
+			int taken = Fill(pastPeak.Where(c => IsProven(c.Record)).ToList(), provenSlots, TierCatalogue).Count;
+			Fill(pastPeak.Where(c => c.Tier == TierNone).ToList(), catalogueTitles - taken, TierCatalogue);
+		}
+		else Fill(pastPeak, catalogueTitles, TierCatalogue);
 	}
 
 	/// <summary>Largest-remainder rounding of demand to whole units under the shelf, stable by record id.</summary>
@@ -287,6 +316,8 @@ public static class RackJobberChannel {
 				penetration += BudgetLpChannel.SourcePurchases(c.Record.baseRecord.recordId, region.regionId) / Mathf.Max(1f, titlePool);
 				// --soundtrack-hit-tail: a top-10 soundtrack's audience renews for racks too. Off: 1.
 				if (SoundtrackHitTail.Enabled) penetration /= SoundtrackHitTail.Renewal(c.Record);
+				// --lp-hit-life-renewal: a proven artist LP's audience renews for racks too. Off: not read.
+				if (LpHitLife.RenewalEnabled) penetration /= LpHitLife.Renewal(c.Record);
 				c.Demand = titlePool * Exposure(c.Tier, c.Rank, c.Record.awareness) * Conversion(c.Record, year, month, liveTick) *
 					AlbumSimulator.CalculateAlbumExhaustion(penetration);
 				c.Demand = BoundByStoreStanding(LpDemandCalibration.ApplyNonStore(c.Demand), c.StoreUnits);

@@ -828,11 +828,43 @@ public static class LpHitLife {
 		tailTop = (int)(GameyAuditArguments.Value(TailTopSwitch, 0f, 200f) ?? 0f);
 		tail = GameyAuditArguments.Value(TailSwitch, 0.5f, 0.999f) ?? 0f;
 		if (tailTop > 0 && tail <= 0f) throw new ArgumentException(TailTopSwitch + " requires " + TailSwitch + "=D.");
+		renewal = GameyAuditArguments.Value(RenewalSwitch, 0f, 1f) ?? 0f;
+		renewalPeak = (int)(GameyAuditArguments.Value(RenewalPeakSwitch, 1f, 200f) ?? DefaultRenewalPeak);
+		renewalRacksOnly = GameyAuditArguments.Has(RenewalRacksOnlySwitch);
+		if (renewalRacksOnly && renewal <= 0f) throw new ArgumentException(RenewalRacksOnlySwitch + " requires " + RenewalSwitch + "=R.");
 		read = true;
 	}
 	internal static void SetForChecks(int topN, float peakShare, float slowRate = 0f, float maxWeeks = DefaultMaxPausedWeeks,
-		int tailTopN = 0, float tailDecay = 0f) {
+		int tailTopN = 0, float tailDecay = 0f, float renewalRate = 0f, int renewalPeakN = DefaultRenewalPeak) {
 		read = true; top = topN; share = peakShare; rate = slowRate; max = maxWeeks; tailTop = tailTopN; tail = tailDecay;
+		renewal = renewalRate; renewalPeak = renewalPeakN; renewalRacksOnly = false;
+	}
+	internal static void SetRenewalRacksOnlyForChecks(bool value) { read = true; renewalRacksOnly = value; }
+
+	// §78: --lp-hit-life-renewal=R [--lp-hit-life-renewal-peak=N, default 10]. The --soundtrack-hit-tail renewal for artist
+	// LPs: after week 12, an LP (not a profiled soundtrack) that peaked at N or better reads its store and rack penetration
+	// divided by 1 + R per week, so a proven hit keeps finding buyers. Independent of the decay modes above (Enabled stays
+	// false when only this is on). Off: never read.
+	public const string RenewalSwitch = "--lp-hit-life-renewal";
+	public const string RenewalPeakSwitch = "--lp-hit-life-renewal-peak";
+	public const int DefaultRenewalPeak = 10, RenewalStartWeek = 12;
+	private static float renewal;
+	private static int renewalPeak = DefaultRenewalPeak;
+	public static bool RenewalEnabled { get { Read(); return renewal > 0f; } }
+	// --lp-hit-life-renewal-racks-only: the renewal reaches the rack shopper only (new household impulse buyers each week);
+	// store penetration is not divided. Requires --lp-hit-life-renewal.
+	public const string RenewalRacksOnlySwitch = "--lp-hit-life-renewal-racks-only";
+	private static bool renewalRacksOnly;
+	public static bool StoreRenewalEnabled { get { Read(); return renewal > 0f && !renewalRacksOnly; } }
+
+	/// <summary>The divisor on an LP's penetration: 1 when off, for a profiled soundtrack, or for an LP that has not peaked
+	/// at the renewal bar.</summary>
+	public static float Renewal(RecordRuntimeData record) {
+		if (!RenewalEnabled || record == null) return 1f;
+		Album album = record.baseRecord?.album;
+		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null) return 1f;
+		if (record.peakPosition <= 0 || record.peakPosition > renewalPeak) return 1f;
+		return 1f + renewal * Math.Max(0, record.weeksSinceRelease - RenewalStartWeek);
 	}
 	public static bool Enabled { get { Read(); return top > 0 || share > 0f || tailTop > 0; } }
 	public static int TailTop { get { Read(); return tailTop; } }
@@ -901,6 +933,77 @@ public static class OpeningSoundtrackCatalogue {
 	internal static void SetForChecks(int value) { read = true; count = value; }
 	public static bool Enabled { get { Read(); return count > 0; } }
 	public static int Count { get { Read(); return count; } }
+}
+
+/// <summary>
+/// --opening-evergreen-lps=N (LpGenreAllocationFollowup.md §81). The prewarm seeds artist LPs released only 1-20 weeks
+/// before the start, so a run has no older artist catalogue and its 1960 releases fill every long-runner slot of late
+/// 1961. In Billboard's 1963 top 50, 20-25% of the artist LPs with 40+ chart weeks were older than the previous year's
+/// releases (§80). Billboard's Essential Inventory of 4 January 1960 (mono top 25, titles 40+ weeks on the chart) holds 16
+/// artist LPs from 1956-59 (<see cref="Inventory"/>, rank order; the other 9 are 8 cast/film albums and Van Cliburn). With
+/// the switch on, the prewarm also mints the first N of them: each goes to the strongest unused roster act of that genre
+/// (reputation × base quality, Major labels first), as a top-10 hit with its printed chart weeks, past its sales peak,
+/// <see cref="SpentPool"/> of each region's buyer pool already sold, the decay clock the configured --lp-hit-life-tail
+/// would have given it (<see cref="PausedWeeks"/>), and under --lp-reception-sigma a reception drawn from the upper tail
+/// the model's own long-runners come from (<see cref="ReceptionZ"/>). Meant to run with the tail; without it the titles are spent within weeks,
+/// as the opening soundtracks are without --soundtrack-hit-tail. Off: never read.
+/// </summary>
+public static class OpeningEvergreenLps {
+	public const string Switch = "--opening-evergreen-lps";
+	/// <summary>Billboard 4 Jan 1960, Essential Inventory (mono), artist LPs in rank order: genre and weeks on the chart.
+	/// Kingston Trio, Mitch Miller, Mathis (Greatest Hits), Tennessee Ernie Ford (Hymns), Elvis (Golden Records), Sinatra,
+	/// Mitch Miller, Mantovani, Mancini (Peter Gunn), Mathis ×2, Dakota Staton, Sinatra, Ahmad Jamal, Mantovani, Duane Eddy.</summary>
+	internal static readonly (Genre Genre, int Weeks)[] Inventory = {
+		(Genre.Folk, 47), (Genre.TraditionalPop, 78), (Genre.TraditionalPop, 88), (Genre.Country, 130), (Genre.RockAndRoll, 40),
+		(Genre.TraditionalPop, 44), (Genre.TraditionalPop, 58), (Genre.EasyListening, 113), (Genre.EasyListening, 46),
+		(Genre.TraditionalPop, 59), (Genre.TraditionalPop, 46), (Genre.Jazz, 51), (Genre.TraditionalPop, 51), (Genre.Jazz, 51),
+		(Genre.EasyListening, 48), (Genre.RockAndRoll, 44)
+	};
+	/// <summary>Share of each region's buyer pool already sold: at 1.5 the LP's exhaustion sits at its 0.15 floor (from 1.42).</summary>
+	public const float SpentPool = 1.5f;
+	/// <summary>Weeks from release to chart debut, and from release to the sales peak.</summary>
+	public const int ReleaseToChartWeeks = 2, PeakAgeWeeks = 6;
+	/// <summary>Weeks past the decay start the LP spent in the top N on the normal clock before the tail took over.</summary>
+	public const int HeldWeeks = 6;
+	/// <summary>A sales peak no 1960 week reaches, so the seeded peak stays the title's best week.</summary>
+	public const int PeakWeeklyUnits = 30000;
+	private static bool read;
+	private static int count;
+	private static void Read() { if (!read) { count = (int)(GameyAuditArguments.Value(Switch, 0f, Inventory.Length) ?? 0f); read = true; } }
+	internal static void SetForChecks(int value) { read = true; count = value; }
+	public static bool Enabled { get { Read(); return count > 0; } }
+	public static int Count { get { Read(); return count; } }
+
+	/// <summary>Act choice weight by label tier: 14 of the 16 Essential Inventory artist LPs were on Major or Major-distributed labels.</summary>
+	public static float TierWeight(LabelTier tier) => tier switch { LabelTier.Major => 1f, LabelTier.MidTier => 0.3f, _ => 0.1f };
+
+	/// <summary>Lowest reception z an evergreen draws. Under --lp-reception-sigma the model's own 40+ week artist LPs have a
+	/// median z of 1.0-1.4 (§81, `rpcq`); a standard normal above 0.75 has median 1.2.</summary>
+	public const double ReceptionZFloor = 0.75;
+	private const uint ReceptionDecision = 0x45564752U; // "EVGR"
+
+	/// <summary>An evergreen's reception z: keyed standard normal draws (Box-Muller), the first at or above
+	/// <see cref="ReceptionZFloor"/>; the floor itself if 64 draws all fall short.</summary>
+	internal static double ReceptionZ(ulong seed, string recordId) {
+		for (int k = 0; k < 64; k++) {
+			double u1 = PhiloxCounterRandom.Unit(seed, recordId, "evergreen-reception", 2 * k, ReceptionDecision);
+			double u2 = PhiloxCounterRandom.Unit(seed, recordId, "evergreen-reception", 2 * k + 1, ReceptionDecision);
+			double z = Math.Sqrt(-2.0 * Math.Log(Math.Max(u1, 1e-300))) * Math.Cos(2.0 * Math.PI * u2);
+			if (z >= ReceptionZFloor) return z;
+		}
+		return ReceptionZFloor;
+	}
+
+	/// <summary>Decay weeks the configured past-peak tail would have taken off an LP of this age and peak: <see cref="HeldWeeks"/>
+	/// on the normal clock past <paramref name="decayStartWeeks"/>, then every week at D. 0 when the tail is off or the peak
+	/// is outside its top N.</summary>
+	public static float PausedWeeks(int age, int peak, float decayStartWeeks) {
+		if (!LpHitLife.Enabled || LpHitLife.TailTop <= 0 || peak <= 0 || peak > LpHitLife.TailTop) return 0f;
+		float baseDecay = LpDemandProbe.WeeklyDecay;
+		if (LpHitLife.Tail <= baseDecay || baseDecay >= 1f) return 0f;
+		float counted = (float)(Math.Log(LpHitLife.Tail) / Math.Log(baseDecay));
+		return Math.Min(LpHitLife.MaxPausedWeeks, Math.Max(0f, age - decayStartWeeks - HeldWeeks) * (1f - counted));
+	}
 }
 
 /// <summary>

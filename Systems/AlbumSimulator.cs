@@ -23,7 +23,7 @@ public static class AlbumSimulator {
 	// 0.92 -> 0.93: the two-seed decade run landed the normal-album median at 11wk, just below the
 	// 12-18wk band. Easing the weekly decay ~1pt lifts the median ~1-2wk back into band without
 	// re-growing the long tail (see D7SoundtrackCastAlbumHandoff.md §1, §3.3, §4).
-	private const float CatalogDecayStartWeeks = 8f;
+	internal const float CatalogDecayStartWeeks = 8f;
 	// Soundtrack/evergreen long tail: the old uniform-album constants, now reserved for the format
 	// that historically earned the 40-60wk (multi-year) run. Placeholder until the phase-4 box-office
 	// trajectory replaces flat decay for soundtracks; StageCast wants an even slower decay than this.
@@ -129,6 +129,8 @@ public static class AlbumSimulator {
 		}
 		// --soundtrack-hit-tail: a top-10 soundtrack's audience renews (after the ratchet, so it stays in pool terms). Off: 1.
 		if (SoundtrackHitTail.Enabled) penetration /= SoundtrackHitTail.Renewal(record);
+		// --lp-hit-life-renewal: the same renewal for an artist LP that peaked at the bar. Off: not read.
+		if (LpHitLife.StoreRenewalEnabled) penetration /= LpHitLife.Renewal(record);
 		float exhaustion = CalculateAlbumExhaustion(penetration);
 		float conversion = BasePurchaseRate * Mathf.Pow(appeal, 2.5f) * exhaustion;
 		conversion *= (LpFloorProbe.Enabled && LpFloorProbe.Wom(record.baseRecord.artistId) ? 0f : 0.72f) + record.wordOfMouth * 0.45f;
