@@ -16,7 +16,7 @@ using Godot;
 /// catalogue tier of live LPs ranked by this week's store sales, with hysteresis. A racked title sells to the
 /// region's own rack-shopper pool through its own exhaustion ledger; being on the rack is the awareness.
 /// Rack units are ordinary sales of the record for the label's books, the artist's royalty and release
-/// memory, but they never enter chart points, store exhaustion, regional signals or retirement. No random
+/// memory, but they never enter chart points (unless --album-chart-racks), store exhaustion, regional signals or retirement. No random
 /// draws; the units come only from records the store market already sold this week.
 /// </summary>
 public static class RackJobberChannel {

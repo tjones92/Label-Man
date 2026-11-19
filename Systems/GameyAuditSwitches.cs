@@ -609,6 +609,29 @@ public static class AlbumChartReporting {
 }
 
 /// <summary>
+/// --album-chart-racks=W (LpGenreAllocationFollowup.md §67-68). The album chart ranks an LP's store units only, and rack
+/// units "never enter chart points" (RackJobberChannel). Billboard's Top LP charts included rack-jobber sales from the
+/// issue of 4 January 1960, which replaced its separate rack charts (Low Price and classical LPs kept their own charts).
+/// Racks carry about half of front-line LP units in 1960-61 and about two-thirds of a soundtrack's, so a soundtrack that
+/// outsells most artist LPs ranks below them. With the switch on an LP's chart points count store units plus W x its rack
+/// units this week (rack units are cleared before the album chart ranks). Budget editions are separate products and are
+/// not affected. Off: never read.
+/// </summary>
+public static class AlbumChartRacks {
+	public const string Switch = "--album-chart-racks";
+	private static bool read;
+	private static float weight;
+	private static void Read() { if (!read) { weight = GameyAuditArguments.Value(Switch, 0f, 2f) ?? 0f; read = true; } }
+	internal static void SetForChecks(float value) { read = true; weight = value; }
+	public static bool Enabled { get { Read(); return weight > 0f; } }
+	/// <summary>The units an LP's chart points read this week: store units, plus W x rack units when on.</summary>
+	public static float ChartUnits(int storeUnits, int rackUnits) {
+		Read();
+		return weight > 0f ? storeUnits + weight * Math.Max(0, rackUnits) : storeUnits;
+	}
+}
+
+/// <summary>
 /// --soundtrack-pool-breadth=F (LpGenreAllocationFollowup.md §11). A soundtrack sells to an adult and family pool of
 /// about 440k buyers nationally, and its rack sales (1.4-2.4x its store sales in weeks 4-26) spend the same pool, so a
 /// top-10 soundtrack is 22% exhausted by week 12 and charts a median 10-12 weeks against the 40-60 the soundtrack design

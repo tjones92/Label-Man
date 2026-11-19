@@ -4057,3 +4057,68 @@ unchanged (~15%). Racks in the chart lift soundtracks into the top 10 but do not
 - Artist LPs need what soundtracks have: a hit's audience reaching past its genre pool and lasting past week 20. A
   peak-gated pool renewal for all LPs (the soundtrack hit tail generalized) would address the 1M+ artist LPs and §64's
   long-runners together, but it lengthens reigns too, so it should sit on the `rs20u05` draw.
+
+## 68. Screen: `--album-chart-racks=W`, rack sales in the album chart (2026-11-18; seeds 1001/2002, 104 weeks)
+
+**Switch** (`AlbumChartRacks` in `Systems/GameyAuditSwitches.cs`, read in `AlbumSimulator.CalculateChartPoints`): an LP's
+chart points count store units + W × its rack units this week (racks clear before the album chart ranks). Source: Billboard
+4 January 1960 integrated rack sales into the Top LP charts (§67). Budget editions untouched. Checks in
+`GameyAuditSwitchChecks` pass. Arm `rcr1` = `rs20u05` + W 1 (+ the inert demand trace).
+
+| Seeds 1001/2002 | `rs20u05` | `rcr1` | Billboard |
+|---|---|---|---|
+| No. 1s 1960 / 1961; longest run | 10 / 12.5; 16.5 / 11 | 9.5 / 11.5; **11 / 11** | 10 / 12; 13 / 10+ |
+| Top-10 debuts 1960 / 1961 | 11 / 10.5 | 8.5 / **4** | rare |
+| 40+ week slots 1960 / 1961 | 19 / 15.5 | **20 / 21.5** | 38 (Jan 1960) |
+| ST share of top-10 titles 1960 / 1961 | 14 / 4.5 | **21.5 / 13** | |
+| ST points, 1961 top 50 (pre-1960 / 1960 / 1961 releases) | 17 (10 / 5 / 2) | **22** (16 / 4 / 2) | 24 (10 / 10 / 4) |
+| **Head gap 1960 / 1961** | 49 / 43 | **55 / 80** | 0 |
+| Easy Listening / TradPop / Youth, 1961 top 50 | 19 / 33 / 10 | **35 / 39 / 2** | 10 / 22 / 16 |
+| Folk / Comedy, 1961 | 6 / 8 | 1 / 1 | 10 / 12 |
+| Big-5 share of LP chart slots 1961 (1001 / 2002) | 72.9 / 69.4 | 83.6 / 75.4 | |
+| **Big-5 Top 10 singles 1961** (1001 / 2002) | 23.2 (24.0 / 22.3) | **30.5** (24.4 / 36.5) | 20.6 |
+| LPs <4k; losing; bankruptcies | 39.5%; 41%; 72 | 40.5%; 42.6%; 74.5 | RIAA 49%; 61% |
+
+- **Shape improves:** shorter 1960 reigns, fewer launch spikes, more long-runners, and soundtracks reach the top 10
+  (1961 22 points vs 24). The soundtrack carry-over goes to the opening catalogue (16 vs 10), not to 1960 releases (4 vs 10).
+- **The genre head breaks.** Racks sell to household adults (segment tilt: AdultMOR/Family 1.0, Youth 0.3, CollegeFolk
+  0.4), so W 1 turns the chart into Easy Listening and TradPop (1961: 74 of 100 points) and youth, folk and comedy
+  vanish. Billboard's chart with racks did not look like this, so either W 1 overweights racks (later Billboard
+  booklets weight each rack reporter; the 1960 weighting is unknown) or the model's rack mix is too adult.
+- **Big-5 rises again on seed 2002** (+14), through the LP chart (Big-5 LP slot share 69 → 75%): the §61 album-career
+  channel.
+
+**Status:** not adopted. The source supports racks in the chart; W 1 with the current rack mix does not fit. Next: a
+lower W (0.3-0.5), or check the rack genre mix against NARM before weighting it.
+
+## 69. Can the model make a Beatles-scale LP? (2026-11-18; read-only, `acis260` 1962-64 + code)
+
+Targets: *Meet the Beatles!* ~3.65M in about ten weeks (Billboard of 28 March 1964, via Beatles Bible), 4.0M by the end of
+1964, 11 weeks at No. 1; *Sgt. Pepper* ~2.5M in its first three months (secondary sources). That is ~250-365k copies a
+week sustained for ten weeks or more.
+
+**The model's best LPs (`acis260`, store + rack):** peak weeks 240-323k (1962-64), which is Beatles-scale, but only 1-6
+weeks at 100k+ and 9-17 at 50k+; 0.9-1.2M in the first ten weeks (a third of *Meet the Beatles!*) and 1.8-2.4M in the
+first year (about half). The biggest 1964 youth LP (BritishPop, seed 2002) sold 0.69M in ten weeks, 1.25M in a year.
+
+What limits it, in order:
+
+1. **The buyer pool is the genre's, not the act's.** Each LP sells against its genre's national LP pool (1961: Comedy
+   604k, Folk 538k, TradPop 462k, RockAndRoll 419k, TeenPop 370k; `MarketRegion.GetAlbumMarketSize`). Exhaustion
+   (`max(0.15, 1/(1+4p))`) reaches its floor near 1.4× the pool and lifetime sales end near 1.8× (§67). No act can
+   have a larger LP audience than its genre; there is no artist analogue of the soundtrack hit-tail renewal.
+2. **Fans move LP buyers but don't add them.** Follower launch intent is 0.12 LP per young follower and 0.30 per adult
+   over three weeks, and `MediaFollowerDemand.ConserveAlbumIntent` holds each region's LP intent at its pre-fan total,
+   taking the fans' grants from every other title. The largest following in the 1960-64 runs is ~1.0-1.2M people, so a
+   phenomenon act adds at most ~150-350k LPs and takes all of them from other LPs. Beatlemania could not grow the LP market.
+3. **Artist LPs decay by time** (0.93 a week from week 8, `AlbumSimulator`), whatever their success, so a ten-week
+   plateau is impossible even with buyers left.
+4. **Not binding:** a title's weekly store cap summed over regions is ~880k ((record stores × 130 + department stores ×
+   300) × depth × economic scale) and its stock ceiling ~1.05M; national store LP sales run ~1.0M a week in 1962-64.
+   Pressing and shelves would allow a Beatles LP.
+
+**Answer: not with the current demand model.** The weekly peak is reachable, the plateau and the total are not. A
+Beatles-scale release needs an act-level audience that can exceed its genre pool and add market (new LP buyers), plus a
+success-gated slowdown of decay and exhaustion. That is the same mechanism §67 proposes for 1M+ artist LPs and §64's
+long-runners. Unmeasured: the 1965-69 pools (the saved 1965 world will not resume under the current flags:
+`--local-retail-exposure` is a fresh-world switch); a decade run with `--album-demand-trace` would give them.

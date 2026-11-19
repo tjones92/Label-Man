@@ -202,6 +202,21 @@ public static class GameyAuditSwitchChecks {
 			var artistless = new RecordRuntimeData { baseRecord = new Record { recordId = "gen_check_2", format = ReleaseFormat.Album } };
 			Check(LpReception.Factor(artistless) == 1f, "an LP with no roster act is untouched");
 			Check(LpReception.Factor(lpRec) > 0f && LpReception.Factor(lpRec) == lpRec.lpReception, "the draw is cached on the record");
+			// --album-chart-racks=W.
+			AlbumChartRacks.SetForChecks(0f);
+			Check(!AlbumChartRacks.Enabled && AlbumChartRacks.ChartUnits(1000, 5000) == 1000f, "album chart racks off: store units only");
+			var rackLp = new RecordRuntimeData { baseRecord = new Record { recordId = "gen_check_racks", artistId = "a", format = ReleaseFormat.Album },
+				unitsThisWeek = 1000, rackUnitsThisWeek = 3000 };
+			float storeOnlyPoints = AlbumSimulator.CalculateChartPoints(rackLp);
+			AlbumChartRacks.SetForChecks(1f);
+			Check(AlbumChartRacks.Enabled && AlbumChartRacks.ChartUnits(1000, 3000) == 4000f && AlbumChartRacks.ChartUnits(1000, -5) == 1000f,
+				"album chart racks on: store + W x rack, negative rack ignored");
+			Check(Math.Abs(AlbumSimulator.CalculateChartPoints(rackLp) - 4f * storeOnlyPoints) < 1e-2f, "album chart points scale with store + rack units");
+			AlbumChartRacks.SetForChecks(0.5f);
+			Check(AlbumChartRacks.ChartUnits(1000, 3000) == 2500f, "album chart racks weight W");
+			AlbumChartRacks.SetForChecks(0f);
+			Check(Math.Abs(AlbumSimulator.CalculateChartPoints(rackLp) - storeOnlyPoints) < 1e-3f, "album chart racks off restores store points");
+
 			// --lp-reception-upper=K:U.
 			LpReception.SetForChecks(1.5f);
 			float symAt2 = LpReception.Multiplier(2.0), symAtMinus1 = LpReception.Multiplier(-1.0);

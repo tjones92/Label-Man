@@ -322,7 +322,9 @@ public static class AlbumSimulator {
 	}
 
 	public static float CalculateChartPoints(RecordRuntimeData record) {
-		float points = record.unitsThisWeek * (1f + Mathf.Max(-0.15f, record.momentum) * 0.15f);
+		// --album-chart-racks: store units plus W x rack units (Billboard counted racks from Jan 1960). Off: store units.
+		float units = AlbumChartRacks.Enabled ? AlbumChartRacks.ChartUnits(record.unitsThisWeek, record.rackUnitsThisWeek) : record.unitsThisWeek;
+		float points = units * (1f + Mathf.Max(-0.15f, record.momentum) * 0.15f);
 		// --album-chart-reporting: how fully the pop LP chart saw a genre's sales. Off: not read.
 		if (AlbumChartReporting.Enabled && record.baseRecord.album != null)
 			points *= AlbumChartReporting.Weight(record.baseRecord.primaryGenre, record.baseRecord.album.albumFormat);
