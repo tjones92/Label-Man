@@ -43,6 +43,27 @@ public static class RackJobberChecks {
 			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.SoundtrackWeightSwitch + "0.3") && RackJobberChannel.SoundtrackWeight == .3f,
 				"soundtrack rack weight configures");
 			RackJobberChannel.ResetForChecks();
+			Check(RackJobberChannel.GenreFlatten == 0f && Rejects(RackJobberChannel.FlattenSwitch + "0.5") &&
+				Rejects(RackJobberChannel.Switch, RackJobberChannel.FlattenSwitch + "1.5") && Rejects(RackJobberChannel.Switch, RackJobberChannel.FlattenSwitch + "x"),
+				"genre flatten defaults off, needs the channel and a value in [0, 1]");
+			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.FlattenSwitch + "0.5") && RackJobberChannel.GenreFlatten == .5f, "genre flatten configures");
+			RackJobberChannel.ResetForChecks();
+			{
+				float pop = RackJobberChannel.GenreWeight(Album("gf1", "l", 1, genre: Genre.TraditionalPop), 1961);
+				float rock = RackJobberChannel.GenreWeight(Album("gf2", "l", 1, genre: Genre.RockAndRoll), 1961);
+				RackJobberChannel.SetGenreFlattenForChecks(1f);
+				float popFlat = RackJobberChannel.GenreWeight(Album("gf1", "l", 1, genre: Genre.TraditionalPop), 1961);
+				float rockFlat = RackJobberChannel.GenreWeight(Album("gf2", "l", 1, genre: Genre.RockAndRoll), 1961);
+				Check(Math.Abs(popFlat - RackJobberChannel.FlatGenreWeight) < 1e-5f && Math.Abs(rockFlat - RackJobberChannel.FlatGenreWeight) < 1e-5f,
+					"genre flatten 1: every genre at the flat weight");
+				RackJobberChannel.SetGenreFlattenForChecks(.5f);
+				float rockHalf = RackJobberChannel.GenreWeight(Album("gf2", "l", 1, genre: Genre.RockAndRoll), 1961);
+				Check(rock < RackJobberChannel.FlatGenreWeight && rockHalf > rock && rockHalf < RackJobberChannel.FlatGenreWeight &&
+					Math.Abs(rockHalf - (float)Math.Sqrt(rock * RackJobberChannel.FlatGenreWeight)) < 1e-4f, "genre flatten .5: geometric halfway");
+				Check(RackJobberChannel.FlattenGenreWeight(0f, .5f) == 0f && RackJobberChannel.FlattenGenreWeight(.2f, 0f) == .2f, "genre flatten edge cases");
+				RackJobberChannel.SetGenreFlattenForChecks(0f);
+				Check(RackJobberChannel.GenreWeight(Album("gf1", "l", 1, genre: Genre.TraditionalPop), 1961) == pop, "genre flatten off restores the tilt");
+			}
 			Check(Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "x"), "unparsable scale");
 			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "0.25") && RackJobberChannel.Enabled &&
 				RackJobberChannel.ShopperScale == .25f, "scale configures");

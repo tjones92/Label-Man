@@ -4122,3 +4122,157 @@ Beatles-scale release needs an act-level audience that can exceed its genre pool
 success-gated slowdown of decay and exhaustion. That is the same mechanism §67 proposes for 1M+ artist LPs and §64's
 long-runners. Unmeasured: the 1965-69 pools (the saved 1965 world will not resume under the current flags:
 `--local-retail-exposure` is a fresh-world switch); a decade run with `--album-demand-trace` would give them.
+
+## 70. Where the youth LPs went under `rcr1`, and what racks in the chart need (2026-11-18; seeds 1001/2002, 104 weeks)
+
+`rs20dt` = `rs20u05` + `--album-demand-trace` (inert: head gap identical to `rs20u05`). `analyze_album_chart_rack_mix.py`
+re-ranks the traced LPs offline by store + W × rack each week. At W 0 it reproduces the real chart (gap 45 / 43 vs 49 / 43),
+so the static re-rank is usable. `analyze_album_head_gap.py` now reads `.csv.gz`.
+
+**rcr1's 1961 gap of 80 has two parts.**
+
+| 1961 top 50 (two-seed mean) | Youth | TradPop | Easy L. | ST | Gap |
+|---|---|---|---|---|---|
+| `rs20dt`, store only (W 0) | 10 | 33 | 19 | 14 | 43 |
+| `rs20dt` world, re-ranked at W 0.25 / 0.5 / 1 | 7 / 6 / 4 | 30-32 | 23-26 | 16-18 | 47 / 51 / 54 |
+| `rcr1` (W 1 live) | 2 | 39 | 35 | 22 | 80 |
+| Billboard | 16 | 22 | 10 | 24 | 0 |
+
+1. **Ranking (43 → 54):** racks are adult. Rack/store units in 1961 (`rs20dt`): Easy Listening 1.70, TradPop 1.24,
+   Comedy 1.00, Folk 0.89, Youth 0.73 (soundtracks 2.08), from `RackJobberChannel.SegmentTilt` (AdultMOR/Family 1.0,
+   Youth 0.3). Any W > 0 moves youth down: even W 0.25 costs 3 points, so a lower W does not fix youth.
+2. **Feedback (54 → 80):** in the live run the chart moves store sales. Youth's share of traced store units falls from
+   17.8% to 12.8% in 1961, TradPop rises 31 → 41% and Easy Listening 17 → 26%. The album chart sets a store awareness
+   floor (top 10: 0.48, top 40: 0.30, `AlbumSimulator.CalculateRegionalSales`), so adult LPs lifted by racks keep store
+   awareness that youth LPs lose.
+
+**What the rack mix would need** (offline, `rs20dt` world; a = how far each group's rack/store ratio moves to the mean of
+artist LPs; soundtracks keep theirs):
+
+| W 1 | 1960 gap; Youth | 1961 gap; Youth |
+|---|---|---|
+| model mix (a 0) | 66; 6 | 54; 4 |
+| halfway (a 0.5) | 61; 7 | 48; 6 |
+| racks proportional to store (a 1) | 54; 10 | **38; 11** |
+| a 1, hit tier only (catalogue keeps the tilt) | 57; 9 | 50; 6 |
+
+- With a genre-neutral rack the 1961 chart gains soundtracks and loses nothing (gap 38 < 43). In 1960 adult LPs still
+  gain (TradPop 36 → 40) because racks add weeks to adult LPs through the **catalogue tier**; correcting only the hit
+  tier does not help. Youth LPs are launch-loaded and leave both tiers fast.
+- So the youth loss under racks is the rack genre tilt plus the chart feedback that amplifies it. W only scales it.
+- **The store-only chart is already off** (W 0: Youth 12 / 10 vs 14 / 16; TradPop +8/+11, Easy Listening +12/+9, Folk and
+  Comedy −8 to −10). Head titles (`rcr1` 1960 releases reaching the top 50) show why youth is fragile: median LP format
+  tilt 0.57 (TradPop 1.10, Easy Listening 1.18) and pool 299k (462-476k), about 0.37 of a TradPop LP's demand, across
+  800 youth LPs a year (TradPop 350). Youth reaches the head only through the reception draw's top and its followers,
+  which is why youth swings ±5-8 between seeds and reception arms (`acis` 19 / 15, `rs20u05` 10 / 10).
+
+**Evidence still missing:** the rack genre mix itself. Billboard ran separate rack sales charts until the end of
+1959 (announced in the 4 January 1960 issue). A late-1959 issue would give the rack top LPs directly: if they look like the store
+chart, the tilt is too adult for best sellers and a genre-neutral (or much flatter) rack mix is sourced; if they are
+mood music and cast albums, Billboard's integrated chart weighted racks lightly and W should be fitted to the 1961 head.
+
+**Next:** read the late-1959 rack chart; then one live arm `rcr1` + the sourced rack tilt (switch to build), against
+`rs20u05`, two seeds, 104 weeks. The store-only TradPop/Easy Listening excess is a separate, older problem (gap 14 / 19 at
+§27's `bsc13`, 38 / 37 by `frd60pk`).
+
+## 71. The last Billboard rack charts (30 November and 28 December 1959) against the model's racks (2026-11-18; read-only, `rs20dt`)
+
+**Source.** *Billboard*, 30 November 1959, p. 26, and 28 December 1959, p. 18 (worldradiohistory.com;
+`SimLogs/album-promo-research/bb-1959-11-30/`, `bb-1959-12-28/`):
+"Best Selling LP's on the Racks", top 10, "tabulated from the sales made by the nation's leading rack service
+merchandisers and jobbers", one of four rack charts on a four-week cycle (LPs, low-price LPs, EPs, kiddie records).
+The December chart is the last before racks went into the main charts. The two share 8 of 10 titles, so the
+November chart confirms the December one; it is not an independent sample. Classified as in §13 (December):
+
+| Rank | Racks | Store mono chart, same issue |
+|---|---|---|
+| 1-5 | Chipmunks (Children's); Mathis *Heavenly*; *Christmas Sing Along With Mitch*; Darin *That's All*; Sinatra *No One Cares* | Kingston Trio; Berman; Mathis *Heavenly*; *Sixty Years* sampler; *South Pacific* film |
+| 6-10 | *More Johnny's Greatest Hits*; **Ricky Nelson *Songs by Ricky*** (store #45); *Party Sing Along*; *Como Swings*; *Kingston Trio at Large* | Berman; Mormon Tabernacle; Mitch (Christmas); Chipmunks; Kingston Trio |
+
+| Titles in a 4-week top 10 | Racks, Billboard (Dec / Nov) | Racks, model | Store, Billboard (that week; Dec / Nov) | Store, model |
+|---|---|---|---|---|
+| TradPop | **7 / 6** | 3.0 | 3 / 3 | 3.8 |
+| Soundtrack | **0 / 0** | 2.9 | 1 / 1 | 0.6 |
+| Easy Listening | **0 / 1** | 2.8 | 0 / 0 | 2.0 |
+| Youth | **1 / 1** | 0.35 | 0 / 0 | 1.6 |
+| Comedy / Folk | 0 / 1 both | 0.3 / 0.2 | 2 / 2; 1 / 4 | 0.6 / 0.5 |
+| Children's, other | 1 / 1 | 0.2 | 2 / 1 | 0.7 |
+
+Model: `rs20dt`, seeds 1001/2002, national rack and store units summed over every four-week window from week 12 to 104;
+the rack top 10 sits at median store rank 7.
+
+- **The model's racks favour soundtracks and mood music. Billboard's favoured the big pop singers.** Every title on the
+  Billboard list is a famous name: Mathis, Sinatra, Como, Mitch Miller, Darin, Nelson, the Kingston Trio, the Chipmunks.
+  The store chart's comedy (Berman, #2 and #6), its soundtrack (*South Pacific*, #5) and the orchestras (Mantovani,
+  Conniff, Denny, all in the store top 50) are missing from the rack top 10.
+- November's rack list: Chipmunks; *Heavenly*; *No One Cares*; **Songs by Ricky**; Mancini *More Music From Peter Gunn*
+  (Easy Listening, as §13 files *Mr. Lucky*); *Party Sing Along*; *Como Swings*; *More Johnny's Greatest Hits*;
+  *Kingston Trio at Large*; *That's All*. The store top 10 that week holds four Kingston Trio LPs, Berman and *South Pacific*;
+  the rack list has one Kingston Trio LP and neither of the others.
+- **Youth isn't penalized on racks.** *Songs by Ricky* is #4 on racks and #39 in stores (November), #7 and #45 (December);
+  the Chipmunks are #1 on racks both times (#47 and #9 in stores). The model's rack
+  top 10 has a fifth of the youth titles its store top 10 has (Youth tilt 0.3).
+- **Caveats:** two overlapping charts of ten titles, no unit figures. The direction is clear on soundtracks (model 2.9,
+  Billboard 0 on both) and TradPop (3 vs 6-7). On youth the evidence is one teen star, twice, ranked far above his store
+  position. Only one Christmas title is seasonal (December's *Christmas Sing Along*; November has none).
+
+**Reading against §70.** The genre-neutral rack (a = 1), which restored youth offline, has this direction. The source
+points further: racks sold *names*. In the model, rack demand is quality × word of mouth × genre weight × shelf
+exposure, with no term for the act's recognition, and soundtracks get a near-maximal weight (0.9). Two candidate
+designs:
+
+1. **Flatter tilt** (calibration only): Youth and UrbanRnB near the adult segments, Easy Listening no higher than
+   TradPop, a lower `--rack-soundtrack-weight`; refit `--rack-shopper-scale` to front-line racks 36-42M (1961).
+2. **Name-led rack demand** (mechanism): rack conversion scales with the act's recognition (the fame ladder), so star
+   LPs of any genre sell on impulse and actless soundtracks and mood records rely on the shelf. This fits the list
+   better. It also touches the Big-5 channel (§61): stars are mostly on Majors.
+
+Either way, soundtracks lose rack-borne chart points, so §68's soundtrack gain under `--album-chart-racks` partly goes away. §67's
+store-awareness route for soundtracks remains the sourced one.
+
+**Next:** build option 1 or 2 as a switch and run it with `--album-chart-racks=1` against `rs20u05` (two seeds, 104
+weeks). Older rack charts (1958-59) would not add much: these lists move slowly.
+
+## 72. Screen: `--rack-genre-flatten=F` with racks in the chart (2026-11-18; seeds 1001/2002, 104 weeks)
+
+**Switch** (`RackJobberChannel`, `--rack-genre-flatten=F`, needs `--rack-jobbers`): each non-soundtrack rack genre weight
+(baseline × segment tilt) moves geometrically toward 0.37, the 1961 rack-unit-weighted mean (`rs20dt`): w^(1−F) × 0.37^F.
+Soundtracks keep `--rack-soundtrack-weight` (0.3 in the candidate). Their rack excess comes from the hit-tail renewal,
+not the weight. 1961 weights before: Easy Listening 0.53, Comedy 0.36, TradPop 0.35, DooWop 0.31, Folk 0.24,
+RockAndRoll/TeenPop 0.17, R&B/Soul 0.13. Off: unchanged. Checks in `RackJobberChecks` (62) pass.
+
+Arms on `rs20u05` + `--album-chart-racks=1` + demand trace: `rgf1` (F 1) and `rgf1s30` (F 1 + `--rack-shopper-scale=0.030`
+instead of 0.033, via `ref-rs20u05-rackscale030-request.json`, because the first copy of a flag wins). Scored by
+`analyze_album_head_gap.py` rows, `analyze_big5_1961_excess.py` and `analyze_lp_riaa_1965.py` (now reads `.csv.gz`).
+
+| Seeds 1001/2002 | `rs20u05` (store chart) | `rcr1` (racks, tilt) | `rgf1` (racks, flat) | **`rgf1s30`** | Target |
+|---|---|---|---|---|---|
+| Head gap 1960 / 1961 | 49 / 43 | 55 / 80 | 41 / 37 | **37 / 35** | 0 |
+| Youth 1960 / 1961 | 10 / 10 | 12 / 2 | 13 / 13 | **15 / 10** | 14 / 16 |
+| Soundtrack 1960 / 1961 | 19 / 17 | 20 / 22 | 18 / 26 | **18 / 22** | 16 / 24 |
+| TradPop / Easy L. 1961 | 33 / 19 | 39 / 35 | 28 / 20 | 27 / 19 | 22 / 10 |
+| Folk / Comedy 1961 | 6 / 8 | 1 / 1 | 4 / 4 | 6 / 5 | 10 / 12 |
+| Youth share of store / rack units 1961 | 18 / 10 | 13 / 6 | 22 / 20 | 20 / 19 | |
+| Rack top 10 (4-wk): ST / TradPop / EL / Youth | 2.9 / 3.0 / 2.8 / 0.4 | 2.8 / 2.8 / 3.6 / 0.3 | 2.5 / 2.6 / 1.7 / 1.9 | 2.2 / 2.3 / 1.9 / 1.7 | 0 / 6-7 / 0-1 / 1 |
+| Front-line racks 1960 / 1961 (M) | 31 / 41.5 | 31.5 / 43.5 | 36.5 / 45.5 | **33 / 42.4** | – / 36-42 |
+| Store LPs 1961 (M) | 57.0 | 54.5 | 52.9 | 54.7 | 68 |
+| Big-5 LP chart slots 1961 (1001 / 2002) | 72.9 / 69.4 | 83.6 / 75.4 | 81.5 / 73.5 | 71.5 / 77.0 | |
+| **Big-5 Top 10 singles 1961** (1001 / 2002) | 23.2 (24.0 / 22.3) | 30.5 (24.4 / 36.5) | 26.2 (28.1 / 24.2) | **19.4** (22.3 / 16.5) | 20.6 |
+| LPs <4k; losing; bankruptcies | 39%; 40.5%; 72 | 40.5%; 42.6%; 74.5 | 41%; 42%; 63 | 40.5%; 40.4%; 67 | RIAA 49%; 61% |
+
+- **Flat racks fix the chart that racks broke and beat the store-only chart.** Youth comes back (15 / 10 against 2 in
+  `rcr1`), soundtracks reach their 1961 target through the rack counting §67 sourced, and Easy Listening falls from
+  35 to 19. The 1961 gap is 35, against 43 for the store-only control.
+- **Rack volume needs the refit.** Flattening raises youth rack sales more than it lowers Easy Listening's, so racks gain
+  2-5M at scale 0.033. At 0.030 they are back at 42.4M, the top of the fitted range.
+- **Big-5 is a guard pass on two seeds, but noisy.** Racks in the chart lift Big-5 LP chart slots (§61's album-career
+  channel) and `rcr1` reached 30.5. `rgf1s30` is 19.4, with seed 2002 swinging from 36.5 (`rcr1`) to 16.5. Two seeds
+  cannot rank this.
+- **What stays off is the store side:** TradPop +5, Easy Listening +9, Folk −4, Comedy −7 (1961), the same rows as
+  before racks (§60). On racks, soundtracks (2.2 of the top 10 against Billboard's 0) and youth (1.7 against 1) are still
+  high and TradPop low (2.3 against 6-7). The hit-tail renewal still feeds soundtracks on racks, and the model has no
+  name-led rack demand (§71 option 2).
+
+**Status:** `rgf1s30` (`--album-chart-racks=1 --rack-genre-flatten=1 --rack-shopper-scale=0.030` on `rs20u05`) is the
+candidate rack setting. Not adopted. Next: seeds 3003/4004 (the Big-5 swing) and a 1962-64 look before adoption. The
+store-side TradPop/Easy Listening excess and Folk/Comedy shortfall are a separate question.

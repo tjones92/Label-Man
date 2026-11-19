@@ -11,8 +11,12 @@ Soundtracks (no album project, no roster act) are in the cohort by default since
 --launch=A-B picks LPs dropped in weeks A-B (default 1-52); --last caps rack weeks (default 104). At 208 weeks use
 --launch=105-156 --last=208: 1962 releases with sales to end-1963, the RIAA window.
 """
-import sys
+import os, sys
 import pandas as pd
+
+# Arm runs write .csv.gz by default (--gzip-telemetry); read whichever exists.
+_read_csv = pd.read_csv
+pd.read_csv = lambda path, *a, **kw: _read_csv(path if not isinstance(path, str) or os.path.exists(path) or not os.path.exists(path + '.gz') else path + '.gz', *a, **kw)
 
 BANDS = [0, 2000, 4000, 8000, 10000, 20000, 50000, 100000, 300000, 600000, 1000000, 1e12]
 LABELS = ['0-2k', '2-4k', '4-8k', '8-10k', '10-20k', '20-50k', '50-100k', '100-300k', '300-600k', '600k-1M', '1M+']

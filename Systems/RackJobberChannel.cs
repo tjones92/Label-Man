@@ -72,6 +72,15 @@ public static class RackJobberChannel {
 	/// --rack-shared-exhaustion those rack sales spend its store buyers, so it leaves the album chart in weeks.</summary>
 	public const string SoundtrackWeightSwitch = "--rack-soundtrack-weight=";
 	public static float SoundtrackWeight { get; private set; } = SoundtrackGenreWeight;
+	/// <summary>--rack-genre-flatten=F (LpGenreAllocationFollowup.md §70-72). Billboard's last separate rack LP charts
+	/// (30 Nov and 28 Dec 1959) were famous pop singers plus Ricky Nelson (#4 and #7 on racks, #39 and #45 in stores), with
+	/// no mood music or comedy; the segment tilt gives TeenPop and RockAndRoll half of TradPop's rack weight and Easy Listening
+	/// 1.5 times it. With F &gt; 0 each non-soundtrack genre weight moves geometrically toward
+	/// <see cref="FlatGenreWeight"/> (F 1: every genre equal). Soundtracks keep --rack-soundtrack-weight. 0 (default): unchanged.</summary>
+	public const string FlattenSwitch = "--rack-genre-flatten=";
+	/// <summary>The 1961 rack-unit-weighted mean genre weight (rs20dt, seeds 1001/2002), so F 1 keeps rack volume near its fit.</summary>
+	internal const float FlatGenreWeight = .37f;
+	public static float GenreFlatten { get; private set; }
 
 	public const int TierNone = 0, TierHit = 1, TierCatalogue = 2;
 
@@ -107,6 +116,12 @@ public static class RackJobberChannel {
 				!float.IsFinite(value) || value < 0f || value > 1f) throw new ArgumentException("Invalid " + soundtrack);
 			SoundtrackWeight = value;
 		}
+		string flatten = args.FirstOrDefault(a => a.StartsWith(FlattenSwitch, StringComparison.Ordinal));
+		if (flatten != null) {
+			if (!Enabled || !float.TryParse(flatten[FlattenSwitch.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
+				!float.IsFinite(value) || value < 0f || value > 1f) throw new ArgumentException("Invalid " + flatten);
+			GenreFlatten = value;
+		}
 		if (scale != null) {
 			if (!Enabled) throw new ArgumentException(ScaleSwitch + " requires " + Switch + ".");
 			if (!float.TryParse(scale.Substring(ScaleSwitch.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
@@ -117,7 +132,8 @@ public static class RackJobberChannel {
 		configured = true;
 	}
 
-	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; SoundtrackWeight = SoundtrackGenreWeight; ResetTelemetry(); }
+	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; SoundtrackWeight = SoundtrackGenreWeight; GenreFlatten = 0f; ResetTelemetry(); }
+	internal static void SetGenreFlattenForChecks(float flatten) => GenreFlatten = flatten;
 	internal static void SetStoreBoundForChecks(float bound) => StoreStandingBound = bound;
 	internal static float BoundByStoreStanding(float demand, int storeUnits) =>
 		StoreStandingBound > 0f ? Mathf.Min(demand, StoreStandingBound * Mathf.Max(0, storeUnits)) : demand;
@@ -155,8 +171,13 @@ public static class RackJobberChannel {
 		GenreProfile profile = GenreCatalog.Get(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year));
 		float tilt = 0f;
 		foreach (var pair in profile.SegmentWeights) tilt += pair.Value * SegmentTilt.GetValueOrDefault(pair.Key);
-		return Mathf.Clamp(profile.GetBaseline(year) * tilt, 0f, 1f);
+		float weight = Mathf.Clamp(profile.GetBaseline(year) * tilt, 0f, 1f);
+		return GenreFlatten > 0f ? FlattenGenreWeight(weight, GenreFlatten) : weight;
 	}
+
+	/// <summary>A genre weight moved geometrically toward <see cref="FlatGenreWeight"/> by F (0 unchanged, 1 flat).</summary>
+	internal static float FlattenGenreWeight(float weight, float flatten) =>
+		weight <= 0f ? (flatten >= 1f ? FlatGenreWeight : 0f) : Mathf.Pow(weight, 1f - flatten) * Mathf.Pow(FlatGenreWeight, flatten);
 
 	public static float Exposure(int tier, int rank, float awareness) {
 		float display = tier == TierHit ? (rank <= FaceOutRanks ? FaceOutExposure : HitExposure)
