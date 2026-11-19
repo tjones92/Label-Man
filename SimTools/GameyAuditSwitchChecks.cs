@@ -136,6 +136,108 @@ public static class GameyAuditSwitchChecks {
 				AlbumScaleCareerMilestones.SetForChecks(false);
 				ActLpAudience.SetForChecks(0f);
 			}
+			// --singles-phenomenon (§97): smoothed national share, one onset per act, envelope, weighted ration.
+			{
+				Record Single(string artist, ReleaseFormat format = ReleaseFormat.Single) => new() { recordId = "s_" + artist, artistId = artist, format = format };
+				SinglesPhenomenon.SetForChecks(0f);
+				SinglesPhenomenon.AddSingleUnits(Single("a"), 1000);
+				SinglesPhenomenon.AdvanceWeek(1);
+				Check(!SinglesPhenomenon.Enabled && SinglesPhenomenon.RationWeight("a") == 1f && SinglesPhenomenon.AudienceMultiplier("a") == 1f
+					&& SinglesPhenomenon.Share("a") == 0d, "phenomenon off: no ledger, weight and audience 1");
+				SinglesPhenomenon.SetForChecks(0.2f, 6f, 1.5f, 1f, 52f, 4f);
+				SinglesPhenomenon.AdvanceWeek(0);
+				SinglesPhenomenon.AddSingleUnits(Single("a"), 300);
+				SinglesPhenomenon.AddSingleUnits(Single("b"), 700);
+				SinglesPhenomenon.AddSingleUnits(Single("a", ReleaseFormat.Album), 5000);
+				SinglesPhenomenon.AddSingleUnits(Single(""), 1000);
+				SinglesPhenomenon.AdvanceWeek(1);
+				Check(Math.Abs(SinglesPhenomenon.Share("a") - 0.075d) < 1e-9 && Math.Abs(SinglesPhenomenon.Share("b") - 0.175d) < 1e-9,
+					"half-life 1: half of last week's national share (actless singles count in the total, LPs not)");
+				Check(!SinglesPhenomenon.IsPhenomenon("a") && !SinglesPhenomenon.IsPhenomenon("b") && SinglesPhenomenon.RationWeight("b") == 1f,
+					"below the threshold nobody is a phenomenon");
+				SinglesPhenomenon.AddSingleUnits(Single("b"), 1000);
+				SinglesPhenomenon.AdvanceWeek(2);
+				Check(SinglesPhenomenon.IsPhenomenon("b") && !SinglesPhenomenon.IsPhenomenon("a") && Near(SinglesPhenomenon.Envelope("b"), 0.25f)
+					&& Near(SinglesPhenomenon.RationWeight("b"), 2.25f) && Near(SinglesPhenomenon.AudienceMultiplier("b"), 1.125f),
+					"onset at the threshold; the envelope ramps over 4 weeks");
+				SinglesPhenomenon.AdvanceWeek(2);
+				Check(Near(SinglesPhenomenon.Envelope("b"), 0.25f), "one update a week");
+				Check(Near(SinglesPhenomenon.EnvelopeAt(3, 4f, 52f), (float)Math.Pow(0.5, 3 / 52.0))
+					&& Near(SinglesPhenomenon.EnvelopeAt(55, 4f, 52f), 0.5f * (float)Math.Pow(0.5, 3 / 52.0))
+					&& SinglesPhenomenon.EnvelopeAt(52 * 6, 4f, 52f) == 0f && SinglesPhenomenon.EnvelopeAt(-1, 4f, 52f) == 0f,
+					"full at the end of the ramp, half a fade later, over below 2%");
+				SinglesPhenomenon.AddSingleUnits(Single("a"), 1000);
+				SinglesPhenomenon.AdvanceWeek(3);
+				Check(Math.Abs(SinglesPhenomenon.Share("b") - 0.29375d) < 1e-9 && Near(SinglesPhenomenon.Envelope("b"), 0.5f * (float)Math.Pow(0.5, 1 / 52.0))
+					&& SinglesPhenomenon.IsPhenomenon("a"), "the onset week stays put as the envelope ramps; a later act can cross too");
+				// Weighted ration: all weights 1 is the proportional ration; a weight-4 title clears 4x per unit of intent, capped at intent.
+				double[] flat = SinglesPhenomenon.Shares(new[] { 100, 300, 600 }, new[] { 1f, 1f, 1f }, 500);
+				Check(Math.Abs(flat[0] - 50) < 1e-9 && Math.Abs(flat[1] - 150) < 1e-9 && Math.Abs(flat[2] - 300) < 1e-9, "weights 1: proportional");
+				double[] w4 = SinglesPhenomenon.Shares(new[] { 100, 300, 600 }, new[] { 4f, 1f, 1f }, 260);
+				Check(Math.Abs(w4[0] - 1040.0 / 13) < 1e-6 && Math.Abs(w4.Sum() - 260) < 1e-6 && Math.Abs(w4[1] / w4[0] - 0.75) < 1e-6,
+					"weight 4 clears 4x per unit of intent; the purse is spent exactly");
+				double[] cap = SinglesPhenomenon.Shares(new[] { 100, 300, 600 }, new[] { 20f, 1f, 1f }, 400);
+				Check(cap[0] == 100 && Math.Abs(cap[1] - 100) < 1e-6 && Math.Abs(cap[2] - 200) < 1e-6, "a phenomenon title stops at its own intent; the rest share what is left");
+				Check(!SinglesPhenomenon.AnyWeighted(new[] { 5, 0 }, new[] { 1f, 3f }) && SinglesPhenomenon.AnyWeighted(new[] { 5, 1 }, new[] { 1f, 3f }),
+					"weighted path only when a weighted title has intent");
+				SinglesPhenomenon.SetForChecks(0f);
+			}
+			// --local-promotion (§98): per-record intent shift toward the footprint, national intent held; Majors untouched.
+			{
+				LocalPromotion.SetForChecks(1f);
+				Check(!LocalPromotion.Enabled && !LocalPromotion.Shifts(new RecordRuntimeData { baseRecord = new Record { format = ReleaseFormat.Single } },
+					new AILabel { homeRegion = "home" }), "local promotion off: nothing shifts");
+				Check(LocalPromotion.Weight(new[] { "home" }, "home", 3f) == 3f && LocalPromotion.Weight(new[] { "home" }, "b", 3f) == 1f
+					&& LocalPromotion.Weight(new[] { "home", "b" }, "b", 3f) == 2f && LocalPromotion.Weight(new string[0], "home", 3f) == 1f,
+					"weights: 1 + (K - 1)/n in the footprint, 1 elsewhere");
+				string[] three = { "home", "b", "c" };
+				Check(Math.Abs(LocalPromotion.Weight(three, "home", 3f, "home", .75f) - 2.5f) < 1e-6
+					&& Math.Abs(LocalPromotion.Weight(three, "b", 3f, "home", .75f) - 1.25f) < 1e-6
+					&& LocalPromotion.Weight(three, "d", 3f, "home", .75f) == 1f
+					&& LocalPromotion.Weight(new[] { "home" }, "home", 3f, "home", .75f) == 3f
+					&& Math.Abs(LocalPromotion.Weight(three, "home", 3f, "home", .1f) - LocalPromotion.Weight(three, "b", 3f, "home", .1f)) < 1e-6
+					&& Math.Abs(LocalPromotion.Weight(three, "b", 3f, "elsewhere", .75f) - (1f + 2f / 3f)) < 1e-6,
+					"home share: home 1 + (K - 1)H, branches split the rest; never below an equal split; a home-only label keeps K");
+				int[] big = { int.MaxValue, int.MaxValue, int.MaxValue };
+				int[] s = LocalPromotion.ShiftValues(new[] { 3f, 1f, 1f }, new[] { 100, 200, 300 }, big);
+				Check(s.Sum() == 600 && Math.Abs(s[0] / (double)s[1] - 1.5) < 0.02 && Math.Abs(s[2] / (double)s[1] - 1.5) < 0.02,
+					"national intent held; home x3 relative to away");
+				Check(LocalPromotion.ShiftValues(new[] { 1f, 1f, 1f }, new[] { 100, 200, 300 }, big).SequenceEqual(new[] { 100, 200, 300 }),
+					"equal weights are the identity");
+				Check(LocalPromotion.ShiftValues(new[] { 3f, 1f }, new[] { 0, 0 }, big).SequenceEqual(new[] { 0, 0 })
+					&& LocalPromotion.ShiftValues(new[] { 3f, 1f }, new[] { 0, 50 }, big).SequenceEqual(new[] { 0, 50 }),
+					"no intent at home: nothing to move");
+				int[] capShift = LocalPromotion.ShiftValues(new[] { 3f, 1f, 1f }, new[] { 100, 200, 300 }, new[] { 120, int.MaxValue, int.MaxValue });
+				Check(capShift[0] == 120 && capShift.Sum() == 600 && Math.Abs(capShift[2] / (double)capShift[1] - 1.5) < 0.02,
+					"a region stays inside its physical limit; its excess goes to the record's other regions");
+				int[] tight = LocalPromotion.ShiftValues(new[] { 3f, 1f }, new[] { 100, 100 }, new[] { 110, 100 });
+				Check(tight.SequenceEqual(new[] { 110, 90 }), "both limits respected, total kept where room allows");
+				Check(LocalPromotion.LedgerUnits(50, 200, 100) == 50 && LocalPromotion.LedgerUnits(50, 200, -1) == 50,
+					"ledger diagnostic off: the act ledger books cleared units");
+				var fp = LocalPromotion.Footprint(new AILabel { homeRegion = "home", distributionRegions = new[] { "home", "b" }, strongRegions = new[] { "c" } });
+				Check(fp.SetEquals(new[] { "home", "b", "c" }), "footprint = home + owned distribution + strong regions");
+				var wholesale = new AILabel { homeRegion = "home", distributionRegions = new[] { "home" } };
+				wholesale.independentDistributionRegions.Add("b");
+				Check(LocalPromotion.Footprint(wholesale).SetEquals(new[] { "home" }), "wholesale coverage ships but does not promote");
+				// --local-promotion-midtier (§101): MidTiers promote through national staff, not an owner at home.
+				var single = new RecordRuntimeData { baseRecord = new Record { format = ReleaseFormat.Single } };
+				AILabel Lab(string id, LabelTier t) => new AILabel { labelId = id, tier = t, homeRegion = "home", distributionRegions = new[] { "home", "b", "c" } };
+				string[] regs = { "home", "b", "c", "d" };
+				int[] even = { 100, 100, 100, 100 }, room = { int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue };
+				LocalPromotion.SetForChecks(3f, .75f);
+				int[] ownerMid = LocalPromotion.Shift(Lab("m1", LabelTier.MidTier), regs, even, room);
+				Check(LocalPromotion.Shifts(single, Lab("m1", LabelTier.MidTier)) && ownerMid[0] > ownerMid[1] + 50,
+					"midtier switch absent: a MidTier gets the owner home share like any label");
+				LocalPromotion.SetForChecks(3f, .75f, LocalPromotion.MidTierMode.Equal);
+				int[] eqMid = LocalPromotion.Shift(Lab("m2", LabelTier.MidTier), regs, even, room);
+				int[] eqIndie = LocalPromotion.Shift(Lab("i2", LabelTier.Independent), regs, even, room);
+				Check(Math.Abs(eqMid[0] - eqMid[1]) <= 1 && eqMid[1] > eqMid[3] && eqMid.Sum() == 400 && eqIndie.SequenceEqual(ownerMid),
+					"midtier=equal: a MidTier's footprint splits the boost equally; other tiers keep the home share");
+				LocalPromotion.SetForChecks(3f, .75f, LocalPromotion.MidTierMode.Off);
+				Check(!LocalPromotion.Shifts(single, Lab("m3", LabelTier.MidTier)) && LocalPromotion.Shifts(single, Lab("i3", LabelTier.Independent)),
+					"midtier=off: MidTier records are not shifted; other tiers are");
+				LocalPromotion.SetForChecks(1f);
+			}
 			// Album chart reporting weight and soundtrack pool breadth.
 			AlbumChartReporting.SetForChecks(null);
 			Check(!AlbumChartReporting.Enabled && AlbumChartReporting.Weight(Genre.Country, AlbumFormat.Standard) == 1f, "off reports every genre whole");

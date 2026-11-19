@@ -635,6 +635,8 @@ public static class ChartSimulator {
 		if (stagedLiveDemand && ArtistFanbase.Enabled)
 			rawSales = ArtistFanbase.Demand(record, region, quality, baselineAwareness, rawSales, label);
 		if (stagedLiveDemand) rawSales = BoundedAudienceProbe.Demand(record, regionalData, region, label, rawSales);
+		// --singles-phenomenon: buyers from outside the act's genre. Still clipped by stock and shelf below. Exactly 1 when off.
+		if (stagedLiveDemand && SinglesPhenomenon.Enabled) rawSales *= SinglesPhenomenon.AudienceMultiplier(record.baseRecord.artistId);
 		// Backorders represent recent unmet intent, not a permanent bank of future
 		// purchases. Most stale intent expires before this week's demand is added.
 		regionalData.unitsBackordered = Mathf.RoundToInt(regionalData.unitsBackordered * 0.35f);

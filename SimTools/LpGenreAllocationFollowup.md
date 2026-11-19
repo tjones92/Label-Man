@@ -5527,3 +5527,327 @@ the edge of the 1961 band.
 `score_opening_tier_quotas.py` now print 22.1 for 1961. Under the band, `stB` (§89) passes 1960 (26.2); its 1961 (29.5) sits 3.1 above
 the band top of 26.4, within about one SE of the four-seed mean. The §90-95 switches stay off. The 1962-64 targets (marquee
 21.2 / 26.0 / 18.7, families 26.0 / 38.8 / 34.4) need re-basing before any late-decade Major work.
+
+## 97. Screen: `--singles-phenomenon=S`, an act whose singles take a larger share of the purse (§73 stage C; 2026-11-19; seeds 1001-4004, 104 weeks)
+
+**What holds a single down** (`stB`, 4 seeds). The singles purse is a fixed 2.46M a week, and singles intent runs about 9×
+it: the ration clears 10-12% of every title's intent. The top record each week has 1.3-1.7M raw intent, stock and shelf
+clip it to 50-60%, and it clears about 92k (3.8% of the week). Awareness is near its cap (0.8 of the potential audience).
+So a record's units are its share of the week's intent. No act's 8-week smoothed share of national singles passes
+3.2-4.0% in any seed (4-week: 4.1-5.2%), and the year's leading act holds about 5% of Top 10 slots.
+
+**Switch** (`Systems/SinglesPhenomenon.cs`; hooks in `ChartManager.CalculateLiveRegionalSalesWithMarketClearing`,
+`ChartManager.AllocateProportionalLocal` and `ChartSimulator.CalculateRegionalSales`; checks in
+`GameyAuditSwitchChecks`, pass). Each act keeps an exponentially smoothed share of national cleared singles units
+(half-life 8 weeks). The first week it reaches S, the act becomes a phenomenon, once in its career. An envelope e ramps up
+over 4 weeks and halves every 52 weeks. While e is up, the act's singles clear ahead of the ration with weight
+1 + (W − 1)·e (W 6; each title is capped at its own intent, and the purse is spent exactly). Their raw demand is also scaled
+by 1 + (A − 1)·e (A 1.5: buyers from outside the genre), still clipped by stock and shelf space. The purse does not grow.
+No draws; fresh-world only; refuses a ration exponent above 1. Inertness: S 0.5 at 27 weeks matches `stB-1001` weeks 0-26
+byte for byte (records, market clearing, label sales). Scorer: `SimTools/score_singles_phenomenon.py`.
+
+| Seeds 1001-4004 | `stB` | `phn03` (S 0.03) | `phn038` (S 0.038) | History |
+|---|---|---|---|---|
+| Phenomena (1960 / 1961) | 0 | 12 (5 / 7) | 1 (1 / 0; seed 2002, week 41) | none before 1964 |
+| Biggest phenomenon: best week share / units | | 17-25% / 420-625k | 29% / 724k | IWTHYH 640k shipped in week 1 |
+| … Top 10 / Top 5 at once; best single | | 3-4 / 2-3; 1.0-4.7M | 3 / 3; 4.4M | Beatles top 5, 4 Apr 1964; IWTHYH 3.4M by Mar 1964 |
+| Biggest single (mean of seeds) | 1.73M | 4.44M | 2.48M | ~2M (Are You Lonesome Tonight?, RIAA 2M) |
+| No. 1 median lifetime | 876k | 1,144k | 935k | ~0.8-1M |
+| Top 10 records 1960 / 1961 | 120 / 121 | 118 / 112 | 119 / 121 | ~111 |
+| Leading act % of Top 10 slots 1961 | 5.0 | 13.6 | 7.1 | |
+| #10/#100 units | 20.1 | 23.0 | 21.2 | |
+| Big-5 Top 10 share 1960 / 1961 (families) | 26.2 / 29.5 | 25.8 / 29.2 | 25.6 / 27.6 | 27 / 22.1 ± 4.3 |
+| Labels inactive at week 104 | 94.0 | 99.5 | 95.8 | |
+| Biggest LP (chart store) | 705k | 725k | 766k | WSS ~2.5M in its best year |
+
+- **The mechanism makes a 1964-style act.** One act takes a fifth to a third of the week's singles, holds the top of the chart
+  with three records and sells a 4-5M single. Big-5 share holds (phenomena land at any label; 2 of 13 at Majors). Top 10
+  turnover falls toward history when one fires (the act's records hold slots). Other titles pay for it: the purse is fixed.
+- **The LP chain does not follow.** In 2 of 4 `phn03` seeds the phenomenon act's LP is the run's biggest, but only
+  627-724k at chart stores (`phn038`: 727k, second to a 775k LP). Stage A's act audience (K 0.5, half-life 13, youth weight) carries the act to the head of the LP
+  chart, not to 3-4M.
+- **It must not fire before 1964.** Research (author's request, 2026-11-19): pre-Beatles US ceilings were about 2M for a single (Elvis
+  "Are You Lonesome Tonight?", RIAA 2M; most No. 1s 0.8-1M) and 2-3M for an LP, all soundtracks, a Presley film LP or
+  comedy (*West Side Story* ~2.5M in its best year; *Blue Hawaii* gold within ~2 months, 3M certified; *The First Family*
+  1.2-1.6M in two weeks). `stB` already spans the pre-1964 singles range with no switch (biggest 1.4-2.0M). S 0.038 still
+  fires once in 4 seeds, in 1960, and that one act sells 24M singles over 64 weeks.
+- "Are You Lonesome Tonight?" 900k / 1.2M in its first two weeks were cumulative orders for pressings; retail passed 2M in under three months (see below).
+
+**How much is emergent** (`phn038-2002`, the one onset; `stB-2002` is the same world until then, byte-identical to week 40).
+`artist_00819` is the market's natural leader: 5.6% of national singles in weeks 30-40, 1.5 records in the Top 10, and with no
+switch it fades (3.3% weeks 45-52, 1.9% weeks 53-65, 0.7% after week 80; 4.5M singles in the run). In the arm, its share
+of the week's intent net of the audience term stays near the control: 4.4 / 3.5 / 2.6% (weeks 41-44 / 45-52 / 53-65)
+against 4.6 / 3.3 / 1.9%, so its bigger chart run adds at most 0.7 points of demand. The audience term adds 1.3-1.5 points
+(intent share 5.7 / 5.0 / 3.6%). Its cleared share is 19.5 / 22.4 / 15.9%. So about four-fifths of the phenomenon's share is the
+ration weight, a tenth the audience term, and under a tenth feedback through the chart. Releases barely change (10 singles
+against 9). The onset is emergent, since it picks the act that already dominates. The size of the effect is imposed, not earned.
+
+**"Are You Lonesome Tonight?" check** (Don Murray, "One Million Times 98 Cents", *HiFi/Stereo Review*, October 1961,
+pp. 63-66; read from the worldradiohistory scan). The 900,000 / 1,200,000 are "Orders for pressings ... the first week ... the
+second": factory orders from distributors and dealers, running totals, not retail units in a week. Retail is given only as
+"In less than three months, sales ... passed the 2,000,000 mark" (released 1 November 1960 to 5,000 DJs at once, stock
+air-shipped ahead). That is about 150-160k a week averaged over 13 weeks. The model's biggest single (1.4-2.0M lifetime) and
+best record-week (230-280k) are inside that, so the check gives no reason to raise the pre-1964 singles ceiling. Murray also
+writes that girls eleven to fifteen buy "ninety per cent of all the single records sold" (unsourced in the article).
+
+**Status.** Not adopted. The switch shows the ceiling is reachable. For use, S must sit above anything an act reaches in
+1960-63 (≥ 0.045 here: inert in all four 1960-61 controls), and whether it then fires once a decade, about 1964, needs a
+decade run (audit-end rule). Open for the author: whether a youth-market era gate belongs on the onset, and whether the
+phenomenon act's LP should carry more than stage A gives it.
+
+**Decision (author, 2026-11-19).** Stage C will be rebuilt as an emergent popularity explosion, earned from the act's
+audience (a compounding following and new buyers entering the market) rather than a fixed weight, and it moves to the
+British Invasion expansion. Hand-off: `SimTools/BritishInvasionExpansionHandoff.md`. `--singles-phenomenon` stays a
+research switch and is not adopted.
+
+## 98. Screen: `--local-promotion=K`, a label's own push where it has people (2026-11-19; seeds 1001-4004, 104 weeks)
+
+**The miss.** Every region's small labels sell only 1.2-1.9 times their region's market share at home (`stB`, 1961
+singles; Southern small labels 22% home). Uncharted records already sell heavily at home. The miss is the charted ones,
+which carry most small-label units (Top 40 about 47 of 67M a seed in 1961). Home premium per head, (home units / home
+market share) / (away units / away market share):
+
+| `stB` 1960 / 1961 | Top 40 | 41-100 | uncharted |
+|---|---|---|---|
+| Small | 2.38 / 1.40 | 9.6 / 5.2 | 19 / 13 |
+| Boutique | 1.29 / 1.16 | 2.7 / 1.9 | 3.8 / 3.4 |
+| Independent | 1.42 / 1.12 | 2.1 / 1.6 | 3.0 / 2.7 |
+| MidTier | 1.24 / 1.05 | | |
+| Major | 0.93 / 0.94 | | |
+
+**History** (1960 surveys with labels: KFWB Los Angeles, KDWB Minneapolis, WABC New York Jul-Dec; survey-weeks per
+label class at the home station against the other cities, relative to other indies). Small LA indies (Era, Dore, Arvee,
+Challenge, Indigo, Eldo, Donna, Lute and smaller) about **2.5** (248 vs 102 survey-weeks LA vs Minneapolis; LA vs New
+York 2.7, LA vs Minneapolis 1.3: it fades with distance). Established LA indies (Liberty, Dot, Imperial, Warner, Dolton,
+Vista) 0.9. Majors ~0.94. New York and Philadelphia indies 0.6-0.7 on WABC (the national industry). One region's labels,
+survey-weeks not units, ~20 labels; no Southern station.
+
+**Why the model has none.** Home advantage enters only at launch (`GetRegionalLaunchFactor` 1.35 in strong/home regions,
+the hometown awareness deposit). Once a record charts, the national blend and the chart floors take over.
+
+**Switch** (`Systems/LocalPromotion.cs`; hook in `ChartManager.CalculateLiveRegionalSalesWithMarketClearing`; checks in
+`GameyAuditSwitchChecks`, pass). After a live AI single's serviceable intent is known in every region, it is reweighted
+by 1 + (K − 1)/n in the label's promotion footprint (home, owned distribution, strong regions; n regions) and 1
+elsewhere, rescaled to the record's own national intent (largest remainders), each region capped at its physical limit.
+A whole-map footprint (the five Majors) is untouched; wholesale houses and P&D deals are not footprint. No draws, no
+tier input. Inertness: off at 27 weeks matches `stB-1001` weeks 0-26 byte for byte (records, regional home sales, label
+sales, market clearing). Scorer: `SimTools/score_local_promotion.py SEEDS ARM...`.
+
+`lp3` (first build, rejected): raw demand × footprint weights normalised over the map's buyers. Not neutral: a small
+record's demand sits in its footprint, so the away weights below 1 fell where it barely sells. Small labels' away raw
+demand held (567 → 570M a seed, 1960) while home raw rose 263 → 470M; small-label unit share 49 → 57% (1960), Top 10
+share 35 → 45%, Big-5 Top 10 1960 26.2 → 21.8.
+
+| Seeds 1001-4004 | `stB` | **`lp3c`** (K 3, per-record) | History |
+|---|---|---|---|
+| Home premium, Top 40, 1960: Small / Boutique / Indie | 2.38 / 1.29 / 1.42 | 4.23 / 1.78 / 1.62 | small LA indies ~2.5 |
+| … 1961 | 1.40 / 1.16 / 1.12 | 2.56 / 1.49 / 1.29 | |
+| MidTier / Major (1960) | 1.24 / 0.93 | 1.23 / 0.88 | ~0.9 / ~0.94 |
+| Small labels' home share, 1961: Deep South / Great Lakes / East Coast | 21.9 / 30.4 / 39.2 | 29.1 / 35.6 / 43.7 | |
+| Small-label share of single units 1960 / 1961 | 49.1 / 55.4 | 52.0 / 55.0 | |
+| Small-label share of Top 10 record-weeks 1960 / 1961 | 34.7 / 44.2 | 41.5 / 48.7 | |
+| Big-5 Top 10 share 1960 / 1961 | 26.2 / 29.5 | 23.4 / 28.0 | 27 / 22.1 ± 4.3 |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 6.0 / 5.0 | 2.25 / 6.5 | ~4.5 |
+| Defunct labels | 98.5 | 99.8 | |
+| LP top-50 genre gap 1960 / 1961 | 28 / 21 | 43 / 30 | 0 |
+
+- **Units are now neutral** (52 / 55% against 49 / 55%), but small labels gain 4-7 points of Top 10 record-weeks: home
+  concentration lifts their hits' rank. Big-5 1960 falls 2.8 points (under the adopted 27).
+- **The premium moves the right way but not far enough for Independents and Boutiques** (1.6-1.8 against ~2.5), while
+  home-only Small labels overshoot (4.2): the 1/n split dilutes a 3-4 region Independent footprint.
+- **The 1960 LP genre gap worsens on all four seeds** (+6 to +20; 1961 mixed), mostly Easy Listening up and Comedy down.
+  Likely through the per-region single/LP budget split, which reads singles intent; unexplained.
+- Not adopted. Open: weight home above the other footprint regions (owner at home, branches elsewhere), a larger K, and
+  the Big-5 / LP costs.
+
+## 99. Screen: `--local-promotion-home-share=H`, the owner at home and branches elsewhere; two clearing fixes (2026-11-19; seeds 1001-4004, 104 weeks)
+
+**Switch.** Home takes max(1/n, H) of the K − 1 boost; the other footprint regions split the rest. A home-only label is
+unchanged (K at home); a whole-map footprint is still untouched. Checks pass.
+
+**Two fixes to §98's clearing hook, both found on `lp3c`:**
+- *Intent lost at the caps.* Capping each region at its physical limit after rescaling lost 2.4% of national singles
+  intent (1,008 → 985M in 1960). `ShiftValues` now water-fills: a capped region's excess goes to the record's other
+  regions, so the record's total holds wherever the limits allow (1,003M in `lph75`).
+- *The format split.* Each region's LP budget is `available × album / (singles + album)`, convex in singles intent, so
+  moving single intent from the small regions into the big home regions raised the summed LP budget (66.0 → 69.3M in
+  1960, Jensen). Promotion moves single buyers between labels, not between formats: `CalculateFormatClearingBudget` now
+  reads each region's pre-shift singles intent (`localPromotionShift`). `lph75f` LP budgets 68.3 / 83.4M against
+  66.0 / 83.4M; cleared LPs 53.8 / 60.4 against 52.6 / 60.5.
+- Off is byte-identical to `stB-1001` at 27 weeks after each change (`lpoff2`, `lpoff3`).
+
+| Seeds 1001-4004 | `stB` | `lp3c` | `lph75` | **`lph75f`** (K 3, H 0.75, both fixes) | History |
+|---|---|---|---|---|---|
+| Top 40 home premium 1960: Small / Boutique / Indie | 2.38 / 1.29 / 1.42 | 4.23 / 1.78 / 1.62 | 3.03 / 1.78 / 1.75 | 2.92 / 1.78 / 1.83 | ~2.5 (small LA indies) |
+| … 1961 | 1.40 / 1.16 / 1.12 | 2.56 / 1.49 / 1.29 | 2.50 / 1.78 / 1.47 | 2.19 / 1.68 / 1.54 | |
+| MidTier / Major Top 40, 1960 | 1.24 / 0.93 | 1.23 / 0.88 | 1.47 / 0.89 | 1.49 / 0.81 | ~0.9 / ~0.94 |
+| Small labels' home share 1961: Deep South / East Coast | 21.9 / 39.2 | 29.1 / 43.7 | 29.9 / 46.8 | 30.6 / 47.3 | |
+| Small-label share of single units 1960 / 1961 | 49.1 / 55.4 | 52.0 / 55.0 | 48.8 / 53.9 | 51.5 / 55.6 | |
+| Small-label share of Top 10 record-weeks 1960 / 1961 | 34.7 / 44.2 | 41.5 / 48.7 | 35.8 / 44.6 | 39.4 / 48.4 | |
+| Big-5 Top 10 share 1960 / 1961 | 26.2 / 29.5 | 23.4 / 28.0 | 26.6 / 28.1 | 27.5 / 31.3 | 27 / 22.1 ± 4.3 |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 6.0 / 5.0 | 2.25 / 6.5 | 4.25 / 9.75 | 5.0 / 8.5 | ~4.5 |
+| Defunct labels | 98.5 | 99.8 | 102.0 | 100.2 | |
+| LP top-50 genre gap 1960 / 1961 | 28 / 21 | 43 / 30 | 39 / 25 | 36 / 34 | 0 |
+
+- **The home split works.** Independent and Boutique Top 40 records reach 1.7-1.8 (from 1.3-1.4) and Small labels
+  overshoot less (2.9 against 4.2). Southern small labels sell 31% at home (from 22%), Great Lakes 40%, East Coast 47%.
+  National small-label shares of units and of Top 10 slots are within noise of `stB` in `lph75`; `lph75f` is 3-4 points up on Top 10.
+- **Still short of ~2.5** for Independents and Boutiques. Raising H further mostly helps 3-4 region footprints; K raises
+  Small labels too.
+- **Costs.** MidTier home premium 1.24 → 1.49 (established national indies ~0.9 in the surveys). Big-5 1961 newcomer
+  Top 10s 5 → 8.5-9.75 (history ~4.5) in both H arms.
+- **The LP genre gap is a real cost, not noise.** No-switch arms on the same base sit at 28-30 in 1960 (`stB`, `otqB2`,
+  `stArB`, `phn03`, `phn038`); the three promotion arms are 36-43. The LP budget channel is fixed, so the rest goes
+  through another LP term. Youth LPs run +3-4 points in 1960 in all three arms, so the likely path is the act LP
+  audience and hit-package demand, which read where an act's singles buyers are. Untraced.
+- Not adopted.
+
+## 100. Tracing the LP genre gap under local promotion: one real leak (fixed in §99), the rest is top-50 noise (2026-11-19; seeds 1001-4004, 104 weeks)
+
+**What moved in the top 50.** 1960 MidTier youth LPs take 11.5-12.5 points of the year-end top 50 in every promotion
+arm (`stB` 9, `otqB2` 10) and Comedy loses titles (12 → 7-9). MidTier youth singles do not gain (Top 40 share 21-22% in
+every arm), so the extra is LP demand: `lph75f` MidTier youth LP raw demand 3.30M against 2.47M over a similar LP count.
+
+**The act ledger is not it.** `--local-promotion-ledger=preshift` (diagnostic; `LocalPromotion.LedgerUnits`): the
+`--act-lp-audience` ledger books a shifted single's cleared units at the pre-shift geography (cleared × pre / shifted).
+`lph75L` = `lph75f` + the diagnostic: gap 36 / 30 (`lph75f` 36 / 34), MidTier youth still 12 points. Off is
+byte-identical to `stB-1001` at 27 weeks (`lpoff4`).
+
+**The `lph75f` MidTier youth gain is the reception draw.** Demand-weighted reception for those LPs is 3.08 against 2.56
+(`stB`) and 2.57 (`lph75L`); `lph75L` units are back inside the no-switch range (2.49M; `stB` 2.31, `otqB2` 2.47,
+`phn03` 2.38). Reception is keyed per title (σ 2.0, upper 1:0.5), so which titles get the tail is a lottery that any
+change reshuffles.
+
+**The comparison arms understated reshuffle noise.** `phn03` / `phn038` are byte-identical to `stB` until a phenomenon
+fires, so 28-30 was not a reshuffled spread. On arms of the same lineage with fully reshuffled worlds, the 1960 gap is
+`ocB` 34, `pt10B` 30, `stArB` 30, `otqB2` 28, `stB` 28; promotion arms 32 / 43 / 39 / 36 / 36 (`lp3`, `lp3c`, `lph75`,
+`lph75f`, `lph75L`). In 1961 no shift (21-38 against 25-43).
+
+**LP chart unit shares by genre, 1960 (mean of 4 seeds; per-seed SD 2-5 points):**
+
+| | `ocB` | `otqB2` | `stB` | `stArB` | `pt10B` | `lp3c` | `lph75` | `lph75f` | `lph75L` |
+|---|---|---|---|---|---|---|---|---|---|
+| Youth | 22.1 | 19.7 | 19.7 | 18.7 | 20.8 | 21.1 | 20.9 | 22.4 | 21.0 |
+| Comedy | 4.6 | 4.6 | 5.3 | 7.9 | 4.6 | 3.2 | 4.5 | 5.4 | 4.8 |
+| Easy Listening | 15.1 | 11.4 | 10.8 | 14.1 | 11.8 | 14.5 | 11.9 | 11.1 | 11.5 |
+| TradPop | 23.0 | 23.3 | 18.4 | 17.0 | 18.5 | 19.6 | 18.1 | 19.4 | 17.3 |
+| Soundtrack | 18.0 | 17.3 | 18.4 | 18.3 | 18.8 | 17.1 | 17.7 | 18.3 | 18.0 |
+
+Every promotion arm sits inside the reference range on every row.
+
+**Reading.** The only real LP channel was the format-split leak (§99: the convex LP share of each region's purse), fixed
+in `lph75f`. What remains on the top-50 gap is at most +5-7 in 1960 against the reshuffled references, with no shift in
+LP unit shares; the top-50 count of 50 titles on a σ 2.0 reception draw amplifies reshuffle noise. Judge LP genre
+effects of singles-side switches on chart unit shares, with reshuffled reference arms, not on the top-50 gap alone.
+Remaining costs of `lph75f`: MidTier home premium 1.24 → 1.49-1.56 and Big-5 1961 newcomer Top 10s 8.5 (`stB` 5, `stArB` 8.0).
+
+## 101. Screen: `--local-promotion-midtier=equal|off`, MidTiers promote nationally, not from home (2026-11-19; seed 1001, 52 weeks)
+
+**The cost.** Under `lph75f` the MidTier Top 40 home premium rises 1.24 → 1.49 (4 seeds). By home region (seed 1001,
+1960): West Coast MidTiers 1.34 → 1.80, Great Lakes 1.45 → 1.79, East Coast flat (1.23 → 1.21). The West Coast MidTiers
+are Liberty, Dot and Warner, the labels the surveys put at ~0.9. H 0.75 gives their home region the owner's push.
+
+**Switch** (`LocalPromotion.MidTierMode`, reads the label's current tier; needs `--local-promotion=K`; checks pass).
+`equal`: a MidTier's K − 1 is split equally over its footprint (no owner home share). `off`: a MidTier promotes
+nationally, like a Major; its records are not shifted. Arms on `lph75f`'s request: `lpmeq`, `lpmoff`. Control: the 1960
+rows of `lph75f-1001` (104 weeks) and `stB-1001`. Scorer: `score_local_promotion.py 1001 ARM... --years=1960`
+(new option); guards from records / regional-home-sales.
+
+| Seed 1001, 1960 | `stB` | `lph75f` | `lpmeq` | **`lpmoff`** | History |
+|---|---|---|---|---|---|
+| MidTier home premium, Top 40 / all singles | 1.31 / 1.33 | 1.56 / 1.65 | 1.36 / 1.37 | 1.07 / 1.10 | ~0.9 |
+| … East Coast / West Coast / Great Lakes MidTiers, Top 40 | 1.23 / 1.34 / 1.45 | 1.21 / 1.80 / 1.79 | 1.02 / 1.59 / 1.50 | 0.90 / 1.28 / 1.18 | |
+| Top 40 premium: Small / Boutique / Independent | 2.73 / 1.47 / 1.42 | 3.48 / 1.99 / 1.73 | 2.68 / 1.76 / 1.70 | 3.20 / 2.26 / 1.88 | ~2.5 |
+| Major Top 40 premium | 0.96 | 0.78 | 0.87 | 0.82 | ~0.94 |
+| Single unit share: MidTier / Major / Independent | 25.9 / 22.3 / 35.4 | 25.2 / 20.1 / 37.7 | 30.1 / 15.7 / 37.2 | 26.9 / 18.7 / 36.2 | |
+| Top 10 record-weeks: Big-5 / MidTier / small labels | 29.2 / 32.1 / 38.7 | 26.6 / 30.2 / 43.2 | 16.2 / 37.5 / 46.2 | 21.5 / 33.8 / 44.7 | 27 (Big-5) |
+
+- **`off` does what was asked.** MidTier Top 40 1.56 → 1.07 (East Coast 0.90), under `stB`'s 1.31; Independent and
+  Boutique keep the promotion premium (1.88 / 2.26, one seed). MidTier unit share is back at `stB` (26.9 vs 25.9).
+- **`equal` barely moves the premium** (1.36) and is not neutral: spreading a MidTier's intent over three to five
+  footprint regions instead of one saturated home purse clears more, MidTier units +5 points, Big-5 Top 10 16.2.
+- **Open: Big-5 1960 Top 10 21.5 under `off`** against 26.6 (`lph75f`) and 29.2 (`stB`) on the same seed. One seed;
+  needs seeds to separate from reshuffle. `defunct` is not comparable (52 vs 104 weeks).
+
+**Four seeds, 104 weeks: `lpmo104`** (= `lpmoff` flags; seeds 1001-4004; `score_local_promotion.py`,
+`score_opening_tier_quotas.py`):
+
+| Seeds 1001-4004 | `stB` | `lph75f` | **`lpmo104`** | History |
+|---|---|---|---|---|
+| MidTier Top 40 home premium 1960 / 1961 | 1.24 / 1.05 | 1.49 / 1.23 | **1.17 / 0.97** | ~0.9 |
+| Top 40 premium 1960: Small / Boutique / Independent | 2.38 / 1.29 / 1.42 | 2.92 / 1.78 / 1.83 | 3.17 / 2.03 / 1.78 | ~2.5 |
+| … 1961 | 1.40 / 1.16 / 1.12 | 2.19 / 1.68 / 1.54 | 2.25 / 1.66 / 1.57 | |
+| Major Top 40 premium 1960 | 0.93 | 0.81 | 0.85 | ~0.94 |
+| Small labels' home share 1961: Deep South / East Coast | 21.9 / 39.2 | 30.6 / 47.3 | 29.3 / 47.9 | |
+| Top 10 record-weeks 1960: Big-5 / MidTier / small labels | 26.2 / 39.1 / 34.7 | 27.5 / 33.2 / 39.4 | **22.8** / 34.1 / 43.1 | 27 (Big-5) |
+| … 1961 | 29.5 / 26.3 / 44.2 | 31.2 / 20.2 / 48.4 | 28.5 / 23.8 / 47.7 | 22.1 ± 4.3 |
+| Big-5 Top 10 1960 by seed | 29.2 / 30.0 / 25.5 / 20.0 | 26.6 / 28.7 / 25.3 / 29.2 | 21.5 / 25.5 / 22.1 / 22.1 | |
+| Big-5 newcomer Top 10 records 1960 / 1961 | 6.0 / 5.0 | 5.0 / 8.5 | 5.0 / 6.25 | ~4.5 |
+| Labels inactive at week 104 | 94.0 | 95.75 | 93.75 | |
+
+- **The MidTier fix holds on four seeds.** 1.49 → 1.17 in 1960 and 1.23 → 0.97 in 1961, below `stB`. The 1960
+  residual (1.17 vs ~0.9) is `stB`'s own launch-side home edge, not the switch. Independent and Boutique premiums,
+  small-label home shares and closures are unchanged from `lph75f`. The 1961 Big-5 newcomer excess shrinks (8.5 → 6.25).
+- **Cost: Big-5 1960 Top 10 22.8**, under `lph75f` on every seed (−3 to −7) and under `stB` on three of four. The
+  slots go to small labels (+3.7), not MidTiers (+0.9). The promotion arms split by what MidTiers get: Big-5 1960 is
+  23.4 in `lp3c` (equal split) and 22.8 in `lpmo104`, against 26.6 / 27.5 in `lph75` / `lph75f` (home push). Reading
+  (not traced): under H, MidTier records concentrated in the big home purses (East Coast, West Coast, Great Lakes)
+  crowded the small labels' charted records there, and that held small labels' Top 10 lift down. Without it the lift
+  §98 measured (home concentration raises a small label hit's rank) shows in full: small labels' 1960 Top 10 is
+  +8.4 on `stB`.
+- Not adopted. The remaining cost belongs to the small-label promotion itself: the Top 10 rank lift from home
+  concentration. Next: trace whether that lift comes from chart points (national units) or from the regional reporting
+  panel, then decide whether promotion should move a charted record's units without moving its rank.
+- **Corrected by §102:** on eight seeds there is no small-label Top 10 lift (+0.2 / +1.8 points against `stB`); the
+  four-seed +4.7 / +8.4 was `stB` running low on seeds 2002-3003. The "masking" reading above does not hold.
+
+## 102. Trace: there is no small-label rank lift; on eight seeds the Big-5 1960 cost of `midtier=off` is 2.7 ± 1.5 (2026-11-19; seeds 1001-8008, 1960)
+
+**What chart rank reads** (`ChartSimulator.CalculateChartPoints`): national units (`--chart-regional-action/-rank` are
+off in this flag set) plus airplay summed over regions (rotation to the 5th power), times the survey draw. Radio reads
+local sales through the local heat target (0.35 of a region's rotation target), the local sales rank and station
+picks, and all of these read raw demand under `--local-signals-read-demand`. The shift moves serviceable intent, not
+raw demand, so promotion reaches radio only through feedback (cleared units → awareness → later demand).
+
+**Top 10 record-weeks split into sales and airplay** (1960, seeds 1001-4004; airplay = `unsampledChartPoints` − units):
+
+| Small-label Top 10 record-week | `stB` | `lp3c` | `lph75f` | `lpmo104` |
+|---|---|---|---|---|
+| National units (k) | 62.4 | 59.0 | 63.0 | 62.8 |
+| Airplay points (k) | 34.4 | 36.3 | 32.3 | 34.1 |
+| Distinct small-label Top 10 records a seed | 45.0 | 51.2 | 50.5 | 54.2 |
+
+A promoted small-label hit is no stronger per week, in units or in airplay. Among small-label records that chart
+(~342 a seed launched in weeks 1-40), breakouts (4.4), covered regions (3.9) and first-eight-week units (54-57k) are
+flat across arms. Only Top 10 conversion moves (11.1% → 11.9-12.6%), which is what reshuffle noise in a count of
+~40 records looks like.
+
+**Eight seeds.** Seeds 5005-8008 at 52 weeks (`stB52`, `lph75f52`, `lpmo52`; same requests, 1960 only) beside
+1960 of the 104-week runs. Per-seed difference against `stB`, same opening world, reshuffled after:
+
+| 1960 Top 10 record-weeks, 8 seeds | `stB` | `lph75f` | `lpmo` (`midtier=off`) |
+|---|---|---|---|
+| Big-5 share (SD) | 24.9 (5.0) | 26.7 (3.0) | 22.2 (2.5) |
+| … minus `stB` | | +1.8 ± 1.8 | −2.7 ± 1.5 (lower on 5 of 8) |
+| … `lpmo` minus `lph75f` | | | −4.5 ± 1.4 (lower on 7 of 8) |
+| Small-label share | 40.3 | 40.4 (+0.2 ± 3.0) | 42.1 (+1.8 ± 2.7) |
+| MidTier share | 34.8 | 32.8 | 35.7 |
+| MidTier Top 40 home premium, seeds 5005-8008 | 1.14 | 1.49 | 1.10 |
+
+- **No rank lift to fix.** Small labels' Top 10 share under promotion is inside noise of `stB` on eight seeds.
+- **The MidTier fix replicates** on the new seeds (1.49 → 1.10), with Independents unchanged (1.79 → 1.74).
+- **The Big-5 cost is smaller than it looked.** Against `stB` it is −2.7 ± 1.5 (1.8 SE). Against `lph75f` it is
+  −4.5 ± 1.4, because `lph75f`'s MidTier home push cost MidTiers 2 points of Top 10 (32.8 against 34.8) and the
+  Big-5 picked them up (+1.8). `lph75f` was on the 27 target partly by that side effect. `stB` itself is 24.9 on
+  eight seeds, not 26.2.
+- **Reading.** `--local-promotion=3 --local-promotion-home-share=0.75 --local-promotion-midtier=off` is the candidate:
+  the small-label home premium (Independent ~1.75, Boutique ~2.0 against ~2.5) without the MidTier one (1.1-1.17
+  against ~0.9), small labels' national unit and Top 10 shares inside noise. Its open cost is Big-5 1960 Top 10 22.2
+  against 24.9 (`stB`) and the adopted 27. Not adopted.
+- Method: four reshuffled seeds misled twice here (small-label lift, `lph75f`'s on-target Big-5). Read Top 10 share
+  effects under ~5 points on eight seeds; 52-week runs are enough for 1960.
+
+**ADOPTED 2026-11-19 by the author.** `SimLogs/writing-calibration/candidate-request.json` (270 flags; previous
+`candidate-request-pre-local-promotion-2026-11-19.json`) appends `--local-promotion=3 --local-promotion-home-share=0.75
+--local-promotion-midtier=off`. Screened on the `stB` base, which carries the §85-89 opening flags the candidate does
+not. Next: the Big-5 1960 Top 10 cost (§103).

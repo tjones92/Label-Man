@@ -307,6 +307,8 @@ public partial class ChartManager : Node {
 		public RecordRuntimeData Record;
 		public RegionalRecordData Data;
 		public int Serviceable, SpilloverCleared;
+		// --local-promotion: the serviceable intent before the shift (-1 when not shifted).
+		public int PreShift = -1;
 		public int Cleared, FanGranted, FanDisplaced;
 		public int ObservedFollowerGrant;
 		public float ObservedFollowerIntent, FollowerPurchaseShare;
@@ -315,6 +317,10 @@ public partial class ChartManager : Node {
 	// These private scratch objects never leave a clearing pass. Reuse them rather
 	// than allocating one object per active record per region every week.
 	private readonly List<MarketIntent> marketIntentScratch = new();
+	private readonly List<int> localPromotionLimits = new(), localPromotionServiceable = new();
+	private readonly List<string> localPromotionRegions = new();
+	// Per region this week: shifted minus pre-shift single serviceable intent (0 when off).
+	private readonly Dictionary<string, long> localPromotionShift = new(StringComparer.Ordinal);
 
 	internal readonly struct FormatClearingBudget {
 		public readonly int Single, Album;
@@ -1454,9 +1460,11 @@ public partial class ChartManager : Node {
 		using var demandCache = GenreAcceptanceService.MemoizeRegionalDemand();
 		BoundedAudienceProbe.PrepareWeek(allRecords, allRegions, currentChartWeek);
 		ActLpAudience.AdvanceWeek(currentChartWeek);
+		SinglesPhenomenon.AdvanceWeek(currentChartWeek);
 		lastMarketClearingSummaries.Clear();
 		lastMarketSpilloverTransfers.Clear();
 		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(allRecords.Count), StringComparer.Ordinal);
+		localPromotionShift.Clear();
 		BudgetLpChannel.Prepare(allRecords, GetLabelById, currentChartWeek);
 		bool applyFollowerIntent = MediaFollowerDemand.PurchaseIntentCausal;
 		bool evaluateFollowerGrant = applyFollowerIntent || MediaFollowerDemand.Shadow;
@@ -1473,6 +1481,8 @@ public partial class ChartManager : Node {
 			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
 			float legacyMomentum = !isAlbum ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
 			RegionalAudience.PrepareCampaignAudience(record, allRegions);
+			int recordIntentStart = intentCount;
+			localPromotionLimits.Clear();
 			foreach (MarketRegion region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
 					data = new RegionalRecordData(region.regionId);
@@ -1525,12 +1535,37 @@ public partial class ChartManager : Node {
 				intentCount++;
 				intent.Record = record; intent.Data = data; intent.Serviceable = serviceable;
 				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f; intent.FanGranted = fanGranted; intent.FanDisplaced = 0;
+				intent.PreShift = -1;
 				intent.ObservedFollowerIntent = observedFollowerIntent; intent.ObservedFollowerGrant = observedFollowerGrant;
 				// Always estimated under causal intent: the following ledger logs follower self-recruitment either way, and
 				// subtracts these units from recruiting only under the recruit-from-new-buyers switches.
 				intent.FollowerPurchaseShare = applyFollowerIntent && !isAlbum && serviceable > 0
 					? (float)observedFollowerGrant / serviceable : 0f;
 				intentsByRegion[region.regionId].Add(intent);
+				localPromotionLimits.Add(Mathf.Max(0, physicalLimit));
+			}
+			// --local-promotion (§98): the label's own push moves this single's intent toward its footprint, its national
+			// intent held. Never runs when off, for LPs, player records or a whole-map footprint.
+			if (!isAlbum && LocalPromotion.Enabled && LocalPromotion.Shifts(record, label)) {
+				localPromotionServiceable.Clear(); localPromotionRegions.Clear();
+				for (int i = recordIntentStart; i < intentCount; i++) {
+					localPromotionServiceable.Add(marketIntentScratch[i].Serviceable);
+					localPromotionRegions.Add(marketIntentScratch[i].Data.regionId);
+				}
+				int[] shifted = LocalPromotion.Shift(label, localPromotionRegions, localPromotionServiceable, localPromotionLimits);
+				for (int i = recordIntentStart; i < intentCount; i++) {
+					MarketIntent shiftedIntent = marketIntentScratch[i];
+					int value = shifted[i - recordIntentStart];
+					if (value == shiftedIntent.Serviceable) continue;
+					if (shiftedIntent.FollowerPurchaseShare > 0f && value > 0)
+						shiftedIntent.FollowerPurchaseShare = Mathf.Min(1f, shiftedIntent.FollowerPurchaseShare * shiftedIntent.Serviceable / value);
+					shiftedIntent.PreShift = shiftedIntent.Serviceable;
+					shiftedIntent.Serviceable = value;
+					shiftedIntent.Data.serviceableIntentThisWeek = value;
+					string shiftRegion = shiftedIntent.Data.regionId;
+					localPromotionShift[shiftRegion] = (localPromotionShift.TryGetValue(shiftRegion, out long prior) ? prior : 0L)
+						+ value - localPromotionServiceable[i - recordIntentStart];
+				}
 			}
 		}
 
@@ -1571,8 +1606,10 @@ public partial class ChartManager : Node {
 				else { summary.RawSingleDemand += intent.Data.rawDemandThisWeek; summary.ServiceableSingleIntent += intent.Serviceable; }
 				summary.PhysicalBackorders += intent.Data.unitsBackordered;
 			}
+			// --local-promotion moves single buyers between labels, not between formats: the split reads pre-shift intent.
+			long promotionShift = localPromotionShift.TryGetValue(region.regionId, out long shiftDelta) ? shiftDelta : 0L;
 			FormatClearingBudget budget = CalculateFormatClearingBudget(
-				Mathf.RoundToInt(summary.ServiceableSingleIntent),
+				Mathf.RoundToInt(summary.ServiceableSingleIntent - promotionShift),
 				Mathf.RoundToInt(summary.ServiceableAlbumIntent), baseCapacity,
 				CalculateAlbumIntentOverlapPressure(albumChannelMaturity), albumChannelMaturity,
 				albumChannelCapacity);
@@ -1590,7 +1627,7 @@ public partial class ChartManager : Node {
 			summary.EffectiveAlbumIntent = budget.EffectiveAlbum;
 			summary.AlbumOverlapPressure = CalculateAlbumIntentOverlapPressure(albumChannelMaturity);
 			AllocateProportionalLocal(intents.Where(intent =>
-				intent.Record.baseRecord.format == ReleaseFormat.Single).ToList(), budget.Single, SinglesRationExponent.Exponent);
+				intent.Record.baseRecord.format == ReleaseFormat.Single).ToList(), budget.Single, SinglesRationExponent.Exponent, phenomenon: true);
 			AllocateProportionalLocal(intents.Where(intent =>
 				intent.Record.baseRecord.format == ReleaseFormat.Album).ToList(), budget.Album);
 			foreach (MarketIntent intent in intents) {
@@ -1713,7 +1750,9 @@ public partial class ChartManager : Node {
 					intent.ObservedFollowerGrant, intent.Cleared, applyFollowerIntent);
 				ReplayDemandObserver?.Invoke("after-clearing", intent.Record, region, intent.Data, intent.Cleared);
 				intent.Data.unitsSoldTotal += intent.Cleared;
-				if (!album) ActLpAudience.AddSingleUnits(intent.Record.baseRecord, region.regionId, intent.Cleared);
+				if (!album) ActLpAudience.AddSingleUnits(intent.Record.baseRecord, region.regionId,
+					LocalPromotion.LedgerUnits(intent.Cleared, intent.Serviceable, intent.PreShift));
+				if (!album) SinglesPhenomenon.AddSingleUnits(intent.Record.baseRecord, intent.Cleared);
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
 			if (applyFollowerIntent) BookFanDisplacedBuyers(intents, summary);
@@ -1935,11 +1974,28 @@ public partial class ChartManager : Node {
 			.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining);
 	}
 
-	private static void AllocateProportionalLocal(List<MarketIntent> intents, int budget, float exponent = 1f) {
+	private static void AllocateProportionalLocal(List<MarketIntent> intents, int budget, float exponent = 1f, bool phenomenon = false) {
 		int total = intents.Sum(intent => intent.Serviceable);
 		int allocated = Mathf.Min(Mathf.Max(0, budget), total);
 		if (allocated == 0 || total == 0) return;
 		int assigned = 0;
+		// SinglesPhenomenon: a phenomenon act's singles clear ahead of the ration. Only when one is in this purse this week,
+		// so every other week runs the proportional code below unchanged.
+		if (phenomenon && SinglesPhenomenon.Enabled) {
+			List<int> serviceable = intents.Select(intent => intent.Serviceable).ToList();
+			List<float> weights = intents.Select(intent => SinglesPhenomenon.RationWeight(intent.Record.baseRecord.artistId)).ToList();
+			if (SinglesPhenomenon.AnyWeighted(serviceable, weights)) {
+				double[] exacts = SinglesPhenomenon.Shares(serviceable, weights, allocated);
+				for (int i = 0; i < intents.Count; i++) {
+					intents[i].Cleared = Math.Min(intents[i].Serviceable, (int)Math.Floor(exacts[i] + 1e-9));
+					intents[i].Fraction = (float)(exacts[i] - intents[i].Cleared);
+					assigned += intents[i].Cleared;
+				}
+				int left = allocated - assigned;
+				foreach (MarketIntent intent in LargestRemainders(intents.Where(x => x.Cleared < x.Serviceable).ToList(), left)) intent.Cleared++;
+				return;
+			}
+		}
 		if (exponent != 1f) {
 			// SinglesRationExponent: the most-wanted titles keep more of their intent; same purse, same largest remainders.
 			double[] exacts = SinglesRationExponent.Shares(intents.Select(intent => intent.Serviceable).ToList(), allocated, exponent,
