@@ -150,7 +150,7 @@ public static partial class MediaAtmosphereService {
 					foreach (TvProgram program in airing) {
 						if (program.Network == TvNetwork.Local) {
 							string region = DistanceModel.GetCityById(program.HomeCityId)?.parentRegionId;
-							bool sells = region != null && r.regionalData.TryGetValue(region, out var rd) && rd != null && rd.unitsSoldThisWeek > 0;
+							bool sells = region != null && r.regionalData.TryGetValue(region, out var rd) && rd != null && LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience) > 0;
 							if (!sells && region != actRegion) continue;
 						}
 						if (ProgramMemoryFor(program.Id, rec.artistId) is { } m && m.ExcludedUntilDay > today) continue;

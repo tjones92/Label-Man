@@ -64,7 +64,7 @@ public static class RegionalChartAction {
 		double best = 0d;
 		foreach (var region in regions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data) || region.EconomicPopulation <= 0f) continue;
-			best = Math.Max(best, data.unitsSoldThisWeek / (region.EconomicPopulation / totalPopulation));
+			best = Math.Max(best, LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Audience) / (region.EconomicPopulation / totalPopulation));
 		}
 		double bonus = Math.Min(units, Lambda * Math.Max(0d, best - Skew * units));
 		return (float)(units + bonus);

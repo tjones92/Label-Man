@@ -131,8 +131,8 @@ public static class TradeCharts {
 		if (region == null) return view;
 		List<RecordRuntimeData> top = manager.GetAllRecords()
 			.Where(r => r.baseRecord != null && r.baseRecord.format != ReleaseFormat.Album
-				&& r.regionalData.TryGetValue(region.regionId, out RegionalRecordData data) && data.unitsSoldThisWeek > 0)
-			.OrderByDescending(r => r.regionalData[region.regionId].unitsSoldThisWeek).ThenBy(r => r.baseRecord.recordId, StringComparer.Ordinal)
+				&& r.regionalData.TryGetValue(region.regionId, out RegionalRecordData data) && LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Audience) > 0)
+			.OrderByDescending(r => LocalPromotion.Units(r.regionalData[region.regionId], LocalPromotion.FeedbackGroup.Audience)).ThenBy(r => r.baseRecord.recordId, StringComparer.Ordinal)
 			.Take(RegionalListSize).ToList();
 		for (int i = 0; i < top.Count; i++)
 			view.Rows.Add(new TradeChartRow { Record = top[i], Rank = i + 1, LastRank = -1 });

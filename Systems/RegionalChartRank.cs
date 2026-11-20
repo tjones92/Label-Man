@@ -94,8 +94,8 @@ public static class RegionalChartRank {
 			if (marketWeight[i] <= 0d) continue;
 			list.Clear();
 			foreach (var r in singles)
-				if (r.regionalData.TryGetValue(regions[i].regionId, out RegionalRecordData data) && data.unitsSoldThisWeek > 0)
-					list.Add((data.unitsSoldThisWeek, r.baseRecord.recordId, r));
+				if (r.regionalData.TryGetValue(regions[i].regionId, out RegionalRecordData data) && LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Audience) > 0)
+					list.Add((LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Audience), r.baseRecord.recordId, r));
 			list.Sort((a, b) => a.Units != b.Units ? b.Units.CompareTo(a.Units) : string.CompareOrdinal(a.Id, b.Id));
 			double q = marketWeight[i] / totalWeight;
 			for (int k = 0; k < list.Count && k < Depth; k++) score[list[k].Record] += q * Weight(k + 1);

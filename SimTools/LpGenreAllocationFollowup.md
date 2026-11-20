@@ -5851,3 +5851,154 @@ flat across arms. Only Top 10 conversion moves (11.1% → 11.9-12.6%), which is 
 `candidate-request-pre-local-promotion-2026-11-19.json`) appends `--local-promotion=3 --local-promotion-home-share=0.75
 --local-promotion-midtier=off`. Screened on the `stB` base, which carries the §85-89 opening flags the candidate does
 not. Next: the Big-5 1960 Top 10 cost (§103).
+
+## 103. The Big-5 1960 cost of local promotion runs through reported regional sales, not the purses (2026-11-19; seeds 1001-8008, 52 weeks)
+
+**Adoption housekeeping.** The candidate also takes `stB`'s six opening flags (§85-89: `--opening-programme-clocks`,
+`--earned-lp-forecast-warm-ratios=4.5,4.1`, `--major-opening-roster=58`, `--opening-catalogue-major-share=0.16`,
+`--opening-star-tier-share=0.37`, `--opening-staff-catch-up=12`; author's call, 276 flags, previous
+`candidate-request-pre-opening-stB-2026-11-19.json`). It now equals the `lpmo` arms apart from telemetry. A sweep of
+every ADOPTED note in SimTools/*.md and memory found nothing else missing: the working-bundle switches
+(`--workload-scaled-staffing`, `--midtier-national-ar`, `--midtier-going-concern-cash`, `--defer-british-labels`),
+`--prior-year-corporate-tax`, `--distress-master-sales`, `--studio-parent-labels` and `--retail-purchase-envelope=1`
+come in through `--lp-retail-v2-profile`.
+
+**Where the cost sits (8 seeds, 1960; `units8`/`monthly8` in the session scratchpad).** Under `lpmo` the Majors lose
+2.25 ± 0.64 points of single units (Big-5 −2.22 ± 0.65, 6 of 8 seeds); `lph75f` is flat (+0.2). The Majors' serviceable
+intent falls with their units in every region, so it is not crowding in the big home purses. It builds through the
+year: weeks 1-4 −0.3, weeks 21-32 −0.5 to −1.9, weeks 33-52 −3.6 to −5.2 (SE 1-3). MidTiers take the slack in weeks
+5-32, small labels after week 37.
+
+**Diagnostic** `--local-promotion-feedback=preshift` (`LocalPromotion.RestateUnits`, `ChartManager.RestateLocalPromotionFeedback`;
+checks pass). The purses clear on the shifted intent as before; then each shifted single's cleared units, national
+total unchanged, are restated at its pre-shift geography (cleared × pre / serviceable, largest remainders) before
+anything reads them: `unitsSoldThisWeek`, stock depletion, follower units, `unitsSoldTotal`, displaced demand and the
+act LP ledger. Off is byte-identical to `lpmo104-1001` over weeks 0-26 (`lpmoI-1001`: records, market clearing, label
+sales, regional home sales). Arm `lpmF52` = `lpmo` + the diagnostic, seeds 1001-8008. Under it the regional telemetry
+reports restated units, so its home premium is not read.
+
+| 1960, 8 seeds (mean, SE of per-seed difference) | `stB` | `lpmo` | **`lpmF`** (feedback pre-shift) |
+|---|---|---|---|
+| Big-5 Top 10 share | 24.9 | 22.2 (−2.7 ± 1.5) | **24.5 (−0.4 ± 0.9)** |
+| Major single-unit share | 20.5 | 18.3 (−2.25 ± 0.64) | 20.4 (−0.10 ± 0.68) |
+| Big-5 single-unit share | 19.8 | 17.5 (−2.22 ± 0.65) | 19.8 (+0.03 ± 0.68) |
+| Small-label Top 10 share | 40.3 | 42.1 (+1.8 ± 2.7) | 39.0 (−1.3 ± 2.7) |
+
+- **The cost is feedback.** With the clearing still shifted but the sales reported where they would have been, the
+  Big-5 and Major unit shares are back on `stB`. Promotion costs the Big-5 nothing at the moment of sale; it costs
+  them through what the rest of the model does with "this small label sold at home".
+- **Readers of `unitsSoldThisWeek`** (all restated together here): restocking and retail position
+  (`ChartManager` ~2174-2217), breakout volume (~2704), the fanbase and media following recruitment
+  (`ArtistFanbase`, `MediaAtmosphereService.Following`), genre momentum, trade charts, rack store units, and label
+  money: the distribution skim on granted regions and distance-based COGS (`CompetitorManager` ~1618, ~1654), plus the
+  strong-region evidence (~5299). Launch counts by quarter do not explain it: small labels +1% under `lpmo` (SE about
+  as large), Big-5 Q4 −12 ± 8 on ~118.
+- Next: split the readers into three groups, one diagnostic each, 8 seeds × 52 weeks: money (skim, COGS), supply
+  (restock, racks, stock depletion) and audience (breakouts, fanbase, following, genre momentum, trade charts).
+
+## 104. The Big-5 1960 cost of local promotion is the store inventory loop (2026-11-19; seeds 1001-2002, 52 weeks)
+
+**Diagnostic** `--local-promotion-feedback=GROUPS` (comma list; `preshift` still restates every reader at once, §103).
+The purses clear shifted and `unitsSoldThisWeek` keeps the cleared units; only the named groups read the restated
+units, through `LocalPromotion.Units` / `UnitsTotal` (`RegionalRecordData.feedbackUnitsDelta`, `feedbackUnitsTotalDelta`):
+- **money**: distribution skim on granted regions, distance COGS (`CompetitorManager` ~1618, ~1654), strong-region evidence (~5299);
+- **supply** = **depletion** (the shelf loses the restated units) + **restock** (`stockBeforeSales`, the charted reorder
+  trigger `unitsInStores < 2 × units`, the restock demand signal). Racks are LPs, never shifted;
+- **audience**: local sales signals (`RegionalAudience.LocalSignalUnits`: awareness, arrival), cumulative exhaustion
+  (`ChartSimulator` penetration), breakout volume, fanbase and media following recruitment, follower settlement,
+  displaced buyers, genre momentum, regional chart rank and action, trade charts, TV booking, the act LP ledger.
+
+Off is byte-identical to `lpmo104-1001` and `preshift` to `lpmF52-1001` over weeks 0-26 (`lpmX27-1001`, `lpmP27-1001`:
+records, market clearing, label sales, regional home sales, label finance). Switch checks pass. Scorer:
+`SimTools/score_feedback_groups.py SEEDS ARM...` (reproduces §103 on 8 seeds: Big-5 units `lpmo` −2.23 ± 0.64, `lpmF` −0.10).
+Seeds 1001-2002 carry a large cost (Big-5 units −3.20 ± 0.35 vs `stB`), so two seeds separate the groups.
+
+| 1960, seeds 1001-2002, difference vs `lpmo` | Big-5 single units | Big-5 Top 10 | Small-label Top 10 |
+|---|---|---|---|
+| `lpmF` all readers (§103) | +4.36 ± 1.27 | +6.7 ± 1.0 | −3.9 ± 2.1 |
+| **`lpmFs` supply** | **+4.29 ± 0.93** | +4.5 ± 0.5 | −7.4 ± 0.3 |
+| `lpmFm` money | +1.95 ± 1.57 | +3.7 ± 3.3 | −2.4 ± 2.2 |
+| `lpmFa` audience | +2.15 ± 1.86 | +4.3 ± 1.6 | +1.0 ± 1.2 |
+| `lpmFd` depletion only | +0.49 ± 0.34 | +0.2 ± 0.8 | −4.5 ± 2.8 |
+| `lpmFr` restock only | −1.06 ± 1.33 | −1.1 ± 2.4 | −1.0 ± 1.2 |
+
+- **Supply alone recovers the whole cost**, on both seeds (Big-5 units 22.0 / 25.3 against `lpmF` 21.7 / 25.7). Money
+  and audience each move about half as much and each is near zero on one seed: reshuffle noise at two seeds.
+- **Neither half of supply does it alone.** Restock reconstructs pre-sale stock as shelf + weekly units and reorders
+  when the shelf is under twice the week's units; restating one side and not the other breaks that identity, so the
+  half-arms are not clean tests. The mechanism is the inventory loop as a whole: depletion and reorder seeing the same units.
+- **How it reaches the Majors.** Restock capacity is per record (`RegionalPhysicalCapacity`); there is no shared shelf.
+  Under `lpmo` a shifted small single's real home sell-through drains its home shelf, trips the charted reorder, and
+  keeps it stocked where its demand is: small-label home units weeks 27-52 are 30.2k (`lpmo`) vs 21.2k (`stB`) and 25.9k
+  (supply restated). With the singles purse fixed (`singles-volume-is-a-fixed-purse`), those sales and their chart slots
+  come out of the Majors: Major serviceable intent weeks 27-52 is 162k away / 63k home under `lpmo`, 216k / 88k in
+  `stB`, 234k / 83k with supply restated. Hence the build-up through the year (§103).
+- **Reading.** Restocking where a record sells is how the shops worked. The cost is promotion working
+  through inventory, not an accounting leak. Money and audience are not shown to matter at two seeds.
+- Open: whether to accept the 1960 Big-5 cost under local promotion (the §96 band / 27 target) or to treat the
+  small-label home restock as too generous (e.g. one-stop reorder lag for labels without a branch). Author's call.
+
+## 105. Away restock lag for small labels: lag 1 restores the Big-5, but takes too much from small labels (2026-11-19; seeds 1001-2002, 52 weeks)
+
+§104's supply restatement gave the Big-5 back while keeping the home premium, but only through phantom depletion that
+starved small labels' away shelves. This is a real-world version of that. **Switch** `--away-restock-lag=L` (`AwayRestockLag`;
+`RegionalRecordData.restockInTransit` / `restockArrivalWeek`, not saved). A small label (Independent, Small, Boutique)
+reorders a record outside its footprint (home, owned distribution, strong regions) through independent distributors
+and one-stops: the reorder lands L weeks after it is placed, and the region places no new order while one is in transit
+(pressing drawn at order). `--away-restock-lag-scope=promoted` (default: singles local promotion shifts) or `all`
+(every small-label AI record). Off is byte-identical to `lpmo104-1001` over weeks 0-26 (`lpmY27-1001`). Checks pass.
+Arms on `lpmo`'s request.
+
+| 1960, seeds 1001-2002 | `stB` | `lpmo` | `lpmFs` (§104) | **`rl1p`** L1 | `rl2p` L2 | `rl4p` L4 | `rl3a` L3 all |
+|---|---|---|---|---|---|---|---|
+| Big-5 single units, vs `lpmo` | −3.20 ± 0.35 | 0 | +4.29 ± 0.93 | **+4.70 ± 1.20** | +7.73 ± 1.23 | +6.60 ± 1.76 | +7.17 ± 2.89 |
+| Big-5 Top 10 share | 29.1 | 22.9 | 27.4 | **27.9** | 34.7 | 33.2 | 33.7 |
+| Small-label Top 10 share | 34.2 | 43.9 | 36.5 | **31.2** | 28.9 | 21.8 | 25.0 |
+| Small-label share of single units | 48.6 | 52.7 | 48.0 | **42.9** | 41.4 | 38.7 | 41.1 |
+| Small home premium, Top 40 | 2.65 | 3.22 | 3.19 | **3.68** | 5.34 | 26.5 | 13.0 |
+| Independent home premium, Top 40 | 1.42 | 1.87 | 1.96 | **2.03** | 2.05 | 2.55 | 2.34 |
+| MidTier / Major home premium, Top 40 | 1.21 / 0.94 | 1.11 / 0.87 | 1.18 / 0.93 | 1.07 / 0.98 | 1.14 / 0.90 | 1.12 / 0.90 | 1.08 / 0.87 |
+
+- **L2 and longer overshoot badly.** With one order in transit at a time, L2 means a reorder every other week, and away
+  shelves sit empty in between. Small labels fall 15-22 points of Top 10 below `lpmo`; the Small home premium blows up.
+- **L1 (a one-week delay, weekly orders) matches §104 on the Big-5** (+4.70 vs +4.29), with Big-5 Top 10 27.9 (1960
+  target 27) and the home premium kept (Small 3.68, Independent 2.03). But it takes more than the promotion gave small
+  labels: their unit share 42.9 vs `stB` 48.6, Top 10 31.2 vs 34.2. `lpmFs` landed small labels back on `stB`; L1 goes ~5
+  points of unit share past it.
+- Not adoptable as is. Next: gentler gate. A P&D or wholesale distributor reorders weekly through its own branches, so
+  the lag should apply only where the record is uncovered (`!isCovered`), not everywhere outside the footprint.
+  Then L1 on 8 seeds.
+
+## 106. Lag only where the record is uncovered: two seeds cannot rank the lag arms (2026-11-19; seeds 1001-2002, 52 weeks)
+
+`--away-restock-lag-where=uncovered|footprint` (default footprint): with `uncovered` the lag applies only where no
+distributor ships the record either (`!isCovered`; a P&D or wholesale house reorders weekly through its own branches).
+Under `lpmo` about 28% of small labels' away single units sell under a P&D deal, so the gate narrows the lag by
+roughly that much.
+
+| 1960, seeds 1001-2002 | `stB` | `lpmo` | `lpmFs` | `rl1p` L1 footprint | **`rl1u`** L1 uncovered | **`rl2u`** L2 uncovered |
+|---|---|---|---|---|---|---|
+| Big-5 single-unit share | 22.5 | 19.3 | 23.6 | 24.0 | 20.1 | 24.8 |
+| Big-5 Top 10 share | 29.1 | 22.9 | 27.4 | 27.9 | 22.4 | 30.3 |
+| Small-label Top 10 share | 34.2 | 43.9 | 36.5 | 31.2 | 29.2 | 31.0 |
+| Small-label share of single units | 48.6 | 52.7 | 48.0 | 42.9 | 44.2 | 45.3 |
+| Small home premium, Top 40 | 2.65 | 3.22 | 3.19 | 3.68 | 4.03 | 3.57 |
+| Independent home premium, Top 40 | 1.42 | 1.87 | 1.96 | 2.03 | 1.92 | 1.96 |
+
+- **Every lag arm cuts small labels 3-6 points of unit share below `stB`**, footprint or uncovered, L1 or L2. The home
+  premium holds in all of them.
+- **Where that slack goes is not stable.** L1 uncovered gives the Big-5 almost nothing (+0.8 vs `lpmo`), L1 footprint
+  +4.7 and L2 uncovered +5.5. A gate that exempts ~28% of the volume cannot by itself turn +4.7 into +0.8; most of the
+  spread is reshuffle.
+- **These two seeds flatter the screen.** On them `lpmo`'s small-label Top 10 is +9.7 over `stB`; on 8 seeds it is
+  +1.8 (§103). Any reshuffled arm regresses toward the 8-seed mean, so "vs `lpmo`" Top 10 gains on 1001-2002 are
+  inflated. Top 10 shares need 8 seeds (`three-seed-paired-se-understates-reshuffle`).
+- Reading: the lag is a blunt tool. It suppresses small labels' away sales; it does not aim the slack at the Big-5.
+  `lpmFs` is still the only arm that both restores the Big-5 and leaves small labels on `stB`, and it is not a mechanism.
+- Next, if pursued: 8 seeds of one lag arm (`rl2u` or `rl1p`) before any further variants; or accept the 1960 Big-5 cost.
+
+**ACCEPTED 2026-11-19 by the author: the 1960 Big-5 cost of local promotion stands.** No lag or restatement is
+adopted; `--local-promotion-feedback` (all forms) and `--away-restock-lag` stay off-by-default diagnostics. The
+candidate (`SimLogs/writing-calibration/candidate-request.json`, 276 flags) equals the `lpmo` arms' flags apart from
+telemetry (`--regional-home-sales`, `--album-demand-trace*`, `--newcomer-connect-trace`, `--gzip-telemetry`) and
+run/seed/weeks; nothing adopted is missing from it.

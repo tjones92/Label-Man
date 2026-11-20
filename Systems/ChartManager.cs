@@ -309,6 +309,8 @@ public partial class ChartManager : Node {
 		public int Serviceable, SpilloverCleared;
 		// --local-promotion: the serviceable intent before the shift (-1 when not shifted).
 		public int PreShift = -1;
+		// --local-promotion-feedback=preshift: the units reported downstream (-1 = the cleared units).
+		public int FeedbackUnits = -1;
 		public int Cleared, FanGranted, FanDisplaced;
 		public int ObservedFollowerGrant;
 		public float ObservedFollowerIntent, FollowerPurchaseShare;
@@ -1292,6 +1294,7 @@ public partial class ChartManager : Node {
 
 				regionalData.unitsInStores = Mathf.Max(0, regionalData.unitsInStores - regionalSales);
 				regionalData.unitsSoldThisWeek = regionalSales;
+				regionalData.feedbackUnitsDelta = 0;
 				regionalData.unitsSoldTotal += regionalSales;
 
 				totalSales += regionalSales;
@@ -1535,7 +1538,7 @@ public partial class ChartManager : Node {
 				intentCount++;
 				intent.Record = record; intent.Data = data; intent.Serviceable = serviceable;
 				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f; intent.FanGranted = fanGranted; intent.FanDisplaced = 0;
-				intent.PreShift = -1;
+				intent.PreShift = -1; intent.FeedbackUnits = -1;
 				intent.ObservedFollowerIntent = observedFollowerIntent; intent.ObservedFollowerGrant = observedFollowerGrant;
 				// Always estimated under causal intent: the following ledger logs follower self-recruitment either way, and
 				// subtracts these units from recruiting only under the recruit-from-new-buyers switches.
@@ -1731,27 +1734,49 @@ public partial class ChartManager : Node {
 			}
 		}
 
+		// --local-promotion-feedback=preshift (§103 diagnostic): a shifted single's sales are reported at its pre-shift
+		// geography from here on; the clearing above is untouched. Never runs when off.
+		// The §104 group split restates the same way; only the named readers see it.
+		bool feedbackAll = LocalPromotion.Enabled && LocalPromotion.FeedbackPreShift;
+		bool feedbackGroups = LocalPromotion.Enabled && LocalPromotion.AnyFeedbackGroup;
+		if (feedbackAll || feedbackGroups) RestateLocalPromotionFeedback();
+		bool feedbackSupply = feedbackAll || LocalPromotion.FeedbackOn(LocalPromotion.FeedbackGroup.Depletion);
+		bool feedbackAudience = feedbackAll || LocalPromotion.FeedbackOn(LocalPromotion.FeedbackGroup.Audience);
+
 		foreach (MarketRegion region in allRegions) {
 			List<MarketIntent> intents = intentsByRegion[region.regionId];
 			MarketClearingRegionalSummary summary = summariesByRegion[region.regionId];
 			foreach (MarketIntent intent in intents) {
 				bool album = intent.Record.baseRecord.format == ReleaseFormat.Album;
+				// The units every reader below sees: the cleared units, or under the §103 diagnostic their restatement.
+				// §104 split: `reported` (unitsSoldThisWeek) stays cleared; stock and the audience readers below take the
+				// restatement when their group is on, the rest read it through LocalPromotion.Units.
+				int restated = intent.FeedbackUnits >= 0 ? intent.FeedbackUnits : intent.Cleared;
+				int reported = feedbackAll ? restated : intent.Cleared;
+				int stockUnits = feedbackSupply ? restated : intent.Cleared;
+				int audienceUnits = feedbackAudience ? restated : intent.Cleared;
 				if (album) summary.ClearedAlbumUnits += intent.Cleared;
 				else summary.ClearedSingleUnits += intent.Cleared;
-				intent.Data.marketDisplacedDemandThisWeek = intent.Serviceable - intent.Cleared;
+				intent.Data.marketDisplacedDemandThisWeek = feedbackAudience && intent.FeedbackUnits >= 0
+					? Math.Max(0, (intent.PreShift >= 0 ? intent.PreShift : intent.Serviceable) - audienceUnits)
+					: intent.Serviceable - intent.Cleared;
 				intent.Data.spilloverClearedThisWeek = intent.SpilloverCleared;
 				summary.MarketDisplacedDemand += intent.Data.marketDisplacedDemandThisWeek;
 				if (intent.Cleared > intent.Serviceable || intent.Cleared > intent.Data.unitsInStores || intent.Cleared > intent.Data.storeCapacityThisWeek)
 					summary.InventoryViolationCount++;
-				intent.Data.unitsInStores = Mathf.Max(0, intent.Data.unitsInStores - intent.Cleared);
-				intent.Data.unitsSoldThisWeek = intent.Cleared;
-				intent.Data.settledFollowerUnits = intent.Cleared * intent.FollowerPurchaseShare;
+				intent.Data.unitsInStores = Mathf.Max(0, intent.Data.unitsInStores - stockUnits);
+				intent.Data.unitsSoldThisWeek = reported;
+				if (feedbackGroups) {
+					intent.Data.feedbackUnitsDelta = restated - reported;
+					intent.Data.feedbackUnitsTotalDelta += restated - reported;
+				}
+				intent.Data.settledFollowerUnits = audienceUnits * intent.FollowerPurchaseShare;
 				StatureObservation.RecordFollowerLaunch(intent.Record.baseRecord, region.regionId, intent.ObservedFollowerIntent,
-					intent.ObservedFollowerGrant, intent.Cleared, applyFollowerIntent);
+					intent.ObservedFollowerGrant, audienceUnits, applyFollowerIntent);
 				ReplayDemandObserver?.Invoke("after-clearing", intent.Record, region, intent.Data, intent.Cleared);
-				intent.Data.unitsSoldTotal += intent.Cleared;
-				if (!album) ActLpAudience.AddSingleUnits(intent.Record.baseRecord, region.regionId,
-					LocalPromotion.LedgerUnits(intent.Cleared, intent.Serviceable, intent.PreShift));
+				intent.Data.unitsSoldTotal += reported;
+				if (!album) ActLpAudience.AddSingleUnits(intent.Record.baseRecord, region.regionId, feedbackAudience && intent.FeedbackUnits >= 0
+					? audienceUnits : LocalPromotion.LedgerUnits(intent.Cleared, intent.Serviceable, intent.PreShift));
 				if (!album) SinglesPhenomenon.AddSingleUnits(intent.Record.baseRecord, intent.Cleared);
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
@@ -1974,6 +1999,33 @@ public partial class ChartManager : Node {
 			.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining);
 	}
 
+	/// <summary>
+	/// --local-promotion-feedback=preshift (§103): for each record whose single intent the promotion shifted, sets every
+	/// region's <see cref="MarketIntent.FeedbackUnits"/> to the record's cleared units restated at its pre-shift
+	/// geography (<see cref="LocalPromotion.RestateUnits"/>). A record's intents are contiguous in the scratch list.
+	/// </summary>
+	private void RestateLocalPromotionFeedback() {
+		int start = 0, count = marketIntentScratch.Count;
+		while (start < count) {
+			RecordRuntimeData record = marketIntentScratch[start].Record;
+			int end = start + 1;
+			while (end < count && ReferenceEquals(marketIntentScratch[end].Record, record)) end++;
+			bool shifted = false;
+			for (int i = start; i < end && !shifted; i++) shifted = marketIntentScratch[i].PreShift >= 0;
+			if (shifted) {
+				int n = end - start;
+				var cleared = new int[n]; var pre = new int[n]; var serviceable = new int[n];
+				for (int i = 0; i < n; i++) {
+					MarketIntent m = marketIntentScratch[start + i];
+					cleared[i] = m.Cleared; serviceable[i] = m.Serviceable; pre[i] = m.PreShift >= 0 ? m.PreShift : m.Serviceable;
+				}
+				int[] restated = LocalPromotion.RestateUnits(cleared, pre, serviceable);
+				for (int i = 0; i < n; i++) marketIntentScratch[start + i].FeedbackUnits = restated[i];
+			}
+			start = end;
+		}
+	}
+
 	private static void AllocateProportionalLocal(List<MarketIntent> intents, int budget, float exponent = 1f, bool phenomenon = false) {
 		int total = intents.Sum(intent => intent.Serviceable);
 		int allocated = Mathf.Min(Mathf.Max(0, budget), total);
@@ -2168,10 +2220,13 @@ public partial class ChartManager : Node {
 				if (record.baseRecord.isPlayerOwned && !isCovered) continue;
 				// Regional sync 5a: nothing ships to a region the record has not reached; its held stock lands on arrival.
 				if (data.awaitingArrival) continue;
+				// --away-restock-lag (§105): a small label's reorder outside its footprint lands L weeks on; none while one is in transit.
+				bool restockLagged = AwayRestockLag.Enabled && AwayRestockLag.Applies(record, label, region.regionId, isCovered);
+				bool restockInTransit = AwayRestockLag.Enabled && AwayRestockLag.Land(data, currentChartWeek);
 
 				// --earned-indie-coverage: a charted non-Major record's uncovered regions move toward covered service. 0 when off.
 				float earnedCoverage = isCovered ? 0f : EarnedIndieCoverage.For(label, record.currentPosition);
-				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
+				int stockBeforeSales = data.unitsInStores + LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Restock);
 				// LocalRetailExposure: one-stops and rack jobbers reorder a single on their own territory's sales list.
 				int retailPosition = LocalRetailExposure.Enabled && IsGenreMarketV2Live && record.baseRecord.format != ReleaseFormat.Album
 					? LocalRetailExposure.TradePosition(record.currentPosition, data) : record.currentPosition;
@@ -2189,9 +2244,10 @@ public partial class ChartManager : Node {
 					(data.unitsBackordered > 250 || data.rawDemandThisWeek > data.unitsInStores * 0.45f);
 				bool chartedNeedsRestock = retailPosition > 0 &&
 					(data.unitsBackordered > 500 ||
-					(data.unitsInStores < data.unitsSoldThisWeek * 2 && retailPosition <= 40));
+					(data.unitsInStores < LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Restock) * 2 && retailPosition <= 40));
 				bool needsRestock = chartedNeedsRestock || preChartDemandNeedsRestock ||
 					(IsGenreMarketV2Live && LaunchStocking.NeedsReorder(record, data.unitsBackordered, data.rawDemandThisWeek));
+				if (restockInTransit) needsRestock = false;
 				bool captureBreakoutDiagnostic = !record.baseRecord.isPlayerOwned &&
 					record.weeksSinceRelease >= 1 &&
 					record.weeksSinceRelease <= 14;
@@ -2214,7 +2270,7 @@ public partial class ChartManager : Node {
 				float obsSignal = 0f, obsService = 0f;
 				if (needsRestock) {
 					float demandSignal = CalculateRestockDemandSignal(data.rawDemandThisWeek,
-						data.unitsSoldThisWeek, data.unitsBackordered, livePhysicalBackorder);
+						LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Restock), data.unitsBackordered, livePhysicalBackorder);
 					float serviceLevel = isCovered
 						? 0.70f + (label.distributionStrength * 0.80f)
 						: 0.18f + (label.distributionStrength * 0.25f);
@@ -2256,8 +2312,11 @@ public partial class ChartManager : Node {
 							restockAmount = PhysicalPressingInventory.Ship(record, restockAmount, currentChartWeek);
 							if (captureBreakoutDiagnostic) data.breakoutAppliedRestock = restockAmount;
 						}
-						data.unitsInStores += restockAmount;
-						data.unitsBackordered = Mathf.Max(0, data.unitsBackordered - restockAmount);
+						if (restockLagged) AwayRestockLag.Order(data, restockAmount, currentChartWeek);
+						else {
+							data.unitsInStores += restockAmount;
+							data.unitsBackordered = Mathf.Max(0, data.unitsBackordered - restockAmount);
+						}
 						obsShipped = restockAmount;
 					}
 				}
@@ -2701,7 +2760,7 @@ public partial class ChartManager : Node {
 			if (previousDemand >= demandFloor && velocity > 0.04f) data.sustainedGrowthWeeks++;
 			else if (velocity < -0.08f) data.sustainedGrowthWeeks = 0;
 
-			float volumeInput = CalculateBreakoutVolumeInput(data.rawDemandThisWeek, data.unitsSoldThisWeek, regionScale);
+			float volumeInput = CalculateBreakoutVolumeInput(data.rawDemandThisWeek, LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Audience), regionScale);
 			float velocityInput = Mathf.Clamp((velocity + 0.10f) / 0.65f, 0f, 1f);
 			float audienceInput = Mathf.Clamp(data.awareness, 0f, 1f);
 			float breakoutRadio = StationRegionalSupport.PanelFreeBreakout

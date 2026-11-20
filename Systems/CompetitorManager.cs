@@ -1615,7 +1615,7 @@ public partial class CompetitorManager : Node {
 		if (!liveSettlement) return GetLegacyDistributionSkimFraction(label);
 		IEnumerable<KeyValuePair<string, int>> regionalUnits = runtimeData?.regionalData?
 			.Select(pair => new KeyValuePair<string, int>(pair.Key,
-				Mathf.Max(0, (pair.Value?.unitsSoldThisWeek ?? 0) + (pair.Value?.rackUnitsThisWeek ?? 0))));
+				Mathf.Max(0, LocalPromotion.Units(pair.Value, LocalPromotion.FeedbackGroup.Money) + (pair.Value?.rackUnitsThisWeek ?? 0))));
 		return GetSettlementDistributionSkimFraction(label, regionalUnits, weeklyUnits);
 	}
 
@@ -1651,7 +1651,7 @@ public partial class CompetitorManager : Node {
 		float cogs = 0f;
 		int regionalUnits = 0;
 		foreach (var pair in runtimeData.regionalData) {
-			int units = (pair.Value?.unitsSoldThisWeek ?? 0) + (pair.Value?.rackUnitsThisWeek ?? 0);
+			int units = LocalPromotion.Units(pair.Value, LocalPromotion.FeedbackGroup.Money) + (pair.Value?.rackUnitsThisWeek ?? 0);
 			if (units <= 0) continue;
 			regionalUnits += units;
 			string regionHubCity = DistanceModel.GetHubCityIdForRegion(pair.Key);
@@ -5296,7 +5296,7 @@ public partial class CompetitorManager : Node {
 				} else if (peak >= boundedThreshold) recordHasPersistentEvidence = true;
 				if (!strongRegions.Contains(pair.Key)) continue;
 				bestStrong = Mathf.Max(bestStrong, peak);
-				if ((pair.Value?.unitsSoldThisWeek ?? 0) > 0) currentStrongSale = true;
+				if (LocalPromotion.Units(pair.Value, LocalPromotion.FeedbackGroup.Money) > 0) currentStrongSale = true;
 			}
 			if (recordHasPersistentEvidence) {
 				persistent = true;

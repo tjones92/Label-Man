@@ -138,10 +138,10 @@ public static partial class MediaAtmosphereService {
 			float[] yr = null, ar = null;
 			float[] adultSalesByRegion = null;
 			foreach (var (regionId, rd) in rec.regionalData) {
-				if (rd == null || rd.unitsSoldThisWeek <= 0 || !index.TryGetValue(regionId, out int i)) continue;
+				if (rd == null || LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience) <= 0 || !index.TryGetValue(regionId, out int i)) continue;
 				yr ??= Row(buyYoung, b.artistId); ar ??= Row(buyAdult, b.artistId);
-				float recruitmentUnits = rd.unitsSoldThisWeek;
-				float followerUnits = Math.Clamp(rd.settledFollowerUnits, 0f, rd.unitsSoldThisWeek);
+				float recruitmentUnits = LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience);
+				float followerUnits = Math.Clamp(rd.settledFollowerUnits, 0f, recruitmentUnits);
 				if (followerUnits > 0f) {
 					Row(selfYoung, b.artistId)[i] += followerUnits * y;
 					Row(selfAdult, b.artistId)[i] += followerUnits * (1f - y);
@@ -150,13 +150,13 @@ public static partial class MediaAtmosphereService {
 					if (b.format == ReleaseFormat.Single ? MediaFollowerDemand.SinglesRecruitFromNewBuyers : MediaFollowerDemand.AlbumsRecruitFromNewBuyers)
 						recruitmentUnits -= rd.settledFollowerUnits;
 					adultSalesByRegion ??= Row(adultSales, b.artistId);
-					adultSalesByRegion[i] += rd.unitsSoldThisWeek * (1f - y);
+					adultSalesByRegion[i] += LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience) * (1f - y);
 				}
 				yr[i] += recruitmentUnits * y;
 				ar[i] += recruitmentUnits * (1f - y);
 				att ??= attentionUnits.TryGetValue(b.artistId, out var existing) ? existing : attentionUnits[b.artistId] = new double[2];
-				att[0] += rd.unitsSoldThisWeek * y * weight;
-				att[1] += rd.unitsSoldThisWeek * (1f - y) * weight;
+				att[0] += LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience) * y * weight;
+				att[1] += LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience) * (1f - y) * weight;
 			}
 		}
 

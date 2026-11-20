@@ -106,7 +106,7 @@ public static class RegionalAudience {
 	/// <summary>This week's local sales evidence for a region: raw demand under 5d, else cleared units; 0 before arrival.</summary>
 	public static int LocalSignalUnits(RegionalRecordData data) {
 		if (data == null || data.awaitingArrival) return 0;
-		return localSignalsReadDemand ? Math.Max(0, (int)Math.Round(data.rawDemandThisWeek)) : data.unitsSoldThisWeek;
+		return localSignalsReadDemand ? Math.Max(0, (int)Math.Round(data.rawDemandThisWeek)) : LocalPromotion.Units(data, LocalPromotion.FeedbackGroup.Audience);
 	}
 
 	/// <summary>

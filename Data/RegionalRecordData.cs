@@ -60,6 +60,13 @@ public class RegionalRecordData {
 	// Estimated share of settled units bought by existing followers this clearing week.
 	[System.Text.Json.Serialization.JsonIgnore]
 	internal float settledFollowerUnits;
+	// --local-promotion-feedback=money|supply|audience (§104 diagnostic): restated minus cleared units, this week and
+	// cumulative. 0 unless a feedback group is on; read only through LocalPromotion.Units / UnitsTotal.
+	[System.Text.Json.Serialization.JsonIgnore]
+	internal int feedbackUnitsDelta, feedbackUnitsTotalDelta;
+	// --away-restock-lag (§105 screen): a reorder in transit and its arrival week. Not saved.
+	[System.Text.Json.Serialization.JsonIgnore]
+	internal int restockInTransit, restockArrivalWeek;
 	// Directive 5 acceptance is evaluated during the sales pass and reused by
 	// the later radio pass. These values are transient, week-local simulation
 	// state; they do not change audit output or the acceptance calculation.

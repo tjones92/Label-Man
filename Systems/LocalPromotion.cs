@@ -45,13 +45,24 @@ public static class LocalPromotion {
 				_ => throw new ArgumentException(MidTierSwitch + " takes equal or off.") };
 			if (strength <= 1f) throw new ArgumentException(MidTierSwitch + " needs " + Switch + "=K.");
 		}
+		string feedbackArg = SimulationArguments.Get().FirstOrDefault(a => a.StartsWith(FeedbackSwitch + "=", StringComparison.Ordinal));
+		if (feedbackArg != null) {
+			if (strength <= 1f) throw new ArgumentException(FeedbackSwitch + " needs " + Switch + "=K.");
+			string value = feedbackArg.Substring(FeedbackSwitch.Length + 1);
+			if (value == "preshift") feedbackPreShift = true;
+			else foreach (string part in value.Split(',')) feedbackGroups |= part switch {
+				"money" => FeedbackGroup.Money, "supply" => FeedbackGroup.Supply, "audience" => FeedbackGroup.Audience,
+				"depletion" => FeedbackGroup.Depletion, "restock" => FeedbackGroup.Restock,
+				_ => throw new ArgumentException(FeedbackSwitch + " takes preshift, or a comma list of money, supply (= depletion + restock), audience.") };
+		}
 		string ledgerArg = SimulationArguments.Get().FirstOrDefault(a => a.StartsWith("--local-promotion-ledger=", StringComparison.Ordinal));
 		if (ledgerArg != null) {
 			if (ledgerArg != "--local-promotion-ledger=preshift") throw new ArgumentException("--local-promotion-ledger takes preshift.");
 			if (strength <= 1f) throw new ArgumentException("--local-promotion-ledger needs " + Switch + "=K.");
 			ledgerPreShift = true;
 		}
-		if (strength > 1f) Godot.GD.Print(string.Format(CultureInfo.InvariantCulture, "LOCAL_PROMOTION strength={0} homeShare={1} midTier={2}", strength, homeShare, midTier));
+		if (strength > 1f) Godot.GD.Print(string.Format(CultureInfo.InvariantCulture, "LOCAL_PROMOTION strength={0} homeShare={1} midTier={2} feedbackPreShift={3}", strength, homeShare, midTier, feedbackPreShift)
+			+ (feedbackGroups != FeedbackGroup.None ? " feedbackGroups=" + feedbackGroups : ""));
 		read = true;
 	}
 
@@ -67,6 +78,66 @@ public static class LocalPromotion {
 	private static bool ledgerPreShift;
 
 	/// <summary>
+	/// --local-promotion-feedback=preshift (§103, a diagnostic). Promotion changes two things: who wins each region's
+	/// purse (the clearing), and where a record's sales are reported afterwards, which awareness, word of mouth,
+	/// breakouts, restocking, fan recruitment, label regional performance and the trade charts all read. With the
+	/// diagnostic the clearing stays shifted, but a shifted single's regional sales (and its stock depletion) are
+	/// restated at its pre-shift geography before anything else sees them; national units are unchanged.
+	/// </summary>
+	public const string FeedbackSwitch = "--local-promotion-feedback";
+	private static bool feedbackPreShift;
+	public static bool FeedbackPreShift { get { Read(); return feedbackPreShift; } }
+
+	/// <summary>
+	/// --local-promotion-feedback=money,supply,audience (§104, a diagnostic): the §103 restatement split by reader. The
+	/// purses clear shifted and <see cref="RegionalRecordData.unitsSoldThisWeek"/> keeps the cleared units; only the
+	/// named groups read the restated units (<see cref="Units"/>, <see cref="UnitsTotal"/>).
+	/// Money: distribution skim, distance COGS, strong-region evidence (label books and deal evidence).
+	/// Supply: stock depletion, restock and retail position (racks are LPs, never shifted).
+	/// Audience: local sales signals (awareness, arrival), cumulative exhaustion, breakouts, fan and media following
+	/// recruitment, follower settlement, displaced buyers, genre momentum, regional and trade charts, the act LP ledger.
+	/// </summary>
+	/// Supply splits into Depletion (the shelf loses the restated units) and Restock (restock and retail position read them).
+	[Flags] public enum FeedbackGroup { None = 0, Money = 1, Audience = 4, Depletion = 8, Restock = 16, Supply = Depletion | Restock }
+	private static FeedbackGroup feedbackGroups;
+	public static bool AnyFeedbackGroup { get { Read(); return feedbackGroups != FeedbackGroup.None; } }
+	public static bool FeedbackOn(FeedbackGroup g) { Read(); return (feedbackGroups & g) != 0; }
+	/// <summary>This week's units as group g sees them: the cleared units, restated when g is on.</summary>
+	public static int Units(RegionalRecordData d, FeedbackGroup g) =>
+		d == null ? 0 : d.unitsSoldThisWeek + ((feedbackGroups & g) != 0 ? d.feedbackUnitsDelta : 0);
+	/// <summary>Cumulative units as group g sees them.</summary>
+	public static int UnitsTotal(RegionalRecordData d, FeedbackGroup g) =>
+		d == null ? 0 : d.unitsSoldTotal + ((feedbackGroups & g) != 0 ? d.feedbackUnitsTotalDelta : 0);
+
+	/// <summary>
+	/// Pure: a record's cleared units redistributed over its regions in proportion to cleared × pre / serviceable (the
+	/// pre-shift intent at each region's realised fill), integers by largest remainders, the total unchanged. Regions
+	/// the shift did not move (pre = serviceable) keep their share; a record with no shift is returned unchanged.
+	/// </summary>
+	public static int[] RestateUnits(IReadOnlyList<int> cleared, IReadOnlyList<int> pre, IReadOnlyList<int> serviceable) {
+		int n = cleared.Count;
+		var result = new int[n];
+		long total = 0; double weightSum = 0;
+		var weights = new double[n];
+		for (int i = 0; i < n; i++) {
+			total += cleared[i];
+			weights[i] = serviceable[i] > 0 ? (double)cleared[i] * pre[i] / serviceable[i] : 0d;
+			weightSum += weights[i];
+		}
+		if (total <= 0 || weightSum <= 0) { for (int i = 0; i < n; i++) result[i] = cleared[i]; return result; }
+		long assigned = 0;
+		var remainders = new List<(double Rem, int Index)>(n);
+		for (int i = 0; i < n; i++) {
+			double exact = total * weights[i] / weightSum;
+			result[i] = (int)Math.Floor(exact);
+			assigned += result[i];
+			remainders.Add((exact - result[i], i));
+		}
+		foreach (var r in remainders.OrderByDescending(r => r.Rem).ThenBy(r => r.Index).Take((int)(total - assigned))) result[r.Index]++;
+		return result;
+	}
+
+	/// <summary>
 	/// --local-promotion-midtier=equal|off (§101). The surveys put established national indies (Liberty, Dot, Imperial;
 	/// MidTier in the model) at about 0.9 at home: they promoted through national promotion staff and distributors, not
 	/// an owner working the home town. Under H 0.75 their Top 40 home premium rose 1.24 → 1.49 (West Coast 1.34 → 1.80,
@@ -77,8 +148,8 @@ public static class LocalPromotion {
 	public const string MidTierSwitch = "--local-promotion-midtier";
 	private static MidTierMode midTier = MidTierMode.Owner;
 
-	internal static void SetForChecks(float k, float h = 0f, MidTierMode m = MidTierMode.Owner) {
-		read = true; strength = k; homeShare = h; midTier = m; cacheWeek = int.MinValue; cache.Clear();
+	internal static void SetForChecks(float k, float h = 0f, MidTierMode m = MidTierMode.Owner, FeedbackGroup groups = FeedbackGroup.None) {
+		read = true; strength = k; homeShare = h; midTier = m; feedbackPreShift = false; feedbackGroups = groups; cacheWeek = int.MinValue; cache.Clear();
 	}
 
 	private static float HomeShareFor(AILabel label) => midTier == MidTierMode.Equal && label.tier == LabelTier.MidTier ? 0f : homeShare;

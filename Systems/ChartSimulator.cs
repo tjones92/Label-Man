@@ -498,7 +498,7 @@ public static class ChartSimulator {
 		// === 3. MARKET EXHAUSTION ===
 		float potentialAudience = GetRegionalPotentialAudience(record, region, quality, year);
 
-		float regionalSold = regionalData.unitsSoldTotal;
+		float regionalSold = LocalPromotion.UnitsTotal(regionalData, LocalPromotion.FeedbackGroup.Audience);
 		float penetration = regionalSold / Mathf.Max(1f, potentialAudience);
 		
 		float exhaustionFactor = 1f / (1f + Mathf.Pow(penetration * 3f, SATURATION_POWER));
@@ -1326,7 +1326,7 @@ public static class ChartSimulator {
 			if (!record.regionalData.TryGetValue(region.regionId, out var regionalData)) continue;
 
 			float potentialAudience = GetRegionalPotentialAudience(record, region, quality, year);
-			float penetration = regionalData.unitsSoldTotal / Mathf.Max(1f, potentialAudience);
+			float penetration = LocalPromotion.UnitsTotal(regionalData, LocalPromotion.FeedbackGroup.Audience) / Mathf.Max(1f, potentialAudience);
 			weightedPenetration += penetration * potentialAudience;
 			totalPotentialAudience += potentialAudience;
 		}

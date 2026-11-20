@@ -66,7 +66,7 @@ public static class GenreMarketMomentumService {
 		float chart = record.currentPosition > 0 ? Mathf.Clamp((101f - record.currentPosition) / 100f, 0f, 1f) : 0f;
 		float breakout = local.breakoutScore;
 		float sustained = Mathf.Clamp(local.sustainedGrowthWeeks / 4f, 0f, 1f);
-		float volume = Mathf.Clamp(local.unitsSoldThisWeek / Mathf.Max(500f, region.EconomicPopulation * 700f), 0f, 1f);
+		float volume = Mathf.Clamp(LocalPromotion.Units(local, LocalPromotion.FeedbackGroup.Audience) / Mathf.Max(500f, region.EconomicPopulation * 700f), 0f, 1f);
 		float credibility = record.GetQuality() * (chart > 0f || breakout >= .24f ? .15f : 0f);
 		return Mathf.Clamp(chart * .34f + breakout * .30f + sustained * .18f + volume * .18f + credibility, 0f, 1f);
 	}

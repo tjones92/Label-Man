@@ -459,7 +459,7 @@ public static partial class MediaAtmosphereService {
 			Singles = singles;
 			foreach (MarketRegion region in Regions) {
 				RegionalBest[region.regionId] = singles
-					.Select(r => (Record: r, Units: r.regionalData.TryGetValue(region.regionId, out var rd) ? rd.unitsSoldThisWeek : 0))
+					.Select(r => (Record: r, Units: r.regionalData.TryGetValue(region.regionId, out var rd) ? LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience) : 0))
 					.Where(x => x.Units > 0)
 					.OrderByDescending(x => x.Units).ThenBy(x => x.Record.baseRecord.recordId, StringComparer.Ordinal)
 					.Take(LocalCandidatesPerRegion).ToList();
@@ -491,7 +491,7 @@ public static partial class MediaAtmosphereService {
 					singleRegions[i] = DistanceModel.GetCityById(CityOf(Singles[i].baseRecord.artistId) ?? "")?.parentRegionId;
 			}
 			list = Singles.Where((r, i) => singleRegions[i] == regionId)
-				.Select(r => (Record: r, Units: r.regionalData.TryGetValue(regionId, out var rd) && rd != null ? rd.unitsSoldThisWeek : 0))
+				.Select(r => (Record: r, Units: r.regionalData.TryGetValue(regionId, out var rd) && rd != null ? LocalPromotion.Units(rd, LocalPromotion.FeedbackGroup.Audience) : 0))
 				.Where(x => x.Units > 0).OrderByDescending(x => x.Units).ThenBy(x => x.Record.baseRecord.recordId, StringComparer.Ordinal)
 				.Take(LocalCandidatesPerRegion / 2).ToList();
 			regionalLocals[regionId] = list;

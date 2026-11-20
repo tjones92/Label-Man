@@ -236,6 +236,33 @@ public static class GameyAuditSwitchChecks {
 				LocalPromotion.SetForChecks(3f, .75f, LocalPromotion.MidTierMode.Off);
 				Check(!LocalPromotion.Shifts(single, Lab("m3", LabelTier.MidTier)) && LocalPromotion.Shifts(single, Lab("i3", LabelTier.Independent)),
 					"midtier=off: MidTier records are not shifted; other tiers are");
+				// --local-promotion-feedback=preshift (§103): restated reports keep the record's total.
+				Check(LocalPromotion.RestateUnits(new[] { 10, 20, 30 }, new[] { 50, 100, 150 }, new[] { 50, 100, 150 }).SequenceEqual(new[] { 10, 20, 30 }),
+					"restate: an unshifted record is unchanged");
+				int[] back = LocalPromotion.RestateUnits(new[] { 60, 20, 20 }, new[] { 100, 200, 200 }, new[] { 300, 100, 100 });
+				Check(back.Sum() == 100 && back[0] == 20 && back[1] == 40 && back[2] == 40,
+					"restate: home sales return to the pre-shift geography at each region's fill, total kept");
+				int[] odd = LocalPromotion.RestateUnits(new[] { 7, 3, 1 }, new[] { 10, 10, 10 }, new[] { 20, 6, 4 });
+				Check(odd.Sum() == 11 && LocalPromotion.RestateUnits(new[] { 0, 0 }, new[] { 5, 5 }, new[] { 9, 1 }).SequenceEqual(new[] { 0, 0 }),
+					"restate: integer total kept by largest remainders; nothing sold, nothing reported");
+				// --local-promotion-feedback=money,supply,audience (§104): only the named groups read the restatement.
+				LocalPromotion.SetForChecks(3f, .75f, LocalPromotion.MidTierMode.Owner, LocalPromotion.FeedbackGroup.Supply | LocalPromotion.FeedbackGroup.Audience);
+				var fed = new RegionalRecordData("home") { unitsSoldThisWeek = 60, unitsSoldTotal = 100, feedbackUnitsDelta = -40, feedbackUnitsTotalDelta = -50 };
+				Check(LocalPromotion.Units(fed, LocalPromotion.FeedbackGroup.Money) == 60 && LocalPromotion.Units(fed, LocalPromotion.FeedbackGroup.Supply) == 20
+					&& LocalPromotion.Units(fed, LocalPromotion.FeedbackGroup.Audience) == 20 && LocalPromotion.UnitsTotal(fed, LocalPromotion.FeedbackGroup.Audience) == 50
+					&& LocalPromotion.UnitsTotal(fed, LocalPromotion.FeedbackGroup.Money) == 100 && !LocalPromotion.FeedbackPreShift,
+					"feedback groups: named groups read restated units, the rest the cleared units");
+				LocalPromotion.SetForChecks(3f);
+				Check(LocalPromotion.Units(fed, LocalPromotion.FeedbackGroup.Audience) == 60, "feedback groups off: every reader sees the cleared units");
+				// --away-restock-lag (§105): an away reorder lands L weeks on; none is placed while it is in transit.
+				AwayRestockLag.SetForChecks(2);
+				var lagged = new RegionalRecordData("away") { unitsInStores = 10, unitsBackordered = 50 };
+				AwayRestockLag.Order(lagged, 40, 5);
+				bool wk6 = AwayRestockLag.Land(lagged, 6) && lagged.unitsInStores == 10;
+				bool wk7 = !AwayRestockLag.Land(lagged, 7) && lagged.unitsInStores == 50 && lagged.unitsBackordered == 10 && lagged.restockInTransit == 0;
+				Check(wk6 && wk7 && !AwayRestockLag.Land(lagged, 8) && AwayRestockLag.SmallTier(LabelTier.Boutique) && !AwayRestockLag.SmallTier(LabelTier.MidTier),
+					"away restock lag: in transit until week + L, then stock lands and backorders clear; small tiers only");
+				AwayRestockLag.SetForChecks(0);
 				LocalPromotion.SetForChecks(1f);
 			}
 			// Album chart reporting weight and soundtrack pool breadth.
