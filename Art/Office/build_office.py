@@ -11,7 +11,7 @@ import sys
 
 import bpy
 import numpy as np
-from mathutils import Quaternion, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 
 WIDTH, HEIGHT = 1656, 950
@@ -470,27 +470,54 @@ def area(name, loc, target, power, tint, size):
 
 
 def room():
-    group("Walnut paneling and door")
-    for i in range(-16, 7):
-        x = i * .235
-        box("Walnut wall panel", (x, WALL + .014, 1.2), (.232, .063, 2.5), walnuts[i % len(walnuts)], .002, grain=(2, 0))
     door_left = at_y(282, 210, WALL - .035).x
     door_right = at_y(647, 215, WALL - .035).x
     door_width = door_right - door_left
-    box("Office door", ((door_left + door_right) / 2, WALL - .04, 1.1),
-        (door_width, .055, 2.2), walnuts[1], .004, grain=(2, 0))
+    group("Walnut paneling and door casing")
+    for i in range(-16, 7):
+        left, right = i * .235 - .116, i * .235 + .116
+        inside_left, inside_right = max(left, door_left), min(right, door_right)
+        spans = [(left, right, 0, 2.5)]
+        if inside_left < inside_right:
+            spans = [(left, inside_left, 0, 2.5), (inside_right, right, 0, 2.5),
+                     (inside_left, inside_right, 2.2, 2.5)]
+        for a, b, bottom, top in spans:
+            if b-a > .001:
+                box("Walnut wall panel", ((a+b)/2, WALL+.014, (bottom+top)/2-.05 if bottom == 0 else (bottom+top)/2),
+                    (b-a, .063, top-bottom), walnuts[i % len(walnuts)], .002, grain=(2, 0))
     for x in (door_left, door_right):
         box("Dark steel door casing", (x, WALL - .086, 1.11), (.026, .039, 2.23), gunmetal, .003)
-    knob = at_y(607, 251, WALL - .115)
-    cyl("Knob escutcheon", knob + Vector((0, .047, 0)), knob, .043, nickel)
-    cyl("Knob stem", knob, knob + Vector((0, -.027, 0)), .019, brass)
-    ellipsoid("Round door knob", knob + Vector((0, -.043, 0)), (.035, .023, .035), nickel)
+        box("Door jamb", (x, WALL+.013, 1.10), (.026, .15, 2.20), frame_wood, .003, grain=(2, 0))
+    box("Door header", ((door_left+door_right)/2, WALL-.045, 2.216), (door_width+.030, .16, .036),
+        frame_wood, .004, grain=(0, 2))
+    box("Scuffed door threshold", ((door_left+door_right)/2, WALL, .004), (door_width, .15, .012), tarnished_brass, .002)
     switch = at_y(720, 116, WALL - .029)
     box("Light switch faceplate", switch, (.077, .012, .137), tarnished_brass, .005)
     box("Toggle", switch + Vector((0, -.012, -.004)), (.012, .017, .032), ivory, .003).rotation_euler.x = -.30
     for dz in (-.052, .052):
         cyl("Switch faceplate screw", switch + Vector((0, -.005, dz)), switch + Vector((0, -.009, dz)), .005, nickel, sides=12)
     box("Oak floor", (-.5, 1.65, -.035), (6, 5, .06), desk_wood, .002, grain=(0, 1))
+
+    group("Office door leaf")
+    hinge = link(bpy.data.objects.new("OfficeDoorHinge", None), "OfficeDoorHinge")
+    hinge.location = (door_left, WALL-.04, 0)
+    box("Office door", ((door_left + door_right) / 2, WALL - .04, 1.1),
+        (door_width, .055, 2.2), walnuts[1], .004, grain=(2, 0))
+    knob = at_y(607, 251, WALL - .115)
+    cyl("Knob escutcheon", knob + Vector((0, .047, 0)), knob, .043, nickel)
+    cyl("Knob stem", knob, knob + Vector((0, -.027, 0)), .019, brass)
+    ellipsoid("Round door knob", knob + Vector((0, -.043, 0)), (.035, .023, .035), nickel)
+    cyl("Hall knob escutcheon", (knob.x, WALL-.012, knob.z), (knob.x, WALL+.002, knob.z), .043, nickel)
+    cyl("Hall knob stem", (knob.x, WALL+.002, knob.z), (knob.x, WALL+.041, knob.z), .017, brass)
+    ellipsoid("Hall knob", (knob.x, WALL+.053, knob.z), (.035, .026, .035), nickel)
+    for z in (.30, 1.12, 1.88):
+        cyl("Door hinge pin", (door_left+.01, WALL-.076, z-.032), (door_left+.01, WALL-.076, z+.032), .009, tarnished_brass)
+    for obj in list(collection.objects):
+        if obj != hinge:
+            obj.parent = hinge
+            obj.matrix_parent_inverse = Matrix.Translation(-hinge.location)
+
+    intro_set(door_left, door_right)
 
     group("Desk and credenza")
     desk_back = at_z(828, 484, DESK).y
@@ -513,7 +540,7 @@ def room():
         box("Inset cabinet door", (center, front + .031, .48), (.540, .023, .78), walnuts[i % 3], .005, grain=(2, 0))
         cyl("Credenza pull", (center - .23, front + .008, .62), (center - .23, front + .008, .78), .008, tarnished_brass)
 
-    group("Olive vinyl chair")
+    group("Olive vinyl guest chair")
     x = at_z(423, 457, .80).x - .037
     back = box("Padded vinyl back", (x, 2.013, .910), (.59, .132, .357), olive, .065, angle=-.075, smooth=True)
     back.rotation_euler.x = .13
@@ -529,6 +556,59 @@ def room():
             .281 * math.copysign(abs(math.cos(a)) ** .30, math.cos(a)), -.055,
             .167 * math.copysign(abs(math.sin(a)) ** .30, math.sin(a)))))
     tube("Chair leather piping", pip, .004, olive_trim)
+
+    group("Desk swivel chair")
+    x, y, _ = camera_pos
+    box("Swivel chair seat", (x, y-.025, .47), (.51, .47, .105), leather, .050, smooth=True)
+    back = box("Upholstered swivel chair back", (x, y-.227, .85), (.47, .101, .38), leather, .049, smooth=True)
+    back.rotation_euler.x = -.16
+    cyl("Chair back support", (x, y-.188, .43), (x, y-.233, .79), .022, gunmetal)
+    cyl("Swivel post", (x, y-.025, .11), (x, y-.025, .46), .041, gunmetal)
+    for dx, dy in ((-.27, 0), (.27, 0), (0, -.27), (0, .27)):
+        foot = Vector((x+dx, y-.025+dy, .064))
+        cyl("Chair base spoke", (x, y-.025, .137), foot, .024, gunmetal, r2=.016)
+        ellipsoid("Rubber caster", foot - Vector((0, 0, .028)), (.038, .026, .034), rubber)
+    eye = link(bpy.data.objects.new("OfficeSeatEye", None), "OfficeSeatEye")
+    eye.location = camera_pos
+
+
+def intro_set(door_left, door_right):
+    group("OfficeIntroSet")
+    plaster = material("Tobacco-stained ceiling plaster", "635647", .89)
+    hallway = material("Dim hallway paint", "393a34", .89)
+    shade = material("Dusty window shade", "b59c73", .84)
+    shade_bsdf = shade.node_tree.nodes.get("Principled BSDF")
+    shade_bsdf.inputs["Emission Color"].default_value = (*color("a28b6a"), 1)
+    shade_bsdf.inputs["Emission Strength"].default_value = .20
+    far_wall = -.77
+    for x in (-3.54, 1.38):
+        for i in range(15):
+            y = far_wall + (i+.5)*.24
+            box("Side-wall veneer", (x, y, 1.30), (.064, .237, 2.60), walnuts[i % len(walnuts)], .002, grain=(2, 1))
+        box("Side-wall baseboard", (x, 1.02, .053), (.086, 3.55, .105), dark_wood, .009)
+    for i in range(21):
+        x = -3.53 + (i+.5)*.235
+        box("Opposite wall veneer", (x, far_wall, 1.30), (.232, .068, 2.60),
+            walnuts[i % len(walnuts)], .002, grain=(2, 0))
+    box("Opposite wall baseboard", (-1.06, far_wall+.033, .053), (4.93, .032, .105), dark_wood, .006)
+    box("Office ceiling", (-1.06, 1.02, 2.61), (5, 3.65, .07), plaster, .006)
+
+    box("Window casing", (-1.17, far_wall+.049, 1.79), (1.24, .045, .80), frame_wood, .022, grain=(0, 2))
+    box("Closed window shade", (-1.17, far_wall+.075, 1.79), (1.12, .006, .67), shade, .001)
+    for i in range(13):
+        slat = box("Window blind slat", (-1.17, far_wall+.092, 1.485+i*.050),
+                   (1.12, .032, .037), shade, .002)
+        slat.rotation_euler.x = -.24
+    box("Window sill", (-1.17, far_wall+.092, 1.40), (1.29, .19, .056), frame_wood, .009, grain=(0, 1))
+
+    hall_x = (door_left+door_right)/2
+    width = door_right-door_left+.40
+    for x in (hall_x-width/2, hall_x+width/2):
+        box("Hallway wall", (x, 3.62, 1.23), (.075, 1.68, 2.46), hallway, .003)
+        box("Hallway baseboard", (x, 3.61, .058), (.093, 1.64, .12), dark_wood, .006)
+    box("Hallway end wall", (hall_x, 4.45, 1.22), (width, .08, 2.44), hallway, .003)
+    box("Hallway floor", (hall_x, 3.70, -.068), (width, 1.58, .10), dark_wood, .003)
+    box("Hallway ceiling", (hall_x, 3.60, 2.44), (width, 1.66, .065), plaster, .003)
 
 
 def desk_lamp():
@@ -869,6 +949,11 @@ def export_scene(out):
                 bpy.ops.object.join()
             exports[0].name = coll.name
             exports[0].select_set(False)
+            hinge = coll.objects.get("OfficeDoorHinge")
+            if hinge:
+                world = exports[0].matrix_world.copy()
+                exports[0].parent = hinge
+                exports[0].matrix_world = world
         for obj in objects:
             bpy.data.objects.remove(obj, do_unlink=True)
     for obj in scene.objects:

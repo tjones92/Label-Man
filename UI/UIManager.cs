@@ -16,6 +16,7 @@ public partial class UIManager : Control
 	private TextureRect officeBackdrop;
 	private SubViewport officeViewport;
 	private DirectionalLight3D officeDaylight;
+	private OfficeIntro officeIntro;
 	private Tween officeLightTween;
 	private PopupPanel calendarPopup;
 	private SpinBox skipDaysInput;
@@ -125,6 +126,8 @@ public partial class UIManager : Control
 		BuildMainHud();
 		BuildMorningPaper();
 		WatchCover(deskPanel);
+		officeIntro = new OfficeIntro { Name = "OfficeIntro", ZIndex = 80, Room = officeViewport };
+		AddChild(officeIntro);
 		ScreenGrade.Install(this);
 		if (PlayerDesk.Instance != null) {
 			PlayerDesk.Instance.Changed += UpdateMainHud;
@@ -137,8 +140,7 @@ public partial class UIManager : Control
 		}
 		ApplyOfficeLight(animate: false);
 		UpdateMainHud();
-		// A new player should land on the founding card instead of having to guess that the office
-		// tab opens the game. Loaded games and an existing label stay on the desk scene as before.
+		// Show the New Game and save choices before the first label is founded.
 		if (PlayerDesk.Instance?.HasLabel != true) OnClick_Desk();
 		StartupProfile.Mark("interface-ready");
 	}
@@ -327,6 +329,7 @@ public partial class UIManager : Control
 		// that never set isUIOpen (a load, a reopen after the menu) must still put the desk widgets away.
 		bool covered = DeskCovered();
 		mainHud.Visible = !covered;
+		if (deskButton != null) deskButton.Visible = !covered;
 		if (covered) { propTagTicket++; propTag.Visible = false; }
 		if (recordJacket != null) {
 			recordJacket.Refresh(PlayerDesk.Instance);
@@ -361,6 +364,7 @@ public partial class UIManager : Control
 
 	private bool DeskCovered() =>
 		isUIOpen
+		|| officeIntro?.IsPlaying == true
 		|| deskPanel?.Visible == true || gameMenu?.Visible == true || studioWindow?.Visible == true
 		|| morningPaper?.Visible == true
 		|| ledgerPanel?.Visible == true || dialoguePanel?.Visible == true || chartPanel?.Visible == true
@@ -732,6 +736,7 @@ public partial class UIManager : Control
 	}
 
 	public override void _UnhandledInput(InputEvent input) {
+		if (officeIntro?.Visible == true) return;
 		if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape } || PaperModal.IsOpen) return;
 		if (gameMenu?.Visible == true) gameMenu.ClosePanel();
 		else OpenGameMenu();
@@ -739,7 +744,7 @@ public partial class UIManager : Control
 	}
 
 	public void OpenGameMenu() {
-		if (gameMenu?.Visible == true) return;
+		if (gameMenu?.Visible == true || officeIntro?.Visible == true) return;
 		uiOpenBeforeMenu = isUIOpen;
 		officeBeforeMenu = deskPanel?.Visible == true;
 		studioBeforeMenu = studioWindow?.Visible == true;
@@ -833,6 +838,22 @@ public partial class UIManager : Control
 		deskPanel.Open();
 		isUIOpen = true;
 		UpdateMainHud();
+	}
+
+	public void StartNewGame() {
+		if (PlayerDesk.Instance?.HasLabel != false || deskPanel?.Visible != true || officeIntro.Visible) return;
+		isUIOpen = true;
+		deskPanel.Hide();
+		paintedLayer.Hide();
+		if (!officeIntro.Play(ShowFounding)) ShowFounding();
+		else UpdateMainHud();
+	}
+
+	private void ShowFounding() {
+		paintedLayer.Show();
+		deskPanel.Modulate = new Color(1, 1, 1, 0);
+		deskPanel.OpenFounding();
+		deskPanel.CreateTween().TweenProperty(deskPanel, "modulate:a", 1f, .40f).SetTrans(Tween.TransitionType.Sine);
 	}
 
 	public override void _ExitTree()
