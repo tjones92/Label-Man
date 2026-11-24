@@ -57,6 +57,16 @@ public class RegionalRecordData {
 	// Sales Tracking
 	public int unitsSoldThisWeek;
 	public int unitsSoldTotal;
+	// Estimated share of settled units bought by existing followers this clearing week.
+	[System.Text.Json.Serialization.JsonIgnore]
+	internal float settledFollowerUnits;
+	// --local-promotion-feedback=money|supply|audience (§104 diagnostic): restated minus cleared units, this week and
+	// cumulative. 0 unless a feedback group is on; read only through LocalPromotion.Units / UnitsTotal.
+	[System.Text.Json.Serialization.JsonIgnore]
+	internal int feedbackUnitsDelta, feedbackUnitsTotalDelta;
+	// --away-restock-lag (§105 screen): a reorder in transit and its arrival week. Not saved.
+	[System.Text.Json.Serialization.JsonIgnore]
+	internal int restockInTransit, restockArrivalWeek;
 	// Directive 5 acceptance is evaluated during the sales pass and reused by
 	// the later radio pass. These values are transient, week-local simulation
 	// state; they do not change audit output or the acceptance calculation.
@@ -88,6 +98,8 @@ public class RegionalRecordData {
 	// Population-complete Album realization snapshots. These are assigned during
 	// the demand pass and consumed only by the enabled settlement audit.
 	public float albumBuyerPoolThisWeek;
+	// --act-lp-audience-net-credit: the share of this week's pool that the act-audience increment added. Written only on.
+	public float albumActAudienceShareThisWeek;
 	public float albumAwarenessThisWeek;
 	public float albumObservedPenetrationThisWeek;
 	public float albumEffectivePenetrationThisWeek;
@@ -158,6 +170,8 @@ public class RegionalRecordData {
 	// Record age of the last week this region was a regional hit by RegionalHitDealGate's bar, or -1. Written
 	// only while that switch is on; the switched-off deal gate reads peakBreakoutScore instead.
 	public int dealEvidenceAge = -1;
+	// Weeks this region has met RegionalHitDealGate's bar, counted only under --proven-hit-deal-weeks.
+	public int dealHitWeeks;
 	public float breakoutVolumeInput;
 	public float breakoutVelocityInput;
 	public float breakoutAudienceInput;

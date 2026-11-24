@@ -21,6 +21,7 @@ public static class PlaylistMeeting {
 		public int ExposureAge { get; set; }
 		public string ExposureCause { get; set; }
 		public bool ResearchOffer { get; set; }
+		public bool TipMayAudition { get; set; }
 		public bool ResearchActive { get; set; }
 		public bool ResearchHistory { get; set; }
 		public bool ResearchAccepted { get; set; }
@@ -63,6 +64,12 @@ public static class PlaylistMeeting {
 		public Input Input { get; set; }
 		public Result Result { get; set; }
 	}
+	private static bool CanTakeResearchSeat(Candidate candidate, Input meeting) {
+		bool newOffer = candidate.ResearchOffer && !candidate.ResearchHistory;
+		if (candidate.Rejection != null)
+			return newOffer && candidate.TipMayAudition && candidate.Rejection is ("awaiting-arrival" or "city-not-reached");
+		return newOffer || (candidate.ResearchActive && meeting.Week - candidate.ResearchStart < meeting.ResearchWeeks);
+	}
 	public static Result Resolve(Input input) {
 		var result = new Result();
 		var seated = new HashSet<string>(StringComparer.Ordinal);
@@ -100,8 +107,8 @@ public static class PlaylistMeeting {
 				c.ResearchActive ? "research-graduated" : c.ActiveTrial ? "graduated" : "ranked");
 			filled++;
 		}
-		foreach (var c in eligible.Where(c => c.ResearchActive && input.Week - c.ResearchStart < input.ResearchWeeks
-			|| c.ResearchOffer && !c.ResearchHistory).OrderByDescending(c => c.ResearchActive).ThenByDescending(c => c.ResearchScore).ThenBy(c => c.Id, StringComparer.Ordinal)) {
+		foreach (var c in input.Candidates.Where(c => CanTakeResearchSeat(c, input))
+			.OrderByDescending(c => c.ResearchActive).ThenByDescending(c => c.ResearchScore).ThenBy(c => c.Id, StringComparer.Ordinal)) {
 			if (researchSlots <= 0) break;
 			if (seated.Contains(c.Id)) continue;
 			Add(c, SpinTier.Light, "research-trial"); researchSlots--;

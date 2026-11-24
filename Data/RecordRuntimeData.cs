@@ -28,6 +28,20 @@ public class RecordRuntimeData {
 	public List<float> fitReliveAwareness;
 	// --album-scale-career-milestones: the album run's best singles-equivalent position (0 = unset). Written only on.
 	public int albumCareerPeak;
+	// --act-lp-audience-net-credit: this week's net album position, the run's best net singles equivalent and the net
+	// chart blend. Written only on; runtime only (a fresh-world switch).
+	public int albumActNetPosition;
+	public int albumActNetCareerPeak;
+	public float albumActNetBlend;
+	// --lp-hit-life-top / -share: decay weeks removed from the LP's clock while it was held, and the count of held weeks.
+	// Written only on; runtime only (a fresh-world switch).
+	public float albumHitLifePausedWeeks;
+	public int albumHitLifeHeldWeeks;
+	// --album-chart-blend: the LP's trailing-blend chart points. Written only on; runtime only (not saved).
+	public float albumChartBlend;
+	public bool albumChartBlendSeen;
+	// --album-chart-blend-floors-raw: last week's unblended album sales rank (0 = off the chart). Runtime only.
+	public int albumRawRank;
 	public bool artistChartEntryCredited;
 	public bool artistTop40Credited;
 	public bool artistTop10Credited;
@@ -99,6 +113,9 @@ public class RecordRuntimeData {
 	public bool revenueMemoryEligible;
 	// Immutable-at-launch context for normalized, opportunity-relative memory.
 	public float releaseTimeExpectedNet;
+	// --earned-lp-forecast: the gate's raw LP unit forecast at release, and whether the label has learned from it.
+	public float releaseTimeExpectedLpUnits;
+	public bool lpForecastObserved;
 	public float releaseTimeOpportunityScale;
 	public int releaseMemoryWeek;
 	public ProjectRecordRole projectRole;
@@ -122,6 +139,19 @@ public class RecordRuntimeData {
 	public double albumDemandWeightedSingleHeat;
 	public double albumDemandWeightedSubstitutionPropensity;
 	public double albumDemandWeightedSuppression;
+	// --lp-demand-scale-known: how known this LP's act is this week (AlbumSimulator.UpdateAlbum). Not saved; NaN until the
+	// first weekly update, read through AlbumSimulator.LpScaleKnown.
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float lpScaleKnown = float.NaN;
+	// --lp-label-standing: the act's standing (LpLaunchStanding) read at this LP's launch, which then scales the label's push
+	// and Major tier premium for the LP's life. Saved so a resumed world keeps the launch value; null on every record
+	// launched without the switch (and on every single).
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public float? lpLabelStanding;
+	// --lp-reception-sigma: this LP's reception multiplier, a pure function of record id and world seed (LpReception.Factor).
+	// Not saved; NaN until first read.
+	[System.Text.Json.Serialization.JsonIgnore]
+	public float lpReception = float.NaN;
 	// B5 (--record-campaign-spend): this single's own campaign multiplier on label push, and its
 	// follow-up tranches (-1 once cut). Null on every record launched without the switch.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -148,6 +178,10 @@ public class RecordRuntimeData {
 	// computed inside CalculateChartPoints, because that method is called from five sites including
 	// the audit telemetry and a redraw would let the telemetry disagree with the ranking it reports.
 	public float surveySampleThisWeek = 1f;
+	// --chart-regional-rank: this week's store-report score in national units (RegionalChartRank), cached for the same
+	// reason as the survey draw. Zero, and absent from saves, when the switch is off.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public float regionalRankUnitsThisWeek;
 	public float wordOfMouth;         // 0-1: Are people talking about it?
 	
 	// === ARTIST FACTORS ===
@@ -164,6 +198,8 @@ public class RecordRuntimeData {
 	// Optional launch-time state for --hit-act-fit-floor. Null on old saves/off; 0 is a captured cold launch.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public float? hitActFitFloorAtLaunch;
+	/// <summary>SingleCommercialFit act-record kink: recency of the act's last Top 40 at launch; null when off.</summary>
+	public float? actChartRecordAtLaunch;
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public FanReleaseAudience fanAudience;
 
@@ -245,6 +281,8 @@ public class RecordRuntimeData {
 		unitsPressed = 0;
 		pressingBookSold = 0;
 		revenueMemoryEligible = false;
+		releaseTimeExpectedLpUnits = 0f;
+		lpForecastObserved = false;
 		
 		// Simulation forces - all start at zero
 		awareness = 0f;

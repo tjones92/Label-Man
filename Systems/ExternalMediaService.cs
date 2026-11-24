@@ -97,6 +97,26 @@ public static class ExternalMediaService {
 		return profile;
 	}
 
+	// --opening-soundtrack-catalogue: a 1956-59 cast or film album still selling at world start. These are the survivors,
+	// so every one was a box-office hit: cast albums and film musicals/scores (rock pictures were not the long runners).
+	public static ExternalMediaProfile GenerateOpeningProfile(bool blockbuster) {
+		var profile = new ExternalMediaProfile {
+			sourceType = GameRandom.Randf() < 0.6f ? ExternalMediaSourceType.StageCast : ExternalMediaSourceType.FilmScore
+		};
+		float prestige = (float)GameRandom.RandRange(0.4, 1.0);
+		profile.criticalPrestige = prestige;
+		profile.youthAppeal = Mathf.Clamp(1f - prestige + (float)GameRandom.RandRange(-0.15, 0.15), 0f, 1f);
+		profile.isBlockbuster = blockbuster;
+		profile.boxOfficeTrajectory = blockbuster ? (float)GameRandom.RandRange(0.85, 1.0) : (float)GameRandom.RandRange(0.7, 0.95);
+		profile.sourcePopularity = Mathf.Clamp(0.25f + profile.boxOfficeTrajectory * 0.55f + (float)GameRandom.RandRange(-0.05, 0.1), 0.1f, 0.95f);
+		profile.castStarDraw = (float)GameRandom.RandRange(0.4, 1.0);
+		profile.studioPromotion = (float)GameRandom.RandRange(1.0, 1.6);
+		profile.awardsPrestige = Mathf.Clamp(prestige * (float)GameRandom.RandRange(0.5, 1.0), 0f, 1f);
+		profile.licenseSkim = (float)GameRandom.RandRange(0.45, 0.70);
+		profile.upfrontLicenseFee = LicenseFeeProductionMultiple(profile);
+		return profile;
+	}
+
 	// The upfront license advance, expressed as a MULTIPLE of the licensing label's own album
 	// production cost (resolved at mint time). Blockbuster deals carry a large advance that gates
 	// Small/Boutique labels off the top tier; they can still catch a cheap indie sleeper.

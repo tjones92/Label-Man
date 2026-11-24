@@ -31,6 +31,39 @@ public static class RackJobberChecks {
 			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.ReturnsSwitch + "0.2", RackJobberChannel.SharedSwitch) &&
 				RackJobberChannel.SharedExhaustion && RackJobberChannel.ReturnRate == .2f, "sensitivity switches configure");
 			Check(Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "0"), "nonpositive scale");
+			Check(Rejects(RackJobberChannel.StoreBoundSwitch + "2") && Rejects(RackJobberChannel.Switch, RackJobberChannel.StoreBoundSwitch + "-1"),
+				"the store-standing bound needs the channel and a non-negative value");
+			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.StoreBoundSwitch + "2") && RackJobberChannel.BoundByStoreStanding(500f, 100) == 200f &&
+				RackJobberChannel.BoundByStoreStanding(150f, 100) == 150f, "store-standing bound caps rack demand at K times store units");
+			RackJobberChannel.ResetForChecks();
+			Check(RackJobberChannel.BoundByStoreStanding(500f, 100) == 500f, "store-standing bound off leaves demand alone");
+			Check(RackJobberChannel.SoundtrackWeight == RackJobberChannel.SoundtrackGenreWeight, "soundtrack rack weight defaults to .9");
+			Check(Rejects(RackJobberChannel.SoundtrackWeightSwitch + "0.3") && Rejects(RackJobberChannel.Switch, RackJobberChannel.SoundtrackWeightSwitch + "1.5"),
+				"the soundtrack rack weight needs the channel and a value in [0, 1]");
+			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.SoundtrackWeightSwitch + "0.3") && RackJobberChannel.SoundtrackWeight == .3f,
+				"soundtrack rack weight configures");
+			RackJobberChannel.ResetForChecks();
+			Check(RackJobberChannel.GenreFlatten == 0f && Rejects(RackJobberChannel.FlattenSwitch + "0.5") &&
+				Rejects(RackJobberChannel.Switch, RackJobberChannel.FlattenSwitch + "1.5") && Rejects(RackJobberChannel.Switch, RackJobberChannel.FlattenSwitch + "x"),
+				"genre flatten defaults off, needs the channel and a value in [0, 1]");
+			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.FlattenSwitch + "0.5") && RackJobberChannel.GenreFlatten == .5f, "genre flatten configures");
+			RackJobberChannel.ResetForChecks();
+			{
+				float pop = RackJobberChannel.GenreWeight(Album("gf1", "l", 1, genre: Genre.TraditionalPop), 1961);
+				float rock = RackJobberChannel.GenreWeight(Album("gf2", "l", 1, genre: Genre.RockAndRoll), 1961);
+				RackJobberChannel.SetGenreFlattenForChecks(1f);
+				float popFlat = RackJobberChannel.GenreWeight(Album("gf1", "l", 1, genre: Genre.TraditionalPop), 1961);
+				float rockFlat = RackJobberChannel.GenreWeight(Album("gf2", "l", 1, genre: Genre.RockAndRoll), 1961);
+				Check(Math.Abs(popFlat - RackJobberChannel.FlatGenreWeight) < 1e-5f && Math.Abs(rockFlat - RackJobberChannel.FlatGenreWeight) < 1e-5f,
+					"genre flatten 1: every genre at the flat weight");
+				RackJobberChannel.SetGenreFlattenForChecks(.5f);
+				float rockHalf = RackJobberChannel.GenreWeight(Album("gf2", "l", 1, genre: Genre.RockAndRoll), 1961);
+				Check(rock < RackJobberChannel.FlatGenreWeight && rockHalf > rock && rockHalf < RackJobberChannel.FlatGenreWeight &&
+					Math.Abs(rockHalf - (float)Math.Sqrt(rock * RackJobberChannel.FlatGenreWeight)) < 1e-4f, "genre flatten .5: geometric halfway");
+				Check(RackJobberChannel.FlattenGenreWeight(0f, .5f) == 0f && RackJobberChannel.FlattenGenreWeight(.2f, 0f) == .2f, "genre flatten edge cases");
+				RackJobberChannel.SetGenreFlattenForChecks(0f);
+				Check(RackJobberChannel.GenreWeight(Album("gf1", "l", 1, genre: Genre.TraditionalPop), 1961) == pop, "genre flatten off restores the tilt");
+			}
 			Check(Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "x"), "unparsable scale");
 			Check(!Rejects(RackJobberChannel.Switch, RackJobberChannel.ScaleSwitch + "0.25") && RackJobberChannel.Enabled &&
 				RackJobberChannel.ShopperScale == .25f, "scale configures");
@@ -71,6 +104,22 @@ public static class RackJobberChecks {
 			var again = cat.Select(c => Cand(c.Record.baseRecord.recordId, c.StoreUnits, 0, c.PastPeak)).ToList();
 			RackJobberChannel.AssignTiers(again, 1, 5);
 			Check(again.Select(c => c.Tier).SequenceEqual(cat.Select(c => c.Tier)), "tiers deterministic");
+			// --rack-proven-catalogue=K:N: proven past-peak titles take the first K catalogue slots, the rest fill by store units.
+			Check(Rejects(RackJobberChannel.ProvenCatalogueSwitch + "5:10") && Rejects(RackJobberChannel.Switch, RackJobberChannel.ProvenCatalogueSwitch + "5")
+				&& !Rejects(RackJobberChannel.Switch, RackJobberChannel.ProvenCatalogueSwitch + "25:10") && RackJobberChannel.ProvenCatalogueSlots == 25
+				&& RackJobberChannel.ProvenCataloguePeak == 10, "proven catalogue parses K:N and needs racks");
+			RackJobberChannel.ResetForChecks();
+			var prov = new List<RackJobberChannel.Candidate> { Cand("q1", 40, pastPeak: true), Cand("q2", 30, pastPeak: true), Cand("q3", 20, pastPeak: true), Cand("q4", 10, pastPeak: true) };
+			prov[2].Record.peakPosition = 4; prov[3].Record.peakPosition = 9; prov[0].Record.peakPosition = 30;
+			RackJobberChannel.AssignTiers(prov, 0, 2);
+			Check(prov[0].Tier == RackJobberChannel.TierCatalogue && prov[1].Tier == RackJobberChannel.TierCatalogue && prov[2].Tier == 0 && prov[3].Tier == 0,
+				"off: catalogue by store units");
+			foreach (var c in prov) c.Tier = 0;
+			RackJobberChannel.SetProvenCatalogueForChecks(1, 10);
+			RackJobberChannel.AssignTiers(prov, 0, 2);
+			Check(prov[2].Tier == RackJobberChannel.TierCatalogue && prov[0].Tier == RackJobberChannel.TierCatalogue && prov[1].Tier == 0 && prov[3].Tier == 0,
+				"the best proven title takes the reserved slot; the rest fill by store units");
+			RackJobberChannel.SetProvenCatalogueForChecks(0, 0);
 
 			// Allocation: exact under demand, capped by shelf, stable by id.
 			var alloc = new List<RackJobberChannel.Candidate> { Cand("x", 1), Cand("y", 1), Cand("w", 1) };

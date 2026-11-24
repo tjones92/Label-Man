@@ -11,6 +11,8 @@ def analyze(run):
         return out
     starts, graduated, rejected = {}, set(), set()
     active_seats, offers = collections.Counter(), collections.Counter()
+    sender_calls = collections.Counter()
+    heard, geographic_starts, distant_starts = set(), set(), set()
     below, report_count, accepted_count = set(), 0, 0
     previous_rows = {}
     ordinary_weeks = collections.defaultdict(set)
@@ -27,7 +29,13 @@ def analyze(run):
             previous_rows[key] = r
             if r['sourceWeek'] is not None:
                 assert r['sourceWeek'] == r['week'] - 1
-                assert r['sourceRegion'] != r['region']
+                sender = r.get('sourceStation')
+                if sender:
+                    assert sender != r['station'] and key not in heard
+                    heard.add(key)
+                    sender_calls[(r['week'], sender)] += 1
+                else:
+                    assert r['sourceRegion'] != r['region']
                 report_count += 1
                 offers[(r['week'], r['record'])] += 1
             if r['seat'] == 'research-trial':
@@ -35,6 +43,10 @@ def analyze(run):
                 if key not in starts:
                     assert r['offer'] and not r['history']
                     starts[key] = r['week']
+                    if r.get('geography'):
+                        assert r['tipMayAudition'] and r.get('sourceStation')
+                        geographic_starts.add(key)
+                        if r['geography'] == 'awaiting-arrival': distant_starts.add(key)
                     if not r['connected']: below.add(key)
                     if r['localPanel'] == 0: silent.add(key)
                 else:
@@ -52,13 +64,27 @@ def analyze(run):
                 (capacity_rejected if r['accepted'] else response_rejected).add(key)
             accepted_count += bool(r['accepted'])
     assert max(active_seats.values(), default=0) <= 1
-    assert max(offers.values(), default=0) <= 2
+    if not sender_calls:
+        assert max(offers.values(), default=0) <= 2
+    assert max(sender_calls.values(), default=0) <= 2
     complete = {key for key, start in starts.items() if start <= run['weeks'] - 3}
     persistence_cohort = {key for key, start in starts.items() if start <= run['weeks'] - 4}
     sustained = {key for key, weeks in ordinary_weeks.items() if any(w+1 in weeks for w in weeks)}
-    assert not (complete - graduated - rejected), 'Mature trial has no terminal decision'
+    retired_trials = set()
+    missing = complete - graduated - rejected
+    if missing:
+        retirement = ROOT / 'SimLogs' / (run['name'] + '-retirement.csv')
+        if not retirement.exists(): retirement = pathlib.Path(str(retirement) + '.gz')
+        events = pd.read_csv(retirement, usecols=['status', 'week', 'recordId'])
+        final_week = events[events.status.eq('retired')].set_index('recordId').week
+        # A withdrawn title can leave the active list immediately after the meeting.
+        # Require the actual retirement on the last observed trial week.
+        retired_trials = {key for key in missing if previous_rows[key]['seat'] == 'research-trial'
+                          and final_week.get(key[1]) == previous_rows[key]['week']}
+    assert not (missing - retired_trials), 'Mature trial has no terminal decision or documented retirement'
     out.update(reports=report_count, starts=len(starts), graduated=len(graduated),
-               rejected=len(rejected), unresolved=len(set(starts)-graduated-rejected),
+               rejected=len(rejected), retiredDuringTrial=len(retired_trials),
+               unresolved=len(set(starts)-graduated-rejected-retired_trials),
                belowThresholdStarts=len(below), belowThresholdGraduated=len(below & graduated),
                acceptedObservations=accepted_count, matureStarts=len(complete),
                matureGraduated=len(complete & graduated), matureRejected=len(complete & rejected),
@@ -69,6 +95,9 @@ def analyze(run):
                matureSilentStarts=len(complete & silent), matureSilentGraduated=len(complete & silent & graduated),
                matureAcceptedButUnseated=len(complete & capacity_rejected),
                matureWithoutAcceptance=len(complete & response_rejected))
+    if sender_calls:
+        out.update(namedTips=len(heard), geographicStarts=len(geographic_starts), heldRegionStarts=len(distant_starts),
+                   geographicGraduations=len(geographic_starts & graduated), heldRegionGraduations=len(distant_starts & graduated))
     return out
 
 def main():

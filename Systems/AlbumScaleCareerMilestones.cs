@@ -60,6 +60,22 @@ public static class AlbumScaleCareerMilestones {
 	private static bool albumScale;
 	private static bool neverChartedPenalty;
 	public static bool Enabled => enabled;
+	/// <summary>The album-scale half is on (not part b2).</summary>
+	public static bool AlbumScale => albumScale;
+
+	// ---- --album-career-importance (LpGenreAllocationFollowup.md §62) ---------------------------------------------
+	// The album chart mattered less to an act's stardom in 1960 than in 1969. With this switch the ACT's career reads
+	// (milestone latches, run completion, recognition) take an album's singles equivalent divided by the year's
+	// importance w: ceil(equivalent / w). At w = 1 that is the plain equivalent; at w 0.55 an LP needs to reach the top
+	// 22% of the album chart to count as a Top 40 hit and an album #1 reads as #2. The downside is never harsher than
+	// the plain equivalent: an LP that loses its hit credit to the weight reads as #41 (the mildest non-hit bucket).
+	// Label hit credit, landmark, acclaim and evolution keep the plain equivalent. Keyframes YEAR:w, linear between,
+	// flat outside. The default is the author's LP unit-share target (30/35/40/50/55% in 1960/63/65/67/69) over 1969's.
+	public const string ImportanceSwitch = "--album-career-importance";
+	public static readonly (int Year, float Weight)[] DefaultImportance =
+		{ (1960, .55f), (1963, .64f), (1965, .73f), (1967, .91f), (1969, 1f) };
+	private static (int Year, float Weight)[] importance;
+	public static bool ImportanceEnabled => importance != null;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
@@ -71,12 +87,85 @@ public static class AlbumScaleCareerMilestones {
 			throw new ArgumentException(PartPrefix + " takes b1, b2 or placebo.");
 		Set(on, on && part is null or "b1", on && part != "b1");
 		neverChartedPenaltySize = part == "placebo" ? PlaceboPenalty : NeverChartedSinglePenalty;
+		string imp = args.FirstOrDefault(a => a == ImportanceSwitch || a.StartsWith(ImportanceSwitch + "=", StringComparison.Ordinal));
+		importance = imp == null ? null : imp == ImportanceSwitch ? DefaultImportance : ParseImportance(imp.Substring(ImportanceSwitch.Length + 1));
+		if (importance != null && !albumScale)
+			throw new ArgumentException(ImportanceSwitch + " requires " + Switch + " with its album scale (not part b2).");
 		configured = true;
+	}
+
+	private static (int Year, float Weight)[] ParseImportance(string spec) {
+		var keys = new List<(int Year, float Weight)>();
+		foreach (string part in spec.Split(',')) {
+			string[] kv = part.Split(':');
+			if (kv.Length != 2 || !int.TryParse(kv[0], out int year)
+				|| !float.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float w)
+				|| w <= 0f || w > 1f || (keys.Count > 0 && year <= keys[^1].Year))
+				throw new ArgumentException(ImportanceSwitch + "=YEAR:W,... takes rising years and weights in (0, 1]; got '" + spec + "'.");
+			keys.Add((year, w));
+		}
+		if (keys.Count == 0) throw new ArgumentException(ImportanceSwitch + " needs at least one YEAR:W keyframe.");
+		return keys.ToArray();
 	}
 
 	private static void Set(bool on, bool scale, bool penalty) { enabled = on; albumScale = scale; neverChartedPenalty = penalty; }
 
-	internal static void SetForChecks(bool on) { configured = true; Set(on, on, on); neverChartedPenaltySize = NeverChartedSinglePenalty; }
+	internal static void SetForChecks(bool on, (int Year, float Weight)[] importanceKeys = null) {
+		configured = true; Set(on, on, on); neverChartedPenaltySize = NeverChartedSinglePenalty; importance = importanceKeys;
+	}
+
+	/// <summary>The album chart's weight in an act's career in <paramref name="year"/>: 1 when the switch is off.</summary>
+	public static float Importance(int year) {
+		if (importance == null) return 1f;
+		if (year <= importance[0].Year) return importance[0].Weight;
+		for (int i = 1; i < importance.Length; i++)
+			if (year <= importance[i].Year) {
+				var (y0, w0) = importance[i - 1]; var (y1, w1) = importance[i];
+				return w0 + (w1 - w0) * (year - y0) / (float)(y1 - y0);
+			}
+		return importance[^1].Weight;
+	}
+
+	/// <summary>An album's singles equivalent as the act's career reads it at importance <paramref name="weight"/>:
+	/// ceil(equivalent / w) while that is still a Top 40 hit, else the plain equivalent but no better than #41.</summary>
+	public static int WeightedActPeak(int equivalent, float weight) {
+		if (equivalent <= 0 || weight >= 1f) return equivalent;
+		int hit = (int)Math.Ceiling(equivalent / (double)weight - 1e-9);
+		return hit <= 40 ? hit : Math.Max(equivalent, 41);
+	}
+
+	private static int CurrentYear() => TimeManager.Instance?.CurrentDate.year ?? 1960;
+
+	private static int ActWeighted(RecordRuntimeData record, int peak, int year) =>
+		importance == null || !albumScale || !IsAlbum(record) ? peak : WeightedActPeak(peak, Importance(year));
+
+	/// <summary>ObserveCareerPeak as the act's career reads it (milestone latches).</summary>
+	public static int ObserveActCareerPeak(RecordRuntimeData record) => ObserveActCareerPeak(record, CurrentAlbumChartSize(), CurrentYear());
+	internal static int ObserveActCareerPeak(RecordRuntimeData record, int albumChartSize, int year) {
+		int peak = ObserveCareerPeak(record, albumChartSize);
+		// --act-lp-audience-net-credit: the act reads the LP's best net position instead. Off: not read.
+		if (albumScale && IsAlbum(record) && ActLpAudience.NetCredit) peak = ObserveNetCareerPeak(record, albumChartSize);
+		return ActWeighted(record, peak, year);
+	}
+
+	/// <summary>CareerPeak as the act's career reads it (run completion, recognition run credit).</summary>
+	public static int ActCareerPeak(RecordRuntimeData record) => ActCareerPeak(record, CurrentAlbumChartSize(), CurrentYear());
+	internal static int ActCareerPeak(RecordRuntimeData record, int albumChartSize, int year) =>
+		ActWeighted(record, albumScale && IsAlbum(record) && ActLpAudience.NetCredit ? record.albumActNetCareerPeak : CareerPeak(record, albumChartSize), year);
+
+	/// <summary>--act-lp-audience-net-credit: folds this week's net album position into the run's best net equivalent
+	/// (0 while the LP has never charted net of its act-audience buyers).</summary>
+	internal static int ObserveNetCareerPeak(RecordRuntimeData record, int albumChartSize) {
+		if (record.currentPosition > 0) {
+			int scaled = SinglesEquivalent(record.albumActNetPosition, albumChartSize);
+			if (scaled > 0 && (record.albumActNetCareerPeak == 0 || scaled < record.albumActNetCareerPeak)) record.albumActNetCareerPeak = scaled;
+		}
+		return record.albumActNetCareerPeak;
+	}
+
+	/// <summary>The factor on an album run's sustain/breadth recognition credit: the year's importance; 1 otherwise.</summary>
+	public static float ActCreditScale(RecordRuntimeData record) =>
+		importance == null || !albumScale || !IsAlbum(record) ? 1f : Importance(CurrentYear());
 
 	/// <summary>
 	/// The singles-chart equivalent of an album chart position: its percentile of the chart's size, on a 100-slot

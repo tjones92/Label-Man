@@ -129,7 +129,7 @@ public static partial class MediaAtmosphereService {
 		var index = new Dictionary<string, int>(StringComparer.Ordinal);
 		for (int i = 0; i < r; i++) index[regions[i].regionId] = i;
 		float teenShare = BroadcastExposure.GroupShare(ViewerGroup.Teen, year);
-		double[] teenPop = regions.Select(x => Math.Max(1.0, x.population * 1e6 * teenShare)).ToArray();
+		double[] teenPop = regions.Select(x => Math.Max(1.0, x.EconomicPopulation * 1e6 * teenShare)).ToArray();
 		float[] Row(Dictionary<string, float[]> map, string id) { if (!map.TryGetValue(id, out var v)) map[id] = v = new float[r]; return v; }
 
 		// Sales response: rank in each region's best sellers this week, every label's singles alike.
@@ -174,9 +174,9 @@ public static partial class MediaAtmosphereService {
 				string region = DistanceModel.GetCityById(airing.CityId ?? program.HomeCityId)?.parentRegionId;
 				if (region != null && index.TryGetValue(region, out int i)) row[i] += (float)(teens / teenPop[i]) * spark;
 			} else {
-				double weightSum = regions.Sum(x => x.population * BroadcastExposure.Clearance(program.Network, x));
+				double weightSum = regions.Sum(x => x.EconomicPopulation * BroadcastExposure.Clearance(program.Network, x));
 				for (int i = 0; i < r && weightSum > 0; i++)
-					row[i] += (float)(teens * regions[i].population * BroadcastExposure.Clearance(program.Network, regions[i]) / weightSum / teenPop[i]) * spark;
+					row[i] += (float)(teens * regions[i].EconomicPopulation * BroadcastExposure.Clearance(program.Network, regions[i]) / weightSum / teenPop[i]) * spark;
 			}
 			if (!airing.Repeat && !airing.Syndicated) {
 				long mail = (long)Math.Round(teens / 20_000.0 * spark * (0.7 + 0.6 * MediaAtmosphere.Unit("fanmail|" + a.Id)));

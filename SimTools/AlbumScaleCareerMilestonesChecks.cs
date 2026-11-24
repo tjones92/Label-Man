@@ -118,6 +118,30 @@ public static class AlbumScaleCareerMilestonesChecks {
 				"off, a #120 LP reads as uncharted, as before");
 			AlbumScaleCareerMilestones.SetForChecks(true);
 
+			// --album-career-importance (§62): off, the act reads the plain equivalent; on, ceil(equivalent / w) while still a
+			// Top 40 hit, else no better than #41; singles and the other readers are untouched.
+			Check(AlbumScaleCareerMilestones.Importance(1960) == 1f, "importance off must weigh 1");
+			Check(AlbumScaleCareerMilestones.ActCareerPeak(Album(16), 40, 1960) == 40, "importance off: the act reads the plain equivalent");
+			AlbumScaleCareerMilestones.SetForChecks(true, AlbumScaleCareerMilestones.DefaultImportance);
+			Check(Mathf.IsEqualApprox(AlbumScaleCareerMilestones.Importance(1955), .55f) && Mathf.IsEqualApprox(AlbumScaleCareerMilestones.Importance(1964), .685f)
+				&& Mathf.IsEqualApprox(AlbumScaleCareerMilestones.Importance(1968), .955f) && AlbumScaleCareerMilestones.Importance(1975) == 1f,
+				"importance is linear between keyframes and flat outside");
+			(int eq, float w, int want)[] weighted = { (1, 1f, 1), (40, 1f, 40), (70, 1f, 70), (1, .55f, 2), (5, .55f, 10), (22, .55f, 40),
+				(23, .55f, 41), (30, .55f, 41), (61, .55f, 61), (0, .55f, 0), (1, .3f, 4), (12, .3f, 40), (13, .3f, 41) };
+			foreach (var (eq, w, want) in weighted) {
+				int got = AlbumScaleCareerMilestones.WeightedActPeak(eq, w);
+				Check(got == want, $"equivalent #{eq} at importance {w} must read as #{want} (got {got})");
+			}
+			Check(AlbumScaleCareerMilestones.ActCareerPeak(Album(1), 40, 1960) == 2, "a 1960 album #1 reads as #2 for the act, not a #1");
+			Check(AlbumScaleCareerMilestones.ActCareerPeak(Album(1), 200, 1969) == 1, "a 1969 album #1 is a full #1");
+			Check(AlbumScaleCareerMilestones.ActCareerPeak(Album(9), 40, 1960) == 41, "a 1960 #9 of 40 LP is no Top 40 hit for the act");
+			Check(AlbumScaleCareerMilestones.CareerPeak(Album(9), 40) == 23, "the label and cultural readers keep the plain equivalent");
+			Check(AlbumScaleCareerMilestones.ActCareerPeak(Single(9), 40, 1960) == 9, "a single is never weighted");
+			var weightedRun = Album(3); weightedRun.currentPosition = 3;
+			Check(AlbumScaleCareerMilestones.ObserveActCareerPeak(weightedRun, 40, 1960) == 15 && weightedRun.albumCareerPeak == 8,
+				"the latch read is weighted; the stored run peak stays plain");
+			AlbumScaleCareerMilestones.SetForChecks(true);
+
 			GD.Print("ALBUM_SCALE_CAREER_MILESTONES_CHECK passed");
 		} finally {
 			AlbumScaleCareerMilestones.SetForChecks(was);

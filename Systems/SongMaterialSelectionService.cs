@@ -442,7 +442,15 @@ public static class SongMaterialSelectionService {
 	// majority-staff; folk/jazz carry more self-written and traditional; rock covers recent R&B/blues.
 	private struct Mix { public float Aw, Pro, Std, Hit, Trad; public Mix(float a,float p,float s,float h,float t){Aw=a;Pro=p;Std=s;Hit=h;Trad=t;} }
 
-	private static Mix Anchor1960(Genre g) => g switch {
+	// --folk-material-mix ({Aw, Pro, Std, Hit, Trad}); see ProfessionalSongBalance.FolkMaterialMix.
+	private static Mix? FolkMix(Genre g, bool late) => !ProfessionalSongBalance.FolkMaterialMix ? null : g switch {
+		Genre.Folk             => late ? new Mix(.30f, .03f, .12f, .08f, .47f) : new Mix(.28f, .03f, .17f, .08f, .44f),
+		Genre.ContemporaryFolk => late ? new Mix(.55f, .08f, .06f, .25f, .06f) : new Mix(.40f, .08f, .12f, .25f, .15f),
+		Genre.FolkRock         => late ? new Mix(.65f, .10f, .02f, .20f, .03f) : new Mix(.40f, .20f, .04f, .30f, .06f),
+		_ => null
+	};
+
+	private static Mix Anchor1960(Genre g) => FolkMix(g, false) ?? g switch {
 		// --rock-hit-writers: 1960 rock & roll was staff-writer-led (std/trad still carry the rock songbook factor).
 		Genre.RockAndRoll when RockHitWriters.Enabled => new Mix(.30f, .35f * RockHitWriters.ProShareScale, .05f, .25f, .05f),
 		Genre.TeenPop        => new Mix(.06f, .56f, .14f, .14f, .10f),
@@ -474,7 +482,7 @@ public static class SongMaterialSelectionService {
 	// 1960 pop singers issued mostly new publisher songs as singles and recorded the standards on albums.
 	private static Mix Revised1960(Genre g, Mix anchor, bool album) {
 		if (ProfessionalSongBalance.TradPopSinglesNewSongs && !album && g == Genre.TraditionalPop) return new Mix(.08f, .45f, .25f, .10f, .12f);
-		if (!ProfessionalSongBalance.ProTrims1960) return anchor;
+		if (!ProfessionalSongBalance.ProTrims1960 || FolkMix(g, false) != null) return anchor;
 		return g switch {
 			Genre.DooWop    => new Mix(.32f, .26f, .16f, .16f, .10f),
 			Genre.Folk      => new Mix(.34f, .03f, .18f, .10f, .35f),
@@ -485,7 +493,7 @@ public static class SongMaterialSelectionService {
 		};
 	}
 
-	private static Mix Anchor1969(Genre g) => g switch {
+	private static Mix Anchor1969(Genre g) => FolkMix(g, true) ?? g switch {
 		Genre.RockAndRoll when RockHitWriters.Enabled => new Mix(.62f, .15f * RockHitWriters.ProShareScale, .03f, .18f, .02f),
 		Genre.TeenPop        => new Mix(.20f, .55f, .04f, .16f, .05f),
 		Genre.Bubblegum      => new Mix(.15f, .60f, .04f, .16f, .05f),

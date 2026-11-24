@@ -18,7 +18,9 @@ public class ArtistPublicProfile
 	public Genre primaryGenre;
 	public Genre secondaryGenre;
 	public int formedYear;
+	// Presentation rank; contract/lifecycle code reads the SimulatedArtist state instead.
 	public CareerState careerState;
+	public string contractContext;
 	public string labelId;
 	public string labelName;
 	public int totalCharted;

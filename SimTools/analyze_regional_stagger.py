@@ -1,7 +1,9 @@
 """RegionalSyncDesign.md §9s-9u stagger metric. Model analogue of hist_spread.py, 1960. 'City survey' = union of a city's Top40 + FullService playlists (ranks 1-35;
 top 10 = rank <= 10 on any of its stations). 'Region survey' = the region's weekly cleared-units ranking of singles
 (top 40 / top 10). Los Angeles / westcoast vs Minneapolis / greatplains, as in history. National = chart position.
-Usage: model_spread.py SEEDS TAG [--source city|region]"""
+Usage: model_spread.py SEEDS TAG [--source city|region]
+TAG containing {s} is a run-name format (e.g. zfg-{s}-sc for SimLogs/zfg-2002-sc-*); otherwise the hs52op prefix plus TAG.
+Each file is NAME.csv, else NAME.csv.gz."""
 import sys
 import numpy as np
 import pandas as pd
@@ -13,7 +15,13 @@ source = sys.argv[sys.argv.index("--source") + 1] if "--source" in sys.argv else
 A, B = ("Los Angeles", "Minneapolis") if source == "city" else ("westcoast", "greatplains")
 
 
+def csv(path):
+    import os
+    return path if os.path.exists(path) or not os.path.exists(path + ".gz") else path + ".gz"
+
+
 def pre(seed):
+    if "{s}" in tag: return tag.format(s=seed)
     p = f"hs52op{seed}-SMP-HGRPO" + (f"-{tag}" if tag else "")
     import os
     if tag == "sp" and not os.path.exists(L + p + "-records.csv"): p = f"hs52op{seed}-SMP-HGRPO"
@@ -23,10 +31,10 @@ def pre(seed):
 def lists(p):
     """Per (place, week, recordId): best rank."""
     if source == "city":
-        x = pd.read_csv(L + p + "-station-playlists.csv", usecols=["week", "year", "city", "format", "rank", "recordId"])
+        x = pd.read_csv(csv(L + p + "-station-playlists.csv"), usecols=["week", "year", "city", "format", "rank", "recordId"])
         x = x[x.year.eq(1960) & x.format.isin(["Top40", "FullService"]) & x.city.isin([A, B])]
         return x.groupby(["city", "week", "recordId"])["rank"].min().reset_index().rename(columns={"city": "place"})
-    x = pd.read_csv(L + p + "-single-demand-stages.csv", usecols=["week", "year", "recordId", "region", "clearedUnits"])
+    x = pd.read_csv(csv(L + p + "-single-demand-stages.csv"), usecols=["week", "year", "recordId", "region", "clearedUnits"])
     x = x[x.year.eq(1960) & x.region.isin([A, B])]
     x["rank"] = x.groupby(["region", "week"]).clearedUnits.rank(ascending=False, method="first")
     return x[x["rank"].le(40)][["region", "week", "recordId", "rank"]].rename(columns={"region": "place"})
@@ -35,7 +43,7 @@ def lists(p):
 rows = []
 for seed in seeds:
     p = pre(seed)
-    r = pd.read_csv(L + p + "-records.csv", usecols=["week", "year", "recordId", "labelId", "currentPosition"])
+    r = pd.read_csv(csv(L + p + "-records.csv"), usecols=["week", "year", "recordId", "labelId", "currentPosition"])
     r = r[r.year.eq(1960)]
     c = r[r.currentPosition.between(1, 100)]
     nat = c.groupby("recordId").agg(debut=("week", "min"), peak=("currentPosition", "min"), labelId=("labelId", "first"))

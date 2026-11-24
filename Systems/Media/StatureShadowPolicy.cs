@@ -28,6 +28,9 @@ public static class StatureShadowPolicy {
 		public double Entry, Exit;
 		// Regional, record, conversion, in that order.
 		public double[] ReachWeights = Array.Empty<double>();
+		// Omitted in older calibrations/saves: all routes remain eligible.
+		[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+		public bool[] EligibleRoutes;
 	}
 
 	public sealed class Calibration {
@@ -60,9 +63,14 @@ public static class StatureShadowPolicy {
 		foreach (Boundary band in c.Bands) {
 			if (band == null || !Unit(band.Entry) || !Unit(band.Exit) || band.Exit > band.Entry || band.ReachWeights?.Length != 3)
 				throw new ArgumentException("Invalid band boundaries or reach weights.");
+			if (band.EligibleRoutes != null && (band.EligibleRoutes.Length != 3 || !Array.Exists(band.EligibleRoutes, eligible => eligible)))
+				throw new ArgumentException("Each band requires three route eligibility flags and at least one eligible route.");
 			for (int r = 0; r < 3; r++)
 				if (!Unit(band.ReachWeights[r]) || (previous != null && band.ReachWeights[r] < previous.ReachWeights[r]))
 					throw new ArgumentException("Higher bands cannot require less reach.");
+			for (int r = 0; r < 3; r++)
+				if (previous?.EligibleRoutes != null && !previous.EligibleRoutes[r] && (band.EligibleRoutes == null || band.EligibleRoutes[r]))
+					throw new ArgumentException("Higher bands cannot re-enable a route excluded from a lower band.");
 			if (previous != null && (band.Entry < previous.Entry || band.Exit < previous.Exit))
 				throw new ArgumentException("Higher bands cannot have lower boundaries.");
 			previous = band;
@@ -81,6 +89,10 @@ public static class StatureShadowPolicy {
 			double lower = 0, upper = 0;
 			var routeSupports = new Range[3];
 			for (int r = 0; r < 3; r++) {
+				if (band.EligibleRoutes != null && !band.EligibleRoutes[r]) {
+					routeSupports[r] = Range.Exact(0);
+					continue;
+				}
 				Route route = routes[r]; double weight = band.ReachWeights[r];
 				double routeLower = Math.Clamp(Math.Max(route.Response.Lower, route.Draw.Lower) * (1 - weight + weight * route.Reach.Lower), 0, 1);
 				double routeUpper = Math.Clamp(Math.Max(route.Response.Upper, route.Draw.Upper) * (1 - weight + weight * route.Reach.Upper), 0, 1);

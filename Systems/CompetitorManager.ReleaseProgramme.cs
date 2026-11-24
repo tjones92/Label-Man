@@ -10,7 +10,6 @@ public partial class CompetitorManager {
 	private float? programmeCampaignBudget;
 	private bool programmeAdvanceSlot;
 	private string programmeAdvanceSingleId;
-	private readonly Dictionary<string, ProgrammeCampaign> programmeCampaignByRecord = new(StringComparer.Ordinal);
 	private ReleaseProgrammeState followingSnapshotProgramme;
 	private int followingSnapshotWeek = int.MinValue;
 	private float followingSnapshotOrders;
@@ -19,7 +18,10 @@ public partial class CompetitorManager {
 	public event Action<ProgrammeCashShortfall> OnProgrammeCashShortfall;
 	public event Action<ProgrammeChoiceAudit> OnProgrammeChoiceReview;
 	public IReadOnlyList<ReleaseSlateItem> GetReleaseSlate() => ProgrammeState?.Items ?? (IReadOnlyList<ReleaseSlateItem>)Array.Empty<ReleaseSlateItem>();
-	internal void SetProgrammeForChecks(ReleaseProgrammeState state) { ProgrammeState = state; programmeCampaignByRecord.Clear(); }
+	/// <summary>One act's slate items, in slate order: the same items a filter on ArtistId over the whole slate yields.</summary>
+	internal IReadOnlyList<ReleaseSlateItem> GetReleaseSlateForArtist(string artistId) =>
+		ProgrammeState?.ItemsForArtist(artistId) ?? (IReadOnlyList<ReleaseSlateItem>)Array.Empty<ReleaseSlateItem>();
+	internal void SetProgrammeForChecks(ReleaseProgrammeState state) { ProgrammeState = state; }
 
 	internal float ProgrammeCashReserved(string labelId) => ProgrammeState?.ItemsForLabel(labelId)
 		.Where(i => LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem)
@@ -30,6 +32,8 @@ public partial class CompetitorManager {
 			int SingleAge(ReleaseFormat format) {
 				var releases = ChartManager.Instance.GetAllRecords().Where(r => r.baseRecord.artistId == artist.artistId && r.baseRecord.format == format).ToList();
 				if (releases.Count > 0) return releases.Min(r => r.weeksSinceRelease);
+				// --opening-programme-clocks: an opening act is dated from its pre-1960 history, not its week-0 contract stamp.
+				if (OpeningProgrammeClocks.Applies(artist)) return OpeningProgrammeClocks.Age(artist, format);
 				// Old saves have no independent clock: an LP must not invent a recent single. Start from the contract,
 				// or the opening career's already elapsed interval, when that format has no surviving catalogue row.
 				return Math.Max(0, artist.contractStartWeek >= 0 ? pipelineWeek - artist.contractStartWeek : artist.weeksSinceLastRelease);
@@ -51,7 +55,8 @@ public partial class CompetitorManager {
 		LabelReleaseProgramme.Roll(ProgrammeLabelKey(label), artist == null ? "" : ProgrammeClockFor(artist).Identity, slot, week, domain);
 
 	private void EmitProgrammeResources(AILabel label, GameDate date, int attempts, int successes) {
-		var due = label.roster.Where(a => pipelineWeek - ProgrammeClockFor(a).SingleWeek >= HitActCadence.DueWeeks &&
+		int dueWeeks = HitActCadence.DueWeeksFor(label);
+		var due = label.roster.Where(a => pipelineWeek - ProgrammeClockFor(a).SingleWeek >= dueWeeks &&
 			HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks).ToList();
 		OnProgrammeResources?.Invoke(new ProgrammeResourceTelemetry { Week = pipelineWeek, Year = date.year, LabelId = label.labelId, Tier = label.tier.ToString(),
 			Attempts = WeeklyReleaseRollsFired - attempts, Successes = WeeklySuccessfulReleases - successes,
@@ -59,7 +64,7 @@ public partial class CompetitorManager {
 			DueFollowUps = due.Count, UnplannedFollowUps = due.Count(a => !ProgrammeState.ItemsForArtist(a.artistId).Any(i => i.Format == ReleaseFormat.Single && LabelReleaseProgramme.IsOpen(i))),
 			CashReserved = ProgrammeCashReserved(label.labelId), PromotionPool = ProgrammePromotionPool(label),
 			PromotionCommittedPeak = ProgrammePromotionCommittedPeak(label.labelId),
-			PromotionBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend),
+			PromotionBooked = ProgrammeState.CampaignsForLabel(label.labelId).Where(c => c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend),
 			SingleWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Single), AlbumWeeklyRate = ProgrammeWeeklyRate(label, date, ReleaseFormat.Album),
 			RosterActs = label.CurrentRosterSize, ReleaseEligibleActs = LabelReleaseProgramme.ReleaseEligibleActs(label),
 			ProgrammeCapacityActive = LabelReleaseProgramme.CapacityEnabled,
@@ -96,24 +101,32 @@ public partial class CompetitorManager {
 		finally { preparingSlateItem = null; }
 	}
 	private bool PrepareSlateMasterCore(AILabel label, SimulatedArtist artist, GameDate date, ReleaseSlateItem item) {
+		bool trace = StatureReplayDiagnostics.Observer != null && label.labelId == "label_0001";
+		if (trace) StatureReplayDiagnostics.Mark("prepare:begin:" + item.Id + ":" + artist.artistId);
 		if (LabelReleaseProgramme.MaterialSearchEnabled) {
 			AdvanceProgrammeMaterial(item, label, artist, date, pipelineWeek);
+			if (trace) StatureReplayDiagnostics.Mark("prepare:material:" + item.Id + ":" + item.MaterialSearch?.State);
 			if (item.MaterialSearch?.State == ProgrammeMaterialState.Pending && !LabelReleaseProgramme.ProjectJudgementEnabled) return false;
 		}
-		if (!ReviewProgrammeProject(label, artist, date, item)) return false;
+		bool projectApproved = ReviewProgrammeProject(label, artist, date, item);
+		if (trace) StatureReplayDiagnostics.Mark("prepare:review:" + item.Id + ":" + projectApproved + ":" + item.ProjectReview?.Action);
+		if (!projectApproved) return false;
 		issuingSlateItem = item;
 		try {
 			float reserve = ProgrammeCommitmentReserve(label);
 			if (label.cashReserves - reserve < item.ReservedProduction + item.ReservedMarketing) return false;
 			var selection = ChooseEnabledGenreSupply(label, artist, date.year);
+			if (trace) StatureReplayDiagnostics.Mark("prepare:genre:" + item.Id + ":" + selection.Genre);
 			var decisionArtist = CreateProjectDecisionArtist(artist, selection.Genre, artist.primaryGenre);
 			var decision = BuildDecisionContext(label, decisionArtist, date.year, date.month);
 			PrepareAnnualFormatCapacity(date.year);
 			var plan = DecideRelease(label, decisionArtist, date.year, decision, singleProgrammeOnly: item.Format == ReleaseFormat.Single);
+			if (trace) StatureReplayDiagnostics.Mark($"prepare:plan:{item.Id}:{plan.strategy}:album={plan.projectedAlbumNet:R}:single={plan.projectedSingleNet:R}");
 			plan.format = item.Format;
 			plan.strategy = item.Format == ReleaseFormat.Single ? ReleaseStrategy.OrphanSingle : ReleaseStrategy.AlbumStandalone;
 			if (item.Format == ReleaseFormat.Album && LabelReleaseProgramme.LpAssemblyEnabled) {
 				item.LpAssembly = BuildLpAssembly(label, artist, decisionArtist, date.year, decision, item);
+				if (trace) StatureReplayDiagnostics.Mark($"prepare:assembly:{item.Id}:net={item.LpAssembly.ProjectedNet:R}");
 				plan.projectedAlbumStandaloneNet = item.LpAssembly.ProjectedNet;
 				// The assembly prior carries no portfolio credit, so there is none for the gate to remove; nor does it
 				// carry the expected campaign that DecideRelease takes off the album prior, so take that off here.
@@ -125,6 +138,7 @@ public partial class CompetitorManager {
 			if (item.Format == ReleaseFormat.Album) plan.projectedAlbumNet = plan.projectedAlbumStandaloneNet;
 			if (!PassesReleaseProfitGate(label, artist, date.year, selection.Genre, plan)) return false;
 			Record master = GenerateRecordFromArtist(label, artist, date.year, item.Format, judgedOrphan: item.Format == ReleaseFormat.Single);
+			if (trace) StatureReplayDiagnostics.Mark("prepare:record:" + item.Id + ":" + master?.recordId);
 			if (master == null) return false;
 			ApplyProjectGenre(master, selection.Genre, artist.primaryGenre);
 			float production = CalculateProductionCost(label, master, date);
@@ -169,7 +183,9 @@ public partial class CompetitorManager {
 		if (!LabelReleaseProgramme.CapacityEnabled) return float.PositiveInfinity;
 		float remaining = ProgrammePromotionPool(label);
 		// Filter once, in list order, so each week's Sum visits the same values in the same order as a full scan.
-		var campaigns = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId).ToList();
+		// Only bookings whose four weeks touch the window can count; the rest of the label's history is skipped.
+		var campaigns = ProgrammeState.CampaignsForLabel(label.labelId)
+			.Where(c => c.Week > week - LabelReleaseProgramme.CampaignWeeks && c.Week < week + LabelReleaseProgramme.CampaignWeeks).ToList();
 		var holds = ProgrammeState.ItemsForLabel(label.labelId).Where(i => LabelReleaseProgramme.IsOpen(i) && i != issuingSlateItem && i != exclude).ToList();
 		for (int w = week; w < week + LabelReleaseProgramme.CampaignWeeks; w++) {
 			float booked = campaigns.Where(c => c.Week <= w && w < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
@@ -189,7 +205,7 @@ public partial class CompetitorManager {
 			changes[start] = changes.GetValueOrDefault(start) + amount;
 			changes[end] = changes.GetValueOrDefault(end) - amount;
 		}
-		foreach (var campaign in ProgrammeState.Campaigns.Where(c => c.LabelId == labelId)) Add(campaign.Week, campaign.Spend);
+		foreach (var campaign in ProgrammeState.CampaignsForLabel(labelId)) Add(campaign.Week, campaign.Spend);
 		foreach (var item in ProgrammeState.ItemsForLabel(labelId).Where(i => LabelReleaseProgramme.IsOpen(i))) Add(item.DueWeek, item.ReservedMarketing);
 		double running = 0, peak = 0;
 		foreach (double change in changes.Values) { running += change; peak = Math.Max(peak, running); }
@@ -206,11 +222,7 @@ public partial class CompetitorManager {
 
 	internal float ProgrammePushFactor(RecordRuntimeData record) {
 		if (!LabelReleaseProgramme.CapacityEnabled || record?.baseRecord == null || record.baseRecord.isPlayerOwned || ProgrammeState == null) return 1f;
-		if (programmeCampaignByRecord.Count != ProgrammeState.Campaigns.Count) {
-			programmeCampaignByRecord.Clear();
-			foreach (var c in ProgrammeState.Campaigns) programmeCampaignByRecord[c.RecordId] = c;
-		}
-		programmeCampaignByRecord.TryGetValue(record.baseRecord.recordId, out var campaign);
+		var campaign = ProgrammeState.CampaignForRecord(record.baseRecord.recordId);
 		return campaign == null ? 1f : pipelineWeek < campaign.Week + LabelReleaseProgramme.CampaignWeeks ? campaign.Share : 0f;
 	}
 
@@ -223,39 +235,37 @@ public partial class CompetitorManager {
 
 	private void TransferProgrammeCampaign(RecordRuntimeData record, AILabel to) {
 		if (!LabelReleaseProgramme.CapacityEnabled || ProgrammeState == null) return;
-		var booking = ProgrammeState.Campaigns.FirstOrDefault(c => c.RecordId == record.baseRecord.recordId);
+		var booking = ProgrammeState.CampaignForRecord(record.baseRecord.recordId);
 		if (booking != null) ProgrammeState.Campaigns.Remove(booking);
 		// Buying an existing master does not buy the selling label's promotion department. A new paid campaign
 		// must draw from the buyer's pool; no new marketing payment is made by the ownership transfer itself.
 		if (!to.isPlayerOwned) ProgrammeState.Campaigns.Add(new ProgrammeCampaign { LabelId = to.labelId,
 			RecordId = record.baseRecord.recordId, Week = pipelineWeek, Spend = 0, Share = 0 });
-		programmeCampaignByRecord.Clear();
 	}
 
 	internal void BookProgrammeCampaign(Record record, SimulatedArtist artist, AILabel label, float spend) {
 		if (!LabelReleaseProgramme.CapacityEnabled || label.isPlayerOwned || ProgrammeState == null) return;
-		if (ProgrammeState.Campaigns.Any(c => c.RecordId == record.recordId)) return;
-		float booked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
+		if (ProgrammeState.CampaignForRecord(record.recordId) != null) return;
+		float booked = ProgrammeState.CampaignsForLabel(label.labelId).Where(c => c.Week <= pipelineWeek && pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
 		// A demotion shrinks the pool under bookings made at the old tier; a zero spend cannot add to that.
 		if (spend > 0f && booked + spend > ProgrammePromotionPool(label) + .1f)
 			throw new InvalidOperationException($"Programme promotion overbooked for {label.labelId}: {booked} + {spend}.");
 		ProgrammeState.Campaigns.Add(new ProgrammeCampaign { LabelId = label.labelId, RecordId = record.recordId, Week = pipelineWeek,
-			Spend = spend, Share = Math.Clamp(spend / Math.Max(1f, artist == null ? label.GetStandardMarketingBudget() : label.GetMarketingBudget(artist)), 0, 1) });
-		programmeCampaignByRecord.Clear();
+			Spend = spend, Share = Math.Clamp(spend / Math.Max(1f, artist == null ? label.GetStandardMarketingBudget() : label.GetReleaseMarketingBudget(artist, ArtistStature.CampaignShareContext)), 0, 1) });
 	}
 
 	private bool CanProgrammeArtist(AILabel label, SimulatedArtist artist, ReleaseFormat format, int week) {
 		if (!GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist) || artist.labelId != label.labelId || artist.members?.Count is not > 0) return false;
 		ProgrammeClock clock = ProgrammeClockFor(artist);
 		return week - (format == ReleaseFormat.Single ? clock.SingleWeek : clock.AlbumWeek) >=
-			(format == ReleaseFormat.Single ? LabelReleaseProgramme.SingleFloor : LabelReleaseProgramme.AlbumFloor) &&
+			(format == ReleaseFormat.Single ? LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek, label) : LabelReleaseProgramme.AlbumFloor) &&
 			(format != ReleaseFormat.Album || !HasPendingProjectForArtist(artist.artistId));
 	}
 
 	// An act may hold several open single intentions when they are spaced by the single floor; one open LP at most.
-	private bool HasConflictingIntention(SimulatedArtist artist, ReleaseFormat format, int week) =>
+	private bool HasConflictingIntention(SimulatedArtist artist, ReleaseFormat format, int week, AILabel label = null) =>
 		ProgrammeState.ItemsForArtist(artist.artistId).Any(i => i.Format == format && LabelReleaseProgramme.IsOpen(i) &&
-			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleFloor));
+			(format == ReleaseFormat.Album || Math.Abs(i.IntendedWeek - week) < LabelReleaseProgramme.SingleGapWeeks(artist, pipelineWeek, label)));
 
 	private void PlanProgramme(AILabel label, GameDate date, int? from = null) {
 		// Snapshot today's national following once; future intentions must not read future audiences.
@@ -276,12 +286,26 @@ public partial class CompetitorManager {
 						// Preserve the original short circuit and its clock reads. Audit exclusions
 						// without evaluating a rejected artist's forecast or drawing anything new.
 						string reason = !CanProgrammeArtist(label, a, format, week) ? "artist-or-spacing-ineligible" :
-							HasConflictingIntention(a, format, week) ? "conflicting-intention" :
+							HasConflictingIntention(a, format, week, label) ? "conflicting-intention" :
 							financed && !IsHotProgrammeAct(a, week) ? "not-eligible-for-financed-slot" : null;
 						if (reason == null) return true;
 						audit?.Add(new ProgrammeCandidateAudit { ArtistId = a?.artistId, CareerState = a?.careerState.ToString(), Reason = reason });
 						return false;
 					});
+					// --major-slate-pool=N: a Major's ordinary single slot reviews hot acts plus N keyed others, not its roster.
+					if (format == ReleaseFormat.Single && !financed && MajorVolumeSwitches.SlatePoolCapped(label)) {
+						var all = eligible.ToList();
+						string poolSlot = id + "|major-slate-pool";
+						var pool = MajorVolumeSwitches.SlatePool(all,
+							a => HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks,
+							a => ProgrammeRoll(label, a, poolSlot, week, 0), a => a.artistId);
+						if (audit != null) {
+							var reviewed = new HashSet<SimulatedArtist>(pool);
+							foreach (var a in all.Where(a => !reviewed.Contains(a)))
+								audit.Add(new ProgrammeCandidateAudit { ArtistId = a.artistId, CareerState = a.careerState.ToString(), Reason = "outside-major-slate-pool" });
+						}
+						eligible = pool;
+					}
 					// --label-project-judgement: heard material ranks the competing acts on one scale, each act's best read against
 					// the slot's mean. Whether a song beats the act's own writing is the hold review's question, not the ranking's.
 					Dictionary<string, float> materialReads = null;
@@ -301,12 +325,13 @@ public partial class CompetitorManager {
 								LabelReleaseProgramme.IsOpen(i) && i.IntendedWeek < week)) last = Math.Max(last, open.IntendedWeek);
 							int age = week - last;
 							bool hot = HitActCadence.WeeksSinceTop40(a, pipelineWeek) <= HitActCadence.HotWindowWeeks;
-							bool due = format == ReleaseFormat.Single && hot && age >= HitActCadence.DueWeeks;
+							bool due = format == ReleaseFormat.Single && hot && age >= HitActCadence.DueWeeksFor(label);
 							float obligations = format == ReleaseFormat.Single ? Math.Max(0, a.contractSinglesObligation - a.contractReleases) : 0;
 							var context = BuildDecisionContext(label, a, intended.year, intended.month);
 							context.careerBand = GetCareerBandIndex(a.careerState, out _);
+							float? appliedAlbumMultiplier = null;
 							float net = format == ReleaseFormat.Single ? SinglePriorNetAtBookedPrice(context) :
-								CalculateAlbumPriorNet(label, a, intended.year, context, CalculateCompilationCostWeight(a.primaryGenre, intended.year), ResolveHitInventory(a), out _);
+								CalculateProgrammeAlbumPriorNet(label, a, date, intended.year, context, out appliedAlbumMultiplier);
 							float contribution = Math.Clamp(net / Math.Max(1f, context.singleProductionCost), -1f, 1f);
 							float attention = due ? 10 : 0;
 							// Hit urgency remains useful, but cannot swamp material and all other business evidence.
@@ -314,7 +339,7 @@ public partial class CompetitorManager {
 							bool followUpScheduling = ProgrammeFollowUpScheduling.Enabled && format == ReleaseFormat.Single;
 							float audienceOrders = followUpScheduling && MediaFollowerDemand.Causal ? ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(a.artistId)) : 0f;
 							float audienceStrength = ProgrammeFollowUpScheduling.AudienceStrength(audienceOrders, nationalSingleOrders);
-							float waitingPriority = followUpScheduling ? ProgrammeFollowUpScheduling.WaitingPriority(format, age, hot, audienceStrength) : 0f;
+							float waitingPriority = followUpScheduling ? ProgrammeFollowUpScheduling.WaitingPriority(format, age, hot, audienceStrength, HitActCadence.DueWeeksFor(label)) : 0f;
 							float score = attention + waitingPriority + a.GetCareerPriority() + a.momentum + a.contractRegionalBreakouts * .1f + contribution +
 								Math.Min(1f, age / 52f) + obligations * .1f + (float)ProgrammeRoll(label, a, id, week, 1) * (.5f - label.scoutingAbility * .25f);
 							var read = audit == null ? null : new ProgrammeCandidateAudit {
@@ -323,7 +348,8 @@ public partial class CompetitorManager {
 								QualityEstimate = context.qualityEstimate, Priority = a.GetCareerPriority(), Momentum = a.momentum,
 								Obligations = obligations, AttachedAudienceAtAudit = ArtistFanbase.Heads(a.fanbase),
 								FollowUpScheduling = followUpScheduling, WaitingPriority = waitingPriority, AudienceOrders = audienceOrders,
-								NationalAudienceOrders = followUpScheduling ? nationalSingleOrders : 0f
+								NationalAudienceOrders = followUpScheduling ? nationalSingleOrders : 0f,
+								AppliedAlbumPriorMultiplier = appliedAlbumMultiplier
 							};
 							return (Artist: a, Score: score, Due: due, Age: age, Obligations: obligations, Net: net, Audit: read,
 								WaitingPriority: waitingPriority, AudienceOrders: audienceOrders);
@@ -374,7 +400,7 @@ public partial class CompetitorManager {
 			bool hot = HitActCadence.WeeksSinceTop40(artist, pipelineWeek) <= HitActCadence.HotWindowWeeks;
 			float audience = MediaFollowerDemand.Causal ? ProgrammeFollowUpScheduling.AudienceStrength(
 				ProgrammeFollowUpScheduling.AudienceOrders(MediaAtmosphereService.FollowingFor(artist.artistId)), national) : 0f;
-			return ProgrammeFollowUpScheduling.WorkPriority(gap, hot, audience);
+			return ProgrammeFollowUpScheduling.WorkPriority(gap, hot, audience, HitActCadence.DueWeeksFor(label));
 		}, idle);
 	}
 
@@ -405,10 +431,12 @@ public partial class CompetitorManager {
 		// A label's first horizon starts this week: the opening world, or a newly founded label, already has work in
 		// hand, as under the control, rather than idling through the preparation lead.
 		if (!ProgrammeState.PlannedThrough.ContainsKey(label.labelId)) PlanProgramme(label, date, pipelineWeek);
+		if (StatureReplayDiagnostics.Observer != null && label.labelId == "label_0001") StatureReplayDiagnostics.Mark("programme:planned");
 		SeedOpeningCatalogue();
 		PlanBreakoutFollowUps(label);
 		ProfessionalWritingMarket.ReconsiderPlanReminders(label, date, pipelineWeek);
 		ReviewProgrammeMaterialSearches(label, date);
+		if (StatureReplayDiagnostics.Observer != null && label.labelId == "label_0001") StatureReplayDiagnostics.Mark("programme:material-reviewed");
 		var remainingSlots = new Dictionary<ReleaseFormat, int>();
 		var preparationSlots = new Dictionary<ReleaseFormat, int>();
 		var preparedNow = new HashSet<ReleaseSlateItem>();
@@ -520,7 +548,7 @@ public partial class CompetitorManager {
 		var decision = BuildDecisionContext(label, artist, date.year, date.month);
 		float production = item.PreparedRecord != null ? 0 : item.Format == ReleaseFormat.Single ? decision.singleProductionCost : CalculateAlbumPriorCost(label, artist, date.year, decision);
 		float pressing = item.PreparedRecord == null ? 0 : InitialRunReserve(label, item.PreparedRecord);
-		float marketing = label.GetMarketingBudget(artist);
+		float marketing = label.GetReleaseMarketingBudget(artist, "programme-reserve", date);
 		if (LabelReleaseProgramme.CapacityEnabled) {
 			var rates = LabelReleaseProgramme.MonthlyCapacity(label);
 			marketing = Math.Min(marketing, Math.Min(AvailableProgrammeCampaign(label, campaignWeek ?? Math.Max(item.DueWeek, pipelineWeek), item),
@@ -536,6 +564,9 @@ public partial class CompetitorManager {
 		float factored = 0f;
 		if (unreserved < production + marketing + pressing)
 			unreserved += factored = FactorForHitFollowUp(label, artist, production + marketing + pressing - unreserved);
+		// --programme-overdraft-funding: a hot act's release may draw the label's unused receivable-backed overdraft. 0 when off.
+		if (unreserved < production + marketing + pressing && ProgrammeFundingRelief.OverdraftFunding && IsHotProgrammeAct(artist, pipelineWeek))
+			unreserved += ProgrammeFundingRelief.Draw(production + marketing + pressing - unreserved, label.cashReserves, label.outstandingWholesaleReceivables);
 		if (unreserved < production + marketing + pressing) {
 			var parts = OnProgrammeCashShortfall != null ? LabelCorporateModel.TaxAndServiceParts(label) : default;
 			if (OnProgrammeCashShortfall != null && LabelReleaseProgramme.UsesWorkBudget(label))
@@ -634,12 +665,12 @@ public partial class CompetitorManager {
 				var label = GetLabel(group.Key);
 				if (label == null || label.isPlayerOwned) continue;
 				var recent = group.Where(r => r.weeksSinceRelease < LabelReleaseProgramme.CampaignWeeks).ToList();
-				float alreadyBooked = ProgrammeState.Campaigns.Where(c => c.LabelId == label.labelId && c.Week <= pipelineWeek &&
+				float alreadyBooked = ProgrammeState.CampaignsForLabel(label.labelId).Where(c => c.Week <= pipelineWeek &&
 					pipelineWeek < c.Week + LabelReleaseProgramme.CampaignWeeks).Sum(c => c.Spend);
-				int unbooked = recent.Count(r => !ProgrammeState.Campaigns.Any(c => c.RecordId == r.baseRecord.recordId));
+				int unbooked = recent.Count(r => ProgrammeState.CampaignForRecord(r.baseRecord.recordId) == null);
 				float share = Math.Max(0, ProgrammePromotionPool(label) - alreadyBooked) / Math.Max(1, unbooked);
 				foreach (var record in group) {
-					if (ProgrammeState.Campaigns.Any(c => c.RecordId == record.baseRecord.recordId)) continue;
+					if (ProgrammeState.CampaignForRecord(record.baseRecord.recordId) != null) continue;
 					float spend = recent.Contains(record) ? share : 0;
 					ProgrammeState.Campaigns.Add(new ProgrammeCampaign { LabelId = label.labelId, RecordId = record.baseRecord.recordId,
 						Week = pipelineWeek - record.weeksSinceRelease, Spend = spend,
@@ -665,8 +696,7 @@ public partial class CompetitorManager {
 		// Keep terminal reviews for 52 weeks; campaigns retain only scalar history needed by live records.
 		ProgrammeState.Items.RemoveAll(i => !LabelReleaseProgramme.IsOpen(i) && pipelineWeek - i.LastReviewWeek > 52);
 		var active = ChartManager.Instance.GetAllRecords().Select(r => r.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
-		if (ProgrammeState.Campaigns.RemoveAll(c => !active.Contains(c.RecordId) && pipelineWeek >= c.Week + LabelReleaseProgramme.CampaignWeeks) > 0)
-			programmeCampaignByRecord.Clear();
+		ProgrammeState.Campaigns.RemoveAll(c => !active.Contains(c.RecordId) && pipelineWeek >= c.Week + LabelReleaseProgramme.CampaignWeeks);
 		var artists = aiLabels.SelectMany(l => l.roster).Select(a => a.artistId).ToHashSet(StringComparer.Ordinal);
 		foreach (string id in ProgrammeState.Clocks.Keys.Where(id => !artists.Contains(id)).ToList()) ProgrammeState.Clocks.Remove(id);
 	}

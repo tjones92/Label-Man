@@ -105,3 +105,59 @@ In 1967, the 1960–64 cohort occupies 366/520 (70.4%) on versus 246/520 (47.3%)
 In 1968, the 1960–64 cohort occupies 329/520 (63.3%) on versus 163/520 (31.3%) off, against 144/520 (27.7%) in recovered history. Repeat entries are 163/291 (56.0%) on versus 126/286 (44.1%) off. Acts first observed in 1967–68 occupy 105/520 (20.2%) Top 10 slots on versus 286/520 (55.0%) off; those charting in 1968 average 8.77 versus 9.85 Hot 100 weeks per act. Both arms have all 5,200 Hot 100 and 520 Top 10 slots. This is a one-seed combined-feature ablation, not a stock-only result or proof that the off configuration is historically right overall.
 
 The completed annual rollups report 127,973,716 single units in both arms in both 1964 and 1968. Album units are 66.68M on versus 73.61M off in 1964 (+10.4% off), and 55.56M versus 57.46M in 1968 (+3.4% off). The concentration output's Major **family chart-unit** share is 65.1% on versus 60.9% off in 1964, and 63.8% versus 64.2% in 1968; this is not total-market share. Thus the improvement in cohort balance comes with materially lower repeat entries and an album-volume change, not a free calibration gain. Compare individual channels and another seed before considering a policy change.
+
+## Isolated follower channels through 1964
+
+Seed 2002 ran for 261 weeks with both follower channels, with advance stock disabled, and with purchase intent disabled. The ablations each add one switch to the same resolved profile. All three workers exited zero with exact completion markers and empty error logs. The analyzer checked matching build and source provenance, the hashes of the CSVs it consumed, and every Hot 100 position in all 52 weeks of 1964. The January 1, 1965 tally closes 1964. The chart rows, market-clearing rows and following exports through 1962 match the earlier interrupted runs for each arm.
+
+On the first week's release of James Jackson's “Gina” (`gen_438`), advance orders add 97,319 copies to the base shelf stock of 8,268. The stock ablation leaves the 8,268 base copies and admits 21,481 units of follower intent across the launch window. The intent ablation keeps 105,587 initial shelf copies and admits zero follower intent. A grant records pre-clearing intent admitted by inventory. The 1964 clearing ledger separately attributes 14.11M LP buyer reallocations to follower demand in the control, 10.51M with advance stock disabled, and zero with purchase intent disabled.
+
+| 1964 measure | Both channels | Advance stock disabled | Purchase intent disabled |
+|---|---:|---:|---:|
+| 1960 cohort Top 10 slot-weeks | 225/520 (43.3%) | 216/520 (41.5%) | 98/520 (18.8%) |
+| 1963–64 cohort Top 10 slot-weeks | 187/520 (36.0%) | 179/520 (34.4%) | 278/520 (53.5%) |
+| Repeat Top 40 entries within 104 weeks | 143/264 (54.2%) | 141/266 (53.0%) | 117/272 (43.0%) |
+| Major-label Top 10 slot-weeks | 294/520 (56.5%) | 231/520 (44.4%) | 313/520 (60.2%) |
+| Single units | 127,973,716 | 127,973,716 | 127,973,716 |
+| Album units | 66.90M | 71.56M (+7.0%) | 72.47M (+8.3%) |
+
+The stock ablation gave the 1960 cohort 75 fewer Top 10 slots in 1962, three fewer in 1963 and nine fewer in 1964. Its 1964 gains went to the 1961–62 cohort, which added 17 slots. This arm comes closest to preserving repeat entries, but offers limited progress on 1964 turnover and remains far above the 8.1% historical share for the 1960 cohort. The intent ablation delivered stronger turnover at the cost of 26 repeat entries and an 11.2 percentage-point drop in their share. Neither arm cleared both objectives in this one-seed screen. The 1968 benchmark and pooled 1965–69 share await a package trial.
+
+[Verified comparison](../SimLogs/writing-calibration/veteran-follower-channels-261w-v2-2002-analysis.json).
+
+## Turnover with repeat entries as a guardrail
+
+This read-only analysis uses the two completed stature-decade controls, with both follower channels active and causal stature marketing disabled. It verifies the consumed chart and launch exports against their manifests. The historical comparisons use the recovered weekly Hot 100 through 1964 and weekly Top 10 in 1968. Historical artist joins use normalized names and remain sensitive to aliases and collaborations. Cohorts use first observed Hot 100 year, with the same opening-chart convention as the earlier screens.
+
+### Which acts repeat
+
+Among first observed Top 40 entries in 1964, a repeat has an earlier entry by the same act in the preceding 104 weeks. The second number counts repeat entries that also reach the Top 10 before year-end.
+
+| Cohort | Recovered history | Seed 1001 | Seed 2002 |
+|---|---:|---:|---:|
+| First charted in 1960 | 52 repeats / 6 reach Top 10 | 71 / 40 | 58 / 35 |
+| First charted in 1961–62 | 57 / 20 | 51 / 27 | 49 / 24 |
+| First charted in 1963–64 | 87 / 27 | 29 / 11 | 36 / 16 |
+
+The newest cohort has 270 charting acts in each control against 239 in the recovered chart. It has far fewer repeat Top 40 entries despite that breadth. Among its repeats, 38–44% reach the Top 10 within 1964, compared with 31% historically. The 1960 cohort converts 56–60% against history's 12%. A check on total repeat entries alone would miss this difference in who follows up and how high those records peak.
+
+### How long records stay in the Top 10
+
+| Year and cohort | History, records / weeks per record | Seed 1001 | Seed 2002 |
+|---|---:|---:|---:|
+| 1964, first charted in 1960 | 13 / 3.23 | 54 / 4.07 | 50 / 4.50 |
+| 1964, first charted in 1963–64 | 72 / 5.07 | 47 / 3.70 | 60 / 3.12 |
+| 1968, first charted in 1960–64 | 30 / 4.80 | 79 / 4.23 | 83 / 4.04 |
+| 1968, first charted after 1964 | 75 / 5.01 | 63 / 2.95 | 59 / 3.14 |
+
+These counts include titles carried in from the previous year. By 1968, the older cohort's individual Top 10 runs are already shorter than history's. Its excess comes from placing many more records. The newer cohort places fewer records and spends about two fewer weeks in the Top 10 per record. A general increase in post-peak decay would apply to both groups.
+
+### Where newer follow-ups lose ground
+
+The launch funnel uses the act's observed history strictly before release. A recent hit is a prior Top 40 entry in the last 52 weeks. Outcomes count entries within 26 weeks of launch. Across 1968, later-cohort acts with a recent hit issued 220 and 250 singles, versus 250 and 247 for the earlier cohort. Only 13.2–14.4% of later-cohort launches reached the Top 40 versus 29.6–30.8% of earlier-cohort launches. Among the releases that made the Top 40, 50–59% of later-cohort singles reached the Top 10 versus 58% of earlier-cohort singles.
+
+The access gap persists within the recorded quality band from 0.70 through just below 0.80. The later cohort sends 12 of 87 and 12 of 109 launches to the Top 40, versus 32 of 111 and 32 of 122 for the earlier cohort. Across all recent-hit launches, the later cohort starts with 0.39–0.40 mean awareness versus 0.63–0.66. These are descriptive groups with different artists, labels, genres, campaigns and local coverage. The quality band does not isolate awareness as the cause.
+
+The first follow-up to trace is a newer hit act's next single before it reaches the Top 40. The exports point to initial exposure, first regional support and early promotion as places to check. By 1968 both cohorts are already releasing comparable numbers of recent-hit singles. A separate test of Top 10 tenure should focus on why newer hits fade quickly once they get there. Both screens should retain the two follower channels and count repeat entries overall and by cohort.
+
+Reproduce with `python SimTools/analyze_veteran_turnover.py --output SimLogs/writing-calibration/veteran-turnover-angles-v3.json`. [Analysis output](../SimLogs/writing-calibration/veteran-turnover-angles-v3.json).

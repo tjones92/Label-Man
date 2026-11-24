@@ -164,6 +164,12 @@ public partial class AILabel : Resource {
 	public float weeklyPlantPaid;
 	public float pressingForecastSingleLogUnits;
 	public float pressingForecastAlbumLogUnits;
+	// --earned-lp-forecast: weighted copies sold and gate-forecast units of this label's observed LPs. Zero when off.
+	public float lpForecastMemorySold, lpForecastMemoryForecast;
+	public int lpForecastObservations;
+	public float lpForecastLogMean, lpForecastLogSquare;
+	// --earned-lp-forecast-warm-start: the opening-experience seed has been considered (applied or not). False when off.
+	public bool lpForecastWarmStartApplied;
 	// Publishing goldmine (Phase 3b). Composition income this label collects when OTHER labels record a
 	// song it controls; accrued during any label's settlement and banked in a pass after the main loop.
 	public float weeklyPublishingReceipts;
@@ -257,6 +263,9 @@ public partial class AILabel : Resource {
 	/// can grow into the capacity its promotion granted. That was measured at 522 weeks and
 	/// breaches the album-project gate — see D7LabelPopulationChartCapacityHandoff.</summary>
 	public bool hasEarnedTierPromotion;
+	/// <summary>--earned-campaign-impact (EarnedCampaignImpact): the share of the gap between the label's founding campaign
+	/// impact and the earned ceiling that its recent chart record has bought, 0-1. Zero when the switch is off.</summary>
+	public float earnedCampaignShare;
 	public int runtimeBirthWeek;
 	public int runtimeBirthYear;
 	public int runtimeBirthMonth;
@@ -581,7 +590,7 @@ public partial class AILabel : Resource {
 		if (roster == null || roster.Count == 0) return null;
 		// --hit-act-cadence (§17x): a hit act due its follow-up single takes the roll ahead of the lottery. Off: never read.
 		if (HitActCadence.LaneEnabled && !isPlayerOwned) {
-			SimulatedArtist due = HitActCadence.PickDue(roster.Where(a => IsEligibleForRelease(a, currentYear)));
+			SimulatedArtist due = HitActCadence.PickDueFor(roster.Where(a => IsEligibleForRelease(a, currentYear)), HitActCadence.DueWeeksFor(this));
 			HitActCadence.MarkPick(due != null);
 			if (due != null) return due;
 		}
@@ -810,6 +819,8 @@ public partial class AILabel : Resource {
 		if (artist.careerState == CareerState.Superstar) return false;
 		// --hit-act-retention (§17y): an act with a Top 40 in the last year is not let go on flops. Off: never read.
 		if (HitActCadence.RetentionEnabled && HitActCadence.ProtectsFromDrop(artist)) return false;
+		// --major-catalog-veterans-retained: not let go inside the opening term. Off: false, nothing drawn either way.
+		if (MajorVolumeSwitches.RetainsVeteran(artist)) return false;
 		// Contract probation excludes stale history only while it is unresolved.
 		// Once a current-contract Top 40 clears probation, ordinary career-state
 		// review is again authoritative.
@@ -866,9 +877,15 @@ public partial class AILabel : Resource {
 		LabelTier.Small => 150f, LabelTier.Boutique => 300f, _ => 300f
 	};
 
-	public float GetMarketingBudget(SimulatedArtist artist) {
+	public float GetMarketingBudget(SimulatedArtist artist) => MarketingBudgetForCareer(artist.careerState);
+
+	/// <summary>Own-roster release decisions only; acquisition and player callers retain GetMarketingBudget.</summary>
+	public float GetReleaseMarketingBudget(SimulatedArtist artist, string context, GameDate? decisionDate = null) =>
+		ArtistStature.ReleaseMarketingBudget(this, artist, decisionDate ?? TimeManager.Instance?.CurrentDate ?? GameDate.StartDate, context);
+
+	internal float MarketingBudgetForCareer(CareerState career) {
 		float baseBudget = MarketingBaseBudget;
-		float artistMult = artist.careerState switch {
+		float artistMult = career switch {
 			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 			CareerState.Rising => 1.2f, CareerState.NewSigning => 0.8f, _ => 0.5f
 		};

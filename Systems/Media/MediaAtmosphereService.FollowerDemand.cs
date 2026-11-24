@@ -80,11 +80,14 @@ public static partial class MediaAtmosphereService {
 		FollowerLaunch book = FollowerLaunchFor(record.baseRecord, BroadcastExposure.DayIndex(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate));
 		if (book == null || book.Stocked) return;
 		book.Stocked = true;
+		bool stockCausally = MediaFollowerDemand.AdvanceStockCausal;
+		if (!stockCausally && !MediaFollowerDemand.Shadow) return;
 		foreach (var (regionId, intent) in book.Intent) {
 			if (!record.regionalData.TryGetValue(regionId, out RegionalRecordData data) || data.unitsInStores <= 0) continue;
-			int copies = (int)MathF.Round(intent);
+			float stockShare = book.Format == ReleaseFormat.Single ? MediaFollowerDemand.SingleStockShare : 1f;
+			int copies = (int)MathF.Round(intent * stockShare);
 			book.StockedUnits += copies;
-			if (MediaFollowerDemand.Causal) data.unitsInStores += copies;
+			if (stockCausally) data.unitsInStores += copies;
 		}
 		FollowerDemandLedger("stocked", book.StockedUnits);
 	}
@@ -114,8 +117,8 @@ public static partial class MediaAtmosphereService {
 				continue;
 			}
 			int week = chartWeek - book.LaunchWeek;
-			if (week >= MediaFollowerDemand.Weeks) { CloseFollowerLaunch(book, today); continue; }
-			float factor = MediaFollowerDemand.WeekFactor(week, book.Loss);
+			if (week >= MediaFollowerDemand.WeeksFor(book.Format)) { CloseFollowerLaunch(book, today); continue; }
+			float factor = MediaFollowerDemand.WeekFactor(week, book.Loss, book.Format);
 			if (factor > 0f) followerWeek[id] = (book, factor);
 		}
 		foreach (var (id, seen) in state.FollowerLaunchSeen.ToList())

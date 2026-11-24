@@ -28,11 +28,17 @@ using Godot;
 /// Label-blind. The lane and retention are AI label decisions, so the player's own releases and renewals are never
 /// touched; the split is market-side and applies to every single, the player's included. Off: every hook is the
 /// identity and draws no RNG.
+///
+/// <c>--hit-act-due-weeks-field=N</c> (FollowUpGapFableHandoff.md, section 9): a hot act at a non-Major AI label is due
+/// its follow-up N weeks after its last single instead of <see cref="DueWeeks"/>. Every read of the due clock goes
+/// through <see cref="DueWeeksFor"/>: the lane, the slate's due pick and waiting priority, the work queue, the routine
+/// follow-up review and telemetry. Majors and the player keep 13. Off: <see cref="DueWeeksFor"/> is 13 everywhere.
 /// </summary>
 public static class HitActCadence {
 	public const string Switch = "--hit-act-cadence";
 	public const string RetentionSwitch = "--hit-act-retention";
 	public const string AwarenessSwitch = "--hit-act-awareness-split";
+	public const string FieldDueSwitch = "--hit-act-due-weeks-field";
 	public const int HotWindowWeeks = 52;
 	public const int DueWeeks = 13;
 	public const int RetentionWeeks = 52;
@@ -41,6 +47,12 @@ public static class HitActCadence {
 	public const int Unset = int.MinValue;
 
 	private static bool configured;
+	private static int fieldDueWeeks;
+	/// <summary>The non-Major due interval under <see cref="FieldDueSwitch"/>; 0 when off.</summary>
+	public static int FieldDueWeeks => fieldDueWeeks;
+	/// <summary>The due interval a label's hot acts read: <see cref="FieldDueSwitch"/> at a non-Major AI label, else 13.</summary>
+	public static int DueWeeksFor(AILabel label) => MidTierHitActPackage.DueWeeksFor(label,
+		fieldDueWeeks > 0 && label != null && !label.isPlayerOwned && label.tier != LabelTier.Major ? fieldDueWeeks : DueWeeks);
 	private static bool lane;
 	private static bool retention;
 	private static bool awarenessSplit;
@@ -67,8 +79,19 @@ public static class HitActCadence {
 		lane = programme || args.Contains(Switch);
 		retention = programme || args.Contains(RetentionSwitch);
 		awarenessSplit = args.Contains(AwarenessSwitch);
+		fieldDueWeeks = 0;
+		string[] due = args.Where(a => a.StartsWith(FieldDueSwitch + "=", StringComparison.Ordinal)).ToArray();
+		if (due.Length > 1) throw new ArgumentException("Name " + FieldDueSwitch + " once.");
+		if (due.Length == 1) {
+			if (!int.TryParse(due[0].Substring(FieldDueSwitch.Length + 1), System.Globalization.NumberStyles.Integer,
+				System.Globalization.CultureInfo.InvariantCulture, out int weeks) || weeks < 4 || weeks > 26)
+				throw new ArgumentException(FieldDueSwitch + " takes 4 to 26 weeks.");
+			fieldDueWeeks = weeks;
+		}
 		configured = true;
 	}
+
+	internal static void SetFieldDueForChecks(int weeks) { configured = true; fieldDueWeeks = weeks; }
 
 	internal static void SetForChecks(bool laneOn, bool retentionOn, bool? awarenessOn = null) {
 		configured = true; lane = laneOn; retention = retentionOn;
@@ -100,19 +123,21 @@ public static class HitActCadence {
 
 	// ---- the follow-up lane -----------------------------------------------------------------------
 
-	public static bool IsDue(SimulatedArtist artist, int week) =>
-		artist != null && artist.weeksSinceLastRelease >= DueWeeks && WeeksSinceTop40(artist, week) <= HotWindowWeeks;
+	public static bool IsDue(SimulatedArtist artist, int week, int dueWeeks = DueWeeks) =>
+		artist != null && artist.weeksSinceLastRelease >= dueWeeks && WeeksSinceTop40(artist, week) <= HotWindowWeeks;
 
 	/// <summary>
 	/// The lane's pick from the label's release-eligible acts: the due act that has waited longest (ties by artist id),
 	/// or null to fall through to the lottery. Draws no RNG.
 	/// </summary>
 	public static SimulatedArtist PickDue(IEnumerable<SimulatedArtist> eligible) => PickDue(eligible, CurrentWeek);
+	/// <summary>As <see cref="PickDue(IEnumerable{SimulatedArtist})"/> with the label's due interval (<see cref="DueWeeksFor"/>).</summary>
+	public static SimulatedArtist PickDueFor(IEnumerable<SimulatedArtist> eligible, int dueWeeks) => PickDue(eligible, CurrentWeek, dueWeeks);
 
-	internal static SimulatedArtist PickDue(IEnumerable<SimulatedArtist> eligible, int week) {
+	internal static SimulatedArtist PickDue(IEnumerable<SimulatedArtist> eligible, int week, int dueWeeks = DueWeeks) {
 		SimulatedArtist best = null;
 		foreach (SimulatedArtist artist in eligible) {
-			if (!IsDue(artist, week)) continue;
+			if (!IsDue(artist, week, dueWeeks)) continue;
 			if (best == null || artist.weeksSinceLastRelease > best.weeksSinceLastRelease ||
 				(artist.weeksSinceLastRelease == best.weeksSinceLastRelease && string.CompareOrdinal(artist.artistId, best.artistId) < 0))
 				best = artist;

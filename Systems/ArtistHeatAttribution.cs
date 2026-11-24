@@ -15,7 +15,16 @@ public static class ArtistHeatAttribution {
 	public static bool TraceEnabled { get; private set; }
 	public static bool SinglesWithoutAlbums { get; private set; }
 	public static bool SinglesWithCurrentAlbums { get; private set; }
-	public static bool AdjustsSingles => SinglesWithoutAlbums || SinglesWithCurrentAlbums;
+	public const string NoRetainedLpRadioSwitch = "--single-radio-no-retained-lp-heat";
+	public static bool SinglesRadioWithoutRetainedLpHeat { get; private set; }
+	public static bool AdjustsSingles => SinglesWithoutAlbums || SinglesWithCurrentAlbums || SinglesRadioWithoutRetainedLpHeat;
+	/// <summary>--album-heat-action-weeks=W (LpGenreAllocationFollowup.md §78). Billboard's 1960 LP chart split "Action Albums"
+	/// (39 weeks or less on the chart) from "Essential Inventory" (40+ weeks): the trade read a long-running LP as catalogue,
+	/// not current action. With the switch on, an LP with more than W chart weeks adds no current-position heat to its act's
+	/// singles under --single-artist-heat-current-albums (and the radio diagnostic). The authored heat, the LP's own heat and
+	/// the act's peak credits are unchanged. 0 (default): off.</summary>
+	public const string ActionWeeksSwitch = "--album-heat-action-weeks=";
+	public static int ActionWeeks { get; private set; }
 	private static StreamWriter heatWriter, launchWriter;
 	private static bool configured;
 
@@ -25,7 +34,15 @@ public static class ArtistHeatAttribution {
 		TraceEnabled = args.Contains("--head-hit-attribution");
 		SinglesWithoutAlbums = args.Contains("--single-artist-heat-no-albums");
 		SinglesWithCurrentAlbums = args.Contains("--single-artist-heat-current-albums");
-		if (SinglesWithoutAlbums && SinglesWithCurrentAlbums)
+		SinglesRadioWithoutRetainedLpHeat = args.Contains(NoRetainedLpRadioSwitch);
+		string action = args.FirstOrDefault(a => a.StartsWith(ActionWeeksSwitch, StringComparison.Ordinal));
+		if (action != null) {
+			if (!int.TryParse(action[ActionWeeksSwitch.Length..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int weeks) || weeks < 1 || weeks > 520)
+				throw new ArgumentException("Invalid " + action + " (chart weeks 1-520).");
+			ActionWeeks = weeks;
+		}
+		if ((SinglesWithoutAlbums && SinglesWithCurrentAlbums) ||
+			(SinglesRadioWithoutRetainedLpHeat && (SinglesWithoutAlbums || SinglesWithCurrentAlbums)))
 			throw new ArgumentException("Choose only one singles' artist-heat diagnostic.");
 		configured = true;
 	}
@@ -36,7 +53,8 @@ public static class ArtistHeatAttribution {
 		heatWriter = new StreamWriter(prefix + "-artist-heat-attribution.csv");
 		launchWriter = new StreamWriter(prefix + "-single-launch-attribution.csv");
 		heatWriter.WriteLine("week,year,artistId,labelId,singleCurrentHeat,singlePeakHeat,albumCurrentHeat,albumPeakHeat,singleHits,albumHits,originalHeat,singlesOnlyHeat,albumCausedHeatDelta,currentAlbumsHeat,retainedAlbumHeatDelta");
-		launchWriter.WriteLine("week,year,singleId,labelId,artistId,artistName,strategy,genre,quality,hook,production,dance,career,openingArchetype,formedYear,initialStock,initialAwareness,effectiveRecognition,recognitionRadioLift,originalCampaignImpact,spreadCampaignImpact,labelProduction,labelMarketing,labelBudget,labelPayola,artistMomentum,artistReputation,labelReputation,launchCampaignImpact");
+		launchWriter.WriteLine("week,year,singleId,labelId,artistId,artistName,strategy,genre,quality,hook,production,dance,career,openingArchetype,formedYear,initialStock,initialAwareness,effectiveRecognition,recognitionRadioLift,originalCampaignImpact,spreadCampaignImpact,labelProduction,labelMarketing,labelBudget,labelPayola,artistMomentum,artistReputation,labelReputation,launchCampaignImpact"
+			+ (SingleCommercialFit.ActRecordWeight > 0f ? ",actChartRecordAtLaunch" : ""));
 	}
 
 	public static void Close() {
@@ -48,11 +66,18 @@ public static class ArtistHeatAttribution {
 
 	public readonly struct HeatSplit {
 		public readonly float SingleCurrent, SinglePeak, AlbumCurrent, AlbumPeak, Original, SinglesOnly, CurrentAlbums;
+		private readonly float currentAlbumsSum;
 		public readonly int SingleHits, AlbumHits;
-		public HeatSplit(float sc, float sp, float ac, float ap, int sh, int ah, float original, float singlesOnly, float currentAlbums) {
+		public HeatSplit(float sc, float sp, float ac, float ap, int sh, int ah, float original, float singlesOnly, float currentAlbumsSum) {
 			SingleCurrent = sc; SinglePeak = sp; AlbumCurrent = ac; AlbumPeak = ap;
-			SingleHits = sh; AlbumHits = ah; Original = original; SinglesOnly = singlesOnly; CurrentAlbums = currentAlbums;
+			SingleHits = sh; AlbumHits = ah; Original = original; SinglesOnly = singlesOnly;
+			this.currentAlbumsSum = currentAlbumsSum;
+			CurrentAlbums = SelfExcludedArtistHeat.Heat(currentAlbumsSum, sh);
 		}
+
+		// Remove the single before applying either cap, just as the authored calculation does.
+		internal float CurrentAlbumsExcluding(int position, int peak) =>
+			SelfExcludedArtistHeat.Excluding(currentAlbumsSum, SingleHits, position, peak);
 	}
 
 	public static HeatSplit Describe(IEnumerable<RecordRuntimeData> records, float authoredRawHeat) {
@@ -64,7 +89,9 @@ public static class ArtistHeatAttribution {
 				: record.currentPosition > 0 ? 0.05f : 0f;
 			float peak = record.peakPosition > 0 && record.peakPosition <= 10 ? 0.1f
 				: record.peakPosition > 0 && record.peakPosition <= 40 ? 0.05f : 0f;
-			currentAlbumsRaw += current;
+			// --album-heat-action-weeks: a catalogue LP (past W chart weeks) lends its act's singles no current heat. Off: current.
+			bool catalogueLp = ActionWeeks > 0 && record.baseRecord.format != ReleaseFormat.Single && record.weeksOnChart > ActionWeeks;
+			currentAlbumsRaw += catalogueLp ? 0f : current;
 			if (record.baseRecord.format == ReleaseFormat.Single) {
 				sc += current; sp += peak;
 				// Preserve the authored addition order for the single-only counterfactual.
@@ -80,8 +107,7 @@ public static class ArtistHeatAttribution {
 		if (Mathf.Abs(reconstructed - authoredRawHeat) > 0.0001f * Mathf.Max(1f, Mathf.Abs(authoredRawHeat)))
 			throw new InvalidOperationException("Artist heat attribution does not reconcile with the authored calculation.");
 		singleRaw += Mathf.Min(sh * 0.05f, 0.3f);
-		currentAlbumsRaw += Mathf.Min(sh * 0.05f, 0.3f);
-		return new HeatSplit(sc, sp, ac, ap, sh, ah, Mathf.Clamp(authoredRawHeat, 0f, 1f), Mathf.Clamp(singleRaw, 0f, 1f), Mathf.Clamp(currentAlbumsRaw, 0f, 1f));
+		return new HeatSplit(sc, sp, ac, ap, sh, ah, Mathf.Clamp(authoredRawHeat, 0f, 1f), Mathf.Clamp(singleRaw, 0f, 1f), currentAlbumsRaw);
 	}
 
 	public static float SelectHeat(ReleaseFormat format, float authoredHeat, float singlesOnlyHeat, float currentAlbumsHeat, bool live) {
@@ -89,8 +115,8 @@ public static class ArtistHeatAttribution {
 		return SinglesWithoutAlbums ? singlesOnlyHeat : SinglesWithCurrentAlbums ? currentAlbumsHeat : authoredHeat;
 	}
 
-	internal static void SetPolicyForChecks(bool withoutAlbums, bool currentAlbums = false) {
-		SinglesWithoutAlbums = withoutAlbums; SinglesWithCurrentAlbums = currentAlbums;
+	internal static void SetPolicyForChecks(bool withoutAlbums, bool currentAlbums = false, int actionWeeks = 0) {
+		SinglesWithoutAlbums = withoutAlbums; SinglesWithCurrentAlbums = currentAlbums; ActionWeeks = actionWeeks;
 	}
 
 	public static void CaptureHeat(int week, int year, string artistId, HeatSplit split) {
@@ -118,7 +144,8 @@ public static class ArtistHeatAttribution {
 			Csv(artist?.careerState.ToString()), Csv(artist?.openingArchetype.ToString()), (artist?.formedYear ?? 0).ToString(),
 			runtime.initialLaunchStock.ToString(), F(runtime.initialLaunchAwareness), F(runtime.launchEffectiveRecognition), F(runtime.launchRecognitionRadioLift),
 			F(impact), F(RadioPushSpread.Apply(impact)), F(label?.productionQuality ?? 0f), F(label?.marketingPower ?? 0f), F(label?.budgetLevel ?? 0f), F(label?.payolaWillingness ?? 0f),
-			F(artist?.momentum ?? 0f), F(artist?.reputation ?? 0f), F(label?.reputation ?? 0f), F(LaunchPushSaturation.Apply(impact)) }));
+			F(artist?.momentum ?? 0f), F(artist?.reputation ?? 0f), F(label?.reputation ?? 0f), F(LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(impact, id), label)) })
+			+ (SingleCommercialFit.ActRecordWeight > 0f ? "," + F(runtime.actChartRecordAtLaunch ?? 0f) : ""));
 	}
 
 	private static string F(float value) => value.ToString("R", CultureInfo.InvariantCulture);

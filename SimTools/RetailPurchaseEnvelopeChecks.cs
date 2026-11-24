@@ -58,6 +58,59 @@ public static class RetailPurchaseEnvelopeChecks {
                 Check(rejected && week==ChartManager.Instance.GetCurrentChartWeek(), "Wrong policy rejected before world mutation");
             }
             Check(WorldStateService.Capture().RetailPurchasePolicy==1 && SaveGameService.WritingVersion==36, "v36 captures policy identity");
+            // --lp-purse-adult-weight: same national purse, shared by adult buyers.
+            MarketRegion R(string id,float pop,float urb,float inc,float youth)=>new MarketRegion { regionId=id,population=pop,urbanization=urb,averageIncome=inc,youthPercentage=youth,
+                media=new MediaInfrastructure { totalRadioStations=400,jukeboxCount=43300 },musicIndustry=new MusicInfrastructure { clubCount=690 },
+                distribution=new DistributionNetwork { recordStoreCount=181,departmentStoreCount=225 },collegeCount=130 };
+            var pair=new[] { R("eastcoast",52.2f,.70f,1.15f,.32f), R("deepsouth",15.0f,.48f,.78f,.40f) };
+            int Base(MarketRegion r)=>(int)Math.Round(r.GetRecordBuyingPopulation()/52);
+            var adult=RetailPurchaseEnvelope.AdultWeightedBudgets(pair,Base,1961);
+            long national=pair.Sum(r=>(long)RetailPurchaseEnvelope.AlbumBudget(Base(r),1961));
+            Check(national-adult.Values.Sum()>=0 && national-adult.Values.Sum()<pair.Length, "Adult weighting conserves the national LP purse");
+            Check((double)adult["eastcoast"]/adult["deepsouth"] > (double)RetailPurchaseEnvelope.AlbumBudget(Base(pair[0]),1961)/RetailPurchaseEnvelope.AlbumBudget(Base(pair[1]),1961),
+                "Adult weighting moves LP purse toward the adult, high-income region");
+            // --census-population: census populations, scaled infrastructure, national buying population held.
+            Check(CensusPopulation.EconomicScale==1f && pair[1].EconomicPopulation==pair[1].population, "Census off: economic population is the authored one");
+            var regions=new[] { "greatlakes","greatplains","eastcoast","westcoast","deepsouth","rockies","southwest" }.Select(id=>id switch {
+                "greatlakes"=>R(id,36.1f,.76f,1.08f,.35f), "greatplains"=>R(id,15.5f,.56f,.98f,.35f), "eastcoast"=>R(id,52.2f,.70f,1.15f,.32f),
+                "westcoast"=>R(id,20.3f,.82f,1.18f,.38f), "deepsouth"=>R(id,15.0f,.48f,.78f,.40f), "rockies"=>R(id,4.6f,.58f,.95f,.39f),
+                _=>R(id,14.2f,.62f,.90f,.41f) }).ToArray();
+            double buyersBefore=regions.Sum(r=>(double)r.GetRecordBuyingPopulation());
+            // --label-city-weights: every city resolves in the distance catalog to the factory's region, the general
+            // table puts 9.0% in the Deep South and 46 sourced firms plus a 0.5 floor per city, and the switch is off by default.
+            foreach (var t in new[]{LabelCityWeights.General,LabelCityWeights.Country,LabelCityWeights.Blues,LabelCityWeights.Gospel,LabelCityWeights.Rock})
+                Check(t.All(e=>e.city=="Newark"||DistanceModel.GetCityByName(e.city)?.parentRegionId==AILabelFactory.RegionOfCity(e.city)), "Label city table resolves to catalog regions");
+            var gs=LabelCityWeights.RegionShares(LabelCityWeights.General,AILabelFactory.RegionOfCity);
+            Check(Math.Abs(gs["deepsouth"]-5.5f/61f)<1e-4 && Math.Abs(LabelCityWeights.General.Sum(e=>e.weight)-61f)<1e-3, "General label-city table: 46 firms + floor, Deep South 9.0%");
+            Check(LabelCityWeights.PickAt(LabelCityWeights.General,0f)=="New York" && LabelCityWeights.PickAt(LabelCityWeights.General,.9999f)=="Seattle", "Label-city draw spans the table");
+            Check(!LabelCityWeights.Enabled, "Label city weights are off unless switched");
+            // --proven-hit-deal-weeks (§32): a recent hit counts for a deal only after N qualifying weeks; off = plain recent.
+            var hit=new RegionalRecordData { dealEvidenceAge=10, dealHitWeeks=3 };
+            Check(RegionalHitDealGate.ProvenWeeks==0 && RegionalHitDealGate.IsProvenRecent(hit,12), "Proven-hit deal bar is off by default");
+            RegionalHitDealGate.SetProvenWeeksForChecks(4);
+            Check(!RegionalHitDealGate.IsProvenRecent(hit,12) && RegionalHitDealGate.IsRecent(hit,12), "Three hit weeks do not meet a four-week bar; lease evidence still does");
+            hit.dealHitWeeks=4;
+            Check(RegionalHitDealGate.IsProvenRecent(hit,12) && !RegionalHitDealGate.IsProvenRecent(hit,14), "Four hit weeks meet it while recent, and lapse with the hit");
+            RegionalHitDealGate.SetProvenWeeksForChecks(0);
+            // --census-specialist-priors (§31) rescales the specialist priors by census / authored population, valid only if
+            // each authored prior is that region's authored population x buying fraction.
+            Check(regions.All(r=>Math.Abs(GenreAcceptanceService.AuthoredSpecialistPriorForChecks(r.regionId)
+                    -GenreAcceptanceService.AuthoredRegionPopulationForChecks(r.regionId)*r.GetBuyingPopulationPercentage())<1e-5
+                    && GenreAcceptanceService.AuthoredRegionPopulationForChecks(r.regionId)==r.population),
+                "Specialist priors are authored population x buying fraction");
+            try {
+                CensusPopulation.ApplyCore(regions);
+                var south=regions.Single(r=>r.regionId=="deepsouth");
+                Check(south.population==29.9f && Math.Abs(regions.Sum(r=>r.population)-178.5f)<.01f, "Census populations applied");
+                Check(south.media.totalRadioStations==797 && south.distribution.recordStoreCount==361 && south.collegeCount==259,
+                    "Infrastructure scales with census / authored");
+                Check(Math.Abs(regions.Sum(r=>(double)r.GetRecordBuyingPopulation())/buyersBefore-1)<1e-4, "Economic scale holds national buying population");
+                Check(Math.Abs(CensusPopulation.EconomicScale-.8977f)<.002f, "Economic scale about 0.90");
+                // --census-black-share (§30): the table reproduces the census's 18.86M Black Americans of 178.46M.
+                double black=CensusPopulation.Census1960.Sum(p=>(double)p.Value*CensusPopulation.CensusBlackShare1960[p.Key]);
+                Check(Math.Abs(black/CensusPopulation.Census1960.Values.Sum()-.1057)<.001, "Census Black shares sum to the national 10.6%");
+                Check(!CensusPopulation.BlackShareEnabled && south.blackPopulation==0f, "Census Black share is off unless switched");
+            } finally { CensusPopulation.ResetForChecks(); }
             string replay=OS.GetCmdlineUserArgs().FirstOrDefault(a=>a.StartsWith("--retail-envelope-replay="));
             if (replay!=null) RetailPurchaseEnvelopeReplay.Run(replay["--retail-envelope-replay=".Length..]);
         } finally {

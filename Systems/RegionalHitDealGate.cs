@@ -45,11 +45,39 @@ public static class RegionalHitDealGate {
 	public static bool MeetsBar(float breakoutScore, float volumeInput) =>
 		breakoutScore >= ScoreBar && volumeInput >= VolumeBar;
 
+	/// <summary>
+	/// --proven-hit-deal-weeks=N (LpGenreAllocationFollowup.md §32; 0 or absent = off). An AI label's national P&amp;D
+	/// deal (pull offer or a Major's poach) and a wholesale house's hop into a neighbouring market need a record that is
+	/// a regional hit now AND has been one for N weeks in that market. A month-long local hit is what a lease buyer
+	/// acted on (AiMasterDeals still reads <see cref="IsRecent"/>); a distributor took on the label itself only for a
+	/// record that kept selling. The player's pitch keeps the plain recent-hit test.
+	/// </summary>
+	public const string ProvenWeeksSwitch = "--proven-hit-deal-weeks";
+	public static int ProvenWeeks { get; private set; }
+	private static bool provenConfigured;
+	private static void ConfigureProven() {
+		if (provenConfigured) return;
+		provenConfigured = true;
+		float? weeks = GameyAuditArguments.Value(ProvenWeeksSwitch, 0f, 52f);
+		ProvenWeeks = weeks.HasValue ? (int)MathF.Round(weeks.Value) : 0;
+	}
+	internal static void SetProvenWeeksForChecks(int weeks) { provenConfigured = true; ProvenWeeks = weeks; }
+
 	/// <summary>Stamps this week as qualifying for the region. Called from the breakout pass after the score update.</summary>
 	public static void Observe(RegionalRecordData data, float volumeInput, int weeksSinceRelease) {
 		// WholesaleSpreadGate reads the same stamp for its neighbour hop; the deal gate only reads it while on.
 		if (!(enabled || WholesaleSpreadGate.Enabled) || data == null) return;
-		if (MeetsBar(data.breakoutScore, volumeInput)) data.dealEvidenceAge = weeksSinceRelease;
+		if (!MeetsBar(data.breakoutScore, volumeInput)) return;
+		data.dealEvidenceAge = weeksSinceRelease;
+		ConfigureProven();
+		if (ProvenWeeks > 0) data.dealHitWeeks++;
+	}
+
+	/// <summary><see cref="IsRecent"/>, and under --proven-hit-deal-weeks also held for that many weeks.</summary>
+	public static bool IsProvenRecent(RegionalRecordData data, int weeksSinceRelease) {
+		if (!IsRecent(data, weeksSinceRelease)) return false;
+		ConfigureProven();
+		return ProvenWeeks <= 0 || data.dealHitWeeks >= ProvenWeeks;
 	}
 
 	/// <summary>Whether the region met the bar within the last <see cref="RecentWeeks"/> weeks of the record's life.</summary>

@@ -474,19 +474,9 @@ public partial class CompetitorManager : Node {
 	/// so a record distributed this way is attributable to nobody.
 	/// </summary>
 	private void PursueIndependentDistribution(AILabel label) {
-		if (label == null || !label.IsActive || independentDistributors.Count == 0) return;
-		// The player places their own lines, one market at a time, from the desk.
-		if (label.isPlayerOwned) return;
-		// A Major runs its own branch distribution and does not place its line with a
-		// regional wholesaler.
-		if (label.tier == LabelTier.Major) return;
-		// Under a P&D contract the distributor presses and ships; the label is not also
-		// building wholesale relationships. Markets it already holds stay held -- they are
-		// its own asset and are still there when the contract ends.
-		if (label.activeDeal != null || label.IsSubsidiary) return;
-		// Section 27: a dependent hitmaker leans on its distributor rather than building
-		// its own network, which is what keeps it a high-dependency absorption target.
-		if (label.distributionDependentHitmaker) return;
+		if (!CanPursueIndependentDistribution(label)) return;
+		// --chart-proven-wholesale: a record on the national chart is proof in every market, and the houses call.
+		if (PlaceChartProvenLines(label)) return;
 
 		var proven = GetProvenBreakoutRegions(label);
 		// WholesaleSpreadGate: a hop to a bordering market needs a regional hit in the source market, so the hop
@@ -500,7 +490,63 @@ public partial class CompetitorManager : Node {
 
 		IndependentDistributor house = SelectIndependentHouse(label, target, currentWeek);
 		if (house == null || !house.AddClient(label.labelId)) return;
+		RecordIndependentLine(label, house, target, proven.Contains(target), currentWeek);
+	}
 
+	/// <summary>--chart-proven-wholesale-weekly: the houses' call for a chart-proven label is checked at every week end,
+	/// not only at the monthly close. Off: nothing.</summary>
+	private void PlaceChartProvenLinesWeekly() {
+		if (!ChartProvenWholesale.Enabled || !ChartProvenWholesale.Weekly) return;
+		foreach (AILabel label in aiLabels)
+			if (CanPursueIndependentDistribution(label)) PlaceChartProvenLines(label);
+	}
+
+	private bool CanPursueIndependentDistribution(AILabel label) {
+		if (label == null || !label.IsActive || independentDistributors.Count == 0) return false;
+		// The player places their own lines, one market at a time, from the desk.
+		if (label.isPlayerOwned) return false;
+		// A Major runs its own branch distribution and does not place its line with a
+		// regional wholesaler.
+		if (label.tier == LabelTier.Major) return false;
+		// Under a P&D contract the distributor presses and ships; the label is not also
+		// building wholesale relationships. Markets it already holds stay held -- they are
+		// its own asset and are still there when the contract ends.
+		if (label.activeDeal != null || label.IsSubsidiary) return false;
+		// Section 27: a dependent hitmaker leans on its distributor rather than building
+		// its own network, which is what keeps it a high-dependency absorption target.
+		if (label.distributionDependentHitmaker) return false;
+		return true;
+	}
+
+	/// <summary>
+	/// --chart-proven-wholesale: a label with a record inside the national proof depth has its line taken this month by an
+	/// open house in each market it does not yet cover (up to ChartProvenWholesale.Markets), skipping the monthly roll --
+	/// distributors read the trade charts and called. Ordinary placements: capacity, reach credit, receivables. Returns
+	/// whether any line was placed. Off, or with no chart-proven record, places nothing and returns false.
+	/// </summary>
+	private bool PlaceChartProvenLines(AILabel label) {
+		if (!ChartProvenWholesale.Enabled) return false;
+		if (!ChartProvenWholesale.IsChartProven(ChartManager.Instance?.GetRecordsForLabel(label.labelId))) return false;
+		var regions = ChartManager.Instance?.GetAllRegions();
+		if (regions == null) return false;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		var targets = regions.Select(region => region.regionId)
+			.Where(regionId => CanPlaceLineIn(label, regionId))
+			.OrderBy(regionId => GetDeterministicIndependentDistributionRoll(label.labelId, "chart" + regionId, currentWeek))
+			.ThenBy(regionId => regionId, System.StringComparer.Ordinal)
+			.Take(ChartProvenWholesale.Markets)
+			.ToList();
+		bool placed = false;
+		foreach (string target in targets) {
+			IndependentDistributor house = SelectIndependentHouse(label, target, currentWeek);
+			if (house == null || !house.AddClient(label.labelId)) continue;
+			RecordIndependentLine(label, house, target, true, currentWeek);
+			placed = true;
+		}
+		return placed;
+	}
+
+	private void RecordIndependentLine(AILabel label, IndependentDistributor house, string target, bool provenInRegion, int currentWeek) {
 		label.independentDistributionRegions.Add(target);
 		float coveredShare = ChartManager.Instance?.GetNationalMarketShareForRegions(label.AllCoveredRegions()) ?? 0f;
 		float before = label.ownedReach;
@@ -522,7 +568,7 @@ public partial class CompetitorManager : Node {
 			distributorId = house.distributorId,
 			distributorName = house.distributorName,
 			regionId = target,
-			provenInRegion = proven.Contains(target),
+			provenInRegion = provenInRegion,
 			coveredRegionCount = label.independentDistributionRegions.Count,
 			coveredMarketShare = coveredShare,
 			ownedReachBefore = before,
@@ -556,7 +602,7 @@ public partial class CompetitorManager : Node {
 		var hits = new HashSet<string>(System.StringComparer.Ordinal);
 		foreach (RecordRuntimeData record in ChartManager.Instance?.GetRecordsForLabel(label.labelId) ?? (IEnumerable<RecordRuntimeData>)System.Array.Empty<RecordRuntimeData>()) {
 			foreach (var pair in record.regionalData)
-				if (RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) hits.Add(pair.Key);
+				if (RegionalHitDealGate.IsProvenRecent(pair.Value, record.weeksSinceRelease)) hits.Add(pair.Key);
 		}
 		return hits;
 	}
@@ -674,7 +720,9 @@ public partial class CompetitorManager : Node {
 	
 	private void PopulateInitialRecords() {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		
+		// --opening-programme-clocks: the opening roster, before any live signing. Off: not read.
+		OpeningProgrammeClocks.Capture(aiLabels, year);
+
 		if (historicalRecords != null) {
 			foreach (var record in historicalRecords) {
 				if (record.releaseDate <= TimeManager.Instance.CurrentDate) {
@@ -716,23 +764,95 @@ public partial class CompetitorManager : Node {
 				if (format != ReleaseFormat.Album) artist.releasedSingleIds.Add(record.recordId);
 			}
 		}
+		// --opening-evergreen-lps: the 1956-59 artist LPs of Billboard's Essential Inventory, still selling at the start. Off: not read.
+		if (OpeningEvergreenLps.Enabled) SeedOpeningEvergreenLps(year);
 		if (debugMode) GD.Print($"CompetitorManager: Populated {needed} initial records from rosters");
+	}
+
+	// --opening-evergreen-lps=N (LpGenreAllocationFollowup.md §81): the first N Essential Inventory slots, each to the strongest
+	// unused roster act of its genre. No act of the genre: the slot is skipped.
+	private void SeedOpeningEvergreenLps(int year) {
+		var used = new HashSet<string>(System.StringComparer.Ordinal);
+		var acts = aiLabels.Where(l => !l.isPlayerOwned).OrderBy(l => l.labelId, System.StringComparer.Ordinal)
+			.SelectMany(l => l.roster.Select(a => (Label: l, Artist: a))).ToList();
+		for (int slot = 0; slot < OpeningEvergreenLps.Count; slot++) {
+			var (genre, chartWeeks) = OpeningEvergreenLps.Inventory[slot];
+			var pick = acts.Where(x => !used.Contains(x.Artist.artistId) && GenreCatalog.MapLegacy(x.Artist.primaryGenre, year) == genre)
+				.OrderByDescending(x => OpeningEvergreenLps.TierWeight(x.Label.tier) * x.Artist.reputation * x.Artist.CalculateBaseQuality())
+				.ThenBy(x => x.Artist.artistId, System.StringComparer.Ordinal).FirstOrDefault();
+			if (pick.Artist == null) { GD.Print($"OPENING_EVERGREEN_LP slot={slot + 1} genre={genre} skipped=no-act"); continue; }
+			used.Add(pick.Artist.artistId);
+			MintOpeningEvergreenLp(pick.Label, pick.Artist, year, slot, chartWeeks);
+		}
+	}
+
+	// A top-10 LP released ReleaseToChartWeeks + chartWeeks ago: printed chart weeks, a keyed top-10 peak, past its sales
+	// peak, SpentPool of each region's buyer pool sold, and the decay clock the configured tail would have given it.
+	private void MintOpeningEvergreenLp(AILabel label, SimulatedArtist artist, int year, int slot, int chartWeeks) {
+		var record = GenerateRecordFromArtist(label, artist, year, ReleaseFormat.Album);
+		if (record == null) return;
+		int age = chartWeeks + OpeningEvergreenLps.ReleaseToChartWeeks;
+		record.releaseDate = TimeManager.Instance.CurrentDate.SubtractWeeks(age);
+		ChartManager.Instance.ReleaseRecord(record);
+		BootstrapPrewarmRecord(record, artist, label, age);
+		TrackRelease(label.labelId, record.recordId);
+		artist.totalReleases++;
+		artist.releaseHistory.Add(record.recordId);
+		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData == null) return;
+		int peak = 1 + Mathf.Min(9, (int)(LabelReleaseProgramme.Roll("opening-evergreen", artist.artistId, "peak", 0, 43) * 10));
+		runtimeData.weeksSinceRelease = age;
+		runtimeData.peakPosition = peak;
+		runtimeData.weeksOnChart = chartWeeks;
+		runtimeData.lastChartedAge = age;
+		runtimeData.lastSalesAboveRetirementFloorAge = age;
+		runtimeData.peakWeeklyUnits = OpeningEvergreenLps.PeakWeeklyUnits;
+		runtimeData.weeksSincePeakUnits = age - OpeningEvergreenLps.PeakAgeWeeks;
+		runtimeData.wordOfMouth = Mathf.Pow(runtimeData.GetQuality(), 2f) * 0.62f;
+		runtimeData.albumHitLifePausedWeeks = OpeningEvergreenLps.PausedWeeks(age, peak, AlbumSimulator.CatalogDecayStartWeeks);
+		// A hit's reception, from the upper tail the model's own long-runners come from. Off (no sigma): the factor stays 1.
+		if (LpReception.Enabled)
+			runtimeData.lpReception = LpReception.Multiplier(OpeningEvergreenLps.ReceptionZ(RegionalSalesRandom.SavedSeedOrWorld, record.recordId));
+		int sold = 0;
+		foreach (MarketRegion region in ChartManager.Instance.GetAllRegions()) {
+			if (!runtimeData.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+			data.unitsSoldTotal = Mathf.RoundToInt(region.GetAlbumMarketSize(record.primaryGenre, year) * OpeningEvergreenLps.SpentPool);
+			sold += data.unitsSoldTotal;
+		}
+		runtimeData.totalUnitsSold = sold;
+		GD.Print($"OPENING_EVERGREEN_LP slot={slot + 1} record={record.recordId} artist={artist.artistId} label={label.labelId} tier={label.tier} " +
+			$"genre={record.primaryGenre} age={age} chartWeeks={chartWeeks} peak={peak} paused={runtimeData.albumHitLifePausedWeeks:F1} " +
+			$"quality={runtimeData.GetQuality():F2} reception={(float.IsNaN(runtimeData.lpReception) ? 1f : runtimeData.lpReception):F2} sold={sold}");
 	}
 	
 	private Dictionary<string, int> CalculateInitialQuotas(int totalNeeded) {
 		var quotas = new Dictionary<string, int>();
-		float totalWeight = aiLabels.Sum(l => GetTierWeight(l.tier) * l.roster.Count);
+		// --opening-catalogue-major-share (OpeningTierQuotas): the Majors' weight is scaled so the tier holds a fixed share of
+		// the opening catalogue whatever its roster size. Off: the scale is 1 and every weight is unchanged.
+		float majorScale = 1f;
+		if (OpeningTierQuotas.CatalogueEnabled) {
+			float majorWeight = aiLabels.Where(l => l.tier == LabelTier.Major).Sum(l => GetTierWeight(l.tier) * l.roster.Count);
+			float otherWeight = aiLabels.Where(l => l.tier != LabelTier.Major).Sum(l => GetTierWeight(l.tier) * l.roster.Count);
+			majorScale = OpeningTierQuotas.MajorWeightScale(majorWeight, otherWeight);
+			GD.Print($"OPENING_CATALOGUE_TIERS rosterShare={majorWeight / Mathf.Max(1f, majorWeight + otherWeight):F4} " +
+				$"share={OpeningTierQuotas.CatalogueShare:F4} majorScale={majorScale:F4} records={totalNeeded}");
+		}
+		float Weight(AILabel l) => GetTierWeight(l.tier) * l.roster.Count * (l.tier == LabelTier.Major ? majorScale : 1f);
+		float totalWeight = aiLabels.Sum(Weight);
 		if (totalWeight <= 0) {
 			int perLabel = totalNeeded / Mathf.Max(1, aiLabels.Count);
 			foreach (var label in aiLabels) quotas[label.labelId] = perLabel;
 			return quotas;
 		}
 		foreach (var label in aiLabels) {
-			float weight = GetTierWeight(label.tier) * label.roster.Count;
+			float weight = Weight(label);
 			int quota = Mathf.RoundToInt((weight / totalWeight) * totalNeeded);
 			quota = Mathf.Min(quota, label.roster.Count * 3);
 			quotas[label.labelId] = quota;
 		}
+		if (OpeningTierQuotas.CatalogueEnabled)
+			GD.Print($"OPENING_CATALOGUE_TIERS majorRecords={aiLabels.Where(l => l.tier == LabelTier.Major).Sum(l => quotas[l.labelId])} " +
+				$"allRecords={quotas.Values.Sum()}");
 		return quotas;
 	}
 	
@@ -802,6 +922,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private void OnWeekEndedCore(GameDate date) {
+		StatureReplayDiagnostics.Mark("competitor:start");
 		if (historicalRecords != null) {
 			foreach (var record in historicalRecords) {
 				if (record.releaseDate == date) {
@@ -816,13 +937,18 @@ public partial class CompetitorManager : Node {
 		if (!GenreMarketV2.Enabled) ProcessWeeklyRevenue(CreateLegacyRevenueSettlement(date));
 		pipelineWeek++;
 		ProfessionalWritingMarket.Advance(pipelineWeek, date);
+		StatureReplayDiagnostics.Mark("competitor:writing-complete");
 		ResetWeeklyReleaseCounters();
 		ProcessDueAlbumProjects(date);
+		StatureReplayDiagnostics.Mark("competitor:due-albums-complete");
 		ProcessWeeklyReleases(date);
+		StatureReplayDiagnostics.Mark("competitor:releases-complete");
 		ProcessWeeklySoundtrackOrigination(date);
 		if (RecordCampaignSpend.Enabled) ProcessRecordCampaigns();
 		AiMasterDeals.ProcessWeek(this, date);
 		AiBackers.ProcessWeek(this, date);
+		PlaceChartProvenLinesWeekly();
+		StatureReplayDiagnostics.Mark("competitor:complete");
 	}
 
 	/// <summary>
@@ -838,9 +964,9 @@ public partial class CompetitorManager : Node {
 				if (record?.campaignPushFactor is not float factor || record.campaignTranches is not int tranches || tranches < 0) continue;
 				if (RecordCampaignSpend.FollowUps && RecordCampaignSpend.IsBreaking(record) && tranches < RecordCampaignSpend.MaxTranches) {
 					SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
-					float spend = (artist != null ? label.GetMarketingBudget(artist) : label.GetStandardMarketingBudget()) * RecordCampaignSpend.TrancheShare;
+					float spend = (artist != null ? label.GetReleaseMarketingBudget(artist, "follow-up-tranche") : label.GetStandardMarketingBudget()) * RecordCampaignSpend.TrancheShare;
 					if (LabelReleaseProgramme.CapacityEnabled) spend = CapExternalProgrammeMarketing(label, spend);
-					if (LabelReleaseProgramme.CapacityEnabled && ProgrammeState?.Campaigns.FirstOrDefault(c => c.RecordId == recordId) is { } oldCampaign &&
+					if (LabelReleaseProgramme.CapacityEnabled && ProgrammeState?.CampaignForRecord(recordId) is { } oldCampaign &&
 						pipelineWeek >= oldCampaign.Week + LabelReleaseProgramme.CampaignWeeks) continue;
 					float reserve = label.GetMonthlyOverhead() * RecordCampaignSpend.ReserveMonths
 						+ (float)LabelCorporateModel.TaxAndServiceReserve(label);
@@ -850,7 +976,7 @@ public partial class CompetitorManager : Node {
 					if (labelFinancials.TryGetValue(label.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += spend;
 					if (record.sunkMarketingCost.HasValue) record.sunkMarketingCost += spend;
 					if (LabelReleaseProgramme.CapacityEnabled) {
-						var booking = ProgrammeState?.Campaigns.FirstOrDefault(c => c.RecordId == recordId);
+						var booking = ProgrammeState?.CampaignForRecord(recordId);
 						if (booking != null) { booking.Spend += spend; booking.Share = Mathf.Min(1f, booking.Share + spend / Mathf.Max(1f, label.GetStandardMarketingBudget())); }
 					}
 					record.campaignPushFactor = Mathf.Min(RecordCampaignSpend.MaxFactor, factor * RecordCampaignSpend.TrancheLift);
@@ -944,6 +1070,8 @@ public partial class CompetitorManager : Node {
 			// Billings against a wholesale house are booked but not banked: the house pays on
 			// its own terms, and only for what it admits it sold.
 			float deferred = DeferWholesaleBillings(label, settlement, weeklyRevenue);
+			// --uncovered-sales-terms: markets the label does not ship to pay on one-stop terms too. 0 when off.
+			deferred += DeferUncoveredBillings(label, settlement, weeklyRevenue);
 			weeklyRevenue -= deferred;
 			float collected = CollectMaturedWholesaleReceivables(label);
 			weeklyRevenue += collected;
@@ -1053,6 +1181,33 @@ public partial class CompetitorManager : Node {
 			label.wholesaleReceivables.Add(new WholesaleReceivable(
 				currentWeek + house.paymentTermWeeks, house.distributorId, receivable));
 			label.outstandingWholesaleReceivables += receivable;
+		}
+		return deferred;
+	}
+
+	/// <summary>
+	/// --uncovered-sales-terms: this week's revenue earned in markets the label has no distribution in (for the record)
+	/// becomes a one-stop receivable -- billed at UncoveredSalesTerms.Honesty, due in UncoveredSalesTerms.Weeks -- instead
+	/// of cash. Returns the amount deferred (billed). Off, or for the player, returns 0 and touches nothing.
+	/// </summary>
+	private float DeferUncoveredBillings(AILabel label, ChartManager.CompletedWeekSettlement settlement, float weeklyRevenue) {
+		if (!UncoveredSalesTerms.AppliesTo(label) || weeklyRevenue <= 0f || settlement?.Entries == null) return 0f;
+		var cleared = new List<(string, string, int)>();
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.EntriesForLabel(label.labelId)) {
+			if (entry.Regions == null) continue;
+			foreach (ChartManager.CompletedWeekSettlementRegion region in entry.Regions)
+				cleared.Add((entry.RecordId, region.RegionId, region.FinalCleared));
+		}
+		var split = UncoveredSalesTerms.Split(label, weeklyRevenue, cleared,
+			(regionId, recordId) => label.HasDistributionInRegionForRecord(regionId, recordId));
+		if (split.Count == 0) return 0f;
+		int dueWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + UncoveredSalesTerms.Weeks;
+		float deferred = 0f;
+		foreach (var pair in split.OrderBy(pair => pair.Key, System.StringComparer.Ordinal)) {
+			deferred += pair.Value.Billed;
+			label.lifetimeWholesaleWriteOffs += pair.Value.Billed - pair.Value.Collectable;
+			label.wholesaleReceivables.Add(new WholesaleReceivable(dueWeek, UncoveredSalesTerms.DistributorPrefix + pair.Key, pair.Value.Collectable));
+			label.outstandingWholesaleReceivables += pair.Value.Collectable;
 		}
 		return deferred;
 	}
@@ -1190,6 +1345,8 @@ public partial class CompetitorManager : Node {
 				initialRunSpend = LabelPressingEconomics.PlantBill(format, press.InitialRun, false, pressingCost);
 				pressingSpend = initialRunSpend + LabelPressingEconomics.PlantBill(format, press.Repressed, true, pressingCost);
 				LabelCompanyAccounts.Inventory(label, runtimeData, press.InitialRun, press.Repressed, Mathf.RoundToInt(weeklyUnits), pressingCost);
+				if (EarnedLpForecast.Enabled && runtimeData.weeksSinceRelease >= EarnedLpForecast.ObserveAgeWeeks)
+					EarnedLpForecast.Observe(label, runtimeData);
 			}
 			// Keep the existing artist contract convention (royalty on retail). The
 			// distribution skim is based on revenue after manufacturing cost.
@@ -1458,7 +1615,7 @@ public partial class CompetitorManager : Node {
 		if (!liveSettlement) return GetLegacyDistributionSkimFraction(label);
 		IEnumerable<KeyValuePair<string, int>> regionalUnits = runtimeData?.regionalData?
 			.Select(pair => new KeyValuePair<string, int>(pair.Key,
-				Mathf.Max(0, (pair.Value?.unitsSoldThisWeek ?? 0) + (pair.Value?.rackUnitsThisWeek ?? 0))));
+				Mathf.Max(0, LocalPromotion.Units(pair.Value, LocalPromotion.FeedbackGroup.Money) + (pair.Value?.rackUnitsThisWeek ?? 0))));
 		return GetSettlementDistributionSkimFraction(label, regionalUnits, weeklyUnits);
 	}
 
@@ -1494,7 +1651,7 @@ public partial class CompetitorManager : Node {
 		float cogs = 0f;
 		int regionalUnits = 0;
 		foreach (var pair in runtimeData.regionalData) {
-			int units = (pair.Value?.unitsSoldThisWeek ?? 0) + (pair.Value?.rackUnitsThisWeek ?? 0);
+			int units = LocalPromotion.Units(pair.Value, LocalPromotion.FeedbackGroup.Money) + (pair.Value?.rackUnitsThisWeek ?? 0);
 			if (units <= 0) continue;
 			regionalUnits += units;
 			string regionHubCity = DistanceModel.GetHubCityIdForRegion(pair.Key);
@@ -1651,6 +1808,7 @@ public partial class CompetitorManager : Node {
 	private void ProcessWeeklyReleases(GameDate date) {
 		int releasesThisWeek = 0;
 		if (LabelReleaseProgramme.Enabled) MaintainProgramme();
+		StatureReplayDiagnostics.Mark("competitor:programme-maintained");
 		foreach (var label in aiLabels) {
 			if (!label.IsActive) continue;
 			// The player's label releases when the player says so, not on the AI's weekly roll.
@@ -1659,6 +1817,7 @@ public partial class CompetitorManager : Node {
 			if (LabelReleaseProgramme.Enabled) {
 				int attemptsBefore = WeeklyReleaseRollsFired, successesBefore = WeeklySuccessfulReleases;
 				ProcessReleaseProgramme(label, date);
+				if (StatureReplayDiagnostics.Observer != null) StatureReplayDiagnostics.Mark("release-label:" + label.labelId);
 				EmitProgrammeResources(label, date, attemptsBefore, successesBefore);
 				continue;
 			}
@@ -1704,7 +1863,14 @@ public partial class CompetitorManager : Node {
 					existing.album.externalMedia != null && existing.album.GetAllTracks().Length == 0)
 					CompositionCatalogService.OnRecordReleased(existing);
 			}
-		if (GameRandom.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
+		// --opening-soundtrack-catalogue: the 1956-59 hits still selling, minted once in the first live week. Off: not read.
+		if (OpeningSoundtrackCatalogue.Enabled && !openingSoundtracksSeeded && (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) <= 2)
+			SeedOpeningSoundtrackCatalogue(date);
+		openingSoundtracksSeeded = true;
+		// --soundtrack-origination-early: fewer new soundtracks in 1960-61. Off: 1.
+		// --soundtrack-origination-season: fall-weighted originations (mean 1 over the year). Off: 1.
+		if (GameRandom.Randf() >= ExternalMediaService.OriginationsForYear(date.year) * SoundtrackOriginationEarly.Scale(date.year)
+			* SoundtrackOriginationSeason.Weight(date.month) / 52f) return;
 		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
 		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
 		// --studio-parent-labels: a film score may go to its own studio's label before the open bid.
@@ -1713,11 +1879,27 @@ public partial class CompetitorManager : Node {
 		MintSoundtrackRecord(label, profile, date);
 	}
 
-	private void MintSoundtrackRecord(AILabel label, ExternalMediaProfile profile, GameDate date) {
+	private bool openingSoundtracksSeeded;
+
+	// --opening-soundtrack-catalogue (genre follow-up §13): N top-10 cast and film albums from 1956-59, already old at
+	// world start. One is a blockbuster (the My Fair Lady tier); none counts against this run's decade cap.
+	private void SeedOpeningSoundtrackCatalogue(GameDate date) {
+		for (int i = 0; i < OpeningSoundtrackCatalogue.Count; i++) {
+			ExternalMediaProfile profile = ExternalMediaService.GenerateOpeningProfile(blockbuster: i == 0);
+			AILabel label = ExternalMediaService.SelectLabel(aiLabels, profile);
+			if (label == null) continue;
+			int age = (int)GameRandom.RandRange(OpeningSoundtrackCatalogue.MinAgeWeeks, OpeningSoundtrackCatalogue.MaxAgeWeeks);
+			MintSoundtrackRecord(label, profile, date, age);
+		}
+	}
+
+	private void MintSoundtrackRecord(AILabel label, ExternalMediaProfile profile, GameDate date, int openingAgeWeeks = 0) {
+		bool opening = openingAgeWeeks > 0;
 		Genre genre = ExternalMediaService.MapGenre(profile.sourceType);
 		// Resolve the stored production-cost MULTIPLE into an actual currency advance against this
 		// label's cost basis, charge it, and overwrite the field with the realized fee for telemetry.
-		float licenseFee = label.GetProductionCost() * profile.upfrontLicenseFee;
+		// An opening-catalogue title paid its licence before 1960.
+		float licenseFee = opening ? 0f : label.GetProductionCost() * profile.upfrontLicenseFee;
 		profile.upfrontLicenseFee = licenseFee;
 
 		generatedRecordCounter++;
@@ -1758,6 +1940,7 @@ public partial class CompetitorManager : Node {
 		// a cultural event -- an externally originated tie-in has no act to be influenced BY.
 		album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 
+		if (opening) { MintOpeningSoundtrack(record, label, profile, date, openingAgeWeeks); return; }
 		// Licensing economics: a high upfront advance, booked like any production spend.
 		if (StudioParentLabels.IsStudioLabel(label) && label.cashReserves - licenseFee <= label.GetMonthlyOverhead())
 			StudioParentLabels.Contribute(label, Mathf.Min(StudioParentLabels.Capacity(label), licenseFee), "soundtrack", date);
@@ -1774,7 +1957,8 @@ public partial class CompetitorManager : Node {
 			// Anchor launch awareness to the film/show's own premiere buzz -- soundtracks are not
 			// artist-heat driven, so without this seed they would never build awareness or chart.
 			// (Phase 4 replaces this static seed with the box-office demand trajectory.)
-			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity);
+			// --soundtrack-launch-awareness: premiere buzz × k. Off: 1.
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity * SoundtrackLaunchAwareness.Scale);
 			runtimeData.sunkProductionCost = licenseFee;
 			runtimeData.revenueMemoryEligible = false; // no artist/project memory to fold
 			runtimeData.projectRole = ProjectRecordRole.None;
@@ -1785,6 +1969,35 @@ public partial class CompetitorManager : Node {
 		if (LabelReleaseProgramme.CapacityEnabled) BookProgrammeCampaign(record, null, label, 0f);
 		SoundtrackOriginationsThisRun++;
 		if (debugMode) GD.Print($"Soundtrack minted: {record.title} ({genre}, {profile.sourceType}, bo={profile.boxOfficeTrajectory:F2}) by {label.labelName}, fee={licenseFee:F0}");
+	}
+
+	// An opening-catalogue soundtrack: released openingAgeWeeks ago, a top-10 hit with a long chart history, known in
+	// every region at its premiere buzz, with SpentPool of each region's soundtrack pool already sold.
+	private void MintOpeningSoundtrack(Record record, AILabel label, ExternalMediaProfile profile, GameDate date, int age) {
+		record.releaseDate = date.SubtractWeeks(age);
+		ChartManager.Instance.ReleaseRecord(record, label);
+		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData != null) {
+			runtimeData.weeksSinceRelease = age;
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity);
+			runtimeData.peakPosition = (int)GameRandom.RandRange(1, 10);
+			runtimeData.weeksOnChart = Mathf.Max(1, (int)(age * GameRandom.RandRange(0.6, 0.95)));
+			runtimeData.lastChartedAge = age;
+			runtimeData.lastSalesAboveRetirementFloorAge = age;
+			runtimeData.wordOfMouth = Mathf.Pow(runtimeData.GetQuality(), 2f) * 0.62f;
+			runtimeData.sunkProductionCost = 0f;
+			runtimeData.revenueMemoryEligible = false;
+			runtimeData.projectRole = ProjectRecordRole.None;
+			int year = date.year;
+			foreach (MarketRegion region in ChartManager.Instance.GetAllRegions()) {
+				if (!runtimeData.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+				data.awareness = Mathf.Max(data.awareness, runtimeData.awareness * (float)GameRandom.RandRange(0.8, 1.05));
+				data.unitsSoldTotal = Mathf.RoundToInt(region.GetSoundtrackAlbumMarketSize(profile, year) * OpeningSoundtrackCatalogue.SpentPool);
+				runtimeData.totalUnitsSold += data.unitsSoldTotal;
+			}
+		}
+		TrackRelease(label.labelId, record.recordId);
+		if (debugMode) GD.Print($"Opening soundtrack: {record.title} ({record.primaryGenre}, {profile.sourceType}, bo={profile.boxOfficeTrajectory:F2}, age {age}) at {label.labelName}");
 	}
 
 	private static string SoundtrackCreditName(ExternalMediaSourceType sourceType) => sourceType switch {
@@ -1850,6 +2063,7 @@ public partial class CompetitorManager : Node {
 		string labelId = runtimeData.baseRecord.labelId;
 		string recordId = runtimeData.baseRecord.recordId;
 		LabelCompanyAccounts.RetireInventory(GetLabel(labelId), recordId);
+		RenewalEarnedOption.OnRetired(runtimeData, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		if (!string.IsNullOrEmpty(labelId) && !string.IsNullOrEmpty(recordId) &&
 			labelActiveRecords.TryGetValue(labelId, out var recordIds)) recordIds.Remove(recordId);
 		if (!string.IsNullOrEmpty(labelId)) {
@@ -1865,6 +2079,7 @@ public partial class CompetitorManager : Node {
 		}
 
 		if (LabelPressingEconomics.Enabled) LabelPressingEconomics.Learn(GetLabel(labelId), runtimeData);
+		EarnedLpForecast.Observe(GetLabel(labelId), runtimeData);
 		RecordClubChannel.FoldRetired(runtimeData, TimeManager.Instance?.CurrentDate.year ?? 1960);
 		BudgetLpChannel.Remember(runtimeData, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		float realizedNet = runtimeData.lifetimeLabelNet - runtimeData.SunkReleaseCost;
@@ -2301,7 +2516,7 @@ public partial class CompetitorManager : Node {
 		}
 		if (singlesOnly) {
 			if (!ReleaseAllInEconomics.IsLive && IssueGateNet(plan.projectedOrphanSingleNet, decision.singleProductionCost,
-					programmeMaster != null && LabelReleaseProgramme.ProjectJudgementEnabled) <= label.GetMarketingBudget(artist)) {
+					programmeMaster != null && LabelReleaseProgramme.ProjectJudgementEnabled) <= label.GetReleaseMarketingBudget(artist, "release-issue-gate")) {
 				if (!explicitProjectIdentity) { artist.primaryGenre = artistPrimary; artist.secondaryGenre = artistSecondary; }
 				return RefuseProgrammeIssue("single-net-below-marketing");
 			}
@@ -2318,6 +2533,9 @@ public partial class CompetitorManager : Node {
 		}
 		if (plan.format == ReleaseFormat.Album) {
 			if (!PassesReleaseProfitGate(label, artist, date.year, projectGenre, plan, undoSupplyOnFailure: programmeMaster == null)) return false;
+			// --lp-act-genre: an LP is the act's record, filed under the act's identity. The gate above releases the supply
+			// slot under the genre it was booked as, so the swap comes after it. Off: not read.
+			if (LpActGenre.Enabled) projectGenre = GenreCatalog.MapLegacy(artistPrimary, date.year);
 			return TryInitiateAlbumProject(label, artist, date, decision, plan, projectGenre);
 		}
 		if (programmeMaster != null && !PassesReleaseProfitGate(label, artist, date.year, projectGenre, plan, undoSupplyOnFailure: false)) return RefuseProgrammeIssue("all-in-profit-gate");
@@ -2337,7 +2555,7 @@ public partial class CompetitorManager : Node {
 		float perceivedQualityMult = 0.6f + (perceivedQuality * 0.8f);
 
 		float productionCost = programmeMaster == record ? 0 : CalculateProductionCost(label, record, date);
-		float marketingBudget = ClampProgrammeMarketing(label.GetMarketingBudget(artist) * perceivedQualityMult);
+		float marketingBudget = ClampProgrammeMarketing(label.GetReleaseMarketingBudget(artist, "release-launch") * perceivedQualityMult);
 		float totalCost = productionCost + marketingBudget;
 		// As in TryClampFirstEventCost: a going-concern slate single meets the reserve that funded its reservation.
 		float minReserve = (EconomicLabelLifecycle.Enabled && !label.isPlayerOwned
@@ -2379,11 +2597,12 @@ public partial class CompetitorManager : Node {
 		if (ReleaseAllInEconomics.IsLive) runtimeData.sunkMarketingCost = 0f;
 		runtimeData.revenueMemoryEligible = true;
 		runtimeData.releaseTimeExpectedNet = plan.format == ReleaseFormat.Album ? plan.priorAlbumNet : plan.priorSingleNet;
+		NoteLpForecastAtRelease(label, artist, runtimeData);
 		runtimeData.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(runtimeData.releaseTimeExpectedNet), productionCost));
 		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtimeData.projectRole = record.projectRole;
 		CaptureSingleRiskExpectation(runtimeData, label, artist, decision);
-		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
+		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult, routePlug: true);
 		CaptureSingleOpportunity(runtimeData, label, date.year);
 		TrackRelease(label.labelId, record.recordId);
 		WeeklySingleReleases++;
@@ -2561,14 +2780,14 @@ public partial class CompetitorManager : Node {
 			if (preparedAlbum != null && promo != null) programmeAdvanceSingleId = promo.recordId;
 			gapWeeks = (int)GameRandom.RandRange(Mathf.Min(albumDropGapWeeksMin, albumDropGapWeeksMax), Mathf.Max(albumDropGapWeeksMin, albumDropGapWeeksMax));
 			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
-			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
+			albumMarketingPlanned = label.GetReleaseMarketingBudget(artist, "album-launch") * albumPerceivedMult;
 			albumPromotion = BuildPromotionSnapshot(album, artist, albumPerceivedMult);
 			promoProductionCost = CalculateProductionCost(label, promo, date);
 			promoPerceivedMult = DrawPerceivedQualityMultiplier(promo, label);
-			promoMarketingBudget = label.GetMarketingBudget(artist) * promoPerceivedMult;
+			promoMarketingBudget = label.GetReleaseMarketingBudget(artist, "album-promo") * promoPerceivedMult;
 		} else {
 			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
-			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
+			albumMarketingPlanned = label.GetReleaseMarketingBudget(artist, "album-launch") * albumPerceivedMult;
 		}
 
 		float firstMarketing = plan.strategy == ReleaseStrategy.AlbumStandalone ? albumMarketingPlanned : promoMarketingBudget;
@@ -2704,6 +2923,7 @@ public partial class CompetitorManager : Node {
 			runtime.sunkMarketingCost = 0f;
 		runtime.revenueMemoryEligible = true;
 		runtime.releaseTimeExpectedNet = releaseTimeExpectedNet;
+		NoteLpForecastAtRelease(label, artist, runtime);
 		runtime.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(releaseTimeExpectedNet), productionCost));
 		runtime.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtime.projectRole = record.projectRole;
@@ -2805,7 +3025,7 @@ public partial class CompetitorManager : Node {
 		float priorSingle = SinglePriorNetAtBookedPrice(decision);
 		float priorAlbum = CalculateAlbumPriorNet(label, artist, year, decision, compCostWeight, hitInventory, out AlbumPriorDiagnostics albumPrior);
 		float expectedMarketing = ReleaseAllInEconomics.IsLive
-			? ReleaseAllInEconomics.ExpectedCampaign(label.GetMarketingBudget(artist), decision.qualityEstimate) : 0f;
+			? ReleaseAllInEconomics.ExpectedCampaign(label.GetReleaseMarketingBudget(artist, "release-forecast"), decision.qualityEstimate) : 0f;
 		if (ReleaseAllInEconomics.IsLive) { priorSingle -= expectedMarketing; priorAlbum -= expectedMarketing; }
 		bool useResponsiveMemory = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		// Live choices read only the estimator that answers that exact decision.
@@ -2889,7 +3109,7 @@ public partial class CompetitorManager : Node {
 		projectedStandaloneAlbum += albumPortfolioCredit;
 		float singleFormatTilt = GetFormatPriorMultiplier(artist.primaryGenre, ReleaseFormat.Single, year);
 		float singlePreTiltContribution = (priorSingle + decision.singleProductionCost) / Mathf.Max(.000001f, singleFormatTilt);
-		float projectedLaunchAwareness = ProjectLaunchAwareness(label, artist, label.GetMarketingBudget(artist));
+		float projectedLaunchAwareness = ProjectLaunchAwareness(label, artist, label.GetReleaseMarketingBudget(artist, "launch-awareness-forecast"));
 		float expectedPromoLift = (1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f)) * expectedPromoLiftScalar;
 		float meanAlbumDropGapWeeks = (albumDropGapWeeksMin + albumDropGapWeeksMax) * 0.5f;
 		float expectedOverlapFraction = Mathf.Clamp(
@@ -3368,13 +3588,36 @@ public partial class CompetitorManager : Node {
 		return expectedContribution - decision.singleProductionCost;
 	}
 
+	private float CalculateProgrammeAlbumPriorNet(AILabel label, SimulatedArtist artist, GameDate decisionDate, int releaseYear,
+		DecisionContext context, out float? appliedMultiplier) {
+		CareerState? standing = ArtistStature.ProgrammeAlbumCareer(label, artist, decisionDate);
+		appliedMultiplier = GetAlbumPriorCareerMultiplier(standing ?? artist.careerState,
+			(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true) || AlbumPriorRecalibration.IsLive);
+		return CalculateAlbumPriorNet(label, artist, releaseYear, context,
+			CalculateCompilationCostWeight(artist.primaryGenre, releaseYear), ResolveHitInventory(artist), out _, affinityCareerState: standing);
+	}
+
+	internal (float Net, float Multiplier) ProgrammeAlbumPriorForChecks(AILabel label, SimulatedArtist artist, GameDate date) {
+		float net = CalculateProgrammeAlbumPriorNet(label, artist, date, date.year,
+			BuildDecisionContext(label, artist, date.year, date.month), out float? multiplier);
+		return (net, multiplier.Value);
+	}
+
+	// --earned-lp-forecast: the latest raw LP unit forecast per (label, act), read when that act's LP is released.
+	// Not saved: an LP released after a load without a fresh forecast is simply not observed.
+	private readonly Dictionary<(string LabelId, string ArtistId), float> lastRawLpForecastUnits = new();
+	private void NoteLpForecastAtRelease(AILabel label, SimulatedArtist artist, RecordRuntimeData runtime) {
+		if (!EarnedLpForecast.Enabled || label == null || artist == null || runtime?.baseRecord?.format != ReleaseFormat.Album) return;
+		if (lastRawLpForecastUnits.TryGetValue((label.labelId, artist.artistId), out float units)) runtime.releaseTimeExpectedLpUnits = units;
+	}
+
 	private float CalculateAlbumPriorNet(AILabel label, SimulatedArtist artist, int year, DecisionContext decision,
 		float compCostWeight, HitInventory hitInventory, out AlbumPriorDiagnostics diagnostics, float? productionMultiplier = null,
-		float affinityScale = 1f) {
+		float affinityScale = 1f, CareerState? affinityCareerState = null) {
 		IEnumerable<MarketRegion> regions = ChartManager.Instance != null ? ChartManager.Instance.GetAllRegions() : Enumerable.Empty<MarketRegion>();
 		bool live = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		AlbumPriorExplanation opportunity = GetAlbumPriorExplanation(artist.primaryGenre, regions, year, live);
-		float statureMultiplier = GetAlbumPriorCareerMultiplier(artist.careerState, live || AlbumPriorRecalibration.IsLive);
+		float statureMultiplier = GetAlbumPriorCareerMultiplier(affinityCareerState ?? artist.careerState, live || AlbumPriorRecalibration.IsLive);
 		float baseAffinityUnits = priorUnitScalarAlbum * decision.qualityEstimate * statureMultiplier *
 			decision.reachFactor * (live ? CalculateAlbumPriorEraCalibration(year) : 1f) * affinityScale;
 		float preTiltAffinityUnits = baseAffinityUnits * opportunity.UntiltedAlbumDemandFactor * opportunity.MarketReconciliation;
@@ -3415,6 +3658,10 @@ public partial class CompetitorManager : Node {
 		float productionCost = MarketSeasonality.Enabled
 			? label.GetProductionCost() * decision.recordingCostMultiplier * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging
 			: label.GetProductionCost() * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging;
+		if (EarnedLpForecast.Enabled && label != null && artist != null) {
+			lastRawLpForecastUnits[(label.labelId, artist.artistId)] = expectedUnits;
+			expectedUnits *= EarnedLpForecast.Multiplier(label);
+		}
 		float expectedRevenueAtMargin = expectedUnits * marginPerUnit;
 		diagnostics = new AlbumPriorDiagnostics {
 			expectedFormatMultiplier = multiplier,
@@ -3585,9 +3832,9 @@ public partial class CompetitorManager : Node {
 	/// </summary>
 	public static float CalculateMarketAlbumOpportunityFactor(IEnumerable<MarketRegion> regions, float year) {
 		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
-		float buyingPopulation = regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage());
+		float buyingPopulation = regionArray.Sum(region => region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage());
 		if (buyingPopulation <= 0f) return .5f;
-		return Mathf.Clamp(regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage() *
+		return Mathf.Clamp(regionArray.Sum(region => region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage() *
 			region.GetMarketAlbumOpportunityWeight(year)) / buyingPopulation, 0f, 1f);
 	}
 
@@ -3865,7 +4112,9 @@ public partial class CompetitorManager : Node {
 		float baseQuality = SingleStudioModifier.BaseQuality(artistQuality, studioMod);
 		
 		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.55f) + (baseQuality * 0.35f) + (float)GameRandom.RandRange(-0.12, 0.18), 0f, 1f);
-		record.productionQuality = Mathf.Clamp((label.productionQuality * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
+		// --label-craft-floor / --hit-act-craft-floor: a single reads the label's craft lifted toward the Major reference. Off: the stored value.
+		// --major-newcomer-craft=C: a Major's single for a newcomer reads craft at most C. Off: unchanged.
+		record.productionQuality = Mathf.Clamp((MajorVolumeSwitches.NewcomerCraft(FootprintCraftSoftening.Craft(label.productionQuality, format, label, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0), format, label, artist) * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GameRandom.RandRange(-0.05, 0.1), 0f, 1f);
 		record.originality = Mathf.Clamp(artist.members.Max(m => m.creativity) * 0.7f + (float)GameRandom.RandRange(0f, 0.3f), 0f, 1f);
 		record.danceability = (float)GameRandom.RandRange(0.3, 0.95);
 		record.controversy = (float)GameRandom.RandRange(0f, 0.2f);
@@ -4231,7 +4480,17 @@ public partial class CompetitorManager : Node {
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float labelAwareness = label.reputation * 0.1f;
 		if (LabelReleaseProgramme.CapacityEnabled) labelAwareness *= ProgrammePushFactor(runtime);
-		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + labelAwareness;
+		// --lp-floor-probe=launch: no label launch awareness on an act's LP. Off: not read.
+		if (LpFloorProbe.Launch(true, record.artistId)) { marketingAwareness = 0f; labelAwareness = 0f; }
+		// --lp-launch-standing: the label's launch awareness scales with what the act has sold. Off: not read.
+		if (LpLaunchStanding.Enabled && !string.IsNullOrEmpty(record.artistId)) {
+			float standing = LpLaunchStanding.Factor(ArtistManager.Instance?.GetArtist(record.artistId));
+			marketingAwareness *= standing; labelAwareness *= standing;
+		}
+		// --lp-label-standing: keep the act's launch standing for the LP's push and tier premium. Off: not read.
+		if (LpLabelStanding.Enabled && !string.IsNullOrEmpty(record.artistId))
+			LpLabelStanding.Stamp(runtime, true, ArtistManager.Instance?.GetArtist(record.artistId));
+		float baseAwareness = LpEarnedLaunch.Base(0.04f, snapshot.artistAwareness) + snapshot.artistAwareness + marketingAwareness + labelAwareness;
 		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
 		// A5: the same launch without the promo's awareness bonus.
 		if (trackPromoShadow) { runtime.promoShadowAwareness = Mathf.Clamp(baseAwareness, 0f, 1f); runtime.promoShadowDemand = 0d; }
@@ -4339,26 +4598,59 @@ public partial class CompetitorManager : Node {
 	}
 
 	public IReadOnlyList<AlbumProject> GetAlbumProjects() => albumProjects;
-	internal bool HasOpenFounderCommitments(string labelId) => albumProjects.Concat(pendingAlbumProjects)
-		.Any(p => p.currentLabelId == labelId && p.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd)
-		|| aiLabels.Any(l => l.aiMasterLeases?.Any(lease => lease.BuyerLabelId == labelId) == true);
+	// The album projects still pending, out of every project ever started. albumProjects only grows by appends and a
+	// project never returns to pending, so each call adds the new tail and drops the ones since released or cancelled.
+	// Loading a world or a probe removal resets it.
+	private readonly List<AlbumProject> openAlbumProjects = new();
+	private int openAlbumProjectsScanned;
+	private void ResetOpenAlbumProjects() { openAlbumProjects.Clear(); openAlbumProjectsScanned = 0; }
+	internal bool HasOpenFounderCommitments(string labelId) {
+		if (openAlbumProjectsScanned > albumProjects.Count) ResetOpenAlbumProjects();
+		for (; openAlbumProjectsScanned < albumProjects.Count; openAlbumProjectsScanned++)
+			if (albumProjects[openAlbumProjectsScanned].terminalState == AlbumProjectTerminalState.PendingAtAuditEnd)
+				openAlbumProjects.Add(albumProjects[openAlbumProjectsScanned]);
+		openAlbumProjects.RemoveAll(p => p.terminalState != AlbumProjectTerminalState.PendingAtAuditEnd);
+		foreach (AlbumProject p in openAlbumProjects) if (p.currentLabelId == labelId) return true;
+		foreach (AlbumProject p in pendingAlbumProjects)
+			if (p.currentLabelId == labelId && p.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd) return true;
+		foreach (AILabel l in aiLabels) {
+			if (l.aiMasterLeases == null) continue;
+			foreach (var lease in l.aiMasterLeases) if (lease.BuyerLabelId == labelId) return true;
+		}
+		return false;
+	}
 	public AlbumProject GetAlbumProject(string projectId) => !string.IsNullOrEmpty(projectId) &&
 		projectById.TryGetValue(projectId, out AlbumProject project) ? project : null;
 	public bool HasPendingProjectForArtist(string artistId) => pendingAlbumProjects.Any(project => project.artistId == artistId);
 	
-	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult) {
+	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult,
+			bool routePlug = false) {
 		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
 		if (runtimeData == null) return;
+		// --major-plug-slots / --midtier-plug-slots: an own-roster single either gets one of the label's plugs this month or
+		// launches as a routine issue on the reference promotion and depth. Off, or any other launch: an inactive scope.
+		using PromotionCapacity.RoutineScope routineIssue = routePlug
+			? PromotionCapacity.Launch(runtimeData, label, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
+				price => RecordExpense(label, price, LabelCashKind.Campaign))
+			: default;
+		// --label-blind-launch=foot: the launch-footprint reads below see a reference label for a live AI single. Off: inert.
+		using LabelBlindLaunch.FootScope blindFoot = LabelBlindLaunch.Launch(runtimeData, label, artist,
+			ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		BookProgrammeCampaign(record, artist, label, marketingBudget);
 		AttributeReleaseCampaign(runtimeData, marketingBudget);
 		bool isAlbum = record.format == ReleaseFormat.Album;
+		// --major-newcomer-package: a Major's NewSigning single launches toward an Independent's package. Off: false.
+		bool majorNewcomer = MajorNewcomerPackage.Applies(label, artist, isAlbum);
+		// --act-earned-campaign-impact: fixes this single's earned share before any launch read of campaign impact. Off: nothing.
+		ActEarnedCampaignImpact.NoteLaunch(record, label, artist);
 		
 		float quality = runtimeData.GetQuality();
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
 		// --hit-act-hype: a recency lift for an act with a recent Top 10 / Top 40. Off: not read.
 		if (HitActHype.Enabled && !isAlbum) artistAwareness += HitActHype.AwarenessLift(artist);
-		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
-		float labelAwareness = label.reputation * 0.1f;
+		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label, record.recordId, runtimeData, majorNewcomer);
+		// --label-blind-launch=promo: reference reputation for a live AI single. Off: label.reputation.
+		float labelAwareness = LabelBlindLaunch.Reputation(runtimeData, label) * 0.1f;
 		float programmeShare = ProgrammePushFactor(runtimeData);
 		if (LabelReleaseProgramme.CapacityEnabled) labelAwareness *= programmeShare;
 		// --hit-act-cadence (§17y): a single launched while the act already has singles on the Hot 100 shares the act's
@@ -4371,15 +4663,25 @@ public partial class CompetitorManager : Node {
 			HitActCadence.CutPredecessors(predecessors);
 		}
 
+		// --lp-floor-probe=launch: no label launch awareness on an act's LP. Off: not read.
+		if (LpFloorProbe.Enabled && LpFloorProbe.Launch(isAlbum, record.artistId)) { marketingAwareness = 0f; labelAwareness = 0f; }
+		// --lp-launch-standing: the label's launch awareness on an LP scales with what the act has sold. Off: not read.
+		if (isAlbum && LpLaunchStanding.Enabled && !string.IsNullOrEmpty(record.artistId)) {
+			float standing = LpLaunchStanding.Factor(artist);
+			marketingAwareness *= standing; labelAwareness *= standing;
+		}
+		// --lp-label-standing: keep the act's launch standing for the LP's push and tier premium. Off: not read.
+		if (isAlbum && LpLabelStanding.Enabled && !string.IsNullOrEmpty(record.artistId)) LpLabelStanding.Stamp(runtimeData, true, artist);
 		// Keep the original arithmetic when off, including its floating-point addition order.
 		runtimeData.awareness = HitActCadence.AwarenessSplitEnabled && share < 1f
 			? HitActCadence.LaunchAwareness(0.08f, artistAwareness, marketingAwareness, labelAwareness, share)
-			: Mathf.Clamp((isAlbum ? 0.04f : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
+			: Mathf.Clamp((isAlbum ? LpEarnedLaunch.Base(0.04f, artistAwareness) : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
 
 		float baseRadio = quality * 0.3f;
 		// LaunchPushSaturation is a probe on the launch reads of campaign impact only; identity unless named.
-		float pushRadio = LaunchPushSaturation.Apply(ChartSimulator.GetCampaignImpact(label)) * 0.3f;
-		float payolaRadio = label.payolaWillingness * 0.15f;
+		float pushRadio = MajorNewcomerPackage.Impact(LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
+			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), runtimeData, label), record.recordId), label), majorNewcomer) * 0.3f;
+		float payolaRadio = LabelBlindLaunch.Payola(runtimeData, label) * 0.15f;
 		if (LabelReleaseProgramme.CapacityEnabled) { pushRadio *= programmeShare; payolaRadio *= programmeShare; }
 		// Phase D: a small programmer-confidence lift for recognized acts. Singles only, weaker than
 		// the awareness lift, and it rides the same /radioDifficulty regional divide downstream.
@@ -4417,7 +4719,8 @@ public partial class CompetitorManager : Node {
 			var regionalData = runtimeData.regionalData[region.regionId];
 			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, runtimeData.baseRecord?.recordId);
 			int baseStock = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId,
-				stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult, runtimeData.baseRecord?.recordId);
+				stockScale * (isAlbum ? 0.45f : 1f) * MajorNewcomerPackage.StockScale(majorNewcomer), perceivedQualityMult,
+				runtimeData.baseRecord?.recordId);
 			initialStock[region.regionId] = baseStock;
 			regionalData.unitsInStores = baseStock;
 			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GameRandom.RandRange(0.8, 1.1), 0f, 1f);
@@ -4459,6 +4762,9 @@ public partial class CompetitorManager : Node {
 			foreach (RegionalRecordData data in runtimeData.regionalData.Values) data.unitsInStores = LaunchStocking.ScaleLaunch(data.unitsInStores);
 		// Dealers' advance orders (CelebrityFanbaseDesign.md §2.4): a followed act ships with its fans' copies on the shelves.
 		if (MediaFollowerDemand.Active) MediaAtmosphereService.StockAdvanceOrders(runtimeData);
+		if (LaunchStockTrace.Enabled) LaunchStockTrace.Emit(runtimeData, label, regions, initialStock,
+			runtimeData.regionalData.ToDictionary(pair => pair.Key, pair => pair.Value.unitsInStores, System.StringComparer.Ordinal),
+			perceivedQualityMult, TimeManager.Instance?.CurrentDate.year ?? 1960);
 
 		runtimeData.initialLaunchAwareness = runtimeData.awareness;
 		runtimeData.initialLaunchStock =runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
@@ -4484,8 +4790,10 @@ public partial class CompetitorManager : Node {
 		return Mathf.Clamp((Mathf.Log(1 + normalized * 9) / Mathf.Log(10)) / 1.5f, 0f, 1f);
 	}
 
-	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label) {
-		float campaignImpact = LaunchPushSaturation.Apply(ChartSimulator.GetCampaignImpact(label));
+	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label, string recordId = null, RecordRuntimeData blindRecord = null,
+		bool majorNewcomer = false) {
+		float campaignImpact = MajorNewcomerPackage.Impact(LaunchPushSaturation.Apply(ActEarnedCampaignImpact.Apply(
+			LabelBlindLaunch.Impact(ChartSimulator.GetCampaignImpact(label), blindRecord, label), recordId), label), majorNewcomer);
 		if (!MarketSeasonality.Enabled) return BudgetToImpact(marketingBudget, label.tier) * campaignImpact * 0.35f;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
@@ -4841,7 +5149,8 @@ public partial class CompetitorManager : Node {
 		DistributionOffersGenerated++;
 		if (!ShouldAcceptDeal(client, offer)) return;
 		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
-			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold,
+			requireProvenHit: true);
 		offer.Cover(evidence.EarningRecordId);
 		TryCommitDistributionPoach(client, current, incumbent, offer, major, dropped);
 	}
@@ -4858,7 +5167,8 @@ public partial class CompetitorManager : Node {
 		if (!CanSignDistributionDeal(client.tier) || StudioParentLabels.IsStudioLabel(client)) return;
 
 		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
-			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold,
+			requireProvenHit: true);
 		// A scalar national-awareness estimate is not a physical network. The old
 		// <0.40 test excluded every otherwise-qualified runtime Independent above
 		// that arbitrary line even when a distributor still had six new regions to
@@ -4943,7 +5253,8 @@ public partial class CompetitorManager : Node {
 	// runtime founders with a >=.30 market peak in the measured 1960-65 checkpoint.
 
 	internal static RegionalDealEvidence EvaluateRegionalDealEvidence(
-		IEnumerable<RecordRuntimeData> records, string labelId, IEnumerable<string> strongRegionIds, float threshold) {
+		IEnumerable<RecordRuntimeData> records, string labelId, IEnumerable<string> strongRegionIds, float threshold,
+		bool requireProvenHit = false) {
 		var strongRegions = (strongRegionIds ?? System.Array.Empty<string>())
 			.Where(regionId => !string.IsNullOrEmpty(regionId))
 			.ToHashSet(System.StringComparer.Ordinal);
@@ -4974,7 +5285,8 @@ public partial class CompetitorManager : Node {
 				bestAny = Mathf.Max(bestAny, peak);
 				recordBestPeak = Mathf.Max(recordBestPeak, peak);
 				if (hitGate) {
-					if (RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) {
+					if (requireProvenHit ? RegionalHitDealGate.IsProvenRecent(pair.Value, record.weeksSinceRelease)
+						: RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) {
 						recordHasPersistentEvidence = true;
 						if (pair.Value.breakoutScore > hitRecordScore) {
 							hitRecordScore = pair.Value.breakoutScore;
@@ -4984,7 +5296,7 @@ public partial class CompetitorManager : Node {
 				} else if (peak >= boundedThreshold) recordHasPersistentEvidence = true;
 				if (!strongRegions.Contains(pair.Key)) continue;
 				bestStrong = Mathf.Max(bestStrong, peak);
-				if ((pair.Value?.unitsSoldThisWeek ?? 0) > 0) currentStrongSale = true;
+				if (LocalPromotion.Units(pair.Value, LocalPromotion.FeedbackGroup.Money) > 0) currentStrongSale = true;
 			}
 			if (recordHasPersistentEvidence) {
 				persistent = true;
@@ -5491,7 +5803,6 @@ public partial class CompetitorManager : Node {
 		if (!LabelReleaseProgramme.MaterialSearchEnabled && ProgrammeState?.Items.Any(i => i.MaterialSearch?.State is
 			ProgrammeMaterialState.Pending or ProgrammeMaterialState.Ready) == true)
 			throw new System.InvalidOperationException("Resume outstanding material work with --anticipatory-material-search enabled.");
-		programmeCampaignByRecord.Clear();
 		issuingSlateItem = null; programmeCampaignBudget = null;
 
 		// The label list is the same object ChartManager rebuilt in place; re-point defensively.
@@ -5499,6 +5810,7 @@ public partial class CompetitorManager : Node {
 		settlementLabelLookup = null;   // rebuilt lazily against the restored labels
 
 		albumProjects.Clear(); albumProjects.AddRange(c.AlbumProjects ?? new List<AlbumProject>());
+		ResetOpenAlbumProjects();
 		pendingAlbumProjects.Clear(); pendingAlbumProjects.AddRange(c.PendingAlbumProjects ?? new List<AlbumProject>());
 		var projectContinuation = w.ShadowContinuation?.Projects;
 		if (projectContinuation != null) {
@@ -5779,7 +6091,9 @@ public partial class CompetitorManager : Node {
 	/// path. Exposed read-only for the player's house-line proof gate (directive §5.1); no new
 	/// calibration, just the same regionalData reused instead of a parallel bar.</summary>
 	public bool HasProvenBreakoutIn(AILabel label, string regionId) =>
-		label != null && !string.IsNullOrEmpty(regionId) && GetProvenBreakoutRegions(label).Contains(regionId);
+		label != null && !string.IsNullOrEmpty(regionId) && (GetProvenBreakoutRegions(label).Contains(regionId) ||
+			// --chart-proven-wholesale: a record on the national chart is proof in every market (false when off).
+			ChartProvenWholesale.IsChartProven(ChartManager.Instance?.GetRecordsForLabel(label.labelId)));
 
 	/// <summary>The same regional-breakout bar <see cref="GetProvenBreakoutRegions"/> applies, exposed
 	/// read-only for the promo mechanic directive's §6.3 breakout listing -- a per-RECORD read of

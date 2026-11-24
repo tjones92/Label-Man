@@ -23,6 +23,8 @@ public sealed class StationRuntime {
 	// Trial history prevents restarting an expired or graduated audition.
 	public readonly Dictionary<string, int> trialStartedWeek = new(System.StringComparer.Ordinal);
 	public readonly HashSet<string> activeTrials = new(System.StringComparer.Ordinal);
+	// A station can receive one word-of-mouth recommendation per title, including a tip it declined.
+	public readonly HashSet<string> heardDjTips = new(System.StringComparer.Ordinal);
 	public readonly Dictionary<string, int> sustainedWeeks = new(System.StringComparer.Ordinal);
 
 	// Relationships (the cultivation surface).

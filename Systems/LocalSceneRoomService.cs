@@ -13,6 +13,7 @@ public static partial class LocalSceneRoomService {
     private static readonly Dictionary<string, SceneRoomStanding> standing = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, SceneHouseBandStanding> houseStanding = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, (float Hours, float Pay)> backing = new(StringComparer.Ordinal);
+    private static Dictionary<string, RoomBackingContinuationSaveData> restoringBacking, previousBacking;
     private static readonly Dictionary<string, int> actShows = new(StringComparer.Ordinal);
     private static SceneRoomSaveData State => state ??= new();
     public static int Day(GameDate date) => (int)(new DateTime(date.year, date.month, date.day) - new DateTime(1960, 1, 1)).TotalDays;
@@ -624,11 +625,28 @@ public static partial class LocalSceneRoomService {
         if (saved.PriorWeeks < 0 || saved.Standing.Any(s => s == null || s.Shows < 0 || s.PriorShows < 0))
             throw new InvalidOperationException("Invalid saved room standing.");
     }
-    public static void BeginRestore(SceneRoomSaveData saved) {
-        ValidateRestore(saved); previous = state; state = Copy(saved); if (state != null) state.Conversations ??= new(); restoring = true; work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear(); actShows.Clear();
+    internal static Dictionary<string, RoomBackingContinuationSaveData> CaptureBackingContinuation() =>
+        backing.ToDictionary(p => p.Key, p => new RoomBackingContinuationSaveData { Hours = p.Value.Hours, Pay = p.Value.Pay }, StringComparer.Ordinal);
+    internal static void RestoreBackingContinuation(Dictionary<string, RoomBackingContinuationSaveData> saved) {
+        if (saved == null) return;
+        backing.Clear();
+        foreach (var p in saved) backing.Add(p.Key, (p.Value.Hours, p.Value.Pay));
     }
-    public static void CompleteRestore() { restoring = false; previous = null; Reindex(); }
-    public static void CancelRestore() { if (!restoring) return; state = previous; previous = null; restoring = false; Reindex(); }
+    public static void BeginRestore(SceneRoomSaveData saved, Dictionary<string, RoomBackingContinuationSaveData> savedBacking = null) {
+        ValidateRestore(saved); previous = state; previousBacking = CaptureBackingContinuation(); restoringBacking = Copy(savedBacking);
+        state = Copy(saved); if (state != null) state.Conversations ??= new(); restoring = true; work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear(); actShows.Clear();
+    }
+    public static void CompleteRestore() {
+        restoring = false; previous = null; Reindex();
+        // Event-by-event float accumulation cannot be reconstructed exactly by summing
+        // the per-act accounts. Preserve it for explicit continuation checkpoints.
+        RestoreBackingContinuation(restoringBacking); restoringBacking = previousBacking = null;
+    }
+    public static void CancelRestore() {
+        if (!restoring) return;
+        state = previous; previous = null; restoring = false; Reindex();
+        RestoreBackingContinuation(previousBacking); restoringBacking = previousBacking = null;
+    }
     private static void Reindex() {
         work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear(); actShows.Clear();
         if (state == null) return;

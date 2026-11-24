@@ -63,6 +63,51 @@ class ShadowPolicyChecks(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_policy(evidence(float('nan')))
 
+    def national_calibration(self):
+        config = calibration()
+        for band in ('Star', 'Superstar'):
+            config['bands'][band]['eligibleRoutes'] = [False, True, True]
+        return config
+
+    def test_national_eligibility_applies_to_entry_and_retention(self):
+        values = evidence()
+        values['regional']['draw'] = 1
+        for previous in (None, 'Star', 'Superstar'):
+            result = policy.evaluate(values, self.national_calibration(), '1960-01-08', previous)
+            self.assertEqual(result['band'], 'Established')
+            self.assertEqual(result['bands']['Star']['routes']['regional'], dict(lower=0., upper=0.))
+        values['record']['response'] = 1
+        self.assertEqual(policy.evaluate(values, self.national_calibration(), '1960-01-08')['band'], 'Superstar')
+
+    def test_ineligible_missing_evidence_does_not_create_high_band_uncertainty(self):
+        values = evidence()
+        values['regional'] = dict(response=None, draw=None, reach=None)
+        values['record']['response'] = .5
+        self.assertEqual(policy.evaluate(values, self.national_calibration(), '1960-01-08')['band'], 'Established')
+        values['record']['draw'] = None
+        self.assertEqual(policy.evaluate(values, self.national_calibration(), '1960-01-08')['status'], 'missing_evidence')
+
+    def test_omitted_null_and_explicit_all_eligible_preserve_legacy(self):
+        for values in (evidence(.85), evidence(.57), evidence(0, None, None)):
+            expected = self.run_policy(values, 'Star')
+            for flags in (None, [True] * 3):
+                config = calibration()
+                for band in config['bands'].values():
+                    band['eligibleRoutes'] = flags
+                self.assertEqual(policy.evaluate(values, config, '1960-01-08', 'Star'), expected)
+
+    def test_invalid_eligibility_is_rejected(self):
+        for flags in ([], [True], [True] * 4, [False] * 3, [1, True, True], 'all'):
+            config = self.national_calibration()
+            config['bands']['Star']['eligibleRoutes'] = flags
+            with self.subTest(flags=flags), self.assertRaises(ValueError):
+                policy.validate(config)
+        for flags in (None, [True] * 3):
+            config = self.national_calibration()
+            config['bands']['Superstar']['eligibleRoutes'] = flags
+            with self.assertRaises(ValueError):
+                policy.validate(config)
+
 
 if __name__ == '__main__':
     unittest.main()

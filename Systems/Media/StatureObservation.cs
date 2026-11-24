@@ -4,10 +4,11 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 
-/// <summary>Raw completed-week evidence for offline stature research. Never read by simulation decisions.</summary>
+/// <summary>Collects completed-week audience evidence and publishes standing; CSV diagnostics are optional.</summary>
 public static class StatureObservation {
 	public const string Switch = "--observe-stature-evidence";
 	public const string ShadowSwitch = "--observe-stature-shadow=";
+	public const string ProgrammeReaderSwitch = "--stature-programme-album-reader";
 	public static TextWriter Log;
 	public static TextWriter ShadowLog;
 	public static StatureWeeklyShadow.Config ShadowConfig;
@@ -35,14 +36,28 @@ public static class StatureObservation {
 			else if (format == ReleaseFormat.Album) { AlbumYoung += units * youngShare; AlbumAdult += units * (1 - youngShare); }
 		}
 	}
+	// Diagnostic scratch for this clearing week; grants are pre-market, not identified purchases.
+	private static readonly Dictionary<(string, string), double[]> followerLaunch = new();
+	internal static void BeginFollowerLaunchWeek() { if (Log != null) followerLaunch.Clear(); }
+	internal static void RecordFollowerLaunch(Record record, string region, float intent, int grant, int cleared, bool causal) {
+		if (Log == null || record == null || string.IsNullOrEmpty(record.artistId) || string.IsNullOrEmpty(region) ||
+			(intent <= 0 && grant <= 0) || record.format is not (ReleaseFormat.Single or ReleaseFormat.Album)) return;
+		var key = (record.artistId, region);
+		if (!followerLaunch.TryGetValue(key, out var values)) followerLaunch[key] = values = new double[6];
+		int format = record.format == ReleaseFormat.Single ? 0 : 1;
+		values[format] += intent;
+		values[2 + format] += grant;
+		if (causal) values[4 + format] += Math.Min(grant, cleared);
+	}
 	private static string F(double value) => value.ToString("R", CultureInfo.InvariantCulture);
 	private static string Q(string value) => "\"" + (value ?? "").Replace("\"", "\"\"") + "\"";
-	public static void WriteHeader(TextWriter output) => output.WriteLine("date,artistId,artist,labelId,labelTier,genre,careerState,beforeDrop,regionId,regionPopulationMillions,singleYoungUnits,singleAdultUnits,albumYoungUnits,albumAdultUnits,marketSingleYoungUnits,marketSingleAdultUnits,marketAlbumYoungUnits,marketAlbumAdultUnits,tvRegisteredYoungEstimate,tvRegisteredAdultEstimate,followingYoung,followingAdult,followingStatus,singleAdvanceIntent,albumAdvanceIntent,singleYoungRate,singleAdultRate,albumYoungRate,albumAdultRate,singleScale,rawRecognition,effectiveRecognition,cooledLaunchRecognition");
+	public static void WriteHeader(TextWriter output) => output.WriteLine("date,artistId,artist,labelId,labelTier,genre,careerState,beforeDrop,regionId,regionPopulationMillions,singleYoungUnits,singleAdultUnits,albumYoungUnits,albumAdultUnits,marketSingleYoungUnits,marketSingleAdultUnits,marketAlbumYoungUnits,marketAlbumAdultUnits,tvRegisteredYoungEstimate,tvRegisteredAdultEstimate,followingYoung,followingAdult,followingStatus,singleAdvanceIntent,albumAdvanceIntent,singleYoungRate,singleAdultRate,albumYoungRate,albumAdultRate,singleScale,rawRecognition,effectiveRecognition,cooledLaunchRecognition,buyJoinYoung,buyJoinAdult,tvJoinYoung,tvJoinAdult,pressJoinYoung,pressJoinAdult,seriesJoinYoung,seriesJoinAdult,liveJoinYoung,liveJoinAdult,followerLaunchMode,singleFollowerIntent,albumFollowerIntent,singleFollowerStockGrant,albumFollowerStockGrant,singleFollowerClearedUpperBound,albumFollowerClearedUpperBound");
 	public static void WriteShadowHeader(TextWriter output) => output.WriteLine("date,artistId,careerState,beforeDrop,shadowBand,status,snapshotDate,singleYoungScore,singleAdultScore,albumYoungScore,albumAdultScore,tvYoungScore,tvAdultScore,followingYoungScore,followingAdultScore,regionalResponse,regionalDraw,recordReach,conversionReach,previousBand," +
 		string.Join(",", new[] { "Rising", "Established", "Star", "Superstar" }.SelectMany(b => new[] { b + "Lower", b + "Upper", b + "Boundary", b + "Regional", b + "Record", b + "Conversion" })));
 
 	internal static void WriteWeek(GameDate date, IReadOnlyList<RecordRuntimeData> records, IReadOnlyList<MarketRegion> regions,
-		IReadOnlyDictionary<string, float[]> registeredYoung, IReadOnlyDictionary<string, float[]> registeredAdult) {
+		IReadOnlyDictionary<string, float[]> registeredYoung, IReadOnlyDictionary<string, float[]> registeredAdult,
+		IReadOnlyDictionary<(string, string), double[]> bookedJoins) {
 		if (Log == null && ShadowConfig == null) return;
 		var byAct = new Dictionary<(string, string), Sales>();
 		var markets = new Dictionary<string, Sales>(StringComparer.Ordinal);
@@ -88,6 +103,9 @@ public static class StatureObservation {
 				markets.TryGetValue(region.regionId, out Sales market);
 				FollowingRegion fr = null;
 				following?.Regions.TryGetValue(region.regionId, out fr);
+				double[] joins = null;
+				bookedJoins?.TryGetValue((artist.artistId, region.regionId), out joins);
+				followerLaunch.TryGetValue((artist.artistId, region.regionId), out var follower);
 				float young = fr?.YoungTotal() ?? 0f, adult = fr?.Adult ?? 0f;
 				if (label != null) Log?.WriteLine(string.Join(",", Q(date.ToShortString()), Q(artist.artistId), Q(artist.stageName), Q(label.labelId),
 					label.tier, artist.primaryGenre, artist.careerState, artist.careerStateBeforeDrop, Q(region.regionId), F(region.population),
@@ -96,7 +114,10 @@ public static class StatureObservation {
 					F(tvY?[i] ?? 0), F(tvA?[i] ?? 0), F(young), F(adult), following == null ? "no_following_record" : "observed",
 					F(MediaFollowerDemand.RegionIntent(young, adult, ReleaseFormat.Single)), F(MediaFollowerDemand.RegionIntent(young, adult, ReleaseFormat.Album)),
 					F(singleY), F(singleA), F(albumY), F(albumA), F(MediaFollowerDemand.SingleScale), F(artist.publicRecognition),
-					F(ArtistRecognitionService.EffectiveRecognition(artist)), F(ArtistRecognitionService.LaunchRecognition(artist))));
+					F(ArtistRecognitionService.EffectiveRecognition(artist)), F(ArtistRecognitionService.ObserveLaunchRecognition(artist)),
+					string.Join(",", Enumerable.Range(0, 10).Select(j => F(joins?[j] ?? 0))),
+					!MediaFollowerDemand.Active ? "inactive" : MediaFollowerDemand.Causal ? "causal" : "shadow",
+					string.Join(",", Enumerable.Range(0, 6).Select(j => F(follower?[j] ?? 0)))));
 				if (regional != null) {
 					double[] units = { sales?.SingleYoung ?? 0, sales?.SingleAdult ?? 0, sales?.AlbumYoung ?? 0, sales?.AlbumAdult ?? 0 };
 					double[] denominator = { market?.SingleYoung ?? 0, market?.SingleAdult ?? 0, market?.AlbumYoung ?? 0, market?.AlbumAdult ?? 0 };
@@ -115,6 +136,7 @@ public static class StatureObservation {
 				shadowEvidence.Add(artist.artistId, new StatureWeeklyShadow.ArtistEvidence { Components = components, Regions = regional, PeerEligible = label != null });
 			}
 		}
+		if (Log != null) followerLaunch.Clear();
 		if (shadowEvidence != null) {
 			if (ReplayEvidenceObserver != null) {
 				double[] Values(Sales s) => new[] { s.SingleYoung, s.SingleAdult, s.AlbumYoung, s.AlbumAdult };
@@ -136,6 +158,7 @@ public static class StatureObservation {
 			var day = new DateTime(date.year, date.month, date.day);
 			var shadow = MediaAtmosphereService.ExperimentalStatureShadow();
 			if (!shadow.Advance(day, shadowEvidence, ShadowConfig)) return;
+			OpeningFollowingDiagnostics.Observe(date, shadowEvidence, shadow, ShadowConfig);
 			if (ShadowLog != null) foreach (var artist in artists.Where(a => a != null && !string.IsNullOrEmpty(a.artistId) && shadowEvidence.ContainsKey(a.artistId)).OrderBy(a => a.artistId, StringComparer.Ordinal)) {
 				shadow.Snapshots.TryGetValue(artist.artistId, out var snapshot);
 				var scores = snapshot?.Scores;

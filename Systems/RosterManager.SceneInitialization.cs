@@ -52,7 +52,8 @@ public partial class RosterManager {
             LabelTier.Small => (float)GameRandom.RandRange(0.3, 0.6),
             LabelTier.Boutique => (float)GameRandom.RandRange(0.5, 0.8), _ => 0.5f
         };
-        return Mathf.RoundToInt(label.maxRosterSize * fill);
+        // --major-opening-roster: a Major opens with at least N acts; the fill draw above is still consumed. Off: identity.
+        return MajorVolumeSwitches.OpeningTarget(label, Mathf.RoundToInt(label.maxRosterSize * fill));
     }
 
     private void InitializeSceneRosters(List<AILabel> labels, int year) {
@@ -72,6 +73,20 @@ public partial class RosterManager {
         foreach (var label in labels.OrderBy(l => l.labelId, StringComparer.Ordinal)) {
             label.InitializeRoster();
             targets.Add(label.labelId, DrawSceneInitialTarget(label));
+        }
+        // --opening-star-tier-share: the opening stars are signed by tier quota before the draft (OpeningTierQuotas). Off: not run.
+        if (OpeningTierQuotas.StarsEnabled) {
+            if (!OpeningCareers.Enabled)
+                throw new InvalidOperationException(OpeningTierQuotas.StarShareSwitch.TrimEnd('=') + " stamps opening careers; opening careers are off.");
+            var pool = ArtistManager.Instance.GetLaunchRosterCandidates().DistinctBy(a => a.artistId)
+                .Where(a => !IsHeldForPlayer(a.artistId) && (initialUnsigned == null || initialUnsigned.Contains(a.artistId)))
+                .OrderBy(a => a.artistId, StringComparer.Ordinal).ToList();
+            OpeningCareerService.ReserveStars(labels, year, pool,
+                l => Math.Min(targets[l.labelId], l.maxRosterSize) - l.CurrentRosterSize,
+                (l, a) => {
+                    InitialSignArtist(l, a, year);
+                    if (a.labelId == l.labelId) initialUnsigned?.Remove(a.artistId);
+                });
         }
         var remaining = labels.Where(l => l.CurrentRosterSize < targets[l.labelId]).ToList();
         // MidTier national A&R (opt-in) opens once the Majors are done; capable MidTiers that ran dry wait for it.

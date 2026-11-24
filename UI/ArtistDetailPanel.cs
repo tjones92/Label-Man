@@ -27,15 +27,17 @@ public partial class ArtistDetailPanel : Control
 	{
 		startTabIndex = startTab;
 		artist = ArtistManager.Instance?.GetArtist(artistId);
+		if (artist != null) artist.isPlayerOwned |= isOwnedByPlayer;
 		profile = ArtistManager.Instance?.GetPublicProfile(artistId);
 		if (artist == null || profile == null) { GD.PushWarning($"Artist not found: {artistId}"); return; }
-		artist.isPlayerOwned |= isOwnedByPlayer;
 		nameLabel.Text = profile.name;
 		portrait.Set(Portraits.ForAct(artist), new Vector2(84, 106), artist.artistId);
 		portrait.Visible = true;
-		TypedFields.Fill(chromeRow,
+		var particulars = new List<(string, string)> {
 			("Type", Format(profile.artistType)), ("Genre", Format(profile.primaryGenre)), ("Region", profile.homeRegion?.ToString() ?? "—"),
-			("Status", Format(profile.careerState)), ("Formed", profile.formedYear.ToString()));
+			("Status", Format(profile.careerState)), ("Formed", profile.formedYear.ToString()) };
+		if (profile.contractContext != null) particulars.Add(("Contract", profile.contractContext));
+		TypedFields.Fill(chromeRow, particulars.ToArray());
 		ShowLabelStrip(profile.labelId, profile.labelName);
 		BuildTabs();
 		Visible = true;

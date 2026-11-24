@@ -436,7 +436,11 @@ public partial class RosterManager : Node {
 		// seeded roster does not reach its expiry cliff all at once. signedYear is already
 		// backdated up to five years above.
 		artist.contractExpiresYear = Mathf.Max(year + 1, artist.signedYear + artist.contractLength);
-		artist.contractExpiresWeek = (artist.contractExpiresYear - year) * 52;
+		artist.contractExpiresWeek = StaggeredOpeningContracts.ExpiryWeek(artist.artistId, artist.contractExpiresYear, year);
+		if (AnniversaryOpeningContracts.Enabled) {
+			artist.contractExpiresWeek = AnniversaryOpeningContracts.ExpiryWeek(artist.artistId, artist.signedYear, artist.contractLength, year);
+			artist.contractExpiresYear = year + (artist.contractExpiresWeek - 1) / 52;
+		}
 		artist.weeksSinceLastRelease = (int)GameRandom.RandRange(0, 52);
 		
 		if (GameRandom.Randf() < 0.3f) {
@@ -481,6 +485,7 @@ public partial class RosterManager : Node {
 			SeniorCooling.CoolLadderForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
 		if (HitActCadence.AnyEnabled) HitActCadence.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		if (KnownActAirplay.Enabled) KnownActAirplay.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		if (ProvenActChartAdd.Enabled) ProvenActChartAdd.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;
@@ -607,6 +612,7 @@ public partial class RosterManager : Node {
 			CompetitorManager.Instance?.RecordExpense(winner.Label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(winner.Artist, winner.Label.labelId, date.year);
 			SceneRecruitmentService.RecordSigning(winner.Label, winner.Artist, chartWeek, date.year, "DailyMarket");
+			MajorVolumeSwitches.NoteSigning(winner.Label, date.year);
 			WeeklySignings++; RecordSigning(winner.Label.tier, winner.Artist, transition.IsReSigning);
 			winner.Appointment.Outcome = winner.Appointment.CollisionOfferCount > 1 ? "AcceptedArtistChoice" : "AcceptedUncontested";
 			winner.Label.lastScoutingOutcome = winner.Appointment.Outcome;
@@ -675,7 +681,9 @@ public partial class RosterManager : Node {
 		return new DailyNomination { Appointment = appointment, Service = service };
 	}
 
-	private static bool HasDailyVacancy(AILabel label) => label != null && label.CurrentRosterSize < label.OperatingRosterTarget && label.CurrentRosterSize < label.maxRosterSize;
+	// --major-signing-quota: an AI Major that has used its yearly quota has no vacancy until January. Off: always false.
+	private static bool HasDailyVacancy(AILabel label) => label != null && label.CurrentRosterSize < label.OperatingRosterTarget && label.CurrentRosterSize < label.maxRosterSize
+		&& !MajorVolumeSwitches.SigningQuotaReached(label, TimeManager.Instance?.CurrentDate.year ?? GameDate.StartDate.year);
 	private static bool IsFreshSupplyCandidate(SimulatedArtist artist) => artist?.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance;
 	private static bool IsRuntimeBirthWeekBlocked(AILabel label, int chartWeek) => label.populationOrigin == LabelPopulationOrigin.RuntimeFounded && label.runtimeBirthWeek > 0 && chartWeek <= label.runtimeBirthWeek;
 	private static int CalendarChartWeek(GameDate date) => (int)((new DateTime(date.year, date.month, date.day) - new DateTime(GameDate.StartDate.year, GameDate.StartDate.month, GameDate.StartDate.day)).TotalDays / 7) + 1;
@@ -1056,6 +1064,11 @@ public partial class RosterManager : Node {
 	}
 	
 	private bool TrySignNewArtist(AILabel label, int year, LabelScoutingVacancyObservation observation = null) {
+		// --major-signing-quota: checked before any candidate is read or drawn. Off: never true.
+		if (MajorVolumeSwitches.SigningQuotaReached(label, year)) {
+			if (observation != null) observation.FailureReason = "MajorSigningQuota";
+			return false;
+		}
 		bool enabledSupply = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		int discoveryPoolCount = 0;
 		var candidates = enabledSupply
@@ -1098,6 +1111,7 @@ public partial class RosterManager : Node {
 			CompetitorManager.Instance?.RecordExpense(label, advance, LabelCashKind.ArtistAdvances);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
 			SceneRecruitmentService.RecordSigning(label, bestCandidate, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, year, "WeeklyMarket");
+			MajorVolumeSwitches.NoteSigning(label, year);
 			string signingKind = transition.IsReSigning ? "ReSigning" : "FirstSigning";
 			WeeklySignings++;
 			if (IsLiveGenreMarket()) RecordSigning(label.tier, bestCandidate, transition.IsReSigning);
@@ -1386,14 +1400,22 @@ public partial class RosterManager : Node {
 		return termMatured || deliveryMatured;
 	}
 
+	/// <summary>Observe-only: one row per matured AI contract (ContractExpiryDecision). Null unless the audit runner subscribes.</summary>
+	public static event System.Action<ContractExpiryDecision> OnContractExpiry;
+	internal static void RaiseContractExpiry(ContractExpiryDecision d) => OnContractExpiry?.Invoke(d);
+
 	private void ProcessContractExpirations(AILabel label, GameDate date) {
 		int year = date.year;
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		var expiring = label.roster.Where(a => IsContractMatured(a, year, currentWeek)).ToList();
+		var expiring = label.roster.Where(a => !MajorVolumeSwitches.RetainsVeteran(a, currentWeek) &&
+			(RenewalLiveEvidence.Enabled ? RenewalLiveEvidence.TermMatured(a, year, currentWeek) : IsContractMatured(a, year, currentWeek))).ToList();
 		foreach (var artist in expiring) {
-			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) continue;
+			ContractExpiryDecision decision = OnContractExpiry == null ? null : ContractExpiryDecision.Before(label, artist, year, currentWeek);
+			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) { decision?.Emit("bidder", false, false); continue; }
 			bool wantToResign = ShouldResignArtist(label, artist);
-			if (HitActRenewalFinance.CanAfford(label, artist, wantToResign, date)) {
+			bool renew = HitActRenewalFinance.CanAfford(label, artist, wantToResign, date);
+			decision?.Emit(renew ? "renewed" : wantToResign ? "unaffordable" : "not-wanted", wantToResign, renew);
+			if (renew) {
 				float newAdvance = label.CalculateAdvanceOffer(artist);
 				// --cross-collateralized-renewal carries the old balance into the new deal (audit B7).
 				artist.unrecoupedAdvance = CrossCollateralizedRenewal.RenewedBalance(artist.unrecoupedAdvance, newAdvance);
@@ -1402,6 +1424,7 @@ public partial class RosterManager : Node {
 				artist.contractExpiresWeek = currentWeek + artist.contractLength * 52;
 				artist.contractSinglesObligation = label.CalculateContractSinglesObligation(artist, year);
 				artist.contractReleases = 0;
+				RenewalEarnedOption.StartDeal(artist, currentWeek);
 				artist.royaltyRate = label.CalculateRoyaltyRate(artist);
 				CompetitorManager.Instance?.RecordExpense(label, newAdvance, LabelCashKind.ArtistAdvances);
 				HitActRenewalFinance.RecordPaid(label, artist, newAdvance);
@@ -1461,7 +1484,10 @@ public partial class RosterManager : Node {
 		// not lifetime releases.
 		if (artist.careerState == CareerState.NewSigning && artist.contractReleases >= 2 &&
 			artist.top40Hits == 0 && artist.contractChartedRecords == 0 && artist.contractRegionalBreakouts == 0 &&
-			!artist.HasRecoupedCurrentContract()) return false;
+			!artist.HasRecoupedCurrentContract() && !(RenewalLiveEvidence.Enabled && RenewalLiveEvidence.HasLiveEvidence(artist)) &&
+			!(RenewalEarnedOption.Enabled && RenewalEarnedOption.DealNet(artist) > 0f)) return false;
+		// --renewal-earned-option: renew on what the deal earned, not on a loyalty roll. Off: the roll.
+		if (RenewalEarnedOption.Enabled) return RenewalEarnedOption.Renew(label, artist);
 		return GameRandom.Randf() < label.artistLoyalty;
 	}
 	
@@ -1498,7 +1524,7 @@ public partial class RosterManager : Node {
 				TransitionDroppedArtist(creditedLabel, artist, year, ArtistDropReason.Performance);
 			return;
 		}
-		artist.UpdateAfterChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+		artist.UpdateAfterChartRun(AlbumScaleCareerMilestones.ActCareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
 			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
 			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
 		record.artistChartRunCompleted = true;

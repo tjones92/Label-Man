@@ -40,13 +40,22 @@ public static class LabelReleaseProgramme {
 		if (args.Any(a => a.StartsWith(LpAssembly.PackageGapSwitch, StringComparison.Ordinal)) && !LpAssemblyEnabled)
 			throw new ArgumentException(LpAssembly.PackageGapSwitch + " requires " + LpAssembly.Switch);
 		SingleFloor = (int)Read(args, "--slate-single-floor=", 6, 1, 13);
-		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 16);
+		ColdActGapWeeks = (int)Read(args, ColdActGapSwitch, 0, 7, 52);
+		MajorHitActGapWeeks = (int)Read(args, MajorHitActGapSwitch, 0, 7, 52);
+		if (args.Any(a => a.StartsWith(MajorHitActGapSwitch, StringComparison.Ordinal)) && !AllocationEnabled)
+			throw new ArgumentException(MajorHitActGapSwitch + " requires " + AllocationSwitch);
+		if (args.Any(a => a.StartsWith(ColdActGapSwitch, StringComparison.Ordinal)) && !AllocationEnabled)
+			throw new ArgumentException(ColdActGapSwitch + " requires " + AllocationSwitch);
+		MajorSinglesPerMonth = Read(args, "--programme-major-singles=", 10, 0, 30);
 		MajorAlbumsPerMonth = Read(args, "--programme-major-albums=", 5, 0, 12);
 		if (args.Any(a => a.StartsWith("--programme-major-", StringComparison.Ordinal)) && !CapacityEnabled)
 			throw new ArgumentException("Programme capacity parameters require " + CapacitySwitch);
 		if (args.Any(a => a.StartsWith("--slate-single-floor=", StringComparison.Ordinal)) && !AllocationEnabled)
 			throw new ArgumentException("The single floor requires " + AllocationSwitch);
 		HitFollowUpFinanceEnabled = args.Contains(HitFollowUpFinanceSwitch);
+		HitFollowUpFactoringEnabled = args.Contains(HitFollowUpFactoringSwitch);
+		if (HitFollowUpFactoringEnabled && !CapacityEnabled)
+			throw new ArgumentException(HitFollowUpFactoringSwitch + " requires " + CapacitySwitch);
 		if (HitFollowUpFinanceEnabled && !(AllocationEnabled && CapacityEnabled))
 			throw new ArgumentException(HitFollowUpFinanceSwitch + " requires " + AllocationSwitch + " and " + CapacitySwitch);
 		HitFollowUpSinglesPerYear = Read(args, HitFollowUpSinglesSwitch, 2, 0, 6);
@@ -78,6 +87,32 @@ public static class LabelReleaseProgramme {
 		if (BreakoutPlanningEnabled && HitFollowUpFinanceEnabled)
 			throw new ArgumentException(BreakoutPlanningSwitch + " uses existing work only; drop " + HitFollowUpFinanceSwitch);
 	}
+	// --slate-cold-act-gap=W: an AI act with no Top 40 entry in the last ColdActRecentWeeks waits W weeks between singles;
+	// an act with a recent Top 40 keeps SingleFloor. Tier-blind. Under the work budget a non-Major label has ~5 eligible
+	// acts per single slot, so any act past the 6-week floor is issued and Established acts there release 3.4-5.7
+	// singles a year against the Majors' 2.4 (history: Big-5 hit acts 3.28 Hot 100 debuts a year, others 2.18).
+	// A probe, not a sourced interval. Off (0): SingleFloor for every act and no hit-clock read.
+	// cadence-inv-v1 (seed 2002, 265 weeks, full-bundle flags, W=17): not adopted. Independent Established cadence barely
+	// moved (most such acts had a Top 40 in 26 weeks); the cut fell on never-charted newcomers (indie launches -15%) and
+	// Major Top 10 share rose (1962-64 ~62% against 42-59%).
+	public const string ColdActGapSwitch = "--slate-cold-act-gap=";
+	public const int ColdActRecentWeeks = 26;
+	public static int ColdActGapWeeks { get; private set; }
+	internal static void SetColdActGapForChecks(int weeks) => ColdActGapWeeks = weeks;
+	internal static int SingleGapWeeks(SimulatedArtist artist, int week, AILabel label = null) {
+		if (MajorHitActGapWeeks > 0 && artist != null && label != null && label.tier == LabelTier.Major && !label.isPlayerOwned &&
+			HitActCadence.WeeksSinceTop40(artist, week) <= ColdActRecentWeeks)
+			return Math.Max(SingleFloor, MajorHitActGapWeeks);
+		return ColdActGapWeeks <= 0 || artist == null || HitActCadence.WeeksSinceTop40(artist, week) <= ColdActRecentWeeks
+			? SingleFloor : Math.Max(SingleFloor, ColdActGapWeeks);
+	}
+	// --slate-major-hit-act-gap=W (Big5ChartOpportunityInvestigation.md, "Field hit-act follow-ups"): at an AI Major, an act
+	// with a Top 40 in the last ColdActRecentWeeks waits W weeks between programme singles instead of SingleFloor. Big-5 hit
+	// acts chart about 4.2 follow-ups a year against history's ~3.0 (chart events); the roster programme picks them every
+	// SingleFloor weeks. Other labels, the player and cold acts keep their gaps. Off (0): SingleGapWeeks exactly.
+	public const string MajorHitActGapSwitch = "--slate-major-hit-act-gap=";
+	public static int MajorHitActGapWeeks { get; private set; }
+	internal static void SetMajorHitActGapForChecks(int weeks) => MajorHitActGapWeeks = weeks;
 	public const string BreakoutPlanningSwitch = "--slate-breakout-planning";
 	public static bool BreakoutPlanningEnabled { get; private set; }
 	// --slate-going-concern-reserve: a work-budget MidTier tests its slate reservations against a going-concern reserve.
@@ -88,7 +123,9 @@ public static class LabelReleaseProgramme {
 	public const int GoingConcernTaxMonths = 2;
 	public static bool GoingConcernReserveEnabled { get; private set; }
 	internal static void SetGoingConcernReserveForChecks(bool value) => GoingConcernReserveEnabled = value;
-	internal static bool UsesGoingConcernReserve(AILabel label) => GoingConcernReserveEnabled && UsesWorkBudget(label) && label.tier == LabelTier.MidTier;
+	// --slate-going-concern-reserve-all-tiers (ProgrammeFundingRelief): every work-budget label, not only MidTiers.
+	internal static bool UsesGoingConcernReserve(AILabel label) => GoingConcernReserveEnabled && UsesWorkBudget(label) &&
+		(label.tier == LabelTier.MidTier || ProgrammeFundingRelief.AllTiers);
 	// --slate-work-budget=S: a non-Major label's planned intentions are its whole work budget, S singles a month per unit of
 	// releasesPerMonth (LPs keep .33). Preparation and issue take no further dated draws, so planned work is lost only to
 	// cash, material, economics or the window. A Struggling label keeps its slots and halves its campaign spend instead
@@ -133,6 +170,12 @@ public static class LabelReleaseProgramme {
 	public const string HitFollowUpSinglesSwitch = "--hit-follow-up-finance-singles=";
 	public static bool HitFollowUpFinanceEnabled { get; private set; }
 	public static float HitFollowUpSinglesPerYear { get; private set; } = 2f;
+	// --hit-follow-up-factoring: the funding half of --hit-follow-up-finance alone -- a cash-short release by a non-Major
+	// label's act with a recent Top 40 may factor the label's receivables -- with no extra single work, so it runs beside
+	// --slate-breakout-planning. A label with a hit borrowed against what it was owed to press the next one.
+	public const string HitFollowUpFactoringSwitch = "--hit-follow-up-factoring";
+	public static bool HitFollowUpFactoringEnabled { get; private set; }
+	internal static void SetHitFollowUpFactoringForChecks(bool value) => HitFollowUpFactoringEnabled = value;
 	internal static void SetHitFollowUpFinanceForChecks(bool value, float singlesPerYear = 2f) {
 		HitFollowUpFinanceEnabled = value; HitFollowUpSinglesPerYear = singlesPerYear;
 	}
@@ -142,7 +185,7 @@ public static class LabelReleaseProgramme {
 		string value = args.SingleOrDefault(a => a.StartsWith(prefix, StringComparison.Ordinal));
 		if (value == null) return fallback;
 		if (!float.TryParse(value[prefix.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) ||
-			!float.IsFinite(x) || x < min || x > max || (prefix == "--slate-single-floor=" || prefix == LpAssembly.GreatestHitsSwitch || prefix == LpAssembly.PackageGapSwitch) && x != MathF.Truncate(x))
+			!float.IsFinite(x) || x < min || x > max || (prefix == "--slate-single-floor=" || prefix == ColdActGapSwitch || prefix == LpAssembly.GreatestHitsSwitch || prefix == LpAssembly.PackageGapSwitch) && x != MathF.Truncate(x))
 			throw new ArgumentException($"{prefix} requires a value between {min} and {max}.");
 		return x;
 	}
@@ -161,6 +204,8 @@ public static class LabelReleaseProgramme {
 		var tier = label.tier == LabelTier.Major ? (MajorSinglesPerMonth, MajorAlbumsPerMonth) :
 			(label.releasesPerMonth * (UsesWorkBudget(label) ? WorkBudgetFor(label) : .67f), label.releasesPerMonth * .33f);
 		float singles = UsesActCadence(label) ? ReleaseEligibleActs(label) * (52f / 12f) / ActCadenceWeeks : tier.Item1;
+		// --earned-head-capacity: a non-Major's singles capacity rises with its own recent Hot 100 records. Off: identity.
+		singles = EarnedHeadCapacity.Singles(label, singles, MajorSinglesPerMonth);
 		return (singles, LpCapacityScreen.AlbumRate(label, tier.Item2));
 	}
 	// --programme-act-cadence=W: an AI label plans one single per release-eligible signed act every W weeks, whatever its
@@ -244,6 +289,21 @@ public sealed class SlateItemList : List<ReleaseSlateItem> {
 	public new void Clear() { Structural(); base.Clear(); }
 }
 
+/// <summary>Campaign bookings, saved exactly as a plain list; versioned like <see cref="SlateItemList"/> for the index.</summary>
+public sealed class ProgrammeCampaignList : List<ProgrammeCampaign> {
+	internal int Version, StructuralVersion;
+	private void Structural() { Version++; StructuralVersion++; }
+	public new ProgrammeCampaign this[int index] { get => base[index]; set { Structural(); base[index] = value; } }
+	public new void Add(ProgrammeCampaign item) { Version++; base.Add(item); }
+	public new void AddRange(IEnumerable<ProgrammeCampaign> items) { Structural(); base.AddRange(items); }
+	public new void Insert(int index, ProgrammeCampaign item) { Structural(); base.Insert(index, item); }
+	public new bool Remove(ProgrammeCampaign item) { Structural(); return base.Remove(item); }
+	public new void RemoveAt(int index) { Structural(); base.RemoveAt(index); }
+	public new void RemoveRange(int index, int count) { Structural(); base.RemoveRange(index, count); }
+	public new int RemoveAll(Predicate<ProgrammeCampaign> match) { Structural(); return base.RemoveAll(match); }
+	public new void Clear() { Structural(); base.Clear(); }
+}
+
 public sealed class ReleaseProgrammeState {
 	public bool CampaignsInitialized;
 	public SlateItemList Items = new();
@@ -288,7 +348,42 @@ public sealed class ReleaseProgrammeState {
 		return itemsByArtist.TryGetValue(artistId ?? NullKey, out var found) ? found : Array.Empty<ReleaseSlateItem>();
 	}
 	public Dictionary<string, ProgrammeClock> Clocks = new(StringComparer.Ordinal);
-	public List<ProgrammeCampaign> Campaigns = new();
+	public ProgrammeCampaignList Campaigns = new();
+	// Runtime index over Campaigns, never saved; same contract as the slate index above. Each label's list keeps the
+	// global order, so a filter or Sum over it matches the same filter over Campaigns. A campaign's LabelId and
+	// RecordId are fixed at creation (a transfer removes and re-adds). The record map holds the first booking in list
+	// order, as FirstOrDefault did.
+	private Dictionary<string, List<ProgrammeCampaign>> campaignsByLabel;
+	private Dictionary<string, ProgrammeCampaign> campaignByRecord;
+	private ProgrammeCampaignList indexedCampaigns;
+	private int campaignVersion, campaignStructuralVersion, campaignCount;
+	private void EnsureCampaignIndex() {
+		if (campaignsByLabel != null && ReferenceEquals(indexedCampaigns, Campaigns) && campaignVersion == Campaigns.Version && campaignCount == Campaigns.Count) return;
+		int start = 0;
+		if (campaignsByLabel != null && ReferenceEquals(indexedCampaigns, Campaigns) && campaignStructuralVersion == Campaigns.StructuralVersion &&
+			Campaigns.Count - campaignCount == Campaigns.Version - campaignVersion && Campaigns.Count > campaignCount) start = campaignCount;
+		else {
+			campaignsByLabel ??= new Dictionary<string, List<ProgrammeCampaign>>(StringComparer.Ordinal);
+			campaignByRecord ??= new Dictionary<string, ProgrammeCampaign>(StringComparer.Ordinal);
+			campaignsByLabel.Clear(); campaignByRecord.Clear();
+		}
+		for (int i = start; i < Campaigns.Count; i++) {
+			var campaign = Campaigns[i];
+			string label = campaign.LabelId ?? NullKey;
+			if (!campaignsByLabel.TryGetValue(label, out var list)) campaignsByLabel[label] = list = new List<ProgrammeCampaign>();
+			list.Add(campaign);
+			campaignByRecord.TryAdd(campaign.RecordId ?? NullKey, campaign);
+		}
+		indexedCampaigns = Campaigns; campaignVersion = Campaigns.Version; campaignStructuralVersion = Campaigns.StructuralVersion; campaignCount = Campaigns.Count;
+	}
+	internal IReadOnlyList<ProgrammeCampaign> CampaignsForLabel(string labelId) {
+		EnsureCampaignIndex();
+		return campaignsByLabel.TryGetValue(labelId ?? NullKey, out var found) ? found : Array.Empty<ProgrammeCampaign>();
+	}
+	internal ProgrammeCampaign CampaignForRecord(string recordId) {
+		EnsureCampaignIndex();
+		return campaignByRecord.TryGetValue(recordId ?? NullKey, out var found) ? found : null;
+	}
 	public Dictionary<string, int> PlannedThrough = new(StringComparer.Ordinal);
 	public Dictionary<string, string> LabelIdentities = new(StringComparer.Ordinal);
 	// LP assembly only; null otherwise so earlier programme worlds keep their exact shape.

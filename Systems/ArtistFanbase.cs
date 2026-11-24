@@ -196,7 +196,7 @@ public static class ArtistFanbase {
 			double q = Math.Clamp(record.GetQuality(), 0, 1);
 			foreach (var pair in record.regionalData) {
 				if (!markets.TryGetValue(pair.Key, out var region)) continue;
-				double cleared = Math.Max(0, pair.Value.unitsSoldThisWeek);
+				double cleared = Math.Max(0, LocalPromotion.Units(pair.Value, LocalPromotion.FeedbackGroup.Audience));
 				if (cleared <= 0) continue;
 				FanReleaseRegion cohort = null;
 				record.fanAudience?.regions.TryGetValue(pair.Key, out cohort);

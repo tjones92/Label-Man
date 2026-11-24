@@ -44,4 +44,8 @@ public static class LaunchPushSaturation {
 	/// <summary>Identity when off or at or below the knee, so a run without the switch is byte-identical.</summary>
 	public static float Apply(float impact) =>
 		factor >= 1f || impact <= Knee ? impact : Mathf.Clamp(Knee + factor * (impact - Knee), 0f, 1f);
+
+	/// <summary>The label-aware read: with --launch-caps-major-only a non-Major label's impact is never saturated, so
+	/// campaign power a label has earned (not drawn at founding as a Major) passes untouched.</summary>
+	public static float Apply(float impact, AILabel label) => LaunchCapScope.Applies(label) ? Apply(impact) : impact;
 }

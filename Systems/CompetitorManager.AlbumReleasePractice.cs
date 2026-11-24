@@ -27,7 +27,7 @@ public partial class CompetitorManager {
 		float roll = AlbumReleasePractice.Roll("advance", label.labelId, artist.artistId, album.recordId, pipelineWeek);
 		AlbumTrack track = SelectAlbumSingleTrack(album, artist, date.year);
 		float preparation = label.GetProductionCost() * .15f * decision.recordingCostMultiplier;
-		float campaign = label.GetMarketingBudget(artist);
+		float campaign = label.GetReleaseMarketingBudget(artist, "album-advance-forecast");
 		float contribution = ForecastRecordedSingleContribution(label, artist, date, decision, track);
 		var traits = track == null ? (hook: 0f, production: 0f, dance: 0f) : GetTrackTraitsForPromo(track);
 		int trackQuartile = GetQualityQuartile((traits.hook + traits.production) * .5f);
@@ -97,7 +97,7 @@ public partial class CompetitorManager {
 			if (track == null) continue;
 			float contribution = ForecastRecordedSingleContribution(label, artist, date, decision, track, catalogue: true);
 			float preparation = label.GetProductionCost() * .15f * decision.recordingCostMultiplier;
-			float campaign = label.GetMarketingBudget(artist);
+			float campaign = label.GetReleaseMarketingBudget(artist, "catalogue-extraction-forecast");
 			var traits = GetTrackTraitsForPromo(track);
 			float peakScore = expectedPeakScoreByBucket[GetQualityQuartile((traits.hook + traits.production) * .5f) * 4 + decision.careerBand];
 			float remainingLpContribution = Mathf.Max(0f, runtime.lifetimeLabelNet) / Mathf.Max(1, runtime.weeksSinceRelease) *

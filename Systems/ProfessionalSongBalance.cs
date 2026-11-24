@@ -57,6 +57,15 @@ public static class ProfessionalSongBalance {
 	public static readonly int ExtraWriters = ParseExtraWriters(SimulationArguments.Get());
 	public const string RoyaltyLicencesSwitch = "--writing-market-royalty-licences";
 	public static readonly bool RoyaltyLicences = SimulationArguments.Get().Contains(RoyaltyLicencesSwitch);
+	/// <summary>
+	/// --folk-material-mix: Folk, ContemporaryFolk and FolkRock get their own source mixes instead of the Folk family's.
+	/// Traditional material stays dominant in Folk (the revival's repertoire) but not in the genres that left it:
+	/// contemporary folk sang new songwriters (Baez, Collins, Ochs) and folk rock electrified originals and Dylan-era
+	/// songs, with a staff-writer share (Sloan, Bonner/Gordon). FanbaseEfficacy follow-up, 2026-11-10: 19% of 1966-68
+	/// FolkRock singles were public-domain songs at quality .53 inherited from the family default.
+	/// </summary>
+	public const string FolkMaterialMixSwitch = "--folk-material-mix";
+	public static readonly bool FolkMaterialMix = SimulationArguments.Get().Contains(FolkMaterialMixSwitch);
 	public const string CanonicalOfficeGenresSwitch = "--writing-market-canonical-office-genres";
 	public static readonly bool CanonicalOfficeGenres = SimulationArguments.Get().Contains(CanonicalOfficeGenresSwitch);
 	public const string SpecialistOfficesSwitch = "--writing-market-specialist-offices";

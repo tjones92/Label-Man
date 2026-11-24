@@ -1195,6 +1195,9 @@ public partial class PlayerDesk : Node {
 		// The performing-rights statement lands that morning, before either (a quarter's radio plays, a quarter late).
 		PerformanceStatement(date);
 		SettleBacker(date);
+		// Inner-life §3.2: the lien's deadline, after the backer and before the bank. Cash above zero only.
+		EnforceLien(date);
+		if (IsGameOver) return;
 		if (Label.cashReserves < CreditFloor) {
 			GameOver($"You ran past your ${-CreditFloor:N0} credit line. The creditors have closed {Label.labelName} down.");
 			return;
@@ -1215,10 +1218,10 @@ public partial class PlayerDesk : Node {
 		Changed?.Invoke();
 	}
 
-	private void GameOver(string reason) {
+	private void GameOver(string reason, bool bankrupt = true) {
 		IsGameOver = true;
 		GameOverReason = reason;
-		if (Label != null) Label.status = LabelStatus.Bankrupt;
+		if (Label != null && bankrupt) Label.status = LabelStatus.Bankrupt;
 		Note($"THE DOORS CLOSE: {reason}");
 		Changed?.Invoke();
 	}
@@ -1236,7 +1239,12 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>Founds the label wearing the crest, colours and lettering the player picked. A null brand lets the
 	/// label derive one from its name, so skipping the picker still yields a unique look.</summary>
-	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, LabelBrand brand, out string message) {
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, LabelBrand brand, out string message) =>
+		FoundLabel(labelName, cityId, archetype, brand, null, out message);
+
+	/// <summary>Founds the label and signs the New Year's Eve lien whose holder the "What do you remember?" answers narrow
+	/// (inner-life §3.1a). Null answers are an honest blank: every holder equally likely.</summary>
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, LabelBrand brand, PartyMemory party, out string message) {
 		if (Label != null) { message = "You already run a label."; return false; }
 		// The player picks the town they work out of; the market it sits in is inferred from it.
 		MarketCity city = DistanceModel.GetCityById(cityId);
@@ -1303,8 +1311,12 @@ public partial class PlayerDesk : Node {
         ResetRosterWatch();
 		PolarPlayerPerception.Reset();
 		currentCityId = city.cityId; // you start at your own office
+		activeSitting = null;
+		GameOverTitle = null;
+		FoundLien(party);
 
 		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${profile.Capital:N0}.");
+		Note($"A lien for ${lien.FaceSum:N0}, signed last night, falls due on {lien.Deadline.ToHeadlineString()}.");
 		message = $"{label.labelName} is open.";
 		Changed?.Invoke();
 		return true;
@@ -5962,6 +5974,7 @@ public partial class PlayerDesk : Node {
             RivalCourtships = CaptureRivalCourtships(),
             RoomTables = CaptureRoomTables(),
             Backer = CaptureBacker(),
+            Lien = CaptureLien(),
             Demos = CaptureDemos(),
             MasterDeals = CaptureMasterDeals(),
             SongPlacements = CaptureSongPlacements(),
@@ -6470,6 +6483,7 @@ public partial class PlayerDesk : Node {
         RestoreRivalCourtships(data.RivalCourtships);
         RestoreRoomTables(data.RoomTables);
         RestoreBacker(data.Backer);
+        RestoreLien(data.Lien);
         RestoreDemos(data.Demos);
         RestoreMasterDeals(data.MasterDeals);
         RestoreSongPlacements(data.SongPlacements);

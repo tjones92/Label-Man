@@ -34,3 +34,7 @@ __pycache__/
 /SimTools/CounterRngTests/obj/
 /SimTools/PlaylistMeetingTests/bin/
 /SimTools/PlaylistMeetingTests/obj/
+/SimTools/data/*.csv.import
+/SimTools/data/*.translation
+/SimTools/NamingCensus/bin/
+/SimTools/NamingCensus/obj/

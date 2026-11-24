@@ -9,6 +9,8 @@ public static class RegionalSalesRandom {
     private static ulong? seed;
     private static int? requestedVersion;
     public static ulong SavedSeed => Version == 0 ? 0 : seed ??= SimulationSeedBootstrap.RequestedSeed ?? BandLife.WorldSeed;
+    /// <summary>The keyed seed for another counter-RNG consumer (SingleAppealDrift); the world seed under legacy sales.</summary>
+    internal static ulong SavedSeedOrWorld => Version == 0 ? SimulationSeedBootstrap.RequestedSeed ?? BandLife.WorldSeed : SavedSeed;
 
     public static void Configure(string[] arguments) {
         var choices = arguments.Where(a => a.StartsWith("--regional-sales-rng=", StringComparison.Ordinal)).Distinct().ToArray();

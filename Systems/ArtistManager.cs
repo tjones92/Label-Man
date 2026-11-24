@@ -184,7 +184,10 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	var artist = GetArtist(record.baseRecord.artistId);
 	if (artist == null) return;
 	// --album-scale-career-milestones: an album's peak on the album chart's own scale; the raw peak otherwise.
-	int peak = AlbumScaleCareerMilestones.ObserveCareerPeak(record);
+	// --album-career-importance: the act reads an album's equivalent through the year's album weight. Off: identical.
+	int peak = AlbumScaleCareerMilestones.ObserveActCareerPeak(record);
+	// --album-career-credit-off (probe): an LP's chart run credits nothing to the act. Off: not read.
+	if (AlbumCareerCreditProbe.Withholds(record)) return;
 
 	if (peak > 0 && !record.artistChartEntryCredited) {
 		artist.RegisterChartEntry();
@@ -248,10 +251,13 @@ public sealed class LaborMarketWeeklySnapshot {
 		if (artist == null) return;
 
 		if (record.artistChartRunCompleted) return;
-		artist.CompleteChartRun(AlbumScaleCareerMilestones.CareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
-			CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
-			AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
-		ArtistRecognitionService.OnChartRunComplete(artist, record);
+		// --album-career-credit-off (probe): no career or recognition credit for an LP's run. Off: not read.
+		if (!AlbumCareerCreditProbe.Withholds(record)) {
+			artist.CompleteChartRun(AlbumScaleCareerMilestones.ActCareerPeak(record), record.weeksOnChart, record.totalUnitsSold,
+				CreditsCurrentContract(record, artist), record.regionalBreakoutCount,
+				AlbumScaleCareerMilestones.PenalizesNeverCharted(record));
+			ArtistRecognitionService.OnChartRunComplete(artist, record);
+		}
 		record.artistChartRunCompleted = true;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
 			RosterManager.Instance?.RecordChartRunComplete(artist, record);
@@ -1493,7 +1499,8 @@ public sealed class LaborMarketWeeklySnapshot {
 		formationPlaceId = artist.geography?.originPlaceId, basePlaceId = artist.geography?.basePlaceId,
 		originEvidence = artist.geography?.originEvidence ?? PlaceEvidence.Unknown,
 		baseEvidence = artist.geography?.baseEvidence ?? PlaceEvidence.Unknown,
-			formedYear = artist.formedYear, careerState = artist.careerState, labelId = artist.labelId,
+			formedYear = artist.formedYear, careerState = ArtistStature.DisplayCareer(artist, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate),
+			contractContext = ArtistStature.ContractContext(artist), labelId = artist.labelId,
 			labelName = ChartManager.Instance?.GetLabelName(artist.labelId) ?? "Independent",
 			totalCharted = artist.charted, top40Hits = artist.top40Hits, top10Hits = artist.top10Hits,
 			numberOneHits = artist.numberOnes, totalRecordsReleased = artist.totalReleases,
@@ -1705,6 +1712,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			artist.contractChartedRecords = 0;
 			artist.contractRegionalBreakouts = 0;
 			artist.contractReleases = 0;
+			RenewalEarnedOption.StartDeal(artist, currentWeek);
 		}
 		// A dropped artist with no completed prior contract is a legacy/repair
 		// boundary case: it remains a repeat signing for telemetry, but only an

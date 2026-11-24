@@ -316,7 +316,13 @@ public static class SaveGameService {
 		try {
 			WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed, deferSceneRelink: true);
 			restored = PlayerDesk.Instance.RestoreState(envelope.Player, out message);
-			if (restored) { LocalSceneIdentityService.CompleteRestore(); CurrentSlot = slot; }
+			if (restored) {
+				if (envelope.World?.ShadowContinuation?.PlayerOperatingRosterTarget is int target)
+					PlayerDesk.Instance.Label.operatingRosterTarget = target;
+				ChartManager.Instance?.RestorePlayerLabelIndex(PlayerDesk.Instance.Label, envelope.World?.ShadowContinuation?.PlayerLabelIndex);
+				ChartManager.Instance?.RestorePlayerRecordPositions(envelope.World?.ShadowContinuation?.PlayerRecordPositions);
+				LocalSceneIdentityService.CompleteRestore(); CurrentSlot = slot;
+			}
 			else LocalSceneIdentityService.CancelRestore();
 		} catch (Exception error) {
 			LocalSceneIdentityService.CancelRestore();
@@ -354,6 +360,8 @@ public sealed class PlayerSaveData {
     public List<RoomTableSaveData> RoomTables { get; set; }
     /// <summary>Optional: the early-game backer agreement, its ledger, an open offer or a standing refusal. Older saves hold none.</summary>
     public BackerSaveData Backer { get; set; }
+    /// <summary>Inner-life Phase 1: the New Year's Eve lien. Null in older saves.</summary>
+    public LienSaveData Lien { get; set; }
     /// <summary>Optional: paid demo bookings (held deposits, outcomes) and standing refusals. Older saves hold none.</summary>
     public DemoSaveData Demos { get; set; }
     /// <summary>Optional: master-deal offers, signed deals and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
@@ -614,6 +622,7 @@ public sealed class LabelSaveData {
 	public float riskTolerance { get; set; }
 	public float artistLoyalty { get; set; }
 	public float payolaWillingness { get; set; }
+	public float earnedCampaignShare { get; set; }
 	public float releasesPerMonth { get; set; }
 	public int totalReleases { get; set; }
 	public int top40Hits { get; set; }
@@ -655,7 +664,7 @@ public sealed class LabelSaveData {
 		nationalReach = l.nationalReach, ownedReach = l.ownedReach, distributionStrength = l.distributionStrength,
 		budgetLevel = l.budgetLevel, scoutingAbility = l.scoutingAbility, productionQuality = l.productionQuality,
 		marketingPower = l.marketingPower, riskTolerance = l.riskTolerance, artistLoyalty = l.artistLoyalty,
-		payolaWillingness = l.payolaWillingness, releasesPerMonth = l.releasesPerMonth,
+		payolaWillingness = l.payolaWillingness, earnedCampaignShare = l.earnedCampaignShare, releasesPerMonth = l.releasesPerMonth,
 		totalReleases = l.totalReleases, top40Hits = l.top40Hits, numberOneHits = l.numberOneHits,
 		monthsActive = l.monthsActive,
 		founderLastReleasePeriod = l.founderLastReleasePeriod, founderLastReviewPeriod = l.founderLastReviewPeriod,
@@ -684,7 +693,7 @@ public sealed class LabelSaveData {
 		l.nationalReach = nationalReach; l.ownedReach = ownedReach; l.distributionStrength = distributionStrength;
 		l.budgetLevel = budgetLevel; l.scoutingAbility = scoutingAbility; l.productionQuality = productionQuality;
 		l.marketingPower = marketingPower; l.riskTolerance = riskTolerance; l.artistLoyalty = artistLoyalty;
-		l.payolaWillingness = payolaWillingness; l.releasesPerMonth = releasesPerMonth;
+		l.payolaWillingness = payolaWillingness; l.earnedCampaignShare = earnedCampaignShare; l.releasesPerMonth = releasesPerMonth;
 		l.totalReleases = totalReleases; l.top40Hits = top40Hits; l.numberOneHits = numberOneHits;
 		l.monthsActive = monthsActive;
 		l.founderLastReleasePeriod = founderLastReleasePeriod; l.founderLastReviewPeriod = founderLastReviewPeriod;
@@ -1103,6 +1112,9 @@ public sealed class RegionalRecordSaveData {
 	public int localPeakAge { get; set; } = -1;
 	// RegionalHitDealGate's last qualifying week; absent (-1) in older saves and switched-off runs.
 	public int dealEvidenceAge { get; set; } = -1;
+	// --proven-hit-deal-weeks counter; absent (null) in older saves and switched-off runs.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+	public int? dealHitWeeks { get; set; }
 	// Rack-jobber ledger and tier; absent unless the rack channel has sold or racked here.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public int? rackUnits { get; set; }
@@ -1126,7 +1138,7 @@ public sealed class RegionalRecordSaveData {
 		breakoutStage = (int)d.breakoutStage, salesVelocity = d.salesVelocity,
 		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks,
 		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge,
-		dealEvidenceAge = d.dealEvidenceAge,
+		dealEvidenceAge = d.dealEvidenceAge, dealHitWeeks = d.dealHitWeeks != 0 ? d.dealHitWeeks : null,
 		rackUnits = d.rackUnitsTotal != 0 ? d.rackUnitsTotal : null, rackTier = d.rackTier != 0 ? d.rackTier : null,
 		rackStoreBuyers = d.rackStoreBuyerUnitsTotal != 0 ? d.rackStoreBuyerUnitsTotal : null,
 		fanDisplacedBuyers = d.fanDisplacedBuyerUnitsTotal != 0 ? d.fanDisplacedBuyerUnitsTotal : null,
@@ -1148,7 +1160,7 @@ public sealed class RegionalRecordSaveData {
 			// An older save has no arrival; a region that has already sold is treated as in play from
 			// release, which is what every region's clock was before local clocks existed.
 			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
-			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge,
+			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge, dealHitWeeks = dealHitWeeks ?? 0,
 			fitExposureAge = fitExposureAge ?? 0, fitExposureCause = fitExposureCause,
 			fanDisplacedBuyerUnitsTotal = fanDisplacedBuyers ?? 0
 		};
@@ -1245,6 +1257,7 @@ public sealed class RuntimeRecordSaveData {
 	public float perceivedQualityMultiplier { get; set; }
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public float? hitActFitFloorAtLaunch { get; set; }
+	public float? actChartRecordAtLaunch { get; set; }
 	// Regional sync §9u relive log; absent when off.
 	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
 	public List<int> fitRelivePositions { get; set; }
@@ -1277,7 +1290,7 @@ public sealed class RuntimeRecordSaveData {
 		currentLabelPush = r.currentLabelPush, totalLabelInvestment = r.totalLabelInvestment, peakMomentum = r.peakMomentum,
 		weeksPositive = r.weeksPositive, weeksNegative = r.weeksNegative, isGrammyNominated = r.isGrammyNominated,
 		isGrammyWinner = r.isGrammyWinner, weeksOfGrammyBump = r.weeksOfGrammyBump, initialLaunchStock = r.initialLaunchStock,
-		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, fanAudience = r.fanAudience,
+		perceivedQualityMultiplier = r.perceivedQualityMultiplier, hitActFitFloorAtLaunch = r.hitActFitFloorAtLaunch, actChartRecordAtLaunch = r.actChartRecordAtLaunch, fanAudience = r.fanAudience,
 		fitRelivePositions = r.fitRelivePositions != null ? new List<int>(r.fitRelivePositions) : null,
 		fitReliveAwareness = r.fitReliveAwareness != null ? new List<float>(r.fitReliveAwareness) : null
 	};
@@ -1304,7 +1317,7 @@ public sealed class RuntimeRecordSaveData {
 			currentLabelPush = currentLabelPush, totalLabelInvestment = totalLabelInvestment, peakMomentum = peakMomentum,
 			weeksPositive = weeksPositive, weeksNegative = weeksNegative, isGrammyNominated = isGrammyNominated,
 			isGrammyWinner = isGrammyWinner, weeksOfGrammyBump = weeksOfGrammyBump, initialLaunchStock = initialLaunchStock,
-			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, fanAudience = fanAudience,
+			perceivedQualityMultiplier = perceivedQualityMultiplier, hitActFitFloorAtLaunch = hitActFitFloorAtLaunch, actChartRecordAtLaunch = actChartRecordAtLaunch, fanAudience = fanAudience,
 			fitRelivePositions = fitRelivePositions != null ? new List<int>(fitRelivePositions) : null,
 			fitReliveAwareness = fitReliveAwareness != null ? new List<float>(fitReliveAwareness) : null
 		};

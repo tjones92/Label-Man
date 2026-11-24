@@ -380,7 +380,13 @@ public sealed partial class StationNetwork {
 			else if (!incumbent && local?.awaitingArrival == true) c.Rejection = "awaiting-arrival";
 			else if (!incumbent && CityReach.Enabled && !CityReach.CityReached(f.rec, station.cityName, station.regionId)) c.Rejection = "city-not-reached";
 			else if (!incumbent && everDropped && week - droppedWeek < MIN_READD_WEEKS) c.Rejection = "cooldown";
-			if (c.Rejection != null) { ApplyResponseAudition(station, dj, f.rec, c, formatMatch, week); continue; }
+			if (c.Rejection != null) {
+				ApplyResponseAudition(station, dj, f.rec, c, formatMatch, week);
+				c.TipMayAudition = ResponseAuditionProbe.TipsAcrossGeography && c.ResearchOffer &&
+					c.Rejection is ("awaiting-arrival" or "city-not-reached") &&
+					(!everDropped || week - droppedWeek >= MIN_READD_WEEKS);
+				continue;
+			}
 			float candidacy = Candidacy(f, f.quality, formatMatch, station, dj, autonomy, rt, draws, readsRegional, picks, out float pickScore);
 			float inertia = 1f + TierInertiaBase(prior) * (0.3f + autonomy * 0.7f);
 			c.Readd = !incumbent && everDropped;

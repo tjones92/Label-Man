@@ -120,7 +120,7 @@ public static partial class MediaAtmosphereService {
 	private static void MemberFamePhoto(SimulatedArtist artist, Musician member, PressOutlet outlet, Genre genre, bool cover, GameDate today) {
 		if (!MediaMemberFame.Active || artist == null || member == null || outlet == null) return;
 		if (MediaMemberFame.Causal && !InCausalWindow(BroadcastExposure.DayIndex(today))) return;
-		double population = (ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()).Sum(r => r.population) * 1e6;
+		double population = (ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()).Sum(r => r.EconomicPopulation) * 1e6;
 		if (population <= 0) return;
 		float raw = (float)(MediaMemberFame.RegisteredReaders(outlet.ReadersMillions * 1e6, outlet.Fit(genre), cover) / population);
 		if (raw <= 0f) return;

@@ -1,11 +1,13 @@
 """Select deterministic, descriptive weekly shadow trajectories for inspection."""
 import argparse
 import csv
+import datetime as dt
 import json
 from collections import defaultdict
 from pathlib import Path
 
 from stature_shadow_policy import BANDS
+from stature_normalization import file_digest
 
 
 def sample(source, output, manifest):
@@ -15,17 +17,35 @@ def sample(source, output, manifest):
             acts[row['artistId']].append(row)
     choices = {}
     for artist, rows in sorted(acts.items()):
-        definite = [r for r in rows if r['status'] != 'missing_evidence']
+        rows.sort(key=lambda r: r['date'])
+        segments, segment, previous = [], [], None
+        for row in rows:
+            day = dt.date.fromisoformat(row['date'])
+            if previous is not None and day == previous:
+                raise ValueError(f'Duplicate artist observation: {artist} {day}')
+            if previous is None or (day - previous).days != 7 or row['status'] == 'missing_evidence':
+                if segment:
+                    segments.append(segment)
+                segment = []
+            if row['status'] != 'missing_evidence':
+                segment.append(row)
+            previous = day
+        if segment:
+            segments.append(segment)
+        definite = [r for segment in segments for r in segment]
+        for segment in segments:
+            if len(segment) < 5:
+                continue
+            levels = [BANDS.index(r['band']) + 1 if r['band'] else 0 for r in segment]
+            if any(b > a for a, b in zip(levels, levels[1:])):
+                choices.setdefault('rise', artist)
+            if any(b < a for a, b in zip(levels, levels[1:])):
+                choices.setdefault('decline', artist)
+            if any(levels[i] < max(levels[:i]) and max(levels[i + 1:]) > levels[i]
+                   for i in range(1, len(levels) - 1)):
+                choices.setdefault('comeback', artist)
         if len(definite) < 5:
             continue
-        levels = [BANDS.index(r['band']) + 1 if r['band'] else 0 for r in definite]
-        if any(b > a for a, b in zip(levels, levels[1:])):
-            choices.setdefault('rise', artist)
-        if any(b < a for a, b in zip(levels, levels[1:])):
-            choices.setdefault('decline', artist)
-        if any(levels[i] < max(levels[:i]) and max(levels[i + 1:]) > levels[i]
-               for i in range(1, len(levels) - 1)):
-            choices.setdefault('comeback', artist)
         for route in ('regional', 'record', 'conversion'):
             if any(r['band'] and r[r['band'] + 'LeadingRoute'] == route for r in definite):
                 choices.setdefault(route, artist)
@@ -37,9 +57,9 @@ def sample(source, output, manifest):
             if row['artistId'] in selected:
                 writer.writerow(row)
     with manifest.open('x', encoding='utf-8') as stream:
-        json.dump({'selectedArtistIds': choices, 'unobservedCategories': [x for x in
+        json.dump({'sourceSha256': file_digest(source), 'selectedArtistIds': choices, 'unobservedCategories': [x for x in
             ('rise', 'decline', 'comeback', 'regional', 'record', 'conversion') if x not in choices],
-            'caveat': 'First matching held-out artists in ID order, descriptive six-month window; initial standing and exposures may predate it.'},
+            'caveat': 'First matching artists in ID order; rises, declines and reversals require a consecutive determinate segment of at least five weeks. Route leadership may reflect durable draw. Initial standing and exposures may predate the observed window; selection does not establish a career-long comeback.'},
             stream, indent=2, sort_keys=True); stream.write('\n')
 
 

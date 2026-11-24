@@ -170,6 +170,8 @@ public partial class LabelLifecycleManager : Node {
 	[Export] private MarketRegion[] regions;
 	
 	private LabelGenerator generator = new LabelGenerator();
+	internal List<string> CaptureGeneratorNames() => generator.CaptureUsedNames();
+	internal void RestoreGeneratorNames(List<string> names) => generator.RestoreUsedNames(names);
 	
 	public int TotalActiveLabels => activeLabels.Count(l => l.IsActive);
 	public int MajorLabels => activeLabels.Count(l => l.tier == LabelTier.Major && l.IsActive);
@@ -295,7 +297,9 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void UpdateLabelHealth(AILabel label) {
 		label.monthsActive++;
-		label.momentumScore = Mathf.Lerp(label.momentumScore, CalculateMomentum(label), 0.3f);
+		if (EarnedCampaignImpact.Enabled)
+			EarnedCampaignImpact.Update(label, CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0);
+		label.momentumScore =Mathf.Lerp(label.momentumScore, CalculateMomentum(label), 0.3f);
 	}
 	
 	private float CalculateMomentum(AILabel label) => Mathf.Clamp(label.reputation + (label.top40Hits * 0.05f), 0f, 1f);
@@ -406,13 +410,17 @@ public partial class LabelLifecycleManager : Node {
 		if (currentYear >= 1964 && currentYear <= 1966) adjustedChance = Mathf.Min(1f, adjustedChance * 1.3f);
 		int attempts = Mathf.Min(maxMonthlyBirths, Mathf.Max(1, Mathf.CeilToInt((targetCount - currentCount) / 12f)));
 		for (int attempt = 0; attempt < attempts && TotalActiveLabels < targetCount; attempt++) {
+			StatureReplayDiagnostics.Mark("label-birth:before:" + attempt);
 			if (GameRandom.Randf() < adjustedChance) SpawnNewLabel();
+			StatureReplayDiagnostics.Mark("label-birth:after:" + attempt);
 		}
 	}
 	
 	private void SpawnNewLabel() {
 		LabelTier tier = SelectRuntimeFoundingTier(GameRandom.Randf(), runtimeSmallFoundingShare);
+		StatureReplayDiagnostics.Mark("label-birth:tier:" + tier);
 		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier, legacyIdentity: !ArtistPopulationLifecycle.Enabled);
+		StatureReplayDiagnostics.Mark("label-birth:generated:" + newLabel.labelName);
 		if (ArtistPopulationLifecycle.Enabled) {
 			GameDate birthDate = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1);
 			newLabel.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
@@ -675,7 +683,8 @@ public partial class LabelLifecycleManager : Node {
 				return TryPromoteIndependentLabel(label, chartingLastYear);
 			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold &&
 				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label) &&
-				!HeadScaleTemplates.HoldsMajorPromotion(label) && !StudioParentLabels.HoldsMajorPromotion(label):
+				!HeadScaleTemplates.HoldsMajorPromotion(label) && !StudioParentLabels.HoldsMajorPromotion(label) &&
+				MajorScaleGate.Passes(label, activeLabels):
 				PromoteLabel(label, LabelTier.Major);
 				return true;
 			default:

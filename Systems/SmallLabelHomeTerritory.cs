@@ -18,11 +18,29 @@ public static class SmallLabelHomeTerritory {
 	private static bool configured, enabled = true;
 	public static bool Enabled => enabled;
 
+	/// <summary>
+	/// --home-territory-tiers=Boutique[,Independent] (LpGenreAllocationFollowup.md §34; absent = off): the same home-only
+	/// cut for opening procedural labels of those tiers. Templates keep their authored networks. Small Southern labels
+	/// already sell 63-71% of their uncharted units at home; Boutique and Independent ones 33-44%, opening in 2-4 regions.
+	/// Like the Small cut it runs after the factory's draws, so the opening RNG stream is unchanged.
+	/// </summary>
+	public const string TiersSwitch = "--home-territory-tiers";
+	private static readonly HashSet<LabelTier> extraTiers = new();
+	public static IReadOnlyCollection<LabelTier> ExtraTiers => extraTiers;
+	internal static void SetExtraTiersForChecks(params LabelTier[] tiers) { extraTiers.Clear(); foreach (var t in tiers) extraTiers.Add(t); }
+
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
 		var args = (arguments ?? Array.Empty<string>()).ToArray();
 		enabled = !args.Contains(DisableSwitch);
 		if (args.Contains(Switch) && !enabled) throw new ArgumentException("Conflicting Small home-territory switches.");
+		extraTiers.Clear();
+		string tiers = args.LastOrDefault(a => a.StartsWith(TiersSwitch + "=", StringComparison.Ordinal))?.Substring(TiersSwitch.Length + 1);
+		foreach (string name in (tiers ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
+			if (!Enum.TryParse(name, out LabelTier tier) || tier is not (LabelTier.Boutique or LabelTier.Independent))
+				throw new ArgumentException(TiersSwitch + " takes Boutique and/or Independent, not " + name + ".");
+			extraTiers.Add(tier);
+		}
 		configured = true;
 	}
 
@@ -30,7 +48,9 @@ public static class SmallLabelHomeTerritory {
 
 	/// <summary>Cuts an already-drawn Small label's territory to its home region. No draws.</summary>
 	public static void Apply(AILabel label, LabelTier tier) {
-		if (!enabled || label == null || tier != LabelTier.Small) return;
+		if (label == null) return;
+		bool cut = tier == LabelTier.Small ? enabled : !label.isHistorical && extraTiers.Contains(tier);
+		if (!cut) return;
 		string home = !string.IsNullOrEmpty(label.homeRegion) ? label.homeRegion : label.distributionRegions?.FirstOrDefault();
 		if (string.IsNullOrEmpty(home)) return;
 		label.distributionRegions = new[] { home };

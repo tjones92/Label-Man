@@ -17,13 +17,15 @@ public partial class CompetitorManager {
 	private bool PassesSingleCapitalRisk(AILabel label, SimulatedArtist artist, ReleaseSlateItem item,
 		DecisionContext decision, float marketing, float unreserved) {
 		if (!SingleCapitalRisk.Enabled || label.isPlayerOwned || item.Format != ReleaseFormat.Single) return true;
+		// --major-gate-exemption: a Major's single is not refused on capital risk. Off: false.
+		if (MajorVolumeSwitches.Exempt(label)) return true;
 		// DecideRelease fills these indices before reading the prior; the funding read must do the same.
 		decision.qualityQuartile = GetQualityQuartile(decision.qualityEstimate);
 		decision.careerBand = GetCareerBandIndex(artist.careerState, out _);
 		int band = GetMemoryCareerBand(artist.careerState, null);
 		var memory = label.GetOrCreateRevenueMemory(RevenueEstimatorLane.OrphanSingle);
 		float expectedCampaign = ReleaseAllInEconomics.IsLive
-			? ReleaseAllInEconomics.ExpectedCampaign(label.GetMarketingBudget(artist), decision.qualityEstimate) : 0;
+			? ReleaseAllInEconomics.ExpectedCampaign(label.GetReleaseMarketingBudget(artist, "single-risk-forecast"), decision.qualityEstimate) : 0;
 		float prior = SinglePriorNetAtBookedPrice(decision) - expectedCampaign, forecast = prior;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true) {
 			var responsive = GetResponsiveMemory(memory, pipelineWeek, CareerBandedFormatMemory.Enabled ? band : -1);

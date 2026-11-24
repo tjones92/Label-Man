@@ -129,6 +129,7 @@ public sealed partial class StationNetwork {
 	private const float AFFINITY_MIN = 0.30f, AFFINITY_MAX = 3.0f;
 
 	public void BuildRosters(IEnumerable<MarketRegion> regions, int year) {
+		contactYear = -1;
 		currentYear = year;
 		stationsByRegion.Clear();
 		stationsById.Clear();

@@ -270,7 +270,7 @@ public static class GenreAcceptanceService {
 		float acceptedTotal = 0f;
 		float populationTotal = 0f;
 		foreach (MarketRegion region in regions) {
-			float populationWeight = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			float populationWeight = region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage();
 			if (populationWeight <= 0f) continue;
 			float newEnabled = 0f;
 			float newAccepted = 0f;
@@ -336,7 +336,7 @@ public static class GenreAcceptanceService {
 		float totalBuyingPopulation = 0f;
 		foreach (MarketRegion region in regions) {
 			if (region == null) continue;
-			float buyingPopulation = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			float buyingPopulation = region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage();
 			if (buyingPopulation <= 0f) continue;
 			weightedAcceptance += buyingPopulation * GetRegionalDemandAcceptance(primary, secondary, region, year, legacyMomentum);
 			totalBuyingPopulation += buyingPopulation;
@@ -417,7 +417,7 @@ public static class GenreAcceptanceService {
 		float effective = 0f, clampLoss = 0f, finalSingle = 0f;
 		float protectedEffective = 0f, protectedClampLoss = 0f, protectedFinalSingle = 0f, totalPopulation = 0f;
 		foreach (MarketRegion region in fixedRegions) {
-			float buyingPopulation = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			float buyingPopulation = region.EconomicPopulation * 1000000f * region.GetBuyingPopulationPercentage();
 			if (buyingPopulation <= 0f) continue;
 			RegionalDemandAcceptanceComponents route = GetRegionalDemandAcceptanceComponents(primary, secondary, region, year, 0f,
 				includeCenteredSpecialistTexture: true);
@@ -456,12 +456,29 @@ public static class GenreAcceptanceService {
 	// to center a texture; they never read release, sales, stock, chart, or momentum
 	// state.  Their absolute scale is immaterial, but the explicit values make the
 	// national conservation invariant stable and independently probeable.
-	private static readonly IReadOnlyDictionary<string, float> SpecialistBuyingPopulationPriors =
+	private static readonly IReadOnlyDictionary<string, float> AuthoredSpecialistBuyingPopulationPriors =
 		new Dictionary<string, float>(StringComparer.Ordinal) {
 			["eastcoast"] = .725120036f, ["greatlakes"] = .515502883f, ["greatplains"] = .192183251f,
 			["deepsouth"] = .167874111f, ["southwest"] = .184606423f, ["rockies"] = .059087843f,
 			["westcoast"] = .320871449f
 		};
+	// The authored priors are authored population (chart_manager.tscn) x GetBuyingPopulationPercentage, which the census
+	// leaves unchanged, so the census priors are the same buying fraction of the census population.
+	private static readonly IReadOnlyDictionary<string, float> AuthoredRegionPopulation =
+		new Dictionary<string, float>(StringComparer.Ordinal) {
+			["eastcoast"] = 52.2f, ["greatlakes"] = 36.1f, ["greatplains"] = 15.5f, ["deepsouth"] = 15.0f,
+			["southwest"] = 14.2f, ["rockies"] = 4.6f, ["westcoast"] = 20.3f
+		};
+	/// <summary>--census-specialist-priors (LpGenreAllocationFollowup.md §31, requires --census-population): centre the
+	/// Country / TexMex / Boogaloo texture and the specialist single normalizer on census buying populations.</summary>
+	public const string CensusSpecialistPriorsSwitch = "--census-specialist-priors";
+	internal static bool CensusSpecialistPriorsEnabled => CensusPopulation.Enabled && GameyAuditArguments.Has(CensusSpecialistPriorsSwitch);
+	private static readonly IReadOnlyDictionary<string, float> SpecialistBuyingPopulationPriors = CensusSpecialistPriorsEnabled
+		? AuthoredSpecialistBuyingPopulationPriors.ToDictionary(pair => pair.Key,
+			pair => pair.Value * CensusPopulation.Census1960[pair.Key] / AuthoredRegionPopulation[pair.Key], StringComparer.Ordinal)
+		: AuthoredSpecialistBuyingPopulationPriors;
+	internal static float AuthoredSpecialistPriorForChecks(string regionId) => AuthoredSpecialistBuyingPopulationPriors[regionId];
+	internal static float AuthoredRegionPopulationForChecks(string regionId) => AuthoredRegionPopulation[regionId];
 
 	private static float GetRegionalFactor(Genre genre, MarketRegion region, AudienceSegment segment, float year,
 		bool includeCenteredSpecialistTexture = true) {

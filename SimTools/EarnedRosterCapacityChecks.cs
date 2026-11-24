@@ -43,6 +43,19 @@ public static class EarnedRosterCapacityChecks {
 			Check(EarnedRosterCapacity.Capacity(label) == held, "losses earn no capacity");
 			Close(1961, 3, 100_000_000);
 			Check(EarnedRosterCapacity.Capacity(label) == EarnedRosterCapacity.MaximumActs, "the bound holds");
+			// Delivery bound and tier ceiling (--roster-delivery-bound, --roster-tier-ceiling): same earnings, now bounded.
+			EarnedRosterCapacity.SetForChecks(.5f, 2f, false);
+			Check(EarnedRosterCapacity.Capacity(label, 40) == Math.Max(held, 25), "forty releases serve twenty acts at two each, plus a quarter headroom");
+			Check(EarnedRosterCapacity.Capacity(label, 0) == held, "a label that issued nothing keeps the acts it holds and signs none");
+			EarnedRosterCapacity.SetForChecks(.5f, 0f, true);
+			Check(EarnedRosterCapacity.Capacity(label, 0) == Math.Max(held, EarnedRosterCapacity.Ceiling(label.tier))
+				&& EarnedRosterCapacity.Ceiling(LabelTier.Major) == 150 && EarnedRosterCapacity.Ceiling(LabelTier.MidTier) == 75,
+				"the tier ceiling caps earned capacity (Major 150, MidTier 75)");
+			Check(Rejects(EarnedRosterCapacity.DeliveryBoundSwitch + "2") && Rejects(EarnedRosterCapacity.TierCeilingSwitch),
+				"the bounds require earned capacity");
+			EarnedRosterCapacity.ResetForChecks(); EarnedRosterCapacity.Configure(new[] { EarnedRosterCapacity.Switch + "0.5", EarnedRosterCapacity.DeliveryBoundSwitch + "2", EarnedRosterCapacity.TierCeilingSwitch });
+			Check(EarnedRosterCapacity.DeliveryReleasesPerAct == 2f && EarnedRosterCapacity.TierCeiling, "parses both bounds");
+			EarnedRosterCapacity.SetForChecks(.5f);
 			company.recentProjectSpend = 0;
 			Check(EarnedRosterCapacity.Capacity(label) == held, "unobserved spend earns nothing");
 			var late = new LabelCompanyState();

@@ -4,7 +4,9 @@ param(
     [int]$Seed = 1001,
     [ValidateRange(1, 522)][int]$Weeks = 28,
     [ValidateRange(1, 52)][int]$ReplayWeeks = 13,
-    [switch]$TraceWorld
+    [switch]$TraceWorld,
+    [switch]$PlayerSave,
+    [switch]$ActivePlayer
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -16,6 +18,11 @@ $source = Get-Content -Raw (Join-Path $dir 'stature-live-smoke-v3-1001-control-r
 $flags = @($source.flags | Where-Object { $_ -notlike '--weeks=*' -and $_ -notlike '--run=*' -and $_ -notlike '--seed=*' })
 $flags += "--seed=$Seed", "--weeks=$Weeks", '--stature-live-roundtrip=SimTools/StatureShadowExperimental.json', "--stature-replay-weeks=$ReplayWeeks"
 if ($TraceWorld) { $flags += '--stature-replay-world-trace' }
+if ($PlayerSave) { $flags += '--stature-player-save' }
+if ($ActivePlayer) {
+    if (!$PlayerSave) { throw 'ActivePlayer requires PlayerSave.' }
+    $flags += '--stature-active-player'
+}
 $assembly = Join-Path $root '.godot/mono/temp/bin/Debug/Label Man.dll'
 $assemblyHash = (Get-FileHash -LiteralPath $assembly).Hash
 $engineHash = (Get-FileHash -LiteralPath $Godot).Hash
@@ -37,4 +44,10 @@ foreach ($arm in @('record','resume')) {
     if ((Get-Item -LiteralPath (Join-Path $dir "$Run-$arm-errors.log")).Length -ne 0) { throw "Nonempty stderr: $arm" }
     if ((Get-FileHash -LiteralPath $assembly).Hash -ne $assemblyHash -or (Get-FileHash -LiteralPath $Godot).Hash -ne $engineHash -or (Get-FileHash SimTools/StatureShadowExperimental.json).Hash -ne $calibrationHash) { throw 'Build or calibration changed during run.' }
     Write-Host "Passed $Run $arm"
+}
+if ($TraceWorld) {
+    foreach ($week in (@(1, $ReplayWeeks) | Select-Object -Unique)) {
+        & (Join-Path $PSScriptRoot 'inspect_stature_saved_world.ps1') -Checkpoint $checkpoint -Week $week -FailOnDifferences
+    }
+    Write-Host "STATURE_FRESH_WORLD_PASS first=1 final=$ReplayWeeks"
 }

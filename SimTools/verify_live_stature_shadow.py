@@ -8,7 +8,7 @@ from pathlib import Path
 from stature_normalization import COMPONENTS, parse_date
 
 
-def verify(live, components, offline, decisions):
+def verify(live, components, offline, decisions, causal=False):
     expected = {}
     with offline.open(newline='', encoding='utf-8-sig') as stream:
         for row in csv.DictReader(stream):
@@ -47,8 +47,9 @@ def verify(live, components, offline, decisions):
         for row in csv.DictReader(stream):
             counts['decisionRows'] += 1
             if row['eligible'] == '1':
-                if row['oldMultiplier'] != row['appliedMultiplier']:
-                    raise ValueError('Shadow changed applied multiplier')
+                expected = row['proposedMultiplier'] if causal and row['readStatus'] == 'Available' else row['oldMultiplier']
+                if not expected or expected != row['appliedMultiplier']:
+                    raise ValueError('Applied multiplier differs from the configured reader rule')
                 if row['readStatus'] == 'Available':
                     age = (parse_date(row['date']) - dt.date.fromisoformat(row['snapshotDate'])).days
                     if not 1 <= age <= 7 or not row['proposedMultiplier']:
@@ -65,8 +66,9 @@ if __name__ == '__main__':
     p.add_argument('--max-score-differences', type=int, default=0,
                    help='Explicit allowance for separately investigated off-roster continuity differences')
     p.add_argument('--max-support-differences', type=int, default=0)
+    p.add_argument('--causal', action='store_true', help='Require the opt-in programme reader to apply available proposals')
     a = p.parse_args()
-    result = verify(a.live, a.components, a.offline, a.decisions)
+    result = verify(a.live, a.components, a.offline, a.decisions, a.causal)
     print(result)
     if (result['bandDifferences'] or result['scoreDifferences'] > a.max_score_differences or
             result['supportDifferences'] > a.max_support_differences):

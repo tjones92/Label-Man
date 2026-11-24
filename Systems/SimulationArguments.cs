@@ -254,7 +254,12 @@ public static class SimulationArguments {
         string[] profile = previous ? PreviousProfile : Profile;
         // An explicit parameter replaces its profile value. Preserve duplicate explicit parameters
         // so the owning parser can reject them rather than silently choosing one.
-        static string Key(string arg) { int split = arg.IndexOf('='); return split < 0 ? arg : arg[..split]; }
+        // --no-X and --X share a key, so an explicit --no-X turns off a profile switch rather than clashing with it.
+        static string Key(string arg) {
+            int split = arg.IndexOf('=');
+            string key = split < 0 ? arg : arg[..split];
+            return key.StartsWith("--no-", StringComparison.Ordinal) ? "--" + key[5..] : key;
+        }
         var explicitKeys = args.Select(Key).ToHashSet(StringComparer.Ordinal);
         return profile.Where(flag => !explicitKeys.Contains(Key(flag))).Concat(args).ToArray();
     }

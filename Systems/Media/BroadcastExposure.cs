@@ -205,7 +205,7 @@ public static class BroadcastExposure {
 		foreach (MarketRegion region in regions ?? Array.Empty<MarketRegion>()) {
 			float clearance = program.Network == TvNetwork.Syndicated ? program.SyndicatedClearance : Clearance(program.Network, region);
 			foreach (var (zone, share) in ZoneSplit(region.regionId, date.year))
-				markets.Add(new Market(region.regionId + ":" + zone, region.regionId, region.population * 1e6 * share, zone, clearance, date,
+				markets.Add(new Market(region.regionId + ":" + zone, region.regionId, region.EconomicPopulation * 1e6 * share, zone, clearance, date,
 					LocalStart(version.Carriage, version.StartMinute, zone)));
 		}
 		return markets;

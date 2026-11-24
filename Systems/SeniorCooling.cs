@@ -69,6 +69,12 @@ public static class SeniorCooling {
 		return Math.Max(0, week - artist.seniorCoolingLastTop40Week);
 	}
 
+	/// <summary>Diagnostic read of the clock without initializing it or changing later cooling behavior.</summary>
+	internal static int ObserveWeeksSinceTop40(SimulatedArtist artist, int week) {
+		int last = artist.seniorCoolingLastTop40Week == Unset ? SeedWeek(artist, week) : artist.seniorCoolingLastTop40Week;
+		return Math.Max(0, week - last);
+	}
+
 	/// <summary>
 	/// An opening career's last pre-1960 Top 40 is placed mid-year (1959 -> 26 weeks before the run); an act with no
 	/// such side starts its clock at the week of first read, which is week 0 for the 1960 roster.
@@ -85,6 +91,7 @@ public static class SeniorCooling {
 
 	/// <summary>The factor on the act's launch fame reads; exactly 1 when off.</summary>
 	public static float LaunchFactor(SimulatedArtist artist) => !enabled || artist == null ? 1f : Cool(WeeksSinceTop40(artist, CurrentWeek));
+	internal static float ObserveLaunchFactor(SimulatedArtist artist) => !enabled || artist == null ? 1f : Cool(ObserveWeeksSinceTop40(artist, CurrentWeek));
 
 	/// <summary>One idempotent ladder pass per chart week. A second call in the same week is a no-op.</summary>
 	public static void CoolLadderForWeek(int week, IEnumerable<SimulatedArtist> artists) {

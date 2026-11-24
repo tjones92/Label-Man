@@ -20,6 +20,11 @@ using Godot;
 public partial class SaveLoadRoundTripRunner : Node {
 	public override void _Ready() {
 		try {
+			if (OS.GetCmdlineUserArgs().Contains("--opening-following-check")) { OpeningFollowingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-marketing-check")) { StatureMarketingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-career-display-check")) { StatureCareerDisplayChecks.Run(this); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-game-reader-check")) { StatureGameReaderChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--stature-continuation-check")) { StatureContinuationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--simulation-arguments-check")) { SimulationArgumentsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--regional-sales-rng-check")) { RegionalSalesRandomChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--simulation-optimization-check")) { SimulationOptimizationChecks.Run(); GetTree().Quit(0); return; }
@@ -81,17 +86,43 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--chart-inertia-base-check")) { ChartInertiaProbeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--chart-entry-feedback-check")) { ChartEntryFeedbackChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--chart-tail-check")) { ChartTailChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--survey-panel-persistence-check")) { SurveyPanelPersistenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--regional-radio-rise-check")) { RegionalRadioRiseChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--singles-ration-knee-check")) { SinglesRationKneeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-hype-check")) { HitActHypeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-fit-support-check")) { HitActFitSupportChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--single-commercial-fit-shape-check")) { SingleCommercialFitShapeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-fanbase-check")) { ArtistFanbaseChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-hold-capacity-check")) { LabelHoldCapacityChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-heat-attribution-check")) { ArtistHeatAttributionChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--seed-head-templates-check")) { HeadScaleTemplatesChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--historical-majors-check")) { HistoricalMajorsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--midtier-opening-realism-check")) { MidTierOpeningRealismChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--launch-push-saturation-check")) { LaunchPushSaturationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--launch-stock-spread-check")) { LaunchStockSpreadChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-newcomer-package-check")) { MajorNewcomerPackageChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--earned-head-capacity-check")) { EarnedHeadCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--midtier-hit-act-package-check")) { MidTierHitActPackageChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--zero-fee-material-gate-check")) { ZeroFeeMaterialGateChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-newcomer-action-push-check")) { MajorNewcomerActionPushChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-volume-check")) { MajorVolumeSwitchesChecks.Run(); PromotionCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--major-scale-gate-check")) { MajorScaleGateChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-footprint-parity-check")) { LabelFootprintParityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-blind-launch-check")) { LabelBlindLaunchChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--footprint-craft-softening-check")) { FootprintCraftSofteningChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--chart-proven-wholesale-check")) { ChartProvenWholesaleChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--uncovered-sales-terms-check")) { UncoveredSalesTermsChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--programme-funding-relief-check")) { ProgrammeFundingReliefChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--gamey-audit-switches-check")) { GameyAuditSwitchChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--earned-campaign-impact-check")) { EarnedCampaignImpactChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--artist-momentum-half-life-check")) { ArtistMomentumHalfLifeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--senior-cooling-check")) { SeniorCoolingChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-act-cadence-check")) { HitActCadenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(ProvenActChartAdd.CheckSwitch)) { ProvenActChartAdd.RunChecks(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(MajorHitActGapChecks.Switch)) { MajorHitActGapChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(RegionalChartAction.CheckSwitch)) { RegionalChartAction.RunChecks(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(RegionalChartRank.CheckSwitch)) { RegionalChartRank.RunChecks(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains(ChartFallerReportDepth.CheckSwitch)) { ChartFallerReportDepth.RunChecks(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--label-release-programme-check")) { LabelReleaseProgrammeChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--hit-follow-up-finance-check")) { HitFollowUpFinanceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--slate-preparation-headroom-check")) { PreparationHeadroomChecks.Run(); GetTree().Quit(0); return; }
@@ -202,8 +233,11 @@ public partial class SaveLoadRoundTripRunner : Node {
 
 			if (OS.GetCmdlineUserArgs().Contains("--professional-writing-market-roundtrip")) ProfessionalWritingMarketChecks.StageRoundTrip();
 			if (RunStatureFreshContinuation(weeks, replayWeeks, statureRoundtrip, traceWorldReplay)) return;
+			StatureMarketingChecks.BeginLiveObservation();
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
 			ProfessionalWritingMarketChecks.CheckLiveState();
+			StatureMarketingChecks.CheckLiveState();
+			StatureCareerDisplayChecks.CheckLiveState();
 
 			if (integration) { RunIntegration(weeks); return; }
 
@@ -398,10 +432,13 @@ public partial class SaveLoadRoundTripRunner : Node {
 					GD.Print("PROFESSIONAL_WRITING_MARKET_RESUME passed");
 				}
 				if (LabelReleaseProgramme.Enabled) {
-					var lastStatureDate = statureRoundtrip == null ? default : MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate;
+					bool liveStature = StatureObservation.ShadowConfig != null;
+					var lastStatureDate = !liveStature ? default : MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate;
 					AdvanceOneChartWeek();
-					if (statureRoundtrip != null && MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate != lastStatureDate.AddDays(7))
+					if (liveStature && MediaAtmosphereService.ExperimentalStatureShadow().Normalizer.LastProcessedDate != lastStatureDate.AddDays(7))
 						throw new InvalidOperationException("Live stature clock did not continue after world restore.");
+					StatureCareerDisplayChecks.CheckLiveState();
+					StatureMarketingChecks.CheckLiveState();
 					LabelReleaseProgrammeChecks.CheckLiveState();
 					GD.Print("LABEL_RELEASE_PROGRAMME_RESUME passed");
 					HitActFitSupportChecks.CheckLiveState();
@@ -440,8 +477,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 		}
 		if (left.ValueKind == JsonValueKind.Array) {
 			if (left.GetArrayLength() != right.GetArrayLength()) return $"{path}: array lengths {left.GetArrayLength()} vs {right.GetArrayLength()}";
+			var leftItems = left.EnumerateArray(); var rightItems = right.EnumerateArray();
 			for (int i = 0; i < left.GetArrayLength(); i++) {
-				string difference = FirstJsonDifference(left[i], right[i], $"{path}[{i}]");
+				leftItems.MoveNext(); rightItems.MoveNext();
+				string difference = FirstJsonDifference(leftItems.Current, rightItems.Current, $"{path}[{i}]");
 				if (difference != null) return difference;
 			}
 			return null;

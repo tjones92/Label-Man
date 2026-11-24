@@ -385,6 +385,8 @@ public static class RecordClubChannel {
 	// A back catalogue is steady division profit, not release momentum (as MajorOffChartSingles).
 	private static readonly Dictionary<string, double> monthNet = new(StringComparer.Ordinal);
 	private static readonly Dictionary<string, List<double>> recentMonthNets = new(StringComparer.Ordinal);
+	internal static LabelMomentumContinuationSaveData CaptureMomentum() => LabelMomentumContinuationSaveData.Capture(monthNet, recentMonthNets);
+	internal static void RestoreMomentum(LabelMomentumContinuationSaveData saved) => LabelMomentumContinuationSaveData.Restore(saved, monthNet, recentMonthNets);
 
 	public static float CloseMonthForMomentum(AILabel label) {
 		if (!Enabled || label == null) return 0f;

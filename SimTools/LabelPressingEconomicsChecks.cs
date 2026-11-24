@@ -22,6 +22,11 @@ public static class LabelPressingEconomicsChecks {
 			"an AI single books the dealer price the player's shop sales book");
 		Check(Mathf.IsEqualApprox(LabelPressingEconomics.LabelPrice(ReleaseFormat.Album, 3.98f), 3.98f * 0.63f / 0.98f),
 			"an LP books the same dealer share of list");
+		LabelPressingEconomics.SetAlbumLabelShareForChecks(.45f);
+		Check(Mathf.IsEqualApprox(LabelPressingEconomics.LabelPrice(ReleaseFormat.Album, 3.98f), 3.98f * .45f)
+			&& Mathf.IsEqualApprox(LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, 0.89f), PlayerDesk.DealerPrice),
+			"--lp-label-price-share moves the LP price only");
+		LabelPressingEconomics.SetAlbumLabelShareForChecks(LabelPressingEconomics.DealerShareOfList);
 
 		var label = new AILabel { labelId = "check-label", tier = LabelTier.Small };
 		var flop = Fresh(ReleaseFormat.Single);
@@ -147,6 +152,64 @@ public static class LabelPressingEconomicsChecks {
 		LabelPressingEconomics.SetPeriodAlbumCostsForChecks(false);
 		LabelPressingEconomics.SetPeriodSingleCostsForChecks(false);
 
+		// --earned-lp-forecast (genre §44): a ratio of weighted totals, observed once per LP, shrunk while n is small.
+		var learner = new AILabel { labelId = "earned-lp" };
+		EarnedLpForecast.SetForChecks(false);
+		var lpA = Fresh(ReleaseFormat.Album, 52, "earned-a"); lpA.releaseTimeExpectedLpUnits = 10000f; lpA.pressingBookSold = 20000;
+		EarnedLpForecast.Observe(learner, lpA);
+		Check(learner.lpForecastObservations == 0 && EarnedLpForecast.Multiplier(learner) == 1f && !lpA.lpForecastObserved, "earned LP forecast is inert when off");
+		EarnedLpForecast.SetForChecks(true);
+		Check(EarnedLpForecast.Multiplier(learner) == 1f, "a label with no observed LP keeps the prior");
+		EarnedLpForecast.Observe(learner, lpA); EarnedLpForecast.Observe(learner, lpA);
+		Check(learner.lpForecastObservations == 1 && Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(learner), MathF.Pow(2f, 1f / 5f)),
+			"one LP that sold 2x its forecast moves the label's forecast by 2^(1/5), and only once");
+		var lpB = Fresh(ReleaseFormat.Album, 52, "earned-b"); lpB.releaseTimeExpectedLpUnits = 30000f; lpB.pressingBookSold = 0;
+		var lpC = Fresh(ReleaseFormat.Album, 52, "earned-c"); lpC.pressingBookSold = 50000;
+		EarnedLpForecast.Observe(learner, lpB); EarnedLpForecast.Observe(learner, lpC);
+		float sold = .1f * 20000f * .9f, forecast = .1f * 10000f * .9f + .1f * 30000f;
+		Check(learner.lpForecastObservations == 2 && !lpC.lpForecastObserved
+			&& Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(learner), MathF.Exp(2f / 6f * MathF.Log(Mathf.Max(sold / forecast, EarnedLpForecast.MinRatio)))),
+			"the memory is a ratio of totals, and an LP without a release forecast is not observed");
+		// --earned-lp-forecast-log: lognormal mean exp(m + v/2) of the weighted log ratios; v only from two observations.
+		EarnedLpForecast.SetForChecks(true, log: true, shrink: 10f);
+		var logLearner = new AILabel { labelId = "earned-lp-log" };
+		var lpD = Fresh(ReleaseFormat.Album, 52, "earned-d"); lpD.releaseTimeExpectedLpUnits = 9999f; lpD.pressingBookSold = 19999;
+		EarnedLpForecast.Observe(logLearner, lpD);
+		float x1 = MathF.Log(2f);
+		Check(Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(logLearner), 2f)
+			&& Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(logLearner), MathF.Exp(x1 / 11f)),
+			"log mode: one LP seeds the log mean outright, no variance yet, shrunk by 1/(1+10)");
+		var lpE = Fresh(ReleaseFormat.Album, 52, "earned-e"); lpE.releaseTimeExpectedLpUnits = 3999f; lpE.pressingBookSold = 999;
+		EarnedLpForecast.Observe(logLearner, lpE);
+		// Two LPs weigh equally; the sample variance of two is (x1 - x2)^2 / 2.
+		float x2 = MathF.Log(.25f), m = (x1 + x2) / 2f, v = (x1 - x2) * (x1 - x2) / 2f;
+		Check(Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(logLearner), MathF.Exp(m + v / 2f)),
+			"log mode: LPs weigh equally early, and the label's own spread restores the mean");
+		// --earned-lp-forecast-warm-start: opening Majors / MidTiers start with K pseudo-LPs at the tier ratio; others empty.
+		EarnedLpForecast.SetForChecks(true, log: true, warmStart: 20, warmMajor: 3.5f, warmMidTier: 2.5f, warmVariance: 3.5f);
+		var warmMajor = new AILabel { labelId = "warm-major", tier = LabelTier.Major, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		var warmMid = new AILabel { labelId = "warm-mid", tier = LabelTier.MidTier, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		var warmIndie = new AILabel { labelId = "warm-indie", tier = LabelTier.Independent, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		var warmBirth = new AILabel { labelId = "warm-birth", tier = LabelTier.Major, populationOrigin = LabelPopulationOrigin.RuntimeFounded };
+		float majorMultiplier = EarnedLpForecast.Multiplier(warmMajor);
+		Check(warmMajor.lpForecastObservations == 20 && Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(warmMajor), 3.5f)
+			&& Mathf.IsEqualApprox(EarnedLpForecast.LogVariance(warmMajor), 3.5f)
+			&& Mathf.IsEqualApprox(majorMultiplier, MathF.Pow(3.5f, 20f / 24f)),
+			"warm start: an opening Major prices its first LP at the tier ratio, shrunk by K / (K + 4)");
+		Check(Mathf.IsEqualApprox(EarnedLpForecast.Multiplier(warmMid), MathF.Pow(2.5f, 20f / 24f)),
+			"warm start: opening MidTiers use the MidTier ratio");
+		Check(EarnedLpForecast.Multiplier(warmIndie) == 1f && warmIndie.lpForecastObservations == 0
+			&& EarnedLpForecast.Multiplier(warmBirth) == 1f && warmBirth.lpForecastObservations == 0,
+			"warm start: small tiers and runtime births keep the empty memory");
+		warmMajor.tier = LabelTier.MidTier; EarnedLpForecast.Multiplier(warmMajor);
+		Check(warmMajor.lpForecastObservations == 20 && Mathf.IsEqualApprox(EarnedLpForecast.LearnedRatio(warmMajor), 3.5f),
+			"warm start: the seed is applied once");
+		var lpW = Fresh(ReleaseFormat.Album, 52, "earned-w"); lpW.releaseTimeExpectedLpUnits = 9999f; lpW.pressingBookSold = 99;
+		var coldMid = new AILabel { labelId = "warm-cold", tier = LabelTier.MidTier, populationOrigin = LabelPopulationOrigin.LaunchPopulation };
+		EarnedLpForecast.Observe(coldMid, lpW);
+		Check(coldMid.lpForecastObservations == 21, "warm start: an observation before any gate use lands on the seed");
+		EarnedLpForecast.SetForChecks(false);
+
 		// --small-home-territory (§11): factory Small labels start in their home region only, with every draw still made.
 		var territoryChecks = SmallLabelHomeTerritoryChecks();
 		GD.Print("LABEL_PRESSING_CHECK_PASS dealer prices, plant minimum, re-press lots, geometric forecast, catalog, player boundary, saves, RNG, plant credit, "
@@ -181,7 +244,30 @@ public static class LabelPressingEconomicsChecks {
 				on.strongRegions.Length == 1 && on.strongRegions[0] == on.homeRegion, "a Small label covers and is strong only at home");
 		}
 		Check(small > 100 && widened > small / 3, "the check sees many Small labels the old factory widened");
-		return $"small home territory ({widened}/{small} Small narrowed)";
+		// --home-territory-tiers (§34): procedural Boutique/Independent labels cut the same way, templates and draws untouched.
+		SmallLabelHomeTerritory.SetEnabledForChecks(true);
+		SmallLabelHomeTerritory.SetExtraTiersForChecks(LabelTier.Boutique, LabelTier.Independent);
+		GameRandom.Seed(4401);
+		var tiered = AILabelFactory.GenerateAllLabels(600);
+		float nextTiered = GameRandom.Randf();
+		SmallLabelHomeTerritory.SetExtraTiersForChecks();
+		SmallLabelHomeTerritory.SetEnabledForChecks(false);
+		Check(nextTiered == nextBefore && tiered.Count == before.Count, "the tier cut makes the same draws");
+		int cutTier = 0;
+		for (int i = 0; i < tiered.Count; i++) {
+			AILabel off = after[i], on = tiered[i];
+			bool target = !on.isHistorical && on.tier is LabelTier.Boutique or LabelTier.Independent;
+			if (!target) {
+				Check(SameRegions(off.distributionRegions, on.distributionRegions) && SameRegions(off.strongRegions, on.strongRegions),
+					"labels outside the tier cut keep their territory");
+				continue;
+			}
+			cutTier++;
+			Check(on.distributionRegions.Length == 1 && on.distributionRegions[0] == on.homeRegion &&
+				on.strongRegions.Length == 1 && on.strongRegions[0] == on.homeRegion, "a procedural Boutique/Independent label starts home-only");
+		}
+		Check(cutTier > 50, "the check sees procedural Boutique/Independent labels");
+		return $"small home territory ({widened}/{small} Small narrowed; {cutTier} Boutique/Independent under the tier cut)";
 	}
 
 	private static bool SameRegions(string[] a, string[] b) => (a ?? Array.Empty<string>()).SequenceEqual(b ?? Array.Empty<string>());

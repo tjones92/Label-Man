@@ -111,8 +111,9 @@ and the first clue's location.
 
 ### 3.2 The annual extension
 
-- **The lien** *provisional*: a face sum sized in Phase 0 so it can never just be paid off early in the decade.
-  Placeholder: $20,000 in 1960 dollars. Interest accrues on the paper.
+- **The lien**: a $20,000 face sum in 1960 dollars (author decision). Interest accrues on the paper. Phase 0
+  checks it against measured player cash trajectories: it must be impossible to clear early in the decade and
+  reachable by a real national run.
 - **The December sitting.** In the last two weeks of each year the holder's lawyer (the recurring face; the holder
   stays offstage at first) sits down with you. It's a counter scene on the Rolodex architecture. To roll the lien
   to the next 1 January you meet **one of three bars**, his choice of which to stress, read from your real state:
@@ -154,7 +155,7 @@ An authored mystery, dealt out over the decade. It's optional, but it's the reas
 - **Clue sources are real people.** A clue sits on a contact the world already holds: a dealer, a booker, a DJ,
   the plant man, a session player. It's reachable only through existing verbs (calls, legwork, scouting rooms), so
   chasing the night means doing the job.
-- **A few seed-keyed variants** (author decision). The night is authored as a handful of variants (who you were
+- **Five seed-keyed variants** (author decision). The night is authored as five variants (who you were
   with, who holds the paper and why). The opening questions (§3.1a) narrow the pool and the seed picks. The holder
   might be a nightclub owner, a jukebox-route boss, a song-plugger who wanted your future publishing, or a man
   fronting for a Major.
@@ -177,6 +178,139 @@ An authored mystery, dealt out over the decade. It's optional, but it's the reas
   Rolodex leads, the guitar opens Ex-Musician band-room options.
 - **The voices keep theories.** Each voice holds its own working theory of the night, and new clues confirm or
   embarrass them. That's a light, recurring comic thread.
+
+### 3.5 The five holders (draft for author review)
+
+All names are fictional placeholders. Each variant fixes five things: **who holds the paper and why**, **what
+really happened**, **how he runs the December sitting**, **where your belongings went**, and **what tears the lien
+up**. The sim interests use entities the world already has; if one closes, he survives it (§3.4).
+
+#### H1. Harlan Dace, the supper-club man
+
+- **Who.** Owns the Starlite Room, the best supper club in the founding town, and quietly a piece of a local
+  booking agency. Smooth, patient, never raises his voice.
+- **Why he wants you.** He has a house singer (his girlfriend) and a house band, and no label will touch them. He
+  wants a label that has to say yes.
+- **What happened.** The party was at the Starlite. After midnight you sat in on the back-room card game, lost
+  everything on you, then wrote markers against the label you hadn't started yet. At dawn Dace had his lawyer turn
+  the markers into one lien.
+- **The sitting.** He stresses **Concede**: "Record the girl. Put the band on a session." Pay works, but he'd rather
+  own a piece of what you make. Each year he asks for one more favour.
+- **Your belongings.** The car and the watch went on the table; he still has them, and they're offered back one at
+  a time as concessions.
+- **Sim interests.** The Starlite (a real scene room in the founding town) and the booking agency's bookers. If the
+  room closes, he gets desperate and the bar rises.
+- **Torn up.** The deck was marked. The dealer was a session drummer who needed the money; he drifts through the
+  session-employment pool and only talks once he's out of Dace's reach (1966+, Street 5). The marked deck itself is
+  in the back of the car (item gate).
+- **The voices.** The Fixer respects him. The Suit hates every concession. The Ear has opinions about the singer.
+
+#### H2. Walt Kubiak, the route boss
+
+- **Who.** Runs a jukebox route across the region and holds an interest in a one-stop that supplies the dealers.
+  Practical, loud, always counting.
+- **Why he wants you.** Cheap records for his machines, and the jukebox rights to whatever you make.
+- **What happened.** Drunk in the back room of a bar, you signed his "standard operator's agreement", thinking it
+  was a distribution deal. The lien was clause 14.
+- **The sitting.** He stresses **Pay**: cash, every year, on time. Show doesn't impress him unless it's records on his
+  route. He's the easiest to satisfy early and the hardest late, because the interest compounds.
+- **Your belongings.** He drove you home in your own car and kept it "as security". The Pawn-Shop Owner's stock is
+  in his warehouse.
+- **Sim interests.** A jukebox Op account and a one-stop/rack jobber. Your standing with them is his standing.
+- **Torn up.** The agreement was notarized by a man whose commission had lapsed in 1959. You need the notary's
+  register (Suit 5, at the county clerk, after 1966) and your own carbon copy, which is in the glove box of the car
+  he kept (item gate).
+- **The voices.** The Suit understands him. The Street knows every dealer on his route. The Fixer thinks he can be
+  played and is usually wrong.
+
+#### H3. Mort Fennell, the song-plugger
+
+- **Who.** A song-plugger for a big publisher, ambitious, desperate to set up his own catalogue.
+- **Why he wants you.** Your future publishing. If you sign the songs, he wants them.
+- **What happened.** At a DJ's house party you bragged about the songs you'd find. He wrote out a $20,000 "advance
+  against publishing" and you signed for it. **The money never changed hands.** The lien is for cash you never got.
+- **The sitting.** He stresses **Show**: hits, because hits are copyrights. Concessions he takes are always
+  publishing shares. In good years he's almost friendly.
+- **Your belongings.** The address book (and the Ex-Musician's guitar) went home with him; he's been calling your
+  contacts and using your name.
+- **Sim interests.** Publishing (the cover-song and publishing systems), plus a stake in an AI label's publishing
+  arm. The more songs your label records from outside writers, the more he's in your business.
+- **Torn up.** Prove the advance was never paid: the bank's ledger for 31 December 1959 (Suit 5, a bank contact,
+  after 1966), the cheque stub he forgot to destroy (in the address book, item gate), and the DJ who hosted the party
+  and saw him write it.
+- **The voices.** The Ear likes him; he knows a song. The Suit has suspected the advance from day one. The Fixer
+  wants to steal his writers.
+
+#### H4. Mr. Ainsley, the Major's front
+
+- **Who.** A soft-spoken man in a camel coat who fronts for the Major with the largest share in your region at the
+  start (a real sim entity). Nobody in town knows who he is.
+- **Why he wants you.** He doesn't, not yet. The Major collects liens on promising independents, cheaply, and
+  forecloses on the ones that work.
+- **What happened.** The hotel-ballroom party was the Major's. Several would-be label owners signed that night, not
+  only you. You signed because someone from the Major said it was a "pressing credit line".
+- **The sitting.** He stresses **Show** early (he wants you to grow), goes easy in the middle years, then in 1968–69
+  turns friendly and makes an offer to buy. The "Sold to a Major" ending is his goal.
+- **Your belongings.** Dispersed through pawn shops and auctions. Nobody kept them; that's the point.
+- **Sim interests.** The Major itself. If it absorbs another independent, the Street hears it was another signer.
+  If the Major's share falls, Ainsley's patience shortens.
+- **Torn up.** The hardest. You have to find another signer among the AI independents' founders (Street 5 or Fixer
+  5, after 1966) and prove the pattern: a second lien with the same witness signature. The capstone is the
+  invitation card from the party, which turns up in a pawned coat (item gate).
+- **The voices.** The Suit is afraid of him. The Fixer can't get a read. The Street finds him first.
+
+#### H5. Teddy Lark, the bandleader
+
+- **Who.** A fading big-band leader. Teddy Lark and His Orchestra had hits in 1948; now rock and roll has his
+  bookings. Warm, proud, sliding.
+- **Why he wants you.** His band's pensions. He thinks the young man with the new label is his last chance.
+- **What happened.** At the supper club you swore you'd make him a star again. He was as drunk as you. His lawyer
+  drew up the lien "as insurance" before either of you sobered up. He isn't a crook; he's scared.
+- **The sitting.** He stresses **Concede**: "Record the band. Just one session." Pay embarrasses him; he'd rather
+  have a record.
+- **Your belongings.** He has the watch and gives it back unasked in the first December. The rest went to settle the
+  party's bar tab.
+- **Sim interests.** His orchestra as a real roster act in the TraditionalPop/EasyListening family, a genre that
+  declines all decade. A conviction such as "Guitar Groups Are on the Way Out" helps you with him.
+- **Torn up.** Not a fraud tear-up. **He tears it up himself** if you put one of his records in the Top 40 against the
+  decline. That needs the Ear, a hit-shaped song and real push, and the decline makes it harder every year, so the
+  practical window is before about 1965. There's no item gate; the gate is the market.
+- **The voices.** The Ear loves his old records. The Suit wants nothing to do with the genre. The Street feels sorry
+  for him.
+
+### 3.6 Mapping the opening answers
+
+Each answer adds +1 to the holders it fits:
+
+| Question | Answer | H1 Dace | H2 Kubiak | H3 Fennell | H4 Ainsley | H5 Lark |
+|---|---|:-:|:-:|:-:|:-:|:-:|
+| Where was it? | a supper club | + | | | | + |
+| | a DJ's house party | | | + | | |
+| | a hotel ballroom | | | | + | + |
+| | the back room of a bar | + | + | | | |
+| Who were you drinking with? | a man in a camel coat | | | | + | |
+| | a bandleader | | | + | | + |
+| | a jukebox route man | + | + | | | |
+| | someone from a Major | | | + | + | |
+| What were you bragging about? | the label you're about to start | | + | | + | |
+| | the act you'll sign | | | | | + |
+| | money you don't have | + | + | | | |
+| | the songs you'll find | | | + | | |
+| How did it end? | a card table | + | | | | |
+| | a car | | + | | | + |
+| | a phone call | | | + | + | |
+| | nothing at all | | | | | |
+
+Rules:
+
+- **Balanced:** each holder fits exactly five answers, so no holder is favoured before the player answers.
+- The **pool** is every holder whose score is within 1 of the top. The pick within the pool is a **stable hash** of
+  the run seed and the answers, weighted 2:1 toward the top scorers. It's keyed, not drawn from the shared RNG
+  stream, so it can't reshuffle the world ([[one-conversion-reshuffles-the-rng-stream]]).
+- The answers the chosen holder doesn't fit are the **wrong memories**. The voices treat them as facts at first and
+  are embarrassed when a clue contradicts one. A player who answers "nothing at all" everywhere gets a uniform pick
+  and no wrong memories, just an honest blank.
+- The variant is stored on `LienState` at founding and never changes.
 
 ## §4 Convictions: the drawer
 
@@ -389,9 +523,12 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
    authored person with interests in real sim entities, so nothing in the sim needs protecting (§3.1a, §3.4).
 8. **"Torn up":** extremely hard, gated by year, instinct and recovered item; earliest December 1968 (§3.4).
 
+9. **Lien size:** $20,000 face sum (1960 dollars). Phase 0 still measures player cash trajectories, to set each
+   December's bar and to confirm $20k can't be cleared early but can be met by a real national run.
+10. **Holder variants:** start with 5. Who they are needs a writing pass.
+
 ## §13 Still open
 
-1. The lien's face sum and each year's bar: sized in Phase 0 from measured player cash trajectories.
-2. The holder variants: how many (3–5?) and who they are. Needs a writing pass.
-3. The gold-record feat bars (especially Suit's profit bar): set after Phase 0.
-4. The wardrobe list per year: needs a period and art pass.
+1. The 5 holder variants: drafted in §3.5–3.6, awaiting author review.
+2. The gold-record feat bars (especially Suit's profit bar): separate design pass.
+3. The wardrobe list per year: separate design pass.

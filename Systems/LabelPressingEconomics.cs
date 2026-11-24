@@ -62,8 +62,10 @@ public static class LabelPressingEconomics {
 		RepressWeeks = ReadParameter(args, "--pressing-repress-weeks=", RepressCoverWeeks, 3f, 26f);
 		AlbumInitialCommitment = ReadParameter(args, "--pressing-album-initial-forecast-share=", InitialCommitment, .5f, 2f);
 		AlbumRepressWeeks = ReadParameter(args, "--pressing-album-repress-weeks=", RepressWeeks, 3f, 26f);
+		AlbumLabelShareOfList = ReadParameter(args, AlbumLabelShareSwitch + "=", DealerShareOfList, .3f, 1f);
 		if (!enabled && (InitialCommitment != InitialRunShareOfForecast || RepressWeeks != RepressCoverWeeks
-			|| AlbumInitialCommitment != InitialRunShareOfForecast || AlbumRepressWeeks != RepressCoverWeeks))
+			|| AlbumInitialCommitment != InitialRunShareOfForecast || AlbumRepressWeeks != RepressCoverWeeks
+			|| AlbumLabelShareOfList != DealerShareOfList))
 			throw new ArgumentException("Pressing commitments require " + Switch + ".");
 		configured = true;
 	}
@@ -147,6 +149,14 @@ public static class LabelPressingEconomics {
 	// What a dealer paid against suggested list on the player's 45 ladder (0.63 / 0.98), applied to every format.
 	public static readonly float DealerShareOfList = PlayerDesk.DealerPrice / PlayerDesk.ListPrice;
 
+	/// <summary>--lp-label-price-share=S (LpGenreAllocationFollowup.md §42): what an AI label books on an LP sold, as a
+	/// share of its list price. Default the dealer share above. The RIAA 1963 release survey (§40) has the companies
+	/// realizing $1.818 an LP, about 0.45 of a $3.98 / $4.98 list mix: they sold to distributors and branches below the
+	/// dealer price and gave free goods and return credit. Artist royalty and mechanicals stay on list.</summary>
+	public const string AlbumLabelShareSwitch = "--lp-label-price-share";
+	public static float AlbumLabelShareOfList { get; private set; } = DealerShareOfList;
+	internal static void SetAlbumLabelShareForChecks(float share) { configured = true; AlbumLabelShareOfList = share; }
+
 	// Model assumptions, not measured period terms. A plant's minimum economic run of a 45 or an LP; the share of
 	// its own forecast a label committed before orders came in; re-press lots sized to weeks of current sales.
 	public const int MinimumRun = 500;
@@ -159,7 +169,7 @@ public static class LabelPressingEconomics {
 	public const int NewReleaseMaxAgeWeeks = 2;
 
 	public static float LabelPrice(ReleaseFormat format, float listPrice) =>
-		format == ReleaseFormat.Single ? PlayerDesk.DealerPrice : listPrice * DealerShareOfList;
+		format == ReleaseFormat.Single ? PlayerDesk.DealerPrice : listPrice * AlbumLabelShareOfList;
 
 	/// <summary>The label's forecast of a release's lifetime copies: geometric memory of its own retired records,
 	/// so one smash does not set the next run. No history means no forecast, and the plant minimum.</summary>

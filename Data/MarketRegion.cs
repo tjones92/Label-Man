@@ -19,6 +19,10 @@ public partial class MarketRegion : Resource {
 
 	[ExportGroup("Demographics - 1960 Baseline")]
 	[Export] public float population;
+	/// <summary>Population as the economy reads it: the authored (or, under --census-population, census) population times
+	/// <see cref="CensusPopulation.EconomicScale"/>, which holds the national record-buying population at its calibrated
+	/// level. Exactly <see cref="population"/> when the switch is off.</summary>
+	public float EconomicPopulation => population * CensusPopulation.EconomicScale;
 	[Export(PropertyHint.Range, "0,1")] public float urbanization;
 	[Export] public float averageIncome;
 	[Export(PropertyHint.Range, "0,0.6")] public float youthPercentage;
@@ -177,7 +181,7 @@ public partial class MarketRegion : Resource {
 	}
 	
 	public float GetGenreMarketSize(Genre genre, int year) {
-		float baseMarket = population * 1000000f;
+		float baseMarket = EconomicPopulation * 1000000f;
 		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
 		if (GenreMarketV2.Enabled && genreMarketV2Live) {
 			float momentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
@@ -197,7 +201,7 @@ public partial class MarketRegion : Resource {
 			// growth before quality, awareness, stock, or format tilt could act.
 			return explanation.EnabledPreTiltBuyerPool;
 		}
-		float baseMarket = population * 1000000f;
+		float baseMarket = EconomicPopulation * 1000000f;
 		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
 		return buyingPopulation * GetGenreAcceptance(genre, year) * GetSegregationFactor(genre) *
 			GetAlbumAffinity(genre, year) * GetAlbumPurchaseWillingness(year);
@@ -211,7 +215,7 @@ public partial class MarketRegion : Resource {
 	// for youth-appeal film songs) rather than from GetGenreAcceptance/GetAlbumAffinity. This does NOT
 	// touch the genre's own acceptance (handoff §3.4); the record still reports under its real genre.
 	public float GetSoundtrackAlbumMarketSize(ExternalMediaProfile profile, int year) {
-		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		float buyingPopulation = EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 		var shares = segmentCapacities?.Shares;
 		float Share(AudienceSegment s, float fallback) => shares != null && shares.TryGetValue(s, out float v) ? v : fallback;
 		float segReach = Share(AudienceSegment.AdultMOR, 0.14f) + Share(AudienceSegment.FamilyChildrens, 0.04f);
@@ -224,7 +228,7 @@ public partial class MarketRegion : Resource {
 	}
 
 	public AlbumDemandExplanation GetAlbumDemandExplanation(Genre genre, float year) {
-		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		float buyingPopulation = EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 		float momentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
 		float routedAcceptance = GenreAcceptanceService.GetRegionalDemandAcceptance(genre, genre, this, year, momentum);
 		float legacyAcceptance = GetLegacyGenreAcceptance(genre, year);
@@ -283,7 +287,7 @@ public partial class MarketRegion : Resource {
 
 	/// <summary>Accepted legacy genre buyer pool used as the common Album-prior denominator.</summary>
 	public float GetAcceptedLegacyGenreMarketSize(Genre genre, float year) {
-		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		float buyingPopulation = EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 		return buyingPopulation * GetLegacyGenreAcceptance(genre, year) * GetSegregationFactor(genre);
 	}
 
@@ -298,7 +302,7 @@ public partial class MarketRegion : Resource {
 	/// <see cref="GetMarketAlbumOpportunityWeight"/> for why that one carries no genre.
 	/// </summary>
 	public float GetAlbumAffinity(Genre genre, int year) =>
-		ShapeAlbumAffinity(GetAlbumAffinityBaseline(GenreCatalog.MapLegacy(genre, year)), year);
+		ShapeAlbumAffinity(GetAlbumAffinityBaseline(GenreCatalog.MapLegacy(genre, year), year), year);
 
 	/// <summary>
 	/// The genre-blind era baseline, i.e. what an average genre's album propensity is.
@@ -312,15 +316,28 @@ public partial class MarketRegion : Resource {
 	// Public so the 1960 cold-start prewarm can seed a genre-realistic opening LP catalog: this baseline
 	// is the era's album skew (adult/jazz/classical high, teen/rock low), so it doubles as the
 	// probability a seeded catalog title is an album.
-	public static float GetAlbumSeedAffinity(Genre canonical) => GetAlbumAffinityBaseline(canonical);
+	public static float GetAlbumSeedAffinity(Genre canonical) => GetAlbumAffinityBaseline(canonical, 1960);
 
 	// Calibration probe, inert unless named: --album-affinity=Folk=0.40,... replaces a genre's flat album affinity
 	// baseline everywhere it is read (realized demand, the album prior and the opening-catalog seed).
 	private static readonly Dictionary<Genre, float> AlbumAffinityProbe = GenreCatalog.ParseProbe("--album-affinity=", false)
 		.ToDictionary(p => p.genre, p => p.value);
+	// --album-affinity-ramp=Folk@1960=0.40,Folk@1961=0.28,Folk@1962=0.40 (genre follow-up §8) replaces a genre's flat
+	// baseline with a piecewise-linear curve over calendar years, held flat outside its first and last keyframe. The
+	// genre keyframe grid (1960/62/64) cannot express a one-year feature. Inert unless named; wins over --album-affinity=.
+	private static readonly Dictionary<Genre, (int year, float value)[]> AlbumAffinityRamp = GenreCatalog.ParseProbe("--album-affinity-ramp=", true)
+		.GroupBy(p => p.genre).ToDictionary(g => g.Key, g => g.Select(p => (p.year, p.value)).OrderBy(k => k.year).ToArray());
 
-	private static float GetAlbumAffinityBaseline(Genre canonical) =>
-		AlbumAffinityProbe.TryGetValue(canonical, out float probe) ? probe : GetAuthoredAlbumAffinityBaseline(canonical);
+	internal static float GetAlbumAffinityBaseline(Genre canonical, int year) {
+		if (AlbumAffinityRamp.TryGetValue(canonical, out var ramp)) {
+			if (year <= ramp[0].year) return ramp[0].value;
+			for (int i = 1; i < ramp.Length; i++)
+				if (year <= ramp[i].year)
+					return Mathf.Lerp(ramp[i - 1].value, ramp[i].value, (year - ramp[i - 1].year) / (float)(ramp[i].year - ramp[i - 1].year));
+			return ramp[^1].value;
+		}
+		return AlbumAffinityProbe.TryGetValue(canonical, out float probe) ? probe : GetAuthoredAlbumAffinityBaseline(canonical);
+	}
 
 	private static float GetAuthoredAlbumAffinityBaseline(Genre canonical) => canonical switch {
 		// DEMAND PULLBACK (2026-08, WIP §4): 0.88 -> 0.65. At 0.88 EL over-routed to albums and fell to
@@ -433,7 +450,7 @@ public partial class MarketRegion : Resource {
 	/// as a region-relative one.
 	/// </summary>
 	public float GetRecordBuyingPopulation() =>
-		population * 1000000f * GetBuyingPopulationPercentage();
+		EconomicPopulation * 1000000f * GetBuyingPopulationPercentage();
 
 	public float GetGenreAcceptance(Genre genre, int year) => GetGenreAcceptance(genre, (float)year);
 

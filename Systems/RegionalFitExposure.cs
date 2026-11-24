@@ -133,11 +133,21 @@ public static class RegionalFitExposure {
 		if (!Enabled || !SingleCommercialFit.Applies(record) || record.baseRecord.format == ReleaseFormat.Album || label == null) return;
 		string recordId = record.baseRecord.recordId;
 		string actHome = RegionalAudience.HometownAudience ? RegionalAudience.HomeRegionId(artist) : null;
-		float reach = label.EffectiveNationalReachForRecord(recordId);
+		// --label-blind-launch=foot: the reference reach, and only the act's home is exposed for free. Off: InFoot is false.
+		bool blindFoot = LabelBlindLaunch.InExpose;
+		float reach = blindFoot ? LabelBlindLaunch.ReferenceReach : label.EffectiveNationalReachForRecord(recordId);
 		float chance = LaunchBase + LaunchReachSlope * reach;
+		// --label-blind-launch-expose-shared: one draw for the record, read by every region. Off: each region keys its own.
+		bool shared = LabelBlindLaunch.InSharedExpose;
+		// --label-blind-launch-expose-shared=P: the shared draw's chance. Bare switch: the reference chance above.
+		if (shared && LabelBlindLaunch.SharedExposeChance is float sharedChance) chance = sharedChance;
 		foreach (var pair in record.regionalData) {
-			bool home = pair.Key == label.homeRegion || pair.Key == actHome;
-			bool exposed = home || PhiloxCounterRandom.Unit(BandLife.WorldSeed, recordId, pair.Key, 0, LaunchDecision) < chance;
+			bool home = (!blindFoot && pair.Key == label.homeRegion) || pair.Key == actHome;
+			// --label-blind-launch-dose: an opened region's chance is at least the reference chance (or the chance
+			// --label-blind-launch-dose-exposure names). Off: Opened is false.
+			float regionChance = LabelBlindLaunch.Opened(pair.Key) ? Math.Max(chance, LabelBlindLaunch.DoseExposureChance) : chance;
+			bool exposed = home || PhiloxCounterRandom.Unit(BandLife.WorldSeed, recordId,
+				shared ? LabelBlindLaunch.SharedExposeKey : pair.Key, 0, LaunchDecision) < regionChance;
 			pair.Value.fitExposureAge = exposed ? 0 : NotExposed;
 			pair.Value.fitExposureCause = exposed ? "launch" : "unexposed";
 			if (exposed) launchExposed++; else launchHeld++;
@@ -158,7 +168,7 @@ public static class RegionalFitExposure {
 			bool pending = false;
 			foreach (var data in record.regionalData.Values) pending |= data.fitExposureAge > age;
 			if (!pending || !SingleCommercialFit.Connected(record, labelOf(record.baseRecord.labelId))) continue;
-			if (record.currentPosition >= 1 && record.currentPosition <= NationalRank)
+			if (record.currentPosition >= 1 && record.currentPosition <= LabelFootprintParity.FitExposureNationalRank)
 				foreach (var data in record.regionalData.Values) Schedule(data, age + NationalLag, "national-chart");
 			foreach (var pair in record.regionalData) {
 				RegionalRecordData source = pair.Value;

@@ -11,6 +11,7 @@ public sealed partial class StationNetwork {
 	};
 
 	internal void RestoreContinuation(StationContinuationSaveData saved, IEnumerable<MarketRegion> regions) {
+		contactYear = -1;
 		stationsByRegion.Clear(); stationsById.Clear(); djsById.Clear(); shadowRuntimes.Clear();
 		currentYear = saved.Year;
 		foreach (var s in saved.Stations) {

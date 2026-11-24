@@ -27,6 +27,8 @@ public static class RetailPurchaseEnvelope {
         Enabled = values.Length == 1 && values[0] == Switch + "1";
         if (Enabled && (!arguments.Contains(RackJobberChannel.Switch) || !arguments.Contains(BudgetLpChannel.Switch)))
             throw new ArgumentException(Switch + "1 requires joint store, rack and budget LP channels.");
+        if (!Enabled && arguments.Contains(AdultWeightSwitch))
+            throw new ArgumentException(AdultWeightSwitch + " requires " + Switch + "1.");
         configured = true;
     }
 
@@ -42,6 +44,29 @@ public static class RetailPurchaseEnvelope {
 
     internal static int AlbumBudget(int basePurchaseCapacity, int year) =>
         (int)Math.Floor(SingleBudget(MajorOffChartSingles.HeldSingleBudget(basePurchaseCapacity)) * AlbumToSingleRatio(year));
+
+    // --lp-purse-adult-weight (LpGenreAllocationFollowup.md §28-29). Each region's LP purse is its singles purse x the
+    // national ratio, so it inherits the singles purse's youth weighting, and LPs were bought by adults: store intent
+    // per purse unit runs 0.78 on the East Coast to 0.42 in the Deep South, the East Coast is bound in 77-87% of 1961
+    // weeks and the South leaves its purse unspent. On: the same national purse (the sum of the regional purses) is
+    // shared out by adult population x sqrt(income) x urbanisation. Off: never read.
+    public const string AdultWeightSwitch = "--lp-purse-adult-weight";
+    public static bool AdultWeighted => Enabled && GameyAuditArguments.Has(AdultWeightSwitch);
+
+    internal static double AdultWeight(MarketRegion region) =>
+        Math.Max(0, region.EconomicPopulation) * Math.Max(0, 1 - region.youthPercentage) *
+        Math.Sqrt(Math.Max(0, region.averageIncome)) * (.6 + .4 * region.urbanization);
+
+    internal static Dictionary<string, int> AdultWeightedBudgets(IEnumerable<MarketRegion> regions,
+        Func<MarketRegion, int> baseCapacity, int year) {
+        var live = regions.Where(r => r != null).ToArray();
+        long national = live.Sum(r => (long)AlbumBudget(baseCapacity(r), year));
+        double weights = live.Sum(AdultWeight);
+        var purses = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var region in live)
+            purses[region.regionId] = weights > 0 ? (int)Math.Floor(national * AdultWeight(region) / weights) : 0;
+        return purses;
+    }
 
     internal static (int Store, int Autonomous) Split(int storeIntent, double autonomousIntent, int purse,
         double rackWeight = AutonomousRackWeight) {

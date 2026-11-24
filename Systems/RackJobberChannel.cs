@@ -16,7 +16,7 @@ using Godot;
 /// catalogue tier of live LPs ranked by this week's store sales, with hysteresis. A racked title sells to the
 /// region's own rack-shopper pool through its own exhaustion ledger; being on the rack is the awareness.
 /// Rack units are ordinary sales of the record for the label's books, the artist's royalty and release
-/// memory, but they never enter chart points, store exhaustion, regional signals or retirement. No random
+/// memory, but they never enter chart points (unless --album-chart-racks), store exhaustion, regional signals or retirement. No random
 /// draws; the units come only from records the store market already sold this week.
 /// </summary>
 public static class RackJobberChannel {
@@ -25,6 +25,11 @@ public static class RackJobberChannel {
 	public const string SharedSwitch = "--rack-shared-exhaustion";
 	public const string ReturnsSwitch = "--rack-returns=";
 	public const string TurnoverSwitch = "--rack-turnover=";
+	/// <summary>--rack-store-standing-bound=K (LP channel handoff issue 2). A racked title's own weekly rack demand in a
+	/// region is at most K times its store units there that week, so a title cannot sell on racks out of proportion to
+	/// the store sales that put it on the rack. 0 (default) is no bound.</summary>
+	public const string StoreBoundSwitch = "--rack-store-standing-bound=";
+	public static float StoreStandingBound { get; private set; }
 	public static float Turnover { get; private set; } = UnitsPerRackWeek;
 	public static bool SharedExhaustion { get; private set; }
 	public static float ReturnRate { get; private set; }
@@ -62,8 +67,36 @@ public static class RackJobberChannel {
 	};
 	/// <summary>Soundtracks and cast albums sold to the adult and family shopper whatever their mapped genre.</summary>
 	internal const float SoundtrackGenreWeight = .9f;
+	/// <summary>--rack-soundtrack-weight=F (genre follow-up §8). Replaces <see cref="SoundtrackGenreWeight"/>. At .9 a racked
+	/// soundtrack sells about 4 rack units per store unit in 1960-61 (other genres 0.6-1.6), and under
+	/// --rack-shared-exhaustion those rack sales spend its store buyers, so it leaves the album chart in weeks.</summary>
+	public const string SoundtrackWeightSwitch = "--rack-soundtrack-weight=";
+	public static float SoundtrackWeight { get; private set; } = SoundtrackGenreWeight;
+	/// <summary>--rack-genre-flatten=F (LpGenreAllocationFollowup.md §70-72). Billboard's last separate rack LP charts
+	/// (30 Nov and 28 Dec 1959) were famous pop singers plus Ricky Nelson (#4 and #7 on racks, #39 and #45 in stores), with
+	/// no mood music or comedy; the segment tilt gives TeenPop and RockAndRoll half of TradPop's rack weight and Easy Listening
+	/// 1.5 times it. With F &gt; 0 each non-soundtrack genre weight moves geometrically toward
+	/// <see cref="FlatGenreWeight"/> (F 1: every genre equal). Soundtracks keep --rack-soundtrack-weight. 0 (default): unchanged.</summary>
+	public const string FlattenSwitch = "--rack-genre-flatten=";
+	/// <summary>The 1961 rack-unit-weighted mean genre weight (rs20dt, seeds 1001/2002), so F 1 keeps rack volume near its fit.</summary>
+	internal const float FlatGenreWeight = .37f;
+	public static float GenreFlatten { get; private set; }
 
 	public const int TierNone = 0, TierHit = 1, TierCatalogue = 2;
+
+	/// <summary>--rack-proven-catalogue=K:N (LpGenreAllocationFollowup.md §78). Billboard printed its 1960 "Essential
+	/// Inventory" chart (the top 25 LPs 40+ weeks on the chart) as a stocking guide: the proven catalogue a dealer should keep
+	/// in stock. In 1963 artist LPs of 40+ weeks held 16-20% of the merged chart's top 50 (Mathis, Baez, PP&amp;M, Bennett).
+	/// The model's catalogue tier refills every week from any past-peak LP by this week's store units, so a region's 50
+	/// catalogue slots turn over in about 7 weeks and a hit leaves the rack, and the chart, by chart week 25-30. With the
+	/// switch on, the first K catalogue slots go to past-peak titles whose album chart peak is N or better (same store-unit
+	/// rank and hysteresis); the rest fill as before. 0 (default): unchanged.</summary>
+	public const string ProvenCatalogueSwitch = "--rack-proven-catalogue=";
+	public static int ProvenCatalogueSlots { get; private set; }
+	public static int ProvenCataloguePeak { get; private set; }
+	internal static void SetProvenCatalogueForChecks(int slots, int peak) { ProvenCatalogueSlots = slots; ProvenCataloguePeak = peak; }
+	internal static bool IsProven(RecordRuntimeData record) =>
+		ProvenCatalogueSlots > 0 && record.peakPosition >= 1 && record.peakPosition <= ProvenCataloguePeak;
 
 	public static void Configure(IEnumerable<string> arguments) {
 		if (configured) return;
@@ -85,6 +118,32 @@ public static class RackJobberChannel {
 				!float.IsFinite(value) || value <= 0 || value > 1000) throw new ArgumentException("Invalid " + turnover);
 			Turnover = value;
 		}
+		string bound = args.FirstOrDefault(a => a.StartsWith(StoreBoundSwitch, StringComparison.Ordinal));
+		if (bound != null) {
+			if (!Enabled || !float.TryParse(bound[StoreBoundSwitch.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
+				!float.IsFinite(value) || value < 0f || value > 100f) throw new ArgumentException("Invalid " + bound);
+			StoreStandingBound = value;
+		}
+		string soundtrack = args.FirstOrDefault(a => a.StartsWith(SoundtrackWeightSwitch, StringComparison.Ordinal));
+		if (soundtrack != null) {
+			if (!Enabled || !float.TryParse(soundtrack[SoundtrackWeightSwitch.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
+				!float.IsFinite(value) || value < 0f || value > 1f) throw new ArgumentException("Invalid " + soundtrack);
+			SoundtrackWeight = value;
+		}
+		string flatten = args.FirstOrDefault(a => a.StartsWith(FlattenSwitch, StringComparison.Ordinal));
+		if (flatten != null) {
+			if (!Enabled || !float.TryParse(flatten[FlattenSwitch.Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
+				!float.IsFinite(value) || value < 0f || value > 1f) throw new ArgumentException("Invalid " + flatten);
+			GenreFlatten = value;
+		}
+		string proven = args.FirstOrDefault(a => a.StartsWith(ProvenCatalogueSwitch, StringComparison.Ordinal));
+		if (proven != null) {
+			string[] kn = proven[ProvenCatalogueSwitch.Length..].Split(':');
+			if (!Enabled || kn.Length != 2 || !int.TryParse(kn[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int k)
+				|| !int.TryParse(kn[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || k < 0 || k > CatalogueTitles || n < 1 || n > 200)
+				throw new ArgumentException("Invalid " + proven + " (K:N, K catalogue slots 0-" + CatalogueTitles + ", chart peak N 1-200; needs " + Switch + ").");
+			ProvenCatalogueSlots = k; ProvenCataloguePeak = n;
+		}
 		if (scale != null) {
 			if (!Enabled) throw new ArgumentException(ScaleSwitch + " requires " + Switch + ".");
 			if (!float.TryParse(scale.Substring(ScaleSwitch.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ||
@@ -95,7 +154,11 @@ public static class RackJobberChannel {
 		configured = true;
 	}
 
-	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; ResetTelemetry(); }
+	internal static void ResetForChecks() { configured = false; Enabled = false; SharedExhaustion = false; ReturnRate = 0f; ShopperScale = DefaultShopperScale; Turnover = UnitsPerRackWeek; StoreStandingBound = 0f; SoundtrackWeight = SoundtrackGenreWeight; GenreFlatten = 0f; ProvenCatalogueSlots = 0; ProvenCataloguePeak = 0; ResetTelemetry(); }
+	internal static void SetGenreFlattenForChecks(float flatten) => GenreFlatten = flatten;
+	internal static void SetStoreBoundForChecks(float bound) => StoreStandingBound = bound;
+	internal static float BoundByStoreStanding(float demand, int storeUnits) =>
+		StoreStandingBound > 0f ? Mathf.Min(demand, StoreStandingBound * Mathf.Max(0, storeUnits)) : demand;
 	internal static void SetForChecks(bool enabled, float scale = DefaultShopperScale, bool shared = false, float returns = 0f) {
 		configured = true; Enabled = enabled; ShopperScale = scale; SharedExhaustion = shared; ReturnRate = returns; ResetTelemetry();
 	}
@@ -119,19 +182,24 @@ public static class RackJobberChannel {
 	public static float Reach(int year) => ChartSimulator.GetRackJobberEraWeight(year);
 
 	public static float ShopperPool(MarketRegion region, int year) =>
-		Mathf.Max(0f, region.population) * 1_000_000f * Mathf.Sqrt(Mathf.Max(0f, region.averageIncome)) * Reach(year) * ShopperScale;
+		Mathf.Max(0f, region.EconomicPopulation) * 1_000_000f * Mathf.Sqrt(Mathf.Max(0f, region.averageIncome)) * Reach(year) * ShopperScale;
 
 	public static int Shelf(MarketRegion region, int year) =>
-		Mathf.Max(0, Mathf.FloorToInt(Mathf.Max(0f, region.population) * RacksPerMillionAtFullReach * Reach(year) * Turnover));
+		Mathf.Max(0, Mathf.FloorToInt(Mathf.Max(0f, region.EconomicPopulation) * RacksPerMillionAtFullReach * Reach(year) * Turnover));
 
 	public static float GenreWeight(RecordRuntimeData record, int year) {
 		Album album = record.baseRecord.album;
-		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null) return SoundtrackGenreWeight;
+		if (album?.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null) return SoundtrackWeight;
 		GenreProfile profile = GenreCatalog.Get(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year));
 		float tilt = 0f;
 		foreach (var pair in profile.SegmentWeights) tilt += pair.Value * SegmentTilt.GetValueOrDefault(pair.Key);
-		return Mathf.Clamp(profile.GetBaseline(year) * tilt, 0f, 1f);
+		float weight = Mathf.Clamp(profile.GetBaseline(year) * tilt, 0f, 1f);
+		return GenreFlatten > 0f ? FlattenGenreWeight(weight, GenreFlatten) : weight;
 	}
+
+	/// <summary>A genre weight moved geometrically toward <see cref="FlatGenreWeight"/> by F (0 unchanged, 1 flat).</summary>
+	internal static float FlattenGenreWeight(float weight, float flatten) =>
+		weight <= 0f ? (flatten >= 1f ? FlatGenreWeight : 0f) : Mathf.Pow(weight, 1f - flatten) * Mathf.Pow(FlatGenreWeight, flatten);
 
 	public static float Exposure(int tier, int rank, float awareness) {
 		float display = tier == TierHit ? (rank <= FaceOutRanks ? FaceOutExposure : HitExposure)
@@ -176,7 +244,14 @@ public static class RackJobberChannel {
 			return chosen;
 		}
 		Fill(ranked, hitTitles, TierHit);
-		Fill(ranked.Where(c => c.Tier == TierNone && c.PastPeak).ToList(), catalogueTitles, TierCatalogue);
+		var pastPeak = ranked.Where(c => c.Tier == TierNone && c.PastPeak).ToList();
+		// --rack-proven-catalogue=K:N: proven titles take the first K catalogue slots. Off: the single fill.
+		int provenSlots = Math.Min(ProvenCatalogueSlots, catalogueTitles);
+		if (provenSlots > 0) {
+			int taken = Fill(pastPeak.Where(c => IsProven(c.Record)).ToList(), provenSlots, TierCatalogue).Count;
+			Fill(pastPeak.Where(c => c.Tier == TierNone).ToList(), catalogueTitles - taken, TierCatalogue);
+		}
+		else Fill(pastPeak, catalogueTitles, TierCatalogue);
 	}
 
 	/// <summary>Largest-remainder rounding of demand to whole units under the shelf, stable by record id.</summary>
@@ -239,9 +314,13 @@ public static class RackJobberChannel {
 				float penetration = SharedExhaustion ? (float)((ExhaustionUnits(c.Data, rack: true) + (pendingStoreUnits != null ? c.StoreUnits : 0)) / Mathf.Max(1f, titlePool))
 					: (c.Data.rackUnitsTotal - c.Data.rackStoreBuyerUnitsTotal) / Mathf.Max(1f, titlePool);
 				penetration += BudgetLpChannel.SourcePurchases(c.Record.baseRecord.recordId, region.regionId) / Mathf.Max(1f, titlePool);
+				// --soundtrack-hit-tail: a top-10 soundtrack's audience renews for racks too. Off: 1.
+				if (SoundtrackHitTail.Enabled) penetration /= SoundtrackHitTail.Renewal(c.Record);
+				// --lp-hit-life-renewal: a proven artist LP's audience renews for racks too. Off: not read.
+				if (LpHitLife.RenewalEnabled) penetration /= LpHitLife.Renewal(c.Record);
 				c.Demand = titlePool * Exposure(c.Tier, c.Rank, c.Record.awareness) * Conversion(c.Record, year, month, liveTick) *
 					AlbumSimulator.CalculateAlbumExhaustion(penetration);
-				c.Demand = LpDemandCalibration.Apply(c.Demand);
+				c.Demand = BoundByStoreStanding(LpDemandCalibration.ApplyNonStore(c.Demand), c.StoreUnits);
 				racked.Add(c);
 				c.AutonomousDemand = c.Demand;
 			}

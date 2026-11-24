@@ -87,7 +87,7 @@ public static class AiMediaPlanner {
 	}
 
 	/// <summary>The campaign envelope estimate: what the label's release charge budgets for this act (pure read).</summary>
-	public static float EnvelopeEstimate(AILabel label, SimulatedArtist artist) => label == null || artist == null ? 0f : Math.Max(0f, label.GetMarketingBudget(artist));
+	public static float EnvelopeEstimate(AILabel label, SimulatedArtist artist) => label == null || artist == null ? 0f : Math.Max(0f, label.GetReleaseMarketingBudget(artist, "media-envelope"));
 
 	public static long PreparationCents(MediaPreparation prep) => prep switch { MediaPreparation.Extra => 4000, MediaPreparation.Minimal => 0, _ => 1500 };
 
