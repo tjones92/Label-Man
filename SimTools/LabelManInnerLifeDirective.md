@@ -1,7 +1,8 @@
 # Label Man Inner Life Directive — the Lien, the voices, and the drawer of convictions
 
-Status: exploration draft (2026-11-05; holders revised 2026-11-24). The Lien core is built
-(`Systems/PlayerDesk.Lien.cs`, checked by `SimTools/LienChecks.tscn`); it has no UI yet. Everything else is design.
+Status: exploration draft (2026-11-05; holders revised 2026-11-24). The Lien is built, core and UI
+(`Systems/PlayerDesk.Lien.cs`, `UI/PlayerDeskPanel.Lien.cs`; checked by `SimTools/LienChecks.tscn` and
+`SimTools/LienUiChecks.tscn`). Everything else is design.
 Numbers marked *provisional* are placeholders until Phase 0 measures them.
 
 ## §0 Charter and invariants
@@ -46,7 +47,8 @@ Invariants (each one a gate on every phase):
 | One backer per archetype | `PlayerDesk.Backer.cs` | Live. Author decision: **no family loans**, founding cash *is* the family's money |
 | Game over | `PlayerDesk.cs` ~L587 | The bank closes you after 3 months past the credit floor. No end date. |
 | Clock | `GameDate.StartDate` = 1960-01-01; `TimeManager.SpendMinutes` | Minute hand exists |
-| The Lien (core) | `PlayerDesk.Lien.cs`; `SimTools/LienChecks.tscn` | Built 2026-11: five holders, the sittings, enforcement and the reckoning. **No UI yet** |
+| The Lien (core) | `PlayerDesk.Lien.cs`; `SimTools/LienChecks.tscn` | Built 2026-11: five holders, the sittings, enforcement and the reckoning |
+| The Lien (UI) | `UI/PlayerDeskPanel.Lien.cs`; `SimTools/LienUiChecks.tscn` | Built 2026-11-24: THE PAPER on the OFFICE tab, the sitting page, NEXT UP and badge, the morning-after modal, the paper on the game-over page |
 | Travel | `PlayerDesk.Travel` → `DriveQuote` (64 mph, 2¢ a mile) | Assumes a car. §3.9 changes that. |
 | Character card | OFFICE tab | Text only. **No portrait** of the Label Man. |
 
@@ -749,7 +751,7 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 |---|---|---|
 | **0** | Measure: player cash trajectories across archetypes (sizes the Lien); the empty-day metric for the first 26 weeks; which reads already exist per surface | Numbers recorded, no code paths changed |
 | **0b** | Measure for the holders (§3.7): full-decade p75/p90 player cash; label valuations for Floria's "too big to swallow" bar | Numbers recorded |
-| **1** | The Lien: morning-after opening, December sitting, enforcement on failure, 1970 reckoning with endings. **Core built**: the five holders, per-holder rates, Kubiak compounding, Floria refusing money from 1966, every holder taking a record out as the 1960 Show, Sawyer's room from the scene catalogue, the §3.6 mapping, save fields. **Owed:** the founding questions and sitting UI. | Byte-identical headless; save/load; `LienChecks` |
+| **1** | The Lien: morning-after opening, December sitting, enforcement on failure, 1970 reckoning with endings. **Core built**: the five holders, per-holder rates, Kubiak compounding, Floria refusing money from 1966, every holder taking a record out as the 1960 Show, Sawyer's room from the scene catalogue, the §3.6 mapping, save fields, the founding questions, and the sitting UI (2026-11-24). | Byte-identical headless; save/load; `LienChecks`; `LienUiChecks` |
 | **1b** | Connie Boursaw seeded on the roster (keyed draw, Dee-Dee's contract, drop verb disabled); Sawyer's 1.5× Pay when she stalls; Jack's cut-ins and network as a Concede; the writer's standing cost | Byte-identical headless; save/load |
 | **1c** | Getting around (§3.9): transport mode on `DriveQuote` and errands, carton limit, car purchase, the car per holder | Same |
 | **1d** | Floria's buy-out (§3.5 H4), a player-only path | Same; the Major's AI behaviour unchanged |

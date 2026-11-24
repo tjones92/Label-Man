@@ -515,6 +515,39 @@ public partial class PlayerDesk {
 
 	public void CloseLienSitting() { activeSitting = null; Changed?.Invoke(); }
 
+	// ── what the sitting screen shows (read-only views of the ledger and the bars) ────────────────────
+
+	public enum LienYearOutcome { Met, NoShow, Seized }
+
+	/// <summary>The pressed stock on hand at the dealer price: what "give him stock instead" can cover.</summary>
+	public float LienStockValue() => StockValueOnHand();
+
+	/// <summary>How each past year's deadline went, oldest first, read from the ledger. A seizure's short extension and the
+	/// sitting that follows it are one year, not two.</summary>
+	public List<LienYearOutcome> LienYearOutcomes() {
+		var list = new List<LienYearOutcome>();
+		if (lien == null) return list;
+		bool afterSeizure = false;
+		foreach (var e in lien.Ledger) {
+			if (e.Kind != LienLedgerKind.Extended) continue;
+			bool seizure = e.Detail?.StartsWith("seizure", StringComparison.Ordinal) == true;
+			bool noShow = e.Detail?.StartsWith("no-show", StringComparison.Ordinal) == true;
+			if (afterSeizure && !seizure) { afterSeizure = false; continue; }
+			list.Add(seizure ? LienYearOutcome.Seized : noShow ? LienYearOutcome.NoShow : LienYearOutcome.Met);
+			afterSeizure = seizure;
+		}
+		return list;
+	}
+
+	/// <summary>What next December's sitting will ask, once this one has rolled the lien: the principal slice, the copies Show
+	/// wants, the year it falls due, and whether that is the reckoning.</summary>
+	public (bool Reckoning, float Slice, int Units, int DueYear) LienNextBars() {
+		if (lien == null) return (false, 0f, 0, 0);
+		var due = lien.PendingDeadline ?? lien.Deadline;
+		int bar = Math.Clamp(due.year - 1, 1960, 1968);
+		return (due.year >= LienFinalYear, LienSlice.GetValueOrDefault(bar), LienShowUnits.GetValueOrDefault(bar), due.year);
+	}
+
 	public List<LienOption> LienSittingOptions(LienSittingLive live) {
 		var list = new List<LienOption>();
 		if (lien == null || live == null) return list;

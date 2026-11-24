@@ -453,6 +453,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		if (!desk.HasLabel) {
+			CloseLienStage();
 			titleLabel.Text = "START A LABEL";
 			clockLabel.Text = time == null ? "" : $"{time.CurrentDate.ToLongString()}  •  {time.GetTimeString()}";
 			if (idleRow != null) idleRow.Visible = false;
@@ -466,13 +467,15 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		if (desk.IsGameOver) {
-			titleLabel.Text = "OUT OF BUSINESS";
+			titleLabel.Text = desk.GameOverTitle == "PAID CLEAN" ? "THE DECADE'S OVER" : "OUT OF BUSINESS";
 			clockLabel.Text = time == null ? "" : $"{time.CurrentDate.ToLongString()}  •  {time.GetTimeString()}";
 			if (idleRow != null) idleRow.Visible = false;
 			foreach (Node child in tabs.GetChildren()) child.QueueFree();
 			tabButtons.Clear();
 			Clear(content);
-			PageGameOver(desk);
+			// A sitting that ended the run (the reckoning) finishes on screen before the game-over page.
+			if (desk.ActiveSitting == null) PageGameOver(desk);
+			SyncLienStage(desk);
 			return;
 		}
 		if (studioMode) {
@@ -538,6 +541,9 @@ public partial class PlayerDeskPanel : Control {
 
 		Clear(content);
 		(currentPage ?? PageAandR)();
+		// The lawyer is in the office: the sitting takes over the whole screen until he's shown out.
+		SyncLienStage(desk);
+		ShowLienMorningIfPending(desk);
 		if (pageStain != null) pageStain.Modulate = Colors.White;   // the founding pages fade it; the office doesn't
 		pageStain?.QueueRedraw();   // the page's coffee ring belongs to the open tab
 		UpdateTabBadges(desk);
@@ -582,7 +588,7 @@ public partial class PlayerDeskPanel : Control {
 			// The open tab never wears a badge: the player is already looking at what it would announce.
 			int count = i == currentTab && title is "LEDGER" or "ROLODEX" ? 0 : title switch {
 				"LEDGER" => desk.UnreadLogCount,
-				"OFFICE" => desk.PendingCalls().Count(),
+				"OFFICE" => desk.PendingCalls().Count() + (desk.LienSittingDue ? 1 : 0),
 				"CATALOG" => desk.PendingPressings().Count(),
 				"BAND ROOM" => desk.PendingVisitCount,
 				"ROLODEX" => desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended ? 1 : 0,
@@ -601,6 +607,8 @@ public partial class PlayerDeskPanel : Control {
 	/// </summary>
 	private static (string Text, int Tab) NextUpStep(PlayerDesk desk) {
 		AILabel label = desk.Label;
+		if (desk.LienSittingDue && desk.LienProfile is { } lawyer)
+			return ($"{lawyer.Lawyer} will sit down with you about the lien before {desk.Lien.Deadline.ToHeadlineString()}.", OfficeTab);
 		if (desk.PendingVisits().Any(v => v.kind is BandVisitKind.Death or BandVisitKind.Ultimatum or BandVisitKind.Departure))
 			return ("Somebody is waiting for you in the Band Room.", BandRoomTab);
 		if (desk.Session != null) return ("Choose takes and print the masters.", 1);
@@ -948,8 +956,9 @@ public partial class PlayerDeskPanel : Control {
 
 	private void PageGameOver(PlayerDesk desk) {
 		AILabel label = desk.Label;
-		Heading("THE DOORS CLOSE");
+		Heading(desk.GameOverTitle ?? "THE DOORS CLOSE");
 		Body(desk.GameOverReason ?? "The label has folded.");
+		PaperEpilogue(desk);
 
 		Body($"\n{label.labelName} — founded {label.foundedYear}\n" +
 			$"    {label.totalReleases} {CountWord(label.totalReleases, "release")}   •   {label.top40Hits} Top 40   •   {label.numberOneHits} #1s\n" +
@@ -3286,7 +3295,7 @@ public partial class PlayerDeskPanel : Control {
 	/// <summary>One thing the player can say: a line of script, not a boxed button. Left-aligned serif behind a rust
 	/// lead mark, coloured by the voice that surfaced it and marked with that instinct's linocut, with its cost and its
 	/// truthfulness in small italic underneath. A bluff is always labelled as one. The whole row is the hit area.</summary>
-	private void RenderOption(CallOption opt, Action onPressed) {
+	private void RenderOption(CallOption opt, Action onPressed, Container into = null) {
 		bool voiced = opt.voice != ExecutiveVoice.None;
 		var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		row.AddThemeConstantOverride("separation", 0);
@@ -3339,7 +3348,7 @@ public partial class PlayerDeskPanel : Control {
 			margin.AddChild(note);
 			row.AddChild(margin);
 		}
-		content.AddChild(row);
+		(into ?? content).AddChild(row);
 	}
 
 	private static InstinctKind VoiceInstinct(ExecutiveVoice voice) => voice switch {
@@ -3426,6 +3435,7 @@ public partial class PlayerDeskPanel : Control {
 		Body(archProfile.Tagline);
 		content.AddChild(InstinctRow(inst, true));
 
+		PaperSection(desk);
 		PhoneSection(desk);
 		ReturnsSection(desk);
 		StaffSection(desk);
