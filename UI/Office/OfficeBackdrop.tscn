@@ -93,3 +93,12 @@ light_color = Color(0.62, 0.68, 0.77, 1)
 light_energy = 0.27
 omni_range = 1.85
 omni_attenuation = 1.08
+
+[node name="IntroCeilingLight" type="OmniLight3D" parent="RoomViewport"]
+visible = false
+position = Vector3(-1.06, 2.36, -1.02)
+light_color = Color(1, 0.86, 0.66, 1)
+light_energy = 0.55
+light_specular = 0.25
+omni_range = 3.4
+omni_attenuation = 1.15
