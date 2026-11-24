@@ -3,14 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-// The founding page as three short steps -- who you were, where the office is, what the label is called -- each
-// fitting on one screen. Feedback 2026-11-05: the old page was one long scroll with two unexplained stat systems and a
+// The founding page as four short steps -- what you remember of last night (inner-life §3.1a), who you were, where the
+// office is, what the label is called -- each fitting on one screen. The office intro hands over to the first. Feedback 2026-11-05: the old page was one long scroll with two unexplained stat systems and a
 // MONEY AND RUNWAY paragraph explaining pressing costs and overdraft rules a new player doesn't need yet. The money a
 // player does need -- what they start with and what the office costs -- now sits beside the town that sets it.
 public partial class PlayerDeskPanel {
 	private bool foundingStarted;
-	private int foundingStep;   // 0 background, 1 home town, 2 name and look
-	private static readonly string[] FoundingStepNames = { "YOUR BACKGROUND", "HOME TOWN", "NAME & LOOK" };
+	private int foundingStep;   // 0 last night, 1 background, 2 home town, 3 name and look
+	private static readonly string[] FoundingStepNames = { "LAST NIGHT", "YOUR BACKGROUND", "HOME TOWN", "NAME & LOOK" };
+	// The four hazy answers (inner-life §3.1a). Null until the player picks one; "no idea" is an answer too.
+	private PlayerDesk.PartyWhere? nightWhere;
+	private PlayerDesk.PartyWho? nightWho;
+	private PlayerDesk.PartyBrag? nightBrag;
+	private PlayerDesk.PartyEnd? nightEnd;
 	private static readonly Color CardFill = new("ead8ad"), CardEdge = new("8a7048");
 
 	private void PageStart() {
@@ -50,8 +55,9 @@ public partial class PlayerDeskPanel {
 		content.AddChild(FoundingStepper());
 
 		switch (foundingStep) {
-			case 0: FoundingBackgroundStep(); break;
-			case 1: FoundingTownStep(cities, regionName); break;
+			case 0: FoundingNightStep(); break;
+			case 1: FoundingBackgroundStep(); break;
+			case 2: FoundingTownStep(cities, regionName); break;
 			default: FoundingNameStep(cities); break;
 		}
 	}
@@ -68,11 +74,13 @@ public partial class PlayerDeskPanel {
 	private Control FoundingBanner() {
 		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		row.AddThemeConstantOverride("separation", 16);
-		var title = FoundingText("Start a Label", 40, Ink, PaperTheme.Lettering(LetteringStyle.Didone));
+		bool night = foundingStep == 0;
+		var title = FoundingText(night ? "What do you remember?" : "Start a Label", 40, Ink, PaperTheme.Lettering(LetteringStyle.Didone));
 		title.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		title.AutowrapMode = TextServer.AutowrapMode.Off;
 		row.AddChild(title);
-		var line = FoundingText("Find the acts. Cut the records. Keep the doors open.", 16, Heard, PaperTheme.SerifItalic);
+		var line = FoundingText(night ? "Some of last night comes back. Some of what comes back is wrong."
+			: "Find the acts. Cut the records. Keep the doors open.", 16, Heard, PaperTheme.SerifItalic);
 		line.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		row.AddChild(line);
 		return row;
@@ -141,7 +149,59 @@ public partial class PlayerDeskPanel {
 		content.AddChild(row);
 	}
 
-	// ---- step 1: who you were -----------------------------------------------------------------------------------------
+	// ---- step 1: last night -------------------------------------------------------------------------------------------
+
+	/// <summary>Four hazy questions about New Year's Eve. The answers narrow who holds the paper (§3.6), but the page
+	/// never says so: it reads as remembering, not choosing.</summary>
+	private void FoundingNightStep() {
+		var questions = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		questions.AddThemeConstantOverride("separation", 14);
+		content.AddChild(questions);
+		NightQuestion(questions, "Where was it?", PlayerDesk.PartyWhereAnswers, nightWhere, v => nightWhere = v);
+		NightQuestion(questions, "Who were you drinking with?", PlayerDesk.PartyWhoAnswers, nightWho, v => nightWho = v);
+		NightQuestion(questions, "What were you bragging about?", PlayerDesk.PartyBragAnswers, nightBrag, v => nightBrag = v);
+		NightQuestion(questions, "How did it end?", PlayerDesk.PartyEndAnswers, nightEnd, v => nightEnd = v);
+
+		bool answered = nightWhere != null && nightWho != null && nightBrag != null && nightEnd != null;
+		FoundingFooter("NEXT:  YOUR BACKGROUND  →", () => {
+			if (!answered) { Say("Try to remember. Even \"no idea\" is an answer.", false); Refresh(); return; }
+			GoToFoundingStep(1);
+		});
+	}
+
+	private void NightQuestion<T>(Container parent, string question, (T Value, string Text)[] answers, T? current, Action<T> pick) where T : struct, Enum {
+		var block = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		block.AddThemeConstantOverride("separation", 6);
+		block.AddChild(FoundingText(question, 20, Ink, PaperTheme.SerifBold));
+		var row = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		row.AddThemeConstantOverride("h_separation", 8);
+		row.AddThemeConstantOverride("v_separation", 8);
+		foreach ((T value, string text) in answers) {
+			bool selected = current.HasValue && current.Value.Equals(value);
+			var chip = new Button { Text = text, FocusMode = FocusModeEnum.None, CustomMinimumSize = new Vector2(0, 38),
+				MouseDefaultCursorShape = CursorShape.PointingHand };
+			var face = new StyleBoxFlat { BgColor = selected ? Rust : CardFill, BorderColor = selected ? Rust : CardEdge,
+				BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
+				CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3,
+				ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 6, ContentMarginBottom = 6 };
+			var hover = (StyleBoxFlat)face.Duplicate();
+			if (!selected) hover.BgColor = new Color("f3e6c2");
+			chip.AddThemeStyleboxOverride("normal", face);
+			chip.AddThemeStyleboxOverride("pressed", face);
+			chip.AddThemeStyleboxOverride("hover", hover);
+			chip.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			Color ink = selected ? Paper : Ink;
+			foreach (string state in new[] { "font_color", "font_hover_color", "font_pressed_color" }) chip.AddThemeColorOverride(state, ink);
+			chip.AddThemeFontOverride("font", PaperTheme.SerifItalic);
+			chip.AddThemeFontSizeOverride("font_size", 16);
+			chip.Pressed += () => { pick(value); Refresh(); };
+			row.AddChild(chip);
+		}
+		block.AddChild(row);
+		parent.AddChild(block);
+	}
+
+	// ---- step 2: who you were -----------------------------------------------------------------------------------------
 
 	private void FoundingBackgroundStep() {
 		var cards = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -162,7 +222,7 @@ public partial class PlayerDeskPanel {
 		var label = FoundingBlock(blocks, "YOUR LABEL STARTS WITH", "These grow as the label does.");
 		label.AddChild(StatRow(("Scouting", selected.ScoutingAbility), ("Production", selected.ProductionQuality), ("Marketing", selected.MarketingPower)));
 
-		FoundingFooter("NEXT:  HOME TOWN  →", () => GoToFoundingStep(1));
+		FoundingFooter("NEXT:  HOME TOWN  →", () => GoToFoundingStep(2));
 	}
 
 	/// <summary>One background as a card: its print, its name, its line and the money it starts with.</summary>
@@ -206,7 +266,7 @@ public partial class PlayerDeskPanel {
 		return card;
 	}
 
-	// ---- step 2: the home town and the money ----------------------------------------------------------------------------
+	// ---- step 3: the home town and the money ----------------------------------------------------------------------------
 
 	private void FoundingTownStep(List<MarketCity> cities, Dictionary<string, string> regionName) {
 		if (cities.Count == 0) { Body("No towns loaded."); return; }
@@ -241,7 +301,7 @@ public partial class PlayerDeskPanel {
 		card.AddChild(MoneyBox(selected.Capital, city));
 		card.AddChild(FoundingText(TownFacts(city, includeOffice: false), 14, Ink, PaperTheme.Sans));
 
-		FoundingFooter("NEXT:  NAME THE LABEL  →", () => GoToFoundingStep(2));
+		FoundingFooter("NEXT:  NAME THE LABEL  →", () => GoToFoundingStep(3));
 	}
 
 	/// <summary>The money a new player needs, and only that: what they start with, what this town's office costs, how
@@ -279,7 +339,7 @@ public partial class PlayerDeskPanel {
 		return box;
 	}
 
-	// ---- step 3: the name and the look ----------------------------------------------------------------------------------
+	// ---- step 4: the name and the look ----------------------------------------------------------------------------------
 
 	private void FoundingNameStep(List<MarketCity> cities) {
 		var nameEdit = new LineEdit { PlaceholderText = "What's the label called?", Text = foundingLabelName, CustomMinimumSize = new Vector2(0, 46),
@@ -302,9 +362,16 @@ public partial class PlayerDeskPanel {
 				15, Rust, PaperTheme.SansSemiBold));
 		FoundingFooter("OPEN THE DOORS", () => {
 			if (city == null) { Say("No towns loaded.", false); return; }
-			bool ok = PlayerDesk.Instance.FoundLabel(nameEdit.Text, city.cityId, selectedArchetype, brandPicker.Current, out string message);
+			var party = new PlayerDesk.PartyMemory {
+				Where = nightWhere ?? PlayerDesk.PartyWhere.Nothing, Who = nightWho ?? PlayerDesk.PartyWho.Nothing,
+				Brag = nightBrag ?? PlayerDesk.PartyBrag.Nothing, End = nightEnd ?? PlayerDesk.PartyEnd.Nothing,
+			};
+			bool ok = PlayerDesk.Instance.FoundLabel(nameEdit.Text, city.cityId, selectedArchetype, brandPicker.Current, party, out string message);
 			Say(message, ok);
-			if (ok) foundingStep = 0;
+			if (ok) {
+				foundingStep = 0;
+				nightWhere = null; nightWho = null; nightBrag = null; nightEnd = null;
+			}
 			Refresh();
 		});
 		Callable.From(() => { if (IsInstanceValid(nameEdit) && string.IsNullOrEmpty(nameEdit.Text)) nameEdit.GrabFocus(); }).CallDeferred();

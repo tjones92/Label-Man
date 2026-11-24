@@ -1,7 +1,8 @@
 # Label Man Inner Life Directive — the Lien, the voices, and the drawer of convictions
 
-Status: exploration draft (2026-11-05). Nothing here is built. Numbers marked *provisional* are placeholders until
-Phase 0 measures them.
+Status: exploration draft (2026-11-05; holders revised 2026-11-24). The Lien core is built
+(`Systems/PlayerDesk.Lien.cs`, checked by `SimTools/LienChecks.tscn`); it has no UI yet. Everything else is design.
+Numbers marked *provisional* are placeholders until Phase 0 measures them.
 
 ## §0 Charter and invariants
 
@@ -45,6 +46,8 @@ Invariants (each one a gate on every phase):
 | One backer per archetype | `PlayerDesk.Backer.cs` | Live. Author decision: **no family loans**, founding cash *is* the family's money |
 | Game over | `PlayerDesk.cs` ~L587 | The bank closes you after 3 months past the credit floor. No end date. |
 | Clock | `GameDate.StartDate` = 1960-01-01; `TimeManager.SpendMinutes` | Minute hand exists |
+| The Lien (core) | `PlayerDesk.Lien.cs`; `SimTools/LienChecks.tscn` | Built 2026-11: five holders, the sittings, enforcement and the reckoning. **No UI yet** |
+| Travel | `PlayerDesk.Travel` → `DriveQuote` (64 mph, 2¢ a mile) | Assumes a car. §3.9 changes that. |
 | Character card | OFFICE tab | Text only. **No portrait** of the Label Man. |
 
 So the DE layer is already half-built, but only in two rooms. The gaps are: instincts are static, there's no
@@ -81,9 +84,10 @@ Why it works:
 - **A clock every year, not one at the end.** Each December you have to win another year. That gives ten
   deadlines, the first only twelve months out, which is exactly what the empty early game lacks (§6). 1 January
   1970 is the date he stops extending, so the decade still closes as one piece.
-- **The same story for all four archetypes.** The archetype's starting cash and instincts are unchanged. Only what
-  was lost differs: the Pawn-Shop Owner's stock, the Ex-Musician's guitar, the Promo Man's address book, the Trade
-  Insider's pension. It's flavour, plus a few recoverable items (§3.4).
+- **The same story for all four archetypes.** The archetype's starting cash and instincts are unchanged. Every run
+  loses the car (§3.9). Each archetype also loses one signature belonging (§3.8): the Pawn-Shop Owner's stock, the
+  Ex-Musician's pedal steel, the Promo Man's address book, the Trade Insider's chart files. The holder takes one or two
+  more things (§3.5). They can all be found again.
 - **It keeps "no family loans".** The family money is still the stake. The lien is the Label Man's own catastrophe.
 - **Chaos, not angst.** The Label Man is a bumbling, drunk wannabe who is way over his head. It's a comedy of
   consequences: he got blackout drunk at a party and signed something. The voices argue about what he probably did,
@@ -97,11 +101,19 @@ recovering memories.
 
 ### 3.1a The opening: "What do you remember?"
 
+**Built (2026-11-24):** `UI/Office/OfficeIntro.cs` plays the morning on NEW GAME. He staggers in with a hangover
+(blurred, double-vision view and a vignette that follows the edges of the frame) and finds the lawyer's letter on the
+desk ("Congrats on the office!", $20,000, holder unnamed because it isn't picked yet). He sits, opens the drawer, takes
+out the revolver and turns it toward himself; a voice stops him with a two-option choice, and he puts it back. Then the
+founding pages open on **LAST NIGHT**, these four questions, ahead of background, town and name. ESC skips straight to
+them.
+
 Before the morning-after scene, the founding screen asks three or four hazy questions about the party. For example:
 
 - Where was it? (a supper club, a DJ's house party, a hotel ballroom, the back room of a bar)
-- Who were you drinking with? (a man in a camel coat, a bandleader, a jukebox route man, someone from a Major)
-- What were you bragging about? (the label you're about to start, the act you'll sign, money you don't have)
+- Who were you drinking with? (a man in a camel coat, a disc jockey, a jukebox route man, someone from a Major)
+- What were you bragging about? (the label you're about to start, the act you'll sign, money you don't have, the
+  hits you can pick)
 - How did it end? (a card table, a car, a phone call, nothing at all)
 
 The answers **narrow the pool of holder variants** (§3.4), and the run seed picks within what's left. So the player
@@ -111,9 +123,9 @@ and the first clue's location.
 
 ### 3.2 The annual extension
 
-- **The lien**: a $20,000 face sum in 1960 dollars (author decision). Interest accrues on the paper. Phase 0
-  checks it against measured player cash trajectories: it must be impossible to clear early in the decade and
-  reachable by a real national run.
+- **The lien**: a $20,000 face sum in 1960 dollars (author decision). Simple interest accrues at the holder's rate
+  (0–8%; Kubiak's compounds; §3.7). **The paper forbids prepayment**, so a hit in 1960 can't end the run; full payment
+  is accepted only at the reckoning (built).
 - **The December sitting.** In the last two weeks of each year the holder's lawyer (the recurring face; the holder
   stays offstage at first) sits down with you. It's a counter scene on the Rolodex architecture. To roll the lien
   to the next 1 January you meet **one of three bars**, his choice of which to stress, read from your real state:
@@ -124,7 +136,8 @@ and the first clue's location.
      option, or a recovered item.
   The voices read his position (the Suit sees what he can enforce, the Fixer what he's afraid of, the Street who
   he's been talking to) and open counters gated on instinct + fact, with bluffs.
-- **The bar rises.** 1960 asks only for a pressed record or a token payment; by 1968 it expects a real business.
+- **The bar rises.** 1960 asks only for a pressed record or a token payment, and every holder accepts a record out
+  as the 1960 Show, whatever he stresses (built). By 1968 it expects a real business.
   Each year's terms are written into a ledger, so the 1970 reckoning remembers every concession.
 - **Failing a December means partial seizure** (author decision for the working version): he enforces part of the
   lien (takes cash, stock or a master) and extends three months, not twelve. A second failure, or nothing left to
@@ -143,6 +156,9 @@ and the first clue's location.
 | **Taken** | The holder takes the catalogue and the lease | The ones who didn't make it |
 | **Torn up** | You solved the night and can prove the signature was obtained improperly, or that the holder owes *you* | The mystery's payoff; extremely hard (§3.4) |
 
+Floria (§3.5 H4) forces a buy-out at the 1968 sitting unless you get out another way, so with him "Sold to a Major"
+can come before the reckoning.
+
 The 1968–69 consolidation (Majors absorbing independents) gives the last two years real tension. The "sell"
 offers come from the existing absorption machinery, so they're grounded in the sim. **The game ends on 1 January
 1970** (author decision): there's no sandbox continuation. After the reckoning comes the epilogue, a card per act,
@@ -152,150 +168,280 @@ per conviction and per thing you lost and recovered.
 
 An authored mystery, dealt out over the decade. It's optional, but it's the reason the "Torn up" ending exists.
 
+- **A comedy of two fools.** Each lien exists because the Label Man was drunk *and* the holder is bad at his job.
+  Every holder made one big blunder that leaves the paper weak, and finding that blunder is the tear-up. Each holder
+  is also afraid of the player in one particular way, and shows it by overreacting.
 - **Clue sources are real people.** A clue sits on a contact the world already holds: a dealer, a booker, a DJ,
   the plant man, a session player. It's reachable only through existing verbs (calls, legwork, scouting rooms), so
   chasing the night means doing the job.
-- **Five seed-keyed variants** (author decision). The night is authored as five variants (who you were
-  with, who holds the paper and why). The opening questions (§3.1a) narrow the pool and the seed picks. The holder
-  might be a nightclub owner, a jukebox-route boss, a song-plugger who wanted your future publishing, or a man
-  fronting for a Major.
-- **The holder is a person, not a firm.** It would be fun for the holder to be a real sim entity, but that entity
-  could close during the decade, and protecting it from closing would change the AI economy and break invariant 1.
-  So the holder is an authored person with **interests** in real sim entities: a stake in an AI label, a jukebox
-  route, a rack jobber, a club. If one of his interests closes, he survives it, and the closure becomes a scene and
-  a clue ("He lost the Starlite. He'll want the money sooner."). That gives the sim tie without any protection.
-- **"Torn up" is extremely hard and takes most of the game** (author decision). The proof is a chain of key clues,
-  each gated three ways:
-  - **By year.** The decisive clues can't surface before about 1966, so the earliest possible tear-up is the
-    December 1968 sitting, and most successful runs reach it in 1969 or at the reckoning itself.
-  - **By instinct.** Some clues need a high voice (Street 5 to get the bartender talking, Suit 5 to spot the forged
-    witness line).
-  - **By recovered item.** At least one link is a lost belonging that has to be found and bought back.
-  Missing any link leaves the night explained but the lien standing. Most players should learn the truth and
-  still have to pay.
-- **The lost things come back.** Some of what vanished turns up (the guitar in a pawn window, the address book with
-  a rival) and can be bought back. Each is worth something in a December sitting or a scene: the address book adds
-  Rolodex leads, the guitar opens Ex-Musician band-room options.
+- **Five seed-keyed variants** (§3.5). The opening questions (§3.1a) narrow the pool and the seed picks.
+- **The holder is a person, not a firm.** He's an authored person with **interests** in real sim entities: a room,
+  a jukebox route, a publisher, a Major, a promoter network. If one of his interests closes, he survives it, and the
+  closure becomes a scene and a clue. That gives the sim tie without protecting anything (invariant 1).
+- **Handicap and goal.** Each holder gives one *handicap*, on a player-only channel from the first week, and one
+  *goal*: what he pushes at each December, which isn't money. He'll always take money, but each holder makes money
+  awkward in his own way (§3.7).
+- **Two items per holder.** Each holder has a **belonging** (something of yours, with a perk through one Sense that
+  applies as soon as you get it back, and which can be offered as a Concede) and a piece of **evidence** (a link in
+  the tear-up chain, with no other use). Sometimes one holds the other: the deck is in the car. On top of those, the
+  **car** is gone in every run (§3.9) and each archetype loses one **signature belonging** (§3.8).
+- **Evidence has to be read before it counts.** A found evidence item looks ordinary ("a deck of cards in the trunk")
+  until the right Sense reads it at 3+. Before that you can sell it, concede it or throw it out; the voices only warn
+  you if they're good enough, and a bluff label marks the risk. This is the Label Man's bungling turned into a
+  mechanic. A lost evidence item can come back once, at a much higher price.
+- **Every link you find eases the sitting.** Each link found (an item, a reading, a witness) gives the lawyer one less
+  thing to push and gives you one honest counter at every later sitting. So the hunt pays off from the first year,
+  and only the last link ends the paper.
+- **Torn up is hard, and gated three ways:** by **year** (the last link only, §3.7), by **Sense** (a 6 is a gold
+  record, §4.3), and by **item**. Missing any link leaves the night explained but the lien standing. Most players
+  should learn the truth and still have to pay. No route needs two 6s: most runs reach only one gold record.
 - **The voices keep theories.** Each voice holds its own working theory of the night, and new clues confirm or
   embarrass them. That's a light, recurring comic thread.
 
-### 3.5 The five holders (draft for author review)
+**Every Sense leads at least one tear-up:**
 
-All names are fictional placeholders. Each variant fixes five things: **who holds the paper and why**, **what
-really happened**, **how he runs the December sitting**, **where your belongings went**, and **what tears the lien
-up**. The sim interests use entities the world already has; if one closes, he survives it (§3.4).
+| Sense | Leads | Assists |
+|---|---|---|
+| Ear | Winters (the party tape); Sawyer (make Connie a Star) | Germain (spotting the ledger among the 78s) |
+| Street | Sawyer (the drummer); Floria (the other signer) | Kubiak (which jukebox); Germain (the jock who'll talk) |
+| Suit | Kubiak (the notary); Winters (the bank ledger); Floria (the matching signature) | |
+| Fixer | Germain (the black ledger); Floria (the other signer, alternative) | Kubiak (buying his paper cheap) |
 
-#### H1. Harlan Dace, the supper-club man
+Four holders can be torn up with one Sense at 6 plus items, where a second Sense at 4–5 saves time or money but isn't
+required. Floria needs a 6 *and* a second Sense at 4+; that's what makes him the hardest.
 
-- **Who.** Owns the Starlite Room, the best supper club in the founding town, and quietly a piece of a local
-  booking agency. Smooth, patient, never raises his voice.
-- **Why he wants you.** He has a house singer (his girlfriend) and a house band, and no label will touch them. He
-  wants a label that has to say yes.
-- **What happened.** The party was at the Starlite. After midnight you sat in on the back-room card game, lost
-  everything on you, then wrote markers against the label you hadn't started yet. At dawn Dace had his lawyer turn
-  the markers into one lien.
-- **The sitting.** He stresses **Concede**: "Record the girl. Put the band on a session." Pay works, but he'd rather
-  own a piece of what you make. Each year he asks for one more favour.
-- **Your belongings.** The car and the watch went on the table; he still has them, and they're offered back one at
-  a time as concessions.
-- **Sim interests.** The Starlite (a real scene room in the founding town) and the booking agency's bookers. If the
-  room closes, he gets desperate and the bar rises.
-- **Torn up.** The deck was marked. The dealer was a session drummer who needed the money; he drifts through the
-  session-employment pool and only talks once he's out of Dace's reach (1966+, Street 5). The marked deck itself is
-  in the back of the car (item gate).
-- **The voices.** The Fixer respects him. The Suit hates every concession. The Ear has opinions about the singer.
+| Holder | Pressure | Tear-up | Earliest tear-up | Feel |
+|---|---|---|---|---|
+| Clyde Winters | Low | Moderate | Dec 1965 | The friendly one; a mystery run |
+| Walter Kubiak | Money | Moderate–hard | Dec 1966 | An economy run |
+| Dee-Dee Sawyer | Roster | Hard | Dec 1966 (Connie route: Dec 1965) | An A&R run |
+| Jack Germain | Scandal | Hard | Dec 1966 | A temptation run |
+| Gene Floria | Survival | Very hard, combo | Dec 1968 | The boss fight |
 
-#### H2. Walt Kubiak, the route boss
+### 3.5 The five holders
 
-- **Who.** Runs a jukebox route across the region and holds an interest in a one-stop that supplies the dealers.
-  Practical, loud, always counting.
-- **Why he wants you.** Cheap records for his machines, and the jukebox rights to whatever you make.
-- **What happened.** Drunk in the back room of a bar, you signed his "standard operator's agreement", thinking it
-  was a distribution deal. The lien was clause 14.
-- **The sitting.** He stresses **Pay**: cash, every year, on time. Show doesn't impress him unless it's records on his
-  route. He's the easiest to satisfy early and the hardest late, because the interest compounds.
-- **Your belongings.** He drove you home in your own car and kept it "as security". The Pawn-Shop Owner's stock is
-  in his warehouse.
-- **Sim interests.** A jukebox Op account and a one-stop/rack jobber. Your standing with them is his standing.
-- **Torn up.** The agreement was notarized by a man whose commission had lapsed in 1959. You need the notary's
-  register (Suit 5, at the county clerk, after 1966) and your own carbon copy, which is in the glove box of the car
-  he kept (item gate).
-- **The voices.** The Suit understands him. The Street knows every dealer on his route. The Fixer thinks he can be
-  played and is usually wrong.
+Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates are Phase 1 values from §3.7.
 
-#### H3. Mort Fennell, the song-plugger
+#### H1. Dee-Dee Sawyer, the room owner (4%, stresses Concede)
 
-- **Who.** A song-plugger for a big publisher, ambitious, desperate to set up his own catalogue.
-- **Why he wants you.** Your future publishing. If you sign the songs, he wants them.
-- **What happened.** At a DJ's house party you bragged about the songs you'd find. He wrote out a $20,000 "advance
-  against publishing" and you signed for it. **The money never changed hands.** The lien is for cash you never got.
-- **The sitting.** He stresses **Show**: hits, because hits are copyrights. Concessions he takes are always
-  publishing shares. In good years he's almost friendly.
-- **Your belongings.** The address book (and the Ex-Musician's guitar) went home with him; he's been calling your
-  contacts and using your name.
-- **Sim interests.** Publishing (the cover-song and publishing systems), plus a stake in an AI label's publishing
-  arm. The more songs your label records from outside writers, the more he's in your business.
-- **Torn up.** Prove the advance was never paid: the bank's ledger for 31 December 1959 (Suit 5, a bank contact,
-  after 1966), the cheque stub he forgot to destroy (in the address book, item gate), and the DJ who hosted the party
-  and saw him write it.
-- **The voices.** The Ear likes him; he knows a song. The Suit has suspected the advance from day one. The Fixer
-  wants to steal his writers.
+- **Who.** Owns the hometown's most popular room. That's a real room from the scene catalogue: the biggest
+  performance room in the home scene (`LienState.Venue`; in Detroit, the River Lantern). He also has a stake in its
+  bookers. Loud, vain, and generous when he's winning. He believes he's a shrewd card player, but he has never won a
+  hand in his life except one. The room's booker is a separate man, who is also the Ex-Musician's backer (§1). He
+  runs the room, Dee-Dee owns it.
+- **Why he wants a label.** His girlfriend, **Connie Boursaw**, sings at the room and wants a record. His last plan for
+  that was one of his own men starting a label for the room's acts. The man took Dee-Dee's loan and left town, and
+  Dee-Dee was stuck with the note.
+- **What happened.** In the back-room card game you heard about the man who'd run off and made a drunk, heroic offer
+  to "take the whole thing off his hands" if you lost the next hand. You thought you were betting to *win* a label.
+  You lost. Halloran wrote the note over to you before sunrise, and Connie's contract came with it.
+- **His blunder.** Dee-Dee didn't mark the deck. His dealer, a session drummer called **Sonny Pike**, owed him money
+  and marked it so Dee-Dee would win and be in a good mood. Dee-Dee has bragged about "the hand I won off the record
+  man" for years, which is exactly why Sonny is too frightened to talk.
+- **Handicap: Connie.** She's on your roster from day one under Dee-Dee's paper. The game opens with the Suit reading
+  it to you:
+  - A five-year term, with the option held by *Dee-Dee*, not you.
+  - A high royalty.
+  - A guaranteed session every year.
+  - **No release clause: the label can't drop her** (author decision). The drop verb is disabled for her, with
+    Halloran's reason.
 
-#### H4. Mr. Ainsley, the Major's front
+  She's an underwhelming act, and she holds a roster slot and a yearly session cost all decade. She leaves only
+  through a tear-up, by reaching Star (below), or at the reckoning. The room books your other acts only in years when
+  Connie has a record out.
+- **Goal: Connie's career.** His asks escalate. Missing one isn't a failed sitting, but in a year she hasn't moved, Pay
+  costs **1.5×**. Each year she does move, he hands back a belonging.
 
-- **Who.** A soft-spoken man in a camel coat who fronts for the Major with the largest share in your region at the
-  start (a real sim entity). Nobody in town knows who he is.
-- **Why he wants you.** He doesn't, not yet. The Major collects liens on promising independents, cheaply, and
-  forecloses on the ones that work.
-- **What happened.** The hotel-ballroom party was the Major's. Several would-be label owners signed that night, not
-  only you. You signed because someone from the Major said it was a "pressing credit line".
-- **The sitting.** He stresses **Show** early (he wants you to grow), goes easy in the middle years, then in 1968–69
-  turns friendly and makes an offer to buy. The "Sold to a Major" ending is his goal.
-- **Your belongings.** Dispersed through pawn shops and auctions. Nobody kept them; that's the point.
-- **Sim interests.** The Major itself. If it absorbs another independent, the Street hears it was another signer.
-  If the Major's share falls, Ainsley's patience shortens.
-- **Torn up.** The hardest. You have to find another signer among the AI independents' founders (Street 5 or Fixer
-  5, after 1966) and prove the pattern: a second lien with the same witness signature. The capstone is the
-  invitation card from the party, which turns up in a pawned coat (item gate).
-- **The voices.** The Suit is afraid of him. The Fixer can't get a read. The Street finds him first.
+  | Sitting | He asks for (*provisional*) |
+  |---|---|
+  | 1960 | A record by Connie, out |
+  | 1961–62 | Connie on a regional chart |
+  | 1963–64 | Connie in the Hot 100 |
+  | 1965–66 | Connie in the Top 40, or Rising |
+  | 1967–69 | Connie at **Star** (a #1). He *talks* about Superstar, but it's never a bar. |
 
-#### H5. Teddy Lark, the bandleader
+  Star means one #1 and Superstar four, which is rare for a strong act and very rare for a weak one, so Superstar is
+  only colour. Artist identity is frozen ([[artist-identity-is-frozen]]), so Connie can't get better herself; your
+  choices around her can. Better songs (Ear), a better producer, and the room as her home room for a local breakout
+  (Street) are what raise her odds. That's what makes Dee-Dee an A&R run.
+- **Items.**
 
-- **Who.** A fading big-band leader. Teddy Lark and His Orchestra had hits in 1948; now rock and roll has his
-  bookings. Warm, proud, sliding.
-- **Why he wants you.** His band's pensions. He thinks the young man with the new label is his last chance.
-- **What happened.** At the supper club you swore you'd make him a star again. He was as drunk as you. His lawyer
-  drew up the lien "as insurance" before either of you sobered up. He isn't a crook; he's scared.
-- **The sitting.** He stresses **Concede**: "Record the band. Just one session." Pay embarrasses him; he'd rather
-  have a record.
-- **Your belongings.** He has the watch and gives it back unasked in the first December. The rest went to settle the
-  party's bar tab.
-- **Sim interests.** His orchestra as a real roster act in the TraditionalPop/EasyListening family, a genre that
-  declines all decade. A conviction such as "Guitar Groups Are on the Way Out" helps you with him.
-- **Torn up.** Not a fraud tear-up. **He tears it up himself** if you put one of his records in the Top 40 against the
-  decline. That needs the Ear, a hit-shaped song and real push, and the decline makes it harder every year, so the
-  practical window is before about 1965. There's no item gate; the gate is the market.
-- **The voices.** The Ear loves his old records. The Suit wants nothing to do with the genre. The Street feels sorry
-  for him.
+  | Item | Kind | Where | How | Perk |
+  |---|---|---|---|---|
+  | **Your car** | Belonging (transport, §3.9), holds evidence | The lot behind the room; Dee-Dee drives it | He returns it the first year Connie charts, or you buy it back (high) | Transport. **The marked deck** is under the spare; Street 3+ reads the marks. |
+  | **Your watch** | Belonging (Suit) | On Dee-Dee's wrist. He wears it to the sittings. | A Concede trade, or Connie in the Hot 100 | +standing with every lawyer at every sitting |
 
-### 3.6 Mapping the opening answers
+- **Torn up: the deck plus one witness.**
+  - **Street route:** Sonny Pike drifts through the session-employment pool and leaves town in 1966. Find him with
+    Street 6; out of Dee-Dee's reach, he talks.
+  - **Ear route:** Connie reaches Star. She's outgrown Dee-Dee and leaves him; she was at the table and saw Sonny
+    shuffle. From 1965. You make the act he forced on you good enough to testify against him.
+- **Sim interests.** The room and its bookers. If the room's draw falls, his asks come a year early.
+- **Voices.** The Fixer respects him and is wrong about him. The Suit hates every concession. The Ear can't stand
+  Connie, and softens only if she finds the right song.
+
+#### H2. Walter Kubiak, the jukebox route boss (8%, compounding; stresses Pay)
+
+- **Who.** Runs a small, struggling route and holds a share in a one-stop. Loud and always counting. He's sure
+  jukeboxes will "explode" in the sixties. They won't, and the Suit knows it.
+- **Why he wants a label.** Cheap records for his machines, and exclusive jukebox rights to everything you press. His
+  route doesn't reach far, and he expects your hits to fix that.
+- **What happened.** He sat down next to you at the bar and talked jukeboxes for three hours. You signed his
+  "standard operator's agreement", believing you'd gone in with him on a little route in town. In fact you took over
+  the last man's debt, and Walter filed your label's incorporation papers himself, with clause 14 in them.
+- **His blunder.** He uses the same form every time, notarized by the same man, **Leon Marsh**, whose commission lapsed
+  in 1959. Walter is too cheap to pay for a new notary. His lawyer also wrote a no-prepayment clause in by mistake,
+  and Walter is furious about it.
+- **Handicap: money.** The highest rate, and interest left unpaid when the lien rolls over goes onto the face sum
+  (built). He also holds the jukebox rights in your home region, so your records play only on his weak route there.
+  That needs the jukebox exposure channel scoped to the player's label; check before building.
+- **Goal: cash.** Show counts only if it's records on his route. Concede he takes only if it's something he can sell.
+- **Items.**
+
+  | Item | Kind | Where | How | Perk |
+  |---|---|---|---|---|
+  | **Your car** | Belonging (transport, §3.9) | His yard, "as security" | Buy it back; Walter sells anything, and the price drops in his bad years | Transport. (The Pawn-Shop Owner's stock is in the same warehouse, §3.8.) |
+  | **Your carbon copy** | Evidence | The coin mechanism of a jukebox on his route. You fed it to a machine at 2 a.m., thinking it was a dollar. | Find the machine that has rejected dimes since 1960. Street 4+ hears which bar complains; without it, it's many hours of legwork. | — |
+
+- **Torn up.** Marsh's register at the county clerk (Suit 6, from 1966, after Marsh is caught notarizing on a lapsed
+  commission), plus the carbon copy.
+- **The Fixer's side door** (not a tear-up). By the mid-decade his route is failing and he owes the one-stop. Fixer 5
+  can get the one-stop to take your paper as part payment of his debt, then sell it to you at a discount. That's
+  "Refinanced", but cheap.
+- **Sim interests.** A jukebox Op account and a one-stop or rack jobber.
+- **Voices.** The Suit understands him and pities his books. The Street knows every bar on his route. The Fixer thinks
+  he can be played, and is usually wrong: Walter's too dumb to be played.
+
+#### H3. Clyde Winters, the song-plugger (0%, stresses Show)
+
+- **Who.** A plugger on salary for a big publisher, desperate for a catalogue of his own. Charming, quick, and broke.
+- **What happened.** At a disc jockey's house party you bragged you could always pick the Top 10. Clyde offered to front
+  you $20,000 "for that ear". You laughed, said "what the hell", and signed. He never paid it, **because he never had
+  it.**
+- **His blunder.** The whole lien is for money that never existed. He charges no interest, because an interest claim
+  would make a lawyer ask where the principal went. He sweats every December.
+- **Handicap.** He took your address book and has spent the year calling your contacts as you, borrowing money,
+  pitching songs and making promises. Your hometown Rolodex starts cold, and some cards start burned. He also presses
+  his own songs (which aren't very good) on your acts. Recording one counts as a Concede, at a real cost to the
+  record.
+- **Goal: hits**, because hits are copyrights. His Concedes are publishing shares. In good years he's almost friendly.
+- **Items.**
+
+  | Item | Kind | Where | How | Perk |
+  |---|---|---|---|---|
+  | **Your address book** (Promo Man: his signature one, §3.8) | Belonging (Street), holds evidence | His desk at the publisher | Fixer or Street with his secretary, or he gives it back after a year you Show well | Thaws the burned cards and adds Rolodex leads. **The cheque stub** for the "advance" is inside; Suit 3+ reads it. |
+  | **Your tape recorder** (Ex-Musician: **your 1926 pedal steel**) | Belonging (Ear), holds evidence | His apartment; he never listened to it | Buy it back, or trade a publishing share | Recorder: replay a venue set at the desk (same fog draw). Pedal steel: band-room sit-ins. **The party reel** is on the machine, or in the steel's case. |
+
+- **Torn up: two routes.**
+  - **Suit:** the bank's ledger for 31 December 1959 shows no $20,000 leaving his account (Suit 6, through a bank
+    contact), plus the cheque stub.
+  - **Ear:** you taped the party, because you'd brought the recorder to tape the host's records. In four hours of
+    noise, Clyde says "the cash'll be there Monday". Picking his voice out takes **Ear 6**, because the host DJ only
+    believes what you heard from a proven ear. The host then confirms it.
+
+  Both routes have a floor of **1965**: the host DJ works in another city until he comes back to town.
+- **Sim interests.** Publishing, and a stake in an AI MidTier label's publishing arm.
+- **Voices.** The Ear likes him: he knows a song. The Suit has suspected the advance from day one. The Fixer wants to
+  steal his writers.
+
+#### H4. Gene Floria, the Major's front (3%, stresses Show; refuses money from 1966)
+
+- **Who.** A soft-spoken man in a camel coat from the regional office of the Major with the largest share in your
+  region (a real sim entity). He's on the firm's blacklist after botching a subsidiary deal, and needs a grown, cheap
+  independent to deliver to New York in 1968–69.
+- **What happened.** You wandered into a hotel ballroom party without knowing it was the Major's, and pretended to own
+  a label so you wouldn't be thrown out. Gene took you for exactly the rube you were. He said "lots of new label owners"
+  were signing that night and called it a "pressing credit line". You thanked him.
+- **His blunder.** Every signer that night was witnessed by the same man, his brother-in-law **Delbert Mays**, who
+  isn't a lawyer, isn't with the firm, and signs his name the same way every time.
+- **Handicap: the clock.** From the December 1966 sitting he won't take money, though the reckoning still must (built).
+  At the 1968 sitting (1969 if your Show has been weak), his Major offers to buy you, and the paper lets him force it.
+  His Show bar is the steepest, because he's fattening you up.
+- **Ways out of the buy-out:**
+  1. **Tear it up** (below).
+  2. **Too big to swallow.** The firm turns Floria down if your label's value passes a bar. The bar is set from
+     Phase 0 valuations (author decision) and should be reachable only by a real national label. Floria's own Show
+     demands push you towards it.
+  3. **A better buyer.** A rival Major or MidTier outbids him. You still sell, but on your terms: "Sold to a Major",
+     not "Taken".
+  4. **Pay at the reckoning,** if the buy-out was put off.
+  5. **He gets fired.** If his Major's share falls below a bar, his successor finds the paper in a drawer and treats it
+     as an ordinary lien. You can't plan on it, but the Street tells you when it's close.
+
+  The buy-out must be a player-only path. The Major's AI behaviour stays byte-identical.
+- **Items.**
+
+  | Item | Kind | Where | How | Perk |
+  |---|---|---|---|---|
+  | **Your good overcoat** | Belonging (wardrobe, §9), holds evidence | Left in the hotel cloakroom, sold unclaimed, now in a pawn shop | Street on the pawn rounds (1962+), then buy it | Easier Suit reads at sittings and with backers. **The invitation card** is in the pocket. |
+  | **Your briefcase** | Belonging (Suit), holds evidence | Floria's office at the regional branch; he forgot he took it | Fixer 4+ (his secretary) or Suit 4+ (a records request) | Founding papers: cheaper legal work. **Your carbon of the "credit line"**, with Delbert's signature, is inside. |
+
+- **Torn up (combo):** the invitation card, plus your carbon, plus **another signer** (an AI independent's founder;
+  **Street 6** or **Fixer 6**), plus **Suit 4+** to lay the signatures side by side. The other signer surfaces only
+  once the Major moves on him, so the earliest is **December 1968**.
+- **Sim interests.** The Major itself. If it absorbs another independent, the Street hears it was another signer. If
+  its share falls, Floria's patience thins and his job gets shaky.
+- **Voices.** The Suit is afraid of him. The Fixer can't get a read on him. The Street finds him first.
+
+#### H5. Jack Germain, the payola jock (6%, stresses Concede)
+
+- **Who.** Until November 1959, the hottest disc jockey in the region. He was fired in the payola sweep, and his name is
+  in the trade papers. He's a big personality, can't stop talking, and is sure he'll be back on the air by spring.
+  The game opens at the crackdown peak (`RadioEra.RegulatoryHeat` 0.90 in 1960, falling to 0.55 by 1965).
+- **Why he wants a label.** In the order he'd admit it: legitimate income (the grand jury wants to know where his money
+  came from, so he needs to be a paid "promotion consultant"); a label to run his old jocks for, as an independent
+  promotion outfit; and his book, which he thinks you have. You do; you just don't know it.
+- **What happened.** New Year's Eve was his farewell broadcast, and you were in the booth with him at midnight, drunk.
+  He put you on the air, and you announced a label that didn't exist and "its first big record". Back at his house he
+  said "every label needs a promotion man", and you signed a "consulting retainer and loan agreement" on the back of
+  the station's programme log. Before he passed out he gave you his **black ledger** ("keep this safe, kid, nobody
+  looks for anything at a label that doesn't exist"). You lost it.
+- **His blunder.** He wrote down every bribe he ever took, because he was afraid of being cheated, and then gave the only
+  copy to a drunk stranger.
+- **Handicap: heat.** Your label is tied to Jack:
+  - A scandal in his network can hit your label's reputation and get your records banned by a DJ (existing
+    `PayolaLedger` channels, player-only).
+  - He pushes **cut-ins**: his name as co-writer on your records (`cutInRoyaltyShare`). The real writer is never happy
+    about a cut-in, whatever your musical standing (author decision): every Jack cut-in costs standing with that song's
+    writer.
+  - Cash paid to him is booked as "consulting fees", which look like payola if he's caught.
+- **Goal: the temptation.** His favourite concession is *using his guys*. His network is a real `IndiePromoter`:
+  effective, cheap, indiscreet, with a high mob connection. **It works.** Every year you use him he eases off, and the
+  risk grows.
+- **Items.**
+
+  | Item | Kind | Where | How | Perk |
+  |---|---|---|---|---|
+  | **The black ledger** | Evidence | Filed under "L" in the station's record library, between two 78s. When the station clears out its 78s (seeded, 1961–64), it ends up in a used-record bin. | The Street hears the station's 78s went to a shop; the Ear notices one "record" is too thick. Jack is hunting it too. | — |
+  | **Your chequebook** | Belonging (Street) | Jack has it. He wrote six $50 cheques to jocks in your label's name, and they all bounced, because the founding money is in the cigar box. | He returns it for one concession, or Fixer 3+ talks it back | The six jocks start cold. Make the cheques good ($300) and they become **your** sources: Street reads on his network. |
+
+- **Holding the ledger freezes him.** Once you have it and the Fixer has read it, Jack stops escalating: no more
+  Concede asks, no more cut-in pressure. The Pay bar stays. It's the big mid-game shift, and it doesn't stop the clock.
+- **Torn up:** the ledger, plus **Fixer 6** (to use it without it blowing up on you, since your bounced cheques are in
+  it too), plus **one of his jocks** who'll talk once the payola rules catch up with him (Street 4+, from 1966). Jack
+  tears the paper up himself rather than see the book reach a grand jury.
+- **Sim interests.** His `IndiePromoter` network, and the regulatory heat. He gets braver as it falls.
+- **Voices.** The Fixer loves him and is unreliable about him. The Suit wants nothing to do with him. The Ear hates
+  every record he ever plugged. The Street knows which jocks he owns.
+
+### 3.6 Mapping the opening answers (built)
 
 Each answer adds +1 to the holders it fits:
 
-| Question | Answer | H1 Dace | H2 Kubiak | H3 Fennell | H4 Ainsley | H5 Lark |
+| Question | Answer | Sawyer | Kubiak | Winters | Floria | Germain |
 |---|---|:-:|:-:|:-:|:-:|:-:|
-| Where was it? | a supper club | + | | | | + |
-| | a DJ's house party | | | + | | |
-| | a hotel ballroom | | | | + | + |
+| Where was it? | a supper club | + | | | | |
+| | a DJ's house party | | | + | | + |
+| | a hotel ballroom | | | | + | |
 | | the back room of a bar | + | + | | | |
 | Who were you drinking with? | a man in a camel coat | | | | + | |
-| | a bandleader | | | + | | + |
-| | a jukebox route man | + | + | | | |
+| | a disc jockey | | | + | | + |
+| | a jukebox route man | | + | | | |
 | | someone from a Major | | | + | + | |
 | What were you bragging about? | the label you're about to start | | + | | + | |
-| | the act you'll sign | | | | | + |
+| | the act you'll sign | + | | | | + |
 | | money you don't have | + | + | | | |
-| | the songs you'll find | | | + | | |
+| | the hits you can pick | | | + | | + |
 | How did it end? | a card table | + | | | | |
 | | a car | | + | | | + |
 | | a phone call | | | + | + | |
@@ -310,7 +456,106 @@ Rules:
 - The answers the chosen holder doesn't fit are the **wrong memories**. The voices treat them as facts at first and
   are embarrassed when a clue contradicts one. A player who answers "nothing at all" everywhere gets a uniform pick
   and no wrong memories, just an honest blank.
-- The variant is stored on `LienState` at founding and never changes.
+- The variant is stored on `LienState` at founding and never changes. Saved ordinals keep the first draft's slots
+  (Dace → Sawyer, Fennell → Winters, Ainsley → Floria, Lark → Germain).
+
+### 3.7 Timing and money (analysis, 2026-11-24)
+
+**When can a player tear it up?** 1966 is right as the date the *last* link becomes available, and far too late as
+the date the hunt starts. Without a year floor, a smart player could tear up early:
+- An Ex-Musician with a #1 in 1961 already has Ear 6.
+- A Promo Man needs one December point and a three-region advocacy year for Fixer 6.
+
+Against Winters, that's a tear-up in 1962, followed by seven years with no clock. So the run has three acts:
+
+| Act | Years | What the player does |
+|---|---|---|
+| 1. Who | 1960–62 | Learn who holds the paper and which memories were wrong. Find the first item. |
+| 2. What | 1963–65 | Recover belongings, read the evidence, find the witness. Each link eases the sitting (§3.4). |
+| 3. Proof | 1966–69 | The last link opens. Tear it up at a December sitting. |
+
+The floors apply to the last link only: Dec 1965 for Winters and Connie, Dec 1966 for most, Dec 1968 for Floria.
+Every tear-up has a **sting**, so an early win doesn't empty the late game:
+- Dee-Dee bans your acts from the room.
+- Kubiak sues for the jukebox rights.
+- Winters is ruined, and you can hire him.
+- Germain names your label to the grand jury out of spite.
+- Floria's firm comes after your acts openly (player-only courtship pressure).
+
+The 1968–69 consolidation hits whether you're free or not. The epilogue rewards how early and how cleanly you got out.
+
+**Is $20,000 plus interest a threat?** On its own, no, not for a player who's doing well. Measured on two partial
+decade runs (AI labels that opened Small, `stature-marketing-decade-v2` seeds 1001/2002; the player opens with
+$800–1,400, below these):
+
+| Small-label cash | p25 | p50 | p75 | p90 |
+|---|---|---|---|---|
+| Dec 1960 | $2.0–5.0k | $6.0–10.0k | $14.5–21.0k | $22.4–34.6k |
+| Dec 1961 | $4.7–7.5k | $10.8–15.3k | $19.8–26.7k | $30.7–39.9k |
+
+Phase 0's median survivor holds $28–42k by 1969. Run through the slice schedule, each holder's rate gives this Pay
+bar:
+
+| Holder | Rate | Dec 1960 | Dec 1964 | Dec 1968 | Owed at the reckoning |
+|---|---|---|---|---|---|
+| Winters | 0% | $0 | $1,000 | $2,500 | $10,250 |
+| Floria | 3% | $600 | $1,555 | $2,882 | $10,558 |
+| Sawyer | 4% (×1.5 if Connie stalls) | $800 | $1,740 | $3,010 | $10,660 |
+| Germain | 6% | $1,200 | $2,110 | $3,265 | $10,865 |
+| Kubiak | 8%, compounding | $1,600 | $2,480 | $3,520 | $11,070 (≥$13.7k after one unpaid year) |
+
+What this shows:
+- **The rate barely moves the reckoning** ($10.2–11.1k for every holder), and the median 1969 survivor pays that
+  easily. The rate shapes the yearly bill, not the ending.
+- **The p90 player holds more than $20k by the end of 1961.** If early payoff were allowed, a hit in 1960 would end the
+  run. The paper forbids prepayment, which is already built: `PayInFull` exists only at the reckoning.
+- **Year one is evened out.** Every holder takes "a record out" as the 1960 Show (built), so Kubiak's $1,600 isn't a
+  first-year wall for a player who started with $800.
+- **The threat comes from what money can't buy:** Connie's career (Sawyer), compounding if you don't pay (Kubiak),
+  publishing taken in Concedes (Winters), the buy-out with no money accepted from 1966 (Floria), and scandal exposure
+  (Germain).
+- **Phase 0 still owes:** full-decade p75/p90 cash, and label valuations for Floria's "too big to swallow" bar. If p90
+  clears $20k by 1962 in the player's own runs, the Pay slice should scale with the holder's desperation (his sim
+  interest going badly), never with the player's cash.
+
+### 3.8 Signature belongings: one per archetype
+
+Every archetype loses one thing that matters to *it*. Where it ends up depends on the holder; with a holder who
+doesn't keep it, it's scattered and found through legwork.
+
+| Archetype | Signature belonging | Perk | With | Otherwise |
+|---|---|---|---|---|
+| Ex-Musician | Your 1926 pedal steel | Ear: band-room sit-in options | Winters | A pawn-shop window (Street) |
+| Pawn-Shop Owner | The back room of stock from the shop | Suit: a one-time cash value when sold, and the instruments make cheaper session dates | Kubiak's warehouse | Auctioned to a junk dealer (Suit traces it) |
+| Promo Man | Your address book, with every jock's home number | Fixer: DJ Rolodex leads, and warmer first calls | Winters (he's been using it) | A rival label's office (Fixer) |
+| Trade Insider | Ten years of chart files | Suit: sharper quarterly market readings (§4.1 scoring and the newsstand) | Floria (the Major's man wanted them) | The trade paper's local stringer (Street) |
+
+### 3.9 Getting around without a car
+
+The car is gone in every run. That's a real early-game problem: getting around town and hand-carrying records to
+other towns.
+
+| Holder | Where the car is | Getting it back |
+|---|---|---|
+| Sawyer | Behind the room. Dee-Dee drives it. | The first year Connie charts, or buy it back |
+| Kubiak | His yard, "as security" | Buy it back; cheaper in his bad years |
+| Winters | Towed from outside the DJ's house to the city impound. Fees grow monthly, and it's auctioned after a year. | Pay the impound (Suit reads the fee) |
+| Floria | With the hotel valet; the garage sold it unclaimed to a used-car lot | Buy it back from the lot (Street finds it) |
+| Germain | The station lot, where the manager won't release it to anybody connected to Jack | Prove you aren't (Fixer), or the manager leaves |
+
+**Four ways to get around:**
+
+1. **Public transport**, if the hometown has it: buses or streetcars in town, and Greyhound out of town. Cheap and
+   slow. It runs on a schedule (no late returns), and you can carry only a couple of cartons, so hand distribution in
+   other towns is small.
+2. **Taxi:** fast in town, but every trip costs money, and out of town it's very expensive. Short hops only.
+3. **Buy a car.** A used 1955–57 sedan is a few hundred dollars and a new car about $2,000 (*provisional*). Against a
+   first pressing of about $1.3k, the choice is real: press now and take the bus, or drive now and press later.
+4. **Get yours back:** as above, per holder. It's free transport, and for Sawyer it also holds the evidence.
+
+**Hook.** Every trip goes through `PlayerDesk.Travel` → `DriveQuote(from, to)`, which returns (hours, gas). The
+transport mode changes the hours, the fare and the carton limit there. In-town errands use the same mode for their
+hour cost. All of it is player-only.
 
 ## §4 Convictions: the drawer
 
@@ -503,7 +748,11 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 | Phase | Content | Gate |
 |---|---|---|
 | **0** | Measure: player cash trajectories across archetypes (sizes the Lien); the empty-day metric for the first 26 weeks; which reads already exist per surface | Numbers recorded, no code paths changed |
-| **1** | The Lien: morning-after opening, December sitting, enforcement on failure, 1970 reckoning with endings | Byte-identical headless; save/load |
+| **0b** | Measure for the holders (§3.7): full-decade p75/p90 player cash; label valuations for Floria's "too big to swallow" bar | Numbers recorded |
+| **1** | The Lien: morning-after opening, December sitting, enforcement on failure, 1970 reckoning with endings. **Core built**: the five holders, per-holder rates, Kubiak compounding, Floria refusing money from 1966, every holder taking a record out as the 1960 Show, Sawyer's room from the scene catalogue, the §3.6 mapping, save fields. **Owed:** the founding questions and sitting UI. | Byte-identical headless; save/load; `LienChecks` |
+| **1b** | Connie Boursaw seeded on the roster (keyed draw, Dee-Dee's contract, drop verb disabled); Sawyer's 1.5× Pay when she stalls; Jack's cut-ins and network as a Concede; the writer's standing cost | Byte-identical headless; save/load |
+| **1c** | Getting around (§3.9): transport mode on `DriveQuote` and errands, carton limit, car purchase, the car per holder | Same |
+| **1d** | Floria's buy-out (§3.5 H4), a player-only path | Same; the Major's AI behaviour unchanged |
 | **2** | Voices at venues and in courtship; instincts modulate the venue fog | Byte-identical headless |
 | **3** | Conviction drawer: lifecycle, quarterly scoring, the first 6 cards | Same; each card's predicate tested on a real save |
 | **4** | Legwork map and nights for the founding town | Empty-day metric near zero |
@@ -521,14 +770,29 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 6. **Clothes:** real mechanical effects, scoped by genre, region and year (§9).
 7. **Holder:** a few seed-keyed variants, narrowed by the opening "What do you remember?" questions; the holder is an
    authored person with interests in real sim entities, so nothing in the sim needs protecting (§3.1a, §3.4).
-8. **"Torn up":** extremely hard, gated by year, instinct and recovered item; earliest December 1968 (§3.4).
+8. **"Torn up":** extremely hard, gated by year, instinct and recovered item (§3.4). Revised 2026-11-24: the year floor
+   is on the last link only. That's Dec 1965–66 for most holders and Dec 1968 for Floria (§3.7).
 
 9. **Lien size:** $20,000 face sum (1960 dollars). Phase 0 still measures player cash trajectories, to set each
    December's bar and to confirm $20k can't be cleared early but can be met by a real national run.
 10. **Holder variants:** start with 5. Who they are needs a writing pass.
 
+**Author decisions (2026-11-24)**
+
+11. **The five holders:** Dee-Dee Sawyer, Walter Kubiak, Clyde Winters, Gene Floria and Jack Germain (the payola jock),
+    with two items each, a tear-up route that each Sense leads, and incompetent holders opposite a bungling Label Man
+    (§3.4–3.5).
+12. **Sawyer's room** is the hometown's real most popular room from the scene catalogue, not an invented one. His
+    girlfriend is **Connie Boursaw**, and her contract **can't be dropped** (§3.5 H1).
+13. **Floria's "too big to swallow" bar** is set from Phase 0 valuations (§3.5 H4, Phase 0b).
+14. **Jack's cut-ins** always cost standing with the song's writer, whatever the Label Man's ear (§3.5 H5).
+15. **Rates** were run against Phase 0 cash (§3.7): 0 / 3 / 4 / 6 / 8%, with Kubiak's compounding.
+16. **Every archetype** has a signature belonging (§3.8).
+17. **No car at the start:** public transport, taxi, buy one, or get yours back (§3.9).
+
 ## §13 Still open
 
-1. The 5 holder variants: drafted in §3.5–3.6, awaiting author review.
-2. The gold-record feat bars (especially Suit's profit bar): separate design pass.
-3. The wardrobe list per year: separate design pass.
+1. The gold-record feat bars (especially Suit's profit bar): separate design pass.
+2. The wardrobe list per year: separate design pass.
+3. Car prices, fares and carton limits for §3.9: set against Phase 0 cash.
+4. Each holder's tear-up "sting" (§3.7): needs a writing pass.

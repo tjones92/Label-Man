@@ -13,24 +13,29 @@ using Godot;
 // one bar; another bar can be pushed back on, and answered with an honest counter (instinct + fact) or a labelled bluff.
 // Miss a deadline and the lawyer seizes part of what is owed (cash above zero, then pressed stock) and extends three
 // months; a second miss in a row, or nothing left to take, ends the run. 1 January 1970 is the reckoning: the run ends
-// either paid clean or taken.
+// either paid clean or taken. The paper forbids paying it off early: a 1960 hit can't end the run (§3.2).
 //
-// Who holds the paper is one of five authored variants (§3.5), narrowed by the founding "What do you remember?" answers
-// (§3.6) and picked by a keyed Philox draw on the world seed, never the shared stream.
+// Who holds the paper is one of five authored variants (§3.5): Dee-Dee Sawyer (the hometown's biggest room), Walter
+// Kubiak (a jukebox route), Clyde Winters (a song-plugger), Gene Floria (a Major's front) and Jack Germain (a jock fired
+// in the payola sweep). Each holder has his own rate (§3.5, run against Phase 0 cash). Kubiak's compounds; Floria stops
+// taking money from the December 1966 sitting. The founding "What do you remember?" answers narrow the pool (§3.6), and a
+// keyed Philox draw on the world seed picks within it, never the shared stream.
 //
 // Player-only. Nothing here exists without a player label, so a headless AI run never reaches it. Payments come from
 // cash above zero only and never push the books red; the bank's own credit-floor game over is untouched.
 // ============================================================================================
 public partial class PlayerDesk {
-	public enum LienHolder { Dace, Kubiak, Fennell, Ainsley, Lark }
+	// Ordinals are saved. They keep the slots of the first draft's holders (Dace, Kubiak, Fennell, Ainsley, Lark).
+	public enum LienHolder { Sawyer, Kubiak, Winters, Floria, Germain }
 	public enum LienBar { Pay, Show, Concede }
 	public enum PartyWhere { SupperClub, DjHouseParty, HotelBallroom, BarBackRoom, Nothing }
-	public enum PartyWho { CamelCoat, Bandleader, RouteMan, MajorMan, Nothing }
-	public enum PartyBrag { TheLabel, TheAct, Money, Songs, Nothing }
+	public enum PartyWho { CamelCoat, DiscJockey, RouteMan, MajorMan, Nothing }
+	public enum PartyBrag { TheLabel, TheAct, Money, Hits, Nothing }
 	public enum PartyEnd { CardTable, Car, PhoneCall, Nothing }
 	public enum LienLedgerKind { Signed, InterestAccrued, Paid, Shown, ConcededStock, WrittenOn, Seized, Extended, PaidClean, Taken }
 
 	public const float LienFaceSum = 20000f;
+	/// <summary>The fallback rate (older saves carry their own). Each holder sets his own: <see cref="LienHolderProfile.Rate"/>.</summary>
 	public const float LienRate = 0.03f;
 	public const int LienSittingHours = 2;
 	public const int LienWindowDays = 14;
@@ -42,6 +47,7 @@ public partial class PlayerDesk {
 	public const int LienBluffInstinctBar = 4;
 	public const int LienFinalYear = 1970;
 	private const uint LienPickDecision = 0x4C49454EU; // "LIEN"
+	private const string LienVenueFallback = "the best room in town";
 
 	/// <summary>Principal slice asked under Pay, by the year the bar is drawn from (§3.2). Provisional: Phase 0 put the median
 	/// starting-Small survivor at $8-14k cash through 1966 and $28-42k by 1969, p25 $2-7k mid-decade.</summary>
@@ -56,75 +62,85 @@ public partial class PlayerDesk {
 		[1965] = 40000, [1966] = 60000, [1967] = 80000, [1968] = 100000,
 	};
 
-	// ── the five holders (§3.5) ─────────────────────────────────────────────────────────────────────
+	// ── the five holders (§3.5) ──────────────────────────────────────────────────────────────────────
 
+	/// <param name="Rate">Simple annual interest on the outstanding face sum (§3.5; provisional, run against Phase 0 cash).</param>
+	/// <param name="Compounds">Interest left unpaid when the lien rolls over is written onto the face sum (Kubiak).</param>
+	/// <param name="RefusesPayFrom">From this bar year he won't take money at a sitting (Floria, 1966); 0 = never refuses.</param>
+	/// <remarks>"{venue}" in any line is the hometown's biggest room (<see cref="LienState.Venue"/>); never at a sentence start.</remarks>
 	public sealed record LienHolderProfile(
-		LienHolder Id, string Name, string Title, string Lawyer, LienBar Stresses,
+		LienHolder Id, string Name, string Title, string Lawyer, LienBar Stresses, float Rate, bool Compounds, int RefusesPayFrom,
 		string Opening, string WantsLine, string PayAccepted, string ShowAccepted, string ConcedeAccepted,
 		string Pushback, ExecutiveVoice HonestVoice, string HonestLine, ExecutiveVoice BluffVoice, string BluffLine,
-		string BluffCaught, string Seizure, string FixerRead);
+		string BluffCaught, string Seizure, string FixerRead, string RefusesPayLine = null);
 
 	public static readonly IReadOnlyDictionary<LienHolder, LienHolderProfile> LienHolders = new Dictionary<LienHolder, LienHolderProfile> {
-		[LienHolder.Kubiak] = new(LienHolder.Kubiak, "Walt Kubiak", "who runs the jukebox route across the region", "Mr. Pruitt", LienBar.Pay,
+		[LienHolder.Sawyer] = new(LienHolder.Sawyer, "Dee-Dee Sawyer", "who owns {venue}, the most popular room in town", "Mr. Halloran", LienBar.Concede,
+			Rate: 0.04f, Compounds: false, RefusesPayFrom: 0,
+			Opening: "Halloran takes the good chair without being asked. \"Mr. Sawyer sends his regards. He still talks about the hand he won off you. He talks about it a great deal.\"",
+			WantsLine: "\"He'd rather have a favour than your money. It's about Miss Boursaw. It's always about Miss Boursaw.\"",
+			PayAccepted: "\"Money's fine,\" Halloran says, in a voice that means it isn't. He stamps the date in.",
+			ShowAccepted: "\"He'll be pleased you're doing well. He'll be more pleased when Miss Boursaw is.\"",
+			ConcedeAccepted: "Halloran nods slowly. \"That's the spirit Mr. Sawyer was hoping for.\" The new date goes on the paper.",
+			Pushback: "\"Mr. Sawyer doesn't read sales sheets. He wants to know what you're doing for Connie.\"",
+			HonestVoice: ExecutiveVoice.Ear, HonestLine: "\"I've put a record on the chart. Tell him that's the label Connie wants.\"",
+			BluffVoice: ExecutiveVoice.Street, BluffLine: "\"Half the town's asking about my acts. Dee-Dee wants in on that, he waits a year.\"",
+			BluffCaught: "\"Mr. Sawyer owns the room this town drinks in,\" Halloran says. \"Nobody's asking about your acts.\"",
+			Seizure: "Halloran comes on the 1st with two men from the door at {venue}.",
+			FixerRead: "He thinks he won that hand fair. A man that sure of himself never checks the deck."),
+		[LienHolder.Kubiak] = new(LienHolder.Kubiak, "Walter Kubiak", "who runs a jukebox route that doesn't reach very far", "Mr. Pruitt", LienBar.Pay,
+			Rate: 0.08f, Compounds: true, RefusesPayFrom: 0,
 			Opening: "Pruitt sets his hat on your desk and opens a ledger that isn't yours. \"Mr. Kubiak sends his regards. He'd like to talk about clause fourteen.\"",
-			WantsLine: "\"He's a simple man. Money on the table, and you've got another year.\"",
+			WantsLine: "\"He's a simple man. Money on the table, and you've got another year. What you don't pay goes on the paper.\"",
 			PayAccepted: "Pruitt counts it twice, writes a receipt in a hand like a bank's, and stamps the new date on the paper. \"Mr. Kubiak appreciates a man who pays.\"",
 			ShowAccepted: "Pruitt reads the figures, then reads them again. \"Fine. He'll take it as a down payment on next year's money.\"",
 			ConcedeAccepted: "\"It's not cash,\" Pruitt says, \"but he can count it.\" He writes the new date in.",
 			Pushback: "\"Copies sold don't pay Mr. Kubiak's mechanics. He wants money.\"",
 			HonestVoice: ExecutiveVoice.Suit, HonestLine: "\"The houses owe me ${0:N0}. He'll see it before Easter.\"",
-			BluffVoice: ExecutiveVoice.Fixer, BluffLine: "\"Tell Walt I've got a check coming from a distributor. Big one.\"",
+			BluffVoice: ExecutiveVoice.Fixer, BluffLine: "\"Tell Walter I've got a check coming from a distributor. Big one.\"",
 			BluffCaught: "Pruitt smiles without any warmth. \"Mr. Kubiak knows every distributor in this region. None of them is writing you a check.\"",
-			Seizure: "Kubiak's men come on the 1st with a truck and a list.",
-			FixerRead: "He's here for cash. Give him cash and it's a short meeting."),
-		[LienHolder.Dace] = new(LienHolder.Dace, "Harlan Dace", "who owns the Starlite Room", "Mr. Halloran", LienBar.Concede,
-			Opening: "Halloran takes the good chair without being asked. \"Mr. Dace remembers your evening at the Starlite fondly. He hopes you do.\"",
-			WantsLine: "\"He'd rather have a favour than your money. Ask me what favour.\"",
-			PayAccepted: "\"Money's fine,\" Halloran says, in a voice that means it isn't. He stamps the date in.",
-			ShowAccepted: "\"He'll be pleased you're doing well. He'll be more pleased when you do well for him.\"",
-			ConcedeAccepted: "Halloran nods slowly. \"That's the spirit Mr. Dace was hoping for.\" The new date goes on the paper.",
-			Pushback: "\"Mr. Dace doesn't read sales sheets. He wants something for the Starlite.\"",
-			HonestVoice: ExecutiveVoice.Ear, HonestLine: "\"I've put a record on the chart. Tell him his singer wants a label that can do that.\"",
-			BluffVoice: ExecutiveVoice.Street, BluffLine: "\"Everyone in town's asking about my acts. Dace wants in on that, he waits a year.\"",
-			BluffCaught: "\"Mr. Dace owns the room everyone in town drinks in,\" Halloran says. \"Nobody's asking about your acts.\"",
-			Seizure: "Halloran comes on the 1st with two men from the Starlite's door.",
-			FixerRead: "He wants a piece of what you make, not the money. Hand him something and he'll smile."),
-		[LienHolder.Fennell] = new(LienHolder.Fennell, "Mort Fennell", "who plugs songs for a big publisher and wants a catalogue of his own", "Mr. Weisz", LienBar.Show,
-			Opening: "Weisz has brought a trade paper with your label's name circled in pencil, or not circled, which is worse. \"Mr. Fennell is a believer. Give him something to believe in.\"",
-			WantsLine: "\"Hits are copyrights. Show him the label's making them.\"",
-			PayAccepted: "\"He'll take it,\" Weisz says, \"but he's not in this for the interest.\"",
+			Seizure: "Kubiak's men come on the 1st with a truck and a list. One of them asks if you'd like a jukebox.",
+			FixerRead: "He's sure jukeboxes are about to explode. He's sure of a lot of things. Give him cash and it's a short meeting."),
+		[LienHolder.Winters] = new(LienHolder.Winters, "Clyde Winters", "who plugs songs for a big publisher and wants a catalogue of his own", "Mr. Weisz", LienBar.Show,
+			Rate: 0f, Compounds: false, RefusesPayFrom: 0,
+			Opening: "Weisz has brought a trade paper with your label's name circled in pencil, or not circled, which is worse. \"Mr. Winters is a believer. Give him something to believe in.\"",
+			WantsLine: "\"Hits are copyrights. Show him the label's making them. He isn't charging interest. He wants that noted.\"",
+			PayAccepted: "\"He'll take it,\" Weisz says, and for a moment looks as if he'd like to ask where it's going.",
 			ShowAccepted: "Weisz folds the paper with something like pleasure. \"He'll be glad. Another year.\"",
 			ConcedeAccepted: "\"Not what he hoped for, but it's paper he can use.\" The new date goes on.",
-			Pushback: "\"That's money. Mr. Fennell wants to see the label moving.\"",
-			HonestVoice: ExecutiveVoice.Suit, HonestLine: "\"Here's the interest in cash, and the records will follow it.\"",
+			Pushback: "\"That's money. Mr. Winters wants to see the label moving.\"",
+			HonestVoice: ExecutiveVoice.Ear, HonestLine: "\"I picked a Top 40 record. That's what he paid for, isn't it? Whatever it was he paid.\"",
 			BluffVoice: ExecutiveVoice.Ear, BluffLine: "\"I've got a song in the can that's a hit. Tell him to wait for it.\"",
-			BluffCaught: "\"Mr. Fennell has heard that sentence from better men than you,\" Weisz says.",
-			Seizure: "Weisz sends a process server on the 1st, and a man to count the stock.",
-			FixerRead: "He wants to see the label growing. Numbers will do it."),
-		[LienHolder.Ainsley] = new(LienHolder.Ainsley, "Mr. Ainsley", "a quiet man in a camel coat whom nobody in town can place", "Mr. Lowe", LienBar.Show,
+			BluffCaught: "\"Mr. Winters has heard that sentence from better men than you,\" Weisz says. \"He's said it himself.\"",
+			Seizure: "Weisz sends a process server on the 1st, and a man to count the stock. Neither will say who's paying them.",
+			FixerRead: "Twenty thousand dollars, no interest, and he sweats every December. Ask yourself what he's afraid of."),
+		[LienHolder.Floria] = new(LienHolder.Floria, "Gene Floria", "a quiet man in a camel coat from a Major's regional office", "Mr. Lowe", LienBar.Show,
+			Rate: 0.03f, Compounds: false, RefusesPayFrom: 1966,
 			Opening: "Lowe's suit cost more than your pressing. \"My client is a patient investor. He wants to see the business grow.\"",
-			WantsLine: "\"Growth, Mr. — growth is all he asks.\"",
+			WantsLine: "\"Growth. Growth is all he asks.\"",
 			PayAccepted: "\"Very good.\" Lowe pockets the check as if it weighed nothing. The new date goes on.",
-			ShowAccepted: "Lowe reads the sales figures with real interest. \"He'll be pleased. Keep it up.\"",
+			ShowAccepted: "Lowe reads the sales figures with real interest, the way a man reads a menu. \"He'll be pleased. Keep it up.\"",
 			ConcedeAccepted: "\"A sensible arrangement,\" Lowe says, and writes it down in a small, neat hand.",
 			Pushback: "\"Money's very nice. My client would rather see the label grow.\"",
 			HonestVoice: ExecutiveVoice.Suit, HonestLine: "\"Here's the interest in cash. The growth is coming.\"",
 			BluffVoice: ExecutiveVoice.Fixer, BluffLine: "\"I'm about to sign an act everybody wants. Ask around.\"",
 			BluffCaught: "\"We did ask around,\" Lowe says pleasantly.",
 			Seizure: "Lowe's people come on the 1st, very politely, with an inventory form.",
-			FixerRead: "You can't read him. That's the read."),
-		[LienHolder.Lark] = new(LienHolder.Lark, "Teddy Lark", "who led Teddy Lark and His Orchestra when they still had hits", "Mr. Becker", LienBar.Concede,
-			Opening: "Becker is young and apologetic. \"Mr. Lark asked me to say he's sorry about all this. He'd still like you to keep your word.\"",
-			WantsLine: "\"He wants a session. One session for the band.\"",
-			PayAccepted: "\"He'll be embarrassed by the money,\" Becker says, \"but the pension fund won't be.\"",
-			ShowAccepted: "\"He'll be glad you're doing well. He'd be gladder if you did it with the band.\"",
-			ConcedeAccepted: "Becker looks relieved. \"That'll mean a lot to him.\" He writes the date in.",
-			Pushback: "\"Mr. Lark doesn't care about sales figures. He wants you to do right by the band.\"",
-			HonestVoice: ExecutiveVoice.Ear, HonestLine: "\"I can make hits now. That's what the band needs from me, and that takes another year.\"",
-			BluffVoice: ExecutiveVoice.Street, BluffLine: "\"Tell Teddy the big bands are coming back. I'm getting ready for it.\"",
-			BluffCaught: "Becker looks at the floor. \"Mr. Lark reads the trades too.\"",
-			Seizure: "Becker comes on the 1st, miserable, with a list his own lawyer made him bring.",
-			FixerRead: "He isn't a crook. He's scared. That's leverage, if you want it."),
+			FixerRead: "You can't read him. That's the read.",
+			RefusesPayLine: "\"My client isn't interested in being paid. He's interested in the label.\""),
+		[LienHolder.Germain] = new(LienHolder.Germain, "Jack Germain", "who was the hottest jock in the region until the payola sweep", "Mr. Tolliver", LienBar.Concede,
+			Rate: 0.06f, Compounds: false, RefusesPayFrom: 0,
+			Opening: "Tolliver talks like a man reading copy over a record intro. \"Jack sends his best. Jack wants you to know he's doing fine. Jack asks, very casually, whether you've come across a small black book.\"",
+			WantsLine: "\"Jack's a promotion consultant now. He'd like to be consulted. His boys, your records. And his name on a song or two.\"",
+			PayAccepted: "Tolliver writes \"consulting fee\" on the receipt and underlines it twice. The new date goes on.",
+			ShowAccepted: "\"Jack'll be proud. He'll tell everyone it was his boys.\"",
+			ConcedeAccepted: "Tolliver beams. \"Now you're in the business.\" The new date goes on the paper.",
+			Pushback: "\"Sales are sales. Jack wants to be part of it. That's the whole point of a consultant.\"",
+			HonestVoice: ExecutiveVoice.Ear, HonestLine: "\"My records get played without Jack's boys. Tell him I picked a Top 40 record on my own.\"",
+			BluffVoice: ExecutiveVoice.Fixer, BluffLine: "\"I've got jocks of my own now. Jack's boys can stand in line.\"",
+			BluffCaught: "Tolliver laughs, a real one. \"Kid, Jack knows every jock you know. He bought most of them dinner.\"",
+			Seizure: "Tolliver comes on the 1st with two men who used to carry Jack's records into stations.",
+			FixerRead: "He's scared of a grand jury and he's lost something. A scared man who's lost something will pay to get it back."),
 	};
 
 	// ── the opening questions (§3.1a, §3.6) ──────────────────────────────────────────────────────────
@@ -143,12 +159,12 @@ public partial class PlayerDesk {
 		(PartyWhere.HotelBallroom, "A hotel ballroom"), (PartyWhere.BarBackRoom, "The back room of a bar"), (PartyWhere.Nothing, "No idea"),
 	};
 	public static readonly (PartyWho Value, string Text)[] PartyWhoAnswers = {
-		(PartyWho.CamelCoat, "A man in a camel coat"), (PartyWho.Bandleader, "A bandleader"),
+		(PartyWho.CamelCoat, "A man in a camel coat"), (PartyWho.DiscJockey, "A disc jockey"),
 		(PartyWho.RouteMan, "A jukebox route man"), (PartyWho.MajorMan, "Somebody from a Major"), (PartyWho.Nothing, "Everybody, nobody"),
 	};
 	public static readonly (PartyBrag Value, string Text)[] PartyBragAnswers = {
 		(PartyBrag.TheLabel, "The label you're about to start"), (PartyBrag.TheAct, "The act you're going to sign"),
-		(PartyBrag.Money, "Money you don't have"), (PartyBrag.Songs, "The songs you're going to find"), (PartyBrag.Nothing, "You don't brag"),
+		(PartyBrag.Money, "Money you don't have"), (PartyBrag.Hits, "The hits you can pick"), (PartyBrag.Nothing, "You don't brag"),
 	};
 	public static readonly (PartyEnd Value, string Text)[] PartyEndAnswers = {
 		(PartyEnd.CardTable, "At a card table"), (PartyEnd.Car, "In a car"), (PartyEnd.PhoneCall, "With a phone call"), (PartyEnd.Nothing, "It didn't. It just stopped."),
@@ -157,27 +173,27 @@ public partial class PlayerDesk {
 	/// <summary>Which holders an answer fits (§3.6). Each holder fits exactly five answers; "nothing" fits nobody.</summary>
 	private static IEnumerable<LienHolder> Fits(PartyMemory m) {
 		switch (m.Where) {
-			case PartyWhere.SupperClub: yield return LienHolder.Dace; yield return LienHolder.Lark; break;
-			case PartyWhere.DjHouseParty: yield return LienHolder.Fennell; break;
-			case PartyWhere.HotelBallroom: yield return LienHolder.Ainsley; yield return LienHolder.Lark; break;
-			case PartyWhere.BarBackRoom: yield return LienHolder.Dace; yield return LienHolder.Kubiak; break;
+			case PartyWhere.SupperClub: yield return LienHolder.Sawyer; break;
+			case PartyWhere.DjHouseParty: yield return LienHolder.Winters; yield return LienHolder.Germain; break;
+			case PartyWhere.HotelBallroom: yield return LienHolder.Floria; break;
+			case PartyWhere.BarBackRoom: yield return LienHolder.Sawyer; yield return LienHolder.Kubiak; break;
 		}
 		switch (m.Who) {
-			case PartyWho.CamelCoat: yield return LienHolder.Ainsley; break;
-			case PartyWho.Bandleader: yield return LienHolder.Fennell; yield return LienHolder.Lark; break;
-			case PartyWho.RouteMan: yield return LienHolder.Dace; yield return LienHolder.Kubiak; break;
-			case PartyWho.MajorMan: yield return LienHolder.Fennell; yield return LienHolder.Ainsley; break;
+			case PartyWho.CamelCoat: yield return LienHolder.Floria; break;
+			case PartyWho.DiscJockey: yield return LienHolder.Winters; yield return LienHolder.Germain; break;
+			case PartyWho.RouteMan: yield return LienHolder.Kubiak; break;
+			case PartyWho.MajorMan: yield return LienHolder.Winters; yield return LienHolder.Floria; break;
 		}
 		switch (m.Brag) {
-			case PartyBrag.TheLabel: yield return LienHolder.Kubiak; yield return LienHolder.Ainsley; break;
-			case PartyBrag.TheAct: yield return LienHolder.Lark; break;
-			case PartyBrag.Money: yield return LienHolder.Dace; yield return LienHolder.Kubiak; break;
-			case PartyBrag.Songs: yield return LienHolder.Fennell; break;
+			case PartyBrag.TheLabel: yield return LienHolder.Kubiak; yield return LienHolder.Floria; break;
+			case PartyBrag.TheAct: yield return LienHolder.Sawyer; yield return LienHolder.Germain; break;
+			case PartyBrag.Money: yield return LienHolder.Sawyer; yield return LienHolder.Kubiak; break;
+			case PartyBrag.Hits: yield return LienHolder.Winters; yield return LienHolder.Germain; break;
 		}
 		switch (m.End) {
-			case PartyEnd.CardTable: yield return LienHolder.Dace; break;
-			case PartyEnd.Car: yield return LienHolder.Kubiak; yield return LienHolder.Lark; break;
-			case PartyEnd.PhoneCall: yield return LienHolder.Fennell; yield return LienHolder.Ainsley; break;
+			case PartyEnd.CardTable: yield return LienHolder.Sawyer; break;
+			case PartyEnd.Car: yield return LienHolder.Kubiak; yield return LienHolder.Germain; break;
+			case PartyEnd.PhoneCall: yield return LienHolder.Winters; yield return LienHolder.Floria; break;
 		}
 	}
 
@@ -227,6 +243,9 @@ public partial class PlayerDesk {
 		public List<string> WrongMemories = new();
 		public float FaceSum = LienFaceSum;
 		public float Rate = LienRate;
+		/// <summary>The hometown's biggest performance room at founding ("the River Lantern"): the room Sawyer owns. Kept for
+		/// every holder so a line can name it; fixed at founding.</summary>
+		public string Venue, VenueId;
 		public GameDate Signed;
 		public GameDate LastAccrual;
 		public float InterestAccrued, InterestPaid, PrincipalPaid;
@@ -251,6 +270,7 @@ public partial class PlayerDesk {
 		public float Outstanding => R2(FaceSum - PrincipalPaid);
 		public float InterestDue => R2(InterestAccrued - InterestPaid);
 		public bool IsReckoning => Deadline.year >= LienFinalYear;
+		/// <summary>The authored profile, with "{venue}" still in it; <see cref="PlayerDesk.LienProfile"/> fills it in.</summary>
 		public LienHolderProfile Profile => LienHolders[Holder];
 
 		internal void Add(GameDate date, LienLedgerKind kind, float amount, string detail = null) =>
@@ -274,18 +294,48 @@ public partial class PlayerDesk {
 
 	private LienState lien;
 	public LienState Lien => lien;
+
+	/// <summary>The holder's profile with the hometown's room named in it. Null without a lien.</summary>
+	public LienHolderProfile LienProfile {
+		get {
+			if (lien == null) return null;
+			var p = lien.Profile;
+			string venue = string.IsNullOrEmpty(lien.Venue) ? LienVenueFallback : lien.Venue;
+			string V(string s) => s?.Replace("{venue}", venue);
+			return p with {
+				Title = V(p.Title), Opening = V(p.Opening), WantsLine = V(p.WantsLine), PayAccepted = V(p.PayAccepted),
+				ShowAccepted = V(p.ShowAccepted), ConcedeAccepted = V(p.ConcedeAccepted), Pushback = V(p.Pushback),
+				HonestLine = V(p.HonestLine), BluffLine = V(p.BluffLine), BluffCaught = V(p.BluffCaught), Seizure = V(p.Seizure),
+				FixerRead = V(p.FixerRead), RefusesPayLine = V(p.RefusesPayLine),
+			};
+		}
+	}
+
+	/// <summary>True when this holder won't take money at a sitting this year (Floria from the December 1966 sitting).
+	/// The reckoning always takes money.</summary>
+	public bool LienRefusesPay => lien != null && !lien.IsReckoning && lien.Profile.RefusesPayFrom > 0 && lien.BarYear >= lien.Profile.RefusesPayFrom;
+
+	/// <summary>The hometown's most popular room: the biggest performance room in the home scene, ties broken by id.</summary>
+	private SceneRoomProfile HomeVenue() {
+		string scene = Label == null ? null : LocalScenePersistenceService.SceneIdFor(Label.homeCityId);
+		return scene == null ? null : SceneRoomCatalog.ForPlace(scene).Where(r => r.IsPerformance)
+			.OrderByDescending(r => r.Capacity).ThenBy(r => r.Id, StringComparer.Ordinal).FirstOrDefault();
+	}
+
 	public bool LienMorningPending => lien != null && !lien.OpeningSeen && !IsGameOver;
 	/// <summary>The title the game-over page shows: the doors closing, or the decade's reckoning.</summary>
 	public string GameOverTitle { get; private set; }
 
 	private static GameDate LienToday => TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 
-	private void FoundLien(PartyMemory memory) {
+	private void FoundLien(PartyMemory memory, LienHolder? forced = null) {
 		memory ??= new PartyMemory();
 		var today = LienToday;
-		var holder = PickHolder(memory, BandLife.WorldSeed);
+		var holder = forced ?? PickHolder(memory, BandLife.WorldSeed);
+		var room = HomeVenue();
 		lien = new LienState {
-			Holder = holder, Memory = memory.Copy(), WrongMemories = WrongMemories(memory, holder),
+			Holder = holder, Memory = memory.Copy(), WrongMemories = WrongMemories(memory, holder), Rate = LienHolders[holder].Rate,
+			Venue = room == null ? LienVenueFallback : "the " + room.Name, VenueId = room?.Id,
 			Signed = today, LastAccrual = today, Deadline = new GameDate(today.year + 1, 1, 1), BarYear = today.year,
 		};
 		lien.Add(today, LienLedgerKind.Signed, LienFaceSum, holder.ToString());
@@ -297,14 +347,32 @@ public partial class PlayerDesk {
 		Changed?.Invoke();
 	}
 
-	// ── what the archetype lost (§3.1) ───────────────────────────────────────────────────────────────
+	// ── what was lost (§3.1, §3.5) ───────────────────────────────────────────────────────────────────
 
-	public string LostBelongings() => Archetype switch {
-		FoundingArchetype.PawnShopOwner => "the car, the savings book, and the whole back room of stock from the shop",
-		FoundingArchetype.ExMusician => "the car, the savings book, and your guitar",
-		FoundingArchetype.PromoMan => "the car, the savings book, and your address book with every number you ever got",
-		_ => "the car, the savings book, and the pension you had put by from the trade",
+	/// <summary>The archetype's signature belonging (§3.5): one per archetype, wherever this holder's variant puts it.</summary>
+	public string SignatureBelonging() => Archetype switch {
+		FoundingArchetype.PawnShopOwner => "the whole back room of stock from the shop",
+		FoundingArchetype.ExMusician => "your 1926 pedal steel",
+		FoundingArchetype.PromoMan => "your address book with every jock's home number in it",
+		_ => "ten years of chart files you kept from the trade",
 	};
+
+	/// <summary>What this holder's night took besides the car and the signature belonging (§3.5). The Winters address book
+	/// is the Promo Man's signature one, so it isn't named twice.</summary>
+	private string HolderBelongings() => lien?.Holder switch {
+		LienHolder.Sawyer => "your watch",
+		LienHolder.Winters when Archetype == FoundingArchetype.PromoMan => "your tape recorder",
+		LienHolder.Winters when Archetype == FoundingArchetype.ExMusician => "your address book",
+		LienHolder.Winters => "your address book, your tape recorder",
+		LienHolder.Floria => "your good overcoat, your briefcase",
+		LienHolder.Germain => "your chequebook",
+		_ => null,
+	};
+
+	public string LostBelongings() {
+		string extra = HolderBelongings();
+		return "the car, " + (extra == null ? "" : extra + ", ") + "and " + SignatureBelonging();
+	}
 
 	/// <summary>The morning after, line by line. The voices argue about the night (theories, not facts: the night is a
 	/// mystery). Shown once, on the first page after founding.</summary>
@@ -314,10 +382,10 @@ public partial class PlayerDesk {
 		void Say(string text, ExecutiveVoice voice = ExecutiveVoice.None, string speaker = "") =>
 			lines.Add(new CallLine { beat = RolodexSceneBeat.Opening, text = text, voice = voice, speaker = speaker });
 		Say("1 January 1960, about noon. Your head is splitting. You're wearing yesterday's shirt and one shoe.");
-		Say("There's a lawyer's letter on the mat. Some time after midnight you signed a lien on everything you own " +
+		Say("The lawyer's letter is still on the desk. Some time after midnight you signed a lien on everything you own " +
 			$"and everything {Label.labelName} will ever own. It secures ${lien.FaceSum:N0}, and it falls due on {lien.Deadline.ToHeadlineString()}.");
 		Say($"The founding money is still in the cigar box: ${Label.cashReserves:N0}. Everything else is gone: {LostBelongings()}. You don't know where.");
-		Say($"The letter is signed by {lien.Profile.Lawyer}, \"for the holder\". It doesn't say who the holder is. " +
+		Say($"Under the lamp, the scrawl at the foot of the letter turns out to read {LienProfile.Lawyer}, \"for the holder\". It doesn't say who the holder is. " +
 			"It says you may apply for an extension at a sitting in the last two weeks of December.");
 		Say("A card game. It's always a card game.", ExecutiveVoice.Fixer);
 		Say("You'd never sign a thing like that. Not sober. Not with a lawyer in the room.", ExecutiveVoice.Suit);
@@ -367,15 +435,15 @@ public partial class PlayerDesk {
 	public string LienSittingBlock() {
 		if (lien == null) return "There's no lien.";
 		if (IsGameOver) return "It's over.";
-		if (lien.Extended) return $"The lien runs to {(lien.PendingDeadline ?? lien.Deadline).ToHeadlineString()}. {lien.Profile.Lawyer} sits down with you again in the last two weeks before it.";
+		if (lien.Extended) return $"The lien runs to {(lien.PendingDeadline ?? lien.Deadline).ToHeadlineString()}. {LienProfile.Lawyer} sits down with you again in the last two weeks before it.";
 		var today = LienToday;
 		var opens = AddDays(lien.Deadline, -LienWindowDays);
-		if (today < opens) return $"{lien.Profile.Lawyer} sits down with you from {opens.ToHeadlineString()}.";
-		if (!AtHome) return $"{lien.Profile.Lawyer} comes to the office; you have to be home.";
+		if (today < opens) return $"{LienProfile.Lawyer} sits down with you from {opens.ToHeadlineString()}.";
+		if (!AtHome) return $"{LienProfile.Lawyer} comes to the office; you have to be home.";
 		var clock = TimeManager.Instance;
 		if (clock == null) return "No clock.";
 		if (clock.CurrentHour < BackerOfficeFromHour || clock.CurrentHour + LienSittingHours > BackerOfficeUntilHour)
-			return $"{lien.Profile.Lawyer} keeps office hours: {BackerOfficeFromHour} a.m. to {BackerOfficeUntilHour - 12} p.m.";
+			return $"{LienProfile.Lawyer} keeps office hours: {BackerOfficeFromHour} a.m. to {BackerOfficeUntilHour - 12} p.m.";
 		return null;
 	}
 
@@ -413,14 +481,15 @@ public partial class PlayerDesk {
 		if (message != null) return false;
 		if (!Require(LienSittingHours, out message)) return false;
 		Spend(LienSittingHours);
-		var p = lien.Profile;
+		var p = LienProfile;
 		var live = new LienSittingLive();
 		live.Say(p.Opening);
 		live.Say(lien.IsReckoning ? $"\"It's the end of the decade, and the end of the paper. Mr. {p.Name.Split(' ')[^1]} wants ${LienPayBar():N0}, all of it.\"" : p.WantsLine, p.Lawyer);
 		// Passive reads: each voice speaks only past its threshold, and only about a fact that is true.
 		var inst = InstinctProfile;
 		float pay = LienPayBar();
-		if (inst.TheSuit >= 3) live.Say($"He'll want ${pay:N0} to roll it. You have ${Mathf.Max(0f, Label.cashReserves):N0}.", "", ExecutiveVoice.Suit);
+		if (LienRefusesPay) { live.Say(p.RefusesPayLine, p.Lawyer); if (inst.TheSuit >= 2) live.Say("He won't take a dime. That's not generosity. He wants the whole thing, later.", "", ExecutiveVoice.Suit); }
+		else if (inst.TheSuit >= 3) live.Say($"He'll want ${pay:N0} to roll it. You have ${Mathf.Max(0f, Label.cashReserves):N0}.", "", ExecutiveVoice.Suit);
 		else if (inst.TheSuit >= 2) live.Say($"Money. Something like ${Mathf.Round(pay / 100f) * 100f:N0}.", "", ExecutiveVoice.Suit);
 		var show = LienShow();
 		if (!lien.IsReckoning && inst.TheStreet >= 3) live.Say(show.What + (show.Met ? " That's enough to show him." : " Not enough to show him yet."), "", ExecutiveVoice.Street);
@@ -446,8 +515,9 @@ public partial class PlayerDesk {
 			list.Add(new LienOption { verb = LienVerb.HandOver, label = "Hand him the keys", subLabel = "He takes the catalogue and the lease. It's over." });
 			return list;
 		}
+		bool refuses = LienRefusesPay;
 		list.Add(new LienOption { verb = LienVerb.Pay, label = $"Pay him (${pay:N0})", cash = pay, subLabel = "Interest and this year's slice of principal.",
-			enabled = cash >= pay, disabledReason = $"You have ${cash:N0}." });
+			enabled = cash >= pay && !refuses, disabledReason = refuses ? LienProfile.RefusesPayLine : $"You have ${cash:N0}." });
 		var show = LienShow();
 		list.Add(new LienOption { verb = LienVerb.Show, label = "Show him the books", subLabel = show.What,
 			enabled = show.Met && !live.showPushed && !live.bluffCaught, disabledReason = live.bluffCaught ? "He's stopped listening to that." : live.showPushed ? "He's already pushed back on that." : show.What });
@@ -464,7 +534,7 @@ public partial class PlayerDesk {
 	public List<LienOption> LienCounterOptions(LienSittingLive live) {
 		var list = new List<LienOption>();
 		if (lien == null || live == null) return list;
-		var p = lien.Profile;
+		var p = LienProfile;
 		float interest = lien.InterestDueBy(lien.Deadline);
 		float cash = Mathf.Max(0f, Label.cashReserves);
 		list.Add(new LienOption { verb = LienVerb.CounterInterest, label = $"Pay the interest on top (${interest:N0})", cash = interest,
@@ -499,7 +569,7 @@ public partial class PlayerDesk {
 	public bool ChooseLienOption(LienSittingLive live, LienOption opt, out string message) {
 		message = null;
 		if (lien == null || live == null || opt == null || !opt.enabled) { message = opt?.disabledReason ?? "You can't do that."; return false; }
-		var p = lien.Profile;
+		var p = LienProfile;
 		var today = LienToday;
 		live.Say(opt.label, "You", opt.voice, isPlayer: true);
 		switch (opt.verb) {
@@ -508,7 +578,12 @@ public partial class PlayerDesk {
 				Extend(live, LienBar.Pay, p.PayAccepted);
 				break;
 			case LienVerb.Show:
-				if (p.Stresses == LienBar.Show) { PayInterestIfAny(today, onlyIfCash: true); Extend(live, LienBar.Show, p.ShowAccepted); break; }
+				// Every holder takes a record out as the first year's Show (§3.2): the 1960 bar is the same for all five.
+				if (p.Stresses == LienBar.Show || lien.BarYear <= 1960) {
+					if (!LienRefusesPay) PayInterestIfAny(today, onlyIfCash: true);
+					Extend(live, LienBar.Show, p.ShowAccepted);
+					break;
+				}
 				live.showPushed = true;
 				live.stage = CallStage.Pushback;
 				live.Say(p.Pushback, p.Lawyer);
@@ -583,7 +658,7 @@ public partial class PlayerDesk {
 	}
 
 	private void Extend(LienSittingLive live, LienBar bar, string line, bool writtenOn = false) {
-		var p = lien.Profile;
+		var p = LienProfile;
 		var today = LienToday;
 		live.Say(line, p.Lawyer);
 		if (bar == p.Stresses) lien.Standing = Mathf.Min(1f, lien.Standing + 0.1f);
@@ -640,6 +715,7 @@ public partial class PlayerDesk {
 	private void EnforceLien(GameDate date) {
 		if (lien == null || IsGameOver) return;
 		if (lien.Extended && lien.PendingDeadline.HasValue && date >= lien.Deadline) {
+			CompoundUnpaidInterest(date);
 			lien.Deadline = lien.PendingDeadline.Value;
 			lien.BarYear = lien.Deadline.year - 1;
 			lien.PendingDeadline = null;
@@ -648,17 +724,18 @@ public partial class PlayerDesk {
 		}
 		if (date < lien.Deadline) {
 			if (date.month == 12 && date.day == 1 && !lien.Extended)
-				Note($"{lien.Profile.Lawyer} writes: the lien falls due on {lien.Deadline.ToHeadlineString()}. He'll sit down with you from {AddDays(lien.Deadline, -LienWindowDays).ToHeadlineString()}.");
+				Note($"{LienProfile.Lawyer} writes: the lien falls due on {lien.Deadline.ToHeadlineString()}. He'll sit down with you from {AddDays(lien.Deadline, -LienWindowDays).ToHeadlineString()}.");
 			return;
 		}
-		var p = lien.Profile;
+		var p = LienProfile;
 		float due = LienPayBar();
 		if (lien.IsReckoning) {
 			if (Label.cashReserves >= due) { TakeLienPayment(date, due, LienLedgerKind.PaidClean); Note($"{p.Lawyer}'s man came on the 1st and took the last ${due:N0}. The paper is torn up."); EndDecade(paid: true); }
 			else { lien.Add(date, LienLedgerKind.Taken, lien.Outstanding); Note(p.Seizure); EndDecade(paid: false); }
 			return;
 		}
-		if (Label.cashReserves >= due) {
+		// A holder who won't take money (Floria from 1966) doesn't send a man for the till: a no-show is a missed deadline.
+		if (Label.cashReserves >= due && !LienRefusesPay) {
 			TakeLienPayment(date, due, LienLedgerKind.Paid);
 			lien.Standing = Mathf.Max(0f, lien.Standing - 0.1f);
 			lien.ConsecutiveFailures = 0;
@@ -688,10 +765,24 @@ public partial class PlayerDesk {
 		Note($"{p.Seizure} They take ${cashTaken:N0} in cash" + (copies > 0 ? $" and {copies:N0} copies of pressed stock" : "") + ".");
 		if (cashTaken + stockValue <= 0.005f) { EndRunTaken($"There was nothing left for {p.Name} to take, so he took the label."); return; }
 		if (lien.ConsecutiveFailures >= LienFailuresToEnd) { EndRunTaken($"Two deadlines missed in a row. {p.Name} enforces the whole lien and takes {Label.labelName}."); return; }
+		CompoundUnpaidInterest(date);
 		int month = lien.Deadline.month + LienShortExtensionMonths;
 		lien.Deadline = new GameDate(lien.Deadline.year + (month - 1) / 12, (month - 1) % 12 + 1, 1);
 		lien.Add(date, LienLedgerKind.Extended, 0f, $"seizure → {lien.Deadline.ToShortString()}");
 		Note($"{p.Lawyer} gives you until {lien.Deadline.ToHeadlineString()}. Miss that and it's over.");
+	}
+
+	/// <summary>Kubiak's clause: interest still unpaid when the lien rolls over goes onto the face sum, so next year's interest
+	/// runs on it. Other holders carry it as interest due, owed at the reckoning.</summary>
+	private void CompoundUnpaidInterest(GameDate date) {
+		if (!lien.Profile.Compounds) return;
+		lien.AccrueTo(date);
+		float unpaid = lien.InterestDue;
+		if (unpaid <= 0.005f) return;
+		lien.InterestPaid = R2(lien.InterestPaid + unpaid);
+		lien.FaceSum = R2(lien.FaceSum + unpaid);
+		lien.Add(date, LienLedgerKind.WrittenOn, unpaid, "unpaid interest compounded");
+		Note($"{LienProfile.Lawyer} writes: ${unpaid:N0} of unpaid interest has gone onto the paper. The face sum is now ${lien.FaceSum:N0}.");
 	}
 
 	private void EndRunTaken(string reason) {
@@ -702,7 +793,7 @@ public partial class PlayerDesk {
 
 	/// <summary>1 January 1970: the game ends either way (author decision).</summary>
 	private void EndDecade(bool paid) {
-		var p = lien.Profile;
+		var p = LienProfile;
 		lien.Ending = paid ? "PaidClean" : "Taken";
 		GameOverTitle = paid ? "PAID CLEAN" : "TAKEN";
 		string reason = paid
@@ -719,7 +810,7 @@ public partial class PlayerDesk {
 			Holder = (int)lien.Holder,
 			Where = (int)lien.Memory.Where, Who = (int)lien.Memory.Who, Brag = (int)lien.Memory.Brag, End = (int)lien.Memory.End,
 			WrongMemories = new List<string>(lien.WrongMemories),
-			FaceSum = lien.FaceSum, Rate = lien.Rate, Signed = DateSave.From(lien.Signed), LastAccrual = DateSave.From(lien.LastAccrual),
+			FaceSum = lien.FaceSum, Rate = lien.Rate, Venue = lien.Venue, VenueId = lien.VenueId, Signed = DateSave.From(lien.Signed), LastAccrual = DateSave.From(lien.LastAccrual),
 			InterestAccrued = lien.InterestAccrued, InterestPaid = lien.InterestPaid, PrincipalPaid = lien.PrincipalPaid,
 			Deadline = DateSave.From(lien.Deadline), PendingDeadline = lien.PendingDeadline.HasValue ? DateSave.From(lien.PendingDeadline.Value) : null,
 			BarYear = lien.BarYear, Extended = lien.Extended, ConsecutiveFailures = lien.ConsecutiveFailures, Standing = lien.Standing,
@@ -736,7 +827,7 @@ public partial class PlayerDesk {
 			Holder = (LienHolder)d.Holder,
 			Memory = new PartyMemory { Where = (PartyWhere)d.Where, Who = (PartyWho)d.Who, Brag = (PartyBrag)d.Brag, End = (PartyEnd)d.End },
 			WrongMemories = d.WrongMemories ?? new(),
-			FaceSum = d.FaceSum, Rate = d.Rate, Signed = d.Signed?.Valid == true ? d.Signed.ToDate() : GameDate.StartDate,
+			FaceSum = d.FaceSum, Rate = d.Rate, Venue = d.Venue, VenueId = d.VenueId, Signed = d.Signed?.Valid == true ? d.Signed.ToDate() : GameDate.StartDate,
 			LastAccrual = d.LastAccrual?.Valid == true ? d.LastAccrual.ToDate() : d.Deadline.ToDate(),
 			InterestAccrued = d.InterestAccrued, InterestPaid = d.InterestPaid, PrincipalPaid = d.PrincipalPaid,
 			Deadline = d.Deadline.ToDate(), PendingDeadline = d.PendingDeadline?.Valid == true ? d.PendingDeadline.ToDate() : null,
@@ -753,7 +844,10 @@ public partial class PlayerDesk {
 	/// <summary>Checks only: run the 1st-of-month enforcement for a date without waiting for the clock.</summary>
 	internal void EnforceLienForChecks(GameDate date) => EnforceLien(date);
 	/// <summary>Checks only: found a lien with given answers on an already-founded label.</summary>
-	internal void FoundLienForChecks(PartyMemory memory) => FoundLien(memory);
+	internal void FoundLienForChecks(PartyMemory memory, LienHolder? holder = null) => FoundLien(memory, holder);
+	/// <summary>Checks only: the save form of the lien, and a restore from it.</summary>
+	internal LienSaveData CaptureLienForChecks() => CaptureLien();
+	internal void RestoreLienForChecks(LienSaveData d) => RestoreLien(d);
 }
 
 /// <summary>Inner-life Phase 1: the New Year's Eve lien. Absent in older saves (no lien).</summary>
@@ -766,6 +860,9 @@ public sealed class LienSaveData {
 	public List<string> WrongMemories { get; set; } = new();
 	public float FaceSum { get; set; }
 	public float Rate { get; set; }
+	/// <summary>The hometown room named in the holder's lines. Null in older saves (the lines fall back to "the best room in town").</summary>
+	public string Venue { get; set; }
+	public string VenueId { get; set; }
 	public DateSave Signed { get; set; }
 	public DateSave LastAccrual { get; set; }
 	public float InterestAccrued { get; set; }
