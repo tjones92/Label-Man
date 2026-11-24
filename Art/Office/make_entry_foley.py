@@ -49,7 +49,7 @@ def wood_creak(start, duration, volume, pitch):
 
 
 # Latch, push, two steps across the threshold, a dragged heel and the door settling.
-for start, pitch, gain in ((.26, 1280, .052), (.38, 880, .062), (4.94, 1350, .043)):
+for start, pitch, gain in ((.26, 1280, .052), (.38, 880, .062), (4.18, 1350, .043)):
     event(start, .11, lambda t: gain * (noise(len(t), 9) + .45*np.sin(2*np.pi*pitch*t)) * np.exp(-54*t))
 wood_creak(.45, .79, .064, 340)
 tap(1.08, .21, 97)
@@ -57,7 +57,8 @@ tap(1.70, .28, 83)
 tap(2.26, .26, 102)
 scuff(2.58, .29, .09)
 tap(2.74, .31, 78)
-wood_creak(3.50, 1.18, .028, 232)
+wood_creak(3.10, 1.00, .028, 232)
+tap(4.45, .26, 74)
 tap(4.98, .29, 70)
 
 # Footsteps around the desk, then vinyl and the swivel frame taking the player's weight.

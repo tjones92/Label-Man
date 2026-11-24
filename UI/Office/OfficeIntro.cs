@@ -112,15 +112,16 @@ public partial class OfficeIntro : Control {
 		float span = b.Time - a.Time;
 		float t = Mathf.Clamp((time - a.Time) / span, 0, 1);
 		float ease = Mathf.SmoothStep(0, 1, t);
-		float stride = (Mathf.SmoothStep(.75f, 1.3f, time) * (1 - Mathf.SmoothStep(2.65f, 3.18f, time)))
-			+ (Mathf.SmoothStep(4.95f, 5.58f, time) * (1 - Mathf.SmoothStep(9.38f, 9.98f, time)));
+		float stride = (Mathf.SmoothStep(.85f, 1.3f, time) * (1 - Mathf.SmoothStep(2.75f, 3.10f, time)))
+			+ (Mathf.SmoothStep(4.15f, 4.6f, time) * (1 - Mathf.SmoothStep(9.38f, 9.98f, time)));
 		float gait = Mathf.Sin((time - .75f) * Mathf.Tau / .64f);
 		Vector3 position = a.Position.CubicInterpolateInTime(b.Position, before.Position, after.Position,
 			t, span, before.Time - a.Time, after.Time - a.Time);
 		var orientation = a.Facing.Slerp(b.Facing, ease);
 		camera.GlobalTransform = new Transform3D(new Basis(orientation), position + Vector3.Up * (.027f * stride * gait));
 		camera.Fov = Mathf.Lerp(a.Fov, b.Fov, ease);
-		float swing = Mathf.SmoothStep(.36f, 1.59f, time) * (1 - Mathf.SmoothStep(2.86f, 5.03f, time));
+		// Fully open before the first step across; shut and latched before the walk passes in front of it.
+		float swing = Mathf.SmoothStep(.25f, 1.30f, time) * (1 - Mathf.SmoothStep(3.05f, 4.15f, time));
 		door.RotationDegrees = closedDoorRotation + Vector3.Up * (-91f * swing);
 	}
 
@@ -166,13 +167,16 @@ public partial class OfficeIntro : Control {
 	}
 
 	private static Shot[] EntranceShots(Vector3 seat, Basis deskFacing, float deskFov) => new Shot[] {
-		new(0.00f, new(-1.63f, 1.59f, -3.40f), new(-1.36f, 1.34f, -2.74f), -2.2f, 51f),
-		new(.57f, new(-1.65f, 1.58f, -3.34f), new(-1.43f, 1.30f, -2.72f), -1.1f, 51f),
-		new(1.46f, new(-1.66f, 1.63f, -2.98f), new(-1.39f, 1.42f, -1.02f), 2.4f, 54f),
-		new(2.18f, new(-1.76f, 1.58f, -2.42f), new(-1.16f, 1.31f, -.91f), -1.4f, 54f),
-		new(2.73f, new(-1.88f, 1.45f, -2.23f), new(-1.49f, .79f, -1.25f), -5.3f, 55f),
-		new(3.55f, new(-2.02f, 1.58f, -2.23f), new(-2.94f, 1.48f, -1.05f), 2.9f, 54f),
-		new(4.62f, new(-2.13f, 1.60f, -2.18f), new(-.20f, 1.40f, -2.03f), -2.1f, 52f),
+		// Wait in the hall while the door swings in, step through into the pocket right of its arc (clear of the
+		// credenza and the guest chair) and glance at the credenza while it swings shut behind, then walk left past
+		// it once it has latched. The door's edge never comes within a quarter metre of the eye, nor into view.
+		new(0.00f, new(-1.70f, 1.59f, -3.58f), new(-1.60f, 1.32f, -2.74f), -2.2f, 51f),
+		new(.75f, new(-1.70f, 1.58f, -3.50f), new(-1.62f, 1.30f, -2.72f), -1.1f, 51f),
+		new(1.60f, new(-1.66f, 1.62f, -3.02f), new(-1.40f, 1.42f, -1.10f), 2.4f, 54f),
+		new(2.35f, new(-1.30f, 1.59f, -2.50f), new(-1.05f, 1.62f, -.40f), -1.4f, 54f),
+		new(3.05f, new(-1.00f, 1.57f, -2.36f), new(.45f, 1.15f, -2.30f), 1.5f, 54f),
+		new(3.85f, new(-1.02f, 1.58f, -2.35f), new(-.30f, 1.25f, -1.00f), -1.0f, 54f),
+		new(4.75f, new(-1.95f, 1.60f, -2.25f), new(-2.94f, 1.48f, -1.05f), -2.1f, 52f),
 		new(5.42f, new(-2.48f, 1.55f, -1.91f), new(-2.19f, 1.06f, -.72f), -2.8f, 52f),
 		new(6.16f, new(-2.52f, 1.59f, -1.31f), new(-1.70f, 1.22f, -.22f), 2.4f, 52f),
 		new(6.88f, new(-2.50f, 1.58f, -.59f), seat + new Vector3(0, -.44f, .11f), -1.4f, 53f),

@@ -762,18 +762,35 @@ def bookcase(x_wall, y0, y1):
             (.30, .40, .0035), prop_rng.choice(paper_stock), 0, angle=prop_rng.uniform(-.05, .05))
 
 
-def gold_record(center):
-    """A presentation gold record facing into the room from the side wall."""
+def cork_finish():
+    field = TextureField(768, 512, 1907)
+    granules = field.pebble(150, 100)
+    flecks = field.noise(220, 150)
+    tone = .30 + .32*granules + .18*(flecks-.5) + .12*(field.noise(6, 4)-.5)
+    return finish("Pressed cork", palette("4e3320", "a8774a", tone), .88 + .06*(flecks-.5), .30*granules, .55)
+
+
+def cork_board(center):
+    """A new label's cork board: who to call, where the jukeboxes are, and a band's handbill."""
     out = Vector((1, 0, 0))
-    w, h = .46, .58
-    box("Gold record frame", center, (.035, w, h), dark_wood, .006)
-    box("Black velvet mat", center + out*.019, (.004, w-.06, h-.06), velvet, .001)
-    disc = center + out*.024 + Vector((0, 0, .055))
-    cyl("Gold-plated disc", disc, disc + out*.0025, .150, gold, sides=64)
-    for r in (.072, .094, .112, .131, .146):
-        lathe("Gold groove band", disc, [(r, .0026), (r+.0012, .0028)], gold_groove, sides=64, axis=(1, 0, 0))
-    cyl("Award label", disc + out*.002, disc + out*.0034, .046, record_label, sides=48)
-    box("Engraved brass plaque", center + out*.022 + Vector((0, 0, -.205)), (.004, .21, .055), brass, .002)
+    w, h = .90, .60
+    box("Cork board frame", center, (.030, w+.05, h+.05), frame_wood, .004, grain=(1, 2))
+    box("Cork face", center + out*.016, (.004, w, h), cork, .001)
+    notes = (((-.30, .16), (.130, .085), 0), ((-.13, .19), (.150, .095), 1), ((.06, .15), (.210, .290), 2),
+             ((.29, .18), (.125, .080), 0), ((-.29, -.05), (.148, .210), 3), ((-.10, -.09), (.126, .080), 1),
+             ((.28, -.07), (.150, .095), 0), ((.30, -.21), (.126, .080), 3), ((-.12, -.22), (.180, .060), 2))
+    for (dy, dz), (nw, nh), stock in notes:
+        tilt = prop_rng.uniform(-.09, .09)
+        spot = center + out*.019 + Vector((0, dy, dz))
+        note = box("Pinned note", spot, (.0015, nw, nh), paper_stock[stock], 0)
+        note.rotation_euler.x = tilt
+        pin = spot + out*.004 + Vector((0, 0, nh*.40))
+        ellipsoid("Map pin", pin, (.007, .007, .007), prop_rng.choice(pin_colors))
+    # A handbill for a local act: a dark photo block and type bars on the biggest sheet.
+    bill = center + out*.0205 + Vector((0, .06, .17))
+    box("Handbill photo", bill, (.0006, .15, .095), vinyl, 0)
+    for i, width in enumerate((.17, .12, .15, .09)):
+        box("Handbill type", bill + Vector((0, 0, -.075 - i*.024)), (.0006, width, .011), enamel, 0)
 
 
 def wall_clock(center):
@@ -900,7 +917,7 @@ def intro_set(door_left, door_right):
     # The walk in passes the side wall and the corner behind the desk; furnish them.
     side = -3.54 + .032
     bookcase(side, .45, 2.05)
-    gold_record(Vector((side+.018, 1.05, 1.52)))
+    cork_board(Vector((side+.015, 1.05, 1.50)))
     wall_clock(Vector((side, 1.78, 1.70)))
     filing_cabinet(-3.25, far_wall+.034)
     coat_tree((-3.12, 2.47))
@@ -1279,7 +1296,7 @@ def build(reference_path, output):
     global walnuts, desk_wood, frame_wood, dark_wood, gunmetal, nickel, brass, tarnished_brass, enamel, enamel_olive
     global rubber, shade_lining, bulb_mat, bakelite, cord_mat, paper, paper_edge, paper_stock
     global leather, edge_leather, thread, vinyl, groove, record_label, ivory, glass, ash_colors, filter_mat
-    global floor_tile, rug, ceiling_tile, fiberglass, velvet, gold, gold_groove, file_steel, manila, felt, hat_band
+    global floor_tile, rug, ceiling_tile, fiberglass, cork, pin_colors, file_steel, manila, felt, hat_band
     global radiator_paint, milk_glass, daylight_glass, blind_paint, blind_tape, sleeve_stock
     bpy.ops.wm.read_homefile(use_empty=True, use_factory_startup=True)
     rng.seed(61463)
@@ -1356,9 +1373,8 @@ def build(reference_path, output):
                               maps=hardware_finish("Radiator bronze paint", "5d5646", "a59a80", .52, 1922, oxidized=True))
     blind_paint = material("Cream enamelled aluminium", "d8cdb0", .36, metal=.25)
     blind_tape = material("Cotton ladder tape", "c9bc9c", .85)
-    velvet = material("Black presentation velvet", "141210", .97)
-    gold = material("Gold-plated lacquer", "d9ae4f", .18, metal=1)
-    gold_groove = material("Gold groove band", "a8823a", .28, metal=1)
+    cork = material("Pressed cork", "8a6240", maps=cork_finish())
+    pin_colors = [material(f"Map pin {i + 1}", c, .25) for i, c in enumerate(("a52a22", "e0c34a", "2d5a8c"))]
     manila = material("Manila folder stock", "c8a96a", .80)
     felt = material("Charcoal fur felt", "3f3d39", .92)
     hat_band = material("Black grosgrain", "1a1817", .70)
