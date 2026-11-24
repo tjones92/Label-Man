@@ -41,6 +41,11 @@ public partial class PlayerDeskPanel {
 		rows.Add(LedgerTable.Total(lien.IsReckoning && !lien.Extended ? "Owed in full at the reckoning" : "Outstanding", LedgerTable.Money(lien.Outstanding)));
 		content.AddChild(new LedgerTable().Set(lien.Extended ? $"Runs to {due.ToHeadlineString()}" : $"Falls due {due.ToHeadlineString()}", null, rows));
 
+		Body("Gone since the night: " + string.Join(", ", desk.LienGoneList()) + ".");
+		var reread = Btn("READ THE LETTER AGAIN");
+		reread.Pressed += () => OpenLienMorning(PlayerDesk.Instance, replay: true);
+		content.AddChild(reread);
+
 		if (lien.ConsecutiveFailures > 0)
 			Warn($"You missed the last deadline. Miss {lien.Deadline.ToHeadlineString()} too and {(LienHolderKnown(desk) ? p.Name : "the holder")} takes the label.");
 
@@ -84,19 +89,7 @@ public partial class PlayerDeskPanel {
 
 	// ── the morning after ───────────────────────────────────────────────────────────────────────────
 
-	/// <summary>The voices argue about the night, once, on the first desk after founding (§3.1).</summary>
-	private void ShowLienMorningIfPending(PlayerDesk desk) {
-		if (lienMorningOpen || !desk.LienMorningPending || !IsVisibleInTree()) return;
-		var lines = desk.LienMorningLines();
-		if (lines.Count == 0) { desk.DismissLienMorning(); return; }
-		lienMorningOpen = true;
-		var modal = PaperModal.Open(this, "THE MORNING AFTER", 680, () => { lienMorningOpen = false; PlayerDesk.Instance?.DismissLienMorning(); });
-		foreach (var line in lines) {
-			var label = modal.AddText(line.voice == ExecutiveVoice.None ? line.text : $"{VoiceName(line.voice)} — {line.text}");
-			if (line.voice != ExecutiveVoice.None) label.AddThemeColorOverride("font_color", VoiceColor(line.voice));
-		}
-		modal.AddButton("GET TO WORK", () => { lienMorningOpen = false; PlayerDesk.Instance?.DismissLienMorning(); }, PaperModal.ButtonKind.Primary);
-	}
+	// The morning after is a full-screen scene: PlayerDeskPanel.LienMorning.cs.
 
 	// ── the end ─────────────────────────────────────────────────────────────────────────────────────
 

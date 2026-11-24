@@ -34,10 +34,11 @@ public partial class LienUiChecks : Node {
 		button.EmitSignal(Button.SignalName.Pressed);
 		await Frame();
 	}
-	private async Task Screenshot(string name) {
+	private bool ShowsRich(string text) => Nodes(panel).OfType<RichTextLabel>().Any(l => l.IsVisibleInTree() && l.Text.Contains(text, StringComparison.Ordinal));
+	private async Task Screenshot(string name, double settle = 3.0) {
 		if (DisplayServer.GetName() == "headless") return;
 		// The lawyer's lines fade in one by one and the stamp comes down late: let the stage settle first.
-		await ToSignal(GetTree().CreateTimer(3.0), Timer.SignalName.Timeout);
+		await ToSignal(GetTree().CreateTimer(settle), Timer.SignalName.Timeout);
 		await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 		GetViewport().GetTexture().GetImage().SavePng(ProjectSettings.GlobalizePath("res://SimLogs/lien-ui-" + name + ".png"));
 	}
@@ -56,12 +57,22 @@ public partial class LienUiChecks : Node {
 			panel.OpenAtTab("OFFICE"); await Frame();
 
 			// The morning after: the voices argue about the night, once.
-			Check(Shows("THE MORNING AFTER") && Shows("A card game"), "The morning-after modal shows the voices' theories");
-			await Screenshot("morning");
+			Check(Shows("The Morning After") && Shows("A card game"), "The morning-after scene shows the voices' theories");
+			Check(Shows("supper club") && Shows("a kid you'd heard once") && Shows("There was a woman"), "The voices argue from what was remembered: where, the brag, and nobody for who");
+			Check(ShowsRich("Your watch") && ShowsRich("pedal steel") && Shows("$800"), "The cigar box and the list of what's gone are on the page");
+			Check(Shows("WHAT THE LETTER SAYS") && Nodes(panel).OfType<LienDecadeStrip>().Any(s => s.IsVisibleInTree()) && Nodes(panel).OfType<LienStamp>().Any(s => s.IsVisibleInTree()), "The terms, the ten Decembers and the stamped letter are there");
+			await Screenshot("morning-haze", 0.6);
+			await Screenshot("morning", 11.5);
 			await Press("GET TO WORK");
 			Check(desk.Lien.OpeningSeen && !desk.LienMorningPending, "GET TO WORK dismisses the morning for good");
 			panel.OpenAtTab("OFFICE"); await Frame();
-			Check(!Shows("THE MORNING AFTER"), "The morning doesn't come back");
+			Check(!Shows("The Morning After"), "The morning doesn't come back");
+			Check(Shows("Gone since the night"), "The office keeps the list of what's gone");
+			await Press("READ THE LETTER AGAIN");
+			Check(Shows("The Morning After") && ShowsRich("pedal steel"), "The letter can be read again");
+			await Screenshot("morning-again", 0.3);
+			await Press("PUT IT AWAY");
+			Check(!Shows("The Morning After") && desk.Lien.OpeningSeen, "Putting it away closes it and leaves the morning seen");
 
 			// THE PAPER, before any sitting: the holder isn't named yet, the lawyer is.
 			Check(Shows("THE PAPER") && Nodes(panel).OfType<LedgerTable>().Any(t => t.IsVisibleInTree()), "THE PAPER heading and its ledger are on the OFFICE tab");

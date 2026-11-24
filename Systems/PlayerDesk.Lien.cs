@@ -399,12 +399,61 @@ public partial class PlayerDesk {
 		Say($"The founding money is still in the cigar box: ${Label.cashReserves:N0}. Everything else is gone: {LostBelongings()}. You don't know where.");
 		Say($"Under the lamp, the scrawl at the foot of the letter turns out to read {LienProfile.Lawyer}, \"for the holder\". It doesn't say who the holder is. " +
 			"It says you may apply for an extension at a sitting in the last two weeks of December.");
-		Say("A card game. It's always a card game.", ExecutiveVoice.Fixer);
-		Say("You'd never sign a thing like that. Not sober. Not with a lawyer in the room.", ExecutiveVoice.Suit);
-		Say("There was a band. A good one. You were up there with them, you remember the horns.", ExecutiveVoice.Ear);
-		Say("There was a woman. There's always a woman.", ExecutiveVoice.Street);
+		foreach (var voice in LienMorningVoices()) lines.Add(voice);
 		Say("So the label you meant to start anyway starts today, with a fuse on it.");
 		return lines;
+	}
+
+	/// <summary>The four voices' first theories about the night, each built from what the player said they remembered (§3.1a).
+	/// They are theories, not facts: an answer the holder doesn't fit is argued as hard as one he does. A voice with nothing to
+	/// go on falls back on its habit. The one the player trusts most (their highest instinct) speaks first.</summary>
+	public List<CallLine> LienMorningVoices() {
+		var list = new List<CallLine>();
+		if (lien == null) return list;
+		var m = lien.Memory;
+		string fixer = m.End switch {
+			PartyEnd.CardTable => "A card game. It's always a card game. You said so yourself: a pile of chips that wasn't yours.",
+			PartyEnd.Car => "Somebody else's hand on the wheel. Nobody hands a man a pen in a moving car. You were driven there, and you were driven home.",
+			PartyEnd.PhoneCall => "A phone ringing in a hallway, and somebody holding it out to you. Somebody was waiting on that call, and made it worth the wait.",
+			_ when m.Brag == PartyBrag.Money => "You can't say how it ended, but you bragged about money you didn't have. Somebody wrote down what you said.",
+			_ => "A card game. It's always a card game.",
+		};
+		string suit = m.Where switch {
+			PartyWhere.SupperClub => "A supper club has a maitre d' and a table of men in good suits, and one of them had paper in an inside pocket. You'd never sign a thing like that. Not sober.",
+			PartyWhere.DjHouseParty => "A living room full of records and no lawyer in the house, so somebody brought the paper with him. That's not a party, that's an appointment.",
+			PartyWhere.HotelBallroom => "A ballroom has a manager, a night clerk, a bellhop. Somebody there can say who signed what. You'd never sign a thing like that with a lawyer in the room, which means there wasn't one.",
+			PartyWhere.BarBackRoom => "A back room, through a door marked Private. No witnesses, and a good reason for that. You'd never sign a thing like that sober.",
+			_ => "You can't say where, so I can't say who witnessed it. You'd never sign a thing like that. Not sober. Not with a lawyer in the room.",
+		};
+		string ear = m.Brag switch {
+			PartyBrag.TheAct => "You were going on about a kid you'd heard once, who was going to change everything. Somebody liked the sound of that. Somebody wanted a piece of it.",
+			PartyBrag.Hits => "You said you could hear a hit before the second chorus. Somebody wanted to hear you prove it.",
+			PartyBrag.TheLabel => "Your name on every record in town, you said. That's a lot of noise to make in front of a man who'd been listening.",
+			PartyBrag.Money => "Money you didn't have isn't a song, it's a drum roll. Somebody was counting along.",
+			_ when m.Where == PartyWhere.DjHouseParty => "Records stacked to the ceiling, and something on the hi-fi you can't place. I'd start with what was playing.",
+			_ => "There was a band. A good one. You were up there with them, you remember the horns.",
+		};
+		string street = m.Who switch {
+			PartyWho.CamelCoat => "A man in a camel coat. Money wears a camel coat, and it doesn't take it off.",
+			PartyWho.DiscJockey => "Somebody who talked like he was introducing a record. A jock will talk you into anything. It's the job.",
+			PartyWho.RouteMan => "A heavy fella with a ring of keys. Keys mean doors, and doors mean he owns something that locks.",
+			PartyWho.MajorMan => "A fella who said \"we\" as if he meant a whole building. A building has lawyers. A building keeps paper.",
+			_ => "There was a woman. There's always a woman.",
+		};
+		var inst = InstinctProfile;
+		foreach (var (voice, text) in new[] { (ExecutiveVoice.Fixer, fixer), (ExecutiveVoice.Suit, suit), (ExecutiveVoice.Ear, ear), (ExecutiveVoice.Street, street) }
+			.OrderByDescending(v => Score(inst, v.Item1)))
+			list.Add(new CallLine { beat = RolodexSceneBeat.Opening, text = text, voice = voice, speaker = "" });
+		return list;
+	}
+
+	/// <summary>Everything the night took, one thing each: the car, what this holder's night took, the archetype's signature belonging.</summary>
+	public List<string> LienGoneList() {
+		var gone = new List<string> { "the car" };
+		string extra = HolderBelongings();
+		if (extra != null) gone.AddRange(extra.Split(", "));
+		gone.Add(SignatureBelonging());
+		return gone;
 	}
 
 	// ── the bars (§3.2) ──────────────────────────────────────────────────────────────────────────────
