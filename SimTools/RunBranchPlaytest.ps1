@@ -5,7 +5,7 @@ param(
     [string[]]$Extra = @(),
     [switch]$NoBuild
 )
-# Plays the ordinary game with branch_playtest_flags.txt. Since media-atmosphere-v3 became the default profile
+# Plays the ordinary game with branch_playtest_flags.txt. Since stature-fanbase-v1 became the default profile
 # (Systems/SimulationArguments.cs) those flags are already applied to any windowed game; the file now matters for
 # -Extra trials and for a run name (the audition log). Logs go to SimLogs/playtest/<timestamp>.log.
 $ErrorActionPreference = 'Stop'

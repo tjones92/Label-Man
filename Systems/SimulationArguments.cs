@@ -7,10 +7,13 @@ using Godot;
 public static class SimulationArguments {
     public const string DefaultSwitch = "--default-simulation-profile";
     public const string LegacySwitch = "--legacy-simulation-profile";
-    public const string ProfileName = "media-atmosphere-v3";
-    /// <summary>Applies the previous default (lp-retail-v2) alone, so controls recorded under it still reproduce.</summary>
+    public const string ProfileName = "stature-fanbase-v1";
+    /// <summary>Applies lp-retail-v2 alone, so controls recorded under it (the stature-fanbase candidate requests among them) still reproduce.</summary>
     public const string PreviousSwitch = "--lp-retail-v2-profile";
     public const string PreviousProfileName = "lp-retail-v2";
+    /// <summary>Applies the media-atmosphere-v3 default (2026-11-04 to 2026-11-24), so controls recorded under it still reproduce.</summary>
+    public const string MediaAtmosphereSwitch = "--media-atmosphere-v3-profile";
+    public const string MediaAtmosphereProfileName = "media-atmosphere-v3";
     private static string[] effective;
     // The complete validated base matters: LP calibration depends on its release and audience systems.
     // Telemetry-only --calibration, --small-label-finance and profiling flags are deliberately excluded.
@@ -240,26 +243,136 @@ public static class SimulationArguments {
         "--media-ai-performer-fees",
     };
 
-    private static readonly string[] Profile = PreviousProfile.Concat(BranchAdditions).ToArray();
+    private static readonly string[] MediaAtmosphereProfile = PreviousProfile.Concat(BranchAdditions).ToArray();
+
+    // stature-fanbase-v1 (adopted 2026-11-24): the behaviour flags of the stature-fanbase candidate,
+    // SimLogs/writing-calibration/candidate-request.json (2026-11-19, after local promotion and the opening stB set).
+    // The candidate ran on lp-retail-v2 plus these flags; seven of them replace a media-atmosphere-v3 value (noted).
+    // Its telemetry, audit and stature-shadow flags are excluded. --media-demand-press and --media-ai-performer-fees
+    // stay on from media-atmosphere-v3 although the candidate ran without them.
+    // Evidence: SimTools/Top10TurnoverFindings.md, LpDemandCalibration.md and the genre/Big-5 sections on the branch.
+    private static readonly string[] StatureFanbaseAdditions = {
+        "--single-artist-heat-current-albums",
+        "--follower-recruit-from-new-buyers",
+        "--follower-cold-adult-year=0.25",
+        "--singles-ration-exponent=1.0",
+        "--folk-material-mix",
+        "--roster-delivery-bound=2",
+        "--roster-tier-ceiling",
+        "--slate-work-budget=1",  // media-atmosphere-v3: --slate-work-budget=0.67
+        "--head-scale-upgrades",
+        "--launch-push-saturation=0",  // media-atmosphere-v3: --launch-push-saturation=0.5
+        "--launch-stock-spread=0",
+        "--launch-caps-major-only",
+        "--major-scale-gate=0.75",
+        "--label-demand-parity=1",
+        "--uncovered-sales-terms=10",
+        "--receivable-backed-overdraft=0.75",
+        "--slate-going-concern-reserve-all-tiers",
+        "--programme-overdraft-funding",
+        "--post-peak-demand-decay-top=0.92",  // media-atmosphere-v3: --post-peak-demand-decay-top=0.9
+        "--post-peak-demand-top-rank=10",
+        "--survey-panel-persistence=0.8",
+        "--regional-radio-rise-lerp=0.3",
+        "--single-commercial-fit-launch-weight=0",  // media-atmosphere-v3: --single-commercial-fit-launch-weight=1.25
+        "--single-commercial-fit-upside=1",
+        "--single-commercial-fit-act-record-weight=2",
+        "--single-commercial-fit-act-record-odds-only",
+        "--label-blind-launch-dose=1",
+        "--label-blind-launch-dose-hot-acts",
+        "--label-blind-launch-dose-exposure=0.95",
+        "--receivable-overdraft-charge=0.0125",
+        "--anniversary-opening-contracts",
+        "--renewal-live-evidence",
+        "--renewal-earned-option",
+        "--lp-earned-discovery=0",
+        "--lp-earned-launch",
+        "--lp-buyer-word-of-mouth=10000",
+        "--budget-noncurrent-weeks=156",
+        "--lp-demand-scale=2.65",  // media-atmosphere-v3: --lp-demand-scale=0.98
+        "--lp-demand-scale-stores-only",
+        "--budget-appeal-saturation=25000",
+        "--budget-rank-by-weight",
+        "--budget-source-bound=1",
+        "--lp-launch-standing=30000",
+        "--programme-major-albums=8",
+        "--album-prior-debut-scale=2.0613",
+        "--album-affinity=Folk=0.40,BossaNova=0.30,TraditionalPop=0.36,EasyListening=0.28,Comedy=0.50,Blues=0.40",
+        "--rack-soundtrack-weight=0.3",
+        "--rack-shopper-scale=0.030",  // media-atmosphere-v3: --rack-shopper-scale=0.02652
+        "--hit-package-demand=0.4",
+        "--hit-package-demand-youth",
+        "--hit-package-demand-studio=0.75",
+        "--album-chart-reporting=Country=0.5",
+        "--soundtrack-launch-awareness=0.25",
+        "--soundtrack-hit-tail=0.15",
+        "--opening-soundtrack-catalogue=8",
+        "--soundtrack-format-tilt=1.0",
+        "--soundtrack-origination-season=0.9",
+        "--album-chart-blend=0.22",
+        "--soundtrack-hit-tail-peak=20",
+        "--budget-shopper-scale=0.13",  // media-atmosphere-v3: --budget-shopper-scale=0.0816
+        "--census-population",
+        "--census-black-share",
+        "--regional-genre-taste-buyer-weight",
+        "--census-specialist-priors",
+        "--label-city-weights",
+        "--proven-hit-deal-weeks=13",
+        "--graduated-founder-overhead",
+        "--lp-reception-sigma=2.0",
+        "--lp-label-price-share=0.50",
+        "--earned-lp-forecast",
+        "--earned-lp-forecast-log",
+        "--historical-majors",
+        "--zero-fee-material-gate",
+        "--label-blind-launch=expose",
+        "--label-blind-launch-scope=major-newcomer",
+        "--label-blind-launch-expose-shared=0.4",
+        "--chart-faller-report-depth=60",
+        "--single-commercial-fit-act-record-size=0.4",
+        "--slate-major-hit-act-gap=12",
+        "--major-plug-slots=4",
+        "--earned-lp-forecast-warm-start=20",
+        "--album-career-importance=1960:0.3,1964:0.5,1967:0.85,1969:1",
+        "--lp-reception-upper=1:0.5",
+        "--album-chart-racks=1",
+        "--rack-genre-flatten=1",
+        "--act-lp-audience=0.5",
+        "--act-lp-audience-net-credit",
+        "--earned-lp-forecast-warm-ratios=4.5,4.1",
+        "--major-opening-roster=58",
+        "--opening-catalogue-major-share=0.16",
+        "--opening-programme-clocks",
+        "--opening-staff-catch-up=12",
+        "--opening-star-tier-share=0.37",
+        "--local-promotion=3",
+        "--local-promotion-home-share=0.75",
+        "--local-promotion-midtier=off",
+    };
+
+    private static readonly string[] Profile = MediaAtmosphereProfile
+        .Where(flag => !StatureFanbaseAdditions.Select(Key).Contains(Key(flag))).Concat(StatureFanbaseAdditions).ToArray();
 
     public static string[] Get() => effective ??= Resolve(OS.GetCmdlineUserArgs(),
         !Engine.IsEditorHint() && DisplayServer.GetName() != "headless");
 
+    // --no-X and --X share a key, so an explicit --no-X turns off a profile switch rather than clashing with it.
+    private static string Key(string arg) {
+        int split = arg.IndexOf('=');
+        string key = split < 0 ? arg : arg[..split];
+        return key.StartsWith("--no-", StringComparison.Ordinal) ? "--" + key[5..] : key;
+    }
+
     internal static string[] Resolve(IEnumerable<string> arguments, bool ordinaryGame) {
         var args = (arguments ?? Array.Empty<string>()).ToArray();
-        bool force = args.Contains(DefaultSwitch), legacy = args.Contains(LegacySwitch), previous = args.Contains(PreviousSwitch);
-        if ((force ? 1 : 0) + (legacy ? 1 : 0) + (previous ? 1 : 0) > 1)
-            throw new ArgumentException("Choose one of the default, previous (lp-retail-v2) or legacy simulation profiles.");
-        if (legacy || !ordinaryGame && !force && !previous) return args;
-        string[] profile = previous ? PreviousProfile : Profile;
+        bool force = args.Contains(DefaultSwitch), legacy = args.Contains(LegacySwitch), previous = args.Contains(PreviousSwitch),
+            media = args.Contains(MediaAtmosphereSwitch);
+        if ((force ? 1 : 0) + (legacy ? 1 : 0) + (previous ? 1 : 0) + (media ? 1 : 0) > 1)
+            throw new ArgumentException("Choose one of the default, media-atmosphere-v3, lp-retail-v2 or legacy simulation profiles.");
+        if (legacy || !ordinaryGame && !force && !previous && !media) return args;
+        string[] profile = previous ? PreviousProfile : media ? MediaAtmosphereProfile : Profile;
         // An explicit parameter replaces its profile value. Preserve duplicate explicit parameters
         // so the owning parser can reject them rather than silently choosing one.
-        // --no-X and --X share a key, so an explicit --no-X turns off a profile switch rather than clashing with it.
-        static string Key(string arg) {
-            int split = arg.IndexOf('=');
-            string key = split < 0 ? arg : arg[..split];
-            return key.StartsWith("--no-", StringComparison.Ordinal) ? "--" + key[5..] : key;
-        }
         var explicitKeys = args.Select(Key).ToHashSet(StringComparer.Ordinal);
         return profile.Where(flag => !explicitKeys.Contains(Key(flag))).Concat(args).ToArray();
     }
