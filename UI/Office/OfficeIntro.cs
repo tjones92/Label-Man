@@ -834,7 +834,8 @@ public partial class OfficeIntro : Control {
 
 	// ── the hangover ────────────────────────────────────────────────────────────────────────────────
 
-	private const string HazeShader = @"
+	/// <summary>The hangover look, shared with the founding pages (the headache lifts as the questions go by).</summary>
+	public const string HazeShader = @"
 shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
 uniform float haze = 1.0;

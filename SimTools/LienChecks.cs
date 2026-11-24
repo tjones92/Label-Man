@@ -54,8 +54,8 @@ public partial class LienChecks : Node {
 		var fits = Enum.GetValues<LienHolder>().ToDictionary(h => h, h => singles.Count(m => PartyScores(m)[h] == 1));
 		Check(fits.Values.All(n => n == 5), "Each holder fits exactly five answers: " + string.Join(", ", fits.Select(kv => $"{kv.Key} {kv.Value}")));
 		Check(singles.All(m => PartyScores(m).Values.Sum() >= 1), "Every real answer fits at least one holder");
-		Check(PartyEndAnswers.Any(a => a.Value == PartyEnd.Nothing) && PartyWhoAnswers.Any(a => a.Text == "A disc jockey")
-			&& PartyBragAnswers.Any(a => a.Text == "The hits you can pick"), "The answer set has the disc jockey and the hits you can pick");
+		Check(PartyEndAnswers.Any(a => a.Value == PartyEnd.Nothing) && PartyWhoAnswers.Any(a => a.Value == PartyWho.DiscJockey)
+			&& PartyBragAnswers.Any(a => a.Value == PartyBrag.Hits), "The answer set has the disc jockey and the hits you can pick");
 
 		var blank = new PartyMemory();
 		Check(PartyScores(blank).Values.All(s => s == 0) && Enum.GetValues<LienHolder>().All(h => WrongMemories(blank, h).Count == 0),

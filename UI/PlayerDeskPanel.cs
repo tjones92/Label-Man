@@ -140,6 +140,7 @@ public partial class PlayerDeskPanel : Control {
 	public void OpenFounding() {
 		foundingStarted = true;
 		foundingStep = 0;
+		NightBegin();
 		Open();
 	}
 

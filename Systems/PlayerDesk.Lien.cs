@@ -155,19 +155,31 @@ public partial class PlayerDesk {
 	}
 
 	public static readonly (PartyWhere Value, string Text)[] PartyWhereAnswers = {
-		(PartyWhere.SupperClub, "A supper club, all white tablecloths"), (PartyWhere.DjHouseParty, "A DJ's house party"),
-		(PartyWhere.HotelBallroom, "A hotel ballroom"), (PartyWhere.BarBackRoom, "The back room of a bar"), (PartyWhere.Nothing, "No idea"),
+		(PartyWhere.SupperClub, "White tablecloths, and a waiter who knew your name"),
+		(PartyWhere.DjHouseParty, "Someone's living room, records stacked to the ceiling"),
+		(PartyWhere.HotelBallroom, "Under a chandelier, with a dance band on a riser"),
+		(PartyWhere.BarBackRoom, "Behind the bar, through a door marked Private"),
+		(PartyWhere.Nothing, "There were walls. That's all I've got"),
 	};
 	public static readonly (PartyWho Value, string Text)[] PartyWhoAnswers = {
-		(PartyWho.CamelCoat, "A man in a camel coat"), (PartyWho.DiscJockey, "A disc jockey"),
-		(PartyWho.RouteMan, "A jukebox route man"), (PartyWho.MajorMan, "Somebody from a Major"), (PartyWho.Nothing, "Everybody, nobody"),
+		(PartyWho.CamelCoat, "A man in a camel coat"),
+		(PartyWho.DiscJockey, "Somebody who talked like he was introducing a record"),
+		(PartyWho.RouteMan, "A heavy fella with a ring of keys on his belt"),
+		(PartyWho.MajorMan, "A fella who said \"we\" as if he meant a whole building"),
+		(PartyWho.Nothing, "A crowd. Nobody in particular"),
 	};
 	public static readonly (PartyBrag Value, string Text)[] PartyBragAnswers = {
-		(PartyBrag.TheLabel, "The label you're about to start"), (PartyBrag.TheAct, "The act you're going to sign"),
-		(PartyBrag.Money, "Money you don't have"), (PartyBrag.Hits, "The hits you can pick"), (PartyBrag.Nothing, "You don't brag"),
+		(PartyBrag.TheLabel, "Putting your name on a record. Then on every record in town"),
+		(PartyBrag.TheAct, "A kid you'd heard once, who was going to change everything"),
+		(PartyBrag.Money, "How much you could lay your hands on by Monday"),
+		(PartyBrag.Hits, "That you could hear a hit before the second chorus"),
+		(PartyBrag.Nothing, "For once, you kept your mouth shut"),
 	};
 	public static readonly (PartyEnd Value, string Text)[] PartyEndAnswers = {
-		(PartyEnd.CardTable, "At a card table"), (PartyEnd.Car, "In a car"), (PartyEnd.PhoneCall, "With a phone call"), (PartyEnd.Nothing, "It didn't. It just stopped."),
+		(PartyEnd.CardTable, "Someone shuffling, and a pile of chips that wasn't yours"),
+		(PartyEnd.Car, "Headlights, and somebody else's hand on the wheel"),
+		(PartyEnd.PhoneCall, "A phone ringing in a hallway, somebody holding it out to you"),
+		(PartyEnd.Nothing, "A hum. And then this morning"),
 	};
 
 	/// <summary>Which holders an answer fits (§3.6). Each holder fits exactly five answers; "nothing" fits nobody.</summary>

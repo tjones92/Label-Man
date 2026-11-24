@@ -52,7 +52,9 @@ public partial class PlayerDeskPanel {
 		// A fainter ring on the founding pages: it sat over the town's money figures at full strength.
 		if (pageStain != null) { pageStain.Modulate = new Color(1, 1, 1, 0.4f); pageStain.QueueRedraw(); }
 		content.AddChild(FoundingBanner());
-		content.AddChild(FoundingStepper());
+		// The night is remembered one question at a time: no stepper until the head clears.
+		if (foundingStep == 0) NightHazeWanted();
+		else { NightStop(); content.AddChild(FoundingStepper()); }
 
 		switch (foundingStep) {
 			case 0: FoundingNightStep(); break;
@@ -63,7 +65,10 @@ public partial class PlayerDeskPanel {
 	}
 
 	private void GoToFoundingStep(int step) {
-		foundingStep = Mathf.Clamp(step, 0, FoundingStepNames.Length - 1);
+		step = Mathf.Clamp(step, 0, FoundingStepNames.Length - 1);
+		// Back from the first practical page lands on the last thing you remembered, not the first.
+		if (step == 0 && foundingStep > 0) { nightIndex = foundingStep == 1 ? NightPrompts.Length - 1 : 0; nightEntry = NightEntry.Settled; }
+		foundingStep = step;
 		Refresh();
 		Callable.From(() => { if (contentScroll != null) contentScroll.ScrollVertical = 0; }).CallDeferred();
 	}
@@ -147,58 +152,6 @@ public partial class PlayerDeskPanel {
 		go.Pressed += onNext;
 		row.AddChild(go);
 		content.AddChild(row);
-	}
-
-	// ---- step 1: last night -------------------------------------------------------------------------------------------
-
-	/// <summary>Four hazy questions about New Year's Eve. The answers narrow who holds the paper (§3.6), but the page
-	/// never says so: it reads as remembering, not choosing.</summary>
-	private void FoundingNightStep() {
-		var questions = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		questions.AddThemeConstantOverride("separation", 14);
-		content.AddChild(questions);
-		NightQuestion(questions, "Where was it?", PlayerDesk.PartyWhereAnswers, nightWhere, v => nightWhere = v);
-		NightQuestion(questions, "Who were you drinking with?", PlayerDesk.PartyWhoAnswers, nightWho, v => nightWho = v);
-		NightQuestion(questions, "What were you bragging about?", PlayerDesk.PartyBragAnswers, nightBrag, v => nightBrag = v);
-		NightQuestion(questions, "How did it end?", PlayerDesk.PartyEndAnswers, nightEnd, v => nightEnd = v);
-
-		bool answered = nightWhere != null && nightWho != null && nightBrag != null && nightEnd != null;
-		FoundingFooter("NEXT:  YOUR BACKGROUND  →", () => {
-			if (!answered) { Say("Try to remember. Even \"no idea\" is an answer.", false); Refresh(); return; }
-			GoToFoundingStep(1);
-		});
-	}
-
-	private void NightQuestion<T>(Container parent, string question, (T Value, string Text)[] answers, T? current, Action<T> pick) where T : struct, Enum {
-		var block = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		block.AddThemeConstantOverride("separation", 6);
-		block.AddChild(FoundingText(question, 20, Ink, PaperTheme.SerifBold));
-		var row = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		row.AddThemeConstantOverride("h_separation", 8);
-		row.AddThemeConstantOverride("v_separation", 8);
-		foreach ((T value, string text) in answers) {
-			bool selected = current.HasValue && current.Value.Equals(value);
-			var chip = new Button { Text = text, FocusMode = FocusModeEnum.None, CustomMinimumSize = new Vector2(0, 38),
-				MouseDefaultCursorShape = CursorShape.PointingHand };
-			var face = new StyleBoxFlat { BgColor = selected ? Rust : CardFill, BorderColor = selected ? Rust : CardEdge,
-				BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
-				CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3,
-				ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 6, ContentMarginBottom = 6 };
-			var hover = (StyleBoxFlat)face.Duplicate();
-			if (!selected) hover.BgColor = new Color("f3e6c2");
-			chip.AddThemeStyleboxOverride("normal", face);
-			chip.AddThemeStyleboxOverride("pressed", face);
-			chip.AddThemeStyleboxOverride("hover", hover);
-			chip.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			Color ink = selected ? Paper : Ink;
-			foreach (string state in new[] { "font_color", "font_hover_color", "font_pressed_color" }) chip.AddThemeColorOverride(state, ink);
-			chip.AddThemeFontOverride("font", PaperTheme.SerifItalic);
-			chip.AddThemeFontSizeOverride("font_size", 16);
-			chip.Pressed += () => { pick(value); Refresh(); };
-			row.AddChild(chip);
-		}
-		block.AddChild(row);
-		parent.AddChild(block);
 	}
 
 	// ---- step 2: who you were -----------------------------------------------------------------------------------------
@@ -370,6 +323,7 @@ public partial class PlayerDeskPanel {
 			Say(message, ok);
 			if (ok) {
 				foundingStep = 0;
+				nightIndex = 0;
 				nightWhere = null; nightWho = null; nightBrag = null; nightEnd = null;
 			}
 			Refresh();
