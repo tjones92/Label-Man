@@ -51,8 +51,7 @@ public partial class PlayerDeskPanel {
 		return row;
 	}
 
-	/// <summary>The title card the founding page opens on: the game's name set like a record sleeve's banner, a year and a row of discs.</summary>
-	private Control FoundingTitleCard() {
+	private Control StartTitleCard() {
 		var card = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		var paper = PaperStyleBox.Sheet(new Color("f3ead0"), 24, 14, 10, new Color("2b2115"));
 		paper.BorderWidth = 3; paper.Burn = 0.7f; paper.Falloff = 0.6f;
@@ -65,7 +64,7 @@ public partial class PlayerDeskPanel {
 		kicker.AddThemeFontSizeOverride("font_size", 13);
 		kicker.AddThemeColorOverride("font_color", Rust);
 		column.AddChild(kicker);
-		var title = new Label { Text = "Start a Label", HorizontalAlignment = HorizontalAlignment.Center };
+		var title = new Label { Text = "Label Man", HorizontalAlignment = HorizontalAlignment.Center };
 		title.AddThemeFontOverride("font", PaperTheme.Lettering(LetteringStyle.Didone));
 		title.AddThemeFontSizeOverride("font_size", 54);
 		title.AddThemeColorOverride("font_color", Ink);

@@ -8,12 +8,34 @@ using Godot;
 // MONEY AND RUNWAY paragraph explaining pressing costs and overdraft rules a new player doesn't need yet. The money a
 // player does need -- what they start with and what the office costs -- now sits beside the town that sets it.
 public partial class PlayerDeskPanel {
+	private bool foundingStarted;
 	private int foundingStep;   // 0 background, 1 home town, 2 name and look
 	private static readonly string[] FoundingStepNames = { "YOUR BACKGROUND", "HOME TOWN", "NAME & LOOK" };
 	private static readonly Color CardFill = new("ead8ad"), CardEdge = new("8a7048");
 
+	private void PageStart() {
+		if (pageStain != null) pageStain.Modulate = Colors.Transparent;
+		content.AddChild(StartTitleCard());
+		SaveGameService.SaveInfo? newest = SaveGameService.NewestSave();
+		var choices = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+		choices.AddThemeConstantOverride("separation", 12);
+		var start = Primary("NEW GAME");
+		start.Name = "NewGame";
+		start.CustomMinimumSize = new Vector2(178, 44);
+		start.Pressed += () => UIManager.Instance?.StartNewGame();
+		choices.AddChild(start);
+		if (newest is { } last) {
+			var load = Btn("LOAD A SAVE");
+			load.CustomMinimumSize = new Vector2(178, 44);
+			load.Pressed += () => UIManager.Instance?.OpenGameMenu();
+			choices.AddChild(load);
+			content.AddChild(choices);
+			WelcomeBackStrip(last);
+		} else content.AddChild(choices);
+		start.CallDeferred(Control.MethodName.GrabFocus);
+	}
+
 	private void PageFounding() {
-		var desk = PlayerDesk.Instance;
 		List<MarketRegion> regions = ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>();
 		var regionName = regions.ToDictionary(r => r.regionId, r => r.regionName);
 		List<MarketCity> cities = DistanceModel.GetCities()
@@ -25,7 +47,6 @@ public partial class PlayerDeskPanel {
 		// A fainter ring on the founding pages: it sat over the town's money figures at full strength.
 		if (pageStain != null) { pageStain.Modulate = new Color(1, 1, 1, 0.4f); pageStain.QueueRedraw(); }
 		content.AddChild(FoundingBanner());
-		if (foundingStep == 0) WelcomeBackStrip();
 		content.AddChild(FoundingStepper());
 
 		switch (foundingStep) {
@@ -58,10 +79,7 @@ public partial class PlayerDeskPanel {
 	}
 
 	/// <summary>A returning player's way back in, as one line rather than a section.</summary>
-	private void WelcomeBackStrip() {
-		SaveGameService.SaveInfo? newest = SaveGameService.NewestSave();
-		if (!newest.HasValue) return;
-		SaveGameService.SaveInfo last = newest.Value;
+	private void WelcomeBackStrip(SaveGameService.SaveInfo last) {
 		string slot = last.Slot;
 		var strip = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		strip.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(CardFill, 0.6f), BorderColor = CardEdge,
@@ -76,7 +94,10 @@ public partial class PlayerDeskPanel {
 		row.AddChild(text);
 		var cont = Primary("CONTINUE");
 		cont.CustomMinimumSize = new Vector2(150, 34);
-		cont.Pressed += () => { bool ok = SaveGameService.Load(slot, out string message); Say(message, ok); Refresh(); };
+		cont.Pressed += () => {
+			if (SaveGameService.Load(slot, out string message)) UIManager.Instance?.OnClick_CloseAll();
+			else { Say(message, false); Refresh(); }
+		};
 		row.AddChild(cont);
 		content.AddChild(strip);
 	}

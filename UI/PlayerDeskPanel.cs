@@ -54,6 +54,8 @@ public partial class PlayerDeskPanel : Control {
 	private string selectedDriveCityId;   // the picked line in the destination list (and the map), or null
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
+	private PanelContainer folder;
+	private HBoxContainer folderHeader, alertRow;
 	// The founding archetype selected on the founding page; persists across Refresh() rebuilds.
 	private FoundingArchetype selectedArchetype = FoundingArchetype.TradeInsider;
 	private string selectedFoundingCityId;
@@ -135,6 +137,12 @@ public partial class PlayerDeskPanel : Control {
 		Open();
 	}
 
+	public void OpenFounding() {
+		foundingStarted = true;
+		foundingStep = 0;
+		Open();
+	}
+
 	public void OpenStudio(string artistId) {
 		studioMode = true; browsingSaves = false;
 		if (studioArtistId != artistId) { studioSide = 0; studioSongs.Clear(); studioCompare = studioReview = false; studioOpenTakes.Clear(); }
@@ -155,7 +163,7 @@ public partial class PlayerDeskPanel : Control {
 		shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		AddChild(shade);
 
-		var folder = new PanelContainer();
+		folder = new PanelContainer();
 		folder.SetAnchorsPreset(LayoutPreset.Center);
 		folder.Position = new Vector2(-600, -430);
 		folder.Size = new Vector2(1200, 860);
@@ -173,7 +181,7 @@ public partial class PlayerDeskPanel : Control {
 		root.AddThemeConstantOverride("separation", 6);
 		folder.AddChild(root);
 
-		var header = new HBoxContainer();
+		var header = folderHeader = new HBoxContainer();
 		root.AddChild(header);
 		titleCrest = new LabelCrest { Visible = false };
 		header.AddChild(titleCrest);
@@ -208,7 +216,7 @@ public partial class PlayerDeskPanel : Control {
 		clockLabel.ClipContents = true;
 		// Playtest 2026-11-04: the header was ~270px. It is now three rows -- the title with the clock, one line of date,
 		// place, cash and acts with the wait buttons beside it, and NEXT UP. Stock moved to the Catalog tab.
-		var alertRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 34) };
+		alertRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 34) };
 		alertRow.AddThemeConstantOverride("separation", 12);
 		root.AddChild(alertRow);
 		alertRow.AddChild(clockLabel);
@@ -415,6 +423,14 @@ public partial class PlayerDeskPanel : Control {
 		ApplyTitleBrand(null);
 		if (desk == null) { titleLabel.Text = "DESK UNAVAILABLE"; return; }
 
+		bool atTitle = !desk.HasLabel && !foundingStarted && !browsingSaves;
+		folderHeader.Visible = alertRow.Visible = !atTitle;
+		Vector2 folderHalfSize = atTitle ? new(325, 190) : new(600, 430);
+		folder.OffsetLeft = -folderHalfSize.X;
+		folder.OffsetRight = folderHalfSize.X;
+		folder.OffsetTop = -folderHalfSize.Y;
+		folder.OffsetBottom = folderHalfSize.Y;
+
 		// Founding, save/load and game-over have no stock, next step or red-ink state; an empty bordered
 		// NEXT UP bar over the founding form read as a broken input.
 		bool inGame = desk.HasLabel && !desk.IsGameOver && !browsingSaves;
@@ -441,8 +457,10 @@ public partial class PlayerDeskPanel : Control {
 			if (idleRow != null) idleRow.Visible = false;
 			foreach (Node child in tabs.GetChildren()) child.QueueFree();
 			tabButtons.Clear();
+			tabs.Hide();
 			Clear(content);
-			PageFounding();
+			if (atTitle) PageStart();
+			else PageFounding();
 			return;
 		}
 
