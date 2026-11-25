@@ -4432,7 +4432,7 @@ public partial class PlayerDesk : Node {
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		GameDate date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		ChartManager.Instance?.PlaceProjectPromo(recordId, Label.labelId, picks, effectiveness,
-			ProjectPromoDiscretion, ProjectPromoMobConnection, week, date.year, date.month, ProjectPromoWeeks);
+			ProjectPromoDiscretion, ProjectPromoMobConnection, week, date.year, date.month, ProjectPromoWeeks, cost);
 
 		Note($"Put a promo man on \"{TitleForRecord(recordId)}\" in {region.regionName} for ${cost:N0} -- {Plural.Of(stationCount, "station")}, about {ProjectPromoWeeks} weeks.");
 		message = $"Promo man working {region.regionName} for about {ProjectPromoWeeks} weeks (${cost:N0}).";
@@ -6156,6 +6156,7 @@ public partial class PlayerDesk : Node {
 			Advocacy = (ChartManager.Instance?.Advocacy.Active ?? (IReadOnlyList<StationAdvocacy>)Array.Empty<StationAdvocacy>())
 				.Select(StationAdvocacySaveData.From).ToList(),
 			StationState = CaptureStationState(),
+			Payola = ChartManager.Instance?.CapturePayola(),
 			BandRoom = CaptureBandRoom(),
 		};
 		return data;
@@ -6207,6 +6208,7 @@ public partial class PlayerDesk : Node {
 		ChartManager.Instance?.Advocacy.Restore(
 			(data.Advocacy ?? new List<StationAdvocacySaveData>()).Select(a => a.ToAdvocacy()));
 		RestoreStationState(data.StationState);
+		ChartManager.Instance?.RestorePayola(data.Payola);
 		RestoreBandRoom(data.BandRoom);
 		ActiveCall = null;   // you are not on the phone in a loaded game
         // Scouting negotiations restore by canonical act ID near the end of this method.

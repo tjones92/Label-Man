@@ -155,6 +155,8 @@ public sealed class StationPlayerStateSaveData {
 	public System.Collections.Generic.Dictionary<string, int> PlayerSpins { get; set; } = new();
 	/// <summary>recordId -> weeks already served in this station's rotation (drives burn).</summary>
 	public System.Collections.Generic.Dictionary<string, int> PlayerSpinWeeks { get; set; } = new();
+	/// <summary>The lead jock's suspicion, when it isn't zero.</summary>
+	public float LeadDjSuspicion { get; set; }
 }
 
 /// <summary>Flat save record for one live <see cref="StationAdvocacy"/>.</summary>

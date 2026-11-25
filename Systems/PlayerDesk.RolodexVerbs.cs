@@ -1064,10 +1064,12 @@ public partial class PlayerDesk : Node {
 				spins[kv.Key] = (int)kv.Value;
 				weeks[kv.Key] = rt.weeksInPlaylist.TryGetValue(kv.Key, out int w) ? w : 0;
 			}
-			if (rapport == 0f && spins.Count == 0) continue;       // nothing worth writing
+			float suspicion = chart.GetDeejay(station.leadDjId)?.suspicion ?? 0f;
+			if (rapport == 0f && spins.Count == 0 && suspicion == 0f) continue;   // nothing worth writing
 			list.Add(new StationPlayerStateSaveData {
 				StationId = station.stationId, Rapport = rapport,
 				PlayerSpins = spins, PlayerSpinWeeks = weeks,
+				LeadDjSuspicion = suspicion,
 			});
 		}
 		return list;
@@ -1083,6 +1085,7 @@ public partial class PlayerDesk : Node {
 			StationRuntime rt = station?.rt;
 			if (rt == null) continue;
 			if (s.Rapport != 0f) rt.labelRapport[Label.labelId] = s.Rapport;
+			if (s.LeadDjSuspicion != 0f && chart.GetDeejay(station.leadDjId) is Deejay dj) dj.suspicion = s.LeadDjSuspicion;
 			foreach (var kv in s.PlayerSpins ?? new Dictionary<string, int>()) {
 				rt.playlist[kv.Key] = (SpinTier)Math.Clamp(kv.Value, 0, 3);
 				rt.weeksInPlaylist[kv.Key] =

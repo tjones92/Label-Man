@@ -630,15 +630,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 			int creditDueWeek = ChartManager.Instance.GetCurrentChartWeek() + PlayerDesk.PlantCreditTermWeeks;
 			PlayerDesk.Instance.DebugSetPlantCredit(new PlayerDesk.PlantCredit { RecordId = "probe_record_5", Amount = 313f, DueWeek = creditDueWeek });
 
-			// §7 project promo is ephemeral (not persisted -- same as the existing Rolodex payola calls),
-			// so it has no CaptureState/RestoreState surface to round-trip. Smoke-test the ChartManager/
-			// PayolaLedger wiring directly instead of building a full release just to exercise it.
+			// §7 project promo is a PayolaLedger arrangement, saved with the ledger (PlayerSaveData.Payola).
+			// Place one through the ChartManager wiring directly instead of building a full release, and
+			// check below that the arrangement, its promoter and the label's paper trail come back.
 			var promoStations = ChartManager.Instance.ReporterStationsInRegion(DistanceModel.GetCityById(cityId)?.parentRegionId ?? "");
 			bool promoOk = true;
 			if (promoStations.Count > 0) {
 				var placed = ChartManager.Instance.PlaceProjectPromo("probe_record_4", PlayerDesk.Instance.Label.labelId,
 					new[] { promoStations[0].stationId }, 0.5f, 0.5f, 0.1f, ChartManager.Instance.GetCurrentChartWeek(),
-					TimeManager.Instance.CurrentDate.year, TimeManager.Instance.CurrentDate.month, 2);
+					TimeManager.Instance.CurrentDate.year, TimeManager.Instance.CurrentDate.month, 2, 50f);
 				promoOk = placed != null && placed.Count == 1;
 				GD.Print($"PROJECT_PROMO_SMOKE stations={promoStations.Count} placed={placed?.Count ?? 0} ok={promoOk}");
 			}
@@ -817,6 +817,7 @@ public partial class SaveLoadRoundTripRunner : Node {
                 ReadEvents = new() { ["probe-news"] = 3 } };
             if (!PlayerDesk.Instance.RestoreState(infoSave, out _)) throw new InvalidOperationException("Information fixture restore failed.");
             string sceneInformation0 = JsonSerializer.Serialize(PlayerDesk.Instance.CaptureState().SceneInformation, SaveGameService.TestJsonOptions);
+			string payola0 = JsonSerializer.Serialize(ChartManager.Instance.CapturePayola(), SaveGameService.TestJsonOptions);
 			// Save-time snapshot of world + player.
 			int week0 = ChartManager.Instance.GetCurrentChartWeek();
 			int labels0 = ChartManager.Instance.GetAllLabels().Count;
@@ -837,6 +838,10 @@ public partial class SaveLoadRoundTripRunner : Node {
             if (sceneInformation0 != JsonSerializer.Serialize(PlayerDesk.Instance.CaptureState().SceneInformation, SaveGameService.TestJsonOptions))
                 throw new InvalidOperationException("Scene information gzip roundtrip differs.");
             GD.Print("SCENE_INFORMATION_GZIP_PASS");
+			string payola1 = JsonSerializer.Serialize(ChartManager.Instance.CapturePayola(), SaveGameService.TestJsonOptions);
+			bool payolaOk = payola0 == payola1 && payola0 != "null";
+			GD.Print($"PAYOLA_ROUNDTRIP actions={ChartManager.Instance.PayolaActions.Count} " +
+				$"trail={ChartManager.Instance.PayolaExposure(PlayerDesk.Instance.Label.labelId):F3} ok={payolaOk}");
 			// Verify everything is back to the save-time state.
 			int week1 = ChartManager.Instance.GetCurrentChartWeek();
 			int labels1 = ChartManager.Instance.GetAllLabels().Count;
@@ -977,6 +982,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (!answeringServiceOk) fails.Add("answeringService lost on round-trip");
 			if (!runnerOk) fails.Add($"runnerState stopId={routeStop.StopId}");
 			if (!promoOk) fails.Add("projectPromoSmoke");
+			if (!payolaOk) fails.Add("payola ledger lost or changed on round-trip");
 			if (!plantCreditOk) fails.Add("plantCreditState");
 			if (!receivableOk) fails.Add("wholesaleReceivable lost on round-trip");
 			else if (!factorOk) fails.Add("factorReceivable math");

@@ -27,6 +27,14 @@ public partial class PlayerDesk {
 	public const string GermainWriterId = MechanicalRoyaltyService.OutsiderWriterPrefix + "germain";
 	public const string GermainName = "Jack Germain";
 	public const string GermainPromoterId = "germain-network";
+	// Numbers measured by SimTools/PayolaMeasureProbe (SimLogs/payola-measure-1001.txt; directive §3.5 H5 "Measured"):
+	//  - the quarter matches the label's own cut-in, and is below the third Alan Freed took on "Maybellene". At the statutory 2c it is
+	//    a quarter-cent a copy ($25 per 10,000), so the cost of his name is the writers' trust, not the money;
+	//  - his boys are half the home region's reporters (every region has 11: six), eight weeks, at his network's effectiveness;
+	//  - the fee prices that push at half a local promo man's rate per boost-week (the measured Project Promo L rate is ~$57), so he is
+	//    the cheapest airplay in the game without being free;
+	//  - discretion starts careful (he has just been fired) and falls fast, so a first push in the 1960 crackdown is caught about one
+	//    time in seven and the fourth about one in four; used every year, he is caught at least once by about 1964 half the time.
 	/// <summary>The share of the writer credit on each song his name goes on (the same as the label's own cut-in).</summary>
 	public const float GermainCutInShare = 0.25f;
 	/// <summary>"A song or two": the originals his name goes on, per Concede.</summary>
@@ -35,13 +43,17 @@ public partial class PlayerDesk {
 	public const float GermainTrustHit = 0.12f;
 	public const float GermainStrain = 0.08f;
 	public const int GermainNetworkWeeks = 8;
+	/// <summary>His old jocks: half the home region's reporters, rounded up, and never more than six.</summary>
 	public const int GermainNetworkMaxStations = 6;
 	public const float GermainNetworkEffectiveness = 0.8f;
 	public const float GermainNetworkMob = 0.7f;
 	/// <summary>How discreet his boys are on the first push, how much each year of use costs, and the least they ever are.</summary>
-	public const float GermainNetworkDiscretion = 0.35f, GermainDiscretionLostPerUse = 0.1f, GermainDiscretionFloor = 0.05f;
+	public const float GermainNetworkDiscretion = 0.55f, GermainDiscretionLostPerUse = 0.12f, GermainDiscretionFloor = 0.05f;
 	/// <summary>His "consulting fee", booked as such. Cheap, which is how he gets in.</summary>
-	public const float GermainNetworkFee = 100f;
+	public const float GermainNetworkFee = 300f;
+	/// <summary>The payola trail each song with his name on it leaves on the label (a known payola jock credited as a writer is
+	/// exactly what the 1960 hearings went looking for), and what each consulting fee on the books adds.</summary>
+	public const float GermainNameExposure = 0.06f, GermainFeeExposure = 0.05f;
 	/// <summary>The newest single he will push, in weeks since release.</summary>
 	public const int GermainNetworkRecordWeeks = 52;
 
@@ -69,6 +81,7 @@ public partial class PlayerDesk {
 		if (lien == null || o == null || o.OutsiderShare <= 0f || o.CreditedPersonIds.Count == 0) return;
 		lien.CutInSongsLeft = Math.Max(0, lien.CutInSongsLeft - 1);
 		lien.CutInSongs++;
+		ChartManager.Instance?.AddPayolaExposure(Label?.labelId, GermainNameExposure);
 		var writers = a.members.Where(m => m.isActive && o.CreditedPersonIds.Contains(m.personId)).ToList();
 		foreach (Musician m in writers) {
 			AddTrust(m, -GermainTrustHit);
@@ -96,13 +109,15 @@ public partial class PlayerDesk {
 		ReleasedRecords.Where(r => r.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && r.weeksSinceRelease <= GermainNetworkRecordWeeks)
 			.OrderBy(r => r.weeksSinceRelease).ThenBy(r => r.baseRecord.recordId, StringComparer.Ordinal).FirstOrDefault();
 
-	/// <summary>The reporter stations his boys work: the home region's, in id order, up to six.</summary>
+	/// <summary>The reporter stations his boys work: half the home region's, in id order, up to six.</summary>
 	public List<RadioStation> GermainStations() {
 		var city = Label == null ? null : DistanceModel.GetCityById(Label.homeCityId);
 		if (city == null) return new();
-		return (ChartManager.Instance?.ReporterStationsInRegion(city.parentRegionId) ?? Array.Empty<RadioStation>())
-			.Where(s => s != null).OrderBy(s => s.stationId, StringComparer.Ordinal).Take(GermainNetworkMaxStations).ToList();
+		var all = (ChartManager.Instance?.ReporterStationsInRegion(city.parentRegionId) ?? Array.Empty<RadioStation>()).Where(s => s != null).ToList();
+		return all.OrderBy(s => s.stationId, StringComparer.Ordinal).Take(GermainNetworkStationCount(all.Count)).ToList();
 	}
+
+	public static int GermainNetworkStationCount(int regionReporters) => Math.Min(GermainNetworkMaxStations, (regionReporters + 1) / 2);
 
 	/// <summary>The Concede options only Jack offers: his name, and his boys.</summary>
 	private List<LienOption> GermainConcedeOptions() {
@@ -153,10 +168,11 @@ public partial class PlayerDesk {
 		if (Label.cashReserves < GermainNetworkFee) { message = $"His consulting fee is ${GermainNetworkFee:N0}."; return false; }
 		float discretion = GermainDiscretionNow;
 		var placed = ChartManager.Instance?.PlacePromoterNetwork(GermainPromoterId, GermainName + "'s boys", record.baseRecord.recordId, Label.labelId,
-			stations.Select(s => s.stationId).ToArray(), GermainNetworkEffectiveness, discretion, GermainNetworkMob, GermainNetworkWeeks);
+			stations.Select(s => s.stationId).ToArray(), GermainNetworkEffectiveness, discretion, GermainNetworkMob, GermainNetworkWeeks, GermainNetworkFee);
 		if (placed == null || placed.Count == 0) { message = "His boys couldn't get anyone to pick up the phone."; return false; }
 		Label.cashReserves -= GermainNetworkFee;
 		Label.monthlyExpenses += GermainNetworkFee;
+		ChartManager.Instance?.AddPayolaExposure(Label.labelId, GermainFeeExposure);
 		lien.NetworkUses++;
 		string title = TitleForRecord(record.baseRecord.recordId);
 		lien.Add(today, LienLedgerKind.SentBoys, GermainNetworkFee, title);

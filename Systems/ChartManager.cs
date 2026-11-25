@@ -3622,20 +3622,20 @@ public partial class ChartManager : Node {
 	/// Rolodex payola calls use, so the existing scandal/detection risk model applies untouched.</summary>
 	public System.Collections.Generic.List<PayolaAction> PlaceProjectPromo(string recordId, string labelId,
 			string[] stationIds, float effectiveness, float discretion, float mobConnection,
-			int week, int year, int month, int durationWeeks) {
+			int week, int year, int month, int durationWeeks, float fee = 0f) {
 		if (payolaLedger == null || stationIds == null || stationIds.Length == 0) return null;
 		string promoterId = $"projectpromo-{labelId}-{recordId}-{week}";
 		payolaLedger.RegisterPromoter(new IndiePromoter {
 			promoterId = promoterId, name = "Project Promo", stationIds = stationIds,
 			effectiveness = effectiveness, discretion = discretion, mobConnection = mobConnection
 		});
-		return payolaLedger.PlaceIndiePromoter(recordId, labelId, promoterId, week, year, month, durationWeeks);
+		return payolaLedger.PlaceIndiePromoter(recordId, labelId, promoterId, week, year, month, durationWeeks, fee);
 	}
 	/// <summary>A standing promoter the player has a relationship with (Jack Germain's network, inner-life §3.5 H5): the same
 	/// ledger path as <see cref="PlaceProjectPromo"/>, but the promoter keeps one id and his own name, and his traits are the
 	/// caller's. Re-registering an id replaces the traits, so a promoter who has grown careless is careless from the next push on.</summary>
 	public System.Collections.Generic.List<PayolaAction> PlacePromoterNetwork(string promoterId, string name, string recordId, string labelId,
-			string[] stationIds, float effectiveness, float discretion, float mobConnection, int durationWeeks) {
+			string[] stationIds, float effectiveness, float discretion, float mobConnection, int durationWeeks, float fee = 0f) {
 		if (payolaLedger == null || stationIds == null || stationIds.Length == 0) return null;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
@@ -3643,8 +3643,21 @@ public partial class ChartManager : Node {
 			promoterId = promoterId, name = name, stationIds = stationIds,
 			effectiveness = effectiveness, discretion = discretion, mobConnection = mobConnection
 		});
-		return payolaLedger.PlaceIndiePromoter(recordId, labelId, promoterId, currentChartWeek, year, month, durationWeeks);
+		return payolaLedger.PlaceIndiePromoter(recordId, labelId, promoterId, currentChartWeek, year, month, durationWeeks, fee);
 	}
+
+	/// <summary>The payola ledger's live state for the player's save (null when nothing was ever placed).</summary>
+	internal PayolaLedgerSaveData CapturePayola() => payolaLedger?.Capture();
+	/// <summary>Restore it onto the rebuilt panel. Runs after <see cref="RebuildRadioForLoad"/>, like advocacy.</summary>
+	internal void RestorePayola(PayolaLedgerSaveData saved) => payolaLedger?.Restore(saved);
+	/// <summary>The paper trail of payola pointing at a label (0 for every AI label: only the player places any).</summary>
+	public float PayolaExposure(string labelId) => payolaLedger?.Exposure(labelId) ?? 0f;
+	/// <summary>Add to a label's payola trail from something that is not an arrangement (a payola jock's name, his fees).</summary>
+	public void AddPayolaExposure(string labelId, float amount) => payolaLedger?.AddExposure(labelId, amount);
+	public float PayolaStationHeat(string stationId) => payolaLedger?.StationHeat(stationId) ?? 0f;
+	/// <summary>Live payola arrangements (checks and readouts).</summary>
+	public System.Collections.Generic.IReadOnlyCollection<PayolaAction> PayolaActions =>
+		payolaLedger?.Actions ?? (System.Collections.Generic.IReadOnlyCollection<PayolaAction>)System.Array.Empty<PayolaAction>();
 
 	/// <summary>Scandals adjudicated on THIS week's payolaLedger.Tick (already run earlier in SimulateWeek).
 	/// Cleared and rebuilt every tick, so a consumer must read it the same week it fires -- PlayerDesk
