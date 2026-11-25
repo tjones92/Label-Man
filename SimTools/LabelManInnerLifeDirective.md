@@ -742,6 +742,25 @@ dealer advance orders, pitching the act to a booker. This phase gives them a pla
   moments, gated on real events.
 - **Measure it.** Phase 0 adds an "empty day" metric: player days with no action that has a sim consequence. The
   target is near zero in the first 26 weeks.
+  **Measured 2026-11-25** (`SimTools/analyze_empty_days.py` over `OpeningCashLockRunner`, seed 1001, 182 days, 4
+  archetypes × Detroit/New York/Memphis; runs `SimLogs/empty-1001-*`). Empty = no successful action except travel and
+  logged refusals; side-only = only demo-service or booker pitches.
+  | Player | Empty days (of 182) | Side-only days | Longest empty run |
+  |---|---|---|---|
+  | Busy (discerning, every channel worked, demos, residencies, backer) | median 59, range 38–72 | median 35 | 5–8 days |
+  | Busy, two records (eager, second session after the first single is out) | 52 Detroit, 44 New York (Memphis never signed two) | 27–39 | 6–7 |
+  | Plain (frugal, home town only) | median 168 | 0 | 104–127 |
+  - **About half of a busy player's days have no label work** (empty plus side-only ≈ 94 of 182). The target is far off.
+  - **The gap is after the release, not before it.** In Detroit and New York 40–55 of the empty days are in the selling
+    months (2–6); the wait at the plant has 8–13, which the holder's first move (§6.1) now speaks to. Memphis is the
+    exception: a slower scouting start (14 empty days) and a later record (day 55–58).
+  - **What the player was doing on empty days:** counter pitches the shops turned down (857 across the 12 busy runs) or
+    nothing left to try (355 days). Once the home and nearby accounts have passed or are stocked, the loop has no next
+    move. A second record trims it only a little.
+  - **Caveat:** the probe doesn't use the Rolodex phone, courtesy calls, mailing, station stops beyond a drop, the new
+    record-shop visits, the holder move or the lien, so this is an upper bound for a player who uses everything. It's
+    still what the core sell loop yields. The selling months are where §6.1's "around the spine" beats (the Run, the
+    flip, the hit that breaks you) and the conviction drawer's mulling (§4) would land.
 
 ### 6.1 The first single: the holder shows his hand (author direction, 2026-11-24)
 
