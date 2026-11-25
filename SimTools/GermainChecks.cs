@@ -34,11 +34,12 @@ public partial class GermainChecks : Node {
 
 			Barred(desk);
 			var act = SignWriters(desk, clock);
-			Name(desk, act);
+			CutInName(desk, act);
 			Money(desk, act);
 			Boys(desk, clock, act);
 			Others(desk, clock);
 			Save(desk);
+			BlackLedger(desk, clock);
 			GD.Print($"GERMAIN_CHECKS_PASS ({checks} checks)");
 			BandLife.RestoreSwitches(switches);
 			GetTree().Quit(0);
@@ -77,7 +78,7 @@ public partial class GermainChecks : Node {
 		return song;
 	}
 
-	private void Name(PlayerDesk desk, SimulatedArtist act) {
+	private void CutInName(PlayerDesk desk, SimulatedArtist act) {
 		var lien = desk.Lien;
 		var opt = Opt(desk, LienVerb.ConcedeCutIn);
 		Check(opt.enabled, "Now he can have a name on a song");
@@ -190,5 +191,41 @@ public partial class GermainChecks : Node {
 		data.CutInSongsLeft = 0; data.CutInSongs = 0; data.NetworkUses = 0; data.CutInPaid = 0f;
 		desk.RestoreLienForChecks(data);
 		Check(desk.Lien.CutInSongsLeft == 0 && desk.Lien.NetworkUses == 0, "An older save without them owes him nothing");
+	}
+
+	private void BlackLedger(PlayerDesk desk, TimeManager clock) {
+		clock.RestoreClock(GameDate.StartDate, 9);
+		desk.FoundLienForChecks(GermainNight, LienHolder.Germain);
+		Check(desk.GermainLedgerLead() == null, "Jack's station is hidden until the holder is identified");
+		clock.RestoreClock(new GameDate(1960, 12, 20), 9);
+		Check(desk.OpenLienSitting(out _), "Tolliver identifies Jack at the sitting");
+		desk.CloseLienSitting();
+		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
+		Check(desk.GermainLedgerLead() != null, "Jack stays identified after a sitting without an extension and after saving");
+		var stops = DistanceModel.GetCities().SelectMany(city => desk.StopsInCity(city.cityId)).ToArray();
+		var station = stops.Single(stop => desk.GermainLedgerStopVerb(stop.StopId) != null);
+		Check(!desk.FollowGermainLedgerLead(station.StopId, out _) && desk.Lien.GermainLedger == GermainLedgerStage.Missing,
+			"The records cannot leave the library before the seeded clearance");
+		clock.RestoreClock(new GameDate(1964, 6, 1), 9);
+		Check(desk.FollowGermainLedgerLead(station.StopId, out string clue), "The station names the record shop: " + clue);
+		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
+		var shop = stops.Single(stop => desk.GermainLedgerStopVerb(stop.StopId) != null);
+		Check(shop.Kind == StopKind.Shop && desk.FollowGermainLedgerLead(shop.StopId, out _) &&
+			desk.Lien.GermainLedger == GermainLedgerStage.Found && !desk.GermainLedgerFrozen, "The saved clue leads to an unread ledger");
+		Check(!desk.ReadGermainLedger(out var blocked) && blocked.Contains("Fixer"), "Possession alone cannot freeze Jack");
+		desk.InstinctProfile.TheFixer = GermainLedgerFixer;
+		desk.Lien.CutInSongsLeft = 2;
+		float pay = desk.LienPayBar();
+		var deadline = desk.Lien.Deadline;
+		var stale = new LienOption { verb = LienVerb.ConcedeCutIn, label = "Offer his name" };
+		Check(desk.ReadGermainLedger(out _) && desk.GermainLedgerFrozen && desk.Lien.CutInSongsLeft == 0,
+			"Reading the ledger makes Jack drop his pending cut-ins");
+		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
+		Check(desk.GermainLedgerFrozen && desk.Lien.Deadline == deadline && Near(desk.LienPayBar(), pay)
+			&& Opt(desk, LienVerb.Pay) != null && Opt(desk, LienVerb.Show) != null,
+			"The freeze survives a save without changing the deadline or payment");
+		Check(Opt(desk, LienVerb.ConcedeCutIn) == null && Opt(desk, LienVerb.ConcedeNetwork) == null &&
+			Opt(desk, LienVerb.ConcedeStock) == null && Opt(desk, LienVerb.WriteItOn) == null &&
+			!desk.ChooseLienOption(new LienSittingLive(), stale, out _), "Tolliver offers no concessions and rejects a stale one");
 	}
 }

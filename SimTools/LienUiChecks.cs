@@ -47,6 +47,18 @@ public partial class LienUiChecks : Node {
 		try {
 			await Frame();
 			var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
+			if (OS.GetCmdlineUserArgs().Contains("--floria-ui")) {
+				await FloriaPurchase(desk, clock);
+				GD.Print($"FLORIA_UI_CHECKS_PASS ({checks} checks)");
+				GetTree().Quit(0);
+				return;
+			}
+			if (OS.GetCmdlineUserArgs().Contains("--germain-ui")) {
+				await GermainTrailWithoutStock(desk, clock);
+				GD.Print($"GERMAIN_UI_CHECKS_PASS ({checks} checks)");
+				GetTree().Quit(0);
+				return;
+			}
 			var sawyer = new PartyMemory { Where = PartyWhere.SupperClub, Brag = PartyBrag.TheAct, End = PartyEnd.CardTable };
 			Check(desk.FoundLabel("Lien UI Checks", "detroit", FoundingArchetype.ExMusician, null, sawyer, out string message), "Found: " + message);
 			Check(desk.Lien?.Holder == LienHolder.Sawyer && desk.LienMorningPending, "Sawyer holds the paper and the morning is pending");
@@ -74,8 +86,9 @@ public partial class LienUiChecks : Node {
 			await Press("PUT IT AWAY");
 			Check(!Shows("The Morning After") && desk.Lien.OpeningSeen, "Putting it away closes it and leaves the morning seen");
 
-			// THE PAPER, before any sitting: the holder isn't named yet, the lawyer is.
+			// THE PAPER, before any sitting: Connie's contract has already named Sawyer (§6.1), and his lawyer.
 			Check(Shows("THE PAPER") && Nodes(panel).OfType<LedgerTable>().Any(t => t.IsVisibleInTree()), "THE PAPER heading and its ledger are on the OFFICE tab");
+			Check(desk.LienHolderIdentified, "Connie's paper names Sawyer from the first morning");
 			Check(Shows("Mr. Halloran sits down with you from"), "Before December the paper says when the sitting opens");
 			await Screenshot("paper");
 
@@ -153,5 +166,58 @@ public partial class LienUiChecks : Node {
 			GD.PrintErr("LIEN_UI_CHECKS_FAIL: " + e.Message);
 			GetTree().Quit(1);
 		}
+	}
+
+	private async Task GermainTrailWithoutStock(PlayerDesk desk, TimeManager clock) {
+		var germain = new PartyMemory { Where = PartyWhere.DjHouseParty, Who = PartyWho.DiscJockey, Brag = PartyBrag.TheAct, End = PartyEnd.Car };
+		Check(desk.FoundLabel("Germain UI Checks", "detroit", FoundingArchetype.TradeInsider, null, germain, out string message), "Founded: " + message);
+		desk.DismissLienMorning();
+		clock.RestoreClock(new GameDate(1960, 12, 20), 9);
+		Check(desk.OpenLienSitting(out message), "Germain is identified: " + message);
+		desk.CloseLienSitting();
+		desk.Lien.Deadline = new GameDate(1965, 1, 1);
+		desk.Lien.BarYear = 1964;
+		clock.RestoreClock(new GameDate(1964, 6, 1), 9);
+		AddChild(GD.Load<PackedScene>("res://MainMenu.tscn").Instantiate());
+		await Frame();
+		panel = Nodes(this).OfType<PlayerDeskPanel>().Single();
+		panel.OpenAtTab("OFFICE"); await Frame();
+		Check(Shows("Start with Jack's old station"), "The office points to the station");
+		Check(!desk.PressedSinglesOnHand().Any() && !desk.PromoSinglesOnHand().Any(), "No selling or promo stock is on hand");
+		panel.OpenAtTab("DISTRIBUTION"); await Frame();
+		await Press("ASK ABOUT THE OLD 78s");
+		await Press("LOOK THROUGH THE USED 78s");
+		Check(desk.Lien.GermainLedger == GermainLedgerStage.Found, "The station and shop are reachable with no stock");
+		panel.OpenAtTab("OFFICE"); await Frame();
+		await Press("READ JACK'S ACCOUNT BOOK");
+		Check(desk.GermainLedgerFrozen, "Reading the book at the office freezes the concessions");
+	}
+
+	private async Task FloriaPurchase(PlayerDesk desk, TimeManager clock) {
+		var floria = new PartyMemory { Where = PartyWhere.HotelBallroom, Who = PartyWho.CamelCoat, Brag = PartyBrag.TheLabel, End = PartyEnd.PhoneCall };
+		Check(desk.FoundLabel("Floria UI Checks", "detroit", FoundingArchetype.TradeInsider, null, floria, out var message), "Founded: " + message);
+		desk.DismissLienMorning();
+		desk.Lien.Deadline = new GameDate(1970, 1, 1);
+		desk.Lien.BarYear = 1969;
+		clock.RestoreClock(new GameDate(1969, 12, 20), 9);
+		AddChild(GD.Load<PackedScene>("res://MainMenu.tscn").Instantiate());
+		await Frame();
+		panel = Nodes(this).OfType<PlayerDeskPanel>().Single();
+		panel.OpenAtTab("OFFICE"); await Frame();
+		Check(Shows("PURCHASE OPTION"), "Lowe's letter warns about the purchase option");
+		await Press("PUT IT ON THE DESK");
+		await Press("SIT DOWN WITH MR. LOWE");
+		Check(Shows("The Buyout") && Shows("PURCHASE OFFERS"), "The purchase takes over the sitting");
+		await Press("Sign with");
+		Check(!desk.IsGameOver && Shows("Signing transfers ownership"), "The sale asks for confirmation before transferring ownership");
+		await Press("THINK AGAIN");
+		Check(!desk.Label.IsSubsidiary && !desk.IsGameOver, "Cancelling leaves the label independent");
+		await Press("Sign with");
+		await Press("SIGN THE SALE");
+		Check(desk.IsGameOver && desk.Label.IsSubsidiary && Shows("enforced the buyout"), "Signing transfers the label and shows the outcome");
+		await Press("THAT'S THE END OF IT");
+		Check(Shows("TAKEN") && Nodes(panel).OfType<LedgerTable>().Any(table => table.IsVisibleInTree()) &&
+			desk.Lien.Ledger.Any(entry => entry.Kind == LienLedgerKind.FloriaBuyout && entry.Detail != null),
+			"The game-over page carries the paper and the ledger records the sale");
 	}
 }

@@ -3,7 +3,8 @@
 Status: exploration draft (2026-11-05; holders revised 2026-11-24). The Lien is built, core and UI
 (`Systems/PlayerDesk.Lien.cs`, `UI/PlayerDeskPanel.Lien.cs`; checked by `SimTools/LienChecks.tscn` and
 `SimTools/LienUiChecks.tscn`), and so is getting around without the car (§3.9, Phase 1c:
-`Systems/PlayerDesk.Transport.cs`; `SimTools/TransportChecks.tscn`). Everything else is design.
+`Systems/PlayerDesk.Transport.cs`; `SimTools/TransportChecks.tscn`). The holder-specific implementations are
+tracked in §3.5 and Phases 1b–1d.
 Numbers marked *provisional* are placeholders until Phase 0 measures them.
 
 ## §0 Charter and invariants
@@ -329,6 +330,14 @@ Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates 
   pitching songs and making promises. Your hometown Rolodex starts cold, and some cards start burned. He also presses
   his own songs (which aren't very good) on your acts. Recording one counts as a Concede, at a real cost to the
   record.
+  **Cold and burned cards built 2026-11-24** (`Systems/PlayerDesk.Winters.cs`, `SimTools/WintersChecks.tscn`). At
+  founding Clyde has worked the home region's most influential reporter jocks, half of them up to six (Detroit: 6 of
+  11). All of them think you owe them one (a 50% "you burned me before" objection on asks), and the top third (at
+  least one; Detroit: 2) also stop taking your word (Personal Pitch closed). The marks live on the lien, not on the
+  card's own flags: a card says so in its log when it goes into the book, and the card shows a line naming "somebody"
+  until Clyde is identified. Turning down his first move burns the biggest cold card. The book comes back after a Show
+  from the 1961 sitting on (a year of real sales), and only Clyde's marks thaw; a burn the Label Man earned himself
+  stays. Pending: the secretary route (Fixer or Street), the Rolodex leads, and the cheque stub.
 - **Goal: hits**, because hits are copyrights. His Concedes are publishing shares. In good years he's almost friendly.
 - **Items.**
 
@@ -374,6 +383,23 @@ Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates 
      as an ordinary lien. You can't plan on it, but the Street tells you when it's close.
 
   The buy-out must be a player-only path. The Major's AI behaviour stays byte-identical.
+
+  **Built.** The paper binds Floria to the leading Major family by sales in the label's home region at founding.
+  His Show bar asks for 1.5× the copies or two Top 40 records once chart evidence counts. A weak 1968 Show
+  leaves the ordinary sitting in place that year and moves the purchase review to December 1969. If his firm
+  proceeds, its funded offer is 65% of the valuation, capped by its available cash. A funded rival Major or
+  MidTier can offer more after the label has a Top 40 record, provided the offer clears the debt. A rival sale
+  ends the run as **Sold to a Major**. The firm's compulsory purchase ends it as **Taken**, including when the
+  player lets the deadline pass. Both routes transfer the imprint as a subsidiary. If Floria's firm exits or its
+  share falls below a quarter of its founding share, the successor accepts the ordinary Pay bar.
+
+  **Valuation.** Twice the positive net contribution of the last 52 weeks' issues whose masters the label can
+  convey. The firm passes at **$1.25m** if at least four regions each account for at least 1,000 copies and 5% of
+  the measured regional sales. In the existing seed-1001 snapshots dated January 3 and January 31, 1969
+  (`bms4e-intent90-1001-1969` and `perf-control-1969`), the 430 active Independents in each run had p95 values
+  of $1.16m and $1.14m, and p99 values of $1.57m and $1.52m. The 84 active MidTiers had medians near $1.98m in
+  both. These are AI catalogue comparables. The player retains past releases, so the player valuation can
+  include eligible sides after they stop selling. The full-decade player cash check remains open.
 - **Items.**
 
   | Item | Kind | Where | How | Perk |
@@ -426,8 +452,12 @@ Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates 
   | **The black ledger** | Evidence | Filed under "L" in the station's record library, between two 78s. When the station clears out its 78s (seeded, 1961–64), it ends up in a used-record bin. | The Street hears the station's 78s went to a shop; the Ear notices one "record" is too thick. Jack is hunting it too. | — |
   | **Your chequebook** | Belonging (Street) | Jack has it. He wrote six $50 cheques to jocks in your label's name, and they all bounced, because the founding money is in the cigar box. | He returns it for one concession, or Fixer 3+ talks it back | The six jocks start cold. Make the cheques good ($300) and they become **your** sources: Street reads on his network. |
 
-- **Holding the ledger freezes him.** Once you have it and the Fixer has read it, Jack stops escalating: no more
-  Concede asks, no more cut-in pressure. The Pay bar stays. It's the big mid-game shift, and it doesn't stop the clock.
+- **Holding the ledger freezes him.** Built. After Tolliver identifies Jack, the office paper points to Jack's
+  real station. Ask about the 78s at the station, follow the clerk's lead to its used-record shop after the
+  seeded 1961–64 clearance, and bring the book back to the office. Street and Ear shorten their respective
+  errands. Fixer 3 can read the book. When Jack hears you have read it, Tolliver stops offering concessions and
+  Jack drops pending cut-ins. Existing credits and station arrangements keep their terms. Pay, Show and the
+  deadline stay in force.
 - **Torn up:** the ledger, plus **Fixer 6** (to use it without it blowing up on you, since your bounced cheques are in
   it too), plus **one of his jocks** who'll talk once the payola rules catch up with him (Street 4+, from 1966). Jack
   tears the paper up himself rather than see the book reach a grand jury.
@@ -525,7 +555,7 @@ What this shows:
 - **The threat comes from what money can't buy:** Connie's career (Sawyer), compounding if you don't pay (Kubiak),
   publishing taken in Concedes (Winters), the buy-out with no money accepted from 1966 (Floria), and scandal exposure
   (Germain).
-- **Phase 0 still owes:** full-decade p75/p90 cash, and label valuations for Floria's "too big to swallow" bar. If p90
+- **Phase 0 still owes:** full-decade player p75/p90 cash. Floria's threshold uses the late-decade catalogue valuations in §3.5 H4. If p90
   clears $20k by 1962 in the player's own runs, the Pay slice should scale with the holder's desperation (his sim
   interest going badly), never with the player's cash.
 
@@ -681,7 +711,7 @@ dealer advance orders, pitching the act to a booker. This phase gives them a pla
 | Place | What happens | Existing system it wraps |
 |---|---|---|
 | The record shop | See what's moving, talk to the clerk, ask for an advance order | Dealer advance orders, local retail exposure |
-| The diner where the jocks eat | Overhear, make a courtesy approach | DJ courtesy, Rolodex discovery |
+| ~~The diner where the jocks eat~~ | ~~Overhear, make a courtesy approach~~ (dropped 2026-11-24: incremental, adds a place but no stakes) | DJ courtesy, Rolodex discovery |
 | The plant floor | Watch your run, chase the date, meet the plant man | Pressing lead time |
 | The club / the roadhouse | Listen, sit in, talk to the booker | Venue scouting, booker pitch, direct approach |
 | The newsstand | The trade paper's week | Chart and market readings that score convictions |
@@ -696,6 +726,91 @@ dealer advance orders, pitching the act to a booker. This phase gives them a pla
   moments, gated on real events.
 - **Measure it.** Phase 0 adds an "empty day" metric: player days with no action that has a sim consequence. The
   target is near zero in the first 26 weeks.
+
+### 6.1 The first single: the holder shows his hand (author direction, 2026-11-24)
+
+The wait isn't short of verbs. Hops, station stops, record shops, courtesy calls, mailing and flips all exist. It's
+short of **stakes**. A real independent spends the weeks between the lacquer and the first spin feeling that
+something is about to happen or go wrong. So the wait gets events that carry a clock, not more places to visit.
+
+**The spine.** Every holder's 1960 Show is "a record out" (§3.7), so the first single is the one thing all five
+care about. During the wait, the holder starts circling the record in his own way, and that move is how the Label
+Man learns who holds the paper. Act 1, "Who" (§3.7), happens in the first months, not at the December sitting.
+
+- **Today:** the holder is named only when the first sitting opens (`OpenLienSitting` sets
+  `LienState.HolderIdentified`) or after an extension or seizure. **Change:** the holder's first move sets it.
+- **Trigger:** the player's first single goes to the plant. The holder is already fixed at founding (§3.6). His move
+  lands while the record is at the plant (*provisional*: a few days after the order, never after the street date).
+- **One move, one real choice.** Each move is an offer on a channel that already exists or is already built for
+  that holder. Accepting is logged on the lien ledger as a concession, and the December sitting reads it like any
+  other Concede. Built: it fully meets that year's Concede, and eases the money by half the year's interest
+  (*provisional*). Refusing has the
+  consequence the holder's existing handicap already produces, plus a voice line. Nothing is invented.
+- **The voices' first theories get tested.** The Fixer guessed cards, the Ear a late session, the Suit "I'd never
+  sign that", the Street a woman (§3.1). Whoever turns up confirms one theory or embarrasses another, and the
+  winning voice gloats for a week.
+
+**Built 2026-11-24 (Phase 1e)**, as `Systems/PlayerDesk.HolderMove.cs`, `UI/PlayerDeskPanel.HolderMove.cs` and
+`SimTools/HolderMoveChecks.tscn` (140 checks). What was built, against the design table below:
+- **The trigger.** Ordering the first run of the first single (by `OrderPressing` or the plant's credit run) stages
+  the move two days out, and never on or after the run's arrival. The move lands at dawn and waits on the desk as a
+  full-screen sheet. Answering it, or letting the run arrive first, sets `HolderIdentified`. A lapsed move counts
+  as refused, except that Floria's favour stands because nobody asked for it back.
+- **The lien.** Every answer goes on the lien ledger (`LienLedgerKind.HolderMove`). Accepting raises the lawyer's
+  standing by 0.1 and refusing lowers it by 0.05 (*provisional*).
+- **The December sitting reads it** (built 2026-11-24). That year's sitting opens on the answer, in the lawyer's
+  voice. A taken favour is that year's **Concede**: a "Remind him…" option on the CONCEDE card rolls the lien, and he
+  books it against **half the interest** owed at the sitting (*provisional*); the till pays the other half if it can.
+  Floria's favour counts even if the move lapsed, because nobody sent it back. It counts once (`LienState.MoveCredited`).
+  At the 1960 rates that's about $390 for Sawyer, $780 for Kubiak, $580 for Germain, $290 for Floria and nothing for
+  Winters (0%). A refusal or a lapse gets a line and nothing more: its price is the holder's handicap, already paid
+  during the year. The Suit (2+) prices the favour; the Fixer (3+) warns after a refusal.
+- **The voices.** The voice whose morning answer fits the holder gloats, and needles one whose answer doesn't.
+- **Each holder:**
+  - **Sawyer.** He's named from the first morning, because Connie's contract carries his name: `SeedConnie` sets
+    `HolderIdentified`, and the morning after shows the contract. His move still fires; for him it's the in-person
+    visit, not a reveal. Accepting waives his Connie booking gate for the year. Accepting has no cost yet beyond
+    "he'll remember".
+  - **Kubiak.** Accepting takes min(200, half the saleable run) off the run on delivery, at the plant's price, paid
+    in cash. The copies leave the game: there's no jukebox exposure for his route (H2 check still open). Refusing
+    shuts the home city's jukebox operators to your records for the rest of the year.
+  - **Winters.** He takes the flip's *publishing*. It's too late to put his song on a record that's already at the
+    plant. The option is disabled when the flip's publishing isn't the label's. Refusing burns the biggest of his
+    cold hometown cards (§3.5 H3).
+  - **Germain.** Accepting takes the $300 fee and 0.05 exposure up front. His network is placed the day the single
+    ships.
+  - **Floria.** The plant's queue is the player's own (`pressOrders`), so moving the run up is player-only. Accepting
+    keeps the earlier date, and turning it down restores the original date.
+
+| Holder | The move | Accept | Refuse | How it names him |
+|---|---|---|---|---|
+| **Sawyer** | Dee-Dee walks into the office: the launch is at *his* room, and Connie's record comes out first or the same week. | Connie's session goes ahead of or beside yours. Her release also opens the room's booking gate (1b). | You launch elsewhere. The room stays shut to your acts until Connie has a 1960 release (built). | Connie's paper already sits on the desk at founding, so the Suit half-knows. This is where Dee-Dee confirms it in person, wearing your watch. |
+| **Kubiak** | The plant man shows you a claim on 200 copies of your run "at cost, for the route", on an operator's form with clause 14. | 200 copies come off the top of the run at cost and go onto his machines (home-region jukebox exposure, scoped to the player's label; check before building, as in H2). | His jukebox rights stand and nothing goes on any machine in the home region this year. | His name is on the form. **First clue:** Suit 3+ notices the notary stamp (Leon Marsh) and files it. |
+| **Winters** | Clyde arrives with a lead sheet for the B-side: "the publisher's expecting it." | His song goes on the flip. That's a publishing share (his Concede), at a real cost if the record is ever flipped. | He tells his publisher you're cutting it anyway, and one of your hometown cards cools. | He mentions a jock whose home number only your address book holds. The Street catches it. |
+| **Germain** | A phone call in the dead week before the street date: his boys can have it on the air by Friday for $300. | The built "his boys" Concede (§3.5 H5), offered before December: eight weeks, plus 0.05 exposure. | Nothing, except a long, friendly monologue. | It's the voice from the radio. The Street places it at the farewell broadcast. Setting `HolderIdentified` here opens the ledger trail early, but the 78s clearance is still seeded 1961–64. |
+| **Floria** | The plant moves your run up a week, and the plant man says the Major's regional office "took care of it". | Nothing to accept: the favour is done, and he logs it. It counts toward his steep Show bar and he mentions it at the sitting. | You can insist on the original date, which costs the week. | A camel-coat man's card is left with the plant man. Check first that the player's pressing date is a player-only quote, not a shared plant queue (invariant 1). |
+
+**Around the spine (candidates, not yet decided).** These beats fill the rest of the wait. Each one reads state the
+sim already holds.
+
+- **The first spin.** Get a dub to one jock, then sit at the desk that night with the radio. He plays it or he
+  doesn't, according to the real advocacy and spin outcome. The next morning the shop clerk says whether anyone
+  asked for it. The Ear hears what AM compression does to the mix.
+- **The loop.** The distributor won't take it without airplay, the jock won't play it unless it's in the shops, and
+  the shop won't order without the distributor. Show the deadlock as a small board of who's waiting on whom, with one
+  way through per voice: Street hand-carries 100 copies into the jock's city; Fixer leans on the jock; Suit takes
+  consignment with the one-stop.
+- **The Run.** When the cartons arrive: a multi-day bus trip through the region with two cartons, the last bus at
+  6 p.m., and a short scene at each stop (§3.9 makes this possible). He comes home to news on the desk.
+- **The flip.** When a real flip outcome fires: "they're playing the other side in Cleveland." Re-service, re-label
+  or hold.
+- **The hit that breaks you.** A breakout brings a reorder the label can't fund: the plant wants cash, and the
+  distributor pays in 60–90 days. The backer, Kubiak's one-stop, Germain and the merchant lender each offer a way out
+  at a price.
+- **The bragging comes due.** The founding "What were you bragging about?" answer becomes a public promise. "Its
+  first big record" on Jack's broadcast means kids are asking shops for a record that doesn't exist yet. "The act
+  you'll sign" is waiting to hear from you. "The hits you can pick" brings a trade stringer who wants your pick in
+  print, which could be the first conviction offer.
 
 ## §7 Scouting
 
@@ -777,11 +892,12 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 | Phase | Content | Gate |
 |---|---|---|
 | **0** | Measure: player cash trajectories across archetypes (sizes the Lien); the empty-day metric for the first 26 weeks; which reads already exist per surface | Numbers recorded, no code paths changed |
-| **0b** | Measure for the holders (§3.7): full-decade p75/p90 player cash; label valuations for Floria's "too big to swallow" bar | Numbers recorded |
+| **0b** | Measure for the holders (§3.7). Floria's late-decade valuation comparables are recorded in §3.5 H4. Full-decade p75/p90 player cash is pending. | Numbers recorded |
 | **1** | The Lien: morning-after opening, December sitting, enforcement on failure, 1970 reckoning with endings. **Core built**: the five holders, per-holder rates, Kubiak compounding, Floria refusing money from 1966, every holder taking a record out as the 1960 Show, Sawyer's room from the scene catalogue, the §3.6 mapping, save fields, the founding questions, and the sitting UI (2026-11-24). | Byte-identical headless; save/load; `LienChecks`; `LienUiChecks` |
-| **1b** | **Connie built 2026-11-24** (`Systems/PlayerDesk.Connie.cs`, `ArtistManager.Keyed.cs`, `SimTools/ConnieChecks.tscn`): seeded from a private keyed stream with Dee-Dee's paper (5 years, his option, 15% royalty, 5 sides, no advance). He renews her paper at dawn until Star, charges 1.5× Pay when she stalls, returns the car when she first charts, and gates nights and residencies for other player acts on a Connie release in each performance year. **Germain Concedes and payola exposure built** (`Systems/PlayerDesk.Germain.cs`, `Systems/Radio/PayolaLedger.cs`, `SimTools/GermainChecks.tscn`). *His name:* 25% of the writer share on the next two originals with a credited writer, paid through mechanicals, plug-side performances and AI-label cuts. Each cut-in adds 0.06 exposure, costs each credited writer 0.12 trust, and adds 0.08 band strain. *His boys:* $300 for eight weeks on half of the home reporters, rounded up to a maximum of six. Discretion starts at 0.55, falls by 0.12 per use, and bottoms out at 0.05. Each fee adds 0.05 exposure. A bust ends the push across the network. Under the Detroit calibration the first 1960 push delivered 11.89 boost-weeks with a 15.1% bust rate (§3.5 H5). **Pending:** Sawyer's watch (wardrobe phase) and Jack's ledger freeze. | Byte-identical headless; save/load; `ConnieChecks`; `GermainChecks` |
+| **1b** | **Connie built 2026-11-24** (`Systems/PlayerDesk.Connie.cs`, `ArtistManager.Keyed.cs`, `SimTools/ConnieChecks.tscn`): seeded from a private keyed stream with Dee-Dee's paper (5 years, his option, 15% royalty, 5 sides, no advance). He renews her paper at dawn until Star, charges 1.5× Pay when she stalls, returns the car when she first charts, and gates nights and residencies for other player acts on a Connie release in each performance year. **Germain Concedes and payola exposure built** (`Systems/PlayerDesk.Germain.cs`, `Systems/Radio/PayolaLedger.cs`, `SimTools/GermainChecks.tscn`). *His name:* 25% of the writer share on the next two originals with a credited writer, paid through mechanicals, plug-side performances and AI-label cuts. Each cut-in adds 0.06 exposure, costs each credited writer 0.12 trust, and adds 0.08 band strain. *His boys:* $300 for eight weeks on half of the home reporters, rounded up to a maximum of six. Discretion starts at 0.55, falls by 0.12 per use, and bottoms out at 0.05. Each fee adds 0.05 exposure. A bust ends the push across the network. Under the Detroit calibration the first 1960 push delivered 11.89 boost-weeks with a 15.1% bust rate (§3.5 H5). The station and record-shop trail for Jack's black ledger is built. Fixer 3 reads it and freezes concessions and pending cut-ins. **Pending:** Sawyer's watch (wardrobe phase). | Byte-identical headless; save/load; `ConnieChecks`; `GermainChecks` |
 | **1c** | Getting around (§3.9): transport mode on the travel quote and errands, carton limit, car purchase, the car per holder. **Built 2026-11-24**, UI included; Sawyer's car return is built in 1b. | Byte-identical headless; save/load; `TransportChecks` |
-| **1d** | Floria's buy-out (§3.5 H4), a player-only path | Same; the Major's AI behaviour unchanged |
+| **1d** | Floria's buy-out (§3.5 H4) is built as a player-only path, with a funded rival offer, valuation waiver and successor. The separate tear-up investigation remains future work. | Same; the Major's AI behaviour unchanged |
+| **1e** | The holder's first move on the first single (§6.1): the move per holder, `HolderIdentified` set by it, and the accept/refuse result on the lien ledger. **Built 2026-11-24** (`PlayerDesk.HolderMove.cs`, UI sheet). The December sitting reads the answer (a favour is that year's Concede, against half the interest). Pending: Sawyer's cost, and Kubiak's route exposure. Winters' hometown cards are built (§3.5 H3). | Byte-identical headless; save/load; `HolderMoveChecks` |
 | **2** | Voices at venues and in courtship; instincts modulate the venue fog | Byte-identical headless |
 | **3** | Conviction drawer: lifecycle, quarterly scoring, the first 6 cards | Same; each card's predicate tested on a real save |
 | **4** | Legwork map and nights for the founding town | Empty-day metric near zero |
@@ -826,3 +942,10 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 3. ~~Car prices, fares and carton limits for §3.9~~ Set provisionally 2026-11-24 (§3.9). Phase 0b still owes the check
    against the player's own cash: is $750 the right price for the used sedan (about 94% of the Ex-Musician's $800 start) next to a first pressing?
 4. Each holder's tear-up "sting" (§3.7): needs a writing pass.
+5. **AI covers of player sides** (author: "it should be a thing", 2026-11-24). Today a player original becomes an AI
+   cover candidate only once it peaks in the national Top 40: `CompositionCatalogService` marks it `isCoverable` and
+   calls `RegisterCoverableHit`, and the material selector can then draw it as a `CoverRecentHit`. So covers *after*
+   the hit already exist. What doesn't exist is the period **cover race**: a bigger label cuts a regional breakout
+   before it crosses over, and the original has to beat it to the shops. If the trigger reads only player sides, it is
+   inert headless. If it applies to every label, it changes the AI economy and needs its own decade A/B. That belongs in
+   the publishing and cover-song directive, not here. Once it exists, §6.1 can add "the cover race" as a beat.

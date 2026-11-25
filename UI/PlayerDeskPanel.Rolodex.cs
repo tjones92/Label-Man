@@ -255,6 +255,7 @@ public partial class PlayerDeskPanel {
 		if (entry.youOweThem) Body("You owe him one.");
 		if (entry.payolaBurned) Body("The cash channel is closed with him.");
 		if (entry.professionallyBurned) Body("He doesn't take your word any more.");
+		if (desk.WintersCardLine(entry) is { } clyde) Body(clyde + (desk.WintersBurnedCard(entry) ? " He doesn't take your word any more." : " He thinks you owe him one."));
 
 		// What he is actually carrying for you right now -- the record-level commitment, not the mood.
 		RenderCarrying(desk, entry);

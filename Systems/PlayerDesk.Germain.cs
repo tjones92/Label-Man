@@ -56,6 +56,93 @@ public partial class PlayerDesk {
 	public const float GermainNameExposure = 0.06f, GermainFeeExposure = 0.05f;
 	/// <summary>The newest single he will push, in weeks since release.</summary>
 	public const int GermainNetworkRecordWeeks = 52;
+	public const int GermainLedgerFixer = 3;
+
+	public enum GermainLedgerStage { Missing, ShopLead, Found, Read }
+
+	public bool GermainLedgerFrozen => lien?.Holder == LienHolder.Germain && lien.GermainLedger == GermainLedgerStage.Read;
+
+	private PlayerStop GermainLedgerStation() {
+		if (Label == null || lien?.Holder != LienHolder.Germain || !LienHolderIdentified || IsGameOver) return null;
+		var home = DistanceModel.GetCityById(Label.homeCityId);
+		if (home == null) return null;
+		return (ChartManager.Instance?.ReporterStationsInRegion(home.parentRegionId) ?? Array.Empty<RadioStation>())
+			.Where(station => station != null).Select(station => GetStop("station_" + station.stationId)).Where(stop => stop != null)
+			.OrderBy(stop => stop.CityId != home.cityId).ThenBy(stop => stop.StopId, StringComparer.Ordinal).FirstOrDefault();
+	}
+
+	private int GermainClearanceYear => 1961 + (int)(4 * PhiloxCounterRandom.Unit(
+		BandLife.WorldSeed, "germain-ledger", Label.homeCityId, 0, 0));
+
+	private PlayerStop GermainLedgerShop(PlayerStop station) =>
+		station == null ? null : StopsInCity(station.CityId).Where(stop => stop.Kind == StopKind.Shop)
+			.OrderBy(stop => PhiloxCounterRandom.Unit(BandLife.WorldSeed, "germain-ledger", stop.StopId, 0, 1))
+			.ThenBy(stop => stop.StopId, StringComparer.Ordinal).FirstOrDefault();
+
+	public string GermainLedgerLead() {
+		var station = GermainLedgerStation();
+		if (station == null) return null;
+		return lien.GermainLedger switch {
+			GermainLedgerStage.Missing => $"Start with Jack's old station, {station.DisplayName} in {DistanceModel.GetCityById(station.CityId)?.name}. Someone there may remember the night.",
+			GermainLedgerStage.ShopLead => $"The station sent its old 78s to {GermainLedgerShop(station)?.DisplayName}. Ask to look through their used records.",
+			GermainLedgerStage.Found => "You brought back a small black account book. The Fixer can read it at the desk.",
+			GermainLedgerStage.Read => "Jack knows you can read his black ledger. Tolliver has dropped the concessions. The paper is still due.",
+			_ => null,
+		};
+	}
+
+	public string GermainLedgerStopVerb(string stopId) {
+		var station = GermainLedgerStation();
+		if (station == null) return null;
+		if (lien.GermainLedger == GermainLedgerStage.Missing && stopId == station.StopId)
+			return $"ASK ABOUT THE OLD 78s ({(InstinctProfile.TheStreet >= 3 ? 1 : 2)}h)";
+		if (lien.GermainLedger == GermainLedgerStage.ShopLead && stopId == GermainLedgerShop(station)?.StopId)
+			return $"LOOK THROUGH THE USED 78s ({(InstinctProfile.TheEar >= 3 ? 1 : 2)}h)";
+		return null;
+	}
+
+	public bool FollowGermainLedgerLead(string stopId, out string message) {
+		if (GermainLedgerStopVerb(stopId) == null) { message = "There's no lead to follow here."; return false; }
+		var stop = GetStop(stopId);
+		if (stop.CityId != CurrentCityId) { message = $"You have to be in town to visit {stop.DisplayName}."; return false; }
+		bool atStation = stop.Kind == StopKind.Station;
+		if (atStation && LienToday.year < GermainClearanceYear) {
+			message = $"{stop.DisplayName} still has its 78s in the library. The clerk says they're clearing them out in {GermainClearanceYear}.";
+			return false;
+		}
+		var shop = atStation ? GermainLedgerShop(stop) : stop;
+		if (shop == null) { message = "The clerk can't say where the records went."; return false; }
+		int score = atStation ? InstinctProfile.TheStreet : InstinctProfile.TheEar;
+		int hours = score >= 3 ? 1 : 2;
+		if (!Require(hours, out message)) return false;
+		Spend(hours);
+		lien.GermainLedger = atStation ? GermainLedgerStage.ShopLead : GermainLedgerStage.Found;
+		message = atStation
+			? $"The library clerk sent the old 78s to {shop.DisplayName}. They're still in their paper sleeves."
+			: "Between two 78s marked L is a sleeve too thick to hold a record. Inside is a small black account book.";
+		Note(message);
+		Changed?.Invoke();
+		return true;
+	}
+
+	public bool ReadGermainLedger(out string message) {
+		if (lien?.Holder != LienHolder.Germain || lien.GermainLedger != GermainLedgerStage.Found || IsGameOver) {
+			message = "There's no unread account book on the desk."; return false;
+		}
+		if (!AtHome) { message = "Take the book back to your office to read it."; return false; }
+		if (InstinctProfile.TheFixer < GermainLedgerFixer) {
+			message = $"The initials and dollar amounts still don't add up. The Fixer needs {GermainLedgerFixer} to read them."; return false;
+		}
+		if (!Require(1, out message)) return false;
+		Spend(1);
+		lien.GermainLedger = GermainLedgerStage.Read;
+		lien.CutInSongsLeft = 0;
+		message = "The Fixer matches the initials to the jocks and the dollar amounts to the cheques. Some carry your label's name. You send Tolliver word that you have the book.";
+		lien.Add(LienToday, LienLedgerKind.ReadBlackLedger, 0f, "Jack drops his concessions");
+		Note(message);
+		Changed?.Invoke();
+		return true;
+	}
 
 	// ── his name ──────────────────────────────────────────────────────────────────────────────────────
 

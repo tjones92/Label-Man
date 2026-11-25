@@ -55,6 +55,8 @@ public partial class PlayerDesk {
 		Label.SignArtist(connie, year, sheet);
 		ArtistManager.Instance.SignArtist(connie, Label.labelId, year);
 		lien.ConnieId = connie.artistId;
+		// Her contract has his name on it, so the Label Man knows who holds the paper from the first morning (§6.1).
+		lien.HolderIdentified = true;
 		Note($"Dee-Dee Sawyer's girlfriend, {ConnieStageName}, is on your roster. It came with the paper: five years, his option, no release clause.");
 	}
 
@@ -93,6 +95,7 @@ public partial class PlayerDesk {
 		if (lien?.Holder != LienHolder.Sawyer || lien.Ending != null || lien.VenueId != room.Id
 			|| lien.ConnieId == null || lien.ConnieId == artistId) return null;
 		if (ReleasedRecords.Any(r => r.baseRecord.artistId == lien.ConnieId && r.baseRecord.releaseDate.year == year)) return null;
+		if (SawyerLaunchWaives(year)) return null;   // §6.1: he waived it for the year you launched at his room
 		return $"{room.ContactName}: \"Dee-Dee says I can't book your other acts at {room.Name} for {year} until Connie has a record out that year.\"";
 	}
 

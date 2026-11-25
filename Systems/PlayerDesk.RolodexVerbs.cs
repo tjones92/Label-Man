@@ -973,6 +973,7 @@ public partial class PlayerDesk : Node {
 		};
 		introduced.log.Add($"{Today()} — Introduced by {entry.displayName}: {targetName}, {target.callsign} ({target.format}, {target.cityName}).");
 		rolodex.Add(introduced);
+		NoteWintersOnNewCard(introduced);
 
 		call.Say(RolodexSceneBeat.Success,
 			$"\"Call {targetName} at {target.callsign}. Tell him I gave you the number. Don't tell him more than that.\"",

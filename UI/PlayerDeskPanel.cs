@@ -467,7 +467,8 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		if (desk.IsGameOver) {
-			titleLabel.Text = desk.GameOverTitle == "PAID CLEAN" ? "THE DECADE'S OVER" : "OUT OF BUSINESS";
+			titleLabel.Text = desk.GameOverTitle == "PAID CLEAN" ? "THE DECADE'S OVER"
+				: desk.Label?.IsSubsidiary == true ? "THE LABEL CHANGED HANDS" : "OUT OF BUSINESS";
 			clockLabel.Text = time == null ? "" : $"{time.CurrentDate.ToLongString()}  •  {time.GetTimeString()}";
 			if (idleRow != null) idleRow.Visible = false;
 			foreach (Node child in tabs.GetChildren()) child.QueueFree();
@@ -545,6 +546,7 @@ public partial class PlayerDeskPanel : Control {
 		SyncLienStage(desk);
 		ShowLienMorningIfPending(desk);
 		ShowLienNoticeIfPending(desk);
+		ShowHolderMoveIfPending(desk);
 		if (pageStain != null) pageStain.Modulate = Colors.White;   // the founding pages fade it; the office doesn't
 		pageStain?.QueueRedraw();   // the page's coffee ring belongs to the open tab
 		UpdateTabBadges(desk);
@@ -2395,9 +2397,24 @@ public partial class PlayerDeskPanel : Control {
 				: $"Distribution deals, the wholesale houses and artist buy-ins open on {Day(DistributionHouseStageDays)}, or sooner if a record breaks out somewhere.");
 		}
 
-		// --- WHERE YOU ARE + DRIVING ---
 		MarketCity here = desk.CurrentCity;
 		string hereName = here?.name ?? "the office";
+		List<PlayerDesk.PlayerStop> stopsHere = desk.StopsInCity(here.cityId).ToList();
+		foreach (var stop in stopsHere) {
+			if (desk.GermainLedgerStopVerb(stop.StopId) is not { } clue) continue;
+			Body(stop.DisplayName);
+			var follow = Btn(clue);
+			follow.TooltipText = "Follow up on Jack's black book.";
+			follow.Pressed += () => Act(() => {
+				bool ok = desk.FollowGermainLedgerLead(stop.StopId, out string message);
+				Say(message, ok);
+				return ok;
+			});
+			content.AddChild(follow);
+		}
+		BuildRecordShops(desk, here, stopsHere);
+
+		// --- WHERE YOU ARE + DRIVING ---
 		SectionHeading("travel", desk.AtHome ? "AT THE OFFICE" : $"ON THE ROAD — {hereName.ToUpperInvariant()}", !desk.AtHome || desk.PressedSinglesOnHand().Any(),
 			desk.AtHome
 				? "Work your own home town out of the trunk, then set out to work the towns you can reach. Trunk sales in the town " +
@@ -2497,7 +2514,6 @@ public partial class PlayerDeskPanel : Control {
 		// or service (restock + collect, once a stop already has history) ---
 		List<(string RecordId, string Title, int OnHand)> onHand = desk.PressedSinglesOnHand().ToList();
 		List<(string RecordId, string Title, int PromoOnHand)> promoOnHand = desk.PromoSinglesOnHand().ToList();
-		List<PlayerDesk.PlayerStop> stopsHere = desk.StopsInCity(here.cityId).ToList();
 		// Flags which stops have a call waiting (directive §4) so the player doesn't have to cross-check
 		// the OFFICE phone list by hand while deciding who to work first.
 		var stopsWithCalls = new HashSet<string>(desk.PendingCalls().Select(c => c.Call.StopId), StringComparer.Ordinal);
@@ -2566,7 +2582,7 @@ public partial class PlayerDeskPanel : Control {
 			// and a single mixed list stopped being legible.
 			// An open account from another town (or one since dropped) re-picks a default here.
 			if (!string.IsNullOrEmpty(selectedStopId) && !stopsHere.Any(s => s.StopId == selectedStopId)) selectedStopId = null;
-			foreach (var kindGroup in stopsHere.GroupBy(s => s.Kind).OrderBy(g => g.Key)) {
+			foreach (var kindGroup in stopsHere.Where(s => s.Kind != PlayerDesk.StopKind.Shop).GroupBy(s => s.Kind).OrderBy(g => g.Key)) {
 				PlayerDesk.StopKind kind = kindGroup.Key;
 				List<PlayerDesk.PlayerStop> kindStops = kindGroup.ToList();
 				bool expanded = expandedStopKinds.Contains(kind);
@@ -3889,7 +3905,7 @@ public partial class PlayerDeskPanel : Control {
 	/// in the call ledger, shown with what it is worth and when it lapses, never as cash.</summary>
 	private void BuildAcetateCounters(PlayerDesk desk, MarketCity here) {
 		var acetates = desk.Masters.Where(m => !m.Released && m.Record != null && desk.AcetatesFor(m.Record.recordId) > 0).ToList();
-		var counters = desk.StopsInCity(here.cityId).Where(s => s.Kind is PlayerDesk.StopKind.Shop or PlayerDesk.StopKind.Op).ToList();
+		var counters = desk.StopsInCity(here.cityId).Where(s => s.Kind == PlayerDesk.StopKind.Op).ToList();
 		if (acetates.Count == 0 || counters.Count == 0) return;
 		SectionHeading("advance-orders", $"ADVANCE ORDERS IN {here.name.ToUpper()}", true,
 			"Play your acetate for a dealer and ask him to hold copies for the pressing. He can pass. A yes is an order, not money: " +
@@ -3901,19 +3917,7 @@ public partial class PlayerDeskPanel : Control {
 			var actions = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 			actions.AddThemeConstantOverride("h_separation", 8);
 			actions.AddThemeConstantOverride("v_separation", 6);
-			foreach (var stop in counters) {
-				bool passed = stop.PassedRecordIds.Contains(id), holding = desk.HasOpenCall(stop.StopId, id), worked = desk.HasWorkedStopToday(stop.StopId);
-				var play = Btn($"{stop.DisplayName}{(holding ? " — holding" : passed ? " — passed" : worked ? " — tomorrow" : $" ({PlayerDesk.StopVisitEstimate(stop.Kind)})")}");
-				play.Disabled = passed || holding || worked;
-				play.TooltipText = passed ? "He heard it and passed; that stands until it catches on somewhere."
-					: holding ? "Already holding copies for the pressing." : worked ? "You've worked this counter today. Come back tomorrow." : "Play the acetate and ask him to hold copies.";
-				play.Pressed += () => Act(() => {
-					bool ok = PlayerDesk.Instance.PitchAcetateAtStop(stop.StopId, id, out string message);
-					Say(message, ok);
-					return true;
-				});
-				actions.AddChild(play);
-			}
+			foreach (var stop in counters) actions.AddChild(AcetateCounterButton(desk, stop, id, stop.DisplayName));
 			content.AddChild(actions);
 		}
 	}

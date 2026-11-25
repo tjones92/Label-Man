@@ -12,8 +12,7 @@ public partial class PlayerDeskPanel {
 	private bool lienMorningOpen;
 
 	/// <summary>The holder is a name only once his lawyer has sat down with you, or his men have come on the 1st.</summary>
-	private static bool LienHolderKnown(PlayerDesk desk) =>
-		desk.ActiveSitting != null || desk.Lien.Ledger.Any(e => e.Kind is PlayerDesk.LienLedgerKind.Extended or PlayerDesk.LienLedgerKind.Seized);
+	private static bool LienHolderKnown(PlayerDesk desk) => desk.LienHolderIdentified;
 
 	// ── THE PAPER (OFFICE tab) ───────────────────────────────────────────────────────────────────────
 
@@ -46,13 +45,33 @@ public partial class PlayerDeskPanel {
 		reread.Pressed += () => OpenLienMorning(PlayerDesk.Instance, replay: true);
 		content.AddChild(reread);
 
+		if (desk.GermainLedgerLead() is { } lead) {
+			Body(lead);
+			if (lien.GermainLedger == PlayerDesk.GermainLedgerStage.Found) {
+				var read = Btn("READ JACK'S ACCOUNT BOOK (1h)");
+				read.Disabled = desk.InstinctProfile.TheFixer < PlayerDesk.GermainLedgerFixer;
+				if (read.Disabled) read.TooltipText = $"Fixer {PlayerDesk.GermainLedgerFixer} needed.";
+				read.Pressed += () => Act(() => { bool ok = desk.ReadGermainLedger(out string m); Say(m, ok); return true; });
+				content.AddChild(read);
+			}
+		}
+		if (desk.LienHolderIdentified && lien.Holder == PlayerDesk.LienHolder.Floria && lien.BarYear >= 1967 && !lien.FloriaDismissed) {
+			if (lien.FloriaBuyoutWaived) Body("New York dropped the purchase option. The lien still falls due at the reckoning.");
+			else {
+				var (value, regions) = desk.FloriaValuation();
+				Body($"Purchase option review: the catalogue is valued at ${value:N0}, with meaningful sales in {regions} regions. " +
+					$"New York turns it down at ${PlayerDesk.FloriaValuationBar:N0} and four regions.");
+			}
+		}
+
 		if (lien.ConsecutiveFailures > 0)
 			Warn($"You missed the last deadline. Miss {lien.Deadline.ToHeadlineString()} too and {(LienHolderKnown(desk) ? p.Name : "the holder")} takes the label.");
 
 		string block = desk.LienSittingBlock();
 		if (!lien.Extended) {
 			// What the bars are this year, in plain figures. The voices' reads at the sitting are about what he'll stress.
-			if (lien.IsReckoning) Body($"1 January 1970 is the reckoning: only money counts, ${desk.LienPayBar():N0} of it.");
+			if (desk.LienHolderIdentified && desk.FloriaPurchaseOptionPending) Body("Floria's firm is reviewing its purchase option at this sitting.");
+			else if (lien.IsReckoning) Body($"1 January 1970 is the reckoning: only money counts, ${desk.LienPayBar():N0} of it.");
 			else {
 				var show = desk.LienShow();
 				Body(desk.LienRefusesPay
@@ -112,6 +131,11 @@ public partial class PlayerDeskPanel {
 			LedgerTable.Entry("Sittings won", lien.Ledger.Count(e => e.Kind == PlayerDesk.LienLedgerKind.Extended && e.Detail != null && !e.Detail.StartsWith("seizure") && !e.Detail.StartsWith("no-show")).ToString()),
 			LedgerTable.Entry("Seizures", lien.Ledger.Count(e => e.Kind == PlayerDesk.LienLedgerKind.Extended && e.Detail?.StartsWith("seizure") == true).ToString()),
 		};
+		var sale = lien.Ledger.LastOrDefault(e => e.Kind == PlayerDesk.LienLedgerKind.FloriaBuyout);
+		if (sale != null) {
+			rows.Add(LedgerTable.Entry("Buyer", sale.Detail));
+			rows.Add(LedgerTable.Entry("Purchase price", LedgerTable.Money(sale.Amount)));
+		}
 		content.AddChild(new LedgerTable().Set("The paper", null, rows));
 	}
 }

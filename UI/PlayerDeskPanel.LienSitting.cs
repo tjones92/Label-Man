@@ -289,7 +289,7 @@ public partial class PlayerDeskPanel {
 	private void StageHeader(PlayerDesk desk, PlayerDesk.LienHolderProfile p) {
 		var lien = desk.Lien;
 		bool lastChance = lien.ConsecutiveFailures > 0 && !lien.IsReckoning;
-		string title = lien.IsReckoning ? "The Reckoning" : lastChance ? "The Last Chance" : "The December Sitting";
+		string title = desk.ActiveSitting.IsFloriaBuyout ? "The Buyout" : lien.IsReckoning ? "The Reckoning" : lastChance ? "The Last Chance" : "The December Sitting";
 		string sitting = lien.IsReckoning ? "THE END OF THE PAPER" : $"SITTING {Math.Clamp(lien.BarYear - 1959, 1, 10)} OF 10";
 		string date = TimeManager.Instance?.CurrentDate.ToLongString() ?? "";
 
@@ -351,7 +351,9 @@ public partial class PlayerDeskPanel {
 		box.AddChild(new ColorRect { Color = new Color(PaperTheme.Ink, 0.7f), CustomMinimumSize = new Vector2(0, 1.5f) });
 		Row("Outstanding", StageMoney(lien.Outstanding), total: true);
 
-		if (lien.IsReckoning)
+		if (desk.ActiveSitting.IsFloriaBuyout && !desk.IsGameOver)
+			AddStageWarning(lienStageLeft, "The firm's purchase option takes effect on the deadline if you leave it unsigned.");
+		else if (lien.IsReckoning)
 			AddStageWarning(lienStageLeft, "At the reckoning only money counts: the whole balance, in cash, or he takes the label.");
 		else if (lien.ConsecutiveFailures > 0 && !lien.Extended)
 			AddStageWarning(lienStageLeft, $"You missed the last deadline. Miss this one and {p.Name} takes the label.");
@@ -446,8 +448,13 @@ public partial class PlayerDeskPanel {
 	private void StageOffers(PlayerDesk desk, PlayerDesk.LienSittingLive live) {
 		var lien = desk.Lien;
 		var p = desk.LienProfile;
-		StageHeading(lienStageActions, lien.IsReckoning ? "HOW DO YOU SETTLE IT" : "WHAT DO YOU OFFER HIM");
+		StageHeading(lienStageActions, live.IsFloriaBuyout ? "PURCHASE OFFERS" : lien.IsReckoning ? "HOW DO YOU SETTLE IT" : "WHAT DO YOU OFFER HIM");
 		var opts = desk.LienSittingOptions(live);
+		if (live.IsFloriaBuyout) {
+			foreach (var offer in opts.Where(o => o.verb != PlayerDesk.LienVerb.WalkOut))
+				lienStageActions.AddChild(StageOption(desk, live, offer));
+			return;
+		}
 		var row = new HBoxContainer();
 		row.AddThemeConstantOverride("separation", 14);
 		lienStageActions.AddChild(row);
@@ -471,17 +478,19 @@ public partial class PlayerDeskPanel {
 		long units = desk.LienUnitsSinceSitting();
 		int bar = desk.LienShowUnitsBar();
 		float showRatio = show.Met ? 1f : lien.BarYear <= 1960 || bar <= 0 ? 0f : Mathf.Min(1f, (float)units / bar);
-		string showAsk = lien.BarYear <= 1960 ? "A record out" : $"{bar:N0} copies";
+		string showAsk = lien.FloriaBuyoutWaived ? "The valuation" : lien.BarYear <= 1960 ? "A record out" : $"{bar:N0} copies";
 		float stock = desk.LienStockValue();
 		float stockRatio = pay <= 0f ? 1f : Mathf.Min(1f, stock / pay);
+		bool favour = opts.Any(o => o.verb == PlayerDesk.LienVerb.ConcedeFavour && o.enabled);
 
 		row.AddChild(StageCard(desk, live, "PAY", p.Stresses == PlayerDesk.LienBar.Pay, StageMoney(pay), "Cash from the till, today.", payRatio, payStatus, cash >= pay && !refuses,
 			opts.Where(o => o.verb == PlayerDesk.LienVerb.Pay)));
 		row.AddChild(StageCard(desk, live, "SHOW", p.Stresses == PlayerDesk.LienBar.Show, showAsk, "Prove the label is worth more than it was.", showRatio, show.Met ? "Enough to show him." : "Not enough to show him yet.", show.Met,
 			opts.Where(o => o.verb == PlayerDesk.LienVerb.Show)));
-		row.AddChild(StageCard(desk, live, "CONCEDE", p.Stresses == PlayerDesk.LienBar.Concede, "Something he'll take", "What you can't pay in cash, he'll take another way.", stockRatio,
-			$"Pressed stock on hand: {StageMoney(stock)} of the {StageMoney(pay)}.", stock >= pay && pay > 0f,
-			opts.Where(o => o.verb is PlayerDesk.LienVerb.ConcedeStock or PlayerDesk.LienVerb.WriteItOn or PlayerDesk.LienVerb.ConcedeCutIn or PlayerDesk.LienVerb.ConcedeNetwork)));
+		if (!desk.GermainLedgerFrozen)
+			row.AddChild(StageCard(desk, live, "CONCEDE", p.Stresses == PlayerDesk.LienBar.Concede, "Something he'll take", "What you can't pay in cash, he'll take another way.", favour ? 1f : stockRatio,
+				favour ? "He's counting the favour on your record." : $"Pressed stock on hand: {StageMoney(stock)} of the {StageMoney(pay)}.", favour || stock >= pay && pay > 0f,
+				opts.Where(o => o.verb is PlayerDesk.LienVerb.ConcedeFavour or PlayerDesk.LienVerb.ConcedeStock or PlayerDesk.LienVerb.WriteItOn or PlayerDesk.LienVerb.ConcedeCutIn or PlayerDesk.LienVerb.ConcedeNetwork)));
 	}
 
 	private Control StageCard(PlayerDesk desk, PlayerDesk.LienSittingLive live, string title, bool hisAsk, string ask, string caption,
@@ -544,28 +553,30 @@ public partial class PlayerDeskPanel {
 
 	private static bool LienNeedsConfirm(PlayerDesk.LienVerb verb, PlayerDesk.LienSittingLive live) =>
 		verb is PlayerDesk.LienVerb.WriteItOn or PlayerDesk.LienVerb.ConcedeStock or PlayerDesk.LienVerb.HandOver or PlayerDesk.LienVerb.PayInFull
-			or PlayerDesk.LienVerb.ConcedeCutIn or PlayerDesk.LienVerb.ConcedeNetwork
+			or PlayerDesk.LienVerb.ConcedeCutIn or PlayerDesk.LienVerb.ConcedeNetwork or PlayerDesk.LienVerb.FloriaSign or PlayerDesk.LienVerb.FloriaRivalBid
 		|| (verb == PlayerDesk.LienVerb.WalkOut && live.stage == CallStage.Open);
 
-	private static (string Warning, string Yes) LienConfirmText(PlayerDesk.LienOption opt) => opt.verb switch {
+	private static (string Warning, string Yes) LienConfirmText(PlayerDesk.LienOption opt, PlayerDesk.LienSittingLive live) => opt.verb switch {
 		PlayerDesk.LienVerb.WriteItOn => ("This one follows you to 1970. The face sum grows, and he remembers it at the reckoning.", "SIGN IT"),
 		PlayerDesk.LienVerb.ConcedeStock => ("The copies leave your shelf for good. You can't sell them afterwards.", "HAND IT OVER"),
 		PlayerDesk.LienVerb.ConcedeCutIn => ("His name goes on the credit, and he's paid his quarter of the writing. The writers will notice, and they won't forget it.", "GIVE HIM THE CREDIT"),
 		PlayerDesk.LienVerb.ConcedeNetwork => ("It works, and it's on the books as consulting. If a station is exposed, the fine and the burned DJ are yours.", "SEND HIS BOYS"),
 		PlayerDesk.LienVerb.HandOver => ("This ends the run. He takes the catalogue and the lease.", "GIVE HIM THE KEYS"),
 		PlayerDesk.LienVerb.PayInFull => ($"{StageMoney(opt.cash)} comes out of the till, all at once, and the paper is torn up.", "COUNT IT OUT"),
+		PlayerDesk.LienVerb.FloriaSign or PlayerDesk.LienVerb.FloriaRivalBid => ("Signing transfers ownership of the label and ends the run.", "SIGN THE SALE"),
+		PlayerDesk.LienVerb.WalkOut when live.IsFloriaBuyout => ("If you leave without a deal, the firm's purchase takes effect on the deadline.", "YES, SHOW HIM OUT"),
 		_ => ("Nothing will be settled. If you can't pay on the 1st, he seizes what he can.", "YES, SHOW HIM OUT"),
 	};
 
 	private void ChooseLien(PlayerDesk desk, PlayerDesk.LienSittingLive live, PlayerDesk.LienOption opt) {
 		if (LienNeedsConfirm(opt.verb, live) && lienConfirm != opt.verb) { lienConfirm = opt.verb; RenderLienStage(desk, live); return; }
 		lienConfirm = null;
-		desk.ChooseLienOption(live, opt, out _);
+		if (!desk.ChooseLienOption(live, opt, out string message)) Say(message, false);
 		Refresh();
 	}
 
 	private Control StageConfirm(PlayerDesk desk, PlayerDesk.LienSittingLive live, PlayerDesk.LienOption opt) {
-		var (warning, yes) = LienConfirmText(opt);
+		var (warning, yes) = LienConfirmText(opt, live);
 		var panel = new PanelContainer();
 		panel.AddThemeStyleboxOverride("panel", StageBox(new Color(PaperTheme.Oxblood, 0.08f), PaperTheme.Oxblood, 2, 10, 8));
 		var v = new VBoxContainer();
@@ -604,15 +615,17 @@ public partial class PlayerDeskPanel {
 		string head; Color ink; string sub;
 		if (over) {
 			bool clean = lien.Ending == "PaidClean";
-			head = clean ? "Paid clean." : "Taken.";
-			ink = clean ? StageGreen : PaperTheme.Oxblood;
-			sub = clean ? "The paper is torn up. The label is yours." : $"{p.Name} has the catalogue and the lease. It's over.";
+			bool sold = lien.Ending == "SoldToMajor";
+			head = sold ? "Sold to a Major." : clean ? "Paid clean." : "Taken.";
+			ink = clean || sold ? StageGreen : PaperTheme.Oxblood;
+			sub = live.IsFloriaBuyout ? desk.GameOverReason
+				: clean ? "The paper is torn up. The label is yours." : $"{p.Name} has the catalogue and the lease. It's over.";
 		} else if (extended) {
 			head = "Extended."; ink = StageGreen;
 			sub = $"The lien now runs to {due.ToHeadlineString()}.";
 		} else {
 			head = "Nothing settled."; ink = PaperTheme.Rust;
-			sub = $"On {lien.Deadline.ToHeadlineString()} he takes {StageMoney(desk.LienPayBar())} if it's there, or seizes what he can. " + (lien.ConsecutiveFailures > 0
+			sub = live.IsFloriaBuyout ? $"The purchase can go through on {lien.Deadline.ToHeadlineString()}." : $"On {lien.Deadline.ToHeadlineString()} he takes {StageMoney(desk.LienPayBar())} if it's there, or seizes what he can. " + (lien.ConsecutiveFailures > 0
 				? "You've already missed one. If he can't take it this time, he takes the label."
 				: "He'll give you three months after that. Miss those too and it's over.");
 		}
@@ -638,7 +651,8 @@ public partial class PlayerDeskPanel {
 		string ask = next.Reckoning
 			? $"Next December is the reckoning. On {due.ToHeadlineString()} he wants every cent, about {StageMoney(lien.Outstanding + interest)}, or he takes the label."
 			: $"Next December he'll want about {StageMoney(Mathf.Min(next.Slice, lien.Outstanding) + interest)} to roll it, or {next.Units:N0} copies sold since today" +
-			  (next.DueYear - 1 >= 1962 ? ", or a Top 40 record" : "") + ", or something given up.";
+			  (next.DueYear - 1 >= 1962 ? (desk.LienShowHitBar == 1 ? ", or a Top 40 record" : ", or two Top 40 records") : "") +
+			  (desk.GermainLedgerFrozen ? "." : ", or something given up.");
 		var note = new PanelContainer();
 		note.AddThemeStyleboxOverride("panel", StageBox(new Color(0.55f, 0.42f, 0.2f, 0.10f), PaperTheme.Edge, 1, 14, 10));
 		var nv = new VBoxContainer();
@@ -663,11 +677,11 @@ public partial class PlayerDeskPanel {
 		var walk = desk.LienSittingOptions(live).FirstOrDefault(o => o.verb == PlayerDesk.LienVerb.WalkOut);
 		if (walk == null) return;
 		if (lienConfirm == PlayerDesk.LienVerb.WalkOut) {
-			lienStageFooter.AddChild(StageLabel(LienConfirmText(walk).Warning, PaperTheme.SerifBold, 14, PaperTheme.Oxblood));
+			lienStageFooter.AddChild(StageLabel(LienConfirmText(walk, live).Warning, PaperTheme.SerifBold, 14, PaperTheme.Oxblood));
 			var stay = new Button { Text = "STAY", CustomMinimumSize = new Vector2(120, 40) };
 			stay.Pressed += () => { lienConfirm = null; RenderLienStage(desk, live); };
 			lienStageFooter.AddChild(stay);
-			var leave = new Button { Text = LienConfirmText(walk).Yes, CustomMinimumSize = new Vector2(220, 40) };
+			var leave = new Button { Text = LienConfirmText(walk, live).Yes, CustomMinimumSize = new Vector2(220, 40) };
 			PaperModal.StylePrimary(leave, StageDanger);
 			leave.Pressed += () => ChooseLien(desk, live, walk);
 			lienStageFooter.AddChild(leave);

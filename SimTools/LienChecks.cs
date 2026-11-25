@@ -37,6 +37,7 @@ public partial class LienChecks : Node {
 			Compounding(desk);
 			Floria(desk);
 			SaveRoundTrip(desk);
+			FloriaBuyout(desk, OS.GetCmdlineUserArgs().Contains("--floria-forced"));
 			GD.Print($"LIEN_CHECKS_PASS ({checks} checks)");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -148,5 +149,88 @@ public partial class LienChecks : Node {
 		data.Venue = null; data.VenueId = null;
 		desk.RestoreLienForChecks(data);
 		Check(desk.LienProfile.Title.Contains("the best room in town"), "An older save without a venue falls back: " + desk.LienProfile.Title);
+	}
+
+	private void FloriaBuyout(PlayerDesk desk, bool forced) {
+		var clock = TimeManager.Instance;
+		var chart = ChartManager.Instance;
+		void Sitting(int year) {
+			desk.CloseLienSitting();
+			clock.RestoreClock(GameDate.StartDate, 9);
+			desk.FoundLienForChecks(Own[LienHolder.Floria], LienHolder.Floria);
+			desk.Lien.BarYear = year;
+			desk.Lien.Deadline = new GameDate(year + 1, 1, 1);
+			clock.RestoreClock(new GameDate(year, 12, 20), 9);
+		}
+
+		Sitting(1968);
+		string majorId = desk.Lien.FloriaMajorId;
+		Check(chart.GetLabelById(majorId)?.tier == LabelTier.Major && desk.Lien.FloriaOpeningShare > 0f,
+			"Floria is tied to an actual regional Major at founding");
+		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
+		Check(desk.Lien.FloriaMajorId == majorId && desk.Lien.FloriaOpeningShare > 0f, "The Major and its opening share survive a save");
+		Check(desk.OpenLienSitting(out var message) && !desk.ActiveSitting.IsFloriaBuyout, "Weak Show puts the 1968 purchase off for a year: " + message);
+		var writeOn = desk.LienSittingOptions(desk.ActiveSitting).Single(o => o.verb == LienVerb.WriteItOn);
+		Check(desk.ChooseLienOption(desk.ActiveSitting, writeOn, out _), "The 1968 sitting can still be extended on ordinary terms");
+		desk.EnforceLienForChecks(new GameDate(1969, 1, 1));
+		desk.CloseLienSitting();
+		clock.RestoreClock(new GameDate(1969, 12, 20), 9);
+		Check(desk.OpenLienSitting(out _) && desk.ActiveSitting.IsFloriaBuyout, "Weak Show cannot postpone the offer past 1969");
+
+		Sitting(1966);
+		desk.Lien.FloriaMajorId = "major-no-longer-in-business";
+		desk.Label.cashReserves = 100000f;
+		Check(desk.OpenLienSitting(out _) && desk.Lien.FloriaDismissed && !desk.LienRefusesPay,
+			"When the Major is gone, Floria's successor accepts an ordinary payment");
+		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
+		Check(desk.Lien.FloriaDismissed && !desk.LienRefusesPay, "The successor terms survive a save");
+
+		var act = ArtistManager.Instance.GetUnsignedArtists().OrderBy(a => a.artistId, StringComparer.Ordinal).First();
+		desk.Label.SignArtist(act, 1968, desk.Label.GenerateTermSheet(act, 1968));
+		ArtistManager.Instance.SignArtist(act, desk.Label.labelId, 1968);
+		var record = new Record {
+			recordId = "floria-valuation-probe", title = "Floria Probe", artistId = act.artistId, artistName = act.stageName,
+			labelId = desk.Label.labelId, isPlayerOwned = true, primaryGenre = act.primaryGenre, secondaryGenre = act.primaryGenre,
+			releaseDate = new GameDate(1968, 7, 1),
+		};
+		chart.ReleaseRecord(record);
+		var runtime = chart.GetRecordRuntimeData(record.recordId);
+		runtime.totalUnitsSold = 5_000_000;
+		runtime.lifetimeLabelNet = FloriaValuationBar / 2;
+		var regions = chart.GetAllRegions().Select(r => r.regionId).Take(4).ToArray();
+		foreach (string region in regions)
+			runtime.regionalData[region] = new RegionalRecordData { unitsSoldTotal = 10_000 };
+
+		Sitting(1968);
+		Check(desk.OpenLienSitting(out _) && desk.Lien.FloriaBuyoutWaived && !desk.ActiveSitting.IsFloriaBuyout && desk.LienShow().Met,
+			"A national catalogue at the valuation bar makes the Major waive its option");
+		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
+		Check(desk.Lien.FloriaBuyoutWaived && desk.LienRefusesPay, "The waiver survives a save with the lien still in force");
+
+		Sitting(1968);
+		foreach (string region in regions.Skip(1)) runtime.regionalData[region].unitsSoldTotal = 0;
+		desk.Label.top40Hits = 1;
+		foreach (var buyer in chart.GetAllLabels().Where(label => label.tier == LabelTier.Major)) buyer.cashReserves = FloriaValuationBar * 2;
+		Check(desk.OpenLienSitting(out _) && desk.ActiveSitting.IsFloriaBuyout && !desk.Lien.FloriaBuyoutWaived,
+			"Even an expensive regional catalogue faces the 1968 purchase after a strong Show");
+		var live = desk.ActiveSitting;
+		var offers = desk.LienSittingOptions(live);
+		var major = live.FloriaForced;
+		var rival = live.FloriaRival;
+		Check(rival != null && rival.Price > major.Price && offers.All(o => o.verb is LienVerb.FloriaSign or LienVerb.FloriaRivalBid or LienVerb.WalkOut),
+			"A funded rival can outbid the Major and the sitting offers the two purchases");
+
+		var bid = forced ? major : rival;
+		float buyerCash = bid.Buyer.cashReserves;
+		if (forced) {
+			var walk = offers.Single(o => o.verb == LienVerb.WalkOut);
+			Check(desk.ChooseLienOption(live, walk, out _) && !desk.IsGameOver, "Walking out leaves the purchase for the deadline");
+			desk.EnforceLienForChecks(new GameDate(1969, 1, 1));
+		} else {
+			Check(desk.ChooseLienOption(live, offers.Single(o => o.verb == LienVerb.FloriaRivalBid), out _), "The rival sale closes at the sitting");
+		}
+		Check(desk.IsGameOver && desk.Lien.Ending == (forced ? "Taken" : "SoldToMajor") &&
+			desk.Label.ownerLabelId == bid.Buyer.labelId && desk.Label.IsActive && desk.Lien.Outstanding == 0f &&
+			Near(bid.Buyer.cashReserves, buyerCash - bid.Price, 1f), "The purchase settles the lien and transfers ownership without closing the imprint");
 	}
 }

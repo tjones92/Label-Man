@@ -32,7 +32,7 @@ public partial class PlayerDesk {
 	public enum PartyWho { CamelCoat, DiscJockey, RouteMan, MajorMan, Nothing }
 	public enum PartyBrag { TheLabel, TheAct, Money, Hits, Nothing }
 	public enum PartyEnd { CardTable, Car, PhoneCall, Nothing }
-	public enum LienLedgerKind { Signed, InterestAccrued, Paid, Shown, ConcededStock, WrittenOn, Seized, Extended, PaidClean, Taken, GaveName, SentBoys }
+	public enum LienLedgerKind { Signed, InterestAccrued, Paid, Shown, ConcededStock, WrittenOn, Seized, Extended, PaidClean, Taken, GaveName, SentBoys, ReadBlackLedger, FloriaDismissed, FloriaBuyoutWaived, FloriaBuyout, HolderMove }
 
 	public const float LienFaceSum = 20000f;
 	/// <summary>The fallback rate (older saves carry their own). Each holder sets his own: <see cref="LienHolderProfile.Rate"/>.</summary>
@@ -272,6 +272,7 @@ public partial class PlayerDesk {
 		public int ConsecutiveFailures;
 		public float Standing = 0.5f;
 		public bool OpeningSeen;
+		public bool HolderIdentified;
 		/// <summary>The deadline (year * 100 + month) the lawyer's letter has been read for; 0 = none yet. UI only.</summary>
 		public int NoticeKey;
 		/// <summary>Last sitting's concession was "write it onto the paper": he won't do that twice running.</summary>
@@ -294,6 +295,24 @@ public partial class PlayerDesk {
 		/// and how many years his boys have worked a record for you.</summary>
 		public int CutInSongsLeft, CutInSongs, NetworkUses;
 		public float CutInPaid;
+		public GermainLedgerStage GermainLedger;
+		public string FloriaMajorId;
+		public float FloriaOpeningShare;
+		public bool FloriaDismissed, FloriaBuyoutWaived;
+		/// <summary>The holder's first move on the first single (§6.1): where it stands, the record it's about, the day it lands,
+		/// whether an accepted move has been carried out, how many days Floria's favour moved the run, and the years Sawyer's
+		/// waiver and Kubiak's refusal apply to (0 = none).</summary>
+		public HolderMoveStage Move;
+		public string MoveRecordId;
+		public GameDate MoveDue;
+		public bool MoveSettled;
+		/// <summary>The sitting has counted the move as a favour (§6.1): he won't count it twice.</summary>
+		public bool MoveCredited;
+		public int MoveDays, SawyerLaunchYear, KubiakRefusedYear;
+		/// <summary>Winters only (§3.5 H3): the home reporter stations whose jocks Clyde has called as you, cold (you owe them
+		/// one) or burned (they don't take your word), and whether the address book has come back.</summary>
+		public List<string> WintersCold = new(), WintersBurned = new();
+		public bool AddressBookBack;
 		public List<LienLedgerEntry> Ledger = new();
 
 		public float Outstanding => R2(FaceSum - PrincipalPaid);
@@ -323,12 +342,32 @@ public partial class PlayerDesk {
 
 	private LienState lien;
 	public LienState Lien => lien;
+	public bool LienHolderIdentified => lien != null && (lien.HolderIdentified ||
+		lien.Ledger.Any(e => e.Kind is LienLedgerKind.Extended or LienLedgerKind.Seized));
 
 	/// <summary>The holder's profile with the hometown's room named in it. Null without a lien.</summary>
 	public LienHolderProfile LienProfile {
 		get {
 			if (lien == null) return null;
 			var p = lien.Profile;
+			if (lien.Holder == LienHolder.Floria) {
+				if (ChartManager.Instance?.GetLabelById(lien.FloriaMajorId) is { } major)
+					p = p with { Title = $"from the regional office of {major.labelName}" };
+				if (lien.FloriaDismissed) p = p with {
+					Stresses = LienBar.Pay,
+					WantsLine = "\"The new man wants the paper handled like any other account.\"",
+					FixerRead = "Floria's desk is empty. His successor just wants the account settled.",
+				};
+			}
+			if (GermainLedgerFrozen) p = p with {
+				Stresses = LienBar.Pay,
+				Opening = "Tolliver sets his hat beside him. There's no talk about records today.",
+				WantsLine = "\"Jack says we can keep this to the paper.\"",
+				PayAccepted = "Tolliver counts it once and writes in the new date.",
+				ShowAccepted = "\"The books will do.\" Tolliver writes in the new date.",
+				Pushback = "\"These figures settle the business part. What about the interest?\"",
+				FixerRead = "He knows you can read the book. He'll keep to the paper.",
+			};
 			string venue = string.IsNullOrEmpty(lien.Venue) ? LienVenueFallback : lien.Venue;
 			string V(string s) => s?.Replace("{venue}", venue);
 			return p with {
@@ -342,7 +381,8 @@ public partial class PlayerDesk {
 
 	/// <summary>True when this holder won't take money at a sitting this year (Floria from the December 1966 sitting).
 	/// The reckoning always takes money.</summary>
-	public bool LienRefusesPay => lien != null && !lien.IsReckoning && lien.Profile.RefusesPayFrom > 0 && lien.BarYear >= lien.Profile.RefusesPayFrom;
+	public bool LienRefusesPay => lien != null && !lien.IsReckoning && !lien.FloriaDismissed &&
+		lien.Profile.RefusesPayFrom > 0 && lien.BarYear >= lien.Profile.RefusesPayFrom;
 
 	/// <summary>The hometown's most popular room: the biggest performance room in the home scene, ties broken by id.</summary>
 	private SceneRoomProfile HomeVenue() {
@@ -370,6 +410,8 @@ public partial class PlayerDesk {
 		};
 		lien.Add(today, LienLedgerKind.Signed, LienFaceSum, holder.ToString());
 		SeedConnie(previousConnie);
+		BindFloriaMajor();
+		SeedWintersBook();
 	}
 
 	public void DismissLienMorning() {
@@ -418,6 +460,9 @@ public partial class PlayerDesk {
 		Say($"The founding money is still in the cigar box: ${Label.cashReserves:N0}. Everything else is gone: {LostBelongings()}. You don't know where.");
 		Say($"Under the lamp, the scrawl at the foot of the letter turns out to read {LienProfile.Lawyer}, \"for the holder\". It doesn't say who the holder is. " +
 			"It says you may apply for an extension at a sitting in the last two weeks of December.");
+		if (Connie != null)
+			Say($"Under the letter is a recording contract you don't remember signing either: {ConnieStageName}, five years, \"option held by Mr. D. Sawyer\". " +
+				"So that's who. Dee-Dee Sawyer, who owns " + lien.Venue + ". You've no idea what you did to him.");
 		foreach (var voice in LienMorningVoices()) lines.Add(voice);
 		Say("So the label you meant to start anyway starts today, with a fuse on it.");
 		return lines;
@@ -489,7 +534,12 @@ public partial class PlayerDesk {
 		return R2((interest + slice) * (ConnieStalled ? ConnieStalledPayMultiple : 1f));
 	}
 
-	public int LienShowUnitsBar() => lien == null ? 0 : LienShowUnits.GetValueOrDefault(Math.Clamp(lien.BarYear, 1960, 1968));
+	private int LienShowUnitsFor(int year) {
+		int units = LienShowUnits.GetValueOrDefault(Math.Clamp(year, 1960, 1968));
+		return lien?.Holder == LienHolder.Floria && !lien.FloriaDismissed ? (int)(units * FloriaShowMultiple) : units;
+	}
+	public int LienShowUnitsBar() => lien == null ? 0 : LienShowUnitsFor(lien.BarYear);
+	public int LienShowHitBar => lien?.Holder == LienHolder.Floria && !lien.FloriaDismissed ? 2 : 1;
 	public long LienUnitsSinceSitting() => lien == null ? 0 : Math.Max(0, PlayerUnitsSold() - lien.UnitsAtLastSitting);
 	public int LienTop40SinceSitting() => lien == null || Label == null ? 0 : Math.Max(0, Label.top40Hits - lien.Top40AtLastSitting);
 
@@ -497,6 +547,7 @@ public partial class PlayerDesk {
 	public (bool Met, string What) LienShow() {
 		if (lien == null) return (false, "");
 		if (lien.IsReckoning) return (false, "At the reckoning only money counts.");
+		if (lien.FloriaBuyoutWaived) return (true, "New York's valuation is enough to show the label has grown.");
 		if (lien.BarYear <= 1960) {
 			bool any = ReleasedRecords.Any();
 			return (any, any ? "A record is out with the label's name on it." : "He wants to see a record pressed and out.");
@@ -504,8 +555,9 @@ public partial class PlayerDesk {
 		int bar = LienShowUnitsBar();
 		long units = LienUnitsSinceSitting();
 		int hits = LienTop40SinceSitting();
-		bool met = units >= bar || (lien.BarYear >= 1962 && hits > 0);
-		string what = $"{units:N0} of {bar:N0} copies sold since the last sitting" + (lien.BarYear >= 1962 ? ", or a Top 40 record in that time" : "") + ".";
+		bool met = units >= bar || (lien.BarYear >= 1962 && hits >= LienShowHitBar);
+		string what = $"{units:N0} of {bar:N0} copies sold since the last sitting" +
+			(lien.BarYear >= 1962 ? (LienShowHitBar == 1 ? ", or a Top 40 record in that time" : ", or two Top 40 records in that time") : "") + ".";
 		return (met, what);
 	}
 
@@ -533,7 +585,7 @@ public partial class PlayerDesk {
 
 	// ── the sitting (§3.2) ───────────────────────────────────────────────────────────────────────────
 
-	public enum LienVerb { Pay, Show, ConcedeStock, WriteItOn, PayInFull, HandOver, CounterInterest, CounterHonest, CounterBluff, WalkOut, ConcedeCutIn, ConcedeNetwork }
+	public enum LienVerb { Pay, Show, ConcedeStock, WriteItOn, PayInFull, HandOver, CounterInterest, CounterHonest, CounterBluff, WalkOut, ConcedeCutIn, ConcedeNetwork, FloriaSign, FloriaRivalBid, ConcedeFavour }
 
 	public sealed class LienOption {
 		public LienVerb verb;
@@ -549,6 +601,8 @@ public partial class PlayerDesk {
 		/// <summary>Show was offered and pushed back on; this round's counters answer that.</summary>
 		public bool showPushed;
 		public bool bluffCaught;
+		internal FloriaBid FloriaForced, FloriaRival;
+		public bool IsFloriaBuyout => FloriaForced != null;
 		public void Say(string text, string speaker = "", ExecutiveVoice voice = ExecutiveVoice.None, bool isPlayer = false) {
 			if (!string.IsNullOrEmpty(text)) transcript.Add(new CallLine { beat = RolodexSceneBeat.Opening, text = text, speaker = speaker, voice = voice, isPlayer = isPlayer });
 		}
@@ -562,10 +616,25 @@ public partial class PlayerDesk {
 		if (message != null) return false;
 		if (!Require(LienSittingHours, out message)) return false;
 		Spend(LienSittingHours);
+		var today = LienToday;
+		string floriaLine = ReviewFloriaPosition(today, out var floriaVoice);
 		var p = LienProfile;
 		var live = new LienSittingLive();
+		lien.HolderIdentified = true;
+		(live.FloriaForced, live.FloriaRival) = FloriaBids(today);
 		live.Say(p.Opening);
+		if (floriaLine != null) live.Say(floriaLine, floriaVoice == ExecutiveVoice.None ? p.Lawyer : "", floriaVoice);
+		if (live.IsFloriaBuyout) {
+			live.Say($"\"{live.FloriaForced.Buyer.labelName} is exercising its option. The papers are ready. The price is ${live.FloriaForced.Price:N0}.\"", p.Lawyer);
+			if (live.FloriaRival is { } rival) live.Say($"{rival.Buyer.labelName} sent its own offer for ${rival.Price:N0}. Their cheque covers the lien.", p.Lawyer);
+			activeSitting = live;
+			message = $"Sat down with {p.Lawyer}, for {p.Name}.";
+			Note(message);
+			Changed?.Invoke();
+			return true;
+		}
 		live.Say(lien.IsReckoning ? $"\"It's the end of the decade, and the end of the paper. Mr. {p.Name.Split(' ')[^1]} wants ${LienPayBar():N0}, all of it.\"" : p.WantsLine, p.Lawyer);
+		SayHolderMoveAtSitting(live);
 		// Passive reads: each voice speaks only past its threshold, and only about a fact that is true.
 		var inst = InstinctProfile;
 		float pay = LienPayBar();
@@ -606,6 +675,8 @@ public partial class PlayerDesk {
 		float interest = lien.InterestDueBy(lien.Deadline);
 		string hours = $"{BackerOfficeFromHour} a.m. and {BackerOfficeUntilHour - 12} p.m.";
 		string call = $"I shall be at your office from {opens.ToHeadlineString()} until {lien.Deadline.ToHeadlineString()}, between {hours}, to hear what you propose.";
+		if (FloriaPurchaseOptionPending)
+			return ($"Sir,\n\nMy client's firm will consider exercising the option to purchase the label. {call}\n\nIf the firm proceeds, its offer takes effect on {lien.Deadline.ToHeadlineString()} unless you settle the sale at the sitting.", "PURCHASE OPTION");
 		if (lien.IsReckoning)
 			return ($"Sir,\n\nThe paper ends on 1 January 1970. The holder will accept the whole balance, ${LienPayBar():N0}, and nothing else. {call}\n\nThis is the last letter I shall write you.", "THE LAST LETTER");
 		if (lien.ConsecutiveFailures > 0)
@@ -659,12 +730,19 @@ public partial class PlayerDesk {
 		if (lien == null) return (false, 0f, 0, 0);
 		var due = lien.PendingDeadline ?? lien.Deadline;
 		int bar = Math.Clamp(due.year - 1, 1960, 1968);
-		return (due.year >= LienFinalYear, LienSlice.GetValueOrDefault(bar), LienShowUnits.GetValueOrDefault(bar), due.year);
+		return (due.year >= LienFinalYear, LienSlice.GetValueOrDefault(bar), LienShowUnitsFor(bar), due.year);
 	}
 
 	public List<LienOption> LienSittingOptions(LienSittingLive live) {
 		var list = new List<LienOption>();
 		if (lien == null || live == null) return list;
+		if (live.IsFloriaBuyout) {
+			if (live.FloriaRival is { } rival) list.Add(FloriaSaleOption(rival, true, LienToday));
+			list.Add(FloriaSaleOption(live.FloriaForced, false, LienToday));
+			list.Add(new LienOption { verb = LienVerb.WalkOut, label = "Show him out",
+				subLabel = $"The purchase can go through on {lien.Deadline.ToHeadlineString()} without your signature." });
+			return list;
+		}
 		float cash = Mathf.Max(0f, Label.cashReserves);
 		float pay = LienPayBar();
 		if (lien.IsReckoning) {
@@ -680,12 +758,15 @@ public partial class PlayerDesk {
 		var show = LienShow();
 		list.Add(new LienOption { verb = LienVerb.Show, label = "Show him the books", subLabel = show.What,
 			enabled = show.Met && !live.showPushed && !live.bluffCaught, disabledReason = live.bluffCaught ? "He's stopped listening to that." : live.showPushed ? "He's already pushed back on that." : show.What });
-		float stock = StockValueOnHand();
-		list.Add(new LienOption { verb = LienVerb.ConcedeStock, label = "Give him pressed stock instead", subLabel = $"Copies on hand at ${DealerPrice:F2}: ${stock:N0} of the ${pay:N0}.",
-			enabled = stock >= pay && pay > 0f, disabledReason = $"Your stock on hand is worth ${stock:N0}." });
-		list.Add(new LienOption { verb = LienVerb.WriteItOn, label = "Ask him to write it onto the paper", subLabel = $"The face sum grows by ${R2(pay * LienWrittenOnMultiple):N0}. You'll owe it in 1970.",
-			enabled = !lien.LastWasWrittenOn && pay > 0f, disabledReason = "He wrote it on last year. He won't do it twice running." });
-		if (lien.Holder == LienHolder.Germain) list.AddRange(GermainConcedeOptions());
+		if (!GermainLedgerFrozen) {
+			if (HolderFavourOption() is { } favour) list.Add(favour);
+			float stock = StockValueOnHand();
+			list.Add(new LienOption { verb = LienVerb.ConcedeStock, label = "Give him pressed stock instead", subLabel = $"Copies on hand at ${DealerPrice:F2}: ${stock:N0} of the ${pay:N0}.",
+				enabled = stock >= pay && pay > 0f, disabledReason = $"Your stock on hand is worth ${stock:N0}." });
+			list.Add(new LienOption { verb = LienVerb.WriteItOn, label = "Ask him to write it onto the paper", subLabel = $"The face sum grows by ${R2(pay * LienWrittenOnMultiple):N0}. You'll owe it in 1970.",
+				enabled = !lien.LastWasWrittenOn && pay > 0f, disabledReason = "He wrote it on last year. He won't do it twice running." });
+			if (lien.Holder == LienHolder.Germain) list.AddRange(GermainConcedeOptions());
+		}
 		list.Add(new LienOption { verb = LienVerb.WalkOut, label = "Show him out", subLabel = $"Nothing settled. On {lien.Deadline.ToHeadlineString()} he takes the payment if it's there, or seizes what he can." });
 		return list;
 	}
@@ -729,6 +810,29 @@ public partial class PlayerDesk {
 	public bool ChooseLienOption(LienSittingLive live, LienOption opt, out string message) {
 		message = null;
 		if (lien == null || live == null || opt == null || !opt.enabled) { message = opt?.disabledReason ?? "You can't do that."; return false; }
+		if (GermainLedgerFrozen && opt.verb is LienVerb.ConcedeStock or LienVerb.WriteItOn or LienVerb.ConcedeCutIn or LienVerb.ConcedeNetwork or LienVerb.ConcedeFavour) {
+			message = "Tolliver has dropped the concessions."; return false;
+		}
+		if (live.IsFloriaBuyout || opt.verb is LienVerb.FloriaSign or LienVerb.FloriaRivalBid) {
+			if (!live.IsFloriaBuyout || live != activeSitting || live.stage != CallStage.Open || IsGameOver) {
+				message = "There is no live purchase offer."; return false;
+			}
+			if (opt.verb == LienVerb.WalkOut) {
+				live.Say($"\"The firm will exercise the option on {lien.Deadline.ToHeadlineString()}.\"", LienProfile.Lawyer);
+				live.stage = CallStage.Ended;
+				message = live.transcript.Last().text;
+				Changed?.Invoke();
+				return true;
+			}
+			bool rival = opt.verb == LienVerb.FloriaRivalBid;
+			var bid = rival ? live.FloriaRival : opt.verb == LienVerb.FloriaSign ? live.FloriaForced : null;
+			if (bid == null || !bid.Buyer.IsActive || bid.Price > Math.Max(0f, CompetitorManager.Instance.AvailableDistributionFunding(bid.Buyer)) + .01f) {
+				message = "That purchase offer is no longer available."; return false;
+			}
+			CompleteFloriaSale(bid, rival, LienToday, live);
+			message = GameOverReason;
+			return true;
+		}
 		var p = LienProfile;
 		var today = LienToday;
 		live.Say(opt.label, "You", opt.voice, isPlayer: true);
@@ -772,6 +876,10 @@ public partial class PlayerDesk {
 			}
 			case LienVerb.ConcedeCutIn:
 				GiveGermainHisName(live, today);
+				Extend(live, LienBar.Concede, p.ConcedeAccepted);
+				break;
+			case LienVerb.ConcedeFavour:
+				CreditHolderFavour(today);
 				Extend(live, LienBar.Concede, p.ConcedeAccepted);
 				break;
 			case LienVerb.ConcedeNetwork:
@@ -835,6 +943,7 @@ public partial class PlayerDesk {
 		lien.Extended = true;
 		lien.UnitsAtLastSitting = PlayerUnitsSold();
 		lien.Top40AtLastSitting = Label.top40Hits;
+		ReturnWintersBook(live, bar);
 		var next = new GameDate(lien.Deadline.year + 1, 1, 1);
 		lien.Add(today, LienLedgerKind.Extended, 0f, $"{bar} → {next.ToShortString()}");
 		lien.PendingDeadline = next;
@@ -895,6 +1004,8 @@ public partial class PlayerDesk {
 				Note($"{LienProfile.Lawyer} writes: the lien falls due on {lien.Deadline.ToHeadlineString()}. He'll sit down with you from {AddDays(lien.Deadline, -LienWindowDays).ToHeadlineString()}.");
 			return;
 		}
+		ReviewFloriaPosition(date, out _);
+		if (FloriaBids(date).Forced is { } purchase) { CompleteFloriaSale(purchase, false, date); return; }
 		var p = LienProfile;
 		float due = LienPayBar();
 		if (lien.IsReckoning) {
@@ -982,11 +1093,17 @@ public partial class PlayerDesk {
 			InterestAccrued = lien.InterestAccrued, InterestPaid = lien.InterestPaid, PrincipalPaid = lien.PrincipalPaid,
 			Deadline = DateSave.From(lien.Deadline), PendingDeadline = lien.PendingDeadline.HasValue ? DateSave.From(lien.PendingDeadline.Value) : null,
 			BarYear = lien.BarYear, Extended = lien.Extended, ConsecutiveFailures = lien.ConsecutiveFailures, Standing = lien.Standing,
-			OpeningSeen = lien.OpeningSeen, LastWasWrittenOn = lien.LastWasWrittenOn, UnitsAtLastSitting = lien.UnitsAtLastSitting,
+			OpeningSeen = lien.OpeningSeen, HolderIdentified = lien.HolderIdentified, LastWasWrittenOn = lien.LastWasWrittenOn, UnitsAtLastSitting = lien.UnitsAtLastSitting,
 			Top40AtLastSitting = lien.Top40AtLastSitting, Ending = lien.Ending, NoticeKey = lien.NoticeKey,
 			Car = (int)lien.Car, CarRecovered = lien.CarRecovered, Mode = (int)lien.Mode, TripCopies = lien.TripCopies,
 			ConnieId = lien.ConnieId, ConnieFree = lien.ConnieFree,
 			CutInSongsLeft = lien.CutInSongsLeft, CutInSongs = lien.CutInSongs, NetworkUses = lien.NetworkUses, CutInPaid = lien.CutInPaid,
+			GermainLedger = (int)lien.GermainLedger,
+			FloriaMajorId = lien.FloriaMajorId, FloriaOpeningShare = lien.FloriaOpeningShare,
+			FloriaDismissed = lien.FloriaDismissed, FloriaBuyoutWaived = lien.FloriaBuyoutWaived,
+			Move = (int)lien.Move, MoveRecordId = lien.MoveRecordId, MoveDue = lien.Move == HolderMoveStage.None ? null : DateSave.From(lien.MoveDue),
+			MoveSettled = lien.MoveSettled, MoveCredited = lien.MoveCredited, MoveDays = lien.MoveDays, SawyerLaunchYear = lien.SawyerLaunchYear, KubiakRefusedYear = lien.KubiakRefusedYear,
+			WintersCold = lien.WintersCold.ToList(), WintersBurned = lien.WintersBurned.ToList(), AddressBookBack = lien.AddressBookBack,
 			Ledger = lien.Ledger.Select(e => new LienLedgerSaveData { Date = DateSave.From(e.Date), Kind = (int)e.Kind, Amount = e.Amount, Detail = e.Detail }).ToList(),
 		};
 	}
@@ -1003,13 +1120,20 @@ public partial class PlayerDesk {
 			InterestAccrued = d.InterestAccrued, InterestPaid = d.InterestPaid, PrincipalPaid = d.PrincipalPaid,
 			Deadline = d.Deadline.ToDate(), PendingDeadline = d.PendingDeadline?.Valid == true ? d.PendingDeadline.ToDate() : null,
 			BarYear = d.BarYear, Extended = d.Extended, ConsecutiveFailures = d.ConsecutiveFailures, Standing = d.Standing,
-			OpeningSeen = d.OpeningSeen, LastWasWrittenOn = d.LastWasWrittenOn, UnitsAtLastSitting = d.UnitsAtLastSitting,
+			OpeningSeen = d.OpeningSeen, HolderIdentified = d.HolderIdentified, LastWasWrittenOn = d.LastWasWrittenOn, UnitsAtLastSitting = d.UnitsAtLastSitting,
 			Top40AtLastSitting = d.Top40AtLastSitting, Ending = d.Ending, NoticeKey = d.NoticeKey,
 			// A save from before the car went missing keeps the car it had.
 			Car = d.Car.HasValue ? (CarKind)d.Car.Value : CarKind.Original, CarRecovered = !d.Car.HasValue || d.CarRecovered,
 			Mode = (TransportMode)d.Mode, TripCopies = d.TripCopies,
 			ConnieId = d.ConnieId, ConnieFree = d.ConnieFree,
 			CutInSongsLeft = d.CutInSongsLeft, CutInSongs = d.CutInSongs, NetworkUses = d.NetworkUses, CutInPaid = d.CutInPaid,
+			GermainLedger = (GermainLedgerStage)d.GermainLedger,
+			FloriaMajorId = d.FloriaMajorId, FloriaOpeningShare = d.FloriaOpeningShare,
+			FloriaDismissed = d.FloriaDismissed, FloriaBuyoutWaived = d.FloriaBuyoutWaived,
+			Move = (HolderMoveStage)d.Move, MoveRecordId = d.MoveRecordId, MoveDue = d.MoveDue?.Valid == true ? d.MoveDue.ToDate() : default,
+			MoveSettled = d.MoveSettled, MoveCredited = d.MoveCredited, MoveDays = d.MoveDays, SawyerLaunchYear = d.SawyerLaunchYear, KubiakRefusedYear = d.KubiakRefusedYear,
+			// An older save has no marks: Clyde never worked the book there.
+			WintersCold = d.WintersCold ?? new(), WintersBurned = d.WintersBurned ?? new(), AddressBookBack = d.AddressBookBack,
 			Ledger = (d.Ledger ?? new()).Where(e => e?.Date?.Valid == true).Select(e => new LienLedgerEntry {
 				Date = e.Date.ToDate(), Kind = (LienLedgerKind)e.Kind, Amount = e.Amount, Detail = e.Detail }).ToList(),
 		};
@@ -1051,6 +1175,7 @@ public sealed class LienSaveData {
 	public int ConsecutiveFailures { get; set; }
 	public float Standing { get; set; }
 	public bool OpeningSeen { get; set; }
+	public bool HolderIdentified { get; set; }
 	/// <summary>The deadline (year * 100 + month) whose letter has been read. Absent in older saves (0: the letter shows once).</summary>
 	public int NoticeKey { get; set; }
 	public bool LastWasWrittenOn { get; set; }
@@ -1071,6 +1196,23 @@ public sealed class LienSaveData {
 	public int CutInSongs { get; set; }
 	public int NetworkUses { get; set; }
 	public float CutInPaid { get; set; }
+	public int GermainLedger { get; set; }
+	public string FloriaMajorId { get; set; }
+	public float FloriaOpeningShare { get; set; }
+	public bool FloriaDismissed { get; set; }
+	public bool FloriaBuyoutWaived { get; set; }
+	/// <summary>The holder's first move (§6.1). Absent in older saves (None: it never fires for a label that has already pressed).</summary>
+	public int Move { get; set; }
+	public string MoveRecordId { get; set; }
+	public DateSave MoveDue { get; set; }
+	public bool MoveSettled { get; set; }
+	public bool MoveCredited { get; set; }
+	public List<string> WintersCold { get; set; }
+	public List<string> WintersBurned { get; set; }
+	public bool AddressBookBack { get; set; }
+	public int MoveDays { get; set; }
+	public int SawyerLaunchYear { get; set; }
+	public int KubiakRefusedYear { get; set; }
 	public List<LienLedgerSaveData> Ledger { get; set; } = new();
 }
 

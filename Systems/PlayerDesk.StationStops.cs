@@ -75,6 +75,7 @@ public partial class PlayerDesk : Node {
 		};
 		entry.log.Add($"{Today()} — {discoveryLogLine ?? $"Met him in person at {station.callsign}."}");
 		rolodex.Add(entry);
+		NoteWintersOnNewCard(entry);
 		return entry;
 	}
 

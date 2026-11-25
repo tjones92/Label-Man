@@ -190,6 +190,7 @@ public partial class PlayerDesk : Node {
 			? $"Got him on the line: {djName}, {station.callsign}."
 			: $"Got a name off somebody: {djName} at {station.callsign}. Haven't reached him yet."));
 		rolodex.Add(entry);
+		NoteWintersOnNewCard(entry);
 
 		Note($"Worked the phones ({minutes} min): {(gotThrough ? "reached" : "heard of")} " +
 			$"{djName} — {station.callsign} ({station.format}, {station.cityName}).");
@@ -276,9 +277,10 @@ public partial class PlayerDesk : Node {
 			hour = TimeManager.Instance?.CurrentHour ?? 12,
 			labelCash = Label?.cashReserves ?? 0f,
 			theyOweYou = entry.theyOweThem,
-			youOweThem = entry.youOweThem,
+			// Clyde's calls in your name (§3.5 H3) read as the card's own debts and burns until the address book comes back.
+			youOweThem = entry.youOweThem || WintersWorked(entry),
 			payolaBurned = entry.payolaBurned,
-			professionallyBurned = entry.professionallyBurned,
+			professionallyBurned = entry.professionallyBurned || WintersBurnedCard(entry),
 		};
 		c.region = chart?.GetRegionById(c.station?.regionId ?? Label?.homeRegion ?? "");
 		c.rapport = c.station?.rt?.Rapport(Label?.labelId ?? "") ?? 0f;

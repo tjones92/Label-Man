@@ -43,14 +43,14 @@ public partial class PlayerDesk {
 		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		CollectAtCity(stop.CityId);
 
-		float acceptChance = Mathf.Clamp(
-			(PitchBaseChance + stop.Relationship * PitchRelationshipWeight + PitchEarPull(stop, recordId)) * RetailAccessFactor(stop, recordId),
-			0.03f, 0.97f);
+		float access = RetailAccessFactor(stop, recordId);
+		float acceptChance = CounterAcceptChance(stop, recordId, access);
 		if (GameRandom.Randf() > acceptChance) {
 			TouchStop(stop, 0.02f);   // a listen that ended in a no still counts as an introduction
 			stop.PassedRecordIds.Add(recordId);
-			Note($"{stop.DisplayName} in {CityName(stop.CityId)} heard the acetate of \"{master.SongTitle}\" and passed -- \"bring it back when somebody's playing it.\"");
-			message = $"{stop.DisplayName} heard it and passed ({hours}h).";
+			string reason = CounterPassReason(stop, recordId, access);
+			Note($"{stop.DisplayName} in {CityName(stop.CityId)} heard the acetate of \"{master.SongTitle}\" and passed: \"{reason}.\"");
+			message = $"{stop.DisplayName} heard it and passed ({hours}h). \"{reason}.\"";
 			Changed?.Invoke();
 			return true;
 		}

@@ -813,6 +813,8 @@ public partial class PlayerDesk : Node {
 		/// and <see cref="CounterCrowdCeiling"/>). A fixed fact about the room, assigned at generation like
 		/// <see cref="BuyerNerve"/>, so it needs no save field.</summary>
 		public float CrowdSize = 0.5f;
+		public ShopRepertoire Repertoire;
+		public bool Specialist;
 		/// <summary>Venue, Shop and Op: per title, how much of this stop's crowd has already bought it. The
 		/// same regulars don't buy the same 45 twice; new faces arrive slowly (<see cref="TableCrowdTurnoverPerWeek"/>).</summary>
 		public readonly Dictionary<string, TableCrowd> TableCrowds = new(StringComparer.Ordinal);
@@ -828,6 +830,14 @@ public partial class PlayerDesk : Node {
 			BuyerNerve = NextUnit(ref h);
 			AudienceLean = NextUnit(ref h);
 			CrowdSize = NextUnit(ref h);   // drawn after the first two, so neither of theirs moves
+			if (Kind == StopKind.Shop) {
+				// Billboard's 1963 retail survey found 12.7% specialized by music type. The big reporting counters are broad-stock.
+				Specialist = NextUnit(ref h) < 0.14f && !ReportsToTrades;
+				float focus = NextUnit(ref h);
+				int repertoireCount = (int)ShopRepertoire.Classical + 1;
+				Repertoire = !Specialist && focus < 0.4f ? ShopRepertoire.Popular
+					: (ShopRepertoire)Mathf.Min(repertoireCount - 1, (int)(focus * repertoireCount));
+			}
 			return this;
 		}
 
@@ -2911,6 +2921,7 @@ public partial class PlayerDesk : Node {
 		int lead = today.CompareTo(order.Arrives) <= 0 ? new DateTime(order.Arrives.year, order.Arrives.month, order.Arrives.day).Subtract(new DateTime(today.year, today.month, today.day)).Days : 0;
 		GameDate arrives = order.Arrives;
 		pressOrders.Add(order);
+		StageHolderMove(order, today);       // inner-life §6.1: the holder circles the first single
 		HoldPreOrdersForArrival(recordId);   // early-game §6.2: the plant's lead time doesn't void the orders
 
 		string title = TitleForRecord(recordId);
@@ -2971,7 +2982,9 @@ public partial class PlayerDesk : Node {
 		bool repress = HasBeenPressed(recordId);
 		float cost = PressingCost(PlantCreditQuantity, repress);
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		pressOrders.Add(CreatePressOrder(recordId, PlantCreditQuantity, 0, cost, today));
+		PressOrder creditOrder = CreatePressOrder(recordId, PlantCreditQuantity, 0, cost, today);
+		pressOrders.Add(creditOrder);
+		StageHolderMove(creditOrder, today);
 		HoldPreOrdersForArrival(recordId);
 		int dueWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + PlantCreditTermWeeks;
 		plantCredit = new PlantCredit { RecordId = recordId, Amount = cost, DueWeek = dueWeek };
@@ -3028,6 +3041,7 @@ public partial class PlayerDesk : Node {
 			stock.PromoRemaining += promo;
 			stock.TotalPressed += order.Quantity;
 			stock.TotalSpent += order.Cost;
+			SettleKubiakClaim(order, stock);
 			string promoNote = promo > 0 ? $" ({promo:N0} promo)" : "";
 			string title = TitleForRecord(order.RecordId);
 			// What the vinyl is waiting on, so the arrival ends with the next move rather than a bare fact.
@@ -3159,9 +3173,11 @@ public partial class PlayerDesk : Node {
 	/// <summary>Probe-only reads of the two terms behind a counter order (SaveLoadRoundTripRunner's
 	/// --inspect-slot). Pure; nothing in the game calls them.</summary>
 	public float DebugRetailAccess(PlayerStop stop, string recordId) => RetailAccessFactor(stop, recordId);
-	public float DebugAcceptChance(PlayerStop stop, string recordId) => Mathf.Clamp(
+	public float DebugAcceptChance(PlayerStop stop, string recordId) => CounterAcceptChance(stop, recordId, RetailAccessFactor(stop, recordId));
+
+	private float CounterAcceptChance(PlayerStop stop, string recordId, float access) => Mathf.Clamp(
 		(PitchBaseChance + stop.Relationship * PitchRelationshipWeight + PitchEarPull(stop, recordId))
-			* RetailAccessFactor(stop, recordId), 0.03f, 0.97f);
+			* access * ShopCustomerFit(stop, recordId), 0.03f, 0.97f);
 
 	/// <summary>The named accounts in a town, kind then name so the day-sheet reads the same every visit.</summary>
 	public IEnumerable<PlayerStop> StopsInCity(string cityId) =>
@@ -3210,7 +3226,8 @@ public partial class PlayerDesk : Node {
 		// well under even a cold shop's handful.
 		if (stop.Kind == StopKind.Venue)
 			return Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(3f, 12f, stop.Relationship) * nerve * ear * jitter), 1, VenueTakeCeiling);
-		return Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(4f, 30f, stop.Relationship) * nerve * ear * jitter), 1, ShopTakeCeiling);
+		float counterSize = stop.Kind == StopKind.Shop ? Mathf.Lerp(0.75f, 1.25f, stop.CrowdSize) : 1f;
+		return Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(4f, 30f, stop.Relationship) * nerve * ear * jitter * counterSize), 1, ShopTakeCeiling);
 	}
 
 	// How far a dealer's own temperament moves his order off the roster average (PlayerStop.BuyerNerve).
@@ -3303,6 +3320,7 @@ public partial class PlayerDesk : Node {
 		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
 		stockOnHand = StockFor(recordId);
 		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
+		if (KubiakRouteRefusal(stop) is { } kubiak) { message = kubiak; return false; }
 		if (CarryLeft <= 0) { message = CarryEmptyMessage(); return false; }
 		// Directive §4, R1: "the shop will not take a fresh lot until it is cleared." Blocks PitchAtStop,
 		// ConsignAtStop and ServiceStop alike -- all three restock through this same gate.
@@ -3391,9 +3409,7 @@ public partial class PlayerDesk : Node {
 		// is what made a great single feel like it "can't sell." He listens to it now: a record with a
 		// real hook, a clean pressing and some local airplay behind it gets in the door on its own merit,
 		// and a weak one gets shown out no matter how warm the relationship is.
-		float acceptChance = Mathf.Clamp(
-			(PitchBaseChance + stop.Relationship * PitchRelationshipWeight + PitchEarPull(stop, recordId)) * access,
-			0.03f, 0.97f);
+		float acceptChance = CounterAcceptChance(stop, recordId, access);
 		// A pre-order is a shop that already asked for it: no cold-counter roll, and at least what it asked for.
 		int preOrder = PreOrderQty(stop, recordId);
 		if (untried && preOrder == 0 && GameRandom.Randf() > acceptChance) {
@@ -3402,9 +3418,9 @@ public partial class PlayerDesk : Node {
 			// A market that isn't open to the sound at all yet (directive §10) reads differently than an
 			// ordinary cold-shop no -- both clear the same way (a real call in reopens the pass), but the
 			// player shouldn't mistake one for the other.
-			string passReason = access < 0.6f ? "that trade hasn't found its way to this side of town yet" : "come back once it's played somewhere";
+			string passReason = CounterPassReason(stop, recordId, access);
 			Note($"{stop.DisplayName} in {CityName(stop.CityId)} passed on \"{TitleForRecord(recordId)}\" -- \"{passReason}.\"");
-			message = $"{stop.DisplayName} passed on \"{TitleForRecord(recordId)}\" this time ({hours}h).";
+			message = $"{stop.DisplayName} passed on \"{TitleForRecord(recordId)}\" ({hours}h). \"{passReason}.\"";
 			Changed?.Invoke();
 			return true;
 		}
@@ -4359,7 +4375,7 @@ public partial class PlayerDesk : Node {
 			runner.Familiarity.TryGetValue(stopId, out float familiarity);
 			bool untried = IsUntriedAt(stop, recordId);
 			if (untried) {
-				float acceptChance = Mathf.Clamp(RunnerAcceptBase + familiarity * RunnerAcceptSlope, 0.08f, 0.9f);
+				float acceptChance = Mathf.Clamp((RunnerAcceptBase + familiarity * RunnerAcceptSlope) * ShopCustomerFit(stop, recordId), 0.08f, 0.9f);
 				if (GameRandom.Randf() > acceptChance) {
 					stop.PassedRecordIds.Add(recordId);
 					Note($"Your runner struck out with {stop.DisplayName} in {CityName(stop.CityId)} on \"{TitleForRecord(recordId)}\".");
@@ -4860,6 +4876,7 @@ public partial class PlayerDesk : Node {
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);
         ProcessContractCommitments(date);
+		ProcessHolderMoveDawn(date);
 		DeliverArrivedPressings(date);
 		ProcessCoverRehearsals(date);
 		ProcessWritingSessions(date);
@@ -4867,6 +4884,7 @@ public partial class PlayerDesk : Node {
 			planned.Remove(release);
 			FireRelease(release, date);
 		}
+		SettleHolderMoveAfterRelease(date);
 		ProcessMasterDealsDawn(date);
 		ProcessSongPlacementsDawn();
 		ProcessTrunkDay();
@@ -5034,6 +5052,7 @@ public partial class PlayerDesk : Node {
 					&& (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) <= lot.WindowCardExpiresWeek
 					? WindowCardSellThroughBoost : 0f;
 				float appeal = TrunkAppeal(rec, stop.CityId, windowCard);
+				if (stop.Kind == StopKind.Shop) appeal = Mathf.Clamp(appeal * ShopCustomerFit(stop, rec.baseRecord.primaryGenre), 0.04f, 1f);
 				// The decay models a shop's opening-week appetite tapering off, and on its own it is
 				// terminal: base/(1-decay) x appeal is the entire lifetime sell-through of a lot, which
 				// came to 0.85 copies for a two-copy lot -- a lot that mathematically could never clear,
