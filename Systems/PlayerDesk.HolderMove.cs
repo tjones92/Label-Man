@@ -7,8 +7,8 @@ using Godot;
 // THE HOLDER'S FIRST MOVE (SimTools/LabelManInnerLifeDirective.md §6.1, Phase 1e).
 //
 // Every holder's 1960 Show is "a record out", so the first single is the one thing all five care about. While it is at the
-// plant the holder starts circling it, each in his own way, and that move is how the Label Man learns who holds the paper:
-// Act 1, "Who", happens in the first months instead of at the December sitting.
+// plant the holder starts circling it, each in his own way. He's been named since the first morning (PlayerDesk.FirstMorning.cs);
+// the move is the first time he shows what he wants from the label, and it opens the leads that follow from meeting him.
 //
 // One move, one real choice. Each move is an offer on a channel that already exists:
 //   Sawyer   launch at his room       accept: the room's Connie booking gate is waived for the year
@@ -54,8 +54,10 @@ public partial class PlayerDesk {
 
 	/// <summary>The first run of the first single has gone to the plant: the holder will make his move in a couple of days.</summary>
 	private void StageHolderMove(PressOrder order, GameDate today) {
-		// Sawyer is already named by Connie's paper; his move is him turning up in person.
-		if (lien == null || order == null || IsGameOver || lien.Move != HolderMoveStage.None || LienHolderIdentified && lien.Holder != LienHolder.Sawyer) return;
+		// Every holder is named from the first morning now; the move is him turning up about the record, and why he wants it.
+		// A run whose holder showed himself another way first (a sitting before any record) doesn't get one; Sawyer is exempt,
+		// as older saves marked him met from Connie's paper at founding.
+		if (lien == null || order == null || IsGameOver || lien.Move != HolderMoveStage.None || HolderShownHand && lien.Holder != LienHolder.Sawyer) return;
 		// Only the first single: nothing out yet, nothing pressed before, and this the only run at the plant.
 		if (ReleasedRecords.Any() || inventory.Values.Any(s => s.TotalPressed > 0) || pressOrders.Count != 1) return;
 		var due = today.AddDays(HolderMoveDelayDays);

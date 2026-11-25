@@ -55,8 +55,6 @@ public partial class PlayerDesk {
 		Label.SignArtist(connie, year, sheet);
 		ArtistManager.Instance.SignArtist(connie, Label.labelId, year);
 		lien.ConnieId = connie.artistId;
-		// Her contract has his name on it, so the Label Man knows who holds the paper from the first morning (§6.1).
-		lien.HolderIdentified = true;
 		Note($"Dee-Dee Sawyer's girlfriend, {ConnieStageName}, is on your roster. It came with the paper: five years, his option, no release clause.");
 	}
 

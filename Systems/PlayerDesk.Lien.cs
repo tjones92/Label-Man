@@ -349,8 +349,10 @@ public partial class PlayerDesk {
 
 	private LienState lien;
 	public LienState Lien => lien;
-	public bool LienHolderIdentified => lien != null && (lien.HolderIdentified ||
-		lien.Ledger.Any(e => e.Kind is LienLedgerKind.Extended or LienLedgerKind.Seized));
+	/// <summary>The player knows whose paper it is: always, from the first morning (onboarding decision 1, 2026-11-25). Each holder
+	/// bends the run toward one thing, so the player is told at once; the mystery is why he wanted it. Having *met* him is
+	/// <see cref="HolderShownHand"/>, which is what <see cref="LienState.HolderIdentified"/> records.</summary>
+	public bool LienHolderIdentified => lien != null;
 
 	/// <summary>The holder's profile with the hometown's room named in it. Null without a lien.</summary>
 	public LienHolderProfile LienProfile {

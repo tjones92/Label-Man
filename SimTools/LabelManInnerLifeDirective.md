@@ -523,7 +523,7 @@ Against Winters, that's a tear-up in 1962, followed by seven years with no clock
 
 | Act | Years | What the player does |
 |---|---|---|
-| 1. Who | 1960–62 | Learn who holds the paper and which memories were wrong. Find the first item. |
+| 1. Why | 1960–62 | Learn why he wanted your paper and which memories were wrong. Find the first item. (Was "Who": since onboarding T1, 2026-11-25, every holder is named on the first morning; see `SimTools/OnboardingTutorialDirective.md` decision 1.) |
 | 2. What | 1963–65 | Recover belongings, read the evidence, find the witness. Each link eases the sitting (§3.4). |
 | 3. Proof | 1966–69 | The last link opens. Tear it up at a December sitting. |
 
@@ -771,6 +771,10 @@ something is about to happen or go wrong. So the wait gets events that carry a c
 **The spine.** Every holder's 1960 Show is "a record out" (§3.7), so the first single is the one thing all five
 care about. During the wait, the holder starts circling the record in his own way, and that move is how the Label
 Man learns who holds the paper. Act 1, "Who" (§3.7), happens in the first months, not at the December sitting.
+**Superseded 2026-11-25 (onboarding T1):** every holder is named on the first morning, in a short scene at the office door
+(`PlayerDesk.FirstMorning.cs`). The move is now the first time he shows what he wants from the label; `HolderIdentified`
+now means *met* (the move answered or lapsed, or a sitting opened) and gates the leads that follow from meeting him
+(Clyde's secretary, Jack's station). Act 1 is "Why".
 
 - **Today:** the holder is named only when the first sitting opens (`OpenLienSitting` sets
   `LienState.HolderIdentified`) or after an extension or seizure. **Change:** the holder's first move sets it.

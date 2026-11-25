@@ -68,6 +68,15 @@ public partial class LienUiChecks : Node {
 			panel = Nodes(this).OfType<PlayerDeskPanel>().Single();
 			panel.OpenAtTab("OFFICE"); await Frame();
 
+			// Onboarding T1: a knock at the door first. Connie, who holds her paper, what he wants; then the letter.
+			Check(Shows("A Knock at the Door") && !Shows("The Morning After"), "The first morning opens on the knock, before the letter");
+			Check(Shows("Connie Boursaw") && Shows("WHERE YOU STAND") && Shows("Dee-Dee Sawyer holds your paper"), "Connie comes to the door, and the slip says whose paper it is");
+			await Screenshot("first-morning", 0.3 + 0.9 * 12);
+			var read = Nodes(panel).OfType<Button>().Single(b => b.IsVisibleInTree() && b.Text == "READ THE LETTER");
+			read.EmitSignal(Button.SignalName.Pressed);
+			await Frame();
+			Check(!Shows("A Knock at the Door") && desk.LienMorningPending, "READ THE LETTER closes the knock and leaves the morning pending");
+
 			// The morning after: the voices argue about the night, once.
 			Check(Shows("The Morning After") && Shows("A card game"), "The morning-after scene shows the voices' theories");
 			Check(Shows("supper club") && Shows("a kid you'd heard once") && Shows("There was a woman"), "The voices argue from what was remembered: where, the brag, and nobody for who");
@@ -88,7 +97,7 @@ public partial class LienUiChecks : Node {
 
 			// THE PAPER, before any sitting: Connie's contract has already named Sawyer (§6.1), and his lawyer.
 			Check(Shows("THE PAPER") && Nodes(panel).OfType<LedgerTable>().Any(t => t.IsVisibleInTree()), "THE PAPER heading and its ledger are on the OFFICE tab");
-			Check(desk.LienHolderIdentified, "Connie's paper names Sawyer from the first morning");
+			Check(desk.LienHolderIdentified && !desk.HolderShownHand, "Sawyer is named from the first morning, but not yet met");
 			Check(Shows("Mr. Halloran sits down with you from"), "Before December the paper says when the sitting opens");
 			await Screenshot("paper");
 

@@ -244,7 +244,7 @@ tutorial card, and today's from `NextUpStep`. Nothing new is computed; it's thre
 | Phase | Scope | Touches | Check |
 |---|---|---|---|
 | **T0 copy** | §2F fixes 1–6, 8, 9 ("Held by" filled in per decision 1); NEXT UP's day-one line on a Sawyer run | UI strings, `NextUpStep` | Re-run the playtest driver to a first signing |
-| **T1 holder scene** | §3.1 Sawyer first, then the other four; the mystery reframed as *why* | new `PlayerDeskPanel.FirstMorning.cs`, Morning After order | UI driver screenshots per holder |
+| **T1 holder scene** (built) | §3.1 Sawyer first, then the other four; the mystery reframed as *why* | `PlayerDesk.FirstMorning.cs`, `PlayerDeskPanel.FirstMorning.cs`, Morning After order | UI driver screenshots per holder |
 | **T3 first-week card** | §3.2 through an act signed and a first record set up (decision 3); each voice teaches its task (decision 2); highlight, off toggle | a tutorial state on `PlayerDesk` (player-only, saved), a card widget | Playtest metric below |
 | **T4 time** | §3.4 hour strip, one-unit costs, money clock; fatigue hooks once that mechanic exists | desk header, action buttons | Playtest |
 | **T2 office menu (last)** | §3.3 and decision 4: door, calendar, drawer hotspots; objects as the way in, tabs as the way across | `UIManager.BuildDeskProps`, a small door card | UI driver |
@@ -266,6 +266,26 @@ tutorial card, and today's from `NextUpStep`. Nothing new is computed; it's thre
   reads OFFER CONTRACT, a managed one's TABLE OFFER.
 - `SimTools/ScoutingUiChecks` was already stale: it pressed "VENUES & DATES" (renamed in 83fe92d) and still expects the
   old venue handbills. The press is fixed; it now fails at the handbill assertion (line 59), which predates this work.
+
+**T1 built (2026-11-25).** A **knock at the door** plays before the Morning After, once per session while the morning is
+pending (`PlayerDesk.FirstMorning.cs`, `UI/PlayerDeskPanel.FirstMorning.cs`):
+- One scene per holder from facts the run already holds: Connie at the door with her carbon and the River Lantern's
+  matchbook; Kubiak's boy emptying the office jukebox ("against account"); Winters' carton of plugs from his publisher
+  with a friendly note; Floria's sedan with company plates and a card naming his Major's regional office; a dedication
+  from Jack Germain read by the morning man on a home-region station. Up to three voices react (instinct 3+, or the
+  player's strongest if none). No choice and no sim effect.
+- A pinned **WHERE YOU STAND** slip says it plainly ("Walter Kubiak holds your paper. He wants money: 8% a year, and what
+  you don't pay goes on the sum."), then "Why he wanted your paper at all, you've no idea." READ THE LETTER opens the
+  Morning After, whose letter now names every holder.
+- **Named vs met.** `LienHolderIdentified` is now always true with a lien. The saved `HolderIdentified` flag means *met*
+  (`HolderShownHand`: the first move answered or lapsed, or a sitting opened) and still gates what follows from meeting
+  him: Clyde's secretary and book lead, the card line naming Clyde, Jack's ledger station. No new save field; Connie no
+  longer marks Sawyer met at founding, and the first move's gate exempts Sawyer so older saves still get his.
+- The inner-life directive's Act 1 is now "Why" (§3.7 table, §6.1 note).
+- Checks: `HolderMoveChecks` (262, first-morning lines for all five), `LienUiChecks` (58, windowed screenshot
+  `SimLogs/lien-ui-first-morning.png`), `WintersChecks`, `GermainChecks`, `KubiakChecks`, `ConnieChecks`, `LienChecks`,
+  `HolderMoveUiChecks` all pass. Only Sawyer's scene was seen rendered; the other four were read from the check log.
+  No AI byte-comparison was run (nothing here is read by the sim).
 
 Every phase is player-side only: no sim state, no RNG draws, no AI-read fields, so AI CSVs stay byte-identical
 ([[probe-run-byte-comparison-proves-inertness]]).

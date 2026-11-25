@@ -22,6 +22,8 @@ public partial class PlayerDeskPanel {
 	private void ShowLienMorningIfPending(PlayerDesk desk) {
 		if (lienMorningOpen || !desk.LienMorningPending || !IsVisibleInTree()) return;
 		if (desk.LienMorningLines().Count == 0) { desk.DismissLienMorning(); return; }
+		// The knock at the door comes first (onboarding §3.1): who he is and what he wants, then the letter and its rules.
+		if (!firstMorningShown) { OpenFirstMorning(desk); return; }
 		OpenLienMorning(desk, replay: false);
 	}
 
@@ -41,6 +43,7 @@ public partial class PlayerDeskPanel {
 	}
 
 	private void OpenLienMorning(PlayerDesk desk, bool replay) {
+		CloseFirstMorning();
 		CloseLienMorning(false);
 		lienMorningOpen = true;
 		var lien = desk.Lien;
@@ -126,7 +129,7 @@ public partial class PlayerDeskPanel {
 			PaperTheme.Typed, 14, PaperTheme.Ink));
 		// The holder is named as soon as the run knows him (Sawyer from the first morning: Connie's paper has his name on
 		// it). Author, 2026-11-25: each holder bends the run toward one thing, so the player should know whose paper it is
-		// at once; the mystery is why he wanted it. Naming the other four from day one comes with their T1 scenes.
+		// at once; the mystery is why he wanted it. All five are named at founding; the first morning (T1) introduces him.
 		bool named = desk.LienHolderIdentified;
 		// Wraps when named: the holder's title is a clause ("who owns the River Lantern, …") and would widen the letter.
 		lv.AddChild(StageLabel(named ? $"Held by:  {p.Name}, {p.Title}" : "Held by:  ______________________", PaperTheme.Typed, 14, PaperTheme.Ink, named));

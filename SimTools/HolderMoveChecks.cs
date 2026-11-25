@@ -43,6 +43,7 @@ public partial class HolderMoveChecks : Node {
 			desk.Label.cashReserves = 5000f;
 			today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 			arrives = today.AddDays(20);
+			foreach (var h in Enum.GetValues<LienHolder>()) FirstMorning(desk, h);
 			foreach (var h in Enum.GetValues<LienHolder>()) { Accept(desk, h); Refuse(desk, h); }
 			Lapse(desk);
 			SecondSingle(desk);
@@ -58,6 +59,20 @@ public partial class HolderMoveChecks : Node {
 		}
 	}
 
+	/// <summary>Onboarding T1: the first morning names him, says what he wants, and reads only real facts.</summary>
+	private void FirstMorning(PlayerDesk desk, LienHolder h) {
+		desk.ClearPressingForChecks();
+		desk.FoundLienForChecks(Own[h], h);
+		var lines = desk.FirstMorningLines();
+		string wants = desk.HolderWantsPlain();
+		Check(desk.LienHolderIdentified && !desk.HolderShownHand, $"{h}: named at founding, not met");
+		Check(wants != null && wants.StartsWith(Name[h]), $"{h}: where you stand names him: {wants}");
+		Check(lines.Count >= 5 && lines.Any(l => l.text == wants), $"{h}: the scene carries the plain line ({lines.Count} lines)");
+		Check(lines.Any(l => l.voice != ExecutiveVoice.None), $"{h}: at least one voice speaks");
+		Check(lines.All(l => !string.IsNullOrWhiteSpace(l.text) && !l.text.Contains("{") && !l.text.Contains("the the")), $"{h}: no empty line, raw placeholder or doubled article");
+		foreach (var l in lines) GD.Print($"  [{h}] {(l.voice != ExecutiveVoice.None ? l.voice.ToString() : l.speaker)}: {l.text}");
+	}
+
 	private PressOrder Fresh(PlayerDesk desk, LienHolder h, out string id, bool flip = false) {
 		desk.ClearPressingForChecks();
 		desk.FoundLienForChecks(Own[h], h);
@@ -68,7 +83,7 @@ public partial class HolderMoveChecks : Node {
 		var lien = desk.Lien;
 		Check(lien.Move == HolderMoveStage.Due && lien.MoveRecordId == id && lien.MoveDue == today.AddDays(HolderMoveDelayDays),
 			$"{h}: the first run stages his move {HolderMoveDelayDays} days out");
-		Check(desk.LienHolderIdentified == (h == LienHolder.Sawyer), $"{h}: " + (h == LienHolder.Sawyer ? "Connie's paper already names him" : "nobody's named yet"));
+		Check(desk.LienHolderIdentified && !desk.HolderShownHand, $"{h}: named since the first morning, not met yet");
 		desk.ProcessHolderMoveDawnForChecks(today.AddDays(1));
 		Check(lien.Move == HolderMoveStage.Due, $"{h}: the day before, he hasn't come");
 		desk.ProcessHolderMoveDawnForChecks(lien.MoveDue);

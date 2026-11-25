@@ -51,7 +51,7 @@ public partial class PlayerDesk {
 	/// <summary>The card's own line on it: who's been calling, as far as the Label Man knows.</summary>
 	public string WintersCardLine(RolodexEntry entry) {
 		if (!WintersWorked(entry)) return null;
-		string who = LienHolderIdentified ? "Clyde Winters has been calling him as you, out of your address book." : "Somebody has been calling him in your name.";
+		string who = HolderShownHand ? "Clyde Winters has been calling him as you, out of your address book." : "Somebody has been calling him in your name.";
 		return who + (WintersBurnedCard(entry) ? " He pitched him songs as yours, and they stank." : " He made him promises you never made.");
 	}
 
@@ -93,11 +93,11 @@ public partial class PlayerDesk {
 	public enum WintersSecretaryRoute { Street, Fixer }
 
 	/// <summary>Clyde is named and still has the book: his secretary at the publisher's office in town can get it back.</summary>
-	public bool WintersSecretaryOpen => WintersBookOut && LienHolderIdentified;
+	public bool WintersSecretaryOpen => WintersBookOut && HolderShownHand;
 
 	/// <summary>What the paper says about the book while it's out, or after it's back.</summary>
 	public string WintersBookLead() {
-		if (lien?.Holder != LienHolder.Winters || !LienHolderIdentified) return null;
+		if (lien?.Holder != LienHolder.Winters || !HolderShownHand) return null;
 		if (lien.AddressBookBack) return lien.ChequeStub switch {
 			ChequeStubStage.Found => "Your address book is back. Folded in the back is a cheque stub you can't make sense of. The Suit could read it.",
 			ChequeStubStage.Read => "Your address book is back, and the cheque stub in it says Clyde's $20,000 never left a bank. Weisz knows you know.",

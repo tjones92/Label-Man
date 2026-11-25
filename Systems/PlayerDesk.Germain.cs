@@ -63,7 +63,7 @@ public partial class PlayerDesk {
 	public bool GermainLedgerFrozen => lien?.Holder == LienHolder.Germain && lien.GermainLedger == GermainLedgerStage.Read;
 
 	private PlayerStop GermainLedgerStation() {
-		if (Label == null || lien?.Holder != LienHolder.Germain || !LienHolderIdentified || IsGameOver) return null;
+		if (Label == null || lien?.Holder != LienHolder.Germain || !HolderShownHand || IsGameOver) return null;
 		var home = DistanceModel.GetCityById(Label.homeCityId);
 		if (home == null) return null;
 		return (ChartManager.Instance?.ReporterStationsInRegion(home.parentRegionId) ?? Array.Empty<RadioStation>())
