@@ -68,14 +68,15 @@ public partial class PlayerDesk {
 	private const float CounterTakeUpMin = 0.01f, CounterTakeUpMax = 0.25f, CounterTakeUpCurve = 1.5f;
 
 	/// <summary>How many of a shop's customers (or an operator's machines) would ever take the title at this appeal.</summary>
-	private static float CounterCrowdCeiling(PlayerStop stop, float appeal) {
-		float crowd = stop.Kind == StopKind.Op ? Mathf.Lerp(RouteCrowdMin, RouteCrowdMax, stop.CrowdSize) : Mathf.Lerp(CounterCrowdMin, CounterCrowdMax, stop.CrowdSize);
+	private float CounterCrowdCeiling(PlayerStop stop, float appeal) {
+		// A home-town operator under Kubiak's jukebox rights reaches only his machines (§3.5 H2).
+		float crowd = stop.Kind == StopKind.Op ? Mathf.Lerp(RouteCrowdMin, RouteCrowdMax, stop.CrowdSize) * RouteReach(stop) : Mathf.Lerp(CounterCrowdMin, CounterCrowdMax, stop.CrowdSize);
 		float t = Mathf.InverseLerp(EarFloorAppeal, EarCeilingAppeal, appeal);
 		return crowd * Mathf.Lerp(CounterTakeUpMin, CounterTakeUpMax, Mathf.Pow(t, CounterTakeUpCurve));
 	}
 
 	/// <summary>The share of a counter's interested buyers who don't have the title yet (0-1), and how many that is.</summary>
-	private static float CounterBuyersLeft(PlayerStop stop, string recordId, float appeal, GameDate today, out float left) {
+	private float CounterBuyersLeft(PlayerStop stop, string recordId, float appeal, GameDate today, out float left) {
 		float ceiling = CounterCrowdCeiling(stop, appeal);
 		left = Mathf.Max(0f, ceiling - TableBought(stop, recordId, today));
 		return ceiling <= 0f ? 0f : left / ceiling;

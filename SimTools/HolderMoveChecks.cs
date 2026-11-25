@@ -47,6 +47,9 @@ public partial class HolderMoveChecks : Node {
 			Lapse(desk);
 			SecondSingle(desk);
 			SaveRoundTrip(desk);
+			SawyerPromise(desk, connieAfterDays: null);
+			SawyerPromise(desk, connieAfterDays: 14);
+			SawyerPromise(desk, connieAfterDays: 0);
 			GD.Print($"HOLDER_MOVE_CHECKS_PASS ({checks} checks)");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -196,6 +199,44 @@ public partial class HolderMoveChecks : Node {
 		lien.Move = HolderMoveStage.None;
 		desk.PressFirstSingleForChecks("holder-move-second", Quantity, Cost, today, arrives);
 		Check(lien.Move == HolderMoveStage.None, "A second run at the plant isn't a first single: no move");
+	}
+
+	/// <summary>Taking Dee-Dee's launch is a promise: Connie's record follows yours within the weeks he gave, or he takes the
+	/// waiver back, the lawyer's standing drops, and the sitting reads it as a debt. Null = Connie never releases.</summary>
+	private void SawyerPromise(PlayerDesk desk, int? connieAfterDays) {
+		var clock = TimeManager.Instance;
+		string tag = connieAfterDays == null ? "never" : connieAfterDays == 0 ? "first" : $"after {connieAfterDays} days";
+		desk.ClearPressingForChecks();
+		clock.RestoreClock(today, 9);
+		desk.FoundLienForChecks(Own[LienHolder.Sawyer], LienHolder.Sawyer);
+		var lien = desk.Lien;
+		var connie = desk.Connie;
+		var act = ArtistManager.Instance.GetUnsignedArtists().First();
+		string id = $"sawyer-launch-{++serial}";
+		var single = desk.StageShelfMasterForChecks(act, id, "Launch Night", .5f, .5f);
+		lien.Move = HolderMoveStage.Accepted; lien.MoveRecordId = id; lien.MoveDue = today; lien.SawyerLaunchYear = today.year;
+		float standing = lien.Standing;
+		if (connieAfterDays == 0) desk.ReleaseMasterForChecks(desk.StageShelfMasterForChecks(connie, id + "-connie", "Connie's Side", .3f, .3f));
+		desk.ReleaseMasterForChecks(single);
+		desk.SettleHolderMoveAfterReleaseForChecks(today);
+		var due = today.AddDays(7 * SawyerPromiseWeeks);
+		Check(lien.MoveSettled && lien.SawyerPromiseDue == due, $"Sawyer ({tag}): the launch sets Connie's date, {SawyerPromiseWeeks} weeks after the street date");
+		if (connieAfterDays is { } days and > 0) {
+			clock.RestoreClock(today.AddDays(days), 9);
+			desk.ReleaseMasterForChecks(desk.StageShelfMasterForChecks(connie, id + "-connie", "Connie's Side", .3f, .3f));
+		}
+		desk.ProcessHolderMoveDawnForChecks(due);
+		Check(!lien.SawyerPromiseBroken, $"Sawyer ({tag}): nothing happens on the day itself");
+		desk.ProcessHolderMoveDawnForChecks(due.AddDays(1));
+		bool kept = connieAfterDays != null;
+		Check(lien.SawyerPromiseBroken == !kept && lien.SawyerPromiseDue == null, $"Sawyer ({tag}): the promise is {(kept ? "kept" : "broken")} the day after");
+		Check(desk.SawyerLaunchWaivesForChecks(today.year) == kept, $"Sawyer ({tag}): the waiver " + (kept ? "stands" : "is taken back"));
+		Check(Near(lien.Standing, kept ? standing : standing - SawyerPromiseBrokenStanding), $"Sawyer ({tag}): standing " + (kept ? "holds" : "drops"));
+		string line = desk.HolderMoveSittingLine();
+		Check(line != null && line.Contains("debt") == !kept, $"Sawyer ({tag}): the sitting reads it: {line}");
+		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
+		Check(desk.Lien.SawyerPromiseBroken == !kept, $"Sawyer ({tag}): it survives a save");
+		clock.RestoreClock(today, 9);
 	}
 
 	private void SaveRoundTrip(PlayerDesk desk) {

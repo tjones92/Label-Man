@@ -300,7 +300,10 @@ Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates 
   and Walter is furious about it.
 - **Handicap: money.** The highest rate, and interest left unpaid when the lien rolls over goes onto the face sum
   (built). He also holds the jukebox rights in your home region, so your records play only on his weak route there.
-  That needs the jukebox exposure channel scoped to the player's label; check before building.
+  **Built 2026-11-24** (`Systems/PlayerDesk.Kubiak.cs`, `SimTools/KubiakChecks.tscn`) on the player's own operator
+  accounts, so the AI economy is untouched: a home-town operator reaches **half** its machines for your records (its
+  route crowd and its suggested order), every year he holds the paper; away operators and shops are free. The home
+  town's operator list says why. Values *provisional*.
 - **Goal: cash.** Show counts only if it's records on his route. Concede he takes only if it's something he can sell.
 - **Items.**
 
@@ -769,10 +772,14 @@ Man learns who holds the paper. Act 1, "Who" (§3.7), happens in the first month
 - **Each holder:**
   - **Sawyer.** He's named from the first morning, because Connie's contract carries his name: `SeedConnie` sets
     `HolderIdentified`, and the morning after shows the contract. His move still fires; for him it's the in-person
-    visit, not a reveal. Accepting waives his Connie booking gate for the year. Accepting has no cost yet beyond
-    "he'll remember".
+    visit, not a reveal. Accepting waives his Connie booking gate for the year, and it's a **promise** (built
+    2026-11-24): Connie's record has to be out within **8 weeks** of your single's street date (*provisional*). Out first
+    or in time, the favour stands. Not out by then, and the next dawn he takes the waiver back, the lawyer's standing
+    drops 0.15, and the December sitting reads the launch as a debt, not a favour: no favour Concede. So taking his room
+    means funding a session for the weakest act on the roster in the leanest weeks of the year.
   - **Kubiak.** Accepting takes min(200, half the saleable run) off the run on delivery, at the plant's price, paid
-    in cash. The copies leave the game: there's no jukebox exposure for his route (H2 check still open). Refusing
+    in cash. The copies go on his machines the day the run comes in: that single gets a +0.04 appeal lift at the home
+    town's counters, fading to nothing over 12 weeks (*provisional*; `PlayerDesk.Kubiak.cs`). Refusing
     shuts the home city's jukebox operators to your records for the rest of the year.
   - **Winters.** He takes the flip's *publishing*. It's too late to put his song on a record that's already at the
     plant. The option is disabled when the flip's publishing isn't the label's. Refusing burns the biggest of his
@@ -897,7 +904,7 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 | **1b** | **Connie built 2026-11-24** (`Systems/PlayerDesk.Connie.cs`, `ArtistManager.Keyed.cs`, `SimTools/ConnieChecks.tscn`): seeded from a private keyed stream with Dee-Dee's paper (5 years, his option, 15% royalty, 5 sides, no advance). He renews her paper at dawn until Star, charges 1.5× Pay when she stalls, returns the car when she first charts, and gates nights and residencies for other player acts on a Connie release in each performance year. **Germain Concedes and payola exposure built** (`Systems/PlayerDesk.Germain.cs`, `Systems/Radio/PayolaLedger.cs`, `SimTools/GermainChecks.tscn`). *His name:* 25% of the writer share on the next two originals with a credited writer, paid through mechanicals, plug-side performances and AI-label cuts. Each cut-in adds 0.06 exposure, costs each credited writer 0.12 trust, and adds 0.08 band strain. *His boys:* $300 for eight weeks on half of the home reporters, rounded up to a maximum of six. Discretion starts at 0.55, falls by 0.12 per use, and bottoms out at 0.05. Each fee adds 0.05 exposure. A bust ends the push across the network. Under the Detroit calibration the first 1960 push delivered 11.89 boost-weeks with a 15.1% bust rate (§3.5 H5). The station and record-shop trail for Jack's black ledger is built. Fixer 3 reads it and freezes concessions and pending cut-ins. **Pending:** Sawyer's watch (wardrobe phase). | Byte-identical headless; save/load; `ConnieChecks`; `GermainChecks` |
 | **1c** | Getting around (§3.9): transport mode on the travel quote and errands, carton limit, car purchase, the car per holder. **Built 2026-11-24**, UI included; Sawyer's car return is built in 1b. | Byte-identical headless; save/load; `TransportChecks` |
 | **1d** | Floria's buy-out (§3.5 H4) is built as a player-only path, with a funded rival offer, valuation waiver and successor. The separate tear-up investigation remains future work. | Same; the Major's AI behaviour unchanged |
-| **1e** | The holder's first move on the first single (§6.1): the move per holder, `HolderIdentified` set by it, and the accept/refuse result on the lien ledger. **Built 2026-11-24** (`PlayerDesk.HolderMove.cs`, UI sheet). The December sitting reads the answer (a favour is that year's Concede, against half the interest). Pending: Sawyer's cost, and Kubiak's route exposure. Winters' hometown cards are built (§3.5 H3). | Byte-identical headless; save/load; `HolderMoveChecks` |
+| **1e** | The holder's first move on the first single (§6.1): the move per holder, `HolderIdentified` set by it, and the accept/refuse result on the lien ledger. **Built 2026-11-24** (`PlayerDesk.HolderMove.cs`, UI sheet). The December sitting reads the answer (a favour is that year's Concede, against half the interest). Kubiak's route exposure, Winters' hometown cards and Sawyer's promise (Connie's record within 8 weeks) are built (§3.5 H2, H3, §6.1). | Byte-identical headless; save/load; `HolderMoveChecks` |
 | **2** | Voices at venues and in courtship; instincts modulate the venue fog | Byte-identical headless |
 | **3** | Conviction drawer: lifecycle, quarterly scoring, the first 6 cards | Same; each card's predicate tested on a real save |
 | **4** | Legwork map and nights for the founding town | Empty-day metric near zero |

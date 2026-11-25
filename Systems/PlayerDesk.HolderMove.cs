@@ -69,6 +69,7 @@ public partial class PlayerDesk {
 	/// <summary>Dawn, before the plant delivers: the move lands on its day, and lapses if the run comes in first.</summary>
 	private void ProcessHolderMoveDawn(GameDate date) {
 		if (lien == null || IsGameOver) return;
+		CheckSawyerPromise(date);
 		if (lien.Move is HolderMoveStage.Due or HolderMoveStage.Offered) {
 			var order = PressingOrderFor(lien.MoveRecordId);
 			if (order == null || order.Arrives <= date) { LapseHolderMove(date); return; }
@@ -80,8 +81,43 @@ public partial class PlayerDesk {
 		}
 	}
 
-	/// <summary>After the day's releases: Jack's boys go to work the day the single ships.</summary>
+	/// <summary>Weeks after your single's street date that Dee-Dee gives Connie's record to follow it (provisional).</summary>
+	public const int SawyerPromiseWeeks = 8;
+	/// <summary>Standing lost with the lawyer when Connie's record doesn't follow (provisional).</summary>
+	public const float SawyerPromiseBrokenStanding = 0.15f;
+
+	/// <summary>Connie has a record out on or before this date.</summary>
+	private bool ConnieOutBy(GameDate date) => lien?.ConnieId != null
+		&& ReleasedRecords.Any(r => r.baseRecord?.artistId == lien.ConnieId && r.baseRecord.releaseDate <= date);
+
+	/// <summary>The launch at his room was a promise: once your single ships, Connie's record has to follow within the weeks he gave.</summary>
+	private void SettleSawyerLaunch(GameDate date) {
+		if (lien?.Holder != LienHolder.Sawyer || lien.Move != HolderMoveStage.Accepted || lien.MoveSettled || IsGameOver) return;
+		var record = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == lien.MoveRecordId);
+		if (record == null) return;
+		lien.MoveSettled = true;
+		lien.SawyerPromiseDue = record.baseRecord.releaseDate.AddDays(7 * SawyerPromiseWeeks);
+		Note(ConnieOutBy(date)
+			? $"\"{TitleForRecord(lien.MoveRecordId)}\" launched at {lien.Venue}, with Connie's record already out. Dee-Dee calls it the best night the room's had."
+			: $"\"{TitleForRecord(lien.MoveRecordId)}\" launched at {lien.Venue}, with Connie on the bill. Dee-Dee wants her record out by {lien.SawyerPromiseDue.Value.ToHeadlineString()}.");
+	}
+
+	/// <summary>Dawn after the date he gave: no Connie record, and he takes it as an insult.</summary>
+	private void CheckSawyerPromise(GameDate date) {
+		if (lien?.Holder != LienHolder.Sawyer || lien.SawyerPromiseDue is not { } due || lien.SawyerPromiseBroken || IsGameOver) return;
+		if (date <= due) return;
+		if (ConnieOutBy(due)) { lien.SawyerPromiseDue = null; return; }
+		lien.SawyerPromiseBroken = true;
+		lien.SawyerPromiseDue = null;
+		if (lien.SawyerLaunchYear == due.year || lien.SawyerLaunchYear == date.year) lien.SawyerLaunchYear = 0;
+		lien.Standing = Mathf.Max(0f, lien.Standing - SawyerPromiseBrokenStanding);
+		lien.Add(date, LienLedgerKind.HolderMove, 0f, "Sawyer: promise broken");
+		Note($"Connie's record never followed yours. Dee-Dee Sawyer has taken back his word on {lien.Venue}: your other acts can't play it until she has a record out, and he'll bring it up in December.");
+	}
+
+	/// <summary>After the day's releases: Dee-Dee's launch starts its clock, and Jack's boys go to work the day the single ships.</summary>
 	private void SettleHolderMoveAfterRelease(GameDate date) {
+		SettleSawyerLaunch(date);
 		if (lien?.Holder != LienHolder.Germain || lien.Move != HolderMoveStage.Accepted || lien.MoveSettled || IsGameOver) return;
 		var record = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == lien.MoveRecordId);
 		if (record == null) return;
@@ -106,6 +142,7 @@ public partial class PlayerDesk {
 		float paid = R2(copies * perCopy);
 		stock.Remaining -= copies;
 		Label.cashReserves += paid;
+		lien.KubiakRouteDate = LienToday;   // on his machines from today: the home town's bars hear it (PlayerDesk.Kubiak.cs)
 		lien.Add(LienToday, LienLedgerKind.HolderMove, paid, $"Kubiak took {copies} copies at cost");
 		Note($"Kubiak's man was on the plant's dock for {copies:N0} copies of \"{TitleForRecord(order.RecordId)}\". He paid the plant's price, ${paid:N0}, in cash. They're going on the route.");
 	}
@@ -238,7 +275,8 @@ public partial class PlayerDesk {
 		switch (lien.Holder) {
 			case LienHolder.Sawyer:
 				list.Add(new HolderMoveOption { accept = true, label = $"Launch it at {lien.Venue}, with Connie on the bill",
-					subLabel = $"Dee-Dee waives his rule for {LienToday.year}: your acts can play his room this year before Connie has a record out. He'll remember you said yes." });
+					subLabel = $"Dee-Dee waives his rule for {LienToday.year}: your acts can play his room this year before Connie has a record out. " +
+						$"In return Connie's record follows yours within {SawyerPromiseWeeks} weeks of its street date. If it doesn't, he takes it all back." });
 				list.Add(new HolderMoveOption { label = "Tell him you'll launch it your own way",
 					subLabel = "His room stays shut to your other acts until Connie has a record out this year. He'll remember that too." });
 				break;
@@ -292,7 +330,8 @@ public partial class PlayerDesk {
 			switch (lien.Holder) {
 				case LienHolder.Sawyer:
 					lien.SawyerLaunchYear = today.year;
-					message = $"Dee-Dee shakes your hand like he's won it. The launch is at {lien.Venue}, and Connie's on the bill.";
+					message = $"Dee-Dee shakes your hand like he's won it. The launch is at {lien.Venue}, and Connie's on the bill. " +
+						$"\"Her record's out inside {SawyerPromiseWeeks} weeks of yours, kid. You said so.\"";
 					break;
 				case LienHolder.Kubiak:
 					message = "The plant man files the claim. Kubiak's man will be on the dock when the run comes in.";
@@ -377,7 +416,8 @@ public partial class PlayerDesk {
 
 	/// <summary>He counts the move as a favour you owe him: taken, or Floria's left standing. Once.</summary>
 	private bool HolderFavourStands => MoveSittingYear && !lien.MoveCredited
-		&& (lien.Holder == LienHolder.Floria ? lien.MoveDays > 0 && lien.Move != HolderMoveStage.Refused : lien.Move == HolderMoveStage.Accepted);
+		&& (lien.Holder == LienHolder.Floria ? lien.MoveDays > 0 && lien.Move != HolderMoveStage.Refused : lien.Move == HolderMoveStage.Accepted)
+		&& !lien.SawyerPromiseBroken;
 
 	/// <summary>What the favour is booked against: half the interest owed today, without accruing it.</summary>
 	private float HolderFavourCredit() => lien == null ? 0f : R2(lien.InterestDueBy(LienToday) * HolderFavourInterestShare);
@@ -400,6 +440,8 @@ public partial class PlayerDesk {
 		if (!MoveSittingYear) return null;
 		bool favour = HolderFavourStands || lien.MoveCredited;
 		string first = LienProfile.Name.Split(' ')[0];
+		if (lien.SawyerPromiseBroken)
+			return $"\"Mr. Sawyer launched your record at {lien.Venue} on your word that Miss Boursaw's would follow. It didn't. He considers that a debt, not a favour.\"";
 		return favour ? lien.Holder switch {
 			LienHolder.Sawyer => $"\"Mr. Sawyer enjoyed the launch. Miss Boursaw on the bill, {lien.Venue} full. He asked me to say he hasn't forgotten it.\"",
 			LienHolder.Kubiak => "\"Mr. Kubiak's route had your copies at cost. He's put that in the book in your favour. Not very far in your favour.\"",
@@ -469,6 +511,7 @@ public partial class PlayerDesk {
 	// ── checks ─────────────────────────────────────────────────────────────────────────────────────
 
 	internal void ProcessHolderMoveDawnForChecks(GameDate date) => ProcessHolderMoveDawn(date);
+	internal void SettleHolderMoveAfterReleaseForChecks(GameDate date) => SettleHolderMoveAfterRelease(date);
 	internal void DeliverArrivedPressingsForChecks(GameDate date) => DeliverArrivedPressings(date);
 
 	/// <summary>Checks only: put a first single (with a flip, if given) at the plant as OrderPressing would, without a studio.</summary>

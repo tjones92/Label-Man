@@ -3219,7 +3219,7 @@ public partial class PlayerDesk : Node {
 		float ear = EarForRecord(stop, recordId);
 		if (stop.Kind == StopKind.Op) {
 			int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-			float route = Mathf.Lerp(20f, 40f, stop.Relationship) * PlayerStopFactory.JukeboxEraWeight(year);
+			float route = Mathf.Lerp(20f, 40f, stop.Relationship) * PlayerStopFactory.JukeboxEraWeight(year) * RouteReach(stop);
 			return Mathf.Max(1, Mathf.RoundToInt(route * nerve * ear * jitter));
 		}
 		// A hop, club or church table never scales past what fits on it -- "tiny volume" (directive §3.3),

@@ -670,3 +670,210 @@ Sketch only — this is the part that needs a design pass, not code:
   the back door just because the counterparty is now the player.
 - The AI half is calibrated and passed a decade gate. Every verb here is **player-only**; hold the
   same byte-identity discipline the promo branch used ([[probe-run-byte-comparison-proves-inertness]]).
+
+## II.4 The cover race (design, 2026-11-24) — NOT BUILT
+
+Source: `LabelManInnerLifeDirective.md` §13 item 5 (author: AI covers of player sides "should be a thing").
+**Scope decided by the author (2026-11-24): an AI label covers only the player's regional breakouts.** This
+section is design only. Building it is a later decision, and the probe in §II.4.7 comes first.
+
+### II.4.1 What exists, and the gap (code-checked)
+
+- **AI covers come after the run, not during it.** `CompositionCatalogService.OnRecordChartRunComplete`
+  ([CompositionCatalogService.cs:782](Systems/CompositionCatalogService.cs:782)) sets `isCoverable` and calls
+  `RegisterCoverableHit` for a Top 40 peak. It is called from `RosterManager.RunCulturalReads`
+  ([RosterManager.cs:1547](Systems/RosterManager.cs:1547)) when the chart run **completes** (player records
+  arrive via `ChartManager.SettlePlayerRecordRun`). `SongComposition.recordings` is also appended only there.
+  So today a player hit can be covered only once it has left the chart. There is never a race, only a later
+  revival. That matches the late-decade pattern and must stay as it is.
+- **The "buy" half of the race is built.** `PlayerDesk.CheckMasterPickups`
+  ([PlayerDesk.MasterDeals.cs:795](Systems/PlayerDesk.MasterDeals.cs:795)) reads the same evidence a coverer
+  would: a released single in `RegionalBreakout` in ≥1 market, one decision per change of evidence
+  (`MasterEvidence`), and a fixed keyed draw. The best-fitting bigger buyer may call to lease or buy the
+  master. The cover race is its sibling: the same buyers, the same evidence and the same ear, but a different
+  answer ("we'll cut it ourselves").
+- **The machinery a cover needs is built.** `SongMaterialSelectionService.BuildCoverForSong`
+  ([SongMaterialSelectionService.cs:121](Systems/SongMaterialSelectionService.cs:121)) builds a cover of a
+  named song for a named act (the player's `TeachCover` already uses it). The release programme already
+  reschedules items on observed breakouts (`observed-breakout-rush-review`,
+  [CompetitorManager.ReleaseProgramme.cs:463](Systems/CompetitorManager.ReleaseProgramme.cs:463),
+  `PreparationWeeks = 2`). `ScanForCoversOfOwnSongs` ([PlayerDesk.TradePress.cs:316](Systems/PlayerDesk.TradePress.cs:316))
+  already reports a released cover of a player record.
+- **What does not exist.** (a) A trigger that reads a live regional breakout and decides to cover. (b) Any
+  coupling between two records of the same song. The chart and demand are record-facing: `songId` appears in
+  `ChartManager` only at the snapshot ([ChartManager.cs:3429](Systems/ChartManager.cs:3429)). Two versions of
+  one song today are just two unrelated records in the same genre. Without (b), a cover is not racing the
+  original. It is only one more competitor.
+
+### II.4.2 The trigger: what a covering label reads
+
+Evaluated weekly for each **player-owned released single**, after `UpdateRegionalBreakoutState`, and only on
+a change of evidence. Every input is state the sim already computes
+([ChartManager.cs:2724](Systems/ChartManager.cs:2724)):
+
+| Signal | Field | Role |
+|---|---|---|
+| Breaking somewhere | `BreakoutMarkets(rec) ≥ 1` (stage `RegionalBreakout`: score ≥ 0.40 for 2 traction weeks) | **Gate.** This is the same bar the master pickup uses and the trade breakout listing shows. |
+| Not yet national | `rec.peakPosition == 0 \|\| > 40` | **Gate.** Once the original is in the national Top 40 the race is lost: it has crossed. The normal post-run cover path takes over. |
+| About to cross | any region at `NationalCrossoverCandidate`; `rec.crossoverCandidateStrength` | **Urgency.** Raises the chance. This is the moment the majors historically rushed: the window is closing. |
+| Can't serve its own demand | breakout regions where `!label.HasDistributionInRegionForRecord`, plus `rec.unmetRegionalDemand` | **The opening.** A record breaking where its label can't ship is exactly what a national label could supply. Uncovered regions backorder in 31% of weeks against 1.9% for covered ones (comment at [ChartManager.cs:2771](Systems/ChartManager.cs:2771)). |
+| The jocks are on it | `StationAdvocacy` rows on the record with `everPlayed`, in breakout regions | **Amplifier, not a gate.** A covering label's promotion man hears it on the air. It is player-only by construction, which fits the scope. |
+| The song is open | `song.compulsoryMechanicalAvailable` (true once released) | **Gate.** PD songs qualify too. Player control of the publishing never blocks (§II.3). |
+
+**Era weight.** Multiply by a keyframed `CoverRaceEraCurve`, next to the other era curves, per §II.1:
+1960 **1.0**, 1961 0.8, 1962 0.55, 1963 0.30, 1964 0.12, 1965 0.04, 1966+ **0**. The values are provisional
+and the probe sets them. The shape is the decision: strongest at the opening, gone by mid-decade, after
+which the majors **buy** (the pickup path) instead of covering.
+
+**Decision.** `StableUnit($"{seed}|{recordId}|{evidence}|CoverRace")` against
+`chance = era × (base + urgency + opening + advocacy)`, with the evidence signature
+`breakouts=N|crossover=0/1`. There are no dice in view (inner-life invariant 2). Unchanged evidence gives the
+same answer, as the master pickup already does.
+
+### II.4.3 Who covers, and how often
+
+- **Tiers.** Majors and MidTiers. These were the period coverers (Dot, Decca, Mercury, Capitol, Coral). A large
+  Independent qualifies only from a tier above the player's. Small and Boutique labels never cover: the
+  move needs national distribution and a pressing plant on call.
+- **Which label.** Use the master pickup's buyer list (`MasterBuyersFor`: bigger tier, can fund, sound fit).
+  Then require all three: (a) a roster act with `InterpretationFit(act, song, genre)` above a bar, and not
+  blocked by its release programme; (b) distribution in more regions than the original's label covers;
+  (c) the label's **song read** clears a cover bar. A cover reads the *song*, not the performance:
+  `song.commercialHook × 0.6 + song.compositionQuality × 0.4 + evidence`, through the buyer's own fixed ear
+  noise. The master read is `hook × 0.6 + production × 0.4`.
+- **Cover or buy.** One buyer makes one move per evidence change. If both reads clear, the larger margin wins.
+  A strong song on a weak record (thin production, an unknown act) gets covered. A strong record gets an
+  offer. **One sequence matters:** a buyer whose master offer the player **declined** is first in line to cover
+  on the next evidence change. "They offered to buy it, you said no, and two weeks later their act is in the
+  studio with your song." That gives the existing offer a real cost to refuse.
+- **How often.** At most **one** race cover per player single. Allow **two** only for a crossover candidate in
+  1960–61, when majors raced each other too (several pop versions of one R&B record was common in 1954–56).
+  Provisional rate targets, set by the probe: about 1 in 3 player regional breakouts covered in 1960, 1 in 10 by
+  1963, none from 1966.
+- **Lead time.** The covering label decides, books its act and releases `PreparationWeeks` (2) later. The
+  player hears about the session at decision time (§II.4.5), so the race window is about two weeks, plus
+  whatever the cover's launch needs to catch up.
+- **Material.** Use `BuildCoverForSong` on the player's song with `OriginalRecordId`/`OriginalArtistId` set
+  **directly** to the player's record. `song.recordings` is still empty while the original runs, so the
+  builder's "last recording" fallback would leave them null. It is an extra, rush programme item. It costs the
+  label's cash and session capacity but not a slate slot.
+
+### II.4.4 How the race resolves
+
+**In the shops (the one new mechanic): a song-demand split between the two versions.** It applies only to a
+record pair linked by a race (the player's original and its race cover), per region, per week:
+
+1. **Stock first.** Where the original is undistributed or backordered, the cover takes the demand the
+   original could not fill. This is the historical mechanism: the majors won by being on the shelf.
+2. **Both stocked:** split by the region's radio and awareness for each version, plus an **incumbency** term
+   for the original in regions where it already had traction (`tractionWeeks`, breakout stage).
+3. **Song or artist.** An era-weighted loyalty term: in 1960 buyers ask for *the song* and the split leans on
+   availability and radio. As the decade goes on they ask for *the artist* (§II.1), and the original keeps its
+   established regions. The same `CoverRaceEraCurve` can drive it.
+
+The split **redistributes** demand between the pair. It never adds demand. The cover's own launch
+(`PromoteRecordAI` awareness and radio) stays ordinary.
+
+**On the chart:** both records chart separately. The chart stays record-facing, Billboard-style, not a
+Cash Box song chart. The race has three outcomes, each readable in the trade:
+- **The original crosses first.** It reaches the national Top 40 before the cover gets going, and the cover
+  stalls in its own launch.
+- **The classic.** The cover takes the national chart and the original keeps its breakout regions.
+- **Both chart.**
+
+**Afterwards:** both runs reach `OnRecordChartRunComplete`. The song's memory records both versions, and the
+definitive-version shadow then follows whichever version did better. Publishing on the cover's sales routes to
+the song's controller through the existing reallocation (§II.1.1 defence 2). If the player controls the song,
+the cover pays the player. This is the inversion that makes being covered a payday.
+
+### II.4.5 How the original label can respond
+
+Each response uses a verb that already exists. **None of them blocks the cover** (§II.3).
+
+1. **Race it.** Re-press and ship into the breakout regions: one-stop wholesale, `PursueDistributionDeal`,
+   cartons on the bus (inner-life §3.9). Hold the jocks: courtesy calls, hops, `StationAdvocacy`. Every week
+   the original is in stock where it's breaking takes away the cover's opening under split rule 1.
+2. **Sell first.** Take the pickup offer, or shop the master to a *rival* bigger label whose distribution can
+   beat the cover. If the covering label itself buys the master, it doesn't cover: you don't race a record
+   you own. That was the historical alternative to covering.
+3. **Own the song.** If the player kept the publishing, the cover pays mechanicals and the publisher's share.
+   Racing then becomes optional: the player can let it come.
+4. **"Get the ORIGINAL."** A trade ad during the race, using the existing trade-paper ad and `PressVoice`.
+   Period ads said exactly this. Any race-only weight on the ad is a calibration question for the probe; the
+   default is none.
+
+**The warning:** extend `ScanForCoversOfOwnSongs` from "a cover was released" to "a cover is being cut":
+a trade item ("[Label] has [act] in the studio on [song]") plus a voice line at decision time. The
+two-week lead time is the player's clock.
+
+### II.4.6 Scope and invariant: recommendation player-only (now the author's decision)
+
+- **Player-only (chosen).** The trigger reads only `isPlayerOwned` singles. With no player in a headless run it
+  never fires, so audits stay byte-identical. That is the same proof the promo and Rolodex phases used
+  ([[probe-run-byte-comparison-proves-inertness]]): a 104-week headless control against a build with the
+  feature on, byte-compared. Hazards to check:
+  - The trigger loop must draw nothing (no `GD`, no shared counter) when it finds no player record.
+  - The split must look up the pair link by the player record, so it can never match AI pairs.
+  - New saved state goes on the player desk's save, not the AI economy's.
+
+  In a played game the cover's launch does draw `GD`, like any AI release. That is acceptable: a played game is
+  not A/B'd. The decision itself uses keyed draws so player checks are reproducible.
+- **All labels (not chosen; what it would cost).** It would change the AI economy. It would need a decade A/B on
+  the canonical flags ([[canonical-decade-run-flags]]), and the share outcomes need 8 seeds
+  ([[three-seed-paired-se-understates-reshuffle]]), measured only at the audit's end
+  ([[decade-ab-only-at-audit-end]]). The practice was already dying in 1960 (§II.1), so the payoff inside
+  the AI economy would be small compared with a decade gate.
+- **The honest cost of player-only.** AI independents are never raced, so the player is the only one exposed to
+  a period practice. This is the asymmetry [[gamey-behavior-audit-2026-11-12]] warns about. The mitigation is to
+  calibrate the rate to history, not to make it bite: the era curve, the one-cover cap, and the probe's rate
+  targets. The trade and the voices report only real races (inner-life invariant 3), never invented AI-on-AI
+  ones.
+
+### II.4.7 What the probe must measure before anything is built
+
+Run short first ([[start-with-short-runs]]): 104 weeks on the canonical flags, reusing existing control runs
+where they exist ([[reuse-control-runs]]). AI Small/Indie singles stand in for player records.
+
+1. **Base rate.** By year, how many Small/Indie singles reach `RegionalBreakout` without a national Top 40 peak,
+   and how many reach it and then cross over. This sets the rate targets in §II.4.3.
+2. **The race window.** Weeks from the first `RegionalBreakout` to `NationalCrossoverCandidate` to Top 40 entry,
+   for records that cross. If the window is usually shorter than `PreparationWeeks` + launch, the cover always
+   arrives too late and the mechanic needs a faster lead time, or it is moot.
+3. **The opening.** How often breakout regions are uncovered or backordered for these records (`coveredRegionCount`
+   vs breakout markets, `unmetRegionalDemand`). This decides how much split rule 1 matters.
+4. **Coverer supply.** For each candidate record, by year, the count of Major/MidTier labels with a fitting act
+   above the `InterpretationFit` bar, the funds, and wider coverage. If it is often zero, the trigger never fires.
+5. **Cover vs original, historically in the sim.** In existing decade runs, the peak and unit ratio of
+   `CoverRecentHit` records to their originals. This is the only in-sim evidence of how strong a Major's version
+   of a proven song is, and it bounds what the split can produce.
+6. **The payday is real.** A scripted check (LienChecks-style) that an AI cover of a player-controlled song
+   routes its publishing slice to the player's cash. §II.1.1 defence 2 rests on it, and Part II never exercised
+   it end to end.
+7. **Inertness.** The byte-comparison above, planned before the first line of code.
+
+### II.4.8 The hook for inner-life §6.1 (the first-single wait)
+
+The cover race is a **post-street-date** beat. It can't fire while the first single is at the plant, since
+there's no breakout yet. It belongs to the weeks right after release, when the first breakout listing
+appears. 1960 is the year the era curve is strongest, so a first single that breaks out in 1960 is the
+likeliest single in the game to be raced.
+
+- **The beat.** "The trade says [Major] has [act] in the studio on your song." The clock is the cover's street
+  date, about two weeks away. The board is the same shape as §6.1's "the loop": **race** (Street carries
+  cartons into the breakout city, Fixer holds the jock), **sell** (the pickup offer, or a rival), or **let it
+  come** (Suit, if the label kept the publishing: "let them press it for us"). The Ear compares the two versions
+  through the real fog draw.
+- **Holder tie-ins** (candidates; each reads a real fact):
+  - **Floria.** His Major is the leading Major in the home region (§3.5 H4), so it is the natural coverer. It
+    **passes**, because Floria is fattening the label for 1968. The Street notices the one Major that didn't
+    move, which is a clue to who holds the paper. It is the Major's own decision, not a player veto, so §II.3
+    holds. Check that the exclusion is player-only state.
+  - **Winters.** If the A-side is an office or commissioned song, the publisher *wants* the cover (more
+    versions, more mechanicals). Clyde has already plugged it to the Major. That ties his publishing Concede to
+    a real cost.
+  - **Germain.** His boys play the original or the cover. A Concede taken earlier holds the original on his
+    air through the race.
+  - **Kubiak.** His operators stock whichever version sells. With the 200-copy Concede the original is already
+    on his machines.
+- **Ledger.** Any holder favour in the race is a concession on the lien ledger, as in §6.1. Nothing new is
+  invented.

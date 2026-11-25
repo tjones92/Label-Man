@@ -24,6 +24,7 @@ public partial class PlayerDesk {
 		if (stop == null) { message = "No such account."; return false; }
 		if (stop.Kind is not (StopKind.Shop or StopKind.Op)) { message = $"{stop.DisplayName} doesn't write counter orders."; return false; }
 		if (stop.CityId != CurrentCityId) { message = "You have to be in town to play it for him."; return false; }
+		if (KubiakRouteRefusal(stop) is { } kubiak) { message = kubiak; return false; }
 		Master master = masters.FirstOrDefault(m => m.Record?.recordId == recordId);
 		if (master == null || master.Released) { message = "Advance orders are for a record that isn't out yet."; return false; }
 		if (AcetatesFor(recordId) <= 0) { message = $"Cut an acetate of \"{master.SongTitle}\" first -- he has to hear it."; return false; }

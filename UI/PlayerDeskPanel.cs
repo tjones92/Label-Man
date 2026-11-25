@@ -2600,6 +2600,7 @@ public partial class PlayerDeskPanel : Control {
 				// What each verb costs, said once for the list rather than on forty buttons; then one account open at a time,
 				// the first one not yet worked today opening on its own the first time through.
 				content.AddChild(FaintLine(StopVerbCosts(kind, estHours)));
+				if (kind == PlayerDesk.StopKind.Op && desk.KubiakRouteLine(kindStops[0].CityId) is { } kubiak) Body(kubiak);
 				if (selectedStopId == null) selectedStopId = kindStops.FirstOrDefault(s => !desk.HasWorkedStopToday(s.StopId))?.StopId;
 				foreach (PlayerDesk.PlayerStop stop in kindStops) {
 					if (kind == PlayerDesk.StopKind.OneStop) {

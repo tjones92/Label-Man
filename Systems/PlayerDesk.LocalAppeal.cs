@@ -54,5 +54,5 @@ public partial class PlayerDesk {
 	}
 
 	private float LocalAppealLift(Record record, string cityId) =>
-		record == null ? 0f : LocalAppealLift(record.artistId, record.primaryGenre, cityId);
+		record == null ? 0f : LocalAppealLift(record.artistId, record.primaryGenre, cityId) + KubiakRouteAppeal(record, cityId);
 }

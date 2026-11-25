@@ -313,6 +313,11 @@ public partial class PlayerDesk {
 		/// one) or burned (they don't take your word), and whether the address book has come back.</summary>
 		public List<string> WintersCold = new(), WintersBurned = new();
 		public bool AddressBookBack;
+		/// <summary>Kubiak only (§3.5 H2): the day his claimed copies went on his machines, or null.</summary>
+		public GameDate? KubiakRouteDate;
+		/// <summary>Sawyer only (§6.1): the date Connie's record must be out by after the launch at his room, and whether it wasn't.</summary>
+		public GameDate? SawyerPromiseDue;
+		public bool SawyerPromiseBroken;
 		public List<LienLedgerEntry> Ledger = new();
 
 		public float Outstanding => R2(FaceSum - PrincipalPaid);
@@ -1104,6 +1109,8 @@ public partial class PlayerDesk {
 			Move = (int)lien.Move, MoveRecordId = lien.MoveRecordId, MoveDue = lien.Move == HolderMoveStage.None ? null : DateSave.From(lien.MoveDue),
 			MoveSettled = lien.MoveSettled, MoveCredited = lien.MoveCredited, MoveDays = lien.MoveDays, SawyerLaunchYear = lien.SawyerLaunchYear, KubiakRefusedYear = lien.KubiakRefusedYear,
 			WintersCold = lien.WintersCold.ToList(), WintersBurned = lien.WintersBurned.ToList(), AddressBookBack = lien.AddressBookBack,
+			KubiakRouteDate = lien.KubiakRouteDate.HasValue ? DateSave.From(lien.KubiakRouteDate.Value) : null,
+			SawyerPromiseDue = lien.SawyerPromiseDue.HasValue ? DateSave.From(lien.SawyerPromiseDue.Value) : null, SawyerPromiseBroken = lien.SawyerPromiseBroken,
 			Ledger = lien.Ledger.Select(e => new LienLedgerSaveData { Date = DateSave.From(e.Date), Kind = (int)e.Kind, Amount = e.Amount, Detail = e.Detail }).ToList(),
 		};
 	}
@@ -1134,6 +1141,8 @@ public partial class PlayerDesk {
 			MoveSettled = d.MoveSettled, MoveCredited = d.MoveCredited, MoveDays = d.MoveDays, SawyerLaunchYear = d.SawyerLaunchYear, KubiakRefusedYear = d.KubiakRefusedYear,
 			// An older save has no marks: Clyde never worked the book there.
 			WintersCold = d.WintersCold ?? new(), WintersBurned = d.WintersBurned ?? new(), AddressBookBack = d.AddressBookBack,
+			KubiakRouteDate = d.KubiakRouteDate?.Valid == true ? d.KubiakRouteDate.ToDate() : null,
+			SawyerPromiseDue = d.SawyerPromiseDue?.Valid == true ? d.SawyerPromiseDue.ToDate() : null, SawyerPromiseBroken = d.SawyerPromiseBroken,
 			Ledger = (d.Ledger ?? new()).Where(e => e?.Date?.Valid == true).Select(e => new LienLedgerEntry {
 				Date = e.Date.ToDate(), Kind = (LienLedgerKind)e.Kind, Amount = e.Amount, Detail = e.Detail }).ToList(),
 		};
@@ -1210,6 +1219,9 @@ public sealed class LienSaveData {
 	public List<string> WintersCold { get; set; }
 	public List<string> WintersBurned { get; set; }
 	public bool AddressBookBack { get; set; }
+	public DateSave KubiakRouteDate { get; set; }
+	public DateSave SawyerPromiseDue { get; set; }
+	public bool SawyerPromiseBroken { get; set; }
 	public int MoveDays { get; set; }
 	public int SawyerLaunchYear { get; set; }
 	public int KubiakRefusedYear { get; set; }
