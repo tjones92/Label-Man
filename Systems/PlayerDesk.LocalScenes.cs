@@ -46,7 +46,7 @@ public partial class PlayerDesk {
             RememberSceneDiscovery(artist.artistId, placeId, venue, week);
         }
         message = slate.Count == 0 ? "No local acts in this room's current cast. Try another room or return another week." :
-            $"Heard {slate.Count} local {(slate.Count == 1 ? "act" : "acts")}. Some may already have a deal or be content to play locally.";
+            $"Heard {slate.Count} local {(slate.Count == 1 ? "act" : "acts")}. Some have deals already. Ask the others where they stand.";
         Note($"Worked {VenueName(venue)} in {CurrentCity?.name ?? placeId}: {message}");
         Changed?.Invoke();
         return true;
@@ -54,12 +54,14 @@ public partial class PlayerDesk {
     public static bool SceneDealAvailable(Prospect prospect) => prospect?.Artist != null &&
         ReferenceEquals(ArtistManager.Instance?.GetArtist(prospect.Artist.artistId), prospect.Artist) &&
         ArtistManager.Instance.IsEligibleForPopulationSigning(prospect.Artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+    /// <summary>An unsigned act nobody has asked: market status is the AI labour market's, not the act's wish (ActDisposition).</summary>
+    public const string NoDealYet = "no record deal yet";
     public static string SceneDealDescription(Prospect prospect) {
         if (prospect?.Artist == null || !ReferenceEquals(ArtistManager.Instance?.GetArtist(prospect.Artist.artistId), prospect.Artist))
             return "entry needs updating";
         if (!string.IsNullOrEmpty(prospect.Artist.labelId)) return "under contract to " +
             (ChartManager.Instance?.GetLabelName(prospect.Artist.labelId) ?? "another label");
-        if (prospect.Artist.prospectMarketStatus == ProspectMarketStatus.Latent) return "not looking for a record deal";
+        if (prospect.Artist.prospectMarketStatus == ProspectMarketStatus.Latent) return NoDealYet;
         return SceneDealAvailable(prospect) ? $"asking ${prospect.AskingAdvance:N0}" : "not taking record offers right now";
     }
     /// <summary>Commit checks use the canonical object and the existing activation/cooldown owner.</summary>

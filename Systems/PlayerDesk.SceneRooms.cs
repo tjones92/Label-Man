@@ -98,8 +98,9 @@ public partial class PlayerDesk {
             slate.Add(prospect); RememberRoomEncounter(artist.artistId, room, bill, date);
         }
         RememberSceneContact(room, bill);
-        message = slate.Count == 0 ? "The scheduled set changed during the visit. Time and admission were consumed; no performance evidence was invented."
-            : $"Heard {slate.Count} {(slate.Count == 1 ? "act" : "acts")} at {room.Name}. Evidence saved automatically. You can discuss terms now or choose a question for another date.";
+        message = slate.Count == 0 ? "The bill changed while you were there. You paid at the door and heard nothing you can use."
+            : slate.Count == 1 ? $"You caught {slate[0].Artist.stageName} at {room.Name}. It's all in your notebook."
+            : $"You caught {slate.Count} acts at {room.Name}. They're all in your notebook.";
         if (listener != null && slate.Count > 0) message += $" {listener.Name} left a separate judgment of this same performance.";
         Note(message); Changed?.Invoke(); return true;
     }
@@ -130,7 +131,7 @@ public partial class PlayerDesk {
         if (staying) scoutingKnowledge.Visit.EndMinute = slot.StartHour * 60;
         var current = LocalSceneRoomService.Bill(billId);
         message = current?.Appearances.Any(a => ScenePerformanceService.EventId(current, a) == eventId && a.Status == SceneBillStatus.Scheduled) == true
-            ? "Waited until the announced start. Check the bill and listen when ready." : "Time passed normally, but the announced set changed. Check another bill.";
+            ? "You're in the room and they're setting up. Listen when they start." : "You waited, but the set you came for was pulled. Try another bill.";
         Note(message); Changed?.Invoke(); return true;
     }
     private bool FollowUpScoutingEvidence(Prospect prospect, out string message) {

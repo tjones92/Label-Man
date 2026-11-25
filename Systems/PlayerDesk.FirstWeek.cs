@@ -79,27 +79,44 @@ public partial class PlayerDesk {
 		_ => "Set up a first record",
 	};
 
-	/// <summary>Which voice teaches the line, and how to do it. The voice is the one whose job it is (decision 2).</summary>
+	/// <summary>Which voice teaches the line, and how. The voice is the one whose job it is (decision 2), and it talks about
+	/// the work, never the buttons: the glow and SHOW ME point at those. It speaks at any instinct (SigningExperienceAudit
+	/// §5 decision 2), but a weak voice (under 3) teaches in its own blunt register and claims no read it can't make.</summary>
 	public (ExecutiveVoice Voice, string How) FirstWeekHow(FirstWeekStep step) {
 		bool declinedOnly = scoutingKnowledge.Approaches?.Count > 0
 			&& scoutingKnowledge.Approaches.All(a => a.Status is ScoutingApproachStatus.Declined or ScoutingApproachStatus.Lapsed);
+		bool anotherLook = scoutingKnowledge.Approaches?.Any(a => a.Status == ScoutingApproachStatus.WantsAnotherLook) == true
+			&& scoutingKnowledge.Approaches.All(a => a.Status is not (ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready));
 		return step switch {
-			FirstWeekStep.Hear => (ExecutiveVoice.Ear,
-				"FIND A SET on the A&R tab lists the sets you can still make today. GO & WAIT takes you there; press LISTEN when they start. What you hear goes in the notebook."),
-			FirstWeekStep.Ask => (ExecutiveVoice.Street,
-				"Most acts on a bill aren't looking for a deal. Open their card in the notebook (TALK TO THEM) and ask if they'd hear one. It's free, and a no is normal. If they're already looking, the card says TERMS instead: go straight to it."),
-			FirstWeekStep.Answer when declinedOnly => (ExecutiveVoice.Street,
-				"They said no for this season. Most acts on a bill do, and it's the season, not you. Go and hear somebody else and ask them."),
-			FirstWeekStep.Answer => (ExecutiveVoice.Fixer,
-				"Their side answers within about a week. END THE DAY and read the Morning Paper: it says who called back. Meanwhile, hear somebody else; two asks out beat one."),
-			FirstWeekStep.Terms => (ExecutiveVoice.Suit,
-				"Open their card and press TERMS. The advance is cash now, paid back out of their royalties; the royalty is their share of each record sold. What they ask for is usually close to fair for an act nobody's heard of, and the standard paper is fine for a first deal."),
-			FirstWeekStep.Sign => (ExecutiveVoice.Suit,
-				"TABLE OFFER puts it to them. If they push back, move one thing at a time: a little more advance, or a little less term. Don't chase the last few dollars."),
-			_ => (ExecutiveVoice.Ear,
-				"On the ROSTER tab, TAKE INTO STUDIO: pick the songs from their set, choose a studio and book the hours. That's the record started."),
+			FirstWeekStep.Hear => (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
+				? "Handbills lie and so do managers. A set doesn't. Pick a room tonight, stand near the back, and I'll tell you what I heard."
+				: "Don't ask me who's good. I can tell you who was loud. Go hear a set anyway: what we hear goes in the notebook, and that's more than a handbill gives you."),
+			FirstWeekStep.Ask => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
+				? "Half the acts on any bill aren't shopping. Day jobs, steady girls, mothers who hate the business. So ask if they'd hear an offer. It's free, and no is the usual answer. If somebody's already shopping, skip the asking and sit down on terms."
+				: "I couldn't tell you who's shopping in this town. Nobody can till you ask. It's free, and most of them say no."),
+			FirstWeekStep.Answer when anotherLook => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
+				? "They want to see you come back. That's not a no: a label that turns up twice means it. Catch their next set, then ask again."
+				: "They want you to come back and hear them again. So go back. Then ask again."),
+			FirstWeekStep.Answer when declinedOnly => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
+				? "They passed, and they told you why. Believe them: that's what they want, not what they think of you. Somebody else is on a stage tonight."
+				: "They said no. Don't ask me why. Go hear somebody else and ask them."),
+			FirstWeekStep.Answer => (ExecutiveVoice.Fixer, StrongVoice(ExecutiveVoice.Fixer)
+				? "Now you wait, and you don't wait by the phone. Their side calls back inside a week; the morning paper says who. One ask out is a hope. Two is a plan."
+				: "Waiting's the job now. They'll call back inside a week, and it'll be in the morning paper. Meanwhile go hear somebody else."),
+			FirstWeekStep.Terms => (ExecutiveVoice.Suit, StrongVoice(ExecutiveVoice.Suit)
+				? "Here's the arithmetic. The advance is their money paid early: it goes out now and comes back out of their royalty, if the records sell. The royalty is their cut of every copy. What an act nobody's heard of asks for is usually near fair. Don't get clever on a first contract."
+				: "Paper isn't my strong suit, so keep it plain. The advance is cash now, and it comes back out of their royalty; the royalty is their share of each record. Give them close to what they ask and use the standard paper."),
+			FirstWeekStep.Sign => (ExecutiveVoice.Suit, StrongVoice(ExecutiveVoice.Suit)
+				? "Put it in front of them. If they push back, give one inch at a time: a little more advance or a little less term, never both. The last twenty dollars isn't worth the act."
+				: "Put it to them. If they balk, give a little and try again. Don't fight over pocket change."),
+			_ => (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
+				? "Now the part that matters. Take the songs that held the room, book the hours, and get them on tape while they still sound the way they did that night."
+				: "Get them in front of a microphone. Use the songs from their set: somebody in that room liked them, even if I couldn't tell you which."),
 		};
 	}
+
+	/// <summary>A voice that can read (3 and up, the Rolodex threshold); under that it teaches but claims nothing.</summary>
+	private bool StrongVoice(ExecutiveVoice voice) => InstinctScore(InstinctProfile, voice) >= 3;
 
 	/// <summary>A second voice on the line, when there's something it should know: what a read means once you've heard a set,
 	/// and on a Sawyer run, the singer already on the roster. Null when there's nothing to add.</summary>
@@ -107,11 +124,13 @@ public partial class PlayerDesk {
 		bool connieWaiting = Connie != null && !FirstWeekDone(FirstWeekStep.Record);
 		switch (step) {
 			case FirstWeekStep.Ask:
-				return (ExecutiveVoice.Ear, "About what you heard: a read is one night in one room. A roadhouse eats a voice and a coffeehouse flatters one, so don't judge a singer by a bad room alone.");
+				return (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
+					? "Whatever I heard, it was one night in one room. A roadhouse eats a voice and a coffeehouse flatters one. Don't bury a singer for a bad room."
+					: "Whatever I wrote down, it was one night in one room, and rooms lie too.");
 			case FirstWeekStep.Answer when connieWaiting:
-				return (ExecutiveVoice.Street, $"While you wait: {ConnieStageName} is on your roster already, and Dee-Dee wants her record out this year.");
+				return (ExecutiveVoice.Street, $"While you wait: Dee-Dee wants {ConnieStageName}'s record out this year, and her girl's already on your roster.");
 			case FirstWeekStep.Record when connieWaiting && !OwnActSigned:
-				return (ExecutiveVoice.Street, $"Nobody of your own yet? {ConnieStageName} is on the roster, and Dee-Dee's girl needs songs. Her record counts.");
+				return (ExecutiveVoice.Street, $"Nobody of your own yet? Then cut {ConnieStageName}. Dee-Dee's girl is on the roster and she needs songs. Her record counts.");
 			default:
 				return null;
 		}

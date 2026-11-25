@@ -2138,7 +2138,7 @@ public partial class PlayerDesk : Node {
         }
         if (prospect.HasBaseline && (prospect.Talk == null || prospect.Talk.stage != ContractTalkStage.Done)) {
             DiscloseRivalOffer(prospect.Artist.artistId);
-            RememberScoutingNegotiation(prospect); MarkFirstWeekTerms(); message = "Returned to the existing terms discussion."; Changed?.Invoke(); return true;
+            RememberScoutingNegotiation(prospect); MarkFirstWeekTerms(); message = $"Back at the table with {prospect.Artist.stageName}."; Changed?.Invoke(); return true;
         }
         int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, week) == false) {

@@ -24,7 +24,10 @@ public partial class ScoutingUiChecks : Node {
         await ToSignal(GetTree().CreateTimer(0.05), Timer.SignalName.Timeout);
     }
     private async Task Press(string text, bool prefix = false) {
-        var button = Nodes(panel).OfType<Button>().Single(b => prefix ? b.Text.StartsWith(text) : b.Text == text);
+        var matches = Nodes(panel).OfType<Button>().Where(b => prefix ? b.Text.StartsWith(text) : b.Text == text).ToArray();
+        if (matches.Length != 1) throw new InvalidOperationException($"{matches.Length} buttons match \"{text}\". Visible: " +
+            string.Join(" | ", Nodes(panel).OfType<Button>().Where(b => b.IsVisibleInTree()).Select(b => b.Text)));
+        var button = matches[0];
         Check(!button.Disabled, "Enabled action: " + text);
         button.EmitSignal(Button.SignalName.Pressed);
         await Frame();
@@ -38,6 +41,7 @@ public partial class ScoutingUiChecks : Node {
         try {
             var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
             Check(desk.FoundLabel("Scouting UI Checks", "nashville", out string message), message);
+            desk.DismissLienMorning();   // the first-morning scene would cover every screenshot
             var bill = LocalSceneRoomService.Calendar("nashville", clock.CurrentDate).First(b =>
                 b.Status == SceneBillStatus.Scheduled && b.Appearances.Count >= 2 && b.Appearances.Take(2).All(a => a.EndHour <= clock.HardStopHour));
             foreach (var slot in bill.Appearances.Take(2)) {
@@ -56,93 +60,120 @@ public partial class ScoutingUiChecks : Node {
             Check(Nodes(panel).OfType<Label>().All(l => !l.Text.Contains("min wait")), "Wait duration stays out of visible previews");
             Check(Nodes(panel).OfType<Button>().Where(b => b.Text == "GO & WAIT" || b.Text == "LISTEN").All(b => b.TooltipText.Contains("Cash after admission") && b.SizeFlagsHorizontal == Control.SizeFlags.ShrinkBegin), "Compact actions disclose cash quotes on hover");
             await Press("VENUES & CALENDARS");
-            Check(Nodes(panel).OfType<VenueHandbill>().Any(), "Room calendars remain accessible");
-            var venue = Nodes(panel).OfType<VenueHandbill>().Single(v => v.GetMeta("scouting_room_id").AsString() == bill.RoomId);
+            // The venues are a row of room buttons with the picked room's calendar inline (no handbills, no modal).
+            Check(Nodes(panel).OfType<Button>().Any(b => b.HasMeta("scouting_room_id")), "Room calendars remain accessible");
+            var venue = Nodes(panel).OfType<Button>().Single(b => b.HasMeta("scouting_room_id") && b.GetMeta("scouting_room_id").AsString() == bill.RoomId);
             Check(!desk.KnowsSceneBooker(bill.RoomId), "Listening alone does not introduce a booker");
             venue.EmitSignal(Button.SignalName.Pressed); await Frame();
-            var roomModal = Nodes(panel).OfType<PaperModal>().Single();
             var room = SceneRoomCatalog.Get(bill.RoomId);
-            Check(Nodes(roomModal).OfType<Label>().All(l => !l.Text.Contains(room.ContactName)), "Unmet booker identity is hidden");
-            Check(Nodes(roomModal).OfType<Label>().Any(l => l.Text.Contains(first.ArtistName) && l.Text.Contains("Heard / past")), "Earlier heard sets are not marked cancelled");
+            Check(Nodes(panel).OfType<Label>().All(l => !l.Text.Contains(room.ContactName)), "Unmet booker identity is hidden");
+            Check(Nodes(panel).OfType<Label>().Any(l => l.Text.Contains(first.ArtistName) && l.Text.Contains("Heard / past")), "Earlier heard sets are not marked cancelled");
             string calendarState = JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions);
-            int firstVisibleDay = Nodes(roomModal).OfType<Button>().Where(b => b.HasMeta("scouting_day")).Min(b => b.GetMeta("scouting_day").AsInt32());
-            var nextWeek = Nodes(roomModal).OfType<Button>().Single(b => b.TooltipText == "Next week of posted dates");
+            int firstVisibleDay = Nodes(panel).OfType<Button>().Where(b => b.HasMeta("scouting_day")).Min(b => b.GetMeta("scouting_day").AsInt32());
+            var nextWeek = Nodes(panel).OfType<Button>().Single(b => b.TooltipText == "Next week of posted dates");
             if (!nextWeek.Disabled) {
                 nextWeek.EmitSignal(Button.SignalName.Pressed); await Frame();
-                Check(Nodes(roomModal).OfType<Button>().Where(b => b.HasMeta("scouting_day")).Min(b => b.GetMeta("scouting_day").AsInt32()) > firstVisibleDay, "Calendar advances to later posted weeks");
-                var previousWeek = Nodes(roomModal).OfType<Button>().Single(b => b.TooltipText == "Previous week");
+                Check(Nodes(panel).OfType<Button>().Where(b => b.HasMeta("scouting_day")).Min(b => b.GetMeta("scouting_day").AsInt32()) > firstVisibleDay, "Calendar advances to later posted weeks");
+                var previousWeek = Nodes(panel).OfType<Button>().Single(b => b.TooltipText == "Previous week");
                 previousWeek.EmitSignal(Button.SignalName.Pressed); await Frame();
-                Check(Nodes(roomModal).OfType<Button>().Where(b => b.HasMeta("scouting_day")).Min(b => b.GetMeta("scouting_day").AsInt32()) == firstVisibleDay, "Calendar returns to the current week");
+                Check(Nodes(panel).OfType<Button>().Where(b => b.HasMeta("scouting_day")).Min(b => b.GetMeta("scouting_day").AsInt32()) == firstVisibleDay, "Calendar returns to the current week");
             }
-            var dayButton = Nodes(roomModal).OfType<Button>().First(b => b.HasMeta("scouting_day") && b.GetMeta("scouting_day").AsInt32() == bill.Day + 1);
+            var dayButton = Nodes(panel).OfType<Button>().First(b => b.HasMeta("scouting_day") && b.GetMeta("scouting_day").AsInt32() == bill.Day + 1);
             dayButton.EmitSignal(Button.SignalName.Pressed); await Frame();
             Check(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions) == calendarState, "Calendar selection does not advance time or evidence");
             await Screenshot("venue");
             int introMinute = clock.CurrentHour * 60 + clock.CurrentMinute; float introCash = desk.Label.cashReserves;
-            await Press("INTRODUCE YOURSELF");
+            await Press("INTRODUCE YOURSELF", true);
             Check(desk.KnowsSceneBooker(bill.RoomId) && clock.CurrentHour * 60 + clock.CurrentMinute == introMinute + 15 && desk.Label.cashReserves == introCash, "Introduction spends 15 minutes with no fee");
             Check(desk.CaptureState().ScoutingKnowledge.Visit?.EndMinute == introMinute + 15 && desk.AdmissionForVisit(bill, room, introMinute + 15) == 0, "Short introduction preserves the paid room visit");
             Check(RolodexDirectory.Cards(desk, RolodexRole.Booker).Single().Name == room.ContactName, "Introduced booker appears in Rolodex");
             var introducedSave = JsonSerializer.Deserialize<PlayerSaveData>(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions), SaveGameService.TestJsonOptions);
             Check(desk.RestoreState(introducedSave, out _) && desk.KnowsSceneBooker(bill.RoomId), "Introduction survives serialized save restore");
             Check(!desk.IntroduceSceneBooker(bill.RoomId, out _) && clock.CurrentHour * 60 + clock.CurrentMinute == introMinute + 15, "Repeated introduction rejected without spending time");
-            roomModal.Close(); await Frame();
             await Press("ACT NOTEBOOK");
             Check(!Nodes(panel).OfType<OptionButton>().Any(), "Collapsed notebook has no orphan questions");
             await Screenshot("notebook");
             await Press("▸  " + first.ArtistName, true);
             Check(Nodes(panel).OfType<Label>().Any(l => l.Text == "Stage presence") && !Nodes(panel).OfType<Label>().Any(l => l.Text.StartsWith("Competition:") || l.Text.StartsWith("What they want:")), "Evidence shows concise axes and hides business boilerplate");
             Check(!Nodes(panel).OfType<OptionButton>().Any(), "Follow-up planning is hidden until requested");
+            Check(!Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("REVIEW " + second.ArtistName.ToUpperInvariant())), "Other act review is hidden from main evidence");
+            // Signing audit §3.1: one quiet row under the verb, a filing stamp and NOTES; the three read-only views are one sheet.
+            foreach (string gone in new[] { "WATCH", "PURSUE", "ARCHIVE", "ROOM IMPRESSION", "SOURCES & COVERAGE", "FULL NOTES & HISTORY", "PLAN ANOTHER LISTEN" })
+                Check(!Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text == gone), "Decluttered card has no " + gone);
+            Check(Nodes(panel).OfType<MenuButton>().Count(b => b.HasMeta("scouting_filing")) == 1, "An act signed elsewhere can still be filed away");
             string noteState = JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions);
-            await Press("FULL NOTES & HISTORY");
+            await Press("NOTES");
             var fullNotes = Nodes(panel).OfType<PaperModal>().Single();
             Check(Nodes(fullNotes).OfType<RichTextLabel>().Any(l => l.Text.StartsWith("[b]Vocals:[/b]")) &&
                 Nodes(fullNotes).OfType<RichTextLabel>().Any(l => l.Text.StartsWith("[b]Ensemble:[/b]")), "Full notes emphasize skill labels");
+            Check(Nodes(fullNotes).OfType<Control>().Any(c => c is Label l && l.Text.Contains("when you watched") || c is RichTextLabel r && r.Text.Contains("when you watched")), "The notes carry the room impression");
+            Check(Nodes(fullNotes).OfType<Label>().Any(l => l.Text == "WHERE THIS CAME FROM"), "The notes carry the sources");
             Check(!desk.ScoutingPlayerNotes(first.ArtistId).Any(l => l.Contains("held together, with questions") || l.Contains("cannot establish consistency") || l.Contains("whole-bill")), "Player notes avoid technical verdicts");
             await Screenshot("full-notes"); fullNotes.Close(); await Frame();
-            await Press("ROOM IMPRESSION");
-            var audienceModal = Nodes(panel).OfType<PaperModal>().Single();
-            Check(Nodes(audienceModal).OfType<Label>().Any(l => l.Text.Contains("when you watched")) && !Nodes(audienceModal).OfType<ScrollContainer>().Any(), "Crowd recollection is a short room impression");
-            await Screenshot("audience"); audienceModal.Close(); await Frame();
-            await Press("TALK TO ACT");
+            await Press("TALK TO THEM");
             var conversation = Nodes(panel).OfType<PaperModal>().Single();
-            var invitations = Nodes(conversation).OfType<Button>().Where(b => b.Text.StartsWith("ASK FOR ")).ToArray();
+            var invitations = Nodes(conversation).OfType<Button>().Where(b => b.Text.StartsWith("ASK FOR ") && !b.Text.StartsWith("ASK FOR THEIR NUMBER")).ToArray();
             Check(invitations.Length == 3 && invitations.All(b => b.SizeFlagsHorizontal == Control.SizeFlags.ShrinkBegin && b.TooltipText.Length > 0), "Meeting requests live in the conversation with compact buttons and help tips");
             await Screenshot("conversation"); conversation.Close(); await Frame();
             Check(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions) == noteState, "Reading notes and opening conversation spends nothing and creates no evidence");
-            await Press("PLAN ANOTHER LISTEN");
-            var question = Nodes(panel).OfType<OptionButton>().Single();
+            await Press("MORE", true);
+            OptionButton QuestionFor(string artistId) => Nodes(panel).OfType<OptionButton>().Single(o => o.HasMeta("scouting_question") && o.GetMeta("scouting_question").AsString() == artistId);
+            var question = QuestionFor(first.ArtistId);
             question.Select((int)ScoutingQuestion.Vocals);
             question.EmitSignal(OptionButton.SignalName.ItemSelected, (long)ScoutingQuestion.Vocals); await Frame();
             Check(desk.ScoutingDossiers.Single(d => d.ArtistId == first.ArtistId).Question == ScoutingQuestion.Vocals &&
                 desk.ScoutingDossiers.Single(d => d.ArtistId == second.ArtistId).Question == ScoutingQuestion.None, "Listening question belongs only to selected act");
-            Check(!Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("REVIEW " + second.ArtistName.ToUpperInvariant())), "Other act review is hidden from main evidence");
-            await Press("OTHER ACTS TO CONSIDER");
+            Check(Nodes(panel).OfType<Label>().Any(l => l.Text == "OTHER ACTS TO CONSIDER"), "Other acts sit in MORE without a nested fold");
+            await Frame();   // the question change rebuilds the page
+            // Whether the second act counts as a local lead depends on the world drawn (windowed and headless runs differ).
+            if (desk.ScoutingAlternativeLeads(first.ArtistId).Any(l => l.ArtistId == second.ArtistId)) {
             string snapshot = JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions);
             await Press("REVIEW " + second.ArtistName.ToUpperInvariant());
             Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + second.ArtistName)), "Review opens the named act's card");
             var scroll = Nodes(panel).OfType<ScrollContainer>().First();
             Check(scroll.ScrollVertical > 0, "Selected act scrolls into view");
             Check(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions) == snapshot, "Review spends nothing and does not change evidence or pad");
-            await Press("PLAN ANOTHER LISTEN");
-            question = Nodes(panel).OfType<OptionButton>().Single();
-            Check(question.Selected == (int)ScoutingQuestion.None, "Switching acts restores that act's own question");
-            await Press("ASK ABOUT " + second.ArtistName.ToUpperInvariant());
-            var ask = Nodes(panel).OfType<Button>().Single(b => b.Text.StartsWith("ASK ABOUT " + second.ArtistName.ToUpperInvariant() + " (1h"));
-            Check(ask.GetParent().GetParent().GetParent() is VBoxContainer, "Booker controls are nested in act card");
+            } else {
+                GD.Print("note: the second act is not a local lead in this world; the REVIEW leg is skipped");
+                await Press("▸  " + second.ArtistName, true);
+            }
+            await Press("MORE", true);
+            Check(QuestionFor(second.ArtistId).Selected == (int)ScoutingQuestion.None, "Switching acts restores that act's own question");
+            var ask = Nodes(panel).OfType<Button>().Single(b => b.Text.StartsWith("ASK ABOUT " + second.ArtistName.ToUpperInvariant() + " ("));
+            Check(ask.IsVisibleInTree(), "Booker questions sit in the act's MORE");
             await Screenshot("expanded");
-            await Press("ARCHIVE");
+            var stamp = Nodes(panel).OfType<MenuButton>().Single(b => b.HasMeta("scouting_filing") && b.GetMeta("scouting_filing").AsString() == second.ArtistId);
+            Check(stamp.Text.StartsWith("FILED: "), "Filing is one stamp");
+            stamp.GetPopup().EmitSignal(PopupMenu.SignalName.IdPressed, (long)ScoutingPriority.Archived); await Frame(); await Frame();
             Check(!Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + second.ArtistName)), "Archived act leaves active notebook");
-            await Press("SHOW ARCHIVED NOTES");
+            await Press("SHOW ARCHIVED NOTES", true);
             Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + second.ArtistName)), "Archived act remains reviewable");
             await Press("FIND A SET");
             await Press("NEXT SETS");
-            await Press("LISTEN");
-            Check(Nodes(panel).OfType<Label>().Any(l => l.Text.StartsWith("A&R NOTEBOOK")) && Nodes(panel).OfType<Button>().Single(b => b.Text == "FIND A SET").FocusMode != Control.FocusModeEnum.None,
-                "Listening opens the notebook automatically");
+            // Nothing may be playing this minute: go and wait for the soonest set, then listen.
+            if (!Nodes(panel).OfType<Button>().Any(b => b.Text == "LISTEN")) {
+                Nodes(panel).OfType<Button>().First(b => b.Text == "GO & WAIT").EmitSignal(Button.SignalName.Pressed); await Frame(); await Frame();
+            }
+            Nodes(panel).OfType<Button>().First(b => b.Text == "LISTEN").EmitSignal(Button.SignalName.Pressed); await Frame();
+            // Listening stages The Set (signing audit §3.2) over the page; letting the act go files them in the notebook.
+            Check(Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text == "LET THEM GO") && !Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text == "FIND A SET"),
+                "Listening stages the set");
+            while (Nodes(panel).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "LET THEM GO") is { } letGo) { letGo.EmitSignal(Button.SignalName.Pressed); await Frame(); }
+            await Press("ACT NOTEBOOK");
+            if (Nodes(panel).OfType<Button>().FirstOrDefault(b => b.Text.StartsWith("▸  " + desk.Slate.Last().Artist.stageName)) is { } closed) { closed.EmitSignal(Button.SignalName.Pressed); await Frame(); }
             Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + desk.Slate.Last().Artist.stageName)), "Newly heard act is expanded");
+            Check(Nodes(panel).OfType<Button>().Count(b => b.Text is "TALK TO THEM" or "SIT DOWN ON TERMS") == 1, "The open card has one primary verb");
+            // Waiting overnight brings the Morning Paper up over the desk: put it down before the picture.
+            if (GetTree().Root.FindChild("MorningPaper", true, false) is Control paper && paper.Visible) {
+                typeof(UIManager).GetMethod("DismissMorningPaper", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.Invoke(UIManager.Instance, null);
+                await Frame(); await Frame();
+            }
+            foreach (var sc in Nodes(panel).OfType<ScrollContainer>()) sc.ScrollVertical = 160;
+            await Frame();
             await Screenshot("new-listen");
-            await Press("TALK TO ACT");
+            // An act already looking for a deal gets SIT DOWN ON TERMS instead, and that leads to the contract, not the talk.
+            if (Nodes(panel).OfType<Button>().Any(b => b.Text == "TALK TO THEM")) {
+            await Press("TALK TO THEM");
             conversation = Nodes(panel).OfType<PaperModal>().Single();
             var newlyHeard = desk.Slate.Last().Artist.artistId;
             var rehearsalQuote = desk.PreviewScoutingInvitation(newlyHeard, ScoutingAppointmentActivity.Rehearsal);
@@ -156,6 +187,7 @@ public partial class ScoutingUiChecks : Node {
                 Check(!Nodes(panel).OfType<PaperModal>().Any() && clock.CurrentHour * 60 + clock.CurrentMinute == invitationMinute + 15 && desk.Label.cashReserves == invitationCash, "Conversation request closes, spends 15 minutes and charges no attendance fee");
                 Check(desk.ScoutingDossiers.Single(d => d.ArtistId == newlyHeard).Observations.Count(o => o.Kind == ScoutingEvidenceKind.Performance) == heardBefore, "Scheduling does not create another listening");
             } else { conversation.Close(); await Frame(); }
+            }
             panel.OpenAtTab("ROLODEX"); await Frame();
             await Press("BOOKERS", true);
             Check(Nodes(panel).OfType<Label>().Any(l => l.Text == room.ContactName), "Booker card renders in the real Rolodex");

@@ -1051,6 +1051,8 @@ public partial class PlayerDeskPanel : Control {
 			return;
 		}
 		negotiating = null;
+		// Just heard a set: the room takes the page until the player talks to the act or lets them go.
+		if (RenderTheSet(desk)) return;
 
 		Heading("A&R — WORK THE SCENE");
 		var scoutingTabs = new HFlowContainer();
@@ -1201,9 +1203,9 @@ public partial class PlayerDeskPanel : Control {
             follow.Pressed += () => Act(() => { bool ok = desk.FollowUp(prospect, out string result); Say(result, ok); return ok; }); row.AddChild(follow);
         }
         bool askFirst = desk.CanAskDirectApproach(prospect.Artist);
-        var approach = Primary(askFirst ? "ASK IF THEY'D HEAR AN OFFER" : "DISCUSS TERMS");
+        var approach = Primary(askFirst ? "ASK IF THEY'D HEAR AN OFFER" : "SIT DOWN ON TERMS");
         approach.Disabled = !askFirst && (!PlayerDesk.SceneDealAvailable(prospect) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId)));
-        approach.TooltipText = askFirst ? "They aren't looking for a record deal. Their side may think it over and answer within about a week, or say no for this season. No money or time spent."
+        approach.TooltipText = askFirst ? "Nobody's asked them about a record yet. They'll tell you where they stand, and why. No money or time spent."
             : PlayerDesk.SceneDealDescription(prospect);
         GreyWhy(approach, PlayerDesk.SceneDealAvailable(prospect) ? "Hear them play first: terms are talked over once you have something to go on." : "They aren't ready to talk terms.");
         approach.Pressed += () => { beforeConversationAction?.Invoke(); bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
@@ -1224,7 +1226,7 @@ public partial class PlayerDeskPanel : Control {
 			: "They'll sign near their ask, but not at any price: go too low and they counter once, then walk. " +
 				$"The meeting takes {PlayerDesk.PushoverSignHours} hours, signed or not, and the advance is charged when they sign.");
 
-		TermsForm(prefill, $"OFFER CONTRACT  ({PlayerDesk.PushoverSignHours}h)",
+		TermsForm(prefill, $"TABLE OFFER  ({PlayerDesk.PushoverSignHours}h)",
 			(advance, royalty, term, singles, labelPub, artistControl) => {
 				var offer = new ContractTermSheet(advance, royalty, term, singles, labelPub, artistControl,
 					b.NegotiationDifficulty, b.Manager, b.ManagerName, b.DemandSummary);

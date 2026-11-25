@@ -104,9 +104,10 @@ public static class ScoutingRunwayChecks {
                 int week = ChartManager.Instance.GetCurrentChartWeek();
                 foreach (var dossier in desk.ScoutingDossiers) {
                     var a = am.GetArtist(dossier.ArtistId);
-                    // Off the market: ask whether they'd hear an offer (once a season; the desk keeps the answer).
+                    // Off the market: ask whether they'd hear an offer, unless the answer they gave still holds (talking it
+                    // over, a no for a reason that hasn't changed, or "come and hear us again" before you have).
                     if (DirectAsks && desk.CanAskDirectApproach(a) && !desk.DirectApproaches.Any(x => x.ArtistId == a.artistId &&
-                            (x.Status == ScoutingApproachStatus.Considering || x.Status == ScoutingApproachStatus.Declined && x.UntilDay > LocalSceneRoomService.Day(clock.CurrentDate)))
+                            x.Status == ScoutingApproachStatus.Considering) && !desk.StillDeclining(a) && !desk.WaitingToBeHeardAgain(a)
                         && desk.OpenScoutingDossier(a.artistId, out message)) {
                         var asked = desk.Slate.FirstOrDefault(p => p.Artist.artistId == a.artistId);
                         if (asked != null) { actions++; asks++; desk.ApproachToSign(asked, out message); }
@@ -156,7 +157,8 @@ public static class ScoutingRunwayChecks {
                 listeningMinutes = minutes, days, admissionPaid, refusals, dossiers = dossiers.Count,
                 heardUnsignedAtEnd = dossiers.Count(d => string.IsNullOrEmpty(am.GetArtist(d.ArtistId)?.labelId)),
                 rivalNotes = dossiers.Sum(d => d.Observations.Count(o => o.Kind == ScoutingEvidenceKind.RivalInterest)),
-                approachAsks = asks, considering = desk.DirectApproaches.Count(x => x.Status != ScoutingApproachStatus.Declined), declined = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.Declined),
+                approachAsks = asks, considering = desk.DirectApproaches.Count(x => x.Status is ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready), declined = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.Declined),
+                wantsAnotherLook = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.WantsAnotherLook),
                 ready = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.Ready),
                 lostToRivals = dossiers.Count(d => opened.Contains(d.ArtistId) && !string.IsNullOrEmpty(am.GetArtist(d.ArtistId)?.labelId) && am.GetArtist(d.ArtistId).labelId != desk.Label.labelId),
                 roster = desk.Label.roster.Count, cashLeft = desk.Label.cashReserves });
@@ -193,15 +195,20 @@ public static class ScoutingRunwayChecks {
         var answer = desk.DirectApproaches[0];
         Check(desk.Label.cashReserves == purseBefore && clock.CurrentHour * 60 + clock.CurrentMinute == minute && Json(WorldStateService.Capture()) == snapshot,
             "asking costs nothing and changes no world state");
-        Check(answer.Status is ScoutingApproachStatus.Considering or ScoutingApproachStatus.Declined, "the act answers considering or declined");
+        var read = desk.ReadDisposition(target.Artist);
+        Check(answer.Status == (read.Kind == DealDisposition.Hungry ? ScoutingApproachStatus.Considering
+                : read.Kind == DealDisposition.Comfortable ? ScoutingApproachStatus.Declined : ScoutingApproachStatus.WantsAnotherLook),
+            $"the act answers from its disposition ({read.Kind}, {read.Reason}): {answer.Status}");
+        Check(!string.IsNullOrEmpty(answer.Said), "the answer is said by somebody");
         desk.ApproachToSign(target, out string again);
-        Check(desk.DirectApproaches.Count == 1 && desk.DirectApproaches[0].Status == answer.Status && again.Contains(LocalSceneRoomService.Date(answer.UntilDay).ToHeadlineString()),
-            "a repeat ask does not reroll and states the date");
+        Check(desk.DirectApproaches.Count == 1 && desk.DirectApproaches[0].Status == answer.Status &&
+            (answer.Status == ScoutingApproachStatus.Considering ? again.Contains(LocalSceneRoomService.Date(answer.UntilDay).ToHeadlineString()) : again.StartsWith(answer.Said)),
+            "a repeat ask with nothing changed gives the same answer and files nothing new: " + again);
         var saved = LocalSceneRoomService.Copy(desk.CaptureState());
         Check(desk.RestoreState(LocalSceneRoomService.Copy(saved), out message) && Json(desk.DirectApproaches) == Json(new[] { answer }), "the answer survives save/load");
         var malformed = LocalSceneRoomService.Copy(saved); malformed.ScoutingKnowledge.Approaches.Add(new ScoutingDirectApproach { ArtistId = null });
         Check(desk.RestoreState(malformed, out message) && desk.DirectApproaches.Count == 1, "a malformed approach is dropped on load");
-        Check(desk.ScoutingSummary(target.Artist.artistId).Any(l => l.StartsWith("Approach (")), "the notebook states the approach");
+        Check(desk.ScoutingSummary(target.Artist.artistId).Any(l => l.StartsWith("Asked (")), "the notebook states the approach");
         // Roster cap: a full roster hands the owner nobody.
         if (answer.Status == ScoutingApproachStatus.Considering) {
             int max = desk.Label.maxRosterSize; desk.Label.maxRosterSize = desk.Label.roster.Count;

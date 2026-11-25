@@ -31,6 +31,10 @@ public static partial class LocalSceneRoomService {
     /// alone is not enough: most acts on small local labels kept their jobs. Everyone else keeps a day job.</summary>
     public static bool FullTime(SimulatedArtist act, int day) => FullTime(act, State.Engagements
         .Where(e => e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal));
+    /// <summary>The room an act holds a standing engagement in on a day, or null. Read only.</summary>
+    public static string EngagementRoom(string artistId, int day) => artistId == null ? null : State.Engagements
+        .Where(e => e.ArtistId == artistId && e.StartDay <= day && e.ThroughDay >= day).OrderBy(e => e.StartDay)
+        .ThenBy(e => e.RoomId, StringComparer.Ordinal).FirstOrDefault()?.RoomId;
     /// <param name="engaged">Acts holding a standing engagement that day (the scheduler keeps this set per day).</param>
     private static bool FullTime(SimulatedArtist act, HashSet<string> engaged) => act != null && (Traction(act) ||
         engaged.Contains(act.artistId) || ActShows(act.artistId) >= ProShows || GonePro(act) ||

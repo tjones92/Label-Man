@@ -96,7 +96,8 @@ public partial class PlayerDesk {
             act.members.Any(m => m.personId == n.PersonId && m.isActive && m.lifeState == MemberLifeState.Active));
     }
     private ScoutingNumberRefusal Refusal(string artistId, string sourceId) =>
-        NumberRefusals.LastOrDefault(r => r.ArtistId == artistId && r.SourceId == sourceId && SceneDay < r.UntilDay);
+        // A lookup must not create the list: opening a conversation would otherwise change the save (null -> []).
+        scoutingKnowledge.NumberRefusals?.LastOrDefault(r => r.ArtistId == artistId && r.SourceId == sourceId && SceneDay < r.UntilDay);
     private int SeasonEnd => (SceneDay / DirectApproachSeasonDays + 1) * DirectApproachSeasonDays;
     private float NumberDraw(string artistId, string sourceId) =>
         StableUnit($"{SimulationSeedBootstrap.RequestedSeed ?? 0UL}|act-number|{Label.labelId}|{artistId}|{sourceId}|{SceneDay / DirectApproachSeasonDays}");

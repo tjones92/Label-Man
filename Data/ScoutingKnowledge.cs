@@ -164,14 +164,18 @@ public sealed class ScoutingNumberRefusal {
     public string SourceId { get; set; }
     public int UntilDay { get; set; }
 }
-public enum ScoutingApproachStatus { Considering, Ready, Declined, Lapsed }
-/// <summary>A label asked an act that was off the market whether it would hear an offer. The act either agreed to think
-/// it over (the population owner may bring it back on the market at its weekly pass) or said no for this season.</summary>
+/// <summary>WantsAnotherLook (appended; saves store the number): a careful act asked to be heard again first.</summary>
+public enum ScoutingApproachStatus { Considering, Ready, Declined, Lapsed, WantsAnotherLook }
+/// <summary>A label asked an act that was off the market whether it would hear an offer. The act's answer comes from its
+/// disposition (ActDisposition): a hungry act thinks it over, a careful act asks to be heard again first, a comfortable
+/// act says no and why. Older saves hold season-keyed declines; those now hold only while the act is still comfortable.</summary>
 public sealed class ScoutingDirectApproach {
     public string ArtistId { get; set; }
     public string ArtistName { get; set; }
     public int Day { get; set; }
     public ScoutingApproachStatus Status { get; set; }
-    /// <summary>Considering: the day the act's side said it would answer by. Declined: the first day to ask again.</summary>
+    /// <summary>Considering: the day the act's side said it would answer by. Otherwise the day of the answer.</summary>
     public int UntilDay { get; set; }
+    /// <summary>What the act's side said, as said (null on older saves).</summary>
+    public string Said { get; set; }
 }

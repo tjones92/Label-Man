@@ -64,9 +64,6 @@ public partial class PlayerDeskPanel {
         if (PlayerDesk.ScoutingRoomGap(dossier, samples) is { } gap) {
             var hint = ScoutingText("Try a different room for a clearer read", 13, ScoutingVenueInk); hint.TooltipText = gap;
         }
-        var details = ScoutingQuietLink("FULL NOTES & HISTORY");
-        details.TooltipText = "Sources, audience, recording evidence, past conversations and competition reports. Missing evidence does not imply availability.";
-        details.Pressed += () => OpenScoutingFullNotes(desk, dossier); content.AddChild(details);
     }
     private void ScoutingNote(string text) {
         int colon = text.IndexOf(':');
@@ -119,7 +116,7 @@ public partial class PlayerDeskPanel {
                 bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
                     ? desk.ListenSceneAppearance(option.BillId, option.EventId, out result)
                     : desk.WaitForSceneAppearance(option.BillId, option.EventId, out result);
-                if (ok && !circuit && option.Playing) ShowLatestScoutingAct(desk);
+                if (ok && !circuit && option.Playing) OpenTheSet(desk);
                 Say(result, ok); if (ok) afterAction?.Invoke(); return ok;
             });
             row.AddChild(action);

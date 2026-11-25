@@ -91,7 +91,7 @@ public partial class PlayerDesk {
         }
         if (!slate.Contains(prospect)) slate.Add(prospect);
         SlateDate = LocalSceneRoomService.Date(last.OccurredDay ?? last.AcquiredDay);
-        message = $"Opened {dossier.ArtistName}'s recorded evidence. No time or money spent.";
+        message = $"{dossier.ArtistName}'s notes are open.";
         Changed?.Invoke(); return true;
     }
     private static string AxisDescription(float value) => value >= .72f ? "assured in this set" : value >= .48f ? "held together, with questions" : "uneven in this set";

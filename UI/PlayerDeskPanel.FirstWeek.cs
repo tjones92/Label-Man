@@ -110,10 +110,10 @@ public partial class PlayerDeskPanel {
 	/// <summary>The buttons each line points at, best first. The first one on screen glows; only ever one.</summary>
 	private static string[] FirstWeekTargets(FirstWeekStep step) => step switch {
 		FirstWeekStep.Hear => new[] { "LISTEN", "GO & WAIT" },
-		FirstWeekStep.Ask => new[] { "IF THEY'D HEAR AN OFFER", "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM" },
+		FirstWeekStep.Ask => new[] { "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
 		FirstWeekStep.Answer => new[] { "END THE DAY" },
-		FirstWeekStep.Terms => new[] { "TERMS — MAKE AN OFFER", "DISCUSS TERMS", "TALK TO THEM" },
-		FirstWeekStep.Sign => new[] { "TABLE OFFER", "OFFER CONTRACT" },
+		FirstWeekStep.Terms => new[] { "SIT DOWN ON TERMS", "TALK TO THEM" },
+		FirstWeekStep.Sign => new[] { "TABLE OFFER" },
 		_ => new[] { "TO THE ROSTER", "TAKE INTO STUDIO", "RETURN TO STUDIO" },
 	};
 

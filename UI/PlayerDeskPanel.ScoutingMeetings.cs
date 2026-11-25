@@ -11,14 +11,14 @@ public partial class PlayerDeskPanel {
             bool ready = day == meeting.Day && now == meeting.StartMinute;
             Body($"{meeting.ArtistName} · {meeting.PersonName} · {(meeting.Activity == ScoutingAppointmentActivity.Demo ? "Home budget studio" : SceneRoomCatalog.Get(meeting.RoomId)?.Name)}, " +
                 $"{LocalSceneRoomService.Date(meeting.Day).ToHeadlineString()}, {meeting.StartMinute / 60:00}:{meeting.StartMinute % 60:00}–{meeting.EndMinute / 60:00}:{meeting.EndMinute % 60:00}. " +
-                $"{meeting.Activity} · {(meeting.EndMinute - meeting.StartMinute) / 60}h · ${meeting.Fee:0} at attendance. Cancel before starting without charge; consumed sessions are not refunded. No hold on the act.");
+                $"{meeting.Activity} · {(meeting.EndMinute - meeting.StartMinute) / 60}h · ${meeting.Fee:0} when you go. Cancelling before it starts costs nothing. It doesn't stop another label talking to them.");
             if (meeting.Activity != ScoutingAppointmentActivity.Conversation) Body("Agreed material: " + meeting.Material.FirstOrDefault()?.Title + ". Lineup: " +
                 string.Join(", ", meeting.ParticipantIds.Select(id => ArtistManager.Instance.GetArtist(meeting.ArtistId)?.members.FirstOrDefault(m => m.personId == id)?.FullName ?? "unavailable participant")) + ".");
             var actions = new HFlowContainer();
             var attend = Btn(ready ? meeting.Activity == ScoutingAppointmentActivity.Conversation ? "ATTEND MEETING (1h · no fee)" : $"ATTEND {meeting.Activity.ToString().ToUpperInvariant()} ({(meeting.EndMinute - meeting.StartMinute) / 60}h · ${meeting.Fee:0})" : "WAIT FOR MEETING");
             attend.Disabled = !LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver || !LocalScenes.Rooms ||
                 day > meeting.Day || day == meeting.Day && now > meeting.StartMinute;
-            attend.TooltipText = "While you wait the month's bills keep running and other labels keep making their moves. Attend at the agreed start; current speaker, place, bookings and willingness are checked again. A substantial conversation creates no simultaneous listening evidence.";
+            attend.TooltipText = "The month's bills keep running while you wait, and other labels keep working. Be there at the agreed start. They may have changed their minds by then.";
             GreyWhy(attend, "The agreed start has passed.");
             ScoutingTimeRisk(desk, attend, meeting.Day, ready ? meeting.EndMinute : meeting.StartMinute, meeting.Id);
             attend.Pressed += () => Act(() => {
@@ -48,7 +48,7 @@ public partial class PlayerDeskPanel {
             bool afterSet = desk.ActNumberAfterSetBlocked(dossier.ArtistId) == null || (phoneNumber == null && meeting != null);
             string talkingTo = phoneNumber != null && desk.PreviewScoutingInvitation(dossier.ArtistId) != null && !afterSet
                 ? $"You can ring {phoneNumber.PersonName} (number from {phoneNumber.Source}); a call takes {PlayerDesk.PhoneCallMinutes} minutes."
-                : meeting != null ? $"You're talking with {meeting.SourceName}; this is conversation, not more listening." : null;
+                : meeting != null ? $"You're talking with {meeting.SourceName} after the set." : null;
             ScoutingText(string.Join("  ", new[] {
                 genre == null && standing == null ? null : string.Join(" · ", new[] { genre, standing }.Where(s => !string.IsNullOrEmpty(s))) + ".",
                 talkingTo }.Where(s => !string.IsNullOrEmpty(s))), 16, Ink);
@@ -71,10 +71,10 @@ public partial class PlayerDeskPanel {
 
             if (prospect != null) {
                 bool askFirst = desk.CanAskDirectApproach(prospect.Artist);
-                var deal = ScoutingSmallButton(askFirst ? "IF THEY'D HEAR AN OFFER" : "TERMS — MAKE AN OFFER");
+                var deal = ScoutingSmallButton(askFirst ? "ASK IF THEY'D HEAR AN OFFER" : "SIT DOWN ON TERMS");
                 bool evidence = prospect.FollowedUp || desk.HasScoutingEvidence(prospect.Artist.artistId);
                 deal.Disabled = !askFirst && (!PlayerDesk.SceneDealAvailable(prospect) || !evidence);
-                deal.TooltipText = askFirst ? "They aren't looking for a record deal. Their side may think it over and answer within about a week, or say no for this season."
+                deal.TooltipText = askFirst ? "Nobody's asked them about a record yet. They'll tell you where they stand, and why. Free."
                     : PlayerDesk.SceneDealDescription(prospect);
                 deal.Pressed += () => { modal.Close(); bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
                 Line(deal, deal.Disabled ? (!evidence ? "Hear them play first." : "They aren't ready to talk terms.") : "Free · no time.");
@@ -82,7 +82,7 @@ public partial class PlayerDeskPanel {
             if (meeting != null) {
                 var history = ScoutingSmallButton("PAST LABEL DECISIONS");
                 history.Disabled = !meeting.Available;
-                history.TooltipText = "Their account may be incomplete and does not establish a current offer or deadline. Later listening requires admission again.";
+                history.TooltipText = "They'll tell you what they remember, which may not be all of it.";
                 history.Pressed += () => Act(() => {
                     modal.Close();
                     bool ok = desk.AskScoutingBusinessHistory(dossier.ArtistId, meeting.QuoteId, out string result);

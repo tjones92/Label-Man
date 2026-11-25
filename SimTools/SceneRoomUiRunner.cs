@@ -259,7 +259,7 @@ public partial class SceneRoomUiRunner : Node {
                 string output = ProjectSettings.GlobalizePath("res://SimLogs/scouting-offer-planning-ui-v1"); Directory.CreateDirectory(output);
                 await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
                 GetViewport().GetTexture().GetImage().SavePng(Path.Combine(output, "contract.png"));
-                var submit = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("OFFER CONTRACT"));
+                var submit = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("TABLE OFFER"));
                 if (submit.Disabled || resource.Size.X <= 0) throw new InvalidOperationException("Forecast must leave the choice available.");
                 GD.Print("SCOUTING_OFFER_PLANNING_UI_PASS sharedForm=true liveBudget=true namedFees=true risk=true noSpend=true choice=true"); GetTree().Quit(0); return;
             }
@@ -520,10 +520,10 @@ public partial class SceneRoomUiRunner : Node {
                 }
                 var text = Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion()).Select(l => l.Text).ToArray();
                 if (desk.ScoutingDossiers.Count == 0 || !text.Any(t => t.StartsWith("Ensemble / execution:")) ||
-                    !Descendants(panel).OfType<Button>().Any(b => !b.IsQueuedForDeletion() && b.Text == "SOURCES & COVERAGE") ||
+                    !Descendants(panel).OfType<Button>().Any(b => !b.IsQueuedForDeletion() && b.Text == "NOTES") ||
                     text.Any(t => t.Contains("Package read:") || t.Contains("Advance floor:") || t.Contains("round(s) of patience")))
                     throw new InvalidOperationException("Listening must create an honest notebook with provenance and no hidden contract thresholds.");
-                var question = Descendants(panel).OfType<OptionButton>().First(b => !b.IsQueuedForDeletion() && b.TooltipText.StartsWith("Pin a question"));
+                var question = Descendants(panel).OfType<OptionButton>().First(b => !b.IsQueuedForDeletion() && b.HasMeta("scouting_question"));
                 question.Select((int)ScoutingQuestion.Ensemble);
                 question.EmitSignal(OptionButton.SignalName.ItemSelected, (long)ScoutingQuestion.Ensemble);
                 for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -610,7 +610,7 @@ public partial class SceneRoomUiRunner : Node {
                     act.prospectMarketStatus = ProspectMarketStatus.Seeking; act.manager = ManagerArchetype.Visionary;
                     desk.SetScoutingPriority(act.artistId, ScoutingPriority.Pursue);
                     for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                    var discuss = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "DISCUSS TERMS");
+                    var discuss = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "SIT DOWN ON TERMS");
                     if (discuss.Disabled) throw new InvalidOperationException("Controlled unsigned seeking act must permit a discussion.");
                     discuss.EmitSignal(Button.SignalName.Pressed);
                     for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -731,7 +731,7 @@ public partial class SceneRoomUiRunner : Node {
                 foreach (var scroll in Descendants(panel).OfType<ScrollContainer>()) scroll.ScrollVertical = 100000;
                 for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (evidenceDetails) {
-                    var details = Descendants(panel).OfType<Button>().First(b => !b.IsQueuedForDeletion() && b.Text == "SOURCES & COVERAGE");
+                    var details = Descendants(panel).OfType<Button>().First(b => !b.IsQueuedForDeletion() && b.Text == "NOTES");
                     details.EmitSignal(Button.SignalName.Pressed);
                     for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                     var modal = Descendants(panel).OfType<PaperModal>().Single(m => !m.IsQueuedForDeletion());

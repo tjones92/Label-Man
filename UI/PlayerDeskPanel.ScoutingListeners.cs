@@ -29,6 +29,7 @@ public partial class PlayerDeskPanel {
         together.Pressed += () => Act(() => {
             var listener = listeners[select.Selected];
             bool ok = desk.ListenSceneAppearanceWithListener(bill.Id, eventId, listener.PersonId, listener.QuoteId, out string result);
+            if (ok) OpenTheSet(desk);
             Say(result, ok); return ok;
         });
         Update(); choices.AddChild(select); choices.AddChild(prices); choices.AddChild(together); content.AddChild(choices);

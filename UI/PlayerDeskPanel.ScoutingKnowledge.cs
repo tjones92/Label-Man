@@ -59,7 +59,7 @@ public partial class PlayerDeskPanel {
         scoutingActHeaders.Clear();
         var dossiers = desk.ScoutingDossiers;
         if (desk.FoundingActSummary() is { } founding) Body(founding);
-        if (dossiers.Count == 0) { Body("Every heard scene act is recorded automatically. Pinning sets priorities; it is optional."); return; }
+        if (dossiers.Count == 0) { Body("Every act you hear goes in here."); return; }
         // Playtest 2026-11-04: signed acts stayed in the scouting list with PURSUE on them. They get one short line each
         // at the foot of the page instead; their notes are still a click away.
         var signed = dossiers.Where(d => SignedByPlayer(desk, d.ArtistId)).ToArray();
@@ -143,15 +143,18 @@ public partial class PlayerDeskPanel {
         var approach = desk.DirectApproaches.LastOrDefault(a => a.ArtistId == artist.artistId);
         int today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
         switch (approach?.Status) {
-            case ScoutingApproachStatus.Considering: return $"thinking over your interest · answer by {ShortDay(approach.UntilDay)}";
+            case ScoutingApproachStatus.Considering: return $"talking it over · answer by {ShortDay(approach.UntilDay)}";
             case ScoutingApproachStatus.Ready: return "will hear an offer · open their card to talk terms";
-            case ScoutingApproachStatus.Declined when today < approach.UntilDay: return $"staying local this season · ask again after {ShortDay(approach.UntilDay)}";
+            case ScoutingApproachStatus.Declined when desk.StillDeclining(artist): return "said no · " + ActDisposition.Short(desk.ReadDisposition(artist));
+            case ScoutingApproachStatus.WantsAnotherLook when desk.WaitingToBeHeardAgain(artist): return "want to see you again first";
         }
         if (prospect == null) return "talk to them to find out if they'd sign";
         string deal = PlayerDesk.SceneDealDescription(prospect);
-        return deal == "not looking for a record deal" ? "not looking for a deal · you can ask if they'd hear one" : deal;
+        return deal == PlayerDesk.NoDealYet ? "no deal yet · nobody's asked them" : deal;
     }
 
+    /// <summary>An open act card, in three zones (signing audit §3.1): what you heard, the one thing to do next, and a
+    /// quiet row for filing and notes. Everything else (the next listen, bookers, other acts) folds under MORE.</summary>
     private void ScoutingActDetails(PlayerDesk desk, ScoutingDossier dossier) {
         var artist = ArtistManager.Instance.GetArtist(dossier.ArtistId);
         if (artist == null) Body("Historical entry; this act is no longer available.");
@@ -159,8 +162,6 @@ public partial class PlayerDeskPanel {
         ScoutingSection("scout-evidence:" + dossier.ArtistId, "WHAT YOU'VE HEARD", true, () => {
             ScoutingListeningSummary(desk, dossier);
         });
-        // Playtest 2026-11-04: nine equal buttons, and the player couldn't tell which one was "sign them". The deal is
-        // the one solid button on the card; everything else folds away under it.
         if (artist != null && string.IsNullOrEmpty(artist.labelId)) ScoutingOfferBar(desk, dossier, artist);
         else if (artist != null) {
             var talk = ScoutingSmallButton("TALK TO THEM");
@@ -168,60 +169,83 @@ public partial class PlayerDeskPanel {
             talk.Pressed += () => OpenScoutingConversation(desk, dossier); content.AddChild(talk);
         }
         ScoutingNotebookStrip(desk, dossier, artist);
-        ScoutingSection("scout-listen:" + dossier.ArtistId, "PLAN ANOTHER LISTEN", false, () => {
+        ScoutingSection("scout-more:" + dossier.ArtistId, "MORE  —  NEXT LISTEN  ·  ASK AROUND", false, () => {
+            ScoutingSubhead("NEXT LISTEN");
             var question = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill };
             foreach (var value in Enum.GetValues<ScoutingQuestion>()) question.AddItem(PlayerDesk.ScoutingQuestionText(value), (int)value);
             question.Select((int)dossier.Question);
-            question.TooltipText = "Pin a question for another date. Choosing a question spends no time and changes no evidence.";
+            question.TooltipText = "What to listen for next time. Choosing it takes no time.";
+            question.SetMeta("scouting_question", dossier.ArtistId);
             question.ItemSelected += index => { desk.SetScoutingQuestion(dossier.ArtistId, (ScoutingQuestion)question.GetItemId((int)index)); RefreshKeepingScroll(); };
             content.AddChild(question);
             var next = desk.NextReachableScoutingSet(dossier.ArtistId);
             if (next != null) ScoutingSetPreview(desk, next);
-            else ScoutingText("No unheard local date posted. Browse venues or ask a booker.", 14, Heard);
-        });
-        ScoutingSection("scout-more:" + dossier.ArtistId, "MORE  —  ASK AROUND  ·  OTHER ACTS", false, () => {
-            if (dossier.Observations.Any(o => o.Kind is ScoutingEvidenceKind.RivalInterest or ScoutingEvidenceKind.PublicReport))
+            else ScoutingText("No date of theirs you haven't heard is posted nearby. Browse the venues or ask a booker.", 14, Heard);
+            if (dossier.Observations.Any(o => o.Kind is ScoutingEvidenceKind.RivalInterest or ScoutingEvidenceKind.PublicReport)) {
+                ScoutingSubhead("WHO ELSE IS INTERESTED");
                 ScoutingText(desk.ScoutingCompetitionSummary(dossier.ArtistId), 14, ScoutingVenueInk);
-            ScoutingSection("scout-questions:" + dossier.ArtistId, "ASK A BOOKER ABOUT " + dossier.ArtistName.ToUpperInvariant(), false, () => {
-                ScoutingSourceQuestions(desk, dossier);
-            });
-            if (desk.ScoutingOtherKnownLeads(dossier.ArtistId) is { } alternatives)
-                ScoutingSection("scout-alternatives:" + dossier.ArtistId, "OTHER ACTS TO CONSIDER", false, () => {
-                    Body(alternatives);
-                    ScoutingLossFollowThrough(desk, dossier.ArtistId);
-                });
+            }
+            ScoutingSubhead("ASK A BOOKER ABOUT " + dossier.ArtistName.ToUpperInvariant());
+            ScoutingSourceQuestions(desk, dossier);
+            if (desk.ScoutingOtherKnownLeads(dossier.ArtistId) is { } alternatives) {
+                ScoutingSubhead("OTHER ACTS TO CONSIDER");
+                Body(alternatives);
+                ScoutingLossFollowThrough(desk, dossier.ArtistId);
+            }
         });
     }
 
-    /// <summary>The card's secondary tier, directly under its primary verb (playtest 049: five equal buttons). WATCH /
-    /// PURSUE are small toggle chips (the act's place in the notebook; the current one is the pressed-in face); ARCHIVE
-    /// and the two read-only views are quiet ink links, because none of them moves the act forward.</summary>
+    private void ScoutingSubhead(string text) => ScoutingText(text, 13, Rust, PaperTheme.SansBold);
+
+    /// <summary>The card's quiet row: where the act is filed, and its notes. Neither moves the act forward, so neither is
+    /// a button face (playtest 049; signing audit 2026-11-25).</summary>
     private void ScoutingNotebookStrip(PlayerDesk desk, ScoutingDossier dossier, SimulatedArtist artist) {
         var row = new HFlowContainer();
-        row.AddThemeConstantOverride("h_separation", 8);
+        row.AddThemeConstantOverride("h_separation", 10);
         row.AddThemeConstantOverride("v_separation", 4);
         if (artist == null || string.IsNullOrEmpty(artist.labelId) || artist.labelId != desk.Label.labelId) {
-            void SetPriority(ScoutingPriority chosen) => RefreshAnchored(dossier.ArtistId, () => desk.SetScoutingPriority(dossier.ArtistId, chosen));
-            foreach (var priority in new[] { ScoutingPriority.Watch, ScoutingPriority.Pursue }) {
-                var chosen = priority;
-                var chip = ChoiceButton(priority.ToString().ToUpperInvariant(), dossier.Priority == priority, () => SetPriority(chosen));
-                chip.CustomMinimumSize = new Vector2(64, 26);
-                chip.AddThemeFontSizeOverride("font_size", 13);
-                chip.TooltipText = priority == ScoutingPriority.Watch
-                    ? "Keep this act on your radar. A rival label that moves on a watched act has to come and compete for them, not sign them quietly."
-                    : "As WATCH, and this act sorts to the top of your notebook and of other acts to consider.";
-                row.AddChild(chip);
-            }
-            row.AddChild(new Control { CustomMinimumSize = new Vector2(10, 0) });
-            bool archived = dossier.Priority == ScoutingPriority.Archived;
-            var archive = ScoutingQuietLink(archived ? "UN-ARCHIVE" : "ARCHIVE");
-            archive.TooltipText = archived ? "Put this act back on the notebook as WATCH."
-                : "File the notes away. Archived acts leave the notebook until you show archived notes.";
-            archive.Pressed += () => SetPriority(archived ? ScoutingPriority.Watch : ScoutingPriority.Archived);
-            row.AddChild(archive);
+            row.AddChild(ScoutingFilingStamp(desk, dossier));
             row.AddChild(ScoutingLinkDot());
         }
-        ScoutingDossierExtras(desk, dossier, row);
+        var notes = ScoutingQuietLink("NOTES");
+        notes.TooltipText = "Every set you've heard, the room, and where each piece of what you know came from.";
+        notes.Pressed += () => OpenScoutingFullNotes(desk, dossier);
+        row.AddChild(notes);
+        content.AddChild(row);
+    }
+
+    private static string FiledAs(ScoutingPriority priority) => priority switch {
+        ScoutingPriority.Watch => "WATCHING", ScoutingPriority.Pursue => "PURSUING", ScoutingPriority.Archived => "ARCHIVED", _ => "NOT FILED",
+    };
+
+    /// <summary>Watch, pursue and archive as one rubber stamp: the act's place in the notebook, changed from a small menu.</summary>
+    private MenuButton ScoutingFilingStamp(PlayerDesk desk, ScoutingDossier dossier) {
+        var stamp = new MenuButton { Text = $"FILED: {FiledAs(dossier.Priority)}  ▾", FocusMode = FocusModeEnum.None,
+            SizeFlagsHorizontal = SizeFlags.ShrinkBegin, SizeFlagsVertical = SizeFlags.ShrinkCenter, MouseDefaultCursorShape = CursorShape.PointingHand,
+            TooltipText = "Where this act sits in your notebook. A rival that moves on an act you're watching has to come and compete for them." };
+        stamp.SetMeta("scouting_filing", dossier.ArtistId);
+        stamp.AddThemeFontOverride("font", PaperTheme.SansBold);
+        stamp.AddThemeFontSizeOverride("font_size", 12);
+        foreach (string key in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" }) stamp.AddThemeColorOverride(key, Rust);
+        StyleBoxFlat Face(Color fill) => new() { BgColor = fill, BorderColor = Rust, BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
+            CornerRadiusTopLeft = 2, CornerRadiusTopRight = 2, CornerRadiusBottomLeft = 2, CornerRadiusBottomRight = 2,
+            ContentMarginLeft = 8, ContentMarginRight = 8, ContentMarginTop = 2, ContentMarginBottom = 2 };
+        stamp.AddThemeStyleboxOverride("normal", Face(new Color(0, 0, 0, 0)));
+        stamp.AddThemeStyleboxOverride("hover", Face(new Color("f6ecd0")));
+        stamp.AddThemeStyleboxOverride("pressed", Face(new Color("ead8ad")));
+        stamp.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        var popup = stamp.GetPopup();
+        var choices = new[] {
+            (ScoutingPriority.Watch, "Watch  ·  keep them on your radar"),
+            (ScoutingPriority.Pursue, "Pursue  ·  watch them, and keep them at the top"),
+            (ScoutingPriority.Archived, "Archive  ·  file the notes away"),
+        };
+        foreach ((ScoutingPriority priority, string text) in choices) {
+            popup.AddRadioCheckItem(text, (int)priority);
+            popup.SetItemChecked(popup.GetItemIndex((int)priority), dossier.Priority == priority);
+        }
+        popup.IdPressed += id => RefreshAnchored(dossier.ArtistId, () => desk.SetScoutingPriority(dossier.ArtistId, (ScoutingPriority)(int)id));
+        return stamp;
     }
 
     /// <summary>A secondary verb set as ink, not as a button face: no box, small type, rust on hover.</summary>
@@ -243,34 +267,61 @@ public partial class PlayerDeskPanel {
         return dot;
     }
 
-    /// <summary>The card's one primary verb: talk to the act, which is where an offer is made. Opening it also looks up the
-    /// asking price (free, no time), which used to be its own button.</summary>
-    private void ScoutingOfferBar(PlayerDesk desk, ScoutingDossier dossier, SimulatedArtist artist) {
-        var prospect = desk.Slate.FirstOrDefault(p => p.Artist?.artistId == dossier.ArtistId);
-        var bar = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        bar.AddThemeConstantOverride("separation", 14);
-        var offer = Primary("TALK TO THEM  ·  MAKE AN OFFER");
-        offer.CustomMinimumSize = new Vector2(300, 42);
-        offer.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-        offer.TooltipText = "Open the conversation: ask if they'd hear an offer, discuss terms, or arrange a rehearsal or demo. Opening it is free.";
-        offer.Pressed += () => {
-            if (desk.Slate.All(p => p.Artist?.artistId != dossier.ArtistId)) desk.OpenScoutingDossier(dossier.ArtistId, out _);
-            OpenScoutingConversation(desk, dossier);
-        };
-        bar.AddChild(offer);
-        string hint;
-        // The hint follows the act's last answer first: a "you can ask" under a fresh no read as a broken button.
+    /// <summary>Whether an act will hear an offer right now, so the card's primary goes straight to terms.</summary>
+    private static bool ScoutingReadyForTerms(PlayerDesk desk, SimulatedArtist artist, PlayerDesk.Prospect prospect, bool waiting) =>
+        !waiting && !desk.CanAskDirectApproach(artist) && desk.HasScoutingEvidence(artist.artistId) &&
+        PlayerDesk.SceneDealAvailable(prospect ?? new PlayerDesk.Prospect { Artist = artist });
+
+    /// <summary>Where the act stands with you: the last approach, a no that still holds, an answer pending, and whether
+    /// the next step is the contract itself. Shared by the act card and The Set, so the two never disagree.</summary>
+    private static (ScoutingDirectApproach Approach, bool Declined, bool Considering, bool Terms) ScoutingActStanding(PlayerDesk desk, SimulatedArtist artist) {
+        var prospect = desk.Slate.FirstOrDefault(p => p.Artist?.artistId == artist.artistId);
         var approach = desk.DirectApproaches.LastOrDefault(a => a.ArtistId == artist.artistId);
         int today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
-        if (approach?.Status == ScoutingApproachStatus.Declined && today < approach.UntilDay)
-            hint = $"They said no for this season. You can ask again after {ShortDay(approach.UntilDay)}.";
-        else if (approach?.Status == ScoutingApproachStatus.Considering)
-            hint = $"They're thinking over your interest and will answer by {ShortDay(approach.UntilDay)}.";
-        else if (prospect != null && desk.CanAskDirectApproach(artist)) hint = "They aren't looking for a deal, but you can ask if they'd hear one. Asking is free.";
-        else if (prospect != null && PlayerDesk.SceneDealAvailable(prospect)) hint = $"Ready to talk terms · {PlayerDesk.SceneDealDescription(prospect)}.";
+        bool declined = desk.StillDeclining(artist);
+        bool considering = approach?.Status == ScoutingApproachStatus.Considering;
+        return (approach, declined, considering, ScoutingReadyForTerms(desk, artist, prospect, declined || considering));
+    }
+
+    /// <summary>The primary verb pressed: the contract when they'll hear an offer, otherwise the conversation.</summary>
+    private void PressScoutingPrimary(PlayerDesk desk, ScoutingDossier dossier, bool terms) {
+        if (desk.Slate.All(p => p.Artist?.artistId != dossier.ArtistId)) desk.OpenScoutingDossier(dossier.ArtistId, out _);
+        var current = desk.Slate.FirstOrDefault(p => p.Artist?.artistId == dossier.ArtistId);
+        if (terms && current != null) {
+            bool ok = desk.ApproachToSign(current, out string result);
+            if (ok) negotiating = current;
+            Say(result, ok); Refresh(); return;
+        }
+        OpenScoutingConversation(desk, dossier);
+    }
+
+    /// <summary>The card's one primary verb, named for the next real step: TALK TO THEM (ask, arrange a meeting, get a
+    /// number) or, once they'll hear an offer, SIT DOWN ON TERMS, which opens the contract.</summary>
+    private void ScoutingOfferBar(PlayerDesk desk, ScoutingDossier dossier, SimulatedArtist artist) {
+        var prospect = desk.Slate.FirstOrDefault(p => p.Artist?.artistId == dossier.ArtistId);
+        var (approach, declined, considering, terms) = ScoutingActStanding(desk, artist);
+        var bar = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        bar.AddThemeConstantOverride("separation", 14);
+        var offer = Primary(terms ? "SIT DOWN ON TERMS" : "TALK TO THEM");
+        offer.CustomMinimumSize = new Vector2(240, 42);
+        offer.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        offer.TooltipText = terms ? "Open the contract: their ask, your offer, and what it costs the label."
+            : "Ask if they'd hear an offer, arrange a rehearsal or a demo, or get a number to call.";
+        offer.Pressed += () => PressScoutingPrimary(desk, dossier, terms);
+        bar.AddChild(offer);
+        string hint;
+        if (declined) hint = "They said no. " + ActDisposition.WhatWouldChange(desk.ReadDisposition(artist));
+        else if (considering) hint = $"They're talking it over. Their answer comes by {ShortDay(approach.UntilDay)}.";
+        else if (desk.WaitingToBeHeardAgain(artist)) {
+            var again = desk.NextReachableScoutingSet(dossier.ArtistId);
+            hint = "They want to see you again before they talk about a deal." + (again == null ? " Their next date isn't posted yet."
+                : $" Next: {again.RoomName}, {ShortDay(again.Day)} at {Hour12(again.StartMinute / 60)}.");
+        }
+        else if (terms) hint = prospect != null ? $"They'll hear an offer · {PlayerDesk.SceneDealDescription(prospect)}." : "They'll hear an offer.";
+        else if (desk.CanAskDirectApproach(artist)) hint = "Nobody's asked them about a record yet. Asking costs nothing.";
         else {
             var next = desk.NextReachableScoutingSet(dossier.ArtistId);
-            hint = "Terms are talked after a set you've heard that day." + (next == null ? " Check the venue calendars for their next date."
+            hint = "Deals get talked over after a set you've heard that day." + (next == null ? " Their next date isn't posted yet."
                 : $" Next: {next.RoomName}, {ShortDay(next.Day)} at {Hour12(next.StartMinute / 60)}.");
         }
         var note = new Label { Text = hint, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center };
@@ -279,31 +330,29 @@ public partial class PlayerDeskPanel {
         content.AddChild(bar);
     }
 
+    /// <summary>One NOTES sheet for an act: every set heard, the room as you saw it, and where each piece came from. It
+    /// replaces three read-only views (full notes, room impression, sources and coverage).</summary>
     private void OpenScoutingFullNotes(PlayerDesk desk, ScoutingDossier dossier) {
-        var modal = PaperModal.Open(this, dossier.ArtistName + " · FULL NOTES", 850);
+        var modal = PaperModal.Open(this, dossier.ArtistName + " · NOTES", 850);
         var scroll = ComparisonScroll(); var notes = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; notes.AddThemeConstantOverride("separation", 10);
         scroll.AddChild(notes); modal.Body.AddChild(scroll);
-        WithinScouting(notes, () => { foreach (string line in desk.ScoutingPlayerNotes(dossier.ArtistId)) ScoutingNote(line); });
+        WithinScouting(notes, () => {
+            ScoutingSubhead("WHAT YOU'VE HEARD");
+            var heard = desk.ScoutingPlayerNotes(dossier.ArtistId);
+            foreach (string line in heard) ScoutingNote(line);
+            // The notes already carry the audience line; the room section adds only what they don't say.
+            var room = ScoutingAudience.RoomImpression(dossier).Where(line => !heard.Any(n => n.Contains(line))).ToList();
+            if (room.Count > 0) {
+                ScoutingSubhead("THE ROOM");
+                foreach (string line in room) ScoutingText(line, 15, Ink);
+            }
+            var sources = desk.ScoutingProvenance(dossier.ArtistId).ToList();
+            if (sources.Count > 0) {
+                ScoutingSubhead("WHERE THIS CAME FROM");
+                foreach (string line in sources) content.AddChild(FaintLine(line));
+            }
+        });
         modal.AddButton("CLOSE", null);
-    }
-
-    /// <summary>The two read-only views of an act's notes, at the foot of its card.</summary>
-    private void ScoutingDossierExtras(PlayerDesk desk, ScoutingDossier dossier, HFlowContainer row) {
-        var audience = ScoutingQuietLink("ROOM IMPRESSION"); audience.Pressed += () => {
-            var modal = PaperModal.Open(this, dossier.ArtistName + " · ROOM IMPRESSION", 680);
-            WithinScouting(modal.Body, () => { foreach (string line in ScoutingAudience.RoomImpression(dossier)) ScoutingText(line, 17, Ink); });
-            modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
-        }; row.AddChild(audience);
-        row.AddChild(ScoutingLinkDot());
-        var details = ScoutingQuietLink("SOURCES & COVERAGE"); details.Pressed += () => {
-            var modal = PaperModal.OpenClipboard(this, dossier.ArtistName + " — EVIDENCE", 850);
-            var scroll = ComparisonScroll();
-            var notes = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-            notes.AddThemeConstantOverride("separation", 12);
-            scroll.AddChild(notes); modal.Body.AddChild(scroll);
-            foreach (string line in desk.ScoutingProvenance(dossier.ArtistId)) notes.AddChild(FaintLine(line));
-            modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
-        }; row.AddChild(details); content.AddChild(row);
     }
     private void ScoutingLossFollowThrough(PlayerDesk desk, string artistId) {
         foreach (var lead in desk.ScoutingAlternativeLeads(artistId)) {
@@ -324,6 +373,7 @@ public partial class PlayerDeskPanel {
                     string result;
                     bool ok = next.Playing ? desk.ListenSceneAppearance(next.BillId, next.EventId, out result) :
                         desk.WaitForSceneAppearance(next.BillId, next.EventId, out result);
+                    if (ok && next.Playing) OpenTheSet(desk);
                     Say(result, ok); return ok;
                 }); actions.AddChild(hear);
             }
@@ -333,7 +383,7 @@ public partial class PlayerDeskPanel {
     private void ScoutingBusinessConversation(PlayerDesk desk, ScoutingDossier dossier, Action beforeAction = null) {
         var meeting = desk.PreviewScoutingBusinessMeeting(dossier.ArtistId);
         if (meeting == null) return;
-        Body($"Speak with {meeting.SourceName} after the set. Ask about past label decisions; this is a conversation, not more listening.");
+        Body($"{meeting.SourceName} will talk after the set. Ask how they've dealt with labels before.");
         var ask = ScoutingSmallButton("PAST LABEL DECISIONS");
         ask.Disabled = !meeting.Available;
         ask.TooltipText = $"Ask about past label decisions. Their account may be incomplete and does not establish a current offer or deadline. {PlayerDesk.ActHistoryMinutes}min.";
