@@ -88,6 +88,14 @@ public partial class PlayerDesk {
 	/// <summary>Whether Pay costs the 1.5 multiple this year: the holder is Sawyer, she's on the paper, and she hasn't moved.</summary>
 	public bool ConnieStalled => lien != null && lien.Holder == LienHolder.Sawyer && !lien.IsReckoning && Connie != null && !ConnieAsk().Met;
 
+	/// <summary>Sawyer's rule for player bookings at his room. Each performance year needs its own Connie release.</summary>
+	private string SawyerBookingRefusal(SceneRoomProfile room, string artistId, int year) {
+		if (lien?.Holder != LienHolder.Sawyer || lien.Ending != null || lien.VenueId != room.Id
+			|| lien.ConnieId == null || lien.ConnieId == artistId) return null;
+		if (ReleasedRecords.Any(r => r.baseRecord.artistId == lien.ConnieId && r.baseRecord.releaseDate.year == year)) return null;
+		return $"{room.ContactName}: \"Dee-Dee says I can't book your other acts at {room.Name} for {year} until Connie has a record out that year.\"";
+	}
+
 	// ── each day ─────────────────────────────────────────────────────────────────────────────────────
 
 	/// <summary>Dawn: Dee-Dee exercises his option on a matured paper, hands back the keys the first time she charts, and lets go

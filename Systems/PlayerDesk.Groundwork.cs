@@ -127,6 +127,8 @@ public partial class PlayerDesk {
 		if (!room.Families.Contains(GenreCatalog.Get(GenreCatalog.MapLegacy(act.primaryGenre, year)).Family)) {
 			message = $"{room.Name} doesn't put on {GenreNameFormatter.Format(act.primaryGenre)}; he'd say so before you sat down."; return false;
 		}
+		message = SawyerBookingRefusal(room, artistId, year);
+		if (message != null) return false;
 		if (LocalSceneRoomService.Bookings.Any(b => b.RoomId == roomId && b.ArtistId == artistId && b.Status == SceneBillStatus.Scheduled)) {
 			message = $"{act.stageName} already has a night coming at {room.Name}."; return false;
 		}

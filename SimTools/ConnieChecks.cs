@@ -33,6 +33,7 @@ public partial class ConnieChecks : Node {
 			Pay(desk, clock);
 			Other(desk, clock);
 			Save(desk, clock);
+			BookingGate(desk, clock);
 			GD.Print($"CONNIE_CHECKS_PASS ({checks} checks)");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -161,5 +162,59 @@ public partial class ConnieChecks : Node {
 		data.ConnieId = null; data.ConnieFree = false;
 		desk.RestoreLienForChecks(data);
 		Check(desk.Connie == null && !desk.ConnieStalled, "An older save without her simply has none");
+	}
+
+	private void BookingGate(PlayerDesk desk, TimeManager clock) {
+		Refound(desk, clock);
+		var date = new GameDate(1960, 12, 1);
+		clock.RestoreClock(date, BookerFromHour);
+		var room = SceneRoomCatalog.Get(desk.Lien.VenueId);
+		int today = LocalSceneRoomService.Day(date);
+		var act = ArtistManager.Instance.GetAllArtists().Where(a => string.IsNullOrEmpty(a.labelId) && LocalSceneRoomService.Eligible(a, room, today))
+			.OrderBy(a => a.artistId, StringComparer.Ordinal).First();
+		desk.Label.SignArtist(act, date.year, desk.Label.GenerateTermSheet(act, date.year));
+		ArtistManager.Instance.SignArtist(act, desk.Label.labelId, date.year);
+
+		var world = new WorldSaveData();
+		LocalSceneRoomService.CaptureWorld(world);
+		var calendar = world.SceneRooms;
+		calendar.LastScheduledWeek = today / 7 + 1;
+		calendar.Standing.RemoveAll(s => s.ArtistId == act.artistId);
+		calendar.Standing.Add(new SceneRoomStanding { RoomId = room.Id, ArtistId = act.artistId, Shows = ResidencyMinShows, LastDay = today - 1 });
+		LocalSceneRoomService.BeginRestore(calendar);
+		LocalSceneRoomService.CompleteRestore();
+
+		int first = LocalSceneRoomService.FirstBookableDay;
+		int night = Enumerable.Range(first, 7).First(d => SceneLiveEconomics.OpenOn(room, LocalSceneRoomService.Date(d).DayOfWeek));
+		int nextYearNight = Enumerable.Range(LocalSceneRoomService.Day(new GameDate(1961, 1, 1)), 7)
+			.First(d => SceneLiveEconomics.OpenOn(room, LocalSceneRoomService.Date(d).DayOfWeek));
+		int before = LocalSceneRoomService.Bookings.Count;
+		ulong rng = GameRandom.StateForChecks;
+		Check(!desk.PitchActToBooker(room.Id, act.artistId, night, out var refused) && refused.Contains("Connie"),
+			"Sawyer's booker refuses a night before Connie has a release");
+		Check(!desk.BookRoad(act, 1, 0, out refused) && refused.Contains("Connie"),
+			"Sawyer's booker refuses a new residency before Connie has a release");
+		Check(clock.CurrentHour == BookerFromHour && GameRandom.StateForChecks == rng
+			&& LocalSceneRoomService.Bookings.Count == before && LocalSceneRoomService.LastPitch(room.Id, act.artistId) == null
+			&& desk.RoadBookingFor(act.artistId) == null,
+			"The restriction spends no time or RNG and leaves no booking or pitch refusal");
+		Check(desk.BookRoad(act, 0, 1, out _), "Sawyer's room restriction leaves tours available");
+
+		var connie = desk.Connie;
+		ChartManager.Instance.ReleaseRecord(new Record {
+			recordId = "connie-check-release", title = "Connie's First Side", labelId = desk.Label.labelId,
+			artistId = connie.artistId, artistName = connie.stageName, isPlayerOwned = true, releaseDate = date,
+			primaryGenre = connie.primaryGenre, secondaryGenre = connie.primaryGenre
+		});
+		Check(!desk.PitchActToBooker(room.Id, act.artistId, nextYearNight, out refused) && refused.Contains("1961"),
+			"A December release cannot unlock a January show");
+		Check(desk.PitchActToBooker(room.Id, act.artistId, night, out var pitched), "A same-year release opens the ordinary pitch: " + pitched);
+
+		var road = desk.RoadBookingFor(act.artistId);
+		road.ResidencyRoomId = room.Id;
+		before = LocalSceneRoomService.Bookings.Count;
+		Check(!desk.BookRoad(act, 8, 0, out refused) && refused.Contains("1961")
+			&& LocalSceneRoomService.Bookings.Count == before && road.ResidencyWeeks == 0,
+			"An existing residency cannot be extended into a locked year or add a partial run");
 	}
 }

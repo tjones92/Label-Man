@@ -250,8 +250,10 @@ Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates 
     Halloran's reason.
 
   She's an underwhelming act, and she holds a roster slot and a yearly session cost all decade. She leaves only
-  through a tear-up, by reaching Star (below), or at the reckoning. The room books your other acts only in years when
-  Connie has a record out.
+  through a tear-up, by reaching Star (below), or at the reckoning. **Booking gate built.** For a player-requested
+  night or residency at Sawyer's room, Connie must already have a release dated in each year the engagement covers.
+  Connie can be pitched herself at any time the ordinary booking rules allow. The booker explains the restriction,
+  and residency searches can move on to another room with enough standing.
 - **Goal: Connie's career.** His asks escalate. Missing one isn't a failed sitting, but in a year she hasn't moved, Pay
   costs **1.5×**. Each year she does move, he hands back a belonging.
 
@@ -401,16 +403,22 @@ Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates 
   looks for anything at a label that doesn't exist"). You lost it.
 - **His blunder.** He wrote down every bribe he ever took, because he was afraid of being cheated, and then gave the only
   copy to a drunk stranger.
-- **Handicap: heat.** Your label is tied to Jack:
-  - A scandal in his network can hit your label's reputation and get your records banned by a DJ (existing
-    `PayolaLedger` channels, player-only).
-  - He pushes **cut-ins**: his name as co-writer on your records (`cutInRoyaltyShare`). The real writer is never happy
-    about a cut-in, whatever your musical standing (author decision): every Jack cut-in costs standing with that song's
-    writer.
-  - Cash paid to him is booked as "consulting fees", which look like payola if he's caught.
-- **Goal: the temptation.** His favourite concession is *using his guys*. His network is a real `IndiePromoter`:
-  effective, cheap, indiscreet, with a high mob connection. **It works.** Every year you use him he eases off, and the
-  risk grows.
+- **Handicap: heat.** When one of Jack's jocks is caught working your label, the rest of that network push goes dark.
+  The scandal costs reputation and can get the jock removed. Each consulting fee adds 0.05 to the label's exposure
+  on top of the trail left by the station arrangements. Exposure increases the chance and severity of a bust and
+  retains 97% of its value each week. The ledger saves the arrangements, promoters, exposure, station heat and RNG.
+- **Concede: his name.** Jack takes 25% of the writer's share on each of the next two originals with a credited
+  writer. At the 2¢ statutory mechanical, that's 0.25¢ per copy ($25 per 10,000 copies). Each cut-in adds 0.06
+  exposure and costs each credited writer 0.12 trust, plus 0.08 band strain, regardless of Ear.
+- **Concede: his boys.** A $300 consulting fee buys an eight-week push on half the home region's reporters, rounded
+  up and capped at six. Network effectiveness is 0.80 and mob connection is 0.70. Discretion starts at 0.55 and
+  falls by 0.12 after each use, with a floor of 0.05.
+- **Measured.** `PayolaMeasureProbe.tscn`, seed 1001, Detroit, 3,000 trials per cell. All seven regions had 11
+  reporters. Jack's first 1960 push delivered 11.89 boost-weeks at $25 per boost-week before penalties, compared
+  with $57 for Project Promo L and $833 for Full Sponsorship. The first push's bust rate was 15.1%, with $196 in
+  expected penalties and $1,300 per bust. In the annual December replay, the chance of at least one bust was
+  58.2% by December 1963 and 93.1% by December 1969. With the additional exposure from two cut-ins and the fee each
+  year, those figures were 64.3% and 95.2%. The probe writes `SimLogs/payola-measure-1001.txt`.
 - **Items.**
 
   | Item | Kind | Where | How | Perk |
@@ -771,8 +779,8 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 | **0** | Measure: player cash trajectories across archetypes (sizes the Lien); the empty-day metric for the first 26 weeks; which reads already exist per surface | Numbers recorded, no code paths changed |
 | **0b** | Measure for the holders (§3.7): full-decade p75/p90 player cash; label valuations for Floria's "too big to swallow" bar | Numbers recorded |
 | **1** | The Lien: morning-after opening, December sitting, enforcement on failure, 1970 reckoning with endings. **Core built**: the five holders, per-holder rates, Kubiak compounding, Floria refusing money from 1966, every holder taking a record out as the 1960 Show, Sawyer's room from the scene catalogue, the §3.6 mapping, save fields, the founding questions, and the sitting UI (2026-11-24). | Byte-identical headless; save/load; `LienChecks`; `LienUiChecks` |
-| **1b** | **Connie half built 2026-11-24** (`Systems/PlayerDesk.Connie.cs`, `ArtistManager.Keyed.cs`; `SimTools/ConnieChecks.tscn`): Connie Boursaw seeded for Sawyer from a private keyed stream, Dee-Dee's paper (5 years, his option, 15% royalty, 5 sides, no advance), the option exercised at dawn so her paper never lapses until Star, Sawyer's 1.5× Pay when she stalls, the car back the first time she charts. **Germain half built 2026-11-24** (`Systems/PlayerDesk.Germain.cs`; `SimTools/GermainChecks.tscn`): two Concedes only Jack offers. *His name:* the next 2 originals carry Jack as a third-party credit (`outsider:germain`, 25%, carved from the writing team), and he is paid that quarter through every writer-money chain (mechanicals, plug-side performances, AI-label cuts) while the label's outlay is unchanged; each credited writer's trust drops 0.12 plus band strain, whatever the Ear (author decision). A song with no writer to take it from carries no name. *His boys:* the home region's reporters (up to 6) for 8 weeks through `PayolaLedger` for a $100 "consulting fee"; discretion starts 0.35 and falls 0.10 per use (floor 0.05), so the detection math makes each year riskier. **Not built:** the booking gate on Sawyer's room, the watch (wardrobe phase), Jack's ledger freeze, and the payola handicap (scandal in his network hitting your label; fees looking like payola if caught). | Byte-identical headless; save/load; `ConnieChecks`; `GermainChecks` |
-| **1c** | Getting around (§3.9): transport mode on the travel quote and errands, carton limit, car purchase, the car per holder. **Built 2026-11-24**, UI included; Sawyer's free return waits on 1b. | Byte-identical headless; save/load; `TransportChecks` |
+| **1b** | **Connie built 2026-11-24** (`Systems/PlayerDesk.Connie.cs`, `ArtistManager.Keyed.cs`, `SimTools/ConnieChecks.tscn`): seeded from a private keyed stream with Dee-Dee's paper (5 years, his option, 15% royalty, 5 sides, no advance). He renews her paper at dawn until Star, charges 1.5× Pay when she stalls, returns the car when she first charts, and gates nights and residencies for other player acts on a Connie release in each performance year. **Germain Concedes and payola exposure built** (`Systems/PlayerDesk.Germain.cs`, `Systems/Radio/PayolaLedger.cs`, `SimTools/GermainChecks.tscn`). *His name:* 25% of the writer share on the next two originals with a credited writer, paid through mechanicals, plug-side performances and AI-label cuts. Each cut-in adds 0.06 exposure, costs each credited writer 0.12 trust, and adds 0.08 band strain. *His boys:* $300 for eight weeks on half of the home reporters, rounded up to a maximum of six. Discretion starts at 0.55, falls by 0.12 per use, and bottoms out at 0.05. Each fee adds 0.05 exposure. A bust ends the push across the network. Under the Detroit calibration the first 1960 push delivered 11.89 boost-weeks with a 15.1% bust rate (§3.5 H5). **Pending:** Sawyer's watch (wardrobe phase) and Jack's ledger freeze. | Byte-identical headless; save/load; `ConnieChecks`; `GermainChecks` |
+| **1c** | Getting around (§3.9): transport mode on the travel quote and errands, carton limit, car purchase, the car per holder. **Built 2026-11-24**, UI included; Sawyer's car return is built in 1b. | Byte-identical headless; save/load; `TransportChecks` |
 | **1d** | Floria's buy-out (§3.5 H4), a player-only path | Same; the Major's AI behaviour unchanged |
 | **2** | Voices at venues and in courtship; instincts modulate the venue fog | Byte-identical headless |
 | **3** | Conviction drawer: lifecycle, quarterly scoring, the first 6 cards | Same; each card's predicate tested on a real save |

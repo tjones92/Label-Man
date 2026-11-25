@@ -1022,7 +1022,7 @@ public partial class PlayerDesk {
 		if (SceneEcosystemService.Moves.Any(m => m.ArtistId == a.artistId && m.Status == SceneMoveStatus.Planned)) {
 			message = "The act already has a relocation arranged."; return false;
 		}
-		RoadBooking b = BookingFor(a);
+		RoadBooking b = RoadBookingFor(a.artistId) ?? new RoadBooking { ArtistId = a.artistId, Year = YearNow };
 		// A taped series takes its diary weeks out of the road year (CelebrityFanbaseDesign.md §3.3.2).
 		int diary = MediaAtmosphereService.PlayerDiaryWeeks(a.artistId, YearNow);
 		if (diary > 0 && b.ResidencyWeeks + b.TourWeeks + residencyWeeks + tourWeeks > MediaResidencies.RoadWeeksPerYear - diary) {
@@ -1031,10 +1031,21 @@ public partial class PlayerDesk {
 			return false;
 		}
 		SceneRoomProfile room = null;
-		if (residencyWeeks > 0 && b.ResidencyRoomId == null) {
-			if (!ResidencyRoom(a, b, out room, out message)) return false;
-			if (!Require(BookerPitchHours, out message)) return false;
-			Spend(BookerPitchHours);
+		bool askForResidency = residencyWeeks > 0 && b.ResidencyRoomId == null;
+		List<int> nights = null;
+		if (askForResidency) {
+			if (!ResidencyRoom(a, b, residencyWeeks, out room, out nights, out message)) return false;
+		} else if (residencyWeeks > 0 && SceneRoomCatalog.Get(b.ResidencyRoomId) is { } bookedRoom) {
+			room = bookedRoom;
+			nights = LocalSceneRoomService.ResidencyNights(room, a.artistId, residencyWeeks, ResidencyNightsPerWeek);
+			message = SawyerResidencyRefusal(room, a.artistId, nights);
+			if (message != null) return false;
+		}
+		int hours = askForResidency ? BookerPitchHours : 1;
+		if (!Require(hours, out message)) return false;
+		roadBookings[a.artistId] = b;
+		Spend(hours);
+		if (askForResidency) {
 			int shows = LocalSceneRoomService.ShowsAt(room.Id, a.artistId);
 			if (GameRandom.Randf() >= Mathf.Max(0.05f, BookerAcceptChance(a, shows) - BackerRoomPenalty(room.Id)) * ResidencyAskFactor) {
 				b.ResidencyRefusedRoomId = room.Id; b.ResidencyRefusedDay = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate); b.ResidencyRefusedShows = shows;
@@ -1047,20 +1058,16 @@ public partial class PlayerDesk {
 			b.ResidencyRoomId = room.Id;
 			b.ResidencyWeeklyCommission = Mathf.Round(ResidencyBookingCommission * ResidencyNightsPerWeek * players
 				* SceneLiveEconomics.ExpectedPlayerNightPay(room, year, players) * 100f) / 100f;
-		} else {
-			if (!Require(1, out message)) return false;
-			Spend(1);
 		}
 		// F5: a residency is its nights, each a dated booking on the room's bill; the commission comes off each played set.
 		int firstNight = -1, nightCount = 0;
-		if (residencyWeeks > 0 && SceneRoomCatalog.Get(b.ResidencyRoomId) is { } residencyRoom) {
-			foreach (int night in LocalSceneRoomService.ResidencyNights(residencyRoom, a.artistId, residencyWeeks, ResidencyNightsPerWeek)) {
-				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = residencyRoom.Id, ArtistId = a.artistId, LabelId = Label.labelId, Day = night,
+		if (nights != null) {
+			foreach (int night in nights) {
+				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = room.Id, ArtistId = a.artistId, LabelId = Label.labelId, Day = night,
 					Status = SceneBillStatus.Scheduled, Residency = true, Note = "Residency night; goes on the bill when the week is drawn up." });
 				if (firstNight < 0) firstNight = night;
 				nightCount++;
 			}
-			room ??= residencyRoom;
 		}
 		b.ResidencyWeeks = Mathf.Clamp(b.ResidencyWeeks + residencyWeeks, 0, 40);
 		b.TourWeeks = Mathf.Clamp(b.TourWeeks + tourWeeks, 0, 40);
@@ -1078,8 +1085,13 @@ public partial class PlayerDesk {
 	/// <summary>The room a residency would be asked of: a performance room in the act's own scene, suited to its music, where
 	/// it has already played <see cref="ResidencyMinShows"/> sets and is working now. The player has to be in that town,
 	/// in the booker's hours, as for a single night (§6.3).</summary>
-	private bool ResidencyRoom(SimulatedArtist a, RoadBooking b, out SceneRoomProfile room, out string message) {
+	private string SawyerResidencyRefusal(SceneRoomProfile room, string artistId, List<int> nights) =>
+		nights.Select(night => LocalSceneRoomService.Date(night).year).Distinct()
+			.Select(year => SawyerBookingRefusal(room, artistId, year)).FirstOrDefault(refusal => refusal != null);
+
+	private bool ResidencyRoom(SimulatedArtist a, RoadBooking b, int weeks, out SceneRoomProfile room, out List<int> nights, out string message) {
 		room = null;
+		nights = null;
 		var clock = TimeManager.Instance;
 		if (clock == null) { message = "No clock."; return false; }
 		int today = LocalSceneRoomService.Day(clock.CurrentDate);
@@ -1091,9 +1103,20 @@ public partial class PlayerDesk {
 		if (known.Count == 0) {
 			message = $"No room will give {a.stageName} a standing run before it has seen them: get them {ResidencyMinShows} nights somewhere first (a booker will pencil in a night)."; return false;
 		}
-		var pick = known.FirstOrDefault(x => !(x.Room.Id == b.ResidencyRefusedRoomId && today - b.ResidencyRefusedDay < BookerRefusalDays && x.Shows <= b.ResidencyRefusedShows));
-		if (pick.Room == null) { message = $"{known[0].Room.ContactName} already said no to a run for {a.stageName}. Let them play the room again first."; return false; }
-		room = pick.Room;
+		string sawyerRefusal = null;
+		foreach (var candidate in known) {
+			if (candidate.Room.Id == b.ResidencyRefusedRoomId && today - b.ResidencyRefusedDay < BookerRefusalDays && candidate.Shows <= b.ResidencyRefusedShows) continue;
+			var availableNights = LocalSceneRoomService.ResidencyNights(candidate.Room, a.artistId, weeks, ResidencyNightsPerWeek);
+			string refusal = SawyerResidencyRefusal(candidate.Room, a.artistId, availableNights);
+			if (refusal != null) {
+				sawyerRefusal ??= refusal;
+				continue;
+			}
+			room = candidate.Room;
+			nights = availableNights;
+			break;
+		}
+		if (room == null) { message = sawyerRefusal ?? $"{known[0].Room.ContactName} already said no to a run for {a.stageName}. Let them play the room again first."; return false; }
 		if (LocalScenePersistenceService.SceneIdFor(CurrentCityId) != room.PlaceId) { message = $"You have to be in town to see the booker at {room.Name}."; return false; }
 		if (clock.CurrentHour < BookerFromHour || clock.CurrentHour >= room.CloseHour) {
 			message = $"{room.ContactName} is in from {BookerFromHour - 12} p.m. until {room.Name} closes."; return false;
