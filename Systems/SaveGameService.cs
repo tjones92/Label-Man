@@ -457,6 +457,8 @@ public sealed class PlayerSaveData {
 	// Inner-life §4.3: unspent December points and every instinct change. Absent in older saves.
 	public int InstinctPoints { get; set; }
 	public List<InstinctChangeSaveData> InstinctLedger { get; set; }
+	// Onboarding T3: the first-week card. Absent in older saves.
+	public FirstWeekSaveData FirstWeek { get; set; }
 
 	// Phase 2 Rolodex branch: contacts discovered through play.
 	public int PhoneMinutesAccum     { get; set; }

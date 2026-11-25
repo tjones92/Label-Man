@@ -245,7 +245,7 @@ tutorial card, and today's from `NextUpStep`. Nothing new is computed; it's thre
 |---|---|---|---|
 | **T0 copy** | §2F fixes 1–6, 8, 9 ("Held by" filled in per decision 1); NEXT UP's day-one line on a Sawyer run | UI strings, `NextUpStep` | Re-run the playtest driver to a first signing |
 | **T1 holder scene** (built) | §3.1 Sawyer first, then the other four; the mystery reframed as *why* | `PlayerDesk.FirstMorning.cs`, `PlayerDeskPanel.FirstMorning.cs`, Morning After order | UI driver screenshots per holder |
-| **T3 first-week card** | §3.2 through an act signed and a first record set up (decision 3); each voice teaches its task (decision 2); highlight, off toggle | a tutorial state on `PlayerDesk` (player-only, saved), a card widget | Playtest metric below |
+| **T3 first-week card** (built) | §3.2 through an act signed and a first record set up (decision 3); each voice teaches its task (decision 2); highlight, off toggle | a tutorial state on `PlayerDesk` (player-only, saved), a card widget | Playtest metric below |
 | **T4 time** | §3.4 hour strip, one-unit costs, money clock; fatigue hooks once that mechanic exists | desk header, action buttons | Playtest |
 | **T2 office menu (last)** | §3.3 and decision 4: door, calendar, drawer hotspots; objects as the way in, tabs as the way across | `UIManager.BuildDeskProps`, a small door card | UI driver |
 
@@ -286,6 +286,32 @@ pending (`PlayerDesk.FirstMorning.cs`, `UI/PlayerDeskPanel.FirstMorning.cs`):
   `SimLogs/lien-ui-first-morning.png`), `WintersChecks`, `GermainChecks`, `KubiakChecks`, `ConnieChecks`, `LienChecks`,
   `HolderMoveUiChecks` all pass. Only Sawyer's scene was seen rendered; the other four were read from the check log.
   No AI byte-comparison was run (nothing here is read by the sim).
+
+**T3 built (2026-11-25).** The **first-week card** takes NEXT UP's place under the desk header until it's done
+(`PlayerDesk.FirstWeek.cs`, `UI/PlayerDeskPanel.FirstWeek.cs`):
+- Six lines, all visible, each ticked from real state so any can be done out of order: *Go out and hear somebody*
+  (a heard set in the notebook), *Ask if they'd hear an offer* (any direct approach), *Sleep on it* (an approach
+  answered yes), *Put a deal on the table* (a terms discussion opened, the one saved flag), *Sign them* (an act of the
+  player's own on the roster; Connie doesn't count), *Set up a first record* (a session booked, or anything past it;
+  Connie's record counts). A later line ticks the ones it implies.
+- The line you're on is taught by its voice (decision 2): the Ear how to hear a set and, once you have, what a read
+  is worth ("a roadhouse eats a voice"); the Street how to ask, and that a no is normal and only for the season; the
+  Fixer the wait; the Suit the advance, the royalty and that the standard paper is fine; the Ear the studio. On a
+  Sawyer run the Street points at Connie while you wait, and again if you have nobody of your own at the record step.
+- **One glow at a time:** the next button to press pulses, modal buttons first, rechecked twice a second (the act's
+  conversation opens without a refresh). Studio buttons carry their act, so after a signing the glow is on the player's
+  own act, not Connie's. **SHOW ME** opens the tab for the step; **I KNOW THE WAY** puts the card away for good, and
+  NEXT UP returns. The off switch is on the card, not on the NEW GAME page as §3.2 sketched.
+- Saved as `FirstWeekSaveData` (Off, Done, TermsOpened) on the player save. An older save gets a fresh card that ticks
+  itself off from the run, so a run past its first record never sees it.
+- **Measured:** `SimTools/FirstWeekUiChecks` plays a fresh Sawyer founding in Detroit by pressing only the glowing
+  button: **8 presses and 1 in-game day to a first signing** (the scripted baseline in §1 was ~12 presses and 2 days,
+  found by reading button text). No SHOW ME was needed. Screenshots: `SimLogs/first-week-*.png`.
+- **Not exercised:** the studio step past TAKE INTO STUDIO (choosing songs and booking hours; the card is hidden in the
+  studio window, as NEXT UP is); a run where the ask is declined; a non-Sawyer run in the UI. A human cold playtest is
+  still the number that matters (§4 "Measure it").
+- Also: UI checks that end a day through the real desk now set `PlayerDesk.AutosaveOffForChecks`. An earlier run of
+  this check wrote `Autosave 2` into the shared saves folder.
 
 Every phase is player-side only: no sim state, no RNG draws, no AI-read fields, so AI CSVs stay byte-identical
 ([[probe-run-byte-comparison-proves-inertness]]).

@@ -1269,6 +1269,7 @@ public partial class PlayerDesk : Node {
 		// The run's own copy: December points raise it (§4.3), and the archetype's table is shared static data.
 		InstinctProfile = CopyInstincts(profile.Instincts);
 		RestoreInstinctGrowth(0, null);
+		RestoreFirstWeek(null);   // onboarding T3: a fresh first-week card
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		var label = new AILabel {
@@ -2137,7 +2138,7 @@ public partial class PlayerDesk : Node {
         }
         if (prospect.HasBaseline && (prospect.Talk == null || prospect.Talk.stage != ContractTalkStage.Done)) {
             DiscloseRivalOffer(prospect.Artist.artistId);
-            RememberScoutingNegotiation(prospect); message = "Returned to the existing terms discussion."; Changed?.Invoke(); return true;
+            RememberScoutingNegotiation(prospect); MarkFirstWeekTerms(); message = "Returned to the existing terms discussion."; Changed?.Invoke(); return true;
         }
         int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, week) == false) {
@@ -2179,6 +2180,7 @@ public partial class PlayerDesk : Node {
 				? $"Table an offer for {prospect.Artist.stageName}."
 				: prospect.Baseline.DemandSummary;
 		Changed?.Invoke();
+		MarkFirstWeekTerms();
 		return true;
 	}
 
@@ -6172,6 +6174,7 @@ public partial class PlayerDesk : Node {
 			ExecutiveInstincts = InstinctProfile,
 			InstinctPoints = InstinctPoints,
 			InstinctLedger = CaptureInstinctLedger(),
+			FirstWeek = CaptureFirstWeek(),
 
 			// Rolodex contacts + accumulated sub-hour phone time (Phase 2).
 			PhoneMinutesAccum = phoneMinutesAccum,
@@ -6223,6 +6226,8 @@ public partial class PlayerDesk : Node {
 		}
 		// December points and the change ledger (§4.3). Absent in older saves: none earned.
 		RestoreInstinctGrowth(data.InstinctPoints, data.InstinctLedger);
+		// Onboarding T3: the first-week card. Absent in older saves: a fresh card that ticks itself off from the run.
+		RestoreFirstWeek(data.FirstWeek);
 
 		// Restore rolodex and phone accumulator (Phase 2). Null/missing = pre-feature save → empty rolodex.
 		phoneMinutesAccum = data.PhoneMinutesAccum;

@@ -19,6 +19,8 @@ public partial class PlayerDesk {
 	private ulong lastAutosaveTicksMs;
 	private double lastAutosaveSeconds;
 	private bool autosaveQueued;
+	/// <summary>UI checks that pass days through the real desk set this, so they never write into the player's autosave slots.</summary>
+	internal static bool AutosaveOffForChecks;
 
 	/// <summary>How long a given save has to wait: the wall-clock floor, or 50x the last save's duration if longer.</summary>
 	internal static double AutosaveWaitSeconds(double lastDurationSeconds) =>
@@ -26,7 +28,7 @@ public partial class PlayerDesk {
 
 	private void QueueDawnAutosave() {
 		// Real play only: the headless audits and probes have no UI, and must not litter the player's saves.
-		if (UIManager.Instance == null || Label == null || IsGameOver || autosaveQueued) return;
+		if (AutosaveOffForChecks || UIManager.Instance == null || Label == null || IsGameOver || autosaveQueued) return;
 		double sinceLast = lastAutosaveTicksMs == 0 ? double.MaxValue : (Time.GetTicksMsec() - lastAutosaveTicksMs) / 1000.0;
 		if (sinceLast < AutosaveWaitSeconds(lastAutosaveSeconds)) return;
 		autosaveQueued = true;

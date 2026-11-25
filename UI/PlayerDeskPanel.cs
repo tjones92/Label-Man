@@ -276,6 +276,7 @@ public partial class PlayerDeskPanel : Control {
 		idleRow.AddChild(skip);
 		alertRow.AddChild(idleRow);
 		root.AddChild(nextUpLabel);
+		BuildFirstWeekCard(root);   // onboarding T3: the first-week card takes NEXT UP's place while it lasts
 
 		tabs = new HBoxContainer();
 		tabs.AddThemeConstantOverride("separation", -2);   // trapezoid tabs meet at the foot and open out at the shoulders
@@ -436,6 +437,7 @@ public partial class PlayerDeskPanel : Control {
 		// NEXT UP bar over the founding form read as a broken input.
 		bool inGame = desk.HasLabel && !desk.IsGameOver && !browsingSaves;
 		nextUpLabel.Visible = inGame;
+		if (firstWeekCard != null) firstWeekCard.Visible = false;
 		if (!inGame) redInkLabel.Visible = false;
 		deskClock.Visible = timeCard.Visible = false;   // the in-game desk shows them again below
 
@@ -509,6 +511,7 @@ public partial class PlayerDeskPanel : Control {
 			nextUpLabel.Text = $"NEXT UP  •  {NextUpHint(desk)}";
 			nextUpLabel.TooltipText = nextUpLabel.Text;
 		}
+		RenderFirstWeek(desk);
 		ApplyTitleBrand(label);
 		string region = ChartManager.Instance?.GetRegionById(label.homeRegion)?.regionName ?? label.homeRegion;
 		string home = string.IsNullOrEmpty(label.headquartersCity) ? region : $"{label.headquartersCity}, {region}";
@@ -547,6 +550,7 @@ public partial class PlayerDeskPanel : Control {
 		ShowLienMorningIfPending(desk);
 		ShowLienNoticeIfPending(desk);
 		ShowHolderMoveIfPending(desk);
+		HighlightFirstWeekTarget(desk);
 		if (pageStain != null) pageStain.Modulate = Colors.White;   // the founding pages fade it; the office doesn't
 		pageStain?.QueueRedraw();   // the page's coffee ring belongs to the open tab
 		UpdateTabBadges(desk);
@@ -1686,6 +1690,7 @@ public partial class PlayerDeskPanel : Control {
 			manage.Pressed += () => { managingArtistId = captured.artistId; browsingCovers = false; Refresh(); };
 			sleeve.AddVerb(manage);
 			var studio = Btn(desk.Session?.ArtistId == artist.artistId ? "RETURN TO STUDIO" : "TAKE INTO STUDIO");
+			studio.SetMeta("artist_id", artist.artistId);   // the first-week card glows the player's own act's, not Connie's
 			studio.Pressed += () => UIManager.Instance?.OpenStudio(captured.artistId);
 			sleeve.AddVerb(studio);
 			var dossier = Btn("DOSSIER");
