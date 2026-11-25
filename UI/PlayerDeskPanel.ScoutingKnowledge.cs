@@ -132,6 +132,9 @@ public partial class PlayerDeskPanel {
                 : "Signed to " + (ChartManager.Instance.GetLabelName(artist.labelId) ?? "another label")));
             var last = dossier.Observations.LastOrDefault(o => o.Kind == ScoutingEvidenceKind.Performance);
             if (last != null) Body($"Last heard: {last.RoomName ?? SceneRoomCatalog.Get(last.RoomId)?.Name ?? "unknown room"} · {LocalSceneRoomService.Date(last.OccurredDay ?? last.AcquiredDay).ToHeadlineString()}");
+            // A band says so when a relative handles them; any other manager you learn about when you ask.
+            if (last != null && artist != null && string.IsNullOrEmpty(artist.labelId) && ManagerIdentity.Today(artist) is { Kind: ManagerKind.Family } family)
+                Body($"They say: \"{ManagerIdentity.BandSays(family)}\" ({family.Name})");
             if (expanded) ScoutingActDetails(desk, dossier);
         } finally { content = parent; }
     }

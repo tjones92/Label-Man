@@ -268,8 +268,10 @@ public partial class DispositionChecks : Node {
 						"the yes carries one step per friction");
 					Check(parents.Day > day0 && LocalSceneRoomService.Date(parents.Day.Value).DayOfWeek == DayOfWeek.Sunday && message.Contains("under 21"),
 						"a minor means Sunday with the family: " + message);
-					Check(manager.Day > day0 && !LocalSceneRoomService.Date(manager.Day.Value).IsWeekend && message.Contains("Sol Kramer"),
-						"a shark wants a weekday sit-down, by name");
+					var who = ManagerIdentity.Read(band, day0);
+					Check(manager.Day > day0 && manager.Who == who.Name && manager.Place == who.Place && message.Contains(manager.Manager) &&
+						(who.Kind == ManagerKind.ClubBooker || !LocalSceneRoomService.Date(manager.Day.Value).IsWeekend),
+						$"a shark wants a sit-down, named for who he is ({who.Kind}: {manager.Manager}, at {manager.Place})");
 					if (holdout) Check(hold.Who == read.Holdout && message.Contains(read.Holdout), "the holdout is named, and the band settles it at a set");
 					desk.ApproachToSign(ProspectOf(band), out string pending);
 					Check(desk.DirectApproaches.Count == asked + 1 && pending.Contains("said yes") && !desk.CanAskDirectApproach(band) && !desk.AgreedToSign(band),
@@ -327,6 +329,63 @@ public partial class DispositionChecks : Node {
 				foreach (var (m, v) in originals) m.ambition = v;
 				foreach (var (m, v) in births) m.birthYear = v;
 				foreach (var (a, (kind, name)) in managers) { a.manager = kind; a.managerName = name; }
+			}
+
+			// ---- Part E: who the manager is (§10), read over every managed act in the world ----
+			{
+				int day = LocalSceneRoomService.Day(clock.CurrentDate), y = clock.CurrentDate.year;
+				string before = System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions);
+				var allowed = new Dictionary<ManagerKind, ManagerArchetype[]> {
+					[ManagerKind.Family] = new[] { ManagerArchetype.LocalHustler, ManagerArchetype.Svengali },
+					[ManagerKind.ClubBooker] = new[] { ManagerArchetype.LocalHustler, ManagerArchetype.Shark },
+					[ManagerKind.Deejay] = new[] { ManagerArchetype.LocalHustler, ManagerArchetype.Shark },
+					[ManagerKind.Songwriter] = new[] { ManagerArchetype.Svengali, ManagerArchetype.Visionary },
+					[ManagerKind.Agency] = new[] { ManagerArchetype.Shark, ManagerArchetype.Visionary },
+					[ManagerKind.JukeboxOperator] = new[] { ManagerArchetype.Shark },
+					[ManagerKind.PersonalManager] = new[] { ManagerArchetype.Shark, ManagerArchetype.Svengali, ManagerArchetype.Visionary },
+					[ManagerKind.Hustler] = new[] { ManagerArchetype.LocalHustler },
+				};
+				var counts = new Dictionary<ManagerKind, int>();
+				int unmanaged = 0;
+				foreach (var a in am.GetAllArtists().Where(a => a.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(a.labelId)).OrderBy(a => a.artistId, StringComparer.Ordinal)) {
+					var r = ManagerIdentity.Read(a, day);
+					if (a.manager == ManagerArchetype.None) { if (r != null) Check(false, $"{a.stageName}: unmanaged act has no manager"); unmanaged++; continue; }
+					var again = ManagerIdentity.Read(a, day);
+					if (r == null || again.Kind != r.Kind || again.Name != r.Name || again.Title != r.Title) Check(false, $"{a.stageName}: the same act reads the same manager");
+					counts[r.Kind] = counts.GetValueOrDefault(r.Kind) + 1;
+					if (!allowed[r.Kind].Contains(a.manager)) Check(false, $"{a.stageName}: {r.Kind} sits on {a.manager}");
+					string town = LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId);
+					var people = a.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).ToList();
+					string bad = r.Kind switch {
+						ManagerKind.Family when !people.Any(m => r.Name.EndsWith(" " + m.lastName?.Trim())) => "family manager shares no member's surname",
+						ManagerKind.ClubBooker when SceneRoomCatalog.Get(LocalSceneRoomService.EngagementRoom(a.artistId, day))?.ContactName != r.Name => "club booker isn't the engagement room's booker",
+						ManagerKind.Agency when a.contractSequence == 0 && a.careerState is CareerState.Unsigned or CareerState.NewSigning => "agency man for an act with no record career",
+						ManagerKind.JukeboxOperator when town is not ("new_york" or "chicago" or "detroit" or "philadelphia") ||
+							a.primaryGenre is not (Genre.RnB or Genre.DooWop or Genre.Blues or Genre.Soul or Genre.RockAndRoll) => "jukebox operator outside the jukebox cities or music",
+						_ => string.IsNullOrWhiteSpace(r.Name) || string.IsNullOrWhiteSpace(r.Title) || string.IsNullOrWhiteSpace(r.Place) ? "missing name, title or place" : null
+					};
+					if (bad != null) Check(false, $"{a.stageName} ({a.manager}, {r.Kind}): {bad}");
+				}
+				GD.Print("manager identities (unsigned, active): unmanaged " + unmanaged + "; " +
+					string.Join(", ", counts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
+				Check(counts.Values.Sum() > 200, $"{counts.Values.Sum()} managed unsigned acts read");
+				foreach (var k in new[] { ManagerKind.Family, ManagerKind.ClubBooker, ManagerKind.Deejay, ManagerKind.Songwriter, ManagerKind.PersonalManager, ManagerKind.Hustler })
+					Check(counts.GetValueOrDefault(k) > 0, $"{k} managers occur");
+				Check(System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions) == before,
+					"reading managers changes no world state (archetypes and generated names untouched)");
+
+				// A family manager who is also the minor's parent: one Sunday visit, not two steps.
+				var familyAct = am.GetAllArtists().Where(a => a.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(a.labelId) &&
+						a.manager == ManagerArchetype.Svengali && ManagerIdentity.Read(a, day)?.Kind == ManagerKind.Family)
+					.Select(a => (a, r: ActDisposition.Read(a, label, day, null))).FirstOrDefault(x => x.r.Minors.Count > 0);
+				if (familyAct.a == null) GD.Print("note: no Svengali family manager with a minor in this world; merge not exercised");
+				else {
+					var steps = desk.StepsFor(familyAct.r, familyAct.a, day);
+					Check(steps.Count(s => s.Kind == ScoutingApproachStepKind.Manager) == 0 &&
+						steps.Single(s => s.Kind == ScoutingApproachStepKind.Parents).Manager is { } intro && intro.StartsWith(ManagerIdentity.Read(familyAct.a, day).Name),
+						$"{familyAct.a.stageName}: the family is the manager, so Sunday dinner is the sit-down");
+					Check(PlayerDesk.StepAsk(steps[0], familyAct.a).Contains("that's the sit-down as well"), "the yes says so");
+				}
 			}
 
 			GD.Print($"DISPOSITION_CHECKS_PASS ({checks} checks)");

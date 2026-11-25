@@ -1656,7 +1656,7 @@ public partial class PlayerDeskPanel : Control {
 			bool matured = RosterManager.IsContractMatured(artist, year, week);
 			int songs = desk.RepertoireFor(artist.artistId).Count
 				+ desk.UnrecordedSongs.Count(s => s.ArtistId == artist.artistId);
-			string manager = artist.manager == ManagerArchetype.None ? "" : $"   •   managed by {artist.managerName ?? "a manager"}";
+			string manager = artist.manager == ManagerArchetype.None ? "" : $"   •   managed by {ManagerIdentity.NameOf(artist) ?? "a manager"}";
 			// Each act is a 45 sleeve: the publicity photo, the name typed across it, the figures, and the player's disc in the window.
 			var sleeve = new SleeveCard().Set(artist, desk.Label,
 				$"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Words(artist.careerState.ToString())}", matured);

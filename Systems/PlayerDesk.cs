@@ -2158,7 +2158,7 @@ public partial class PlayerDesk : Node {
 		int singles = PlayerDeliverablesAsk(prospect.Artist, t.TermYears, year);
 		prospect.Baseline = new ContractTermSheet(prospect.AskingAdvance, royalty, t.TermYears,
 			singles, t.LabelOwnsPublishing, t.ArtistCreativeControl,
-			t.NegotiationDifficulty, t.Manager, t.ManagerName,
+			t.NegotiationDifficulty, t.Manager, ManagerIdentity.NameOf(prospect.Artist) ?? t.ManagerName,
 			AILabel.BuildDemandSummary(t.Manager, prospect.AskingAdvance, royalty,
 				t.LabelOwnsPublishing, t.ArtistCreativeControl));
 		prospect.HasBaseline = true;

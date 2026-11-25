@@ -292,7 +292,7 @@ public partial class PlayerDesk {
 
     private void TellMeeting(RivalCourtship c, SimulatedArtist artist, int today) {
         if (c.Origin == RivalCourtshipOrigin.Renewal || ActWouldDisclose(c.ArtistId)) {
-            string who = string.IsNullOrEmpty(artist.managerName) ? $"{c.ArtistName}'s side" : artist.managerName;
+            string who = ManagerIdentity.NameOf(artist) is { Length: > 0 } m ? m : $"{c.ArtistName}'s side";
             Hear(c, new RivalSighting { Day = today, Stage = RivalCourtshipStage.Meeting, Channel = RivalSightingChannel.ActSide,
                 SourceId = c.ArtistId, SourceName = who,
                 Text = c.Origin == RivalCourtshipOrigin.Renewal

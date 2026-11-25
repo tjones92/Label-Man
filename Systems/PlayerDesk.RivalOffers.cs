@@ -88,7 +88,7 @@ public partial class PlayerDesk {
             _ => Range("Sides", 3, 6)
         };
         return new ContractTermSheet(advance, royalty, term, singles, !mods.DemandsArtistPublishing, mods.DemandsArtistControl,
-            mods.NegotiationDifficulty, artist.manager, artist.managerName, null);
+            mods.NegotiationDifficulty, artist.manager, ManagerIdentity.NameOf(artist), null);
     }
 
     /// <summary>Whether the act's own side would tell the player about an offer: they are in a terms discussion with the

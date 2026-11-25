@@ -187,6 +187,13 @@ public sealed class ScoutingApproachStep {
     public int? Day { get; set; }
     /// <summary>The room of the holdout's set, when it's posted.</summary>
     public string RoomName { get; set; }
+    /// <summary>Who the manager is, introduced ("Harold Caldwell, Sal's father"), as read when the yes was given
+    /// (ManagerIdentity). On a Parents step, set when the family is the manager and the visit is the sit-down too.</summary>
+    public string Manager { get; set; }
+    /// <summary>Manager step: where you sit down with him.</summary>
+    public string Place { get; set; }
+    /// <summary>Manager step: the manager is a woman (a mother managing her children's act).</summary>
+    public bool Female { get; set; }
     public bool Done { get; set; }
     public int DoneDay { get; set; }
     /// <summary>What was said when it was taken.</summary>

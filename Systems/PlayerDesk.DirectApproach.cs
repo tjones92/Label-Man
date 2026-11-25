@@ -115,14 +115,25 @@ public partial class PlayerDesk {
     }
 
     /// <summary>What stands between a yes and a signature, from the read's frictions. Sunday for the family (they're at
-    /// church in the morning and home after), the next weekday for a manager's office, the next posted set for a holdout.</summary>
-    private List<ScoutingApproachStep> StepsFor(DispositionRead read, SimulatedArtist artist, int today) {
+    /// church in the morning and home after), the manager at his place, and the next posted set for a holdout.
+    /// Who the manager is (ManagerIdentity) sets where and when you sit down: the club booker at his room on a night it's
+    /// open, family on Sunday at the kitchen table, everyone else at his place on a weekday. When the manager is the
+    /// minor's own family, the Sunday visit is the sit-down too: one step, not two.</summary>
+    internal List<ScoutingApproachStep> StepsFor(DispositionRead read, SimulatedArtist artist, int today) {
         var steps = new List<ScoutingApproachStep>();
+        var manager = read.DemandingManager ? ManagerIdentity.Read(artist, today) : null;
+        bool familyManager = manager?.Kind == ManagerKind.Family;
         if (read.Minors.Count > 0) steps.Add(new() { Kind = ScoutingApproachStepKind.Parents, Who = Names(read.Minors),
-            Day = NextDayOn(today + 1, DayOfWeek.Sunday) });
-        if (read.DemandingManager) steps.Add(new() { Kind = ScoutingApproachStepKind.Manager,
-            Who = string.IsNullOrWhiteSpace(artist.managerName) ? "their manager" : artist.managerName,
-            Day = NextDayOn(today + 1, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday) });
+            Day = NextDayOn(today + 1, DayOfWeek.Sunday), Manager = familyManager ? ManagerIdentity.Introduce(manager) : null });
+        if (manager != null && !(familyManager && read.Minors.Count > 0)) {
+            int day = manager.Kind switch {
+                ManagerKind.Family => NextDayOn(today + 1, DayOfWeek.Sunday),
+                ManagerKind.ClubBooker when SceneRoomCatalog.Get(manager.RoomId) is { Nights.Count: > 0 } room => NextDayOn(today + 1, room.Nights.ToArray()),
+                _ => NextDayOn(today + 1, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday)
+            };
+            steps.Add(new() { Kind = ScoutingApproachStepKind.Manager, Who = manager.Name, Manager = ManagerIdentity.Introduce(manager),
+                Place = manager.Place, Female = manager.Female, Day = day });
+        }
         if (read.Holdout != null) {
             var next = NextReachableScoutingSet(artist.artistId);
             steps.Add(new() { Kind = ScoutingApproachStepKind.Holdout, Who = read.Holdout,
@@ -134,9 +145,10 @@ public partial class PlayerDesk {
     /// <summary>The step as the act's side puts it to you.</summary>
     public static string StepAsk(ScoutingApproachStep s, SimulatedArtist artist) => s.Kind switch {
         ScoutingApproachStepKind.Parents => (s.Who.Contains(" and ") ? $"{s.Who} are" : $"{s.Who} is") +
-            $" under 21, so a parent signs. The family wants to meet you first: Sunday, {Headline(s.Day ?? 0)}, after church.",
-        ScoutingApproachStepKind.Manager => $"{s.Who} handles their business, and nobody signs anything until you've sat down with " +
-            $"{ManagerPronoun(artist)}: {Headline(s.Day ?? 0)}, at {ManagerPronoun(artist, possessive: true)} office.",
+            $" under 21, so a parent signs. The family wants to meet you first: Sunday, {Headline(s.Day ?? 0)}, after church." +
+            (s.Manager != null ? $" {s.Manager}, handles their business too, so that's the sit-down as well." : ""),
+        ScoutingApproachStepKind.Manager => $"{(s.Manager != null ? s.Manager + "," : s.Who)} handles their business, and nobody signs anything until you've sat down with " +
+            $"{(s.Female ? "her" : "him")}: {Headline(s.Day ?? 0)}, at {s.Place ?? "his office"}.",
         _ => $"{s.Who} isn't sure yet. They'll settle it at their next set" +
             (s.Day is { } d ? $", {s.RoomName}, {Headline(d)}, and you should be there." : ", and you should be there. Their next date isn't posted, so a rehearsal would do.")
     };
@@ -147,10 +159,6 @@ public partial class PlayerDesk {
         ScoutingApproachStepKind.Manager => $"sit down with {s.Who}",
         _ => $"{s.Who} wants you at their next set"
     };
-
-    // Managers in 1960 were men in the record business, so "him"; an act with no name on file still gets "their manager".
-    private static string ManagerPronoun(SimulatedArtist artist, bool possessive = false) =>
-        string.IsNullOrWhiteSpace(artist?.managerName) ? possessive ? "the manager's" : "the manager" : possessive ? "his" : "him";
 
     /// <summary>Called when the signing gate refuses a heard act, or before terms open for one that said yes. True with
     /// the act's answer when the ask is the conversation (a no, a request, a step still to take); false lets terms open
@@ -243,15 +251,22 @@ public partial class PlayerDesk {
         bool several = s.Who.Contains(" and ");
         return $"Sunday dinner with {s.Who}'s {(several ? "families" : "family")}. They wanted to know what a record company does " +
             "with a young person's money, and whether there'll be time for school. You told them. " +
-            $"{(several ? "The parents" : "A parent")} will sign where you show them.";
+            $"{(several ? "The parents" : "A parent")} will sign where you show them." +
+            (s.Manager != null ? $" {s.Manager.Split(',')[0]} does their business too, and made it plain the terms go through the family." : "");
     }
 
-    private static string ManagerLine(SimulatedArtist artist, ScoutingApproachStep s) => artist.manager switch {
-        ManagerArchetype.Shark => $"{s.Who} heard you out with his hat on. He'll do the talking at the table, and he wants the advance in writing.",
-        ManagerArchetype.Svengali => $"{s.Who} talked about {artist.stageName} like he invented them. He'll be at the table, and he'll want a say in the record.",
-        ManagerArchetype.Visionary => $"{s.Who} wanted to hear your plans for the record before anything else. He liked enough of them to bring the act to the table.",
-        _ => $"You sat down with {s.Who}. The act can sign."
-    };
+    /// <summary>The sit-down: where it happened (who the manager is) and what kind of man he was at it (the archetype,
+    /// which is what he'll be at the table).</summary>
+    private static string ManagerLine(SimulatedArtist artist, ScoutingApproachStep s) {
+        string he = s.Female ? "she" : "he", He = s.Female ? "She" : "He";
+        string where = $"You sat down with {(s.Manager != null ? s.Manager + "," : s.Who)} at {s.Place ?? "his office"}.";
+        return where + " " + artist.manager switch {
+            ManagerArchetype.Shark => $"{He} heard you out and gave nothing away. {He}'ll do the talking at the table, and {he} wants the advance in writing.",
+            ManagerArchetype.Svengali => $"{He} talked about {artist.stageName} like {he} invented them. {He}'ll be at the table, and {he}'ll want a say in the record.",
+            ManagerArchetype.Visionary => $"{He} wanted to hear your plans for the record before anything else, and liked enough of them to bring the act to the table.",
+            _ => "The act can sign."
+        };
+    }
 
     private string AfterStep(SimulatedArtist artist) => NextApproachStep(artist) is { } next
         ? "Still to come: " + StepAsk(next, artist)

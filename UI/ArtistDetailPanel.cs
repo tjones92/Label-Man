@@ -250,7 +250,7 @@ public partial class ArtistDetailPanel : Control
 	{
 		string manager = artist.manager == ManagerArchetype.None || string.IsNullOrEmpty(artist.managerName)
 			? "Unmanaged: no one speaks for them at the table."
-			: $"Managed by {artist.managerName}.";
+			: $"Managed by {ManagerIdentity.Introduce(ManagerIdentity.Today(artist)) ?? artist.managerName}.";
 		return $"{(artist.labelOwnsPublishing ? "The label keeps the publishing." : "The act keeps their publishing.")}\n" +
 			$"{(artist.artistCreativeControl ? "The act has creative control." : "The label has the final say on material.")}\n{manager}";
 	}
@@ -259,7 +259,7 @@ public partial class ArtistDetailPanel : Control
 	/// <see cref="ManagerProfile"/>, the same table the contract talks and the chart read.</summary>
 	public static void ManagerNote(Node host, SimulatedArtist managed) {
 		(_, string helps, string costs) = ManagerProfile.Describe(managed.manager);
-		string who = managed.managerName ?? "Their manager";
+		string who = ManagerIdentity.NameOf(managed) ?? "Their manager";
 		var modal = PaperModal.Open(host, who.ToUpperInvariant(), 640);
 		modal.AddText($"{who} manages {managed.stageName}.");
 		modal.AddText("What they do for you: " + helps);

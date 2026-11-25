@@ -118,13 +118,17 @@ public static partial class RolodexDirectory {
 		var cards = new List<DirectoryCard>();
 		IEnumerable<SimulatedArtist> acts = desk.Roster.Concat(desk.Notebook.Select(entry => entry.Artist).Where(a => a != null));
 		foreach (SimulatedArtist act in acts) {
-			if (act.manager == ManagerArchetype.None || string.IsNullOrEmpty(act.managerName) || !seen.Add(act.managerName)) continue;
+			if (act.manager == ManagerArchetype.None || string.IsNullOrEmpty(act.managerName)) continue;
+			var who = ManagerIdentity.Today(act);
+			string name = who?.Name ?? act.managerName;
+			if (!seen.Add(name)) continue;
 			(_, string helps, string costs) = ManagerProfile.Describe(act.manager);
 			bool yours = desk.Roster.Any(a => a.artistId == act.artistId);
+			string title = who?.Title ?? "their personal manager";
 			var card = new DirectoryCard {
-				Role = RolodexRole.Manager, Key = "mgr:" + act.managerName, Name = act.managerName, Title = "Personal manager",
+				Role = RolodexRole.Manager, Key = "mgr:" + name, Name = name, Title = char.ToUpperInvariant(title[0]) + title[1..],
 				Firm = $"for {act.stageName}", Place = yours ? "your roster" : "on your A&R pad",
-				Figure = Portraits.Businessman("mgr:" + act.managerName),
+				Figure = Portraits.Businessman("mgr:" + name),
 				GoToTab = yours ? "ROSTER" : null, GoToLabel = "OPEN THE ROSTER"
 			};
 			card.Facts.Add(("What they do for you: " + helps, false));

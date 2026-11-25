@@ -517,3 +517,116 @@ rehearsal. The other two in five are Careful or Comfortable.
 - A family visit or manager meeting can't be missed or rescheduled: it opens on its day and stays open until the yes
   lapses.
 - The step verbs aren't in the conversation modal or The Set yet, only on the act card.
+
+## 10. Who the manager is (2026-11-25): drafted, decided, built
+
+### The problem
+`ManagerArchetype` has five rows: None, LocalHustler, Shark, Svengali and Visionary. They're **deal postures**, and
+the AI economy reads them: advance and royalty multipliers, the Shark's chart push, the Svengali's production lift,
+and master deals. The roll is one `Randf()` at generation, so adding a row reshuffles the population stream
+(ManagerSystem's own note). What the player meets, though, is always "a personal manager" with a generated name. In
+1960 the man across the table was a father, the club owner, a deejay, a songwriter, an agency man, a jukebox operator
+or a pro. That's where the variety belongs.
+
+### The proposal
+A **manager identity**, read from state with no draw and nothing stored (like `ActDisposition`). It sits on top of
+the archetype the act already rolled and never changes the numbers, so the AI is untouched. Each identity lists the
+archetypes it can sit on. Rules run in the priority order below, and an act takes the first that fits. Shares inside
+a rule are keyed on the act's id (as `ConfigureEasyListeningBandleader` does), so a save always reads the same.
+
+| # | Identity | Sits on | When it applies | Period reference |
+|---|---|---|---|---|
+| 1 | **Family**: father, mother, older brother or uncle. Shares a member's surname | Hustler, Svengali | A member under 21, or members sharing a surname; about half of such managed acts | Murry Wilson managed and produced the Beach Boys from 1961 |
+| 2 | **The club owner** whose room they hold: the room's existing contact | Hustler, Shark | The act holds a standing engagement (`EngagementRoom`) | Bandleaders and club owners ran their house acts; Johnny Otis built and handled Little Esther and Etta James |
+| 3 | **The record-hop deejay**: a local deejay, preferring one already in the Rolodex | Hustler, Shark | A town with a station and record hops, for an act with local draw | Payola hearings, 1959-60; Alan Freed's co-writer credit on "Maybellene" |
+| 4 | **The songwriter-producer** building the act around his songs | Svengali, Visionary | A Svengali on an act that writes little, or a vocal group | Phil Spector with the Teddy Bears (1958) and the Crystals (1961); Leiber and Stoller with the Coasters |
+| 5 | **The agency man** from GAC, William Morris or Shaw | Shark, Visionary | An act with a past contract or a chart record, or based in New York, Chicago or Los Angeles | Agencies booked the package tours and held established acts |
+| 6 | **The jukebox-route operator**: money from the vending business | Shark | A keyed share of Sharks in the big jukebox cities (New York, Chicago, Detroit, Philadelphia, Newark) | Jukebox and vending money behind labels and acts, e.g. Morris Levy at Roulette (history only; no real names in the game) |
+| 7 | **The personal manager**, a professional | Visionary, Svengali, Shark | The fallback for Visionary and Svengali, and for Sharks on better acts | Colonel Parker (Shark-like); Albert Grossman (Visionary: folk, Peter, Paul and Mary, 1961) |
+| 8 | **The hustler** from the neighbourhood: a car salesman, a barber, a friend who knows a booker | Hustler | The fallback for every Hustler | Most bar bands' "manager" was this |
+
+### What it changes (player-side only)
+- **Who you meet and where.** The step-3 sit-down moves to his place, on a day that fits him:
+  - the club owner's club on a night they play
+  - the deejay's station after his shift
+  - the agency's office
+  - the operator's booth at a restaurant
+- **Family merges the steps.** When the father is the manager, the family visit *is* the sit-down: one Sunday, one
+  step.
+- **His line at the sit-down and in the Rolodex.** The Rolodex title becomes, for example, "Sal's father", "owns the
+  Michigan Roadhouse" or "WJLB record-hop deejay" instead of "Personal manager". The family name comes from the
+  member; the club owner and deejay are people already in the world.
+- **The Street can know him.** "That's Frank's band. Frank owns the Roadhouse, and he likes his Friday crowd." This
+  feeds step 7 (leads).
+
+### Options beyond the identity (each moves the opening mix, so each needs its own measurement)
+- **Club owner as a Comfortable reason:** "Frank won't let us go." The engagement pull already exists; this would
+  name who is pulling.
+- **Deejay wants a cut** at the table: a co-writer credit on the A-side, through the existing publishing axis. It's
+  period-true and gives the player a real choice.
+- **Agency man out of town:** the sit-down is in the agency's city, so it costs a trip.
+
+### What stays the same
+- The roll, `ManagerProfile` numbers and the AI's term sheets. The AI CSVs stay byte-identical.
+- The archetype's demands at the table. The identity only says who is making them.
+
+### Open questions for the author
+1. Are eight identities the right list? The candidates for cutting are the jukebox operator (tone) and the agency
+   man (rare in the opening).
+2. Should the family identity be visible before the ask? ("Her father does their business.")
+3. Should any of the options above go into step 3.5, or wait for step 4 (regard)?
+
+### Decided (author, 2026-11-25)
+1. Keep all eight, but the agency man and the jukebox operator appear only for acts that would realistically have
+   one:
+   - **Agency man:** only acts with a record career behind them (a past contract, or Rising and up). Being based in a
+     big city doesn't count.
+   - **Jukebox operator:** only R&B, doo-wop, blues, soul and rock and roll acts in New York, Chicago, Detroit and
+     Philadelphia.
+2. The band says so when a relative manages them. The notebook card shows it once you've heard them: They say:
+   "Sal's father handles our business."
+3. The extras (club owner as a Comfortable reason, the deejay's cut, the out-of-town agency) wait for step 4.
+
+### Built
+- **`Systems/ManagerIdentity.cs`:** a pure read with no draw and nothing stored. Shares are keyed with `BandLife.Unit`.
+  - Family 0.5 of eligible acts, deejay 0.15, vocal-group songwriter 0.4, jukebox 0.5.
+  - The deejay share was first 0.30, which made deejays 15% of managed acts. That was too many.
+  - Family names are a period first name plus the member's surname. Relation: father 55%, mother 20%, uncle 13%,
+    older brother 12%.
+  - The club booker is the engagement room's existing contact.
+  - Agencies are fictional: Consolidated Artists, National Talent Bureau, Continental Booking, Allied Artists Agency.
+- **Step 3 uses it.** The manager step names who he is and meets at his place:
+  - the club booker at his room, on a night it's open
+  - family at the kitchen table on Sunday
+  - everyone else at his place on a weekday
+  - When the family is the manager *and* a member is under 21, the Sunday visit is the sit-down: one step, not two.
+  - The line spoken at the sit-down is the place (who he is) plus the archetype's manner (what he'll be at the table).
+- **Names shown to the player** come from the identity, and the AI's term sheets are untouched. Places:
+  - the Rolodex manager card, with "Sal's father", "books the Michigan Roadhouse" and so on as its title
+  - the act's rights text and manager note
+  - the roster sleeve
+  - the player's baseline term sheet
+  - rival offers and rival meeting news
+- **Unchanged:** the roll, `managerName`, `ManagerProfile` and every AI read. The checks confirm that reading
+  managers changes no world state.
+- **A known wrinkle:** the club booker is read from today's engagement. If the residency ends, the act's manager
+  reads differently from then on. A yes already given keeps the name it was given with.
+- **Measured (seed 1001, 1960 opening, unsigned active acts):**
+
+  | Manager | Acts |
+  |---|---|
+  | Unmanaged | 1,567 |
+  | Hustler | 970 |
+  | Personal manager | 946 |
+  | Family | 448 |
+  | Songwriter-producer | 229 |
+  | Deejay | 206 |
+  | Jukebox operator | 46 |
+  | Club booker | 37 |
+  | Agency | 0 |
+
+  Agency is zero because almost no unsigned act in the opening has a record career. It appears with dropped acts later
+  in the decade, which is the point of decision 1.
+- **Checks:** `DispositionChecks` 61, adding Part E: every kind sits only on its allowed archetypes, family shares a
+  member's surname, the club booker is the room's booker, agency and jukebox only where realistic, repeatable reads, no
+  world state touched, and the family merge. Runway 213, The Set 92, Scouting UI 72 and First Week 13 all pass.
