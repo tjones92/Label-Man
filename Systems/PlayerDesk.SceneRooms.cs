@@ -85,6 +85,7 @@ public partial class PlayerDesk {
                 SetRequests = coverage >= .5f ? slot.Performance.Audience?.Requests : null,
                 Conditions = $"{slot.Role}; {SceneRoomCharacter.KindName(room.Kind)}; {(slot.Residency ? "regular engagement" : "announced booking")}." + (coverage >= .9 ? "" : " You caught part of the set, so not every scheduled song was heard.") });
             if (listener != null) RememberScoutingListener(dossier, dossier.Observations.Last(), slot.Performance, listener);
+            SettleHoldoutAfterHearing(artist.artistId);
             var prospect = new Prospect { Artist = artist, Venue = room.Category, CityId = CurrentCityId, SceneRoomId = room.Id, SceneBillId = bill.Id,
                 AskingAdvance = VenueAdvanceAsk(artist, room.Category, AskScaleFor(CurrentCityId)), Note = $"Heard the {slot.Role} at {room.Name}." };
             if (coverage >= .9) prospect.LiveSet.AddRange(ReadSceneRoomSet(artist, resolved, slot));

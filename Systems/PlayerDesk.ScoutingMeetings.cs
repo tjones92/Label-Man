@@ -143,6 +143,7 @@ public partial class PlayerDesk {
                 SourceId = meeting.PersonId, SourceName = meeting.PersonName, ConsultationFee = meeting.Fee,
                 Conditions = $"{meeting.Activity}: one agreed song with the named lineup; {(meeting.Activity == ScoutingAppointmentActivity.Demo ? "budget home studio" : "private room rehearsal")}. No audience or release evidence.",
                 Credibility = "bounded controlled sample; no future ceiling or signing commitment", Claim = "Ensemble in this sample: " + AxisDescription(interpretation.Execution).Replace("set", "sample") + ". " + (interpretation.Vocals.HasValue ? "Vocals: " + AxisDescription(interpretation.Vocals.Value).Replace("set", "sample") + "." : "No lead-vocal evidence.") });
+            SettleHoldoutAfterHearing(meeting.ArtistId);   // a member holding out can be won over at a rehearsal
             message = $"Completed the {meeting.Activity.ToString().ToLowerInvariant()}. One controlled sample retained; no master or deal created.";
             Note(message); Changed?.Invoke(); return true;
         }

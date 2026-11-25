@@ -187,7 +187,7 @@ The NEXT SETS list then answers "who's worth the hour?" with leads, not a sorted
 |---|---|---|---|
 | 1 | **Measure** — **done**, see §7 | No (read only) | Probe output against the §3.1 targets |
 | 2 | **Disposition + reasons** — **built**, see §8 | No (player-only) | New `DispositionChecks`: every disposition reachable, reasons name real state, same state → same answer; AI CSVs byte-identical |
-| 3 | **Immediate answers + direct signing from Latent** for agreeing acts; band talks-it-over tied to the next real set | Player worlds only | Rival-contest rate before/after; first signing day in the opening (today day 1–8) |
+| 3 | **Immediate answers + direct signing from Latent** — **built**, see §9 — for agreeing acts; band talks-it-over tied to the next real set | Player worlds only | Rival-contest rate before/after; first signing day in the opening (today day 1–8) |
 | 4 | **Regard ledger** from existing verbs; Careful wants named as verbs | No | Every regard source moves the line it should |
 | 5 | **The Talk** (audit §3.3) built on 2–4: opening line by disposition, wants as script lines | No | Audit §4 row 3 |
 | 6 | **Signed as a clock** (§3.4): Street contract read, watch item, the call at expiry | No (reads expiry decisions) | An act let go after regard calls the player |
@@ -446,3 +446,74 @@ rehearsal. The other two in five are Careful or Comfortable.
 - The probe's "Careful" is mostly "out of town" because it hears all 31 towns. At home it's rare (11%), and its
   reason there is "no records".
 - Frictions are computed but don't change the outcome yet. Step 3 makes hungry acts sign tonight or at a dated step.
+
+## 9. Step 3 built: a yes signs tonight, or after its real steps (2026-11-25)
+
+### What changed
+- **The ask answers on the spot** (`PlayerDesk.DirectApproach`). A hungry act, or a careful one you came back for on
+  a second night, says yes (new status `Agreed`). The 8-day "talking it over" and the hand-off to the weekly
+  activation pass are gone for new asks. Older saves' Considering/Ready approaches still run the old way.
+- **Nothing in the way: they sign tonight.** With no member under 21, no holdout and no demanding manager, terms open
+  in the same conversation. `ApproachToSign` prefixes the yes to its terms message.
+- **Each friction is a dated step** (`ScoutingApproachStep`, stored on the approach):
+
+  | Friction | Step | When | How it's taken |
+  |---|---|---|---|
+  | A member under 21 | Meet the family | The next Sunday | MEET THE FAMILY on the card, in their town, 2h |
+  | A shark, svengali or visionary manager | Sit down with him, by name | The next weekday | SIT DOWN WITH THE MANAGER, in their town, 1h |
+  | A holdout (3+ members, one below 0.35 ambition) | They settle it at their next set | The next posted set; none posted means any set heard after the yes | Hear a set on or after the date, or attend a rehearsal you arranged after the yes |
+
+  A step can't be taken before its day, or away from the act's town. The manager's demands still come through
+  `GenerateTermSheet` at the table. Each step taken writes what was said, and the notebook quotes it.
+- **A yes holds for 28 days** (`AgreedHoldDays`) past the agreement or its last dated step, whichever is later. It
+  lapses if nobody acts on it, or at once if another label signs the act.
+- **Direct signing from Latent.** An agreed act stays Latent, so the AI market never sees it on offer and the weekly
+  pass gets no demand from it. `ArtistManager.ReleaseLatentForPlayerSigning` moves it into the free-agent pool
+  **inside** `FinalizeSigning`, so the ownership seam reads a normal free-agent contract. That method is the only
+  ArtistManager change, and it does nothing unless the player is signing. The terms gates (`ApproachToSign`,
+  `CanCommitSceneSigning`, the card, the pad, The Set's Suit) use `CanTalkTerms`: the market's rule, or a yes with
+  every step taken. A yes with a step left can't skip it, even if the weekly pass activates the act meanwhile.
+- **Rivals:** an agreed act counts as pursued (`IsConsideringApproach`), so a rival's pick of it becomes a courtship.
+- **Copy:**
+  - The card's status reads "said yes · meet the family Sunday (Jan 31)", "said yes · sit down with Sol Kramer" or
+    "said yes · sit down on terms".
+  - The first-week line "Sleep on it" is now "Get their yes". The Street, the Suit or the Ear teaches whichever step
+    is pending, and the Street's ask line no longer says no is the usual answer.
+
+### Checks (seed 1001)
+- **`DispositionChecks`: 51 checks** (26 before). New checks:
+  - A hungry act of age with no manager opens terms on the spot and stays Latent, off the AI market.
+  - It signs at its ask from Latent and leaves the latent pool.
+  - A careful act heard twice says "You came back".
+  - Part D hears a fresh band and gives it a minor, a shark and a holdout. It gets three steps: Sunday, a weekday,
+    and the next set. The family can't be seen before Sunday, the holdout is not a verb, and each step is taken on its
+    day and costs time. The holdout settles at the set heard, and then terms open.
+  - An untaken yes lapses after 28 days.
+- **`--scouting-runway-check`: 213 checks, thin=0.** The ask check expects Agreed for hungry acts, terms open only
+  when they sign tonight, and one step per friction. A yes asks the activation pass for nothing, and being signed
+  elsewhere lapses it.
+- **`TheSetChecks` 92, `ScoutingUiChecks` 72, `FirstWeekUiChecks` 13.** First week was 14; the missing check is the
+  morning paper after END THE DAY, which never comes now because the walkthrough's act says yes and signs the same
+  night.
+
+### Measured: the opening (runway Part B, poorest purse)
+
+| Town | First offer: step 2 → step 3 | Asks | Yes (tonight) | Steps taken | Lost to rivals |
+|---|---|---|---|---|---|
+| Billings | day 8 → **7** | 3 | 1 (1) | 0 | 0 |
+| Albuquerque | day 8 → **2** | 2 | 2 (1) | 1 | 0 |
+| Nashville | day 15 → **8** (signed) | 3 | 2 (1) | 0 | 0 |
+| New York | day 8 → **4** | 3 | 1 (1) | 0 | 0 |
+
+- The first offer now comes when the first hungry act is heard, rather than a week after it was asked.
+- **Rival-contest rate: not measured properly.** These openings last 2 to 8 days, too short for a rival to reach an
+  agreed act. A real before/after needs a longer player-side run that counts courtships of agreed acts. That
+  measurement is owed.
+- **AI byte-comparison:** not run. It's planned for the end of step 7. The ArtistManager addition only runs from
+  the player's signing call.
+
+### Not done in step 3
+- The holdout always comes round once you're in the room. A holdout who still says no, or quits the band, is step 9.
+- A family visit or manager meeting can't be missed or rescheduled: it opens on its day and stays open until the yes
+  lapses.
+- The step verbs aren't in the conversation modal or The Set yet, only on the act card.

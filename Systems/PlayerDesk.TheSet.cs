@@ -137,7 +137,7 @@ public partial class PlayerDesk {
 		if (act != null && !string.IsNullOrEmpty(act.labelId) && act.labelId != Label?.labelId) {
 			string label = ChartManager.Instance?.GetLabelName(act.labelId) ?? "another label";
 			Read(ExecutiveVoice.Suit, $"They're under paper with {label}. Whatever you heard, it isn't for sale.", null, null);
-		} else if (prospect != null && act != null && SceneDealAvailable(prospect)) {
+		} else if (prospect != null && act != null && CanTalkTerms(prospect)) {
 			float ask = prospect.AskingAdvance;
 			string verdict = "";
 			if (SceneRoomCatalog.Get(last.RoomId) is { } room) {

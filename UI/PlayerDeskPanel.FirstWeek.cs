@@ -94,6 +94,9 @@ public partial class PlayerDeskPanel {
 		var step = desk?.FirstWeekCurrent;
 		if (step == null) return;
 		switch (step.Value) {
+			case FirstWeekStep.Answer when desk.FirstPendingApproachStep != null:
+				GoToTab(0, PageAandR);
+				break;
 			case FirstWeekStep.Answer:
 				Say("END THE DAY is in the header, beside the WAIT buttons. The Morning Paper says who called back.", true);
 				break;
@@ -111,7 +114,7 @@ public partial class PlayerDeskPanel {
 	private static string[] FirstWeekTargets(FirstWeekStep step) => step switch {
 		FirstWeekStep.Hear => new[] { "LISTEN", "GO & WAIT" },
 		FirstWeekStep.Ask => new[] { "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
-		FirstWeekStep.Answer => new[] { "END THE DAY" },
+		FirstWeekStep.Answer => new[] { "MEET THE FAMILY", "SIT DOWN WITH THE MANAGER", "END THE DAY" },
 		FirstWeekStep.Terms => new[] { "SIT DOWN ON TERMS", "TALK TO THEM" },
 		FirstWeekStep.Sign => new[] { "TABLE OFFER" },
 		_ => new[] { "TO THE ROSTER", "TAKE INTO STUDIO", "RETURN TO STUDIO" },

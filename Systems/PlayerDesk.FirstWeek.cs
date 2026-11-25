@@ -4,7 +4,7 @@ using System.Linq;
 // THE FIRST WEEK (SimTools/OnboardingTutorialDirective.md §3.2, T3).
 //
 // A short to-do card in the Label Man's own hand that walks a new player through the first signing and a first record,
-// riding the real verbs: hear a set, ask if they'd hear an offer, sleep on it, put a deal on the table, sign them, set up
+// riding the real verbs: hear a set, ask if they'd hear an offer, get their yes, put a deal on the table, sign them, set up
 // a first record. Each line ticks from real state, never from a button press the card counted, so any step can be done
 // out of order, or skipped, and the card just catches up. It ends with an act of the player's own on the roster and a
 // first record set up (author decision 3): a session booked, or anything past it.
@@ -53,12 +53,19 @@ public partial class PlayerDesk {
 			FirstWeekStep.Record => pendingSession != null || masters.Count > 0 || planned.Count > 0 || pressOrders.Count > 0 || ReleasedRecords.Any(),
 			FirstWeekStep.Sign => OwnActSigned,
 			FirstWeekStep.Terms => firstWeek.TermsOpened || OwnActSigned,
-			FirstWeekStep.Answer => scoutingKnowledge.Approaches?.Any(a => a.Status == ScoutingApproachStatus.Ready) == true || FirstWeekDone(FirstWeekStep.Terms),
+			FirstWeekStep.Answer => scoutingKnowledge.Approaches?.Any(a => a.Status == ScoutingApproachStatus.Ready ||
+				a.Status == ScoutingApproachStatus.Agreed && a.Steps.All(s => s.Done)) == true || FirstWeekDone(FirstWeekStep.Terms),
 			FirstWeekStep.Ask => scoutingKnowledge.Approaches?.Count > 0 || FirstWeekDone(FirstWeekStep.Answer),
 			FirstWeekStep.Hear => scoutingKnowledge.Dossiers.Any(d => HasScoutingEvidence(d.ArtistId)) || FirstWeekDone(FirstWeekStep.Ask),
 			_ => false,
 		};
 	}
+
+	/// <summary>The earliest step still to take before any act that said yes signs, or null.</summary>
+	public ScoutingApproachStep FirstPendingApproachStep => scoutingKnowledge.Approaches?
+		.Where(a => a.Status == ScoutingApproachStatus.Agreed)
+		.Select(a => NextApproachStep(ArtistManager.Instance?.GetArtist(a.ArtistId))).Where(s => s != null)
+		.OrderBy(s => s.Day ?? int.MaxValue).FirstOrDefault();
 
 	/// <summary>A terms discussion opened (PlayerDesk.ApproachToSign): the "put a deal on the table" line ticks.</summary>
 	private void MarkFirstWeekTerms() => firstWeek.TermsOpened = true;
@@ -73,7 +80,7 @@ public partial class PlayerDesk {
 	public static string FirstWeekTitle(FirstWeekStep step) => step switch {
 		FirstWeekStep.Hear => "Go out and hear somebody",
 		FirstWeekStep.Ask => "Ask if they'd hear an offer",
-		FirstWeekStep.Answer => "Sleep on it",
+		FirstWeekStep.Answer => "Get their yes",
 		FirstWeekStep.Terms => "Put a deal on the table",
 		FirstWeekStep.Sign => "Sign them",
 		_ => "Set up a first record",
@@ -86,14 +93,24 @@ public partial class PlayerDesk {
 		bool declinedOnly = scoutingKnowledge.Approaches?.Count > 0
 			&& scoutingKnowledge.Approaches.All(a => a.Status is ScoutingApproachStatus.Declined or ScoutingApproachStatus.Lapsed);
 		bool anotherLook = scoutingKnowledge.Approaches?.Any(a => a.Status == ScoutingApproachStatus.WantsAnotherLook) == true
-			&& scoutingKnowledge.Approaches.All(a => a.Status is not (ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready));
+			&& scoutingKnowledge.Approaches.All(a => a.Status is not (ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready or ScoutingApproachStatus.Agreed));
+		var pending = FirstPendingApproachStep?.Kind;
 		return step switch {
+			FirstWeekStep.Answer when pending == ScoutingApproachStepKind.Parents => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
+				? "That's a yes, but somebody in that act is under 21, and in this business the mother signs. Go to Sunday dinner. Eat what's put in front of you and tell her the truth about the money."
+				: "They said yes, but one of them's under 21, so a parent signs. Go and meet the family on Sunday."),
+			FirstWeekStep.Answer when pending == ScoutingApproachStepKind.Manager => (ExecutiveVoice.Suit, StrongVoice(ExecutiveVoice.Suit)
+				? "A yes with a manager attached means the paper goes through him. Sit down with him on the day he named. Listen more than you talk: whatever he asks for, he'll ask for again at the table."
+				: "They've got a manager, so it goes through him. Go to the sit-down he named."),
+			FirstWeekStep.Answer when pending == ScoutingApproachStepKind.Holdout => (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
+				? "One of them isn't sold, and a band moves at the speed of its slowest yes. Be in the room for their next set. A holdout comes round for a label that turns up."
+				: "One of them's not sure. Go to their next set and stand where they can see you."),
 			FirstWeekStep.Hear => (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
 				? "Handbills lie and so do managers. A set doesn't. Pick a room tonight, stand near the back, and I'll tell you what I heard."
 				: "Don't ask me who's good. I can tell you who was loud. Go hear a set anyway: what we hear goes in the notebook, and that's more than a handbill gives you."),
 			FirstWeekStep.Ask => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
-				? "Half the acts on any bill aren't shopping. Day jobs, steady girls, mothers who hate the business. So ask if they'd hear an offer. It's free, and no is the usual answer. If somebody's already shopping, skip the asking and sit down on terms."
-				: "I couldn't tell you who's shopping in this town. Nobody can till you ask. It's free, and most of them say no."),
+				? "Most acts on a bill would jump at a record, but there's always something: a kid whose mother has to sign, a manager who wants his sit-down, a steady job. So ask if they'd hear an offer. It's free, and they'll tell you straight. If somebody's already shopping, skip the asking and sit down on terms."
+				: "I couldn't tell you who's shopping in this town. Nobody can till you ask. It's free, and they'll tell you why if it's no."),
 			FirstWeekStep.Answer when anotherLook => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
 				? "They want to see you come back. That's not a no: a label that turns up twice means it. Catch their next set, then ask again."
 				: "They want you to come back and hear them again. So go back. Then ask again."),

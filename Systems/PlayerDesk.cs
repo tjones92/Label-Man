@@ -2115,7 +2115,9 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool ApproachToSign(Prospect prospect, out string message) {
         // An act heard but off the market is asked whether it would hear an offer (PlayerDesk.DirectApproach).
+        // A yes said just now (they'd sign tonight) comes back as the message, and terms open in the same conversation.
         if (TryDirectApproach(prospect?.Artist, out message)) return false;
+        string yes = message;
         if (LocalScenes.Persisting && !CanCommitSceneSigning(prospect, out message)) return false;
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
 		if (!prospect.FollowedUp && !HasScoutingEvidence(prospect.Artist.artistId)) { message = "Hear an act before making an offer."; return false; }
@@ -2141,7 +2143,7 @@ public partial class PlayerDesk : Node {
             RememberScoutingNegotiation(prospect); MarkFirstWeekTerms(); message = $"Back at the table with {prospect.Artist.stageName}."; Changed?.Invoke(); return true;
         }
         int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, week) == false) {
+		if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, week) == false && !AgreedToSign(prospect.Artist)) {
 			message = "They're not taking offers right now.";
 			return false;
 		}
@@ -2179,6 +2181,7 @@ public partial class PlayerDesk : Node {
 			: string.IsNullOrEmpty(prospect.Baseline.DemandSummary)
 				? $"Table an offer for {prospect.Artist.stageName}."
 				: prospect.Baseline.DemandSummary;
+		if (!string.IsNullOrEmpty(yes)) message = yes + " " + message;
 		Changed?.Invoke();
 		MarkFirstWeekTerms();
 		return true;

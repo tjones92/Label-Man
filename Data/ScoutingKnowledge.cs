@@ -164,11 +164,38 @@ public sealed class ScoutingNumberRefusal {
     public string SourceId { get; set; }
     public int UntilDay { get; set; }
 }
-/// <summary>WantsAnotherLook (appended; saves store the number): a careful act asked to be heard again first.</summary>
-public enum ScoutingApproachStatus { Considering, Ready, Declined, Lapsed, WantsAnotherLook }
+/// <summary>WantsAnotherLook and Agreed are appended (saves store the number). WantsAnotherLook: a careful act asked to be
+/// heard again first. Agreed: the act said yes to you, and signs from the notebook once its steps are taken.
+/// Considering and Ready belong to older saves (the 8-day answer through the weekly activation pass).</summary>
+public enum ScoutingApproachStatus { Considering, Ready, Declined, Lapsed, WantsAnotherLook, Agreed }
+/// <summary>What stands between an act's yes and a signature (SigningRealismBreakdown.md §6, step 3).</summary>
+public enum ScoutingApproachStepKind {
+    /// <summary>A member is under 21, so a parent signs for them. You go and meet the family.</summary>
+    Parents,
+    /// <summary>A shark, svengali or visionary manager wants a sit-down before anybody signs anything.</summary>
+    Manager,
+    /// <summary>One member isn't sure. The band settles it at its next set, and you should be in the room.</summary>
+    Holdout
+}
+/// <summary>One dated step before an agreed act signs. The player takes it; the clock never does.</summary>
+public sealed class ScoutingApproachStep {
+    public ScoutingApproachStepKind Kind { get; set; }
+    /// <summary>Who you're seeing: the minors' names, the manager, or the member holding out.</summary>
+    public string Who { get; set; }
+    /// <summary>The first day it can happen: Sunday for a family, the next weekday for a manager, the act's next posted
+    /// set for a holdout. Null for a holdout whose next date isn't posted, when the next set you hear counts.</summary>
+    public int? Day { get; set; }
+    /// <summary>The room of the holdout's set, when it's posted.</summary>
+    public string RoomName { get; set; }
+    public bool Done { get; set; }
+    public int DoneDay { get; set; }
+    /// <summary>What was said when it was taken.</summary>
+    public string Said { get; set; }
+}
 /// <summary>A label asked an act that was off the market whether it would hear an offer. The act's answer comes from its
-/// disposition (ActDisposition): a hungry act thinks it over, a careful act asks to be heard again first, a comfortable
-/// act says no and why. Older saves hold season-keyed declines; those now hold only while the act is still comfortable.</summary>
+/// disposition (ActDisposition): a hungry act says yes (tonight, or after its steps), a careful act asks to be heard
+/// again first, a comfortable act says no and why. Older saves hold season-keyed declines; those now hold only while the
+/// act is still comfortable.</summary>
 public sealed class ScoutingDirectApproach {
     public string ArtistId { get; set; }
     public string ArtistName { get; set; }
@@ -178,4 +205,6 @@ public sealed class ScoutingDirectApproach {
     public int UntilDay { get; set; }
     /// <summary>What the act's side said, as said (null on older saves).</summary>
     public string Said { get; set; }
+    /// <summary>Agreed: the steps before they sign, in order. Empty when they'll sign tonight.</summary>
+    public List<ScoutingApproachStep> Steps { get; set; } = new();
 }

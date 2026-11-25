@@ -71,7 +71,9 @@ public partial class PlayerDesk {
             message = "That discovery is no longer current. Return to the act's entry."; return false;
         }
         if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
-        if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0) != true) {
+        // An act that said yes to you signs from where it is (PlayerDesk.DirectApproach); one with a step still to take waits.
+        if (Agreement(prospect.Artist) != null ? !AgreedToSign(prospect.Artist)
+            : ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0) != true) {
             message = "They're not taking offers right now."; return false;
         }
         if (Label?.HasRosterSpace != true) { message = "Roster is full."; return false; }

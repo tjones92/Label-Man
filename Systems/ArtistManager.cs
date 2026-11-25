@@ -963,6 +963,13 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// (PlayerDesk.DirectApproach). Read once a week by the activation pass; null without a player label.</summary>
 	public Func<IReadOnlyCollection<string>> DirectApproachProvider { get; set; }
 
+	/// <summary>The player signs an act that said yes while still off the market (PlayerDesk.DirectApproach, signing
+	/// realism step 3). It joins the free-agent pool only inside the signing call, so the AI market never sees it on
+	/// offer and the ownership seam still reads it as a free-agent contract. A no-op for anyone not latent.</summary>
+	public void ReleaseLatentForPlayerSigning(SimulatedArtist artist) {
+		if (IsLatentProspect(artist)) ReturnProspectToSearchableMarket(artist);
+	}
+
 	private void ActivateProspectsForHiringOpportunities() {
 		SimulatedArtist[] seeking = artistRegistry.Values.Where(IsSeekingProspect).ToArray();
 		SimulatedArtist[] latent = artistRegistry.Values.Where(IsLatentProspect).ToArray();

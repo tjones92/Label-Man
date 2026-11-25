@@ -73,7 +73,7 @@ public partial class PlayerDeskPanel {
                 bool askFirst = desk.CanAskDirectApproach(prospect.Artist);
                 var deal = ScoutingSmallButton(askFirst ? "ASK IF THEY'D HEAR AN OFFER" : "SIT DOWN ON TERMS");
                 bool evidence = prospect.FollowedUp || desk.HasScoutingEvidence(prospect.Artist.artistId);
-                deal.Disabled = !askFirst && (!PlayerDesk.SceneDealAvailable(prospect) || !evidence);
+                deal.Disabled = !askFirst && ((!desk.CanTalkTerms(prospect) && desk.Agreement(prospect.Artist) == null) || !evidence);
                 deal.TooltipText = askFirst ? "Nobody's asked them about a record yet. They'll tell you where they stand, and why. Free."
                     : PlayerDesk.SceneDealDescription(prospect);
                 deal.Pressed += () => { modal.Close(); bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };

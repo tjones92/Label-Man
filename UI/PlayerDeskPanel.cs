@@ -1204,10 +1204,10 @@ public partial class PlayerDeskPanel : Control {
         }
         bool askFirst = desk.CanAskDirectApproach(prospect.Artist);
         var approach = Primary(askFirst ? "ASK IF THEY'D HEAR AN OFFER" : "SIT DOWN ON TERMS");
-        approach.Disabled = !askFirst && (!PlayerDesk.SceneDealAvailable(prospect) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId)));
+        approach.Disabled = !askFirst && ((!desk.CanTalkTerms(prospect) && desk.Agreement(prospect.Artist) == null) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId)));
         approach.TooltipText = askFirst ? "Nobody's asked them about a record yet. They'll tell you where they stand, and why. No money or time spent."
             : PlayerDesk.SceneDealDescription(prospect);
-        GreyWhy(approach, PlayerDesk.SceneDealAvailable(prospect) ? "Hear them play first: terms are talked over once you have something to go on." : "They aren't ready to talk terms.");
+        GreyWhy(approach, desk.CanTalkTerms(prospect) ? "Hear them play first: terms are talked over once you have something to go on." : "They aren't ready to talk terms.");
         approach.Pressed += () => { beforeConversationAction?.Invoke(); bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
         row.AddChild(approach); content.AddChild(row);
     }

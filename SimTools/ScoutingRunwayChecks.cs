@@ -93,7 +93,7 @@ public static class ScoutingRunwayChecks {
             Check(desk.RestoreState(player, out message), "restore " + town + ": " + message);
             clock.RestoreClock(date, startHour, startMinute);
             float cash = poorest.Value.Capital; desk.Label.cashReserves = cash;
-            int actions = 0, listens = 0, minutes = 0, refusals = 0, asks = 0; string outcome = "no offer reached", reason = null, act = null;
+            int actions = 0, listens = 0, minutes = 0, refusals = 0, asks = 0, agreed = 0, tonight = 0, steps = 0; string outcome = "no offer reached", reason = null, act = null;
             float admissionPaid = 0, ask = 0; int startDay = LocalSceneRoomService.Day(clock.CurrentDate);
             int? firstOpenDay = null, offerDay = null; var opened = new HashSet<string>(StringComparer.Ordinal);
             var tried = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -101,27 +101,42 @@ public static class ScoutingRunwayChecks {
             int Minute() => Elapsed() * 24 * 60 + clock.CurrentHour * 60 + clock.CurrentMinute;
             // Any act in the notebook that would talk today gets an offer at its own asking terms.
             void TryOffers() {
-                int week = ChartManager.Instance.GetCurrentChartWeek();
+                int week = ChartManager.Instance.GetCurrentChartWeek(), today = LocalSceneRoomService.Day(clock.CurrentDate);
                 foreach (var dossier in desk.ScoutingDossiers) {
                     var a = am.GetArtist(dossier.ArtistId);
+                    // A yes with a step due today: go and see the family or the manager (a holdout settles at a set heard).
+                    if (desk.NextApproachStep(a) is { Kind: not ScoutingApproachStepKind.Holdout } step && step.Day <= today) {
+                        actions++;
+                        if (desk.TakeApproachStep(a.artistId, step.Kind, out message)) steps++;
+                    }
+                    PlayerDesk.Prospect heard = null;
                     // Off the market: ask whether they'd hear an offer, unless the answer they gave still holds (talking it
-                    // over, a no for a reason that hasn't changed, or "come and hear us again" before you have).
+                    // over, a no for a reason that hasn't changed, or "come and hear us again" before you have). A yes with
+                    // nothing in the way opens terms in the same conversation.
                     if (DirectAsks && desk.CanAskDirectApproach(a) && !desk.DirectApproaches.Any(x => x.ArtistId == a.artistId &&
                             x.Status == ScoutingApproachStatus.Considering) && !desk.StillDeclining(a) && !desk.WaitingToBeHeardAgain(a)
                         && desk.OpenScoutingDossier(a.artistId, out message)) {
                         var asked = desk.Slate.FirstOrDefault(p => p.Artist.artistId == a.artistId);
-                        if (asked != null) { actions++; asks++; desk.ApproachToSign(asked, out message); }
-                        continue;
+                        if (asked == null) continue;
+                        actions++; asks++;
+                        if (!desk.ApproachToSign(asked, out message)) {
+                            if (desk.Agreement(a) is { } yes) { agreed++; if (yes.Steps.Count == 0) tonight++; }
+                            continue;
+                        }
+                        agreed++; tonight++; heard = asked;
+                        if (opened.Add(a.artistId)) firstOpenDay ??= Elapsed();
+                    } else {
+                        if (a == null || !string.IsNullOrEmpty(a.labelId) || !(am.IsEligibleForPopulationSigning(a, week) || desk.AgreedToSign(a))) continue;
+                        if (desk.NextApproachStep(a) != null) continue;
+                        if (opened.Add(a.artistId)) firstOpenDay ??= Elapsed();
+                        if (tried.TryGetValue(a.artistId, out int last) && Elapsed() - last < 7) continue;
+                        tried[a.artistId] = Elapsed();
+                        if (!desk.OpenScoutingDossier(a.artistId, out message)) continue;
+                        heard = desk.Slate.FirstOrDefault(p => p.Artist.artistId == a.artistId);
+                        if (heard == null || heard.AskingAdvance > desk.Label.cashReserves) continue;
+                        actions++;
+                        if (!desk.ApproachToSign(heard, out message)) { refusals++; reason = message; continue; }
                     }
-                    if (a == null || !string.IsNullOrEmpty(a.labelId) || !am.IsEligibleForPopulationSigning(a, week)) continue;
-                    if (opened.Add(a.artistId)) firstOpenDay ??= Elapsed();
-                    if (tried.TryGetValue(a.artistId, out int last) && Elapsed() - last < 7) continue;
-                    tried[a.artistId] = Elapsed();
-                    if (!desk.OpenScoutingDossier(a.artistId, out message)) continue;
-                    var heard = desk.Slate.FirstOrDefault(p => p.Artist.artistId == a.artistId);
-                    if (heard == null || heard.AskingAdvance > desk.Label.cashReserves) continue;
-                    actions++;
-                    if (!desk.ApproachToSign(heard, out message)) { refusals++; reason = message; continue; }
                     act = heard.Artist.stageName; ask = heard.Baseline.Advance; offerDay ??= Elapsed();
                     if (heard.Talk != null) { outcome = "talks opened (" + heard.Posture + ")"; reason = message; return; }
                     actions++; var t = heard.Baseline;
@@ -157,7 +172,7 @@ public static class ScoutingRunwayChecks {
                 listeningMinutes = minutes, days, admissionPaid, refusals, dossiers = dossiers.Count,
                 heardUnsignedAtEnd = dossiers.Count(d => string.IsNullOrEmpty(am.GetArtist(d.ArtistId)?.labelId)),
                 rivalNotes = dossiers.Sum(d => d.Observations.Count(o => o.Kind == ScoutingEvidenceKind.RivalInterest)),
-                approachAsks = asks, considering = desk.DirectApproaches.Count(x => x.Status is ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready), declined = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.Declined),
+                approachAsks = asks, agreed, signsTonight = tonight, stepsTaken = steps, considering = desk.DirectApproaches.Count(x => x.Status is ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready), declined = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.Declined),
                 wantsAnotherLook = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.WantsAnotherLook),
                 ready = desk.DirectApproaches.Count(x => x.Status == ScoutingApproachStatus.Ready),
                 lostToRivals = dossiers.Count(d => opened.Contains(d.ArtistId) && !string.IsNullOrEmpty(am.GetArtist(d.ArtistId)?.labelId) && am.GetArtist(d.ArtistId).labelId != desk.Label.labelId),
@@ -191,36 +206,37 @@ public static class ScoutingRunwayChecks {
         var target = Heard(); Check(target != null && desk.CanAskDirectApproach(target.Artist), "a heard off-market act can be asked");
         float purseBefore = desk.Label.cashReserves; int minute = clock.CurrentHour * 60 + clock.CurrentMinute;
         string snapshot = Json(WorldStateService.Capture());
-        Check(!desk.ApproachToSign(target, out message) && desk.DirectApproaches.Count == 1, "the ask records an answer and opens no terms: " + message);
+        var read = desk.ReadDisposition(target.Artist);
+        bool termsOpened = desk.ApproachToSign(target, out message);
+        Check(desk.DirectApproaches.Count == 1 && termsOpened == read.SignsTonight, $"the ask records an answer, and opens terms only for an act that signs tonight ({termsOpened}): " + message);
         var answer = desk.DirectApproaches[0];
         Check(desk.Label.cashReserves == purseBefore && clock.CurrentHour * 60 + clock.CurrentMinute == minute && Json(WorldStateService.Capture()) == snapshot,
             "asking costs nothing and changes no world state");
-        var read = desk.ReadDisposition(target.Artist);
-        Check(answer.Status == (read.Kind == DealDisposition.Hungry ? ScoutingApproachStatus.Considering
+        Check(answer.Status == (read.Kind == DealDisposition.Hungry ? ScoutingApproachStatus.Agreed
                 : read.Kind == DealDisposition.Comfortable ? ScoutingApproachStatus.Declined : ScoutingApproachStatus.WantsAnotherLook),
             $"the act answers from its disposition ({read.Kind}, {read.Reason}): {answer.Status}");
+        Check(answer.Status != ScoutingApproachStatus.Agreed || answer.Steps.Count == (read.Minors.Count > 0 ? 1 : 0) + (read.DemandingManager ? 1 : 0) + (read.Holdout != null ? 1 : 0),
+            "a yes carries one step per friction");
         Check(!string.IsNullOrEmpty(answer.Said), "the answer is said by somebody");
         desk.ApproachToSign(target, out string again);
         Check(desk.DirectApproaches.Count == 1 && desk.DirectApproaches[0].Status == answer.Status &&
-            (answer.Status == ScoutingApproachStatus.Considering ? again.Contains(LocalSceneRoomService.Date(answer.UntilDay).ToHeadlineString()) : again.StartsWith(answer.Said)),
+            (answer.Status != ScoutingApproachStatus.Agreed ? again.StartsWith(answer.Said) : answer.Steps.Count > 0 ? again.Contains("said yes") : true),
             "a repeat ask with nothing changed gives the same answer and files nothing new: " + again);
         var saved = LocalSceneRoomService.Copy(desk.CaptureState());
         Check(desk.RestoreState(LocalSceneRoomService.Copy(saved), out message) && Json(desk.DirectApproaches) == Json(new[] { answer }), "the answer survives save/load");
         var malformed = LocalSceneRoomService.Copy(saved); malformed.ScoutingKnowledge.Approaches.Add(new ScoutingDirectApproach { ArtistId = null });
         Check(desk.RestoreState(malformed, out message) && desk.DirectApproaches.Count == 1, "a malformed approach is dropped on load");
         Check(desk.ScoutingSummary(target.Artist.artistId).Any(l => l.StartsWith("Asked (")), "the notebook states the approach");
-        // Roster cap: a full roster hands the owner nobody.
-        if (answer.Status == ScoutingApproachStatus.Considering) {
-            int max = desk.Label.maxRosterSize; desk.Label.maxRosterSize = desk.Label.roster.Count;
+        if (answer.Status == ScoutingApproachStatus.Agreed) {
+            // A yes stays off the AI market and hands the weekly activation pass nobody: the player signs from Latent.
             var provider = am.DirectApproachProvider();
-            Check(provider == null || provider.Count == 0, "no open roster slot, no activation demand");
-            desk.Label.maxRosterSize = max;
-            Check(am.DirectApproachProvider().Contains(target.Artist.artistId), "an open slot hands the act to the owner");
-            // Another label signs them before the answer: the approach lapses.
+            Check(target.Artist.prospectMarketStatus == ProspectMarketStatus.Latent && (provider == null || !provider.Contains(target.Artist.artistId)),
+                "a yes leaves the act off the market and asks the owner for nothing");
+            // Another label signs them before you do: the yes lapses.
             var rival = ChartManager.Instance.GetAllLabels().First(l => !l.isPlayerOwned && l.IsActive);
             target.Artist.labelId = rival.labelId;
             clock.EndDay();
-            Check(desk.DirectApproaches[0].Status == ScoutingApproachStatus.Lapsed, "signed elsewhere lapses the approach");
+            Check(desk.DirectApproaches[0].Status == ScoutingApproachStatus.Lapsed, "signed elsewhere lapses the yes");
         }
         GD.Print($"SCOUTING_RUNWAY_CHECK_PASS checks={checks} cities={DistanceModel.GetCities().Count} thin={thin.Count} " +
             string.Join(" ", plays.Select(p => Json(p))));

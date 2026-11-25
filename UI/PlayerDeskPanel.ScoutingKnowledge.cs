@@ -145,6 +145,8 @@ public partial class PlayerDeskPanel {
         switch (approach?.Status) {
             case ScoutingApproachStatus.Considering: return $"talking it over · answer by {ShortDay(approach.UntilDay)}";
             case ScoutingApproachStatus.Ready: return "will hear an offer · open their card to talk terms";
+            case ScoutingApproachStatus.Agreed when desk.Agreement(artist) != null:
+                return desk.NextApproachStep(artist) is { } step ? "said yes · " + PlayerDesk.StepShort(step) : "said yes · sit down on terms";
             case ScoutingApproachStatus.Declined when desk.StillDeclining(artist): return "said no · " + ActDisposition.Short(desk.ReadDisposition(artist));
             case ScoutingApproachStatus.WantsAnotherLook when desk.WaitingToBeHeardAgain(artist): return "want to see you again first";
         }
@@ -267,10 +269,14 @@ public partial class PlayerDeskPanel {
         return dot;
     }
 
+    /// <summary>The button for a step before an agreed act signs.</summary>
+    internal static string ApproachStepVerb(ScoutingApproachStep step) => step.Kind == ScoutingApproachStepKind.Parents
+        ? "MEET THE FAMILY" : "SIT DOWN WITH THE MANAGER";
+
     /// <summary>Whether an act will hear an offer right now, so the card's primary goes straight to terms.</summary>
     private static bool ScoutingReadyForTerms(PlayerDesk desk, SimulatedArtist artist, PlayerDesk.Prospect prospect, bool waiting) =>
         !waiting && !desk.CanAskDirectApproach(artist) && desk.HasScoutingEvidence(artist.artistId) &&
-        PlayerDesk.SceneDealAvailable(prospect ?? new PlayerDesk.Prospect { Artist = artist });
+        desk.CanTalkTerms(prospect ?? new PlayerDesk.Prospect { Artist = artist });
 
     /// <summary>Where the act stands with you: the last approach, a no that still holds, an answer pending, and whether
     /// the next step is the contract itself. Shared by the act card and The Set, so the two never disagree.</summary>
@@ -302,15 +308,22 @@ public partial class PlayerDeskPanel {
         var (approach, declined, considering, terms) = ScoutingActStanding(desk, artist);
         var bar = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         bar.AddThemeConstantOverride("separation", 14);
-        var offer = Primary(terms ? "SIT DOWN ON TERMS" : "TALK TO THEM");
+        // A yes with a step still to take: the family or the manager is the next verb. A holdout is settled at their set.
+        var step = desk.NextApproachStep(artist);
+        bool visit = step != null && step.Kind != ScoutingApproachStepKind.Holdout;
+        var offer = Primary(visit ? ApproachStepVerb(step) : terms ? "SIT DOWN ON TERMS" : "TALK TO THEM");
         offer.CustomMinimumSize = new Vector2(240, 42);
         offer.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-        offer.TooltipText = terms ? "Open the contract: their ask, your offer, and what it costs the label."
+        offer.TooltipText = visit ? $"In their town, on or after {ShortDay(step.Day ?? 0)}. Takes {(step.Kind == ScoutingApproachStepKind.Parents ? PlayerDesk.FamilyVisitHours : PlayerDesk.ManagerSitDownHours)}h."
+            : terms ? "Open the contract: their ask, your offer, and what it costs the label."
             : "Ask if they'd hear an offer, arrange a rehearsal or a demo, or get a number to call.";
-        offer.Pressed += () => PressScoutingPrimary(desk, dossier, terms);
+        if (visit) offer.Pressed += () => { bool ok = desk.TakeApproachStep(artist.artistId, step.Kind, out string result); Say(result, ok); Refresh(); };
+        else offer.Pressed += () => PressScoutingPrimary(desk, dossier, terms);
         bar.AddChild(offer);
         string hint;
-        if (declined) hint = "They said no. " + ActDisposition.WhatWouldChange(desk.ReadDisposition(artist));
+        if (step != null) hint = $"They said yes. {PlayerDesk.StepAsk(step, artist)}";
+        else if (desk.Agreement(artist) is { } yes && terms) hint = $"They said yes. Their yes holds until {ShortDay(PlayerDesk.AgreementHoldsUntil(yes))}.";
+        else if (declined) hint = "They said no. " + ActDisposition.WhatWouldChange(desk.ReadDisposition(artist));
         else if (considering) hint = $"They're talking it over. Their answer comes by {ShortDay(approach.UntilDay)}.";
         else if (desk.WaitingToBeHeardAgain(artist)) {
             var again = desk.NextReachableScoutingSet(dossier.ArtistId);

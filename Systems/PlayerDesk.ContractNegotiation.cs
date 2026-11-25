@@ -618,6 +618,8 @@ public partial class PlayerDesk : Node {
         if (!CurrentNewOffer(prospect, out message) || !CurrentContractCash(sheet, out message)) return false;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		// An act that said yes while off the market joins the free-agent pool only now, inside the signing.
+		ArtistManager.Instance?.ReleaseLatentForPlayerSigning(prospect.Artist);
 		float paid = Label.SignArtist(prospect.Artist, year, sheet);
 		float underAsk = prospect.HasBaseline ? UnderAskFraction(prospect.Baseline, sheet) : 0f;
 		prospect.Artist.signedUnderAskFraction = underAsk;
