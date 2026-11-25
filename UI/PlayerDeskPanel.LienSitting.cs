@@ -486,7 +486,7 @@ public partial class PlayerDeskPanel {
 		row.AddChild(StageCard(desk, live, "PAY", p.Stresses == PlayerDesk.LienBar.Pay, StageMoney(pay), "Cash from the till, today.", payRatio, payStatus, cash >= pay && !refuses,
 			opts.Where(o => o.verb == PlayerDesk.LienVerb.Pay)));
 		row.AddChild(StageCard(desk, live, "SHOW", p.Stresses == PlayerDesk.LienBar.Show, showAsk, "Prove the label is worth more than it was.", showRatio, show.Met ? "Enough to show him." : "Not enough to show him yet.", show.Met,
-			opts.Where(o => o.verb == PlayerDesk.LienVerb.Show)));
+			opts.Where(o => o.verb is PlayerDesk.LienVerb.Show or PlayerDesk.LienVerb.ShowStub)));
 		if (!desk.GermainLedgerFrozen)
 			row.AddChild(StageCard(desk, live, "CONCEDE", p.Stresses == PlayerDesk.LienBar.Concede, "Something he'll take", "What you can't pay in cash, he'll take another way.", favour ? 1f : stockRatio,
 				favour ? "He's counting the favour on your record." : $"Pressed stock on hand: {StageMoney(stock)} of the {StageMoney(pay)}.", favour || stock >= pay && pay > 0f,

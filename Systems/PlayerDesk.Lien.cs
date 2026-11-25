@@ -32,7 +32,7 @@ public partial class PlayerDesk {
 	public enum PartyWho { CamelCoat, DiscJockey, RouteMan, MajorMan, Nothing }
 	public enum PartyBrag { TheLabel, TheAct, Money, Hits, Nothing }
 	public enum PartyEnd { CardTable, Car, PhoneCall, Nothing }
-	public enum LienLedgerKind { Signed, InterestAccrued, Paid, Shown, ConcededStock, WrittenOn, Seized, Extended, PaidClean, Taken, GaveName, SentBoys, ReadBlackLedger, FloriaDismissed, FloriaBuyoutWaived, FloriaBuyout, HolderMove }
+	public enum LienLedgerKind { Signed, InterestAccrued, Paid, Shown, ConcededStock, WrittenOn, Seized, Extended, PaidClean, Taken, GaveName, SentBoys, ReadBlackLedger, FloriaDismissed, FloriaBuyoutWaived, FloriaBuyout, HolderMove, AddressBookBack, ReadChequeStub }
 
 	public const float LienFaceSum = 20000f;
 	/// <summary>The fallback rate (older saves carry their own). Each holder sets his own: <see cref="LienHolderProfile.Rate"/>.</summary>
@@ -313,6 +313,8 @@ public partial class PlayerDesk {
 		/// one) or burned (they don't take your word), and whether the address book has come back.</summary>
 		public List<string> WintersCold = new(), WintersBurned = new();
 		public bool AddressBookBack;
+		/// <summary>The cheque stub in the back of the returned book: found, and read by a Suit of 3+.</summary>
+		public ChequeStubStage ChequeStub;
 		/// <summary>Kubiak only (§3.5 H2): the day his claimed copies went on his machines, or null.</summary>
 		public GameDate? KubiakRouteDate;
 		/// <summary>Sawyer only (§6.1): the date Connie's record must be out by after the launch at his room, and whether it wasn't.</summary>
@@ -522,6 +524,8 @@ public partial class PlayerDesk {
 		string extra = HolderBelongings();
 		if (extra != null) gone.AddRange(extra.Split(", "));
 		gone.Add(SignatureBelonging());
+		// Clyde's address book is back (§3.5 H3): off the list, whichever line named it.
+		if (lien?.Holder == LienHolder.Winters && lien.AddressBookBack) gone.RemoveAll(g => g.Contains("address book"));
 		return gone;
 	}
 
@@ -590,7 +594,7 @@ public partial class PlayerDesk {
 
 	// ── the sitting (§3.2) ───────────────────────────────────────────────────────────────────────────
 
-	public enum LienVerb { Pay, Show, ConcedeStock, WriteItOn, PayInFull, HandOver, CounterInterest, CounterHonest, CounterBluff, WalkOut, ConcedeCutIn, ConcedeNetwork, FloriaSign, FloriaRivalBid, ConcedeFavour }
+	public enum LienVerb { Pay, Show, ConcedeStock, WriteItOn, PayInFull, HandOver, CounterInterest, CounterHonest, CounterBluff, WalkOut, ConcedeCutIn, ConcedeNetwork, FloriaSign, FloriaRivalBid, ConcedeFavour, ShowStub }
 
 	public sealed class LienOption {
 		public LienVerb verb;
@@ -763,6 +767,7 @@ public partial class PlayerDesk {
 		var show = LienShow();
 		list.Add(new LienOption { verb = LienVerb.Show, label = "Show him the books", subLabel = show.What,
 			enabled = show.Met && !live.showPushed && !live.bluffCaught, disabledReason = live.bluffCaught ? "He's stopped listening to that." : live.showPushed ? "He's already pushed back on that." : show.What });
+		if (ChequeStubOption() is { } stub) list.Add(stub);
 		if (!GermainLedgerFrozen) {
 			if (HolderFavourOption() is { } favour) list.Add(favour);
 			float stock = StockValueOnHand();
@@ -882,6 +887,10 @@ public partial class PlayerDesk {
 			case LienVerb.ConcedeCutIn:
 				GiveGermainHisName(live, today);
 				Extend(live, LienBar.Concede, p.ConcedeAccepted);
+				break;
+			case LienVerb.ShowStub:
+				UseChequeStub(live);
+				Extend(live, LienBar.Show, "");
 				break;
 			case LienVerb.ConcedeFavour:
 				CreditHolderFavour(today);
@@ -1108,7 +1117,7 @@ public partial class PlayerDesk {
 			FloriaDismissed = lien.FloriaDismissed, FloriaBuyoutWaived = lien.FloriaBuyoutWaived,
 			Move = (int)lien.Move, MoveRecordId = lien.MoveRecordId, MoveDue = lien.Move == HolderMoveStage.None ? null : DateSave.From(lien.MoveDue),
 			MoveSettled = lien.MoveSettled, MoveCredited = lien.MoveCredited, MoveDays = lien.MoveDays, SawyerLaunchYear = lien.SawyerLaunchYear, KubiakRefusedYear = lien.KubiakRefusedYear,
-			WintersCold = lien.WintersCold.ToList(), WintersBurned = lien.WintersBurned.ToList(), AddressBookBack = lien.AddressBookBack,
+			WintersCold = lien.WintersCold.ToList(), WintersBurned = lien.WintersBurned.ToList(), AddressBookBack = lien.AddressBookBack, ChequeStub = (int)lien.ChequeStub,
 			KubiakRouteDate = lien.KubiakRouteDate.HasValue ? DateSave.From(lien.KubiakRouteDate.Value) : null,
 			SawyerPromiseDue = lien.SawyerPromiseDue.HasValue ? DateSave.From(lien.SawyerPromiseDue.Value) : null, SawyerPromiseBroken = lien.SawyerPromiseBroken,
 			Ledger = lien.Ledger.Select(e => new LienLedgerSaveData { Date = DateSave.From(e.Date), Kind = (int)e.Kind, Amount = e.Amount, Detail = e.Detail }).ToList(),
@@ -1140,7 +1149,7 @@ public partial class PlayerDesk {
 			Move = (HolderMoveStage)d.Move, MoveRecordId = d.MoveRecordId, MoveDue = d.MoveDue?.Valid == true ? d.MoveDue.ToDate() : default,
 			MoveSettled = d.MoveSettled, MoveCredited = d.MoveCredited, MoveDays = d.MoveDays, SawyerLaunchYear = d.SawyerLaunchYear, KubiakRefusedYear = d.KubiakRefusedYear,
 			// An older save has no marks: Clyde never worked the book there.
-			WintersCold = d.WintersCold ?? new(), WintersBurned = d.WintersBurned ?? new(), AddressBookBack = d.AddressBookBack,
+			WintersCold = d.WintersCold ?? new(), WintersBurned = d.WintersBurned ?? new(), AddressBookBack = d.AddressBookBack, ChequeStub = (ChequeStubStage)d.ChequeStub,
 			KubiakRouteDate = d.KubiakRouteDate?.Valid == true ? d.KubiakRouteDate.ToDate() : null,
 			SawyerPromiseDue = d.SawyerPromiseDue?.Valid == true ? d.SawyerPromiseDue.ToDate() : null, SawyerPromiseBroken = d.SawyerPromiseBroken,
 			Ledger = (d.Ledger ?? new()).Where(e => e?.Date?.Valid == true).Select(e => new LienLedgerEntry {
@@ -1219,6 +1228,7 @@ public sealed class LienSaveData {
 	public List<string> WintersCold { get; set; }
 	public List<string> WintersBurned { get; set; }
 	public bool AddressBookBack { get; set; }
+	public int ChequeStub { get; set; }
 	public DateSave KubiakRouteDate { get; set; }
 	public DateSave SawyerPromiseDue { get; set; }
 	public bool SawyerPromiseBroken { get; set; }

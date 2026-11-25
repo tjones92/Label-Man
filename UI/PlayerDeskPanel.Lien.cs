@@ -55,6 +55,30 @@ public partial class PlayerDeskPanel {
 				content.AddChild(read);
 			}
 		}
+		if (desk.WintersBookLead() is { } book) {
+			Body(book);
+			if (desk.WintersSecretaryOpen) {
+				var routes = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+				routes.AddThemeConstantOverride("h_separation", 8);
+				foreach (var (route, label) in new[] {
+					(PlayerDesk.WintersSecretaryRoute.Street, $"TAKE HIS SECRETARY TO LUNCH ({PlayerDesk.WintersSecretaryStreetHours}h)"),
+					(PlayerDesk.WintersSecretaryRoute.Fixer, $"FLOWERS AND AN ENVELOPE (${PlayerDesk.WintersSecretaryFixerCost:N0}, {PlayerDesk.WintersSecretaryFixerHours}h)") }) {
+					var b = Btn(label);
+					string why = desk.WintersSecretaryBlock(route);
+					b.Disabled = why != null;
+					if (why != null) b.TooltipText = why;
+					b.Pressed += () => Act(() => { bool ok = desk.TakeBookFromSecretary(route, out string m); Say(m, ok); return true; });
+					routes.AddChild(b);
+				}
+				content.AddChild(routes);
+			} else if (lien.ChequeStub == PlayerDesk.ChequeStubStage.Found) {
+				var read = Btn("READ THE CHEQUE STUB (1h)");
+				read.Disabled = desk.InstinctProfile.TheSuit < PlayerDesk.WintersChequeStubSuit;
+				if (read.Disabled) read.TooltipText = $"Suit {PlayerDesk.WintersChequeStubSuit} needed.";
+				read.Pressed += () => Act(() => { bool ok = desk.ReadChequeStub(out string m); Say(m, ok); return true; });
+				content.AddChild(read);
+			}
+		}
 		if (desk.LienHolderIdentified && lien.Holder == PlayerDesk.LienHolder.Floria && lien.BarYear >= 1967 && !lien.FloriaDismissed) {
 			if (lien.FloriaBuyoutWaived) Body("New York dropped the purchase option. The lien still falls due at the reckoning.");
 			else {

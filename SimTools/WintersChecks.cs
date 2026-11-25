@@ -26,6 +26,9 @@ public partial class WintersChecks : Node {
 			OtherHolder(desk);
 			Refused(desk);
 			BookBack(desk);
+			Secretary(desk, WintersSecretaryRoute.Street);
+			Secretary(desk, WintersSecretaryRoute.Fixer);
+			StubAtSitting(desk);
 			SaveRoundTrip(desk);
 			GD.Print($"WINTERS_CHECKS_PASS ({checks} checks)");
 			GetTree().Quit(0);
@@ -118,6 +121,74 @@ public partial class WintersChecks : Node {
 		Check(desk.BuildCallContext(card, null).professionallyBurned, "A burn the Label Man earned himself stays");
 	}
 
+	/// <summary>The secretary: closed until Clyde is named; past the score, the book comes back with its leads and its stub.</summary>
+	private void Secretary(PlayerDesk desk, WintersSecretaryRoute route) {
+		var clock = TimeManager.Instance;
+		var today = clock.CurrentDate;
+		clock.RestoreClock(today, 9);
+		Fresh(desk, LienHolder.Winters);
+		var lien = desk.Lien;
+		lien.HolderIdentified = false;
+		Check(!desk.WintersSecretaryOpen && desk.WintersBookLead() == null, $"{route}: nobody to go to before Clyde is named");
+		lien.HolderIdentified = true;
+		Check(desk.WintersSecretaryOpen && desk.WintersBookLead()?.Contains("secretary") == true, $"{route}: once he is, the paper says where the book is");
+		var inst = desk.InstinctProfile;
+		int score = route == WintersSecretaryRoute.Street ? inst.TheStreet : inst.TheFixer;
+		if (score < WintersSecretaryScore) {
+			Check(!desk.TakeBookFromSecretary(route, out var no) && no.Contains($"{WintersSecretaryScore} needed"), $"{route} {score}: not enough: {no}");
+			return;
+		}
+		var all = desk.HomeReportersForChecks();
+		var cold = desk.AddRolodexCardForChecks(ChartManager.Instance.GetRadioStation(lien.WintersCold.FirstOrDefault() ?? lien.WintersBurned[0]));
+		int before = desk.RolodexCountForChecks();
+		float cash = desk.Label.cashReserves = 1000f;
+		Check(desk.TakeBookFromSecretary(route, out var m), $"{route} {score}: the book comes back: {m}");
+		Check(lien.AddressBookBack && !desk.WintersWorked(cold) && !desk.BuildCallContext(cold, null).youOweThem, $"{route}: Clyde's cards thaw");
+		Check(Math.Abs(cash - desk.Label.cashReserves - (route == WintersSecretaryRoute.Fixer ? WintersSecretaryFixerCost : 0f)) < .01f, $"{route}: it costs what it said");
+		Check(lien.Ledger.Any(e => e.Kind == LienLedgerKind.AddressBookBack), $"{route}: it's on the ledger");
+		// The test label is a Promo Man: his own book has every reporter in the home region.
+		Check(desk.RolodexCountForChecks() == all.Count, $"{route}: the book adds every home reporter he hadn't reached ({desk.RolodexCountForChecks() - before} leads)");
+		var lead = desk.RolodexCardForChecks(all.Last().stationId);
+		Check(lead.state == DiscoveryState.HeardOf && lead.shiftKnown && lead.log.Any(l => l.Contains("home number")), $"{route}: a lead is a name with a home number");
+		Check(desk.BuildCallContext(lead, null).rapport > 0f, $"{route}: and a Promo Man's lead starts warm");
+		Check(!desk.LienGoneList().Any(g => g.Contains("address book")), $"{route}: the book is off the gone list");
+		bool suit = inst.TheSuit >= WintersChequeStubSuit;
+		Check(lien.ChequeStub == (suit ? ChequeStubStage.Read : ChequeStubStage.Found), $"{route}: the stub is in the back, " + (suit ? "and the Suit reads it" : "unread"));
+		if (!suit) {
+			Check(!desk.ReadChequeStub(out var r) && r.Contains("Suit"), "Without the Suit, the stub stays a stub: " + r);
+			int was = inst.TheSuit;
+			inst.TheSuit = WintersChequeStubSuit;   // a Suit that has grown (Phase 5) reads it at the desk
+			try {
+				Check(desk.ReadChequeStub(out var read) && lien.ChequeStub == ChequeStubStage.Read && read.Contains("never stamped"), "At Suit 3 the stub reads: " + read);
+				Check(lien.Ledger.Any(e => e.Kind == LienLedgerKind.ReadChequeStub), "The read is on the ledger");
+			} finally { inst.TheSuit = was; }
+		}
+		Check(!desk.TakeBookFromSecretary(route, out _), $"{route}: there's nothing to get back twice");
+	}
+
+	/// <summary>A read stub stands in for Show at a Winters sitting the copies fall short of, at a cost in standing.</summary>
+	private void StubAtSitting(PlayerDesk desk) {
+		var clock = TimeManager.Instance;
+		var today = clock.CurrentDate;
+		Fresh(desk, LienHolder.Winters);
+		var lien = desk.Lien;
+		lien.HolderIdentified = true;
+		lien.BarYear = 1961; lien.Deadline = new GameDate(1962, 1, 1);
+		clock.RestoreClock(new GameDate(1961, 12, 20), 9);
+		Check(desk.OpenLienSitting(out var m), "A 1961 Winters sitting opens: " + m);
+		Check(!desk.LienShow().Met && desk.LienSittingOptions(desk.ActiveSitting).All(o => o.verb != LienVerb.ShowStub), "Without the stub read, nothing stands in for the copies");
+		desk.CloseLienSitting();
+		lien.AddressBookBack = true; lien.ChequeStub = ChequeStubStage.Read;
+		Check(desk.OpenLienSitting(out _), "Reopened with the stub read");
+		var stub = desk.LienSittingOptions(desk.ActiveSitting).FirstOrDefault(o => o.verb == LienVerb.ShowStub);
+		Check(stub != null && stub.enabled, "The stub is on the table when the copies fall short");
+		float standing = lien.Standing;
+		Check(desk.ChooseLienOption(desk.ActiveSitting, stub, out _) && lien.Extended, "It rolls the lien");
+		Check(Math.Abs(lien.Standing - (standing - WintersStubStanding + .1f)) < .001f, "Weisz likes you less for it");
+		desk.CloseLienSitting();
+		clock.RestoreClock(today, 9);
+	}
+
 	private void SaveRoundTrip(PlayerDesk desk) {
 		Fresh(desk, LienHolder.Winters);
 		var cold = desk.Lien.WintersCold.ToList();
@@ -125,9 +196,9 @@ public partial class WintersChecks : Node {
 		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
 		Check(desk.Lien.WintersCold.SequenceEqual(cold) && desk.Lien.WintersBurned.SequenceEqual(burned) && !desk.Lien.AddressBookBack,
 			"The cards he worked survive a save");
-		desk.Lien.AddressBookBack = true;
+		desk.Lien.AddressBookBack = true; desk.Lien.ChequeStub = ChequeStubStage.Found;
 		desk.RestoreLienForChecks(desk.CaptureLienForChecks());
-		Check(desk.Lien.AddressBookBack, "So does the book coming back");
+		Check(desk.Lien.AddressBookBack && desk.Lien.ChequeStub == ChequeStubStage.Found, "So does the book coming back, and the stub in it");
 		var old = desk.CaptureLienForChecks();
 		old.WintersCold = null; old.WintersBurned = null;
 		desk.RestoreLienForChecks(old);

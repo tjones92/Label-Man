@@ -340,7 +340,16 @@ Names are placeholders. The lawyers are the ones in `PlayerDesk.Lien.cs`. Rates 
   card's own flags: a card says so in its log when it goes into the book, and the card shows a line naming "somebody"
   until Clyde is identified. Turning down his first move burns the biggest cold card. The book comes back after a Show
   from the 1961 sitting on (a year of real sales), and only Clyde's marks thaw; a burn the Label Man earned himself
-  stays. Pending: the secretary route (Fixer or Street), the Rolodex leads, and the cheque stub.
+  stays.
+  **The other ways back, the leads and the stub** (built 2026-11-24, same file). Once Clyde is named, THE PAPER says the
+  book is in his desk at the publisher's office in town and offers his secretary: **Street 3+** takes her to lunch (3h),
+  **Fixer 3+** sends flowers and a $40 envelope (1h). However it comes back, the book's numbers become **Rolodex leads**:
+  every jock Clyde worked who isn't in the book yet, as a name with a home number (HeardOf, hours known). A Promo Man's
+  book (his signature belonging, §3.8) holds every reporter in the home region (Detroit: 10 leads), and those start at
+  +0.05 rapport. **The cheque stub** is in the back: Suit 3+ reads it on the spot, otherwise it waits on the desk for a
+  Suit that can. Read, it's the first link of the Suit route, and an **honest counter at every later Winters sitting**:
+  when the copies fall short of Show, laying it on the desk rolls the lien as Show at −0.1 net standing (*provisional*).
+  The book comes off the "gone since the night" list.
 - **Goal: hits**, because hits are copyrights. His Concedes are publishing shares. In good years he's almost friendly.
 - **Items.**
 
