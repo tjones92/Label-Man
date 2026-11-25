@@ -550,7 +550,11 @@ public partial class AILabel : Resource {
 			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P1}, {pub}.",
 			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P1}, {pub}. Wants strong local push.",
 			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P1}, {pub}. Short term, renegotiates fast.",
-			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P1}. Long exclusive term.",
+			// The manager wants the reins, not the label; and the term is a year longer than usual, not long outright.
+			// (Playtest 2026-11-25: "Wants the reins: label creative control … Long exclusive term" beside a 2-year ask.)
+			ManagerArchetype.Svengali => artistControl
+				? $"The manager wants the reins: artist creative control, ${advance:N0}, {royalty:P1}. Asks for a year more than most."
+				: $"The manager shapes the act: ${advance:N0}, {royalty:P1}, {pub}. Asks for a year more than most.",
 			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P1}. Publishing is non-negotiable.",
 			_ => $"${advance:N0}, {royalty:P1}, {pub}."
 		};

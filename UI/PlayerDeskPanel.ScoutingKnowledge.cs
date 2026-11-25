@@ -144,7 +144,7 @@ public partial class PlayerDeskPanel {
         int today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
         switch (approach?.Status) {
             case ScoutingApproachStatus.Considering: return $"thinking over your interest · answer by {ShortDay(approach.UntilDay)}";
-            case ScoutingApproachStatus.Ready: return "will hear an offer · talk to them after a set you've heard that day";
+            case ScoutingApproachStatus.Ready: return "will hear an offer · open their card to talk terms";
             case ScoutingApproachStatus.Declined when today < approach.UntilDay: return $"staying local this season · ask again after {ShortDay(approach.UntilDay)}";
         }
         if (prospect == null) return "talk to them to find out if they'd sign";
@@ -259,7 +259,14 @@ public partial class PlayerDeskPanel {
         };
         bar.AddChild(offer);
         string hint;
-        if (prospect != null && desk.CanAskDirectApproach(artist)) hint = "They aren't looking for a deal, but you can ask if they'd hear one. Asking is free.";
+        // The hint follows the act's last answer first: a "you can ask" under a fresh no read as a broken button.
+        var approach = desk.DirectApproaches.LastOrDefault(a => a.ArtistId == artist.artistId);
+        int today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+        if (approach?.Status == ScoutingApproachStatus.Declined && today < approach.UntilDay)
+            hint = $"They said no for this season. You can ask again after {ShortDay(approach.UntilDay)}.";
+        else if (approach?.Status == ScoutingApproachStatus.Considering)
+            hint = $"They're thinking over your interest and will answer by {ShortDay(approach.UntilDay)}.";
+        else if (prospect != null && desk.CanAskDirectApproach(artist)) hint = "They aren't looking for a deal, but you can ask if they'd hear one. Asking is free.";
         else if (prospect != null && PlayerDesk.SceneDealAvailable(prospect)) hint = $"Ready to talk terms · {PlayerDesk.SceneDealDescription(prospect)}.";
         else {
             var next = desk.NextReachableScoutingSet(dossier.ArtistId);
@@ -310,7 +317,7 @@ public partial class PlayerDeskPanel {
             if (lead.NextSet is { } next) {
                 var hear = Btn(next.Playing ? $"HEAR {lead.ArtistName.ToUpperInvariant()} ({next.ListeningMinutes}min · {Money(next.Admission)})" : "WAIT FOR " + lead.ArtistName.ToUpperInvariant());
                 hear.Disabled = next.Playing && desk.Label.cashReserves < next.Admission;
-                hear.TooltipText = "Follow this announced appearance. Waiting advances ordinary expenses and decisions; it does not listen, charge admission or reserve the act. Availability is checked again when you act.";
+                hear.TooltipText = "Follow this announced appearance. While you wait the month's bills keep running and other labels keep making their moves. Waiting doesn't hear the set, charge admission or reserve the act. Availability is checked again when you act.";
                 ScoutingTimeRisk(desk, hear, next.Day, next.Playing ? next.EndMinute : next.StartMinute);
                 GreyWhy(hear, "Not enough cash for the admission.");
                 hear.Pressed += () => Act(() => {

@@ -4,7 +4,7 @@ using Godot;
 
 /// <summary>
 /// The morning after (SimTools/LabelManInnerLifeDirective.md §3.1) as a scene of its own, lit like noon after a bad night:
-/// the lawyer's letter with the holder left blank, the founding money in the cigar box, what the night took struck off
+/// the lawyer's letter naming the holder, the founding money in the cigar box, what the night took struck off
 /// one item at a time, the terms of the lien in plain words, and the four voices arguing about what happened, each
 /// from what the player said they remembered. The hangover shader that dressed the founding pages starts heavy and
 /// clears as the voices land, so the intro, the questions and this scene are one headache.
@@ -124,11 +124,28 @@ public partial class PlayerDeskPanel {
 			$"Sir,\n\nLast night, some time after midnight, you executed an instrument creating a lien on all property you hold now and all that {desk.Label.labelName} will hold hereafter. It secures {StageMoney(lien.FaceSum)}.\n\n" +
 			$"The sum falls due on {due.ToHeadlineString()}. An extension may be sought at a sitting in the last two weeks of December.",
 			PaperTheme.Typed, 14, PaperTheme.Ink));
-		lv.AddChild(StageLabel("Held by:  ______________________", PaperTheme.Typed, 14, PaperTheme.Ink, false));
+		// The holder is named as soon as the run knows him (Sawyer from the first morning: Connie's paper has his name on
+		// it). Author, 2026-11-25: each holder bends the run toward one thing, so the player should know whose paper it is
+		// at once; the mystery is why he wanted it. Naming the other four from day one comes with their T1 scenes.
+		bool named = desk.LienHolderIdentified;
+		// Wraps when named: the holder's title is a clause ("who owns the River Lantern, …") and would widen the letter.
+		lv.AddChild(StageLabel(named ? $"Held by:  {p.Name}, {p.Title}" : "Held by:  ______________________", PaperTheme.Typed, 14, PaperTheme.Ink, named));
 		var stamp = new LienStamp().Set("Falls due", due.ToHeadlineString(), PaperTheme.Oxblood, -0.05f);
 		lv.AddChild(stamp);
 		lv.AddChild(StageLabel(p.Lawyer, PaperTheme.Lettering(LetteringStyle.Script), 30, PaperTheme.Ink, false));
-		lv.AddChild(StageLabel("for the holder", PaperTheme.SerifItalic, 14, PaperTheme.Fade, false));
+		lv.AddChild(StageLabel(named ? $"for {p.Name}" : "for the holder", PaperTheme.SerifItalic, 14, PaperTheme.Fade, false));
+		// What came with the paper. The narration always said it, but the page only ever showed its first and last lines,
+		// so a Sawyer player met Connie by stumbling on the ROSTER tab (playtest 2026-11-25).
+		if (desk.LienUnderTheLetter() is { } under) {
+			var slip = new PanelContainer();
+			slip.AddThemeStyleboxOverride("panel", StageBox(PaperTheme.Field, PaperTheme.Edge, 1, 14, 10));
+			var sv = new VBoxContainer();
+			sv.AddThemeConstantOverride("separation", 4);
+			slip.AddChild(sv);
+			sv.AddChild(StageLabel("UNDER THE LETTER", PaperTheme.Elite, 13, PaperTheme.Fade, false));
+			sv.AddChild(StageLabel(under, PaperTheme.SerifItalic, 15, PaperTheme.Ink));
+			letterColumn.AddChild(slip);
+		}
 
 		// ── column two: what's left, what's gone, the terms ──
 		var middle = new VBoxContainer { CustomMinimumSize = new Vector2(320, 0), SizeFlagsVertical = SizeFlags.ShrinkBegin };

@@ -313,7 +313,7 @@ public partial class PlayerDesk {
         if (next == null) return "Next: no unheard local set is announced within your working hours. Check other bills or ask a booker for a listening tip. No known rival report means only that nothing has reached you.";
         return $"Next reachable set: {next.RoomName}, {LocalSceneRoomService.Date(next.Day).ToHeadlineString()}, " +
             $"{next.StartMinute / 60:00}:{next.StartMinute % 60:00}–{next.EndMinute / 60:00}:{next.EndMinute % 60:00}. " +
-            $"{next.ListeningMinutes}min listening; ${next.Admission:0.00} admission at the current quote. Waiting advances ordinary expenses and other labels' decisions; check the bill on arrival.";
+            $"{next.ListeningMinutes}min listening; ${next.Admission:0.00} admission at the current quote. While you wait the month's bills keep running and other labels keep making their moves; check the bill on arrival.";
     }
     public IReadOnlyList<string> ScoutingProvenance(string artistId) => scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId)?.Observations
         .Select(o => $"{o.Kind} · {o.SourceName ?? o.Channel} · {o.RoomName ?? SceneRoomCatalog.Get(o.RoomId)?.Name ?? ScenePlaceRegistry.Get(o.PlaceId)?.Name ?? "place unknown"} · occurred {(o.OccurredDay.HasValue ? LocalSceneRoomService.Date(o.OccurredDay.Value).ToHeadlineString() : o.OccurredWeek.HasValue ? "week beginning " + LocalSceneRoomService.Date(o.OccurredWeek.Value * 7).ToHeadlineString() : "unknown")}, acquired {LocalSceneRoomService.Date(o.AcquiredDay).ToHeadlineString()} at {(o.AcquiredMinute.HasValue ? $"{o.AcquiredMinute.Value / 60:00}:{o.AcquiredMinute.Value % 60:00}" : "unknown time")} · {o.Credibility} · {ProvenanceConditions(o)}" +

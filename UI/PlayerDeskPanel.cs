@@ -637,7 +637,10 @@ public partial class PlayerDeskPanel : Control {
 			return ($"Pressing on the way: {incoming.Quantity:N0} of \"{incoming.Title}\" due {incoming.Arrives.ToHeadlineString()}. {WhileYouWait(desk)}", WaitingTab(desk));
 		}
 		if (label.cashReserves < 0f) return ("Cash is tight. See CASH OPTIONS on the books: what can bring money in, when, and how sure it is.", 4);
-		if (label.CurrentRosterSize == 0) return (desk.ScoutingDossiers.Count > 0 ? "Discuss terms with a heard act, or choose another announced set." : "Hear an announced set. Observations go into your notebook automatically.", 0);
+		// An act that came with the lien (Connie) isn't one the player signed: until they've signed their own, point at the
+		// scene. (Playtest 2026-11-25: with Connie filling a slot, a Sawyer run never saw this line on day one.)
+		if (!label.roster.Any(artist => !desk.IsHeldByHolder(artist)))
+			return (desk.ScoutingDossiers.Count > 0 ? "Talk terms with an act you've heard, or go and hear another set." : "Go and hear an announced set: open FIND A SET. What you hear goes into your notebook.", 0);
 		if (label.roster.Any(artist => desk.RepertoireFor(artist.artistId).Any(item => !item.Recorded)))
 			return ("Manage an act to choose material and cut a record.", 1);
 		if (label.CurrentRosterSize < label.maxRosterSize) return ("Scout an act or review the latest office news.", 0);

@@ -99,7 +99,8 @@ public partial class PlayerDeskPanel {
                 ScoutingText($"{option.ListeningMinutes}min listening · {Money(option.Admission)} admission" + (circuit ? $" · {option.TravelMinutes / 60}h drive" : ""), 14, Heard);
             });
             row.AddChild(details); content.AddChild(row);
-            var action = ScoutingSmallButton(circuit ? "DRIVE" : option.Playing ? "LISTEN" : "WAIT");
+            // "GO & WAIT", not "WAIT": the header's WAIT 1h / 3h sit on the same screen and only pass time.
+            var action = ScoutingSmallButton(circuit ? "DRIVE" : option.Playing ? "LISTEN" : "GO & WAIT");
             action.Disabled = !circuit && (option.Playing && desk.Label.cashReserves < option.Admission ||
                 SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId));
             float immediateCost = circuit ? option.TravelCost : option.Playing ? option.Admission : 0;
@@ -107,7 +108,7 @@ public partial class PlayerDeskPanel {
                 : option.Playing ? $"Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}."
                 : $"Waiting charges no admission. Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}. Future expenses and income may change this amount.";
             string walk = !circuit && !desk.IsAtSceneRoom(option.RoomId) ? $" Includes the {PlayerDesk.CrossTownMinutes}-minute walk across town to the venue." : "";
-            action.TooltipText = $"{option.WaitingMinutes}min wait on the set day.{walk} {costs}\nWaiting advances ordinary expenses and other labels' decisions. Check the bill and price on arrival.";
+            action.TooltipText = $"{option.WaitingMinutes}min wait on the set day.{walk} {costs}\nWhile you wait the month's bills keep running and other labels keep making their moves. Check the bill and price on arrival.";
             GreyWhy(action, SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId) ? "This room is in another town: drive there first." : "Not enough cash for the admission.");
             card.TooltipText = action.TooltipText;
             var clock = TimeManager.Instance;

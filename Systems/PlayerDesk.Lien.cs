@@ -465,15 +465,20 @@ public partial class PlayerDesk {
 		Say("The lawyer's letter is still on the desk. Some time after midnight you signed a lien on everything you own " +
 			$"and everything {Label.labelName} will ever own. It secures ${lien.FaceSum:N0}, and it falls due on {lien.Deadline.ToHeadlineString()}.");
 		Say($"The founding money is still in the cigar box: ${Label.cashReserves:N0}. Everything else is gone: {LostBelongings()}. You don't know where.");
-		Say($"Under the lamp, the scrawl at the foot of the letter turns out to read {LienProfile.Lawyer}, \"for the holder\". It doesn't say who the holder is. " +
+		Say($"Under the lamp, the scrawl at the foot of the letter turns out to read {LienProfile.Lawyer}, \"for the holder\". " +
+			(LienHolderIdentified ? "" : "It doesn't say who the holder is. ") +
 			"It says you may apply for an extension at a sitting in the last two weeks of December.");
-		if (Connie != null)
-			Say($"Under the letter is a recording contract you don't remember signing either: {ConnieStageName}, five years, \"option held by Mr. D. Sawyer\". " +
-				"So that's who. Dee-Dee Sawyer, who owns " + lien.Venue + ". You've no idea what you did to him.");
+		if (LienUnderTheLetter() is { } under) Say(under);
 		foreach (var voice in LienMorningVoices()) lines.Add(voice);
 		Say("So the label you meant to start anyway starts today, with a fuse on it.");
 		return lines;
 	}
+
+	/// <summary>What came with the paper, found under the lawyer's letter on the first morning; null when nothing did.
+	/// Sawyer's is Connie's contract: the player has to know from day one that she's theirs and whose she is.</summary>
+	public string LienUnderTheLetter() => lien == null || Connie == null ? null :
+		$"A recording contract you don't remember signing either: {ConnieStageName}, five years, \"option held by Mr. D. Sawyer\". " +
+		$"She's on your roster. Dee-Dee Sawyer owns {lien.Venue}, and he wants her record out. You've no idea what you did to him.";
 
 	/// <summary>The four voices' first theories about the night, each built from what the player said they remembered (§3.1a).
 	/// They are theories, not facts: an answer the holder doesn't fit is argued as hard as one he does. A voice with nothing to

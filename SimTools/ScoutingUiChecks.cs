@@ -54,8 +54,8 @@ public partial class ScoutingUiChecks : Node {
             Check(!Nodes(panel).OfType<OptionButton>().Any(), "Quick finder hides room calendars and source forms");
             await Screenshot("finder");
             Check(Nodes(panel).OfType<Label>().All(l => !l.Text.Contains("min wait")), "Wait duration stays out of visible previews");
-            Check(Nodes(panel).OfType<Button>().Where(b => b.Text == "WAIT" || b.Text == "LISTEN").All(b => b.TooltipText.Contains("Cash after admission") && b.SizeFlagsHorizontal == Control.SizeFlags.ShrinkBegin), "Compact actions disclose cash quotes on hover");
-            await Press("VENUES & DATES");
+            Check(Nodes(panel).OfType<Button>().Where(b => b.Text == "GO & WAIT" || b.Text == "LISTEN").All(b => b.TooltipText.Contains("Cash after admission") && b.SizeFlagsHorizontal == Control.SizeFlags.ShrinkBegin), "Compact actions disclose cash quotes on hover");
+            await Press("VENUES & CALENDARS");
             Check(Nodes(panel).OfType<VenueHandbill>().Any(), "Room calendars remain accessible");
             var venue = Nodes(panel).OfType<VenueHandbill>().Single(v => v.GetMeta("scouting_room_id").AsString() == bill.RoomId);
             Check(!desk.KnowsSceneBooker(bill.RoomId), "Listening alone does not introduce a booker");

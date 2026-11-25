@@ -403,10 +403,12 @@ public partial class UIManager : Control
 				int end = digest.IndexOf(": ", System.StringComparison.Ordinal);
 				return end >= 0 ? digest.Substring(0, end) : digest;
 			}
-			paperDate.Text = digests.Length == 1
-				? DigestDate(digests[0]).ToUpperInvariant()
-				: $"{DigestDate(digests[0])} — {DigestDate(digests[digests.Length - 1])}".ToUpperInvariant();
-			paperHeading.Text = digests.Length == 1 ? "YESTERDAY AT THE LABEL" : "WHILE YOU WERE AWAY";
+			// The masthead carries the day the paper lands, beside its edition name; the days it covers go on the heading.
+			// (Playtest 2026-11-25: "SATURDAY EDITION · JAN 1" on Saturday Jan 2 read as a misprint.)
+			GameDate landed = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+			paperDate.Text = landed.ToHeadlineString().ToUpperInvariant();
+			paperHeading.Text = digests.Length == 1 ? "YESTERDAY AT THE LABEL"
+				: $"WHILE YOU WERE AWAY  ·  {DigestDate(digests[0])} — {DigestDate(digests[digests.Length - 1])}".ToUpperInvariant();
 			string[] dayDigests = digests.Length > 1
 				? digests.Where(digest => !digest.EndsWith("a quiet day at the office.", System.StringComparison.Ordinal)).ToArray()
 				: digests;

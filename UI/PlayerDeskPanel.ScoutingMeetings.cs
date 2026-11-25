@@ -18,7 +18,7 @@ public partial class PlayerDeskPanel {
             var attend = Btn(ready ? meeting.Activity == ScoutingAppointmentActivity.Conversation ? "ATTEND MEETING (1h · no fee)" : $"ATTEND {meeting.Activity.ToString().ToUpperInvariant()} ({(meeting.EndMinute - meeting.StartMinute) / 60}h · ${meeting.Fee:0})" : "WAIT FOR MEETING");
             attend.Disabled = !LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver || !LocalScenes.Rooms ||
                 day > meeting.Day || day == meeting.Day && now > meeting.StartMinute;
-            attend.TooltipText = "Waiting advances ordinary expenses and other labels' decisions. Attend at the agreed start; current speaker, place, bookings and willingness are checked again. A substantial conversation creates no simultaneous listening evidence.";
+            attend.TooltipText = "While you wait the month's bills keep running and other labels keep making their moves. Attend at the agreed start; current speaker, place, bookings and willingness are checked again. A substantial conversation creates no simultaneous listening evidence.";
             GreyWhy(attend, "The agreed start has passed.");
             ScoutingTimeRisk(desk, attend, meeting.Day, ready ? meeting.EndMinute : meeting.StartMinute, meeting.Id);
             attend.Pressed += () => Act(() => {

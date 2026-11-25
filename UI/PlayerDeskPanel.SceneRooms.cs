@@ -6,7 +6,8 @@ public partial class PlayerDeskPanel {
     private string selectedSceneRoomId;
     // Playtest 2026-11-04: the venue card with its POSTED CALENDAR was the screen the player wanted first, so the tab
     // opens on it; NEXT SETS is the shortcut list beside it.
-    private bool showScoutingItinerary;
+    // NEXT SETS first: the venue calendars were the first screen a new player met (playtest 2026-11-25).
+    private bool showScoutingItinerary = true;
     private string inlineVenueId;
     private int? inlineVenueDay;
     private int inlineVenueWeeks;
@@ -269,7 +270,7 @@ public partial class PlayerDeskPanel {
         if (circuit) options = desk.ScoutingItinerary(true).Where(o => o.Affordable && o.TravelMinutes > 0 && !UnderContract(o)).DistinctBy(o => o.CityId).Take(2).ToArray();
         ScoutingText(circuit ? "NEARBY TOWNS" : "NEXT SETS", 16, ScoutingVenueInk, PaperTheme.SansBold);
         if (!circuit && signedLeftOff > 0)
-            ScoutingText("Acts already signed to a label are left off. VENUES & DATES shows every posted set.", 13, Heard);
+            ScoutingText("Acts already signed to a label are left off. VENUES & CALENDARS shows every posted set.", 13, Heard);
         if (options.Length == 0) {
             Body(local.Count > 0 ? $"Local admission starts at {Money(local.Min(o => o.Admission))}. Check your cash or browse venues."
                 : "No unheard local set fits your working hours. Browse venues, check nearby towns, or review a notebook act.");
