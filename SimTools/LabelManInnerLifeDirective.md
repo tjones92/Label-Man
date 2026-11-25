@@ -680,7 +680,11 @@ Instincts stop being frozen. That's the "upgrade" the player feels. They change 
 
 - **Convictions** may carry ±1 instinct shifts, for example "Everybody Has a Price": Fixer +1, Ear −1.
 - **A successful December sitting** gives one point to raise a single instinct, up to 5. It's earned by a year
-  survived. There's no XP bar.
+  survived. There's no XP bar. **Built 2026-11-24** (`Systems/PlayerDesk.Instincts.cs`, `SimTools/InstinctChecks.tscn`):
+  any bar met at a December sitting earns the point (not the sitting after a seizure's three months, and nothing when
+  every instinct is already 5). Points keep until spent, from the sitting's outcome screen or under your name on the
+  OFFICE tab. Every change goes on a saved change ledger (date, instinct, from, to, why) for later channels to share.
+  The run holds its own copy of the instincts; the archetype's table is never written.
 - **6 is a gold record** (author decision): very hard, shown with a gold-record icon on the character card. A point
   alone can't buy it. Each instinct's 6 needs a career feat the sim can verify, plus a point to spend:
   - **Ear 6:** a record you picked and produced reaches #1, or an LP of yours reaches the album Top 10.
@@ -917,7 +921,7 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 | **2** | Voices at venues and in courtship; instincts modulate the venue fog | Byte-identical headless |
 | **3** | Conviction drawer: lifecycle, quarterly scoring, the first 6 cards | Same; each card's predicate tested on a real save |
 | **4** | Legwork map and nights for the founding town | Empty-day metric near zero |
-| **5** | Mutable instincts: New Year point, conviction shifts | Same |
+| **5** | Mutable instincts: New Year point, conviction shifts. **December point built 2026-11-24** (§4.3; `InstinctChecks`). Pending: conviction shifts (needs Phase 3) and the gold-record 6s. | Same |
 | **6** | Portrait and wardrobe | UI driver check ([[ui-verification-via-temp-driver-scene]]) |
 | **7** | Rolodex widening, the night's clues and lost items, remaining cards, epilogue | Playtest |
 

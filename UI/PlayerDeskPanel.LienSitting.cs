@@ -661,6 +661,8 @@ public partial class PlayerDeskPanel {
 		nv.AddChild(StageLabel(ask, PaperTheme.Serif, 16, PaperTheme.Ink));
 		note.AddChild(nv);
 		lienStageActions.AddChild(note);
+		// §4.3: the year survived is a point; spend it here, or later on the OFFICE tab.
+		InstinctPointButtons(desk, lienStageActions);
 	}
 
 	// ── the way out ─────────────────────────────────────────────────────────────────────────────────

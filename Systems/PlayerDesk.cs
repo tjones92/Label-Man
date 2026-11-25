@@ -1266,7 +1266,9 @@ public partial class PlayerDesk : Node {
 
 		FoundingArchetypeData.ArchetypeProfile profile = FoundingArchetypeData.Get(archetype);
 		Archetype = archetype;
-		InstinctProfile = profile.Instincts;
+		// The run's own copy: December points raise it (§4.3), and the archetype's table is shared static data.
+		InstinctProfile = CopyInstincts(profile.Instincts);
+		RestoreInstinctGrowth(0, null);
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		var label = new AILabel {
@@ -6168,6 +6170,8 @@ public partial class PlayerDesk : Node {
 			// Player character (Phase 1 Rolodex branch).
 			ArchetypeOrdinal   = (int)Archetype,
 			ExecutiveInstincts = InstinctProfile,
+			InstinctPoints = InstinctPoints,
+			InstinctLedger = CaptureInstinctLedger(),
 
 			// Rolodex contacts + accumulated sub-hour phone time (Phase 2).
 			PhoneMinutesAccum = phoneMinutesAccum,
@@ -6210,13 +6214,15 @@ public partial class PlayerDesk : Node {
 		// default to TradeInsider rather than trusting the ArchetypeOrdinal default of 0.
 		if (data.ExecutiveInstincts == null) {
 			Archetype = FoundingArchetype.TradeInsider;
-			InstinctProfile = FoundingArchetypeData.Get(FoundingArchetype.TradeInsider).Instincts;
+			InstinctProfile = CopyInstincts(FoundingArchetypeData.Get(FoundingArchetype.TradeInsider).Instincts);
 		} else {
 			Archetype = data.ArchetypeOrdinal >= 0 && data.ArchetypeOrdinal < System.Enum.GetValues(typeof(FoundingArchetype)).Length
 				? (FoundingArchetype)data.ArchetypeOrdinal
 				: FoundingArchetype.TradeInsider;
 			InstinctProfile = data.ExecutiveInstincts;
 		}
+		// December points and the change ledger (§4.3). Absent in older saves: none earned.
+		RestoreInstinctGrowth(data.InstinctPoints, data.InstinctLedger);
 
 		// Restore rolodex and phone accumulator (Phase 2). Null/missing = pre-feature save → empty rolodex.
 		phoneMinutesAccum = data.PhoneMinutesAccum;

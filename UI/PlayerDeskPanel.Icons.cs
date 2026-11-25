@@ -35,6 +35,31 @@ public partial class PlayerDeskPanel {
 		return row;
 	}
 
+	/// <summary>Inner-life §4.3: an unspent December point, and one button per instinct to put it into. Nothing when there's none.</summary>
+	private void InstinctPointButtons(PlayerDesk desk, Container into) {
+		if (desk.InstinctPoints <= 0) return;
+		var note = new Label {
+			Text = desk.InstinctPoints == 1
+				? $"You've a point from the December sitting. Put it into one instinct, up to {PlayerDesk.InstinctPointCap}."
+				: $"You've {desk.InstinctPoints} points from December sittings. Each goes into one instinct, up to {PlayerDesk.InstinctPointCap}.",
+			AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill,
+		};
+		note.AddThemeColorOverride("font_color", Ink);
+		into.AddChild(note);
+		var row = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		row.AddThemeConstantOverride("h_separation", 8);
+		foreach (var v in PlayerDesk.InstinctVoices) {
+			int score = PlayerDesk.InstinctScore(desk.InstinctProfile, v);
+			var b = new Button { Text = $"+1 THE {v.ToString().ToUpperInvariant()}  ({score} → {score + 1})", CustomMinimumSize = new Vector2(0, 36) };
+			string why = desk.InstinctPointBlock(v);
+			b.Disabled = why != null;
+			if (why != null) { b.Text = $"THE {v.ToString().ToUpperInvariant()}  ({score})"; b.TooltipText = why; }
+			b.Pressed += () => { bool ok = desk.SpendInstinctPoint(v, out string m); Say(m, ok); Refresh(); };
+			row.AddChild(b);
+		}
+		into.AddChild(row);
+	}
+
 	/// <summary>A line of named 0..1 stats, each as discs.</summary>
 	private Control StatRow(params (string Name, float Value)[] stats) {
 		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };

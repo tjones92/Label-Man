@@ -963,6 +963,8 @@ public partial class PlayerDesk {
 		lien.UnitsAtLastSitting = PlayerUnitsSold();
 		lien.Top40AtLastSitting = Label.top40Hits;
 		ReturnWintersBook(live, bar);
+		// §4.3: a year survived is a point. Only the December sitting: the one after a seizure's three months isn't a clean year.
+		if (lien.Deadline.month == 1 && lien.Deadline.day == 1) AwardDecemberPoint(lien.Deadline.year - 1);
 		var next = new GameDate(lien.Deadline.year + 1, 1, 1);
 		lien.Add(today, LienLedgerKind.Extended, 0f, $"{bar} → {next.ToShortString()}");
 		lien.PendingDeadline = next;

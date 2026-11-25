@@ -454,6 +454,9 @@ public sealed class PlayerSaveData {
 	// an enum converter; ExecutiveInstincts being null flags a pre-feature save (see RestoreState).
 	public int ArchetypeOrdinal      { get; set; }
 	public ExecutiveInstinctProfile ExecutiveInstincts { get; set; }
+	// Inner-life §4.3: unspent December points and every instinct change. Absent in older saves.
+	public int InstinctPoints { get; set; }
+	public List<InstinctChangeSaveData> InstinctLedger { get; set; }
 
 	// Phase 2 Rolodex branch: contacts discovered through play.
 	public int PhoneMinutesAccum     { get; set; }

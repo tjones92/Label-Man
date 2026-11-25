@@ -3458,6 +3458,7 @@ public partial class PlayerDeskPanel : Control {
 		Heading($"{archProfile.Name.ToUpperInvariant()}");
 		Body(archProfile.Tagline);
 		content.AddChild(InstinctRow(inst, true));
+		InstinctPointButtons(desk, content);
 
 		PaperSection(desk);
 		PhoneSection(desk);
