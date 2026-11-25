@@ -23,6 +23,7 @@ public partial class PlacementChecks : Node {
 		try {
 			var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
 			Check(desk.FoundLabel("Placement Checks", "detroit", FoundingArchetype.ExMusician, out var message), "Found: " + message);
+			desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
 			var label = desk.Label;
 			label.cashReserves = 5000f;
 			int Today() => LocalSceneRoomService.Day(clock.CurrentDate);

@@ -544,6 +544,7 @@ public partial class PlayerDeskPanel : Control {
 		// The lawyer is in the office: the sitting takes over the whole screen until he's shown out.
 		SyncLienStage(desk);
 		ShowLienMorningIfPending(desk);
+		ShowLienNoticeIfPending(desk);
 		if (pageStain != null) pageStain.Modulate = Colors.White;   // the founding pages fade it; the office doesn't
 		pageStain?.QueueRedraw();   // the page's coffee ring belongs to the open tab
 		UpdateTabBadges(desk);
@@ -1650,6 +1651,7 @@ public partial class PlayerDeskPanel : Control {
 				$"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Words(artist.careerState.ToString())}", matured);
 			sleeve.AddFact($"{artist.totalReleases} {CountWord(artist.totalReleases, "release")}   •   {artist.top40Hits} Top 40   •   {songs} in the songbook");
 			sleeve.AddFact($"{artist.royaltyRate:P1} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}", matured ? Rust : null);
+			if (desk.HolderPaperLine(artist) is string holderPaper) sleeve.AddFact(holderPaper, Rust);
 			foreach (ContractCommitment promise in desk.OpenCommitmentsFor(artist.artistId)) {
 				int daysLeft = promise.DueDay - LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
 				string due = LocalSceneRoomService.Date(promise.DueDay).ToShortString();
@@ -2403,6 +2405,8 @@ public partial class PlayerDeskPanel : Control {
 				: $"You're in {hereName}. Work this town out of the trunk, drive on to a neighbouring town, or head home. " +
 				  "Working or driving into a town collects whatever its shops have been holding for you. The office and " +
 				  "studio are out of reach until you're back — and every night away is a motel bill.");
+		GettingAroundBlock(desk);
+		var words = TravelWords(desk);
 
 		List<MarketCity> reach = desk.ReachableCities()
 			.OrderBy(c => ChartManager.Instance?.GetRegionById(c.parentRegionId)?.regionName ?? c.parentRegionId)
@@ -2418,7 +2422,7 @@ public partial class PlayerDeskPanel : Control {
 			destinations.AddThemeConstantOverride("v_separation", 10);
 			VBoxContainer column = null; string columnRegion = null;
 			foreach (MarketCity c in reach) {
-				(int h, float g) = desk.DriveQuote(desk.CurrentCityId, c.cityId);
+				(int h, float g) = desk.TravelQuote(desk.CurrentCityId, c.cityId);
 				string region = ChartManager.Instance?.GetRegionById(c.parentRegionId)?.regionName ?? c.parentRegionId;
 				if (region != columnRegion) {
 					columnRegion = region;
@@ -2446,11 +2450,11 @@ public partial class PlayerDeskPanel : Control {
 				line.AddChild(Typed($"{h} hrs · ${g:N0}", Ink));
 				string id = c.cityId;
 				var row = ClickRow(line, picked, () => { selectedDriveCityId = picked ? null : id; RefreshKeepingScroll(); },
-					$"{c.name}, {region}: {h}h drive, ${g:N0} gas" + (desk.WorkedCities.Contains(c.cityId) ? ". Worked before." : "."));
+					$"{c.name}, {region}: {h}h {words.Noun}, ${g:N0} {words.Cost}" + (desk.WorkedCities.Contains(c.cityId) ? ". Worked before." : "."));
 				column.AddChild(row);
 				if (!picked) continue;
-				var drive = Btn($"DRIVE TO {c.name.ToUpperInvariant()}");
-				drive.TooltipText = $"{h} hours on the road and ${g:N0} in gas. The office and studio are out of reach until you drive back.";
+				var drive = Btn($"{words.Button} {c.name.ToUpperInvariant()}");
+				drive.TooltipText = $"{h} hours on the road and ${g:N0} in {words.Cost}. The office and studio are out of reach until you're back.";
 				drive.Pressed += () => Act(() => {
 					bool ok = PlayerDesk.Instance.DriveTo(id, out string message);
 					if (ok) selectedDriveCityId = null;
@@ -2475,8 +2479,8 @@ public partial class PlayerDeskPanel : Control {
 				CityNote = id => {
 					if (id == desk.CurrentCityId) return "You are here.";
 					if (!reachIds.Contains(id)) return "Too far for one drive: go through a neighbouring region first.";
-					(int h, float g) = desk.DriveQuote(desk.CurrentCityId, id);
-					return $"{h}h drive, ${g:N0} gas" + (desk.WorkedCities.Contains(id) ? " · worked before" : "");
+					(int h, float g) = desk.TravelQuote(desk.CurrentCityId, id);
+					return $"{h}h {words.Noun}, ${g:N0} {words.Cost}" +(desk.WorkedCities.Contains(id) ? " · worked before" : "");
 				}
 			};
 			roadMap.CityPressed += id => {

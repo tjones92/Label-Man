@@ -3631,6 +3631,21 @@ public partial class ChartManager : Node {
 		});
 		return payolaLedger.PlaceIndiePromoter(recordId, labelId, promoterId, week, year, month, durationWeeks);
 	}
+	/// <summary>A standing promoter the player has a relationship with (Jack Germain's network, inner-life §3.5 H5): the same
+	/// ledger path as <see cref="PlaceProjectPromo"/>, but the promoter keeps one id and his own name, and his traits are the
+	/// caller's. Re-registering an id replaces the traits, so a promoter who has grown careless is careless from the next push on.</summary>
+	public System.Collections.Generic.List<PayolaAction> PlacePromoterNetwork(string promoterId, string name, string recordId, string labelId,
+			string[] stationIds, float effectiveness, float discretion, float mobConnection, int durationWeeks) {
+		if (payolaLedger == null || stationIds == null || stationIds.Length == 0) return null;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
+		payolaLedger.RegisterPromoter(new IndiePromoter {
+			promoterId = promoterId, name = name, stationIds = stationIds,
+			effectiveness = effectiveness, discretion = discretion, mobConnection = mobConnection
+		});
+		return payolaLedger.PlaceIndiePromoter(recordId, labelId, promoterId, currentChartWeek, year, month, durationWeeks);
+	}
+
 	/// <summary>Scandals adjudicated on THIS week's payolaLedger.Tick (already run earlier in SimulateWeek).
 	/// Cleared and rebuilt every tick, so a consumer must read it the same week it fires -- PlayerDesk
 	/// does this from OnWeekEnded, which the autoload order (ChartManager before PlayerDesk) guarantees

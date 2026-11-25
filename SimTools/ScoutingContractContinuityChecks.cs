@@ -36,6 +36,7 @@ public static class ScoutingContractContinuityChecks {
         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
         Check(desk.FoundLabel("Contract Continuity", "nashville", out string message), "found label: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         var act = PrepareRenewal(desk, true); string id = act.artistId;
         var talk = desk.PendingRenewal.Talk;
         Check(talk != null, "managed renewal uses existing acceptance owner");

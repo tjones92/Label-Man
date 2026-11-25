@@ -58,6 +58,11 @@ public partial class PlayerDeskPanel {
 				Body(desk.LienRefusesPay
 					? $"Pay: he won't take money at the sitting any more.  •  Show: {show.What}"
 					: $"Pay: ${desk.LienPayBar():N0} (the interest and this year's slice).  •  Show: {show.What}");
+				// Her name is on the paper, so his is: what Dee-Dee wants for Connie, and what an unmet ask does to Pay.
+				if (desk.Connie != null) {
+					var ask = desk.ConnieAsk();
+					Body($"Dee-Dee wants: {ask.What}" + (ask.Met ? "" : $" She hasn't moved, so money costs {PlayerDesk.ConnieStalledPayMultiple:0.#}× this year."));
+				}
 			}
 		}
 		if (block == null) {

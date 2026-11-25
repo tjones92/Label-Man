@@ -27,6 +27,23 @@ public static class MechanicalRoyaltyService {
 	/// PlayerDesk; null in AI-only runs, where nothing here executes anyway.</summary>
 	public static System.Action<SimulatedArtist, float, int> WriterHalfPaid;
 
+	/// <summary>Writer ids that start with this are people outside the label and the act whose name went on a song (a cut-in
+	/// that is not the label's own: Jack Germain's, inner-life §3.5 H5). Their share of the writer's money is paid to them.</summary>
+	public const string OutsiderWriterPrefix = "outsider:";
+
+	/// <summary>Player-side books: an outsider's slice of a song's writer money was paid (amount, units). Set by PlayerDesk;
+	/// null in AI-only runs, where no record carries an outsider credit.</summary>
+	public static System.Action<float, int> OutsiderCutInPaid;
+
+	/// <summary>The share of a record's A-side writer credit held by outsiders (a third-party cut-in). 0 for every AI record.</summary>
+	public static float OutsiderCutInShare(Record record) {
+		if (record?.songwriterIds == null) return 0f;
+		float share = 0f;
+		for (int i = 0; i < record.songwriterIds.Length && i < (record.songwriterShares?.Length ?? 0); i++)
+			if (record.songwriterIds[i] != null && record.songwriterIds[i].StartsWith(OutsiderWriterPrefix, System.StringComparison.Ordinal)) share += record.songwriterShares[i];
+		return share;
+	}
+
 	/// <summary>The share of a record's A-side writer credit held by the selling label itself (a cut-in).</summary>
 	public static float LabelCutInShare(Record record, AILabel label) {
 		if (record?.songwriterIds == null || label == null) return 0f;
@@ -50,7 +67,7 @@ public static class MechanicalRoyaltyService {
 		PublishingControlType control, string controllerLabelId, string controllerArtistId,
 		SimulatedArtist performingArtist, AILabel sellingLabel, int units,
 		System.Func<string, AILabel> getLabel, System.Func<string, SimulatedArtist> getArtist,
-		float sellingLabelWriterCutIn = 0f) {
+		float sellingLabelWriterCutIn = 0f, float outsiderCutIn = 0f) {
 		if (units <= 0 || sellingLabel == null) return 0f;
 
 		float pool = units * RatePerCopy;
@@ -59,26 +76,35 @@ public static class MechanicalRoyaltyService {
 
 		// A label cut-in (band-member simulation §4.14 layer 4): the selling label is credited on the song, so
 		// its share of the writer's slice never leaves the building. Player-only callers pass it; 0 otherwise.
-		float writerSlice = pool * routing.WriterArtistFraction * (1f - System.Math.Clamp(sellingLabelWriterCutIn, 0f, 1f));
+		float labelCut = System.Math.Clamp(sellingLabelWriterCutIn, 0f, 1f);
+		// An outsider's cut-in (a third-party payee): it comes out of the writer's share like the label's, but the label still
+		// pays it, to him. The label's expense is the same with or without it; only who receives it changes.
+		float outsider = System.Math.Clamp(outsiderCutIn, 0f, 1f - labelCut);
+		float writerSlice = pool * routing.WriterArtistFraction * (1f - labelCut - outsider);
+		float outsiderSlice = pool * routing.WriterArtistFraction * outsider;
 		float transferSlice = pool * routing.TransferLabelFraction;
 		float leakSlice = pool * routing.ExternalLeakFraction;
 		// The payer's total is fixed the moment the fractions are drawn -- whether transferSlice lands
 		// on a live label or leaks (its controller vanished) changes who receives it, never what it cost.
-		float totalExpense = writerSlice + transferSlice + leakSlice;
+		float totalExpense = writerSlice + outsiderSlice + transferSlice + leakSlice;
+		float outsiderPaid = outsiderSlice;
 
 		// Early-game: the songwriter's half. In 1960 the 2c was split between publisher and writer, so a label that
 		// publishes its own act's song keeps only the publisher's cent and owes the writer the other. (A cut-in's share of
 		// the writer's half is the label's own, as above.) Public-domain material has no writer to pay.
 		if (routing.Counterparty == PublishingCounterparty.LabelKeeps
 			&& control is PublishingControlType.LabelAffiliate or PublishingControlType.LabelBuyout) {
-			float writerHalf = pool * WriterShare * (1f - System.Math.Clamp(sellingLabelWriterCutIn, 0f, 1f));
+			float writerHalf = pool * WriterShare * (1f - labelCut - outsider);
+			float outsiderHalf = pool * WriterShare * outsider;
 			SimulatedArtist writer = (!string.IsNullOrEmpty(controllerArtistId) ? getArtist?.Invoke(controllerArtistId) : null) ?? performingArtist;
 			if (writer != null && writerHalf > 0f) {
 				writer.writerRoyaltyEarnings += writerHalf;
 				totalExpense += writerHalf;
 				WriterHalfPaid?.Invoke(writer, writerHalf, units);
 			}
+			if (writer != null && outsiderHalf > 0f) { totalExpense += outsiderHalf; outsiderPaid += outsiderHalf; }
 		}
+		if (outsiderPaid > 0f) OutsiderCutInPaid?.Invoke(outsiderPaid, units);
 
 		if (writerSlice > 0f) {
 			SimulatedArtist writer = (!string.IsNullOrEmpty(routing.ControllerArtistId)

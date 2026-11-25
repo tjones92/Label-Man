@@ -18,6 +18,7 @@ public partial class CashPlanningChecks : Node {
 		try {
 			var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
 			Check(desk.FoundLabel("Cash Planning Checks", "new_york", FoundingArchetype.ExMusician, out var message), "Found: " + message);
+			desk.SetCarForChecks(PlayerDesk.CarKind.Original); // this check is about gas and the books, not the bus (TransportChecks covers the bus)
 			var label = desk.Label;
 			float overhead = label.GetMonthlyOverhead();
 			Check(Math.Abs(overhead - CityProfiles.MonthlyOverhead("new_york")) < .01f, $"NYC overhead read from the city profile ({overhead})");

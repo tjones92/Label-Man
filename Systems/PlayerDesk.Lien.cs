@@ -32,7 +32,7 @@ public partial class PlayerDesk {
 	public enum PartyWho { CamelCoat, DiscJockey, RouteMan, MajorMan, Nothing }
 	public enum PartyBrag { TheLabel, TheAct, Money, Hits, Nothing }
 	public enum PartyEnd { CardTable, Car, PhoneCall, Nothing }
-	public enum LienLedgerKind { Signed, InterestAccrued, Paid, Shown, ConcededStock, WrittenOn, Seized, Extended, PaidClean, Taken }
+	public enum LienLedgerKind { Signed, InterestAccrued, Paid, Shown, ConcededStock, WrittenOn, Seized, Extended, PaidClean, Taken, GaveName, SentBoys }
 
 	public const float LienFaceSum = 20000f;
 	/// <summary>The fallback rate (older saves carry their own). Each holder sets his own: <see cref="LienHolderProfile.Rate"/>.</summary>
@@ -272,11 +272,28 @@ public partial class PlayerDesk {
 		public int ConsecutiveFailures;
 		public float Standing = 0.5f;
 		public bool OpeningSeen;
+		/// <summary>The deadline (year * 100 + month) the lawyer's letter has been read for; 0 = none yet. UI only.</summary>
+		public int NoticeKey;
 		/// <summary>Last sitting's concession was "write it onto the paper": he won't do that twice running.</summary>
 		public bool LastWasWrittenOn;
 		public long UnitsAtLastSitting;
 		public int Top40AtLastSitting;
 		public string Ending;
+		/// <summary>The car he has (§3.9). The night took it: every new lien starts with none.</summary>
+		public CarKind Car = CarKind.Gone;
+		/// <summary>True once the car the night took is back in his hands, bought back or handed over.</summary>
+		public bool CarRecovered;
+		/// <summary>Bus or cab, while there is no car.</summary>
+		public TransportMode Mode = TransportMode.Bus;
+		/// <summary>Copies handed out since he left home on this trip, against the cartons he could carry.</summary>
+		public int TripCopies;
+		/// <summary>Sawyer only (§3.5 H1): the roster act whose paper Dee-Dee holds, and whether she has outgrown it (reached Star).</summary>
+		public string ConnieId;
+		public bool ConnieFree;
+		/// <summary>Germain only (§3.5 H5): originals his name still goes on, songs it has gone on, what he has been paid for them,
+		/// and how many years his boys have worked a record for you.</summary>
+		public int CutInSongsLeft, CutInSongs, NetworkUses;
+		public float CutInPaid;
 		public List<LienLedgerEntry> Ledger = new();
 
 		public float Outstanding => R2(FaceSum - PrincipalPaid);
@@ -345,12 +362,14 @@ public partial class PlayerDesk {
 		var today = LienToday;
 		var holder = forced ?? PickHolder(memory, BandLife.WorldSeed);
 		var room = HomeVenue();
+		string previousConnie = lien?.ConnieId;
 		lien = new LienState {
 			Holder = holder, Memory = memory.Copy(), WrongMemories = WrongMemories(memory, holder), Rate = LienHolders[holder].Rate,
 			Venue = room == null ? LienVenueFallback : "the " + room.Name, VenueId = room?.Id,
 			Signed = today, LastAccrual = today, Deadline = new GameDate(today.year + 1, 1, 1), BarYear = today.year,
 		};
 		lien.Add(today, LienLedgerKind.Signed, LienFaceSum, holder.ToString());
+		SeedConnie(previousConnie);
 	}
 
 	public void DismissLienMorning() {
@@ -466,7 +485,8 @@ public partial class PlayerDesk {
 		float interest = lien.InterestDueBy(lien.Deadline);
 		if (lien.IsReckoning) return R2(interest + lien.Outstanding);
 		float slice = Mathf.Min(LienSlice.GetValueOrDefault(Math.Clamp(lien.BarYear, 1960, 1968)), lien.Outstanding);
-		return R2(interest + slice);
+		// Sawyer wants Connie's career, not your money: a year she hasn't moved, money costs him more to take (§3.5 H1).
+		return R2((interest + slice) * (ConnieStalled ? ConnieStalledPayMultiple : 1f));
 	}
 
 	public int LienShowUnitsBar() => lien == null ? 0 : LienShowUnits.GetValueOrDefault(Math.Clamp(lien.BarYear, 1960, 1968));
@@ -513,7 +533,7 @@ public partial class PlayerDesk {
 
 	// ── the sitting (§3.2) ───────────────────────────────────────────────────────────────────────────
 
-	public enum LienVerb { Pay, Show, ConcedeStock, WriteItOn, PayInFull, HandOver, CounterInterest, CounterHonest, CounterBluff, WalkOut }
+	public enum LienVerb { Pay, Show, ConcedeStock, WriteItOn, PayInFull, HandOver, CounterInterest, CounterHonest, CounterBluff, WalkOut, ConcedeCutIn, ConcedeNetwork }
 
 	public sealed class LienOption {
 		public LienVerb verb;
@@ -563,6 +583,51 @@ public partial class PlayerDesk {
 	}
 
 	public void CloseLienSitting() { activeSitting = null; Changed?.Invoke(); }
+
+	// ── the lawyer's letter and his arrival (UI text; no rules) ───────────────────────────────────────
+
+	private int LienNoticeKeyNow => lien == null ? 0 : lien.Deadline.year * 100 + lien.Deadline.month;
+
+	/// <summary>The window has opened and the lawyer's letter for this deadline hasn't been read: it is on the mat when you're at the desk.</summary>
+	public bool LienNoticePending => lien != null && lien.OpeningSeen && !IsGameOver && activeSitting == null && AtHome
+		&& !lien.Extended && LienSittingDue && lien.NoticeKey != LienNoticeKeyNow;
+
+	public void DismissLienNotice() {
+		if (lien == null) return;
+		lien.NoticeKey = LienNoticeKeyNow;
+		Changed?.Invoke();
+	}
+
+	/// <summary>The letter the lawyer sends when the sitting window opens: the first, the last chance after a missed deadline, or the reckoning.</summary>
+	public (string Body, string Tag) LienNotice() {
+		if (lien == null) return ("", "");
+		var p = LienProfile;
+		var opens = AddDays(lien.Deadline, -LienWindowDays);
+		float interest = lien.InterestDueBy(lien.Deadline);
+		string hours = $"{BackerOfficeFromHour} a.m. and {BackerOfficeUntilHour - 12} p.m.";
+		string call = $"I shall be at your office from {opens.ToHeadlineString()} until {lien.Deadline.ToHeadlineString()}, between {hours}, to hear what you propose.";
+		if (lien.IsReckoning)
+			return ($"Sir,\n\nThe paper ends on 1 January 1970. The holder will accept the whole balance, ${LienPayBar():N0}, and nothing else. {call}\n\nThis is the last letter I shall write you.", "THE LAST LETTER");
+		if (lien.ConsecutiveFailures > 0)
+			return ($"Sir,\n\nYou missed the last deadline. The holder was patient. He is not obliged to be patient twice. The lien now falls due on {lien.Deadline.ToHeadlineString()}.\n\n{call} If there is nothing on the table when I come, the matter will be concluded.", "SECOND NOTICE");
+		string first = lien.BarYear <= 1960 ? "You may not remember signing it. The holder does.\n\n" : "";
+		string money = LienRefusesPay ? "\n\nMy client wishes it noted that he will not be taking money this year." : "";
+		return ($"Sir,\n\nI write on behalf of the holder. The lien of ${lien.FaceSum:N0} falls due on {lien.Deadline.ToHeadlineString()}, and the interest to that date stands at ${interest:N0}.\n\n{first}{call} I should be obliged if you were there.{money}", "NOTICE");
+	}
+
+	/// <summary>The line under the dark door before the lawyer comes in: how he knocks says who he works for.</summary>
+	public string LienArrivalLine() {
+		if (lien == null) return "";
+		if (lien.IsReckoning) return "He doesn't knock this time. The door is open, and he is standing in it.";
+		if (lien.ConsecutiveFailures > 0) return "A knock. You've been expecting it since the first of the month.";
+		return lien.Holder switch {
+			LienHolder.Sawyer => "Three knocks, evenly spaced, from a man who has never had to knock twice.",
+			LienHolder.Kubiak => "A knock like someone counting. Then a ledger being set down on the other side of the door.",
+			LienHolder.Winters => "A polite knock, and a trade paper slid under the door before you've reached it.",
+			LienHolder.Floria => "One knock, light as a bank teller's. You didn't hear a car pull up.",
+			_ => "Knuckles drumming a tune you almost recognise. Then he says your name, like a station ID.",
+		};
+	}
 
 	// ── what the sitting screen shows (read-only views of the ledger and the bars) ────────────────────
 
@@ -620,6 +685,7 @@ public partial class PlayerDesk {
 			enabled = stock >= pay && pay > 0f, disabledReason = $"Your stock on hand is worth ${stock:N0}." });
 		list.Add(new LienOption { verb = LienVerb.WriteItOn, label = "Ask him to write it onto the paper", subLabel = $"The face sum grows by ${R2(pay * LienWrittenOnMultiple):N0}. You'll owe it in 1970.",
 			enabled = !lien.LastWasWrittenOn && pay > 0f, disabledReason = "He wrote it on last year. He won't do it twice running." });
+		if (lien.Holder == LienHolder.Germain) list.AddRange(GermainConcedeOptions());
 		list.Add(new LienOption { verb = LienVerb.WalkOut, label = "Show him out", subLabel = $"Nothing settled. On {lien.Deadline.ToHeadlineString()} he takes the payment if it's there, or seizes what he can." });
 		return list;
 	}
@@ -704,6 +770,14 @@ public partial class PlayerDesk {
 				Extend(live, LienBar.Concede, p.ConcedeAccepted, writtenOn: true);
 				break;
 			}
+			case LienVerb.ConcedeCutIn:
+				GiveGermainHisName(live, today);
+				Extend(live, LienBar.Concede, p.ConcedeAccepted);
+				break;
+			case LienVerb.ConcedeNetwork:
+				if (!SendGermainsBoys(live, today, out string networkMessage)) { live.Say(networkMessage); break; }
+				Extend(live, LienBar.Concede, p.ConcedeAccepted);
+				break;
 			case LienVerb.CounterInterest:
 				PayInterestIfAny(today, onlyIfCash: false);
 				Extend(live, LienBar.Show, p.ShowAccepted);
@@ -909,7 +983,10 @@ public partial class PlayerDesk {
 			Deadline = DateSave.From(lien.Deadline), PendingDeadline = lien.PendingDeadline.HasValue ? DateSave.From(lien.PendingDeadline.Value) : null,
 			BarYear = lien.BarYear, Extended = lien.Extended, ConsecutiveFailures = lien.ConsecutiveFailures, Standing = lien.Standing,
 			OpeningSeen = lien.OpeningSeen, LastWasWrittenOn = lien.LastWasWrittenOn, UnitsAtLastSitting = lien.UnitsAtLastSitting,
-			Top40AtLastSitting = lien.Top40AtLastSitting, Ending = lien.Ending,
+			Top40AtLastSitting = lien.Top40AtLastSitting, Ending = lien.Ending, NoticeKey = lien.NoticeKey,
+			Car = (int)lien.Car, CarRecovered = lien.CarRecovered, Mode = (int)lien.Mode, TripCopies = lien.TripCopies,
+			ConnieId = lien.ConnieId, ConnieFree = lien.ConnieFree,
+			CutInSongsLeft = lien.CutInSongsLeft, CutInSongs = lien.CutInSongs, NetworkUses = lien.NetworkUses, CutInPaid = lien.CutInPaid,
 			Ledger = lien.Ledger.Select(e => new LienLedgerSaveData { Date = DateSave.From(e.Date), Kind = (int)e.Kind, Amount = e.Amount, Detail = e.Detail }).ToList(),
 		};
 	}
@@ -927,7 +1004,12 @@ public partial class PlayerDesk {
 			Deadline = d.Deadline.ToDate(), PendingDeadline = d.PendingDeadline?.Valid == true ? d.PendingDeadline.ToDate() : null,
 			BarYear = d.BarYear, Extended = d.Extended, ConsecutiveFailures = d.ConsecutiveFailures, Standing = d.Standing,
 			OpeningSeen = d.OpeningSeen, LastWasWrittenOn = d.LastWasWrittenOn, UnitsAtLastSitting = d.UnitsAtLastSitting,
-			Top40AtLastSitting = d.Top40AtLastSitting, Ending = d.Ending,
+			Top40AtLastSitting = d.Top40AtLastSitting, Ending = d.Ending, NoticeKey = d.NoticeKey,
+			// A save from before the car went missing keeps the car it had.
+			Car = d.Car.HasValue ? (CarKind)d.Car.Value : CarKind.Original, CarRecovered = !d.Car.HasValue || d.CarRecovered,
+			Mode = (TransportMode)d.Mode, TripCopies = d.TripCopies,
+			ConnieId = d.ConnieId, ConnieFree = d.ConnieFree,
+			CutInSongsLeft = d.CutInSongsLeft, CutInSongs = d.CutInSongs, NetworkUses = d.NetworkUses, CutInPaid = d.CutInPaid,
 			Ledger = (d.Ledger ?? new()).Where(e => e?.Date?.Valid == true).Select(e => new LienLedgerEntry {
 				Date = e.Date.ToDate(), Kind = (LienLedgerKind)e.Kind, Amount = e.Amount, Detail = e.Detail }).ToList(),
 		};
@@ -969,10 +1051,26 @@ public sealed class LienSaveData {
 	public int ConsecutiveFailures { get; set; }
 	public float Standing { get; set; }
 	public bool OpeningSeen { get; set; }
+	/// <summary>The deadline (year * 100 + month) whose letter has been read. Absent in older saves (0: the letter shows once).</summary>
+	public int NoticeKey { get; set; }
 	public bool LastWasWrittenOn { get; set; }
 	public long UnitsAtLastSitting { get; set; }
 	public int Top40AtLastSitting { get; set; }
 	public string Ending { get; set; }
+	/// <summary><see cref="PlayerDesk.CarKind"/>. Null in older saves, which keep the car they had.</summary>
+	public int? Car { get; set; }
+	public bool CarRecovered { get; set; }
+	/// <summary><see cref="PlayerDesk.TransportMode"/>: bus or cab while there is no car.</summary>
+	public int Mode { get; set; } = (int)PlayerDesk.TransportMode.Bus;
+	public int TripCopies { get; set; }
+	/// <summary>The roster act Dee-Dee's paper holds (Sawyer only), and whether she has outgrown it. Absent in older saves.</summary>
+	public string ConnieId { get; set; }
+	public bool ConnieFree { get; set; }
+	/// <summary>Germain only: originals his name still goes on, songs it has gone on, years his boys have worked for you, and what he was paid. Absent in older saves.</summary>
+	public int CutInSongsLeft { get; set; }
+	public int CutInSongs { get; set; }
+	public int NetworkUses { get; set; }
+	public float CutInPaid { get; set; }
 	public List<LienLedgerSaveData> Ledger { get; set; } = new();
 }
 

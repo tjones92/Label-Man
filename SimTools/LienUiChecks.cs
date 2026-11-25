@@ -84,14 +84,24 @@ public partial class LienUiChecks : Node {
 			clock.RestoreClock(new GameDate(1960, 12, 20), 10);
 			Check(desk.LienSittingDue && PlayerDeskPanel.NextUpHint(desk).Contains("Mr. Halloran"), "NEXT UP points at the sitting");
 			panel.OpenAtTab("OFFICE"); await Frame();
+			// The window has opened: the lawyer's letter is on the mat.
+			Check(desk.LienNoticePending && Shows("I write on behalf of the holder") && Shows("You may not remember signing it"), "The lawyer's letter arrives when the window opens");
+			await Screenshot("notice", 1.4);
+			await Press("PUT IT ON THE DESK");
+			Check(!desk.LienNoticePending && !Shows("I write on behalf of the holder") && desk.CaptureLienForChecks().NoticeKey == 196101, "Putting it on the desk reads it once, for this deadline, and it's saved");
 			await Press("SIT DOWN WITH MR. HALLORAN");
 			Check(desk.ActiveSitting != null && Shows("MR. HALLORAN, FOR DEE-DEE SAWYER"), "The sitting takes over the screen");
+			if (DisplayServer.GetName() != "headless") {
+				Check(Nodes(panel).OfType<LienDoor>().Any(), "The lawyer arrives at a door");
+				await Screenshot("arrival-knock", 1.9);
+				await Screenshot("arrival-door", 1.8);
+			}
 			Check(Shows("The December Sitting") && Shows("SITTING 1 OF 10"), "The title plate names the sitting and where it falls in the decade");
 			Check(Nodes(panel).OfType<LienDecadeStrip>().Any(s => s.IsVisibleInTree()), "The ten Decembers are on the plate");
 			Check(Nodes(panel).OfType<LienStamp>().Any(s => s.IsVisibleInTree()), "The lien is a stamped document");
 			Check(Shows("Mr. Sawyer sends his regards"), "The lawyer's opening is in the transcript");
 			Check(Shows("WHAT DO YOU OFFER HIM") && Shows("HIS ASK"), "The three bars are cards and he marks the one he stresses");
-			await Screenshot("sitting");
+			await Screenshot("sitting", 5.0);
 			panel.OpenAtTab("A&R"); await Frame();
 			Check(Shows("MR. HALLORAN, FOR DEE-DEE SAWYER"), "The sitting holds the screen on another tab");
 			// A concession that follows you to 1970 asks before it signs.
@@ -120,8 +130,11 @@ public partial class LienUiChecks : Node {
 			clock.RestoreClock(new GameDate(1969, 12, 22), 10);
 			panel.OpenAtTab("OFFICE"); await Frame();
 			Check(Shows("the reckoning"), "In December 1969 the paper says it's the reckoning");
+			Check(desk.LienNoticePending && Shows("THE LAST LETTER") && Shows("The paper ends on 1 January 1970"), "The reckoning has its own last letter");
+			await Screenshot("notice-reckoning", 1.4);
+			await Press("PUT IT ON THE DESK");
 			await Press("SIT DOWN WITH MR. HALLORAN");
-			await Screenshot("reckoning");
+			await Screenshot("reckoning", 5.0);
 			Check(Shows("The Reckoning"), "The plate says it's the reckoning");
 			await Press("Hand him the keys");
 			Check(!desk.IsGameOver && Shows("This ends the run"), "Handing over the keys asks first");

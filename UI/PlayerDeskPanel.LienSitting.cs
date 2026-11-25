@@ -28,6 +28,9 @@ public partial class PlayerDeskPanel {
 	private PlayerDesk.LienVerb? lienConfirm;
 	private bool lienStampPlayed;
 	private Tween lienActionsFade;
+	private Control lienArrival;
+	private readonly List<Control> lienHeld = new();
+	private bool lienActionsHeld;
 
 	private static bool StageAnimates => LienStageAnimates && DisplayServer.GetName() != "headless";
 
@@ -48,6 +51,7 @@ public partial class PlayerDeskPanel {
 			lienStage.QueueFree();
 		}
 		lienStage = null; lienStageLive = null; lienConfirm = null;
+		lienArrival = null; lienHeld.Clear(); lienActionsHeld = false;
 	}
 
 	private void OpenLienStage(PlayerDesk desk, PlayerDesk.LienSittingLive live) {
@@ -127,6 +131,7 @@ public partial class PlayerDeskPanel {
 		column.AddChild(lienStageFooter);
 
 		AddChild(lienStage);
+		if (StageAnimates) BuildLienArrival(desk, root);
 	}
 
 	private void RenderLienStage(PlayerDesk desk, PlayerDesk.LienSittingLive live) {
@@ -145,16 +150,107 @@ public partial class PlayerDeskPanel {
 		}
 		StageFooter(desk, live);
 
-		// The offers wait for the lawyer to finish.
+		// The offers wait for the lawyer to finish, and the lawyer waits for the door: while he is still arriving, lines and offers are held.
 		lienActionsFade?.Kill();
 		lienActionsFade = null;
 		lienStageActions.Modulate = Colors.White;
-		if (fresh > 0 && StageAnimates) {
+		bool arriving = lienArrival != null && IsInstanceValid(lienArrival);
+		if (StageAnimates && (fresh > 0 || arriving)) {
 			lienStageActions.Modulate = new Color(1, 1, 1, 0);
-			lienActionsFade = lienStageActions.CreateTween();
-			lienActionsFade.TweenProperty(lienStageActions, "modulate:a", 1.0f, 0.45).SetDelay(fresh * LienLineGap + 0.1);
+			lienActionsHeld = true;
 		}
+		if (!arriving) FlushLienReveal();
 		if (fresh > 0 && !firstRender) ScrollLienStageToEnd();
+	}
+
+	/// <summary>Lets the held lines fade in one after another, then the offers.</summary>
+	private void FlushLienReveal() {
+		int count = lienHeld.Count;
+		for (int i = 0; i < count; i++) {
+			var held = lienHeld[i];
+			if (IsInstanceValid(held)) held.CreateTween().TweenProperty(held, "modulate:a", 1.0f, 0.5).SetDelay(i * LienLineGap);
+		}
+		lienHeld.Clear();
+		if (!lienActionsHeld) return;
+		lienActionsHeld = false;
+		lienActionsFade?.Kill();
+		lienActionsFade = lienStageActions.CreateTween();
+		lienActionsFade.TweenProperty(lienStageActions, "modulate:a", 1.0f, 0.45).SetDelay(count * LienLineGap + 0.1);
+	}
+
+	// ── the knock ───────────────────────────────────────────────────────────────────────────────────
+
+	/// <summary>The lawyer arrives: a dark screen, a door, how he knocks, and then he is in the chair. Click or Escape skips it.
+	/// The lines and offers are held until the door has done its work.</summary>
+	private void BuildLienArrival(PlayerDesk desk, Control root) {
+		bool reckoning = desk.Lien.IsReckoning;
+		var overlay = new Control { MouseFilter = MouseFilterEnum.Stop };
+		overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+		root.AddChild(overlay);
+		lienArrival = overlay;
+		var black = new ColorRect { Color = new Color(0.015f, 0.012f, 0.01f), MouseFilter = MouseFilterEnum.Ignore };
+		black.SetAnchorsPreset(LayoutPreset.FullRect);
+		overlay.AddChild(black);
+		var door = new LienDoor();
+		overlay.AddChild(door);
+
+		var line = StageLabel(desk.LienArrivalLine(), PaperTheme.SerifItalic, 24, new Color("e6d6a8"), true, HorizontalAlignment.Center);
+		line.SetAnchorsPreset(LayoutPreset.BottomWide);
+		line.OffsetLeft = 260; line.OffsetRight = -260; line.OffsetTop = -150; line.OffsetBottom = -70;
+		line.Modulate = new Color(1, 1, 1, 0);
+		overlay.AddChild(line);
+
+		var skip = new Button {
+			Text = "SKIP  ·  ESC", MouseDefaultCursorShape = CursorShape.PointingHand, ShortcutInTooltip = false,
+			Shortcut = new Shortcut { Events = new Godot.Collections.Array { new InputEventKey { Keycode = Key.Escape } } },
+		};
+		overlay.AddChild(skip);
+		skip.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomRight);
+		skip.OffsetLeft = -190; skip.OffsetRight = -26; skip.OffsetTop = -64; skip.OffsetBottom = -24;
+
+		bool ended = false;
+		void At(float seconds, Action what) {
+			var tween = overlay.CreateTween();
+			tween.TweenInterval(seconds);
+			tween.TweenCallback(Callable.From(() => { if (!ended && IsInstanceValid(overlay)) what(); }));
+		}
+		void Animate(float from, float to, float seconds, Action<float> set) {
+			if (IsInstanceValid(overlay)) overlay.CreateTween().TweenMethod(Callable.From(set), from, to, seconds);
+		}
+		void Knock(float strength) {
+			OfficeFoley.Play(overlay, "knock", -2f);
+			Animate(strength, 0f, 0.2f, door.SetShake);
+		}
+		void End() {
+			if (ended) return;
+			ended = true;
+			if (!IsInstanceValid(overlay)) return;
+			var fade = overlay.CreateTween();
+			fade.TweenProperty(overlay, "modulate:a", 0.0f, 0.7);
+			fade.TweenCallback(Callable.From(() => {
+				lienArrival = null;
+				if (IsInstanceValid(overlay)) overlay.QueueFree();
+				if (lienStage != null && lienStageLive != null) FlushLienReveal();
+			}));
+		}
+		skip.Pressed += End;
+		overlay.GuiInput += e => { if (e is InputEventMouseButton { Pressed: true }) End(); };
+
+		if (reckoning) {
+			// No knock: he is already standing in the open door.
+			door.SetOpen(1f); door.SetVisitor(1f);
+			OfficeFoley.Play(overlay, "door", -6f);
+			At(0.3f, () => Animate(0f, 1f, 0.8f, v => line.Modulate = new Color(1, 1, 1, v)));
+			At(3.2f, End);
+			return;
+		}
+		At(0.7f, () => Knock(7f));
+		At(1.05f, () => Knock(-6f));
+		At(1.4f, () => Knock(5f));
+		At(0.9f, () => Animate(0f, 1f, 0.9f, v => line.Modulate = new Color(1, 1, 1, v)));
+		At(2.7f, () => { OfficeFoley.Play(overlay, "door", -3f); Animate(0f, 1f, 1.0f, door.SetOpen); });
+		At(3.4f, () => Animate(0f, 1f, 0.6f, door.SetVisitor));
+		At(4.6f, End);
 	}
 
 	private async void ScrollLienStageToEnd() {
@@ -287,7 +383,7 @@ public partial class PlayerDeskPanel {
 			lienStageTranscript.AddChild(line);
 			if (StageAnimates) {
 				line.Modulate = new Color(1, 1, 1, 0);
-				line.CreateTween().TweenProperty(line, "modulate:a", 1.0f, 0.5).SetDelay(fresh * LienLineGap);
+				lienHeld.Add(line);
 			}
 			fresh++;
 		}
@@ -385,7 +481,7 @@ public partial class PlayerDeskPanel {
 			opts.Where(o => o.verb == PlayerDesk.LienVerb.Show)));
 		row.AddChild(StageCard(desk, live, "CONCEDE", p.Stresses == PlayerDesk.LienBar.Concede, "Something he'll take", "What you can't pay in cash, he'll take another way.", stockRatio,
 			$"Pressed stock on hand: {StageMoney(stock)} of the {StageMoney(pay)}.", stock >= pay && pay > 0f,
-			opts.Where(o => o.verb is PlayerDesk.LienVerb.ConcedeStock or PlayerDesk.LienVerb.WriteItOn)));
+			opts.Where(o => o.verb is PlayerDesk.LienVerb.ConcedeStock or PlayerDesk.LienVerb.WriteItOn or PlayerDesk.LienVerb.ConcedeCutIn or PlayerDesk.LienVerb.ConcedeNetwork)));
 	}
 
 	private Control StageCard(PlayerDesk desk, PlayerDesk.LienSittingLive live, string title, bool hisAsk, string ask, string caption,
@@ -448,11 +544,14 @@ public partial class PlayerDeskPanel {
 
 	private static bool LienNeedsConfirm(PlayerDesk.LienVerb verb, PlayerDesk.LienSittingLive live) =>
 		verb is PlayerDesk.LienVerb.WriteItOn or PlayerDesk.LienVerb.ConcedeStock or PlayerDesk.LienVerb.HandOver or PlayerDesk.LienVerb.PayInFull
+			or PlayerDesk.LienVerb.ConcedeCutIn or PlayerDesk.LienVerb.ConcedeNetwork
 		|| (verb == PlayerDesk.LienVerb.WalkOut && live.stage == CallStage.Open);
 
 	private static (string Warning, string Yes) LienConfirmText(PlayerDesk.LienOption opt) => opt.verb switch {
 		PlayerDesk.LienVerb.WriteItOn => ("This one follows you to 1970. The face sum grows, and he remembers it at the reckoning.", "SIGN IT"),
 		PlayerDesk.LienVerb.ConcedeStock => ("The copies leave your shelf for good. You can't sell them afterwards.", "HAND IT OVER"),
+		PlayerDesk.LienVerb.ConcedeCutIn => ("His name goes on the credit, and he's paid his quarter of the writing. The writers will notice, and they won't forget it.", "GIVE HIM THE CREDIT"),
+		PlayerDesk.LienVerb.ConcedeNetwork => ("It works, and it's on the books as consulting. If a station is exposed, the fine and the burned DJ are yours.", "SEND HIS BOYS"),
 		PlayerDesk.LienVerb.HandOver => ("This ends the run. He takes the catalogue and the lease.", "GIVE HIM THE KEYS"),
 		PlayerDesk.LienVerb.PayInFull => ($"{StageMoney(opt.cash)} comes out of the till, all at once, and the paper is torn up.", "COUNT IT OUT"),
 		_ => ("Nothing will be settled. If you can't pay on the 1st, he seizes what he can.", "YES, SHOW HIM OUT"),

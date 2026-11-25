@@ -26,6 +26,7 @@ public static class ScoutingAudienceChecks {
         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
         Check(desk.FoundLabel("Audience Evidence", "nashville", out string message), "found: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         var plan = desk.ScoutingItinerary().First();
         var bill = LocalSceneRoomService.Bill(plan.BillId); var room = SceneRoomCatalog.Get(plan.RoomId);
         int listed = bill.Appearances.Select(a => a.ArtistId).Distinct(StringComparer.Ordinal).Count();

@@ -26,6 +26,7 @@ public static class ScoutingRunwayChecks {
         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
         Check(desk.FoundLabel("Runway Checks", "nashville", out string message), "found label: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         string seed = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--seed="))?.Substring(7);
         var poorest = FoundingArchetypeData.All.OrderBy(p => p.Value.Capital).First();
 

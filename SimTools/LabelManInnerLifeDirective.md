@@ -2,7 +2,8 @@
 
 Status: exploration draft (2026-11-05; holders revised 2026-11-24). The Lien is built, core and UI
 (`Systems/PlayerDesk.Lien.cs`, `UI/PlayerDeskPanel.Lien.cs`; checked by `SimTools/LienChecks.tscn` and
-`SimTools/LienUiChecks.tscn`). Everything else is design.
+`SimTools/LienUiChecks.tscn`), and so is getting around without the car (§3.9, Phase 1c:
+`Systems/PlayerDesk.Transport.cs`; `SimTools/TransportChecks.tscn`). Everything else is design.
 Numbers marked *provisional* are placeholders until Phase 0 measures them.
 
 ## §0 Charter and invariants
@@ -545,19 +546,37 @@ other towns.
 | Floria | With the hotel valet; the garage sold it unclaimed to a used-car lot | Buy it back from the lot (Street finds it) |
 | Germain | The station lot, where the manager won't release it to anybody connected to Jack | Prove you aren't (Fixer), or the manager leaves |
 
-**Four ways to get around:**
+**Four ways to get around** (built 2026-11-24, `Systems/PlayerDesk.Transport.cs`; every figure *provisional* until Phase 0b):
 
-1. **Public transport**, if the hometown has it: buses or streetcars in town, and Greyhound out of town. Cheap and
-   slow. It runs on a schedule (no late returns), and you can carry only a couple of cartons, so hand distribution in
-   other towns is small.
-2. **Taxi:** fast in town, but every trip costs money, and out of town it's very expensive. Short hops only.
-3. **Buy a car.** A used 1955–57 sedan is a few hundred dollars and a new car about $2,000 (*provisional*). Against a
-   first pressing of about $1.3k, the choice is real: press now and take the bus, or drive now and press later.
-4. **Get yours back:** as above, per holder. It's free transport, and for Sawyer it also holds the evidence.
+1. **The bus** (the default): 42 mph plus an hour at the depot on every intercity leg, 2.5¢ a mile, and **no overtime**: the
+   last bus leaves when the working day ends (6 p.m.), so a long leg that won't make it is refused. Every errand in town
+   costs half an hour and 30¢. Out of town he carries **two cartons (100 copies) a trip**; the count resets when he walks
+   back into the office.
+2. **Taxi:** 60 mph, 22¢ a mile, and **no cabbie goes past 75 miles**. In town an errand costs $1.50 and no time. Three
+   cartons a trip. Pick bus or cab at the office, before you set out.
+3. **Buy a car** at the lot in town (2h): a **used 1955–57 sedan $750** (a 1958 dealer ad had a 1955 Chevrolet at $1,145) (58 mph, 2.5¢ a mile: slower and thirstier than the
+   old one), or a **new car $2,000** (64 mph, 2¢: the old car's numbers). Against a first pressing of about $1.3k and
+   founding cash of $800–1,400, the choice is real: press now and take the bus, or drive now and press later. A car of
+   either kind ends the errand tax and the carton limit.
+4. **Get yours back**, per holder (2h, at the office; everything it takes is in town):
 
-**Hook.** Every trip goes through `PlayerDesk.Travel` → `DriveQuote(from, to)`, which returns (hours, gas). The
-transport mode changes the hours, the fare and the carton limit there. In-town errands use the same mode for their
-hour cost. All of it is player-only.
+   | Holder | Price | Condition |
+   |---|---|---|
+   | Sawyer | $1,100 ("high") | None. Free the first year Connie charts (built, 1b). |
+   | Kubiak | $700; $450 from 1964 (his route is failing) | None |
+   | Winters | The pound's fee: $60 tow + $20 a month; **auctioned after 12 months** (gone for good) | Suit 3+ reads the fee up front; anyone can still pay what the window says |
+   | Floria | $800 | Street 3+ knows which lot; otherwise the lot's advertisement turns up from 1962 (stands in for the legwork map, Phase 4) |
+   | Germain | $0 with Fixer 3+ (one phone call); otherwise $120 storage from 1964, when the manager's gone | Blocked until then |
+
+   Getting it back restores the old car's speed and gas, and (later phases) is where Sawyer's marked deck lives.
+
+**Hook.** Every trip now goes through `PlayerDesk.Travel` → `TravelQuote(from, to)`, which returns (hours, cost) for the mode
+he's in; `DriveQuote` is still the car's own quote, and the band's studio trips still use it (the band drives its own van).
+Errands in town (`PitchAtStop`, `ConsignAtStop`, `ServiceStop`, the hop table, the acetate pitch) go through
+`RequireErrand`/`SpendErrand`; stock placement away from home reads `CarryLeft`. State lives on `LienState` (`Car`,
+`CarRecovered`, `Mode`, `TripCopies`; an older save keeps the car it had), and a desk with no lien keeps the car and quotes
+exactly what it always did. All of it is player-only. UI: the GETTING AROUND block at the top of the travel section
+(`UI/PlayerDeskPanel.Transport.cs`). Checked by `SimTools/TransportChecks.tscn`.
 
 ## §4 Convictions: the drawer
 
@@ -752,8 +771,8 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 | **0** | Measure: player cash trajectories across archetypes (sizes the Lien); the empty-day metric for the first 26 weeks; which reads already exist per surface | Numbers recorded, no code paths changed |
 | **0b** | Measure for the holders (§3.7): full-decade p75/p90 player cash; label valuations for Floria's "too big to swallow" bar | Numbers recorded |
 | **1** | The Lien: morning-after opening, December sitting, enforcement on failure, 1970 reckoning with endings. **Core built**: the five holders, per-holder rates, Kubiak compounding, Floria refusing money from 1966, every holder taking a record out as the 1960 Show, Sawyer's room from the scene catalogue, the §3.6 mapping, save fields, the founding questions, and the sitting UI (2026-11-24). | Byte-identical headless; save/load; `LienChecks`; `LienUiChecks` |
-| **1b** | Connie Boursaw seeded on the roster (keyed draw, Dee-Dee's contract, drop verb disabled); Sawyer's 1.5× Pay when she stalls; Jack's cut-ins and network as a Concede; the writer's standing cost | Byte-identical headless; save/load |
-| **1c** | Getting around (§3.9): transport mode on `DriveQuote` and errands, carton limit, car purchase, the car per holder | Same |
+| **1b** | **Connie half built 2026-11-24** (`Systems/PlayerDesk.Connie.cs`, `ArtistManager.Keyed.cs`; `SimTools/ConnieChecks.tscn`): Connie Boursaw seeded for Sawyer from a private keyed stream, Dee-Dee's paper (5 years, his option, 15% royalty, 5 sides, no advance), the option exercised at dawn so her paper never lapses until Star, Sawyer's 1.5× Pay when she stalls, the car back the first time she charts. **Germain half built 2026-11-24** (`Systems/PlayerDesk.Germain.cs`; `SimTools/GermainChecks.tscn`): two Concedes only Jack offers. *His name:* the next 2 originals carry Jack as a third-party credit (`outsider:germain`, 25%, carved from the writing team), and he is paid that quarter through every writer-money chain (mechanicals, plug-side performances, AI-label cuts) while the label's outlay is unchanged; each credited writer's trust drops 0.12 plus band strain, whatever the Ear (author decision). A song with no writer to take it from carries no name. *His boys:* the home region's reporters (up to 6) for 8 weeks through `PayolaLedger` for a $100 "consulting fee"; discretion starts 0.35 and falls 0.10 per use (floor 0.05), so the detection math makes each year riskier. **Not built:** the booking gate on Sawyer's room, the watch (wardrobe phase), Jack's ledger freeze, and the payola handicap (scandal in his network hitting your label; fees looking like payola if caught). | Byte-identical headless; save/load; `ConnieChecks`; `GermainChecks` |
+| **1c** | Getting around (§3.9): transport mode on the travel quote and errands, carton limit, car purchase, the car per holder. **Built 2026-11-24**, UI included; Sawyer's free return waits on 1b. | Byte-identical headless; save/load; `TransportChecks` |
 | **1d** | Floria's buy-out (§3.5 H4), a player-only path | Same; the Major's AI behaviour unchanged |
 | **2** | Voices at venues and in courtship; instincts modulate the venue fog | Byte-identical headless |
 | **3** | Conviction drawer: lifecycle, quarterly scoring, the first 6 cards | Same; each card's predicate tested on a real save |
@@ -796,5 +815,6 @@ A layered 2D portrait on the OFFICE character card and in scene headers.
 
 1. The gold-record feat bars (especially Suit's profit bar): separate design pass.
 2. The wardrobe list per year: separate design pass.
-3. Car prices, fares and carton limits for §3.9: set against Phase 0 cash.
+3. ~~Car prices, fares and carton limits for §3.9~~ Set provisionally 2026-11-24 (§3.9). Phase 0b still owes the check
+   against the player's own cash: is $750 the right price for the used sedan (about 94% of the Ex-Musician's $800 start) next to a first pressing?
 4. Each holder's tear-up "sting" (§3.7): needs a writing pass.

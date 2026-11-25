@@ -23,6 +23,7 @@ public partial class MasterDealChecks : Node {
 		try {
 			var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
 			Check(desk.FoundLabel("Master Checks", "detroit", FoundingArchetype.ExMusician, out var message), "Found: " + message);
+			desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
 			var label = desk.Label;
 			label.cashReserves = 5000f;
 			int Today() => LocalSceneRoomService.Day(clock.CurrentDate);

@@ -16,6 +16,7 @@ public static class SigningMomentChecks {
 		Check(PlayerDesk.CatalogPrefix("") == "LBL", "blank prefix falls back");
 
 		Check(desk.FoundLabel("Signing Moment Records", "memphis", out string message), "found label: " + message);
+		desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
 		clock.RestoreClock(GameDate.StartDate, 9);
 		var next = desk.ScoutingItinerary().First();
 		if (!desk.WaitForSceneAppearance(next.BillId, next.EventId, out message) ||

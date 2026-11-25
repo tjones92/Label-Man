@@ -58,7 +58,7 @@ public partial class PlayerDesk {
         var cities = new[] { CurrentCityId }.Concat(includeCircuit ? ReachableCities().Select(c => c.cityId) : Array.Empty<string>());
         foreach (string city in cities) {
             bool local = city == CurrentCityId;
-            var travel = local ? (Hours: 0, Gas: 0f) : DriveQuote(CurrentCityId, city);
+            var travel = local ? (Hours: 0, Cost: 0f) : TravelQuote(CurrentCityId, city);
             if (travel.Hours * 60 > clock.MinutesRemainingWithOvertime) continue;
             foreach (var bill in LocalSceneRoomService.AnnouncedCalendar(city, clock.CurrentDate).Where(b => b.Status == SceneBillStatus.Scheduled)) {
                 var room = SceneRoomCatalog.Get(bill.RoomId);
@@ -74,7 +74,7 @@ public partial class PlayerDesk {
                     float admission = local && bill.Day == day ? AdmissionForVisit(bill, room, now) : SceneLiveEconomics.Admission(room, bill.Year);
                     choices.Add(new() { ArtistId = slot.ArtistId, ArtistName = ArtistManager.Instance.GetArtist(slot.ArtistId)?.stageName,
                         CityId = city, DaysUntil = bill.Day - day, WaitingMinutes = Math.Max(0, start - arrival),
-                        TravelMinutes = travel.Hours * 60, TravelCost = travel.Gas, Affordable = Label.cashReserves >= admission + travel.Gas,
+                        TravelMinutes = travel.Hours * 60, TravelCost = travel.Cost, Affordable = Label.cashReserves >= admission + travel.Cost,
                         BillId = bill.Id, EventId = eventId, RoomId = room.Id, RoomName = room.Name, Day = bill.Day,
                         StartMinute = start, EndMinute = end, Playing = playing,
                         ListeningMinutes = end - (playing ? now : start), Admission = admission });

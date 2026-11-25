@@ -204,7 +204,7 @@ public partial class PlayerDesk {
 		string home = Label.homeCityId;
 		bool TooLate(GameDate? when) => closing.HasValue && when.HasValue && when.Value >= closing.Value;
 		string Late(GameDate? when) => TooLate(when) ? $" Too late: the {closing.Value.ToShortString()} check comes first." : "";
-		(int Hours, float Gas) Trip(string cityId) => cityId == CurrentCityId ? (0, 0f) : DriveQuote(CurrentCityId ?? home, cityId);
+		(int Hours, float Gas) Trip(string cityId) => cityId == CurrentCityId ? (0, 0f) : TravelQuote(CurrentCityId ?? home, cityId); // gas, or the fare
 
 		// Money already owed at the counters: collected by turning up in that town.
 		foreach (var town in EnsureStops().Values.Where(s => s.OpenBalance > 0.5f).GroupBy(s => s.CityId)) {

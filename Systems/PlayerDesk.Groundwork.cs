@@ -38,8 +38,8 @@ public partial class PlayerDesk {
 			return false;
 		}
 		int hours = StopVisitHours(stop.Kind);
-		if (!Require(hours, out message)) return false;
-		Spend(hours);
+		if (!RequireErrand(hours, out message)) return false;
+		SpendErrand(hours);
 		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		CollectAtCity(stop.CityId);
 

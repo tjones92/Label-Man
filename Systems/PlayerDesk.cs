@@ -1142,11 +1142,13 @@ public partial class PlayerDesk : Node {
 		if (ArtistManager.Instance != null) ArtistManager.Instance.DirectApproachProvider = DirectApproachIds;
 		InitBandRoom();
 		MechanicalRoyaltyService.WriterHalfPaid = OnWriterHalfPaid;
+		MechanicalRoyaltyService.OutsiderCutInPaid = OnOutsiderCutInPaid;
 	}
 
 	public override void _ExitTree() {
 		TeardownBandRoom();
 		if (MechanicalRoyaltyService.WriterHalfPaid == OnWriterHalfPaid) MechanicalRoyaltyService.WriterHalfPaid = null;
+		if (MechanicalRoyaltyService.OutsiderCutInPaid == OnOutsiderCutInPaid) MechanicalRoyaltyService.OutsiderCutInPaid = null;
 		if (TimeManager.Instance != null) {
 			TimeManager.Instance.OnDayStarted -= OnDayStarted;
 			TimeManager.Instance.OnHourChanged -= OnHourChanged;
@@ -3301,6 +3303,7 @@ public partial class PlayerDesk : Node {
 		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
 		stockOnHand = StockFor(recordId);
 		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
+		if (CarryLeft <= 0) { message = CarryEmptyMessage(); return false; }
 		// Directive §4, R1: "the shop will not take a fresh lot until it is cleared." Blocks PitchAtStop,
 		// ConsignAtStop and ServiceStop alike -- all three restock through this same gate.
 		if (stop.OnHand.TryGetValue(recordId, out ConsignmentLot deadLot) && deadLot.ReturnRequested) {
@@ -3375,8 +3378,8 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 		int hours = StopVisitHours(stop.Kind);
-		if (!Require(hours, out message)) return false;
-		Spend(hours);
+		if (!RequireErrand(hours, out message)) return false;
+		SpendErrand(hours);
 		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		// You're here, so first settle up whatever this town's stops have been holding since your last pass.
 		CollectAtCity(stop.CityId);
@@ -3412,8 +3415,9 @@ public partial class PlayerDesk : Node {
 		// above, and a shop that says yes is by construction one that serves this audience -- taxing its
 		// order a second time was what pinned every doo-wop lot in the Great Lakes at two copies.
 		int cap = Mathf.Max(Mathf.Max(1, SuggestedPlacement(stop, recordId)), preOrder);
-		int place = Mathf.Min(cap, stockOnHand.Remaining);
+		int place = Mathf.Min(Mathf.Min(cap, stockOnHand.Remaining), CarryLeft);
 		stockOnHand.Remaining -= place;
+		NoteCarried(place);
 		ConsignmentLot lot = LotFor(stop, recordId);
 		lot.Remaining += place;
 		lot.Placed = lot.Remaining;
@@ -3440,8 +3444,8 @@ public partial class PlayerDesk : Node {
 		if (!ValidateStopAction(stopId, recordId, out PlayerStop stop, out PressStock stockOnHand, out message)) return false;
 		if (!CheckDailyApproach(stop, out message)) return false;
 		int hours = StopVisitHours(stop.Kind);
-		if (!Require(hours, out message)) return false;
-		Spend(hours);
+		if (!RequireErrand(hours, out message)) return false;
+		SpendErrand(hours);
 		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		CollectAtCity(stop.CityId);
 
@@ -3450,8 +3454,9 @@ public partial class PlayerDesk : Node {
 		// segregation term in: it still scales the order here (directive §10), unlike the COD path.
 		float access = RetailAccessFactor(stop, recordId);
 		int cap = Mathf.Max(Mathf.Max(1, Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * access)), PreOrderQty(stop, recordId));
-		int place = Mathf.Min(cap, stockOnHand.Remaining);
+		int place = Mathf.Min(Mathf.Min(cap, stockOnHand.Remaining), CarryLeft);
 		stockOnHand.Remaining -= place;
+		NoteCarried(place);
 		ConsignmentLot lot = LotFor(stop, recordId);
 		lot.Remaining += place;
 		lot.Placed = lot.Remaining;
@@ -3478,8 +3483,8 @@ public partial class PlayerDesk : Node {
 		if (!stop.OnHand.ContainsKey(recordId)) { message = $"{stop.DisplayName} has no history with that single yet -- pitch or consign it first."; return false; }
 		if (!CheckDailyApproach(stop, out message)) return false;
 		int hours = StopVisitHours(stop.Kind);
-		if (!Require(hours, out message)) return false;
-		Spend(hours);
+		if (!RequireErrand(hours, out message)) return false;
+		SpendErrand(hours);
 		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 
 		float owed = stop.OpenBalance;
@@ -3487,8 +3492,9 @@ public partial class PlayerDesk : Node {
 
 		ConsignmentLot lot = LotFor(stop, recordId);
 		int target = Mathf.Max(1, SuggestedPlacement(stop, recordId));
-		int topUp = Mathf.Clamp(target - lot.Remaining, 0, stockOnHand.Remaining);
+		int topUp = Mathf.Clamp(target - lot.Remaining, 0, Mathf.Min(stockOnHand.Remaining, CarryLeft));
 		stockOnHand.Remaining -= topUp;
+		NoteCarried(topUp);
 		lot.Remaining += topUp;
 		lot.Placed = Mathf.Max(lot.Placed, lot.Remaining);
 		lot.DaysSinceRestock = 0;
@@ -3541,12 +3547,13 @@ public partial class PlayerDesk : Node {
 		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
 		if (rec == null) { message = "Can't sell that one here."; return false; }
 		int hours = StopVisitHours(stop.Kind);
-		if (!Require(hours, out message)) return false;
-		Spend(hours);
+		if (!RequireErrand(hours, out message)) return false;
+		SpendErrand(hours);
 		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		int qty = Mathf.Min(TableTake(stop, recordId, SuggestedPlacement(stop, recordId), today), stockOnHand.Remaining);
+		int qty = Mathf.Min(Mathf.Min(TableTake(stop, recordId, SuggestedPlacement(stop, recordId), today), stockOnHand.Remaining), CarryLeft);
+		NoteCarried(qty);
 		workedCities.Add(stop.CityId);
 		if (qty <= 0) {
 			TouchStop(stop, 0.02f);
@@ -3613,9 +3620,11 @@ public partial class PlayerDesk : Node {
 		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
 		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord.recordId == recordId);
 		if (rec == null) { message = "Can't place that one."; return false; }
-		int qty = Mathf.Clamp(quantity, 1, Mathf.Min(OneStopCartonMaxQty, stockOnHand.Remaining));
+		if (CarryLeft <= 0) { message = CarryEmptyMessage(); return false; }
+		int qty = Mathf.Clamp(quantity, 1, Mathf.Min(Mathf.Min(OneStopCartonMaxQty, stockOnHand.Remaining), CarryLeft));
 		if (!Require(OneStopWarehouseVisitHours, out message)) return false;
 		Spend(OneStopWarehouseVisitHours);
+		NoteCarried(qty);
 
 		// Same royalty/recoupment bookkeeping as a trunk sale (BookTrunkSale) -- only the unit price and
 		// the cash-timing rule differ (wholesale, and COD-vs-receivable rather than present-vs-away).
@@ -3638,7 +3647,7 @@ public partial class PlayerDesk : Node {
 				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
 				rec.baseRecord.publishingControllerArtistId, artist, Label, qty,
 				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
-				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label));
+				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label), MechanicalRoyaltyService.OutsiderCutInShare(rec.baseRecord));
 			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
 				mechanical += MechanicalRoyaltyService.ChargeSide(
 					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
@@ -3753,7 +3762,7 @@ public partial class PlayerDesk : Node {
 				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
 				rec.baseRecord.publishingControllerArtistId, artist, Label, take,
 				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
-				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label));
+				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label), MechanicalRoyaltyService.OutsiderCutInShare(rec.baseRecord));
 			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
 				mechanical += MechanicalRoyaltyService.ChargeSide(
 					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
@@ -4481,23 +4490,31 @@ public partial class PlayerDesk : Node {
 			message = $"{dest.name} is too far to drive to from {here?.name} -- you'd need a wholesale house out there.";
 			return false;
 		}
-		(int hours, float gas) = DriveQuote(CurrentCityId, dest.cityId);
-		if (!TimeManager.Instance?.CanAffordHours(hours, allowOvertime: true) ?? true) {
-			message = $"Not enough daylight to make {dest.name} today ({hours}h) -- rest and start fresh.";
+		TransportMode mode = ActiveMode;
+		string refusal = TravelRefusal(CurrentCityId, dest.cityId, mode);
+		if (refusal != null) { message = refusal; return false; }
+		(int hours, float gas) = TravelQuote(CurrentCityId, dest.cityId, mode);
+		// The last bus leaves when the working day ends: a bus rider can't push a trip into overtime the way a driver can.
+		if (!TimeManager.Instance?.CanAffordHours(hours, allowOvertime: mode != TransportMode.Bus) ?? true) {
+			message = mode == TransportMode.Bus
+				? $"The last bus leaves at {TimeManager.Instance?.RegularWorkdayEndTime}: {dest.name} is {hours}h by bus and it won't make it. Try tomorrow, or get a car."
+				: $"Not enough daylight to make {dest.name} today ({hours}h) -- rest and start fresh.";
 			return false;
 		}
 		// The drive home always goes, gas on the label's tab like the motel (cash may go negative; the
 		// monthly solvency check still applies) -- otherwise a broke founder is stranded paying motel
 		// nights into debt until the credit line closes the label. Outbound trips stay cash-gated.
-		if (!goingHome && Label.cashReserves < gas) { message = $"You're ${gas - Label.cashReserves:N0} short of the ${gas:N0} gas."; return false; }
+		if (!goingHome && Label.cashReserves < gas) { message = $"You're ${gas - Label.cashReserves:N0} short of the ${gas:N0} {TravelCostWord(mode)}."; return false; }
 
 		LeaveStudioTripFor(dest.cityId);
 		Spend(hours);
 		if (gas > 0f) { Label.cashReserves -= gas; Label.monthlyExpenses += gas; }
+		// A new trip out of town starts with empty hands; walking back through the office door ends it.
+		if (lien != null && (goingHome || here?.cityId == Label.homeCityId)) lien.TripCopies = 0;
 		currentCityId = dest.cityId;
 		LeaveSceneRoom(); // a new town: you are not in any of its venues yet
 		CollectAtCity(dest.cityId); // show up and the shops settle what they've been holding
-		Note($"Drove to {dest.name} ({hours}h, ${gas:N0} gas).");
+		Note($"{TravelVerb(mode)} {dest.name} ({hours}h, ${gas:N0} {TravelCostWord(mode)}).");
 		message = goingHome ? "Back at the office." : $"You're in {dest.name}.";
 		Changed?.Invoke();
 		return true;
@@ -4838,6 +4855,7 @@ public partial class PlayerDesk : Node {
 		ProcessStudioLockoutDawn(date);
 		SettlePastDemos();
 		CollectBookingCommissions();
+		ProcessHolderOption(date);
 		ProcessRivalCrowding(date);
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);
@@ -5099,7 +5117,7 @@ public partial class PlayerDesk : Node {
 				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
 				rec.baseRecord.publishingControllerArtistId, artist, Label, units,
 				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
-				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label));
+				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label), MechanicalRoyaltyService.OutsiderCutInShare(rec.baseRecord));
 			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
 				mechanical += MechanicalRoyaltyService.ChargeSide(
 					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,

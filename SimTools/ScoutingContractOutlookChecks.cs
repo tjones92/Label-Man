@@ -53,6 +53,7 @@ public static class ScoutingContractOutlookChecks {
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
         int week() => ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
         Check(desk.FoundLabel("Contract Outlook", "nashville", out string message), "found label: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         var prospect = PrepareAct(desk); string id = prospect.Artist.artistId; var act = prospect.Artist;
         var savedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture()); var savedPlayer = LocalSceneRoomService.Copy(desk.CaptureState());
         var date = clock.CurrentDate; int hour = clock.CurrentHour, minute = clock.CurrentMinute;
@@ -259,6 +260,7 @@ public static class ScoutingContractOutlookChecks {
     public static void Survey(string city) {
         var desk = PlayerDesk.Instance;
         if (!desk.FoundLabel("Outlook Survey", city, out string message)) throw new InvalidOperationException(message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
         var local = ArtistManager.Instance.GetAllArtists().Where(a => string.IsNullOrEmpty(a.labelId) && a.isActive && a.lifecycleStatus == ArtistLifecycleStatus.Active)
             .Where(a => LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId) == city).ToList();

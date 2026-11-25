@@ -28,6 +28,7 @@ public static class ScoutingSessionPromiseChecks {
         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
         Check(desk.FoundLabel("Session Promise", "nashville", out string message), "found label: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         var prospect = PrepareNegotiation(desk); string id = prospect.Artist.artistId;
         var talk = prospect.Talk; var ask = talk.ask;
         int Minute() => clock.CurrentHour * 60 + clock.CurrentMinute;

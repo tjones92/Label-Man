@@ -10,6 +10,7 @@ public static class ScoutingCommitmentPlanningChecks {
         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
         Check(desk.FoundLabel("Commitment Planning", "nashville", out string message), "found label: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         var plan = desk.ScoutingItinerary().First(o => o.EndMinute < Math.Min(clock.HardStopHour * 60, SceneRoomCatalog.Get(o.RoomId).CloseHour * 60));
         Check(desk.WaitForSceneAppearance(plan.BillId, plan.EventId, out message) && desk.ListenSceneAppearance(plan.BillId, plan.EventId, out message), "actual heard set: " + message);
         var act = ArtistManager.Instance.GetArtist(plan.ArtistId);

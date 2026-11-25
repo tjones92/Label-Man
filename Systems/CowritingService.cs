@@ -49,6 +49,11 @@ public static class CowritingService {
 		public float LabelCutInShare;
 		public string LabelName;
 		public string LabelId;
+		/// <summary>A third party's name on the song (Jack Germain's cut-in, inner-life §3.5 H5): his share, his writer id (under
+		/// <see cref="MechanicalRoyaltyService.OutsiderWriterPrefix"/>) and his name. Carved out of the team's credit like the label's.</summary>
+		public float OutsiderShare;
+		public string OutsiderId;
+		public string OutsiderName;
 		public readonly HashSet<string> CreditedPersonIds = new();
 		public Action OnApplied;
 	}
@@ -77,10 +82,13 @@ public static class CowritingService {
 		// Phase 4c layer 4: an AI label's cut-in, the AI twin of the player's demand.
 		float aiCutIn = over == null && team.Count > 0 ? TeamWritingService.AiCutInShare(artist, songKey) : 0f;
 		float cutIn = over != null && over.LabelCutInShare > 0f ? over.LabelCutInShare : aiCutIn;
-		float memberScale = cutIn > 0f && team.Count > 0 ? 1f - cutIn : 1f;
+		float outsiderCut = over != null && over.OutsiderShare > 0f && !string.IsNullOrEmpty(over.OutsiderId) ? over.OutsiderShare : 0f;
+		float memberScale = (cutIn > 0f || outsiderCut > 0f) && team.Count > 0 ? 1f - cutIn - outsiderCut : 1f;
 		if (team.Count == 0) song.credits.Add(HouseCredit(artist));
 		else foreach ((Musician member, float share) in team) song.credits.Add(MemberCredit(member, share * memberScale));
-		if (memberScale < 1f) {
+		if (outsiderCut > 0f && team.Count > 0)
+			song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.HouseCredit, writerId = over.OutsiderId, writerName = over.OutsiderName, share = outsiderCut });
+		if (cutIn > 0f && team.Count > 0) {
 			string labelId = over != null ? over.LabelId : artist.labelId;
 			string labelName = over != null ? over.LabelName :
 				ChartManager.Instance?.GetAllLabels()?.FirstOrDefault(l => l.labelId == artist.labelId)?.labelName ?? "the label";

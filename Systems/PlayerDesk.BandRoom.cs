@@ -1318,9 +1318,11 @@ public partial class PlayerDesk {
 		if (pendingTeamForCut != null && pendingTeamForCut.Count > 0) o.PersonIds.AddRange(pendingTeamForCut);
 		else if (promisedCredit.TryGetValue(a.artistId, out string promised)) { o.PersonIds.Add(promised); o.PromiseConsumed = true; }
 		if (labelCutInSongsLeft.TryGetValue(a.artistId, out int left) && left > 0) { o.LabelCutInShare = LabelCutInShare; o.LabelName = Label.labelName; o.LabelId = Label.labelId; }
-		if (o.PersonIds.Count == 0 && o.LabelCutInShare <= 0f) return null;
+		StageGermainCredit(a, o);
+		if (o.PersonIds.Count == 0 && o.LabelCutInShare <= 0f && o.OutsiderShare <= 0f) return null;
 		o.OnApplied = () => {
 			if (o.PromiseConsumed) promisedCredit.Remove(a.artistId);
+			SettleGermainCredit(a, o);
 			if (o.LabelCutInShare > 0f) {
 				labelCutInSongsLeft[a.artistId] = left - 1;
 				foreach (Musician m in a.members.Where(m => m.isActive && o.CreditedPersonIds.Contains(m.personId))) {

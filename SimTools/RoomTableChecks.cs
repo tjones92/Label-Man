@@ -19,6 +19,7 @@ public partial class RoomTableChecks : Node {
 			var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
 			Check(LocalScenes.Rooms, "Room calendar is on with the canonical flags");
 			Check(desk.FoundLabel("Room Table Checks", "detroit", FoundingArchetype.ExMusician, out var message), "Found: " + message);
+			desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
 			Check(PlayerDesk.RoomTablesActive("detroit"), "Detroit's rooms sell records");
 
 			// F1: the walk-up table is retired; the hall stays a hop site.

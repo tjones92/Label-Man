@@ -97,12 +97,16 @@ public partial class PlayerDesk {
 		if (Label == null || record == null || slice <= 0f) return 0f;
 		var writer = WriterActFor(record.songId, record.originalArtistId ?? record.publishingControllerArtistId);
 		if (writer == null) return 0f;
-		float cutIn = MechanicalRoyaltyService.LabelCutInShare(record, Label);
-		float half = slice * MechanicalRoyaltyService.WriterShare * (1f - Mathf.Clamp(cutIn, 0f, 1f));
-		if (half <= 0f) return 0f;
+		float cutIn = Mathf.Clamp(MechanicalRoyaltyService.LabelCutInShare(record, Label), 0f, 1f);
+		// A third party's name on the song (Jack Germain's) comes out of the writer's half and is paid to him from the same slice.
+		float outsider = Mathf.Clamp(MechanicalRoyaltyService.OutsiderCutInShare(record), 0f, 1f - cutIn);
+		float half = slice * MechanicalRoyaltyService.WriterShare * (1f - cutIn - outsider);
+		float outsiderHalf = slice * MechanicalRoyaltyService.WriterShare * outsider;
+		if (outsiderHalf > 0f) MechanicalRoyaltyService.OutsiderCutInPaid?.Invoke(outsiderHalf, units);
+		if (half <= 0f) return outsiderHalf;
 		writer.writerRoyaltyEarnings += half;
 		BookWriterMechanical(writer, half, units, record.songId, record.title, record.recordId);
-		return half;
+		return half + outsiderHalf;
 	}
 
 	private void OnWriterHalfPaid(SimulatedArtist writer, float amount, int units) {
@@ -166,8 +170,11 @@ public partial class PlayerDesk {
 			if (act != null) {
 				// A label cut-in on the plug side's writer credit is the label's own writer money.
 				float cutIn = b ? 0f : Mathf.Clamp(MechanicalRoyaltyService.LabelCutInShare(r, Label), 0f, 1f);
-				writer = writerHalf * (1f - cutIn);
-				pub += writerHalf - writer;
+				// An outsider's name on the plug side is paid by the society, not the label: it leaves the writer's half and never reaches the till.
+				float outsider = b ? 0f : Mathf.Clamp(MechanicalRoyaltyService.OutsiderCutInShare(r), 0f, 1f - cutIn);
+				writer = writerHalf * (1f - cutIn - outsider);
+				pub += writerHalf - writer - writerHalf * outsider;
+				if (outsider > 0f) MechanicalRoyaltyService.OutsiderCutInPaid?.Invoke(writerHalf * outsider, 0);
 			}
 			// With no writer to pay, the society holds the writer's half; it isn't the label's.
 			publishing.Lines.Add(new PublishingRoyaltyLine {

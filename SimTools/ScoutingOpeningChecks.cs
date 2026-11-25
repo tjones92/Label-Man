@@ -12,6 +12,7 @@ public static class ScoutingOpeningChecks {
         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
         Check(desk.FoundLabel("Opening Checks", "nashville", out string message), "found label: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         var opening = desk.CaptureState();
         // Audit actual posted topology from every founding city, with each starting cash profile.
         // Moving the fixture's viewpoint creates no people, bills, introductions or signings.

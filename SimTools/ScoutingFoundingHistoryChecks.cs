@@ -11,6 +11,7 @@ public static class ScoutingFoundingHistoryChecks {
         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
         var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
         Check(desk.FoundLabel("Founding History", "nashville", out string message), "found label: " + message);
+        desk.SetCarForChecks(PlayerDesk.CarKind.Original); // these checks are not about the bus
         Check(desk.FoundingAct == null && desk.FoundingActSummary() == null && desk.CaptureState().ScoutingKnowledge.FoundingHistoryStarted == false, "new history starts before any signature");
         var plan = desk.ScoutingItinerary().First();
         Check(desk.WaitForSceneAppearance(plan.BillId, plan.EventId, out message) && desk.ListenSceneAppearance(plan.BillId, plan.EventId, out message), "hear actual set: " + message);
