@@ -24,10 +24,20 @@ Invariants (each one a gate on every phase):
    audits stay byte-identical, which is how every Rolodex phase was verified
    ([[probe-run-byte-comparison-proves-inertness]]). Every effect lands on a player-only channel that already exists:
    perception error, rapport, `StationAdvocacy`, verb availability, negotiation terms, time costs.
-2. **No dice.** The game already chose deterministic reads: an option is gated on an instinct score *and* the fact
-   being true, and instinct without the fact is a labelled bluff ([[rolodex-scene-architecture]]). Keep that. No
-   visible percentage rolls, no re-rolls, no red/white checks. Asking again on unchanged evidence gives the same
-   answer, as the backer already does.
+2. **Deterministic by default; checks only at named moments.** The game chose deterministic reads: an option is
+   gated on an instinct score *and* the fact being true, and instinct without the fact is a labelled bluff
+   ([[rolodex-scene-architecture]]). That stays the dominant mode. *Amended 2026-11-26 (author):* a few named moments
+   may resolve as a visible **check**, so investing in an instinct buys real swings, not just a slightly better read.
+   - **The roll:** 2d6 + the instinct + modifiers taken from real state (regard, evidence, the facts at stake), against a
+     named difficulty. Double 1 always fails, double 6 always passes. The voice gives the odds before you commit.
+   - **Same roll for the same situation.** The dice are keyed on the act, the moment and the state that feeds them, so
+     reloading or asking again on unchanged evidence gives the same result, as the backer already does.
+   - **White checks** reopen only when something real changes: a new instinct point, another night heard, more regard.
+     **Red checks** are one shot, for the big swings.
+   - **Not in the early signing.** Checks don't appear in a new player's first signing (an introductory one to teach
+     them is allowed). Passive reads and the fog stay deterministic. Player-only, like everything here.
+   - Contract buyouts (poaching a signed act, as RCA bought Elvis from Sun) are a red-check candidate for their own
+     directive.
 3. **Voices name real state.** A voice line may be *wrong* (a low Ear misreads a record), but it must be wrong
    because of the real perception-fog draw, never invented. Same rule as descriptor text
    ([[descriptor-text-must-name-real-state]]).

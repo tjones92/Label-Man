@@ -55,7 +55,8 @@ public partial class PlayerDeskPanel {
 		string id = scene.ArtistId;
 		foreach (var option in scene.Options) {
 			var verb = option.Verb;
-			RenderOption(new CallOption { label = option.Line, subLabel = option.Cost, voice = option.Voice, enabled = option.Enabled, disabledReason = option.Why }, () => {
+			RenderOption(new CallOption { label = option.Line, subLabel = option.Cost, voice = option.Voice, enabled = option.Enabled, disabledReason = option.Why,
+				isBluff = option.Bluff, bluffNote = "" }, () => {
 				bool ok = desk.SayInTalk(id, verb, out string message, out var terms);
 				if (terms != null) { EndTheTalk(desk, id); scoutingView = "ACT NOTEBOOK"; negotiating = terms; }
 				// The answer is in the transcript; a toast only when nothing was said.

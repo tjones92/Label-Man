@@ -6,7 +6,7 @@ using System.Linq;
 public enum RegardLevel { LetDown, Stranger, KnowYourFace, Friendly, TrustYou }
 
 /// <summary>One thing you did that the act remembers.</summary>
-public enum RegardSourceKind { HeardThem, SatDown, Session, GotThemANight, MissedTheirDemo, LetTheirYesLapse, CancelledOnThem }
+public enum RegardSourceKind { HeardThem, SatDown, Session, GotThemANight, MissedTheirDemo, LetTheirYesLapse, CancelledOnThem, CaughtBluffing }
 
 public sealed class RegardContact {
 	public RegardSourceKind Kind;
@@ -91,6 +91,10 @@ public partial class PlayerDesk {
 		foreach (var a in scoutingKnowledge.Approaches?.Where(a => a.ArtistId == artist.artistId && a.LetLapse &&
 			string.IsNullOrEmpty(artist.labelId)) ?? Enumerable.Empty<ScoutingDirectApproach>())
 			r.Contacts.Add(new() { Kind = RegardSourceKind.LetTheirYesLapse, Day = AgreementHoldsUntil(a), Points = -2 });
+		// A bluff they saw through (the Fixer's check on an objection).
+		foreach (var s in scoutingKnowledge.Approaches?.Where(a => a.ArtistId == artist.artistId).SelectMany(a => a.Steps ?? new())
+			.Where(s => s?.BluffFailedDay != null) ?? Enumerable.Empty<ScoutingApproachStep>())
+			r.Contacts.Add(new() { Kind = RegardSourceKind.CaughtBluffing, Day = s.BluffFailedDay.Value, Points = -1 });
 
 		var good = r.Contacts.Where(c => c.Points > 0 && c.Day <= today).ToList();
 		r.LastContactDay = good.Count == 0 ? -1 : good.Max(c => c.Day);
@@ -117,6 +121,7 @@ public partial class PlayerDesk {
 		if (r.LetDown && worst != null) return worst.Kind switch {
 			RegardSourceKind.MissedTheirDemo => "We booked the room and you never came.",
 			RegardSourceKind.LetTheirYesLapse => "We said yes to you once, and then we never heard from you.",
+			RegardSourceKind.CaughtBluffing => "Last time you told us a story.",
 			_ => "You called off on us."
 		};
 		// Nobody says "you were here Friday" about tonight: only what happened before <paramref name="before"/> counts.

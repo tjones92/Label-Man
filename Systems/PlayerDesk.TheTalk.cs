@@ -19,7 +19,9 @@ using System.Linq;
 // ============================================================================================
 public enum TalkVerb { Ask, Terms, Step, History, Rehearsal, Demo, Meeting, Number, NextSet, Handshake, Watch, Unwatch,
 	/// <summary>Step 9: answer an objection with its grounded line, tell a holdout to take their time, or sign the rest without them.</summary>
-	Answer, TakeYourTime, SignWithout }
+	Answer, TakeYourTime, SignWithout,
+	/// <summary>Say the true answer's line when it isn't true: the Fixer's check.</summary>
+	Bluff }
 
 /// <summary>One thing you can say in The Talk, mapped onto an existing verb.</summary>
 public sealed class TalkOption {
@@ -34,6 +36,8 @@ public sealed class TalkOption {
 	public bool Enabled = true;
 	/// <summary>Step: which one.</summary>
 	public ScoutingApproachStepKind Step;
+	/// <summary>It isn't true: drawn as a bluff, with the check's odds as its small print.</summary>
+	public bool Bluff;
 }
 
 public sealed class TalkScene {
@@ -159,6 +163,11 @@ public partial class PlayerDesk {
 			var g = GroundedAnswer(pendingObjection, act);
 			o.Add(new TalkOption { Verb = TalkVerb.Answer, Voice = g.Voice, Line = g.Line, Enabled = away == null && g.Why == null, Why = away ?? g.Why,
 				Cost = "Free. If it's true, it answers them." });
+			// The Fixer's check: the same line, when it isn't true (directive §2 principle 2, amended; audit §3.12).
+			if (ObjectionBluff(pendingObjection, act) is { } bluff)
+				o.Add(new TalkOption { Verb = TalkVerb.Bluff, Voice = ExecutiveVoice.Fixer, Bluff = true, Line = g.Line,
+					Enabled = away == null && bluff.Locked == null, Why = away ?? bluff.Locked,
+					Cost = $"It isn't true. {CheckSummary(bluff)} If they see through it, they'll remember." });
 			bool holdout = pendingObjection.Kind == ScoutingApproachStepKind.Holdout;
 			o.Add(new TalkOption { Verb = TalkVerb.TakeYourTime, Line = holdout ? "Take your time. I'll be at the next one." : "I'll come back when I've more to show you.",
 				Enabled = away == null, Why = away,
@@ -288,6 +297,7 @@ public partial class PlayerDesk {
 			case TalkVerb.Answer: ok = AnswerObjection(artistId, ObjectionAnswer.Grounded, out message); answer = message; break;
 			case TalkVerb.TakeYourTime: ok = AnswerObjection(artistId, ObjectionAnswer.Wait, out message); answer = message; break;
 			case TalkVerb.SignWithout: ok = AnswerObjection(artistId, ObjectionAnswer.Without, out message); answer = message; break;
+			case TalkVerb.Bluff: ok = AnswerObjection(artistId, ObjectionAnswer.Bluff, out message); answer = message; break;
 			case TalkVerb.Watch:
 			case TalkVerb.Unwatch:
 				ok = verb == TalkVerb.Watch ? WatchSigned(artistId, out message) : UnwatchSigned(artistId, out message);

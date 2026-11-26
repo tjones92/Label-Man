@@ -60,6 +60,8 @@ public sealed class CallOption {
 	public RolodexApproach approach = RolodexApproach.HangUp;
 	public CallCounter counter = CallCounter.None;
 	public bool isBluff;
+	/// <summary>A bluff's own small print in place of the call's "not true. He may check." (empty: the subLabel already says it).</summary>
+	public string bluffNote;
 	public bool enabled = true;
 	public string disabledReason;
 	public int minutes;

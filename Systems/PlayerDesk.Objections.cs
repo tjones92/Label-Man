@@ -28,7 +28,7 @@ public enum CourtshipObjection {
 }
 
 /// <summary>How you answer an objection in The Talk.</summary>
-public enum ObjectionAnswer { Grounded, Wait, Without }
+public enum ObjectionAnswer { Grounded, Wait, Without, Bluff }
 
 // ============================================================================================
 // COURTSHIP OBJECTIONS (SigningRealismBreakdown.md step 9; SigningExperienceAudit.md §3.6).
@@ -47,7 +47,8 @@ public enum ObjectionAnswer { Grounded, Wait, Without }
 // member only in it for the fun has no true answer. The other answers are always open: tell a holdout to
 // take their time, and they settle it at the next set or rehearsal you're at; or, in a band of four or more where the
 // holdout isn't the leader, the singer or the writer, sign the rest without them, and that member leaves the band.
-// No draws: the same state gives the same objection and the same answer. Player-only: only the player's desk raises or
+// The same state gives the same objection and the same answer. A line whose fact isn't true can be said anyway as a
+// bluff once checks are open: the Fixer's white check (PlayerDesk.Checks.cs; audit §3.12). Player-only: only the player's desk raises or
 // answers one, so AI-only worlds are untouched.
 // ============================================================================================
 public partial class PlayerDesk {
@@ -188,6 +189,65 @@ public partial class PlayerDesk {
 		}
 	}
 
+	// ── The Fixer's bluff: the true answer's line, said when its fact isn't true (a white check) ──
+
+	/// <summary>How hard each lie is to get past them: a small stretch is Easy, a claim they can check on the spot is
+	/// Formidable. Null when there's nothing to bluff (the answer is always true, or needs only a record out, which the
+	/// checks already wait for).</summary>
+	public static CheckDifficulty? BluffDifficulty(CourtshipObjection o, bool holdout) => o switch {
+		CourtshipObjection.Trust => CheckDifficulty.Easy,            // you've been once, and say you've been twice
+		CourtshipObjection.Songs => CheckDifficulty.Medium,          // you've heard a song or two of theirs
+		CourtshipObjection.Road => CheckDifficulty.Medium,           // "you'd record here", from another town
+		CourtshipObjection.Money when holdout => CheckDifficulty.Challenging,   // they know who the best player is
+		CourtshipObjection.Money => CheckDifficulty.Medium,          // "your own songs", not having heard them
+		CourtshipObjection.Cheated => CheckDifficulty.Challenging,   // they can ask around
+		CourtshipObjection.School => CheckDifficulty.Formidable,     // their mother would remember you
+		CourtshipObjection.Fun => CheckDifficulty.Formidable,        // there's no real answer to fun
+		_ => null
+	};
+
+	/// <summary>What regard adds to a bluff: people believe somebody they trust.</summary>
+	public static int RegardModifier(RegardLevel level) => level switch {
+		RegardLevel.LetDown => -2, RegardLevel.Stranger => -1, RegardLevel.Friendly => 1, RegardLevel.TrustYou => 2, _ => 0
+	};
+
+	private static string RegardWhy(RegardLevel level) => level switch {
+		RegardLevel.LetDown => "you let them down", RegardLevel.Stranger => "they don't know you",
+		RegardLevel.Friendly => "they like you", RegardLevel.TrustYou => "they trust you", _ => ""
+	};
+
+	/// <summary>The bluff on this objection as it stands, or null when there isn't one: checks aren't open yet (your
+	/// first record isn't out), the true answer can be said, or nothing would be a lie worth telling.</summary>
+	public CheckRead ObjectionBluff(ScoutingApproachStep s, SimulatedArtist act) {
+		if (!ChecksOpen || s == null || act == null) return null;
+		bool holdout = s.Kind == ScoutingApproachStepKind.Holdout;
+		if (GroundedAnswer(s, act).Why == null || BluffDifficulty(s.Objection, holdout) is not { } difficulty) return null;
+		var regard = ReadRegard(act);
+		int fixer = InstinctScore(InstinctProfile, ExecutiveVoice.Fixer);
+		// The state the dice are keyed on. A caught bluff's own cost to regard is left out, or failing would reopen it.
+		int regardBefore = regard.Score - regard.Contacts.Where(c => c.Kind == RegardSourceKind.CaughtBluffing).Sum(c => c.Points);
+		string key = $"{Label.labelId}|{act.artistId}|bluff|{s.Kind}|{s.RaisedDay}|{s.Objection}|fixer{fixer}|regard{regardBefore}|nights{HeardNights(act.artistId)}";
+		var check = new CheckRead { Voice = ExecutiveVoice.Fixer, Instinct = fixer, Difficulty = difficulty, Key = key };
+		int mod = RegardModifier(regard.Level);
+		if (mod != 0) check.Modifiers.Add((RegardWhy(regard.Level), mod));
+		if (s.BluffFailedKey == key)
+			check.Locked = $"They didn't buy it on {LocalSceneRoomService.Date(s.BluffFailedDay ?? SceneDay).ToHeadlineString()}. " +
+				"It's worth another try once something's changed: your Fixer, another night of theirs heard, or more time with them.";
+		return check;
+	}
+
+	/// <summary>What they say when they see through it.</summary>
+	private string CaughtLine(ScoutingApproachStep s) => s.Objection switch {
+		CourtshipObjection.Songs => "You've heard one of my songs, if that.",
+		CourtshipObjection.Road => $"Your label's in {HomeTownName ?? "another town"}. Don't tell me where I'd be recording.",
+		CourtshipObjection.Money when s.Kind == ScoutingApproachStepKind.Holdout => "I know who the best player up there is, and it isn't me.",
+		CourtshipObjection.Money => "You haven't heard our songs.",
+		CourtshipObjection.School => "You've never been to our house. My mother would remember.",
+		CourtshipObjection.Cheated => "Name one act of yours that's seen a royalty.",
+		CourtshipObjection.Fun => "Fun? You're selling something.",
+		_ => "You've been the once."
+	};
+
 	/// <summary>Whether the band can sign without its holdout: four or more, and the holdout isn't who the band is built on.
 	/// Null when it can; otherwise why not.</summary>
 	public string SignWithoutBlocked(SimulatedArtist act, ScoutingApproachStep s) {
@@ -220,6 +280,24 @@ public partial class PlayerDesk {
 				s.Done = true; s.DoneDay = today;
 				s.Said = $"You told {s.Who}: \"{g.Line}\" " + (holdout ? $"{s.Who}: \"All right. If you mean that, I'm in.\"" : $"{s.Who}: \"All right. Let's hear what you're offering.\"");
 				message = s.Said + " " + AfterStep(act);
+				break;
+			}
+			case ObjectionAnswer.Bluff: {
+				var g = GroundedAnswer(s, act);
+				var check = ObjectionBluff(s, act);
+				if (check == null) { message = ChecksOpen ? "You can just tell them the truth." : "Not yet. Get your first record out, and you'll know when a story will hold."; return false; }
+				if (check.Locked != null) { message = check.Locked; return false; }
+				var (d1, d2) = CheckDice(check.Key);
+				string roll = $"[{d1} + {d2} + {check.Bonus} against {(int)check.Difficulty}]";
+				if (CheckPasses(d1, d2, check.Bonus, (int)check.Difficulty)) {
+					s.Done = true; s.DoneDay = today; s.Bluffed = true;
+					s.Said = $"You told {s.Who}: \"{g.Line}\" It wasn't true, and it held {roll}. " +
+						(holdout ? $"{s.Who}: \"All right. If you mean that, I'm in.\"" : $"{s.Who}: \"All right. Let's hear what you're offering.\"");
+					message = s.Said + " " + AfterStep(act);
+				} else {
+					s.BluffFailedDay = today; s.BluffFailedKey = check.Key;
+					message = $"You told {s.Who}: \"{g.Line}\" They didn't buy it {roll}. {s.Who}: \"{CaughtLine(s)}\" They'll remember it.";
+				}
 				break;
 			}
 			case ObjectionAnswer.Wait when holdout:

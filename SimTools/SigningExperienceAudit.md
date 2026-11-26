@@ -407,6 +407,80 @@ The courtship objections in §3.6 were built as SigningRealismBreakdown step 9 (
   run (`sig8on-1001-104` vs `sigaudit-1001-104`, and again at the steeper fog scale, `sigfog-1001-104`): **all 100 CSVs byte-identical.** Steps 1–7 were compared in
   SigningRealismBreakdown §14, so the whole presentation pass is now confirmed inert for the AI.
 
+### 3.12 Built: the Fixer's bluff, the first check at a named moment (2026-11-26)
+**Why.** The author wants an instinct you've invested in to buy real swings, the way a Disco Elysium check does, not
+just a slightly better read. The inner-life directive's principle 2 is amended to match: deterministic stays the
+default, and a few named moments may resolve as a visible check. The first is the bluff step 9 left greyed because
+it "would need a draw" (SigningRealismBreakdown §16, "Not done").
+
+**The machinery** (`PlayerDesk.Checks.cs`, for every later check):
+- **The roll:** 2d6 + instinct + modifiers taken from real state, against a named difficulty: Easy 8, Medium 10,
+  Challenging 12, Formidable 13, Legendary 14, Heroic 15. Double 1 always fails and double 6 always passes.
+- **Keyed dice:** `LocalSceneIdentityService.AssignmentUnit` on the check's state, never the shared RNG. The same
+  situation rolls the same, so a reload doesn't reroll.
+- **White checks:** a failed one shuts on that state (`BluffFailedKey`) and reopens when the state changes.
+- **Odds before you commit:** the small print names the instinct, the modifiers, the difficulty and the odds, plus a
+  few words in the Fixer's manner: "They'll buy it", "Better than even", "Coin toss, near enough", "Long shot",
+  "Forget it".
+- **Not in the early signing:** `ChecksOpen` waits for your first record. The first signing runs on reads alone, and
+  `FirstWeekUiChecks` never meets a check.
+
+**The bluff** (`PlayerDesk.Objections.cs`, The Talk).
+- **When it's offered:** an objection's true answer is greyed because its fact isn't true. The same line is then
+  offered beneath it, marked as a bluff in rust, with the Fixer's linocut.
+- **Difficulty**, by how checkable the lie is:
+
+  | Lie | Difficulty |
+  |---|---|
+  | "I've been to hear you twice" (Trust) | Easy |
+  | Your songs; you'd record here; your own songs, to a comfortable act | Medium |
+  | "You're the best player up there"; "ask our acts, we've paid them" | Challenging |
+  | "I told your folks at their table"; "you'd have more fun on a record" | Formidable |
+
+  Job, Engagement and Local have no bluff: the first is always true, and the other two need only a record out.
+- **Modifier:** regard. They trust you +2, they like you +1, they don't know you −1, you let them down −2.
+- **Pass:** the objection is answered as if it were true, and the step is marked `Bluffed`. Nothing comes of that
+  yet; it's there for a later "found out" beat.
+- **Fail:** they say what gave you away ("Name one act of yours that's seen a royalty."). The line shuts on that
+  state, and regard takes a −1 `CaughtBluffing` for half a year, which also makes the next try harder. Waiting, or
+  signing without them, stays open.
+- **What reopens it:** another Fixer point, another night of theirs heard, or a change in regard. The point a failed
+  bluff costs doesn't count, or failing would reopen it straight away.
+
+**Odds of passing** (regard 0), so investing shows:
+
+| Difficulty | Fixer 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| Easy 8 | 58% | 72% | 83% | 92% | 97% | 97% |
+| Medium 10 | 28% | 42% | 58% | 72% | 83% | 92% |
+| Challenging 12 | 8% | 17% | 28% | 42% | 58% | 72% |
+| Formidable 13 | 3% | 8% | 17% | 28% | 42% | 58% |
+
+The Promo Man (Fixer 5) talks round a holdout who trusts the label on "labels cheat" 83% of the time (5 + 2 against 12).
+The Ex-Musician (Fixer 2) manages 8% with a stranger (2 − 1). Being caught costs regard, so the bet has a downside.
+
+**Check: `SimTools/BluffCheckChecks.tscn`** (`--set-city=`, seed 1001). The fixture is an agreed yes with a holdout
+raising "labels cheat", on an unsigned act heard on day one. It covers:
+- the dice: odds are exact against Disco Elysium's table, boxcars and snake eyes override the sum, and the keyed dice
+  are fair (6,000 keys);
+- no check, Talk option or answer before the first record;
+- once open: Challenging on the Fixer, and The Talk shows it under the greyed truth with its odds;
+- same state, same key; each Fixer level its own state, with rising odds;
+- a failing Fixer shuts it and costs a regard point, it's shut on the same state, the save carries it, and a later
+  Fixer point reopens it and lands.
+
+Results: Nashville 28 checks (Carolyn Fields: fails at Fixer 1–4, passes at 5), Portland 28 (Frankie Myers: passes
+only at 6). Detroit has no unsigned act heard on day one (§2.8), so the fixture can't run there.
+- **Regression (seed 1001 unless noted), all unchanged:** `TheSetChecks` 91 / 96, `TheTalkChecks` 126, `TheTableChecks` 43,
+  `FirstWeekUiChecks` 36 / 37 / 52 (seeds 1001 / 2002 / 3003), `ScoutingUiChecks` 72, `DispositionChecks` 92,
+  `ConnieChecks` 49. **AI byte-comparison:** `sigbluff-1001-104` against `sig8on-1001-104`, all 100 CSVs byte-identical.
+
+**Not done:**
+- An introductory check to teach a new player. The directive allows one, but none is placed.
+- Red checks. Contract buyouts get their own directive.
+- A bluff that landed being found out later.
+- Checks at the other named moments: Street turning a "no", Suit at the table, an Ear passive in the room.
+
 ## 4. Order of work
 
 | # | Piece | Touches the sim? | Check |
@@ -417,6 +491,7 @@ The courtship objections in §3.6 were built as SigningRealismBreakdown step 9 (
 | 4 | The Table (§3.4) — **built** (§3.9) | No | `TheTableChecks`; `ScoutingTermsChecks` |
 | 5 | T3 on the scenes (§3.5) — **built** (§3.10) | No | Re-run `FirstWeekUiChecks`; the bot must **choose** an act (e.g. by the best Ear read) instead of following a glow |
 | 6 | Objections, fog (§3.6): objections **built** (SigningRealismBreakdown §16), fog **built** (§3.11) | Player-only outcomes | Own screen; `FogInstinctChecks` |
+| 7 | Checks at named moments: the Fixer's bluff **built** (§3.12) | Player-only outcomes | `BluffCheckChecks` |
 
 Steps 1 to 5 are presentation only, so AI CSVs should stay byte-identical. **Confirmed** (§3.11 and
 SigningRealismBreakdown §14).

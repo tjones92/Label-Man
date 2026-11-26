@@ -3346,7 +3346,8 @@ public partial class PlayerDeskPanel : Control {
 		row.AddChild(line);
 
 		string sub = opt.enabled ? opt.subLabel : opt.disabledReason;
-		if (opt.isBluff) sub = string.IsNullOrEmpty(sub) ? "Not true. He may check." : sub + "  —  not true. He may check.";
+		if (opt.isBluff && opt.bluffNote == null) sub = string.IsNullOrEmpty(sub) ? "Not true. He may check." : sub + "  —  not true. He may check.";
+		else if (opt.isBluff && opt.bluffNote.Length > 0) sub = string.IsNullOrEmpty(sub) ? opt.bluffNote : sub + "  —  " + opt.bluffNote;
 		if (!string.IsNullOrEmpty(sub)) {
 			var margin = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
 			margin.AddThemeConstantOverride("margin_left", (int)indent + 18);

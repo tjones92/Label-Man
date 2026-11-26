@@ -210,6 +210,11 @@ public sealed class ScoutingApproachStep {
     public string ObjectionLine { get; set; }
     /// <summary>Holdout: you told them to take their time on this day; the next set you hear after it settles it.</summary>
     public int? WaitFrom { get; set; }
+    /// <summary>The objection was answered with a bluff that landed (the Fixer's check).</summary>
+    public bool Bluffed { get; set; }
+    /// <summary>A bluff they saw through: the day, and the state it was tried on. It can't be tried again on that state.</summary>
+    public int? BluffFailedDay { get; set; }
+    public string BluffFailedKey { get; set; }
 }
 /// <summary>A label asked an act that was off the market whether it would hear an offer. The act's answer comes from its
 /// disposition (ActDisposition): a hungry act says yes (tonight, or after its steps), a careful act asks to be heard
