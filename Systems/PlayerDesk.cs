@@ -1577,7 +1577,7 @@ public partial class PlayerDesk : Node {
 		if (trade) EnsureRepresentedActOnFirstMeet(slateActs);
 
 		foreach (SimulatedArtist artist in slateActs) {
-			float noise = ScoutingReadNoise(EarHearing);
+			float noise = EarNoise;
 			var prospect = new Prospect {
 				Artist = artist,
 				Venue = venue,

@@ -21,11 +21,16 @@ public static class ScenePerformanceService {
     }
     /// <param name="room">The kind of room it was heard in. A room hides some things from every listener alike
     /// (SceneRoomCharacter.HearingIn); null for a rehearsal or demo sample.</param>
-    /// <param name="stageAbility">How well this listener reads the room's response to the act (stage presence), when it
-    /// differs from <paramref name="ability"/>. The player hears the music with the Ear and the room with the Street.</param>
-    public static ScenePerformanceSnapshot Interpret(ScenePerformanceSnapshot live, string labelId, float ability, float coverage, SceneRoomKind? room = null, float? stageAbility = null) {
-        float NoiseAt(float a) => .08f + .20f * (1 - Math.Clamp(a, 0, 1)) + .08f * (1 - coverage);
-        float baseNoise = NoiseAt(ability), stageNoise = NoiseAt(stageAbility ?? ability);
+    public static ScenePerformanceSnapshot Interpret(ScenePerformanceSnapshot live, string labelId, float ability, float coverage, SceneRoomKind? room = null) {
+        float listener = .08f + .20f * (1 - Math.Clamp(ability, 0, 1));
+        return InterpretAt(live, labelId, listener, listener, coverage, room);
+    }
+    /// <summary>The same read with the listener's own error given directly: <paramref name="musicNoise"/> for voice,
+    /// playing and material, <paramref name="stageNoise"/> for stage presence. The player's comes from the Ear and the
+    /// Street (PlayerDesk.InstinctNoise). Partial coverage and the room's blind spots add to it as for anyone.</summary>
+    public static ScenePerformanceSnapshot InterpretAt(ScenePerformanceSnapshot live, string labelId, float musicNoise, float stageNoise, float coverage, SceneRoomKind? room = null) {
+        float partial = .08f * (1 - coverage);
+        float baseNoise = musicNoise + partial; stageNoise += partial;
         var hearing = room.HasValue ? SceneRoomCharacter.HearingIn(room.Value) : default;
         float Read(string axis, float value) {
             float noise = (axis == "communication" ? stageNoise : baseNoise) + axis switch { "vocals" => hearing.Vocals, "execution" => hearing.Execution,

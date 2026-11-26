@@ -367,34 +367,44 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 The courtship objections in §3.6 were built as SigningRealismBreakdown step 9 (§16). This is the other half: the fog.
 - **Who heard what.** The set's error band used the label's archetype `scoutingAbility`, fixed at founding. Now the
   **Ear** sets it for voice, playing and material (and the song-by-song reads), and the **Street** sets it for stage
-  presence: how the crowd takes the act. It applies to sets, rehearsals and demos (`EarHearing`, `StreetHearing` in
-  `PlayerDesk.Instincts.cs`; `ScenePerformanceService.Interpret` takes a separate stage ability).
-- **The scale (`InstinctHearing`)**: 1 → .30, 2 → .40, 3 → .50, 4 → .62, 5 → .75, 6 → .85. The four archetypes'
-  scouting abilities are exactly their founding Ear on it, so **a founding read of the music doesn't move**. Stage
-  presence does: it now follows the Street. That makes the Promo Man sharper (.40 → .62) and the Ex-Musician softer
-  (.75 → .62). A December point now narrows the band from that night on.
-- **The blind spot keeps its direction.** The keyed bias and event error are unchanged, so a better instinct shrinks
-  the error without moving it. Notes already taken are never rewritten.
+  presence: how the crowd takes the act. It applies to sets, rehearsals and demos (`EarNoise`, `StreetNoise` in
+  `PlayerDesk.Instincts.cs`; `ScenePerformanceService.InterpretAt`). Hired listeners keep the old ability formula.
+- **The instinct is the main part of the fog** (author, 2026-11-26: a first cut that only swapped the archetype number
+  for the instinct moved a read 0.01–0.06, which is negligible). `InstinctNoise`: 1 → .45, 2 → .33, 3 → .22, 4 → .13,
+  5 → .06, 6 → .03. That replaces the old 0.08 floor plus 0.20 × (1 − ability). Partial coverage and the room's blind
+  spots still add their own error for everyone.
+- **What it's worth** (`FogInstinctChecks`, seed 1001): every one of the 2,888 performances on the first day's bills
+  in every scene town, read at full coverage in its own room by 24 blind spots. A read lands in the wrong word band
+  (under .48 / .48–.72 / from .72) this often:
+
+  | Instinct | 1 | 2 | 3 | 4 | 5 | 6 |
+  |---|---|---|---|---|---|---|
+  | Music, wrong band | 37% | 30% | 21% | 14% | 8% | 5% |
+  | Music, mean error | .148 | .112 | .078 | .050 | .027 | .018 |
+  | Stage presence, wrong band | 37% | 29% | 21% | 14% | 7% | 5% |
+
+  The old formula ran from about 21% (Ear 1, noise .22) to 14% (Ear 5, .13), which a player couldn't feel. Ear 3 now
+  reads about as Ear 1 did. The Pawn-Shop Owner's tin ear misreads one set in three; the Ex-Musician's, one in twelve.
+- **The blind spot keeps its direction.** The keyed bias (per label and axis) and event error are unchanged, so a low
+  Ear is wrong the same way again and again, and a December point shrinks that without moving it. Notes already
+  taken are never rewritten.
 - **Still on the archetype number:** the old slate's `ReadQuality` / `ReadConfidence` (`ScoutingPerception`), the
   polar ear view, and the negotiation fog band. Convictions (inner-life §7) don't exist yet, so they don't reach the fog.
-- **How much it's worth.** The instinct only moves the middle term of the noise. The 0.08 floor, partial coverage and
-  the room's own blind spots stay the same for everyone. From Ear 1 to Ear 5, a read typically closes 0.01–0.06 of a
-  0.05–0.20 error. In a loud room the room dominates. If the author wants instincts to count for more, the lever is the
-  0.20 coefficient in `Interpret`, which would also move hired listeners.
 - **Check: `SimTools/FogInstinctChecks.tscn`** (`--set-city=`). It covers:
-  - each archetype's founding Ear against its scouting ability;
-  - no separate stage ability reads exactly as before;
+  - the fog narrows at each point, and the population rates above fall at each point; Ear 1 is at least 25% wrong,
+    Ear 5 at most 10%, and Street 1 at least 20 points worse than Street 5;
+  - a hired listener reads exactly as before;
   - sets heard at Ear 2 / Street 5 store exactly that read, and raising instincts later leaves the notes alone;
-  - per set and axis, each point is never further off and keeps the error's sign;
+  - per heard set and axis, each point is never further off and keeps the error's sign;
   - the Ear never moves stage presence and the Street never moves the music.
 
-  Results, seed 1001: Nashville 370 checks, Detroit 350. Between 87% and 96% of reads move with each point.
+  Passes, seed 1001: Nashville 374 checks, Detroit 355.
 - **Regression (seed 1001 unless noted):** `TheSetChecks` 91 (Nashville) and 96 (Detroit), `TheTalkChecks` 126,
   `TheTableChecks` 43, `FirstWeekUiChecks` 36 / 37 / 52 (seeds 1001 / 2002 / 3003; the bot still signs Lamont Turner,
   Timmy Bishop and Skip Calloway), `ScoutingUiChecks` 72, `DispositionChecks` 92, `ConnieChecks` 49.
 - **AI byte-comparison for this pass (§4).** 104 weeks, seed 1001, `--enable-genre-market-v2
   --enable-artist-population-lifecycle --aggregate-only`. HEAD (§3.4, §3.5 and this) was compared against step 8's
-  run (`sig8on-1001-104` vs `sigaudit-1001-104`): **all 100 CSVs byte-identical.** Steps 1–7 were compared in
+  run (`sig8on-1001-104` vs `sigaudit-1001-104`, and again at the steeper fog scale, `sigfog-1001-104`): **all 100 CSVs byte-identical.** Steps 1–7 were compared in
   SigningRealismBreakdown §14, so the whole presentation pass is now confirmed inert for the AI.
 
 ## 4. Order of work

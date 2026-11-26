@@ -272,7 +272,7 @@ public partial class PlayerDesk {
 		var sample = new ScenePerformanceSnapshot { Id = job.Id,
 			Vocals = voices.Length == 0 ? null : Sample("vocals", voices.Average(m => m.axesVersion > 0 ? (m.vocalPower + m.vocalControl) / 2 : m.technicalSkill)),
 			Execution = Sample("execution", people.Average(m => m.studioEfficiency)) };
-		var interpretation = ScenePerformanceService.Interpret(sample, Label.labelId, EarHearing, 1, null, StreetHearing);
+		var interpretation = ScenePerformanceService.InterpretAt(sample, Label.labelId, EarNoise, StreetNoise, 1);
 		var dossier = Dossier(act.artistId, act.stageName);
 		int year = LocalSceneRoomService.Date(job.Day).year;
 		dossier.Observations.Add(new() { Id = $"paid-demo-v1|{Label.labelId}|{job.Id}", EventId = job.Id, LabelId = Label.labelId,

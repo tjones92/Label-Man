@@ -44,7 +44,7 @@ public partial class PlayerDesk {
                 Note = $"Demo submitted through the {ScenePlaceRegistry.Get(placeId).Name} office. The act remains based there; no live appearance or master rights are implied." };
             using var draws = new PcgRandom { Seed = (ulong)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
                 $"source-demo-read-v1|{Label.labelId}|{artist.artistId}|{week / 4}") * 9007199254740992.0) };
-            BuildLiveSet(prospect, artist, date.year, ScoutingReadNoise(EarHearing), draws, sceneRead: true);
+            BuildLiveSet(prospect, artist, date.year, EarNoise, draws, sceneRead: true);
             foreach (var song in prospect.LiveSet) song.SourceTag = "submitted demo";
             prospect.HeardCount = Math.Min(2, prospect.LiveSet.Count);
             prospect.Rough = ReadRough(prospect, notebook.FirstOrDefault(n => n.Artist?.artistId == artist.artistId));

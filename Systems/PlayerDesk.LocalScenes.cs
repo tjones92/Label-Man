@@ -30,7 +30,7 @@ public partial class PlayerDesk {
         slate.Clear();
         SlateDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
         foreach (SimulatedArtist artist in cast) {
-            float noise = ScoutingReadNoise(EarHearing);
+            float noise = EarNoise;
             var prospect = new Prospect { Artist = artist, Venue = venue, CityId = placeId,
                 ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0),
                 ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0, 1),

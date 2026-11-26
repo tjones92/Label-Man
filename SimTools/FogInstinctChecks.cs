@@ -6,8 +6,9 @@ using Godot;
 /// <summary>
 /// Instincts in the fog (SigningExperienceAudit §3.6, inner-life §7): the player hears the music with the Ear and the
 /// room with the Street. Checks that
-///   - every founding archetype's scouting ability is its founding Ear on the hearing scale, so founding reads don't move;
-///   - a listener with no separate stage ability reads exactly as before;
+///   - the instinct is the main part of the fog: over every set on today's bills in every scene town, heard by many
+///     labels' blind spots in their own rooms, a read lands in the wrong word band far more often at 1 than at 5;
+///   - a hired listener (ability, not instinct) reads exactly as before;
 ///   - a set heard at the desk is read at the instincts held that night (Ear for voice, playing, material; Street for
 ///     stage presence), and raising an instinct afterwards never rewrites what was heard;
 ///   - per heard set and axis, a higher instinct is never further off, the error keeps its direction (the blind spot
@@ -23,10 +24,7 @@ public partial class FogInstinctChecks : Node {
 	public override void _Ready() {
 		try {
 			PlayerDesk.AutosaveOffForChecks = true;
-			foreach (var (kind, profile) in FoundingArchetypeData.All)
-				Check(Math.Abs(PlayerDesk.InstinctHearing(profile.Instincts.TheEar) - profile.ScoutingAbility) < 1e-6f,
-					$"{profile.Name}: founding Ear {profile.Instincts.TheEar} hears at the archetype's scouting ability {profile.ScoutingAbility}");
-			for (int s = 1; s < 6; s++) Check(PlayerDesk.InstinctHearing(s + 1) > PlayerDesk.InstinctHearing(s), $"Hearing rises from {s} to {s + 1}");
+			for (int s = 1; s < 6; s++) Check(PlayerDesk.InstinctNoise(s + 1) < PlayerDesk.InstinctNoise(s), $"The fog narrows from {s} to {s + 1}");
 
 			var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
 			string city = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--set-city="))?.Substring("--set-city=".Length) ?? "nashville";
@@ -52,12 +50,12 @@ public partial class FogInstinctChecks : Node {
 				var obs = desk.ScoutingDossiers.First(d => d.ArtistId == artistId).Observations
 					.Last(o => o.Kind == ScoutingEvidenceKind.Performance && o.EventId == eventId);
 				var room = SceneRoomCatalog.Get(obs.RoomId).Kind;
-				ScenePerformanceSnapshot At(int ear, int street) => ScenePerformanceService.Interpret(live, labelId,
-					PlayerDesk.InstinctHearing(ear), obs.Coverage, room, PlayerDesk.InstinctHearing(street));
+				ScenePerformanceSnapshot At(int ear, int street) => ScenePerformanceService.InterpretAt(live, labelId,
+					PlayerDesk.InstinctNoise(ear), PlayerDesk.InstinctNoise(street), obs.Coverage, room);
 				Check(Key(obs.Interpretation) == Key(At(2, 5)), $"{obs.ArtistName}: heard at Ear 2 for the music and Street 5 for the room");
-				float a = PlayerDesk.InstinctHearing(3);
+				float a = .5f, n = .08f + .20f * (1 - a);
 				Check(Key(ScenePerformanceService.Interpret(live, labelId, a, obs.Coverage, room)) ==
-					Key(ScenePerformanceService.Interpret(live, labelId, a, obs.Coverage, room, a)), $"{obs.ArtistName}: no separate stage ability reads as before");
+					Key(ScenePerformanceService.InterpretAt(live, labelId, n, n, obs.Coverage, room)), $"{obs.ArtistName}: a hired listener reads exactly as before");
 
 				// Raising the instincts after the night doesn't rewrite the notes.
 				string before = Key(obs.Interpretation);
@@ -85,6 +83,33 @@ public partial class FogInstinctChecks : Node {
 				}
 			}
 			Check(moved > samples / 2, $"An instinct point moves most reads ({moved} of {samples})");
+
+			// The whole first day across the map: every performance as it would be resolved, read at full coverage in its
+			// own room by 24 different blind spots (the bias is keyed per label and axis).
+			int Band(float v) => v >= ScoutingImpressionPhrases.High ? 2 : v >= ScoutingImpressionPhrases.Middle ? 1 : 0;
+			var lives = new List<(ScenePerformanceSnapshot live, SceneRoomKind room)>();
+			foreach (var place in ScenePlaceRegistry.All) foreach (var bill in LocalSceneRoomService.Calendar(place.Id, clock.CurrentDate))
+				foreach (var slot in bill.Appearances) {
+					var artist = ArtistManager.Instance.GetArtist(slot.ArtistId); var kind = SceneRoomCatalog.Get(bill.RoomId)?.Kind;
+					if (artist != null && kind.HasValue) lives.Add((ScenePerformanceService.Resolve(bill, slot, artist), kind.Value));
+				}
+			Check(lives.Count >= 200, $"{lives.Count} performances on today's bills across the scene towns");
+			var observers = Enumerable.Range(0, 24).Select(i => $"fog-observer-{i}").ToArray();
+			var music = new double[7]; var stage = new double[7]; var musicErr = new double[7];
+			for (int s = 1; s <= 6; s++) {
+				int mw = 0, mn = 0, sw = 0, sn = 0; double me = 0;
+				foreach (var (live, room) in lives) foreach (string who in observers) {
+					var read = ScenePerformanceService.InterpretAt(live, who, PlayerDesk.InstinctNoise(s), PlayerDesk.InstinctNoise(s), 1, room);
+					foreach (var (t, r) in new[] { (live.Vocals, read.Vocals), (live.Execution, read.Execution), (live.Material, read.Material) })
+						if (t is float tv && r is float rv) { mn++; me += Math.Abs(rv - tv); if (Band(rv) != Band(tv)) mw++; }
+					sn++; if (Band(read.Communication) != Band(live.Communication)) sw++;
+				}
+				music[s] = (double)mw / mn; stage[s] = (double)sw / sn; musicErr[s] = me / mn;
+				GD.Print($"  instinct {s}: music wrong band {music[s]:P0} (mean error {musicErr[s]:0.000}), stage presence wrong band {stage[s]:P0}");
+			}
+			for (int s = 1; s < 6; s++) Check(music[s + 1] < music[s] && stage[s + 1] < stage[s], $"Fewer wrong bands at {s + 1} than {s}");
+			Check(music[1] >= .25 && music[5] <= .10 && music[1] - music[5] >= .2, $"Ear 1 misreads the music often ({music[1]:P0}), Ear 5 rarely ({music[5]:P0})");
+			Check(stage[1] - stage[5] >= .2, $"Street 1 misreads the room often ({stage[1]:P0}), Street 5 rarely ({stage[5]:P0})");
 			GD.Print($"FOG_INSTINCT_CHECKS_PASS {checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
