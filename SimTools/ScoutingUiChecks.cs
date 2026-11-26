@@ -203,7 +203,10 @@ public partial class ScoutingUiChecks : Node {
             Check(Nodes(panel).OfType<PaperModal>().Count() == 1 && !Nodes(panel).OfType<Button>().Any(b => b.Text == "INTRODUCE YOURSELF"), "Rolodex opens the known booker's venue calendar");
             Nodes(panel).OfType<PaperModal>().Single().Close(); await Frame();
             var partialSet = desk.ScoutingItinerary().First(o => o.EndMinute - o.StartMinute >= 60);
-            int partialStart = partialSet.StartMinute + (partialSet.EndMinute - partialSet.StartMinute) * 3 / 4;
+            // Arrive three-quarters through the set: leave early by the walk when you're in another room (NEXT SETS orders by
+            // leads, so which room the earlier press left you in depends on the town's talk).
+            int partialStart = partialSet.StartMinute + (partialSet.EndMinute - partialSet.StartMinute) * 3 / 4 -
+                (desk.IsAtSceneRoom(partialSet.RoomId) ? 0 : PlayerDesk.CrossTownMinutes);
             clock.RestoreClock(LocalSceneRoomService.Date(partialSet.Day), partialStart / 60, partialStart % 60);
             Check(desk.ListenSceneAppearance(partialSet.BillId, partialSet.EventId, out message), "Actual short listen: " + message);
             var partialDossier = desk.ScoutingDossiers.Single(d => d.ArtistId == partialSet.ArtistId);

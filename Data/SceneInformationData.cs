@@ -33,6 +33,8 @@ public sealed class SceneInformationKnowledge {
     public Dictionary<string, int> ReadThroughDay { get; set; } = new();
     public Dictionary<string, int> ReadEvents { get; set; } = new();
     public List<ContactTip> Tips { get; set; } = new();
+    /// <summary>AI labels' market looks at acts that stayed free, for the Fixer's leads (signing step 7). Null in older saves.</summary>
+    public List<RivalLook> RivalLooks { get; set; }
 }
 public sealed record SceneNewsItem(string Id, string PlaceId, string ArtistId, int EventDay,
     int AvailableDay, string Source, string Text);

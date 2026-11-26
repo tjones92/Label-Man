@@ -96,6 +96,10 @@ public partial class PlayerDeskPanel {
                 ScoutingText($"{option.ListeningMinutes}min listening · {Money(option.Admission)} admission" + (circuit ? $" · {option.TravelMinutes / 60}h drive" : ""), 14, Heard);
             });
             row.AddChild(details); content.AddChild(row);
+            // What the town is saying about them (signing step 7), each in its source's voice.
+            if (!circuit && string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(option.ArtistId)?.labelId))
+                foreach (var lead in desk.LeadsFor(option.ArtistId, option.CityId, option.Day))
+                    ScoutingText($"{lead.Source}: {lead.Text}", 14, lead.Voice == ExecutiveVoice.None ? ScoutingVenueInk : Ink, PaperTheme.Serif);
             // "GO & WAIT", not "WAIT": the header's WAIT 1h / 3h sit on the same screen and only pass time.
             var action = ScoutingSmallButton(circuit ? "DRIVE" : option.Playing ? "LISTEN" : "GO & WAIT");
             action.Disabled = !circuit && (option.Playing && desk.Label.cashReserves < option.Admission ||

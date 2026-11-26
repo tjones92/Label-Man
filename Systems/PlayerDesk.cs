@@ -1184,6 +1184,7 @@ public partial class PlayerDesk : Node {
 	private void OnRivalTalentMarketAppointment(RosterManager.DailyTalentMarketAppointment appointment) {
 		if (appointment?.SelectedArtist == null || appointment.Label == null || appointment.Label.isPlayerOwned) return;
 		RecordRivalSigning(appointment);
+		RecordRivalLook(appointment);
         // Internal nominations are not sourced player knowledge in the expanded notebook.
         if (LocalScenes.ScoutingExperience) return;
 		WatchNote entry = notebook.FirstOrDefault(note => note.Artist?.artistId == appointment.SelectedArtist.artistId);

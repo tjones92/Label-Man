@@ -267,7 +267,9 @@ public partial class PlayerDeskPanel {
         // the same night is not silently dropped.
         static bool UnderContract(ScoutingOpportunity o) => !string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(o.ArtistId)?.labelId);
         var reachable = local.Where(o => o.Affordable).DistinctBy(o => o.EventId).ToArray();
-        var options = reachable.Where(o => !UnderContract(o)).Take(3).ToArray();
+        // Who's worth the hour (signing step 7): sets the town is talking about come first, then the soonest.
+        var options = reachable.Where(o => !UnderContract(o)).Take(12).Select((o, i) => (o, i, talk: desk.LeadsFor(o.ArtistId, o.CityId, o.Day).Count > 0))
+            .OrderByDescending(x => x.talk).ThenBy(x => x.i).Take(3).Select(x => x.o).ToArray();
         int signedLeftOff = reachable.Count(UnderContract);
         bool circuit = options.Length == 0 && signedLeftOff == 0;
         if (circuit) options = desk.ScoutingItinerary(true).Where(o => o.Affordable && o.TravelMinutes > 0 && !UnderContract(o)).DistinctBy(o => o.CityId).Take(2).ToArray();

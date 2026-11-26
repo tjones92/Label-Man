@@ -206,7 +206,7 @@ The NEXT SETS list then answers "who's worth the hour?" with leads, not a sorted
 | 4 | **Regard ledger** — **built**, see §11 — from existing verbs; Careful wants named as verbs | No | Every regard source moves the line it should |
 | 5 | **The Talk** — **built**, see §12 — (audit §3.3) built on 2–4: opening line by disposition, wants as script lines | No | Audit §4 row 3 |
 | 6 | **Signed as a clock** — **built**, see §13 — (§3.4): Street contract read, watch item, the call at expiry | No (reads expiry decisions) | An act let go after regard calls the player |
-| 7 | **Leads** (§3.6) from scene sources | No | Leads name real draw/residency facts; low Street misreads |
+| 7 | **Leads** — **built**, see §14 — (§3.6) from scene sources | No | Leads name real draw/residency facts; low Street misreads |
 | 8 | **World booking**: residency surrender on a national push (§3.5 a′) first, then broader (a), then **(b)** only if they measure short | **Yes** | Own screen: residency composition + signed/unsigned resident strength gap + AI CSV A/B |
 | 9 | Later: the holdout member, courtship objections (audit §3.6) | Player-only outcomes | Own screen |
 
@@ -833,3 +833,61 @@ observer returns at once. Steps 1–7 still owe their one AI byte-comparison at 
   shows on the card. No reminder months out, then exactly one. A renewal keeps the watch. When the label lets them go,
   they call: a number, a hold, the opening line, the card. The call and hold survive a save. A stranger doesn't call.
   After a week the hold lifts.
+
+## 14. Step 7 built: leads (2026-11-25)
+
+`Systems/PlayerDesk.Leads.cs`. A reason to go and hear somebody before you've heard them, said by a source that could
+know it. NEXT SETS shows each set's leads on its card, and puts the sets the town is talking about first (among the
+soonest twelve free ones).
+
+- **The Street passes on the noise**, all of it real state: a residency, and "the room keeps having them back" after 13
+  nights there; a room that was packed this week with them on the bill; the people who come in for them, from the room's
+  own draw record; an original from their last set in a packed room ("Kids are asking for "My Truck", one of theirs").
+- **The fog (§3.6), in the noise's direction.** Below 3 the Street talks the noise up ("Everybody's talking about…")
+  and can't tell a crowd from a band, so a loud, ordinary band sounds like the one to see and a good quiet band isn't
+  mentioned. At 3 it passes the noise on plainly. From 4 it says when the noise is the room's ("It's the room, not the
+  band. They're loud and not much else.") or that the band is the real thing. At 5 it also hears about good bands that
+  play the rooms but nobody's talking about yet.
+- **A booker you've met** recommends an act that has played their room and is their regular or draws there: "You should
+  catch Lawrence Scott Saturday. They're our regulars. Trust me."
+- **The Fixer, from 3,** passes on that an AI label's daily market looked at an act that's still free, for four weeks.
+  The looks come from the AI market's own appointments and are kept in the player's scene knowledge
+  (`SceneInformationKnowledge.RivalLooks`, saved; null in older saves). They're rare in the opening week, because a
+  market that looks at an act usually signs it.
+
+**Calibrated to what the world actually does** (seed 1001, opening week, 3,977 free acts in 31 scene towns, 1,998 of
+them playing rooms):
+- **No bill ever fills.** Attendance is capped by expected audience: median 57% of capacity, maximum 68%. "Packed" is
+  65%, the top of that range.
+- **An act draws at most a fifth of a room:** median 10%, p90 14%. A draw lead is 14%.
+- **"The real thing" and the quiet good bands** are the top tenth by `CalculateBaseQuality` (0.69). "Not much else" is
+  below 0.45, about the bottom fifth.
+- **Result:** 122 free acts have noise (83 residents, 33 packed rooms, 31 draws). A Street of 2 hypes 23 loud ordinary
+  bands, which a Street of 4 calls the room's. A Street of 5 hears 197 good quiet ones.
+- **Detroit's free acts get almost no leads,** because its residents are signed (§12). The western towns carry most of
+  them. That's the step 8 lever again.
+
+**Not done from §3.6:** "draw growing week on week" and "a residency extended". The world keeps neither: draw is a
+running total per room, and engagements are pruned as their quarter ends. Leads use the room's show count and the
+current residency instead. The "who's free" fact stays a filter on NEXT SETS (signed acts are left off and counted)
+rather than a Street line. Putting signed acts back would fill the three slots with acts you can't sign.
+
+### Checks (seed 1001)
+- **`SimTools/LeadsChecks.tscn`, new.** It runs the opening week, then reads the leads for every free act in every scene
+  town at each Street level. Building them moves nothing, and they read the same twice. A residency is named exactly
+  when the act holds one, a draw is the room's own figure, and a packed room really was. The Street talks the noise up
+  below 3, never reads it, and never mentions a quiet good band. At 3 it's plain. At 4 it flags exactly the ordinary
+  bands a low Street hyped. At 5 it hears the quiet good ones. A booker speaks only after you've met them, and only for
+  acts that played the room. The Fixer speaks from 3, names the label, goes quiet after four weeks, and its look
+  survives the save. NEXT SETS shows the leads (`--talk-city=portland`; Detroit has none on today's list).
+  `--leads-dist` prints the distributions above.
+- **Pass:** `SignedClockChecks` 39, `TheTalkChecks` 126, `DispositionChecks` 82, `TheSetChecks` 92,
+  `FirstWeekUiChecks` 13. `ScoutingUiChecks` 72 (was 74). NEXT SETS now orders by leads, so the card it presses leaves
+  the player in a different room. Its short-listen fixture now leaves early by the walk across town. Its conditional
+  TALK TO THEM leg is skipped, because the act it hears now is already looking for a deal.
+
+### AI byte-comparison for steps 1–7 (owed since step 2)
+104 weeks, seed 1001, `--enable-genre-market-v2 --enable-artist-population-lifecycle --aggregate-only`. Before step 2
+(`db9c144`, built in a worktree, DLL swapped in) against steps 2–7 (`sigbase-1001-104` vs `sig7-1001-104`): **all 100
+CSVs byte-identical.** With no player label, the new observer, the rival-look recorder and the leads change nothing in
+an AI world.
