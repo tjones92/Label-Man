@@ -75,7 +75,7 @@ public partial class PlayerDesk {
                 OccurredDay = bill.Day, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate), AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, StartMinute = from, EndMinute = through, Coverage = coverage,
                 Credibility = coverage >= .9 ? "full set impression; observer judgment remains uncertain" : "partial set impression; limited coverage",
                 PersonIds = slot.PersonIds.ToList(), BackingPersonIds = slot.BackingPersonIds?.ToList() ?? new(), Set = LocalSceneRoomService.Copy(slot.Set),
-                Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage, room.Kind),
+                Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, EarHearing, coverage, room.Kind, StreetHearing),
                 BillAttendance = resolved.Status == SceneBillStatus.Performed ? resolved.Attendance : null, BillCapacity = LocalSceneRoomService.CapacityOf(resolved),
                 BillListedActs = listedActs, BillAdmissionQuote = postedAdmission,
                 // A glance tells you how full the room looks. Arrivals and retention require a longer watch.
@@ -153,7 +153,7 @@ public partial class PlayerDesk {
     }
     private System.Collections.Generic.List<RepertoireItem> ReadSceneRoomSet(SimulatedArtist artist, SceneBill bill, SceneAppearance appearance = null) {
         var set = new System.Collections.Generic.List<RepertoireItem>();
-        float noise = ScoutingReadNoise(Label.scoutingAbility);
+        float noise = ScoutingReadNoise(EarHearing);
         foreach (var song in (appearance ?? bill.Appearances.First(s => s.ArtistId == artist.artistId)).Set) {
                 var canonical = string.IsNullOrEmpty(song.SongId) ? null : CompositionCatalogService.GetSong(song.SongId);
                 float readNoise = (float)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,

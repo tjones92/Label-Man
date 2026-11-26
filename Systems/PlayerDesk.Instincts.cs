@@ -31,6 +31,16 @@ public partial class PlayerDesk {
 		TheEar = p?.TheEar ?? 1, TheStreet = p?.TheStreet ?? 1, TheSuit = p?.TheSuit ?? 1, TheFixer = p?.TheFixer ?? 1,
 	};
 
+	/// <summary>How clearly an instinct hears, on the listening scale the fog uses (0..1). The founding archetypes'
+	/// scouting abilities are exactly their founding Ear on this scale, so a founding read doesn't move; a December point
+	/// narrows the error band from then on. The blind spot's direction (keyed per label and axis) stays put, it only
+	/// shrinks. Instincts in the fog (inner-life §7; signing audit §3.6). Player-only.</summary>
+	public static float InstinctHearing(int score) => score switch { <= 1 => .30f, 2 => .40f, 3 => .50f, 4 => .62f, 5 => .75f, _ => .85f };
+	/// <summary>The Ear hears the music: voice, playing, material, and the songs.</summary>
+	public float EarHearing => InstinctHearing(InstinctProfile?.TheEar ?? 3);
+	/// <summary>The Street reads the room: how the crowd takes the act (stage presence).</summary>
+	public float StreetHearing => InstinctHearing(InstinctProfile?.TheStreet ?? 3);
+
 	public static int InstinctScore(ExecutiveInstinctProfile p, ExecutiveVoice v) => v switch {
 		ExecutiveVoice.Ear => p.TheEar, ExecutiveVoice.Street => p.TheStreet, ExecutiveVoice.Suit => p.TheSuit, ExecutiveVoice.Fixer => p.TheFixer, _ => 0,
 	};

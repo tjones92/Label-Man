@@ -363,6 +363,40 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
   noes in a row is a long first fortnight. The bills-are-mostly-signed finding (§2.8) shows up here as "the act the Ear
   likes holds a steady room".
 
+### 3.11 Built: instincts in the fog (2026-11-26)
+The courtship objections in §3.6 were built as SigningRealismBreakdown step 9 (§16). This is the other half: the fog.
+- **Who heard what.** The set's error band used the label's archetype `scoutingAbility`, fixed at founding. Now the
+  **Ear** sets it for voice, playing and material (and the song-by-song reads), and the **Street** sets it for stage
+  presence: how the crowd takes the act. It applies to sets, rehearsals and demos (`EarHearing`, `StreetHearing` in
+  `PlayerDesk.Instincts.cs`; `ScenePerformanceService.Interpret` takes a separate stage ability).
+- **The scale (`InstinctHearing`)**: 1 → .30, 2 → .40, 3 → .50, 4 → .62, 5 → .75, 6 → .85. The four archetypes'
+  scouting abilities are exactly their founding Ear on it, so **a founding read of the music doesn't move**. Stage
+  presence does: it now follows the Street. That makes the Promo Man sharper (.40 → .62) and the Ex-Musician softer
+  (.75 → .62). A December point now narrows the band from that night on.
+- **The blind spot keeps its direction.** The keyed bias and event error are unchanged, so a better instinct shrinks
+  the error without moving it. Notes already taken are never rewritten.
+- **Still on the archetype number:** the old slate's `ReadQuality` / `ReadConfidence` (`ScoutingPerception`), the
+  polar ear view, and the negotiation fog band. Convictions (inner-life §7) don't exist yet, so they don't reach the fog.
+- **How much it's worth.** The instinct only moves the middle term of the noise. The 0.08 floor, partial coverage and
+  the room's own blind spots stay the same for everyone. From Ear 1 to Ear 5, a read typically closes 0.01–0.06 of a
+  0.05–0.20 error. In a loud room the room dominates. If the author wants instincts to count for more, the lever is the
+  0.20 coefficient in `Interpret`, which would also move hired listeners.
+- **Check: `SimTools/FogInstinctChecks.tscn`** (`--set-city=`). It covers:
+  - each archetype's founding Ear against its scouting ability;
+  - no separate stage ability reads exactly as before;
+  - sets heard at Ear 2 / Street 5 store exactly that read, and raising instincts later leaves the notes alone;
+  - per set and axis, each point is never further off and keeps the error's sign;
+  - the Ear never moves stage presence and the Street never moves the music.
+
+  Results, seed 1001: Nashville 370 checks, Detroit 350. Between 87% and 96% of reads move with each point.
+- **Regression (seed 1001 unless noted):** `TheSetChecks` 91 (Nashville) and 96 (Detroit), `TheTalkChecks` 126,
+  `TheTableChecks` 43, `FirstWeekUiChecks` 36 / 37 / 52 (seeds 1001 / 2002 / 3003; the bot still signs Lamont Turner,
+  Timmy Bishop and Skip Calloway), `ScoutingUiChecks` 72, `DispositionChecks` 92, `ConnieChecks` 49.
+- **AI byte-comparison for this pass (§4).** 104 weeks, seed 1001, `--enable-genre-market-v2
+  --enable-artist-population-lifecycle --aggregate-only`. HEAD (§3.4, §3.5 and this) was compared against step 8's
+  run (`sig8on-1001-104` vs `sigaudit-1001-104`): **all 100 CSVs byte-identical.** Steps 1–7 were compared in
+  SigningRealismBreakdown §14, so the whole presentation pass is now confirmed inert for the AI.
+
 ## 4. Order of work
 
 | # | Piece | Touches the sim? | Check |
@@ -372,10 +406,10 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 | 3 | The Talk (§3.3) — **built** (SigningRealismBreakdown.md §12) | No (existing verbs) | Every old modal verb is reachable as a line |
 | 4 | The Table (§3.4) — **built** (§3.9) | No | `TheTableChecks`; `ScoutingTermsChecks` |
 | 5 | T3 on the scenes (§3.5) — **built** (§3.10) | No | Re-run `FirstWeekUiChecks`; the bot must **choose** an act (e.g. by the best Ear read) instead of following a glow |
-| 6 | Objections, fog (§3.6) | Player-only outcomes | Own screen |
+| 6 | Objections, fog (§3.6): objections **built** (SigningRealismBreakdown §16), fog **built** (§3.11) | Player-only outcomes | Own screen; `FogInstinctChecks` |
 
-Steps 1 to 5 are presentation only, so AI CSVs should stay byte-identical; one byte-comparison at the end confirms
-it.
+Steps 1 to 5 are presentation only, so AI CSVs should stay byte-identical. **Confirmed** (§3.11 and
+SigningRealismBreakdown §14).
 
 ## 5. Decisions for the author
 

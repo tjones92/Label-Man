@@ -133,7 +133,7 @@ public partial class PlayerDesk {
         meeting = OwnScoutingMeeting(id);
         if (meeting.Activity != ScoutingAppointmentActivity.Conversation) {
             var dossier = scoutingKnowledge.Dossiers.First(d => d.ArtistId == meeting.ArtistId);
-            var interpretation = ScenePerformanceService.Interpret(meeting.Sample, Label.labelId, Label.scoutingAbility, 1);
+            var interpretation = ScenePerformanceService.Interpret(meeting.Sample, Label.labelId, EarHearing, 1, null, StreetHearing);
             dossier.Observations.Add(new() { Id = "session-evidence-v1|" + meeting.Id, EventId = meeting.Id, MeetingId = meeting.Id,
                 LabelId = Label.labelId, ArtistId = meeting.ArtistId, ArtistName = meeting.ArtistName,
                 Kind = meeting.Activity == ScoutingAppointmentActivity.Demo ? ScoutingEvidenceKind.DemoSample : ScoutingEvidenceKind.RehearsalSample,
