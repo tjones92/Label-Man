@@ -41,6 +41,9 @@ public partial class SigningAvailabilityProbe : Node {
 		public bool DayJobs, Engaged, Burned, Managed, HadContract, NeverSigned; public float Drive; public string Disposition, Reason, Manager;
 		/// <summary>A hungry act that could sign on the spot: no member under 21, no holdout.</summary>
 		public bool OnTheSpot;
+		/// <summary>Step 9: the holdout's objection, whether its true answer is open to a new label the first night (no second
+		/// night heard, no record out), and whether the band could sign without them. Comfortable acts: the hearing's objection.</summary>
+		public CourtshipObjection Holdout, Hearing; public bool HoldoutOpen, HearingOpen, LeaveBehind;
 	}
 
 	// Draft thresholds (SigningRealismBreakdown §3.1). Design inputs for the probe only; step 2 owns the real ones.
@@ -190,6 +193,15 @@ public partial class SigningAvailabilityProbe : Node {
 			var hungry = rs.Where(r => r.Disposition == "Hungry").ToList();
 			GD.Print($"-- hungry acts that could sign tonight (no member under 21, no holdout, no manager or a local hustler) -- {Pct(hungry.Count(r => r.OnTheSpot), hungry.Count)} of hungry = {Pct(hungry.Count(r => r.OnTheSpot), rs.Count)} of unsigned heard; " +
 				$"hungry with a member under 21 {Pct(hungry.Count(r => r.Minors > 0), hungry.Count)}; hungry with a holdout {Pct(hungry.Count(r => r.Members >= 3 && r.MinAmbition < .35f), hungry.Count)}");
+			// Step 9: what the one who isn't sure says, and whether a new label can answer it the first night.
+			var holding = rs.Where(r => r.Holdout != CourtshipObjection.None && r.Disposition != "Comfortable").ToList();
+			GD.Print($"-- step 9: holdouts (hungry or careful acts with one) -- {holding.Count} acts, {Pct(holding.Count, rs.Count)} of unsigned heard; " +
+				$"true answer open the first night {Pct(holding.Count(r => r.HoldoutOpen), holding.Count)}; could sign without them {Pct(holding.Count(r => r.LeaveBehind), holding.Count)}; " +
+				$"neither (take your time is the way) {Pct(holding.Count(r => !r.HoldoutOpen && !r.LeaveBehind), holding.Count)}");
+			foreach (var g in holding.GroupBy(r => r.Holdout).OrderByDescending(g => g.Count()))
+				GD.Print($"      {g.Key,-10} {Pct(g.Count(), holding.Count)}  open {Pct(g.Count(r => r.HoldoutOpen), g.Count())}  leave behind {Pct(g.Count(r => r.LeaveBehind), g.Count())}");
+			var comfy = rs.Where(r => r.Disposition == "Comfortable").ToList();
+			GD.Print($"-- step 9: a comfortable act's objection when it hears you out -- {string.Join("  ", comfy.GroupBy(r => r.Hearing).OrderByDescending(g => g.Count()).Select(g => $"{g.Key} {Pct(g.Count(), comfy.Count)} (open to a new label {Pct(g.Count(r => r.HearingOpen), g.Count())})"))}");
 			GD.Print("-- by town (hungry / careful / comfortable, acts) --");
 			foreach (var g in rs.GroupBy(r => r.Place).OrderBy(g => g.Key))
 				GD.Print($"  {g.Key,-16} n={g.Count(),3}  {Pct(g.Count(r => r.Disposition == "Hungry"), g.Count())} / {Pct(g.Count(r => r.Disposition == "Careful"), g.Count())} / {Pct(g.Count(r => r.Disposition == "Comfortable"), g.Count())}");
@@ -232,7 +244,33 @@ public partial class SigningAvailabilityProbe : Node {
 			Wealth = people.Count == 0 ? 0f : people.Max(MemberWealthService.Norm), Originals = originals, DayJobs = d.DayJobs,
 			Engaged = d.EngagementRoom != null, HadContract = a.contractSequence > 0, NeverSigned = a.contractSequence == 0,
 			Burned = d.Reason == DispositionReason.DroppedBefore, Managed = d.DemandingManager, Manager = a.manager.ToString(),
-			Drive = d.Drive, Disposition = d.Kind.ToString(), Reason = d.Reason.ToString(), OnTheSpot = d.SignsTonight };
+			Drive = d.Drive, Disposition = d.Kind.ToString(), Reason = d.Reason.ToString(), OnTheSpot = d.SignsTonight,
+			Holdout = HoldoutOf(a, d, people, today, originals, out bool open, out bool behind), HoldoutOpen = open, LeaveBehind = behind,
+			Hearing = d.Kind == DealDisposition.Comfortable ? PlayerDesk.HearingObjection(d) : CourtshipObjection.None,
+			HearingOpen = d.Kind == DealDisposition.Comfortable && PlayerDesk.HearingObjection(d) switch {
+				CourtshipObjection.Road => HomeTown(a), CourtshipObjection.Money => originals >= PlayerDesk.OwnSongsHeard, _ => false } };
+	}
+
+	private static bool HomeTown(SimulatedArtist a) =>
+		LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId) is { } t && t == PlayerDesk.Instance.Label?.homeCityId;
+
+	/// <summary>The objection the game would raise for this act's holdout (PlayerDesk.Objections), and whether a new label's
+	/// true answer is open on the first night: its songs heard, a label in their town, the band's best player, a day job.
+	/// School wants the Sunday with the family first, a new label has paid nobody a royalty, and the fun has no answer.</summary>
+	private static CourtshipObjection HoldoutOf(SimulatedArtist a, DispositionRead d, List<Musician> people, int today, float originals, out bool open, out bool behind) {
+		open = behind = false;
+		var m = people.FirstOrDefault(x => x.personId == d.HoldoutId);
+		if (m == null) return CourtshipObjection.None;
+		var o = PlayerDesk.HoldoutObjection(a, m, today);
+		open = o switch {
+			CourtshipObjection.Songs => originals >= PlayerDesk.OwnSongsHeard,
+			CourtshipObjection.Road => HomeTown(a),
+			CourtshipObjection.Money => people.All(x => x.technicalSkill <= m.technicalSkill),
+			CourtshipObjection.Job => true,
+			_ => false
+		};
+		behind = people.Count >= PlayerDesk.SignWithoutMinMembers && !m.isBandLeader && !m.isLeadVocalist && !m.isPrimaryWriter;
+		return o;
 	}
 
 	private static double Q<T>(List<T> sorted, double f) where T : IConvertible =>

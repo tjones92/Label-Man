@@ -215,7 +215,7 @@ public static class ScoutingRunwayChecks {
         Check(answer.Status == (read.Kind == DealDisposition.Hungry ? ScoutingApproachStatus.Agreed
                 : read.Kind == DealDisposition.Comfortable ? ScoutingApproachStatus.Declined : ScoutingApproachStatus.WantsAnotherLook),
             $"the act answers from its disposition ({read.Kind}, {read.Reason}): {answer.Status}");
-        Check(answer.Status != ScoutingApproachStatus.Agreed || answer.Steps.Count == (read.Minors.Count > 0 ? 1 : 0) + (read.DemandingManager ? 1 : 0) + (read.Holdout != null ? 1 : 0),
+        Check(answer.Status != ScoutingApproachStatus.Agreed || answer.Steps.Count == (read.Minors.Count > 0 ? 1 : 0) + (read.DemandingManager ? 1 : 0) + (read.Holdout != null ? 1 : 0) + (answer.Hearing ? 1 : 0),
             "a yes carries one step per friction");
         Check(!string.IsNullOrEmpty(answer.Said), "the answer is said by somebody");
         desk.ApproachToSign(target, out string again);

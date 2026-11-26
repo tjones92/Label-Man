@@ -28,6 +28,8 @@ public sealed class DispositionRead {
 	public List<string> Minors = new();
 	/// <summary>In a group of three or more, the least ambitious member when they're well below the rest (step 3).</summary>
 	public string Holdout;
+	/// <summary>The holdout's personId (step 9 reads their objection from that person).</summary>
+	public string HoldoutId;
 	public ManagerArchetype Manager;
 	/// <summary>Room name of a standing engagement, when the act holds one.</summary>
 	public string EngagementRoom;
@@ -79,7 +81,7 @@ public static class ActDisposition {
 		r.Minors.AddRange(aged.Where(m => m.GetAge(year) < MinorAge).Select(Name));
 		if (people.Count >= 3) {
 			var low = people.OrderBy(m => m.ambition).ThenBy(m => m.personId, StringComparer.Ordinal).First();
-			if (low.ambition < HoldoutAmbition) r.Holdout = Name(low);
+			if (low.ambition < HoldoutAmbition) { r.Holdout = Name(low); r.HoldoutId = low.personId; }
 		}
 		string engagement = LocalSceneRoomService.EngagementRoom(act.artistId, day);
 		if (engagement != null) r.EngagementRoom = SceneRoomCatalog.Get(engagement)?.Name ?? "a room in town";

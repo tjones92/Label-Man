@@ -160,6 +160,7 @@ public static partial class LocalSceneRoomService {
                 int term = Term(day);
                 if (!engagementsByRoom.TryGetValue(room.Id, out var roomEngagements))
                     engagementsByRoom.Add(room.Id, roomEngagements = new());
+                SurrenderNationalEngagements(roomEngagements, day);
                 var regularIds = roomEngagements.Where(e => e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal);
                 bool rotation = LocalScenes.RoomRotation;
                 if (rotation) {

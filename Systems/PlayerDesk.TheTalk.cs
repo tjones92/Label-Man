@@ -17,7 +17,9 @@ using System.Linq;
 // Presentation only: every verb is the desk's own, with its own rules and costs. Nothing here is saved; the transcript
 // is the evening's and is dropped when you end the conversation.
 // ============================================================================================
-public enum TalkVerb { Ask, Terms, Step, History, Rehearsal, Demo, Meeting, Number, NextSet, Handshake, Watch, Unwatch }
+public enum TalkVerb { Ask, Terms, Step, History, Rehearsal, Demo, Meeting, Number, NextSet, Handshake, Watch, Unwatch,
+	/// <summary>Step 9: answer an objection with its grounded line, tell a holdout to take their time, or sign the rest without them.</summary>
+	Answer, TakeYourTime, SignWithout }
 
 /// <summary>One thing you can say in The Talk, mapped onto an existing verb.</summary>
 public sealed class TalkOption {
@@ -83,6 +85,9 @@ public partial class PlayerDesk {
 		else if (elsewhere) opening = $"We're with {ChartManager.Instance?.GetLabelName(act.labelId) ?? "a label"}. We can't talk about a record with you, but ask what you like.";
 		else if (agreed == null && FirstCall(act) is { } called) opening = $"{called.LetGoBy ?? "Our label"} let us go. We wanted you to hear it from us first.";
 		else if (agreed != null) opening = step == null ? "We meant what we said. We're ready when you are."
+			: step.Kind == ScoutingApproachStepKind.Objection ? $"We meant what we said. But before anything's signed: {step.ObjectionLine}"
+			: step.Kind == ScoutingApproachStepKind.Holdout && step.Raised && step.WaitFrom == null ? $"We meant what we said. But {step.Who} has something to say."
+			: step.Kind == ScoutingApproachStepKind.Holdout && step.Raised ? $"We meant what we said. {step.Who} said they'd see you at the next one."
 			: step.Kind == ScoutingApproachStepKind.Holdout ? $"We meant what we said. {step.Who} still wants to see you at a set first."
 			: "We meant what we said. " + StepAsk(step, act);
 		else if (StillDeclining(act)) opening = "We told you where we stand. Nothing's changed for us since.";
@@ -101,6 +106,11 @@ public partial class PlayerDesk {
 		if (free && ManagerIdentity.Read(act, today) is { Kind: ManagerKind.Family } family)
 			opening += $" {ManagerIdentity.Introduce(family)}, handles our business.";
 		scene.Lines.Add(new CallLine { beat = RolodexSceneBeat.Opening, speaker = who, text = opening });
+		// The holdout says it themselves (step 9).
+		var pendingObjection = free ? PendingObjection(act) : null;
+		if (pendingObjection?.Kind == ScoutingApproachStepKind.Holdout)
+			scene.Lines.Add(new CallLine { beat = RolodexSceneBeat.Pushback, speaker = HoldoutMember(act, pendingObjection)?.FullName.Trim() ?? pendingObjection.Who,
+				text = pendingObjection.ObjectionLine });
 
 		// ── The voices: the Street on what they want, the Fixer on rivals ──
 		void Read(ExecutiveVoice voice, string hint, string clear, string deep) {
@@ -122,7 +132,8 @@ public partial class PlayerDesk {
 				var frictions = new List<string>();
 				if (read.Kind != DealDisposition.Comfortable) {
 					if (read.Minors.Count > 0) frictions.Add($"{Names(read.Minors)} {(read.Minors.Count == 1 ? "is" : "are")} under 21, so a parent signs.");
-					if (read.Holdout != null) frictions.Add($"{read.Holdout} is the one who isn't sure.");
+					if (read.Holdout != null) frictions.Add($"{read.Holdout} is the one who isn't sure. " +
+						HoldoutHint(HoldoutObjection(act, ActiveMember(act, read.HoldoutId), today)));
 					if (read.DemandingManager && ManagerIdentity.Read(act, today) is { } m) frictions.Add($"{m.Name} does their business, and he'll want a sit-down first.");
 				}
 				Read(ExecutiveVoice.Street, hint, clear, frictions.Count == 0 ? clear : clear + " " + string.Join(" ", frictions));
@@ -140,8 +151,25 @@ public partial class PlayerDesk {
 
 		// ── What you can say ──
 		var o = scene.Options;
-		if (free) {
-			if (step != null && step.Kind != ScoutingApproachStepKind.Holdout) {
+		if (free && pendingObjection != null) {
+			// Step 9: one objection, and the ways to answer it. Free: it's a line in the conversation.
+			string town = LocalScenePersistenceService.SceneIdFor(act.geography?.basePlaceId);
+			string away = town == null || town == LocalScenePersistenceService.SceneIdFor(CurrentCityId) ? null
+				: $"You'd have to be in {DistanceModel.GetCityById(town)?.name ?? "their town"}.";
+			var g = GroundedAnswer(pendingObjection, act);
+			o.Add(new TalkOption { Verb = TalkVerb.Answer, Voice = g.Voice, Line = g.Line, Enabled = away == null && g.Why == null, Why = away ?? g.Why,
+				Cost = "Free. If it's true, it answers them." });
+			bool holdout = pendingObjection.Kind == ScoutingApproachStepKind.Holdout;
+			o.Add(new TalkOption { Verb = TalkVerb.TakeYourTime, Line = holdout ? "Take your time. I'll be at the next one." : "I'll come back when I've more to show you.",
+				Enabled = away == null, Why = away,
+				Cost = holdout ? "Free. Be at their next set or a rehearsal, and they'll settle it there." : $"Free. Their yes holds until {Headline(AgreementHoldsUntil(agreed))}." });
+			if (holdout && act.members.Count(x => x != null && x.isActive && x.lifeState == MemberLifeState.Active) >= SignWithoutMinMembers) {
+				string why = away ?? SignWithoutBlocked(act, pendingObjection);
+				o.Add(new TalkOption { Verb = TalkVerb.SignWithout, Voice = ExecutiveVoice.Fixer, Line = "Then the rest of you can sign without you.",
+					Enabled = why == null, Why = why, Cost = $"{pendingObjection.Who} leaves the band. The rest sign." });
+			}
+		} else if (free) {
+			if (step != null && step.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager) {
 				string town = LocalScenePersistenceService.SceneIdFor(act.geography?.basePlaceId);
 				bool here = town == null || town == LocalScenePersistenceService.SceneIdFor(CurrentCityId);
 				bool due = step.Day is not { } d || today >= d;
@@ -257,6 +285,9 @@ public partial class PlayerDesk {
 				return true;
 			}
 			case TalkVerb.Handshake: ok = HoldWithHandshake(artistId, out message); answer = message; break;
+			case TalkVerb.Answer: ok = AnswerObjection(artistId, ObjectionAnswer.Grounded, out message); answer = message; break;
+			case TalkVerb.TakeYourTime: ok = AnswerObjection(artistId, ObjectionAnswer.Wait, out message); answer = message; break;
+			case TalkVerb.SignWithout: ok = AnswerObjection(artistId, ObjectionAnswer.Without, out message); answer = message; break;
 			case TalkVerb.Watch:
 			case TalkVerb.Unwatch:
 				ok = verb == TalkVerb.Watch ? WatchSigned(artistId, out message) : UnwatchSigned(artistId, out message);

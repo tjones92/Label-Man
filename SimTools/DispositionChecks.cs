@@ -20,6 +20,9 @@ using Godot;
 /// family can't be seen before Sunday, the manager is seen on a weekday, the holdout settles at a set heard, and only then
 /// do terms open. A yes nobody acts on lapses after AgreedHoldDays, and (step 4) the act remembers it: it's let down, says
 /// so, and wants you back at a set first.
+/// Part G (step 9) reads a holdout's objection from who they are (a writer's songs, a family, the money, a job, or
+/// trust), raises it at the band's next set, and signs the rest of a band of four without a sideman holding out. Part D
+/// tells its holdout to take their time and settles it at the following set; the hearing in Part F wants one answer first.
 /// Part F (step 4, regard) checks the shortfall rules, then builds regard on one heard act from real verbs: one night is
 /// regard 1, reading it changes nothing, a comfortable act that hardly knows you says no and won't sit for a session, a
 /// careful one off the market will, and a real demo at your place lifts regard to 3, which meets a careful request with no
@@ -31,6 +34,15 @@ using Godot;
 public partial class DispositionChecks : Node {
 	private int checks;
 	private void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException(why); checks++; GD.Print("ok: " + why); }
+
+	/// <summary>The whole world's saved state, hashed as it streams: equal hashes mean nothing moved. Constant memory,
+	/// where the serialized string runs to hundreds of megabytes and fails on a box short of commit.</summary>
+	private static string WorldHash() {
+		using var sha = System.Security.Cryptography.SHA256.Create();
+		using (var sink = new System.Security.Cryptography.CryptoStream(System.IO.Stream.Null, sha, System.Security.Cryptography.CryptoStreamMode.Write))
+			System.Text.Json.JsonSerializer.Serialize(sink, WorldStateService.Capture(), SaveGameService.TestJsonOptions);
+		return Convert.ToHexString(sha.Hash);
+	}
 
 	private static string Key(DispositionRead r) => $"{r.Kind}|{r.Reason}|{r.Drive:0.0000}|{r.Members}|{r.MedianAge}|{string.Join(",", r.Minors)}|{r.Holdout}|{r.Manager}|{r.EngagementRoom}|{r.WealthyMember}|{r.DayJobs}";
 
@@ -156,9 +168,9 @@ public partial class DispositionChecks : Node {
 				var comfy = heard[0];
 				Force(comfy, DealDisposition.Comfortable);
 				var comfyProspect = ProspectOf(comfy);
-				string snapshot = System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions);
+				string snapshot = WorldHash();
 				Check(!desk.ApproachToSign(comfyProspect, out message), "a comfortable act opens no terms");
-				Check(System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions) == snapshot, "asking changes no world state");
+				Check(WorldHash() == snapshot, "asking changes no world state");
 				var said = desk.DirectApproaches.Last();
 				Check(said.ArtistId == comfy.artistId && said.Status == ScoutingApproachStatus.Declined && message.StartsWith(said.Said) &&
 					(message.Contains("might") || message.Contains("could change")), "the no is said by somebody and says what could change it: " + message);
@@ -287,7 +299,34 @@ public partial class DispositionChecks : Node {
 						"the family can't be seen before Sunday: " + message);
 					Check(!desk.TakeApproachStep(band.artistId, ScoutingApproachStepKind.Holdout, out _), "a holdout is not a verb: it's settled at a set");
 
+					bool objected = false, waited = false;
 					for (int d = 0; d < 42 && desk.NextApproachStep(band) != null && desk.Agreement(band) != null; d++) {
+						// Step 9: at the set, the holdout comes over with one objection. Tell them to take their time once.
+						if (desk.PendingObjection(band) is { Kind: ScoutingApproachStepKind.Holdout } obj && !objected) {
+							objected = true;
+							var person = band.members.First(m => m.personId == obj.PersonId);
+							Check(obj.Raised && obj.Objection == PlayerDesk.HoldoutObjection(band, person, obj.RaisedDay) && !string.IsNullOrEmpty(obj.ObjectionLine),
+								$"at the set, {obj.Who} raises the objection read from who they are ({obj.Objection}): {obj.ObjectionLine}");
+							var talk = desk.BuildTalkScene(band.artistId);
+							Check(talk.Lines.Any(l => l.speaker == person.FullName.Trim() && l.text == obj.ObjectionLine) &&
+								talk.Options.Any(o => o.Verb == TalkVerb.Answer) && talk.Options.Any(o => o.Verb == TalkVerb.TakeYourTime) &&
+								talk.Options.All(o => o.Verb is not (TalkVerb.Terms or TalkVerb.Step)),
+								"The Talk: the holdout says it themselves, and what you can say is an answer, not terms");
+							var g = desk.GroundedAnswer(obj, band);
+							var answerOption = talk.Options.First(o => o.Verb == TalkVerb.Answer);
+							Check(answerOption.Enabled == (g.Why == null) && (answerOption.Enabled || answerOption.Why == g.Why),
+								$"the grounded answer is open exactly when its fact is true: \"{g.Line}\" {g.Why}");
+							// Take your time when their next set falls inside the yes's hold; otherwise give the answer that's true.
+							var nextSet = desk.NextReachableScoutingSet(band.artistId);
+							int today9 = LocalSceneRoomService.Day(clock.CurrentDate);
+							if (nextSet != null && nextSet.Day > today9 && nextSet.Day <= today9 + PlayerDesk.AgreedHoldDays || g.Why != null) {
+								waited = true;
+								Check(desk.SayInTalk(band.artistId, TalkVerb.TakeYourTime, out message, out _) && obj.WaitFrom == today9 &&
+									!obj.Done && desk.PendingObjection(band) == null && PlayerDesk.AgreementHoldsUntil(desk.Agreement(band)) == today9 + PlayerDesk.AgreedHoldDays,
+									"take your time: no answer tonight, the yes holds from today, and they settle it at the next set: " + message);
+							} else Check(desk.SayInTalk(band.artistId, TalkVerb.Answer, out message, out _) && obj.Done && obj.Said.Contains(g.Line) && desk.PendingObjection(band) == null,
+								$"their next set is past the hold ({nextSet?.Day.ToString() ?? "none posted"}), so give the answer that's true: " + message);
+						}
 						clock.EndDay();
 						if (GetTree().Root.FindChild("MorningPaper", true, false) is Control paper) paper.Visible = false;
 						int day = LocalSceneRoomService.Day(clock.CurrentDate);
@@ -308,10 +347,90 @@ public partial class DispositionChecks : Node {
 						var done = desk.Agreement(band);
 						Check(done.Steps.All(s => s.Done && !string.IsNullOrEmpty(s.Said)) && parents.Day <= done.Steps.First(s => s.Kind == ScoutingApproachStepKind.Parents).DoneDay,
 							"every step is taken on or after its day, and each says what happened");
+						if (holdout) Check(objected && done.Steps.First(s => s.Kind == ScoutingApproachStepKind.Holdout).Said.Contains(waited ? "You came back" : "I'm in"),
+							waited ? "told to take their time, the holdout settles it at the next set you're at" : "answered with what's true, the holdout is in");
 						Check(desk.ScoutingSummary(band.artistId).Any(l => l.Contains("Done (")), "the notebook records the steps taken");
 						Check(desk.AgreedToSign(band) && desk.CanTalkTerms(ProspectOf(band)),
 							"with every step taken, they'll sign");
 						Check(desk.ApproachToSign(ProspectOf(band), out message), "terms open once the steps are done: " + message);
+					}
+				}
+
+				// ---- Step 9, Part G: the holdout's objection, read from who they are, and signing the rest without them ----
+				bool Sideman(Musician m) => m.isActive && m.lifeState == MemberLifeState.Active && !m.isBandLeader && !m.isLeadVocalist && !m.isPrimaryWriter;
+				SimulatedArtist four = null;
+				for (int tries = 0; tries < 6 && four == null; tries++) {
+					var found = HearNew(a => Members(a) >= PlayerDesk.SignWithoutMinMembers && a.members.Any(Sideman), 14);
+					if (found == null) break;
+					int now = LocalSceneRoomService.Day(clock.CurrentDate);
+					if (desk.NextReachableScoutingSet(found.artistId) is { } next && next.Day > now && next.Day <= now + PlayerDesk.AgreedHoldDays) four = found;
+				}
+				if (four == null) {
+					var pool = am.GetAllArtists().Where(a => a.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(a.labelId) &&
+						a.prospectMarketStatus == ProspectMarketStatus.Latent && LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId) == city).ToList();
+					int big = pool.Count(a => Members(a) >= PlayerDesk.SignWithoutMinMembers);
+					int sidemen = pool.Count(a => Members(a) >= PlayerDesk.SignWithoutMinMembers && a.members.Any(m => m.isActive && m.lifeState == MemberLifeState.Active &&
+						!m.isBandLeader && !m.isLeadVocalist && !m.isPrimaryWriter));
+					GD.Print($"note: no band of four with a sideman and a posted date; Part G not exercised (off-market in {city}: {pool.Count}, four or more {big}, with a sideman {sidemen})");
+				}
+				else {
+					Force(four, DealDisposition.Hungry); Adult(four); Unmanaged(four);
+					var side = four.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active && !m.isBandLeader && !m.isLeadVocalist && !m.isPrimaryWriter)
+						.OrderBy(m => m.personId, StringComparer.Ordinal).First();
+					side.ambition = .1f;
+					// The objection is the first of these that's true of the person, in order.
+					var (writer, kids, partner, born, wealth, ambition) = (side.isPrimaryWriter, side.hasChildren, side.partner, side.birthYear, side.wealth, side.ambition);
+					int d0 = LocalSceneRoomService.Day(clock.CurrentDate), y0 = clock.CurrentDate.year;
+					try {
+						side.isPrimaryWriter = true;
+						Check(PlayerDesk.HoldoutObjection(four, side, d0) == CourtshipObjection.Songs, "a writer holding out objects for their songs");
+						side.isPrimaryWriter = false; side.hasChildren = true;
+						Check(PlayerDesk.HoldoutObjection(four, side, d0) == CourtshipObjection.Road, "a member with children objects to the road");
+						side.hasChildren = false; side.partner = null;
+						if (MemberWealthService.Norm(side) < MemberWealthService.StudioOnlyAffordNorm) {
+							side.birthYear = y0 - 18;
+							Check(PlayerDesk.HoldoutObjection(four, side, d0) == CourtshipObjection.School, "an 18-year-old's folks want school or a trade");
+							side.birthYear = y0 - 30;
+							bool dayJobs = !LocalSceneRoomService.FullTime(four, d0);
+							Check(PlayerDesk.HoldoutObjection(four, side, d0) == (dayJobs ? CourtshipObjection.Job : CourtshipObjection.Fun),
+								$"at 30, a day job is the objection when the act works them ({dayJobs}), and otherwise ambition .1 is in it for the fun");
+							side.birthYear = y0 - 22; side.ambition = .1f;
+							Check(PlayerDesk.HoldoutObjection(four, side, d0) == CourtshipObjection.Fun, "at 22 with ambition .1, they're in it for the fun");
+							side.ambition = .3f;
+							Check(PlayerDesk.HoldoutObjection(four, side, d0) == CourtshipObjection.Cheated && PlayerDesk.HoldoutObjection(four, side, d0) == CourtshipObjection.Cheated,
+								"at 22 with ambition .3 and nothing else in the way, labels cheat, and the same state says the same thing");
+						} else GD.Print("note: the sideman is well off, so the age and ambition objections weren't read");
+					} finally { side.isPrimaryWriter = writer; side.hasChildren = kids; side.partner = partner; side.birthYear = born; side.wealth = wealth; side.ambition = ambition; }
+					var read4 = desk.ReadDisposition(four);
+					Check(read4.HoldoutId == side.personId && read4.Minors.Count == 0 && !read4.DemandingManager, $"{four.stageName}: one sideman holding out, nothing else in the way");
+					desk.ApproachToSign(ProspectOf(four), out message);
+					var hold4 = desk.Agreement(four)?.Steps.SingleOrDefault();
+					Check(hold4?.Kind == ScoutingApproachStepKind.Holdout && hold4.PersonId == side.personId && !hold4.Raised, "the yes waits on the holdout: " + message);
+					Check(desk.PendingObjection(four) == null && !desk.AnswerObjection(four.artistId, ObjectionAnswer.Grounded, out _),
+						"nothing to answer until they've said it, at the set");
+					for (int d = 0; d < PlayerDesk.AgreedHoldDays && desk.PendingObjection(four) == null && desk.Agreement(four) != null; d++) {
+						clock.EndDay();
+						if (GetTree().Root.FindChild("MorningPaper", true, false) is Control paper) paper.Visible = false;
+						int day = LocalSceneRoomService.Day(clock.CurrentDate);
+						foreach (var bill in LocalSceneRoomService.Calendar(city, clock.CurrentDate).Where(b => b.Day == day && b.Status == SceneBillStatus.Scheduled).OrderBy(b => b.StartHour).ToList())
+							foreach (var slot in bill.Appearances.Where(s => s.ArtistId == four.artistId && s.EndHour <= clock.HardStopHour && s.StartHour >= clock.CurrentHour)) {
+								clock.RestoreClock(LocalSceneRoomService.Date(bill.Day), slot.StartHour);
+								desk.ListenSceneAppearance(bill.Id, ScenePerformanceService.EventId(bill, slot), out _);
+							}
+					}
+					var raised = desk.PendingObjection(four);
+					if (raised == null) GD.Print($"note: {four.stageName}'s holdout never raised it inside 21 days ({(desk.Agreement(four) == null ? "the yes lapsed" : "no set heard")})");
+					else {
+						Check(raised.Objection == PlayerDesk.HoldoutObjection(four, side, raised.RaisedDay) && desk.SignWithoutBlocked(four, raised) == null,
+							$"{raised.Who} raised it ({raised.Objection}); a sideman in a band of {Members(four)} can be left behind");
+						if (raised.Objection == CourtshipObjection.Fun)
+							Check(desk.GroundedAnswer(raised, four).Why != null, "in it for the fun has no true answer: " + desk.GroundedAnswer(raised, four).Why);
+						int before = Members(four);
+						Check(desk.SayInTalk(four.artistId, TalkVerb.SignWithout, out message, out _) && raised.Done &&
+							four.members.All(m => m.personId != side.personId) && !side.isActive && Members(four) == before - 1 &&
+							four.alumni?.Any(x => x.personId == side.personId && x.reason == "wouldn't sign") == true,
+							"sign the rest without them: they leave the band, the alumni record says why: " + message);
+						Check(desk.AgreedToSign(four) && desk.ReadDisposition(four).Holdout == null, "with the holdout gone, the rest will sign");
 					}
 				}
 
@@ -379,9 +498,9 @@ public partial class DispositionChecks : Node {
 					var r0 = desk.ReadRegard(friend);
 					Check(r0.Score == 1 && r0.Level == RegardLevel.KnowYourFace && r0.Has(RegardSourceKind.HeardThem) &&
 						desk.RegardSummary(friend.artistId).Contains("heard once"), $"{friend.stageName}: one night heard is regard 1, and the card says so");
-					string world = System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions);
+					string world = WorldHash();
 					desk.ReadRegard(friend); desk.RegardSummary(friend.artistId);
-					Check(System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions) == world, "reading regard changes no world state");
+					Check(WorldHash() == world, "reading regard changes no world state");
 					Check(!desk.ApproachToSign(ProspectOf(friend), out message) && desk.StillDeclining(friend) && message.Contains("trust you"),
 						"a comfortable stranger says no, and says trust could earn a hearing: " + message);
 					Check(!desk.WouldMeetOffMarket(friend), "a comfortable act that hardly knows you won't sit for a session");
@@ -409,6 +528,18 @@ public partial class DispositionChecks : Node {
 							var hearing = desk.Agreement(friend);
 							Check(hearing != null && hearing.Hearing && hearing.Said.Contains("hear you out") && desk.ReadDisposition(friend).Kind == DealDisposition.Comfortable,
 								"a comfortable act that trusts you hears you out, and stays comfortable: " + hearing?.Said);
+							// Step 9: hearing you out, it puts its reason to you as a question, and wants an answer first.
+							var question = desk.PendingObjection(friend);
+							Check(question?.Kind == ScoutingApproachStepKind.Objection && question.Objection == PlayerDesk.HearingObjection(desk.ReadDisposition(friend)) &&
+								!desk.AgreedToSign(friend), $"hearing you out, it wants an answer first ({question?.Objection}): {question?.ObjectionLine}");
+							var ga = desk.GroundedAnswer(question, friend);
+							if (ga.Why != null) {
+								Check(!desk.AnswerObjection(friend.artistId, ObjectionAnswer.Grounded, out message) && message == ga.Why && !question.Done,
+									"an answer whose fact isn't true can't be given: " + message);
+								Check(desk.AnswerObjection(friend.artistId, ObjectionAnswer.Wait, out message) && !question.Done, "coming back later keeps the yes open: " + message);
+								GD.Print($"note: the grounded answer to {question.Objection} isn't true for this label; the table posture wasn't reached");
+							} else Check(desk.AnswerObjection(friend.artistId, ObjectionAnswer.Grounded, out message) && question.Done && question.Said.Contains(ga.Line),
+								"the answer whose fact is true meets it: " + message);
 							// A lukewarm band names a holdout; go and hear the set where they settle it.
 							for (int d = 0; d < 28 && desk.Agreement(friend) != null && !desk.AgreedToSign(friend); d++) {
 								clock.EndDay();
@@ -421,6 +552,9 @@ public partial class DispositionChecks : Node {
 										clock.RestoreClock(LocalSceneRoomService.Date(bill.Day), slot.StartHour);
 										desk.ListenSceneAppearance(bill.Id, ScenePerformanceService.EventId(bill, slot), out _);
 									}
+								// Its holdout, once they've said their piece: the true answer, or take your time.
+								if (desk.PendingObjection(friend) != null && !desk.AnswerObjection(friend.artistId, ObjectionAnswer.Grounded, out _))
+									desk.AnswerObjection(friend.artistId, ObjectionAnswer.Wait, out _);
 								if (desk.Agreement(friend) != null) desk.ApproachToSign(ProspectOf(friend), out _);
 							}
 							if (desk.AgreedToSign(friend)) {
@@ -440,7 +574,7 @@ public partial class DispositionChecks : Node {
 			// ---- Part E: who the manager is (§10), read over every managed act in the world ----
 			{
 				int day = LocalSceneRoomService.Day(clock.CurrentDate), y = clock.CurrentDate.year;
-				string before = System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions);
+				string before = WorldHash();
 				var allowed = new Dictionary<ManagerKind, ManagerArchetype[]> {
 					[ManagerKind.Family] = new[] { ManagerArchetype.LocalHustler, ManagerArchetype.Svengali },
 					[ManagerKind.ClubBooker] = new[] { ManagerArchetype.LocalHustler, ManagerArchetype.Shark },
@@ -477,7 +611,7 @@ public partial class DispositionChecks : Node {
 				Check(counts.Values.Sum() > 200, $"{counts.Values.Sum()} managed unsigned acts read");
 				foreach (var k in new[] { ManagerKind.Family, ManagerKind.ClubBooker, ManagerKind.Deejay, ManagerKind.Songwriter, ManagerKind.PersonalManager, ManagerKind.Hustler })
 					Check(counts.GetValueOrDefault(k) > 0, $"{k} managers occur");
-				Check(System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions) == before,
+				Check(WorldHash() == before,
 					"reading managers changes no world state (archetypes and generated names untouched)");
 
 				// A family manager who is also the minor's parent: one Sunday visit, not two steps.

@@ -313,7 +313,7 @@ public partial class PlayerDeskPanel {
         bar.AddThemeConstantOverride("separation", 14);
         // A yes with a step still to take: the family or the manager is the next verb. A holdout is settled at their set.
         var step = desk.NextApproachStep(artist);
-        bool visit = step != null && step.Kind != ScoutingApproachStepKind.Holdout;
+        bool visit = step != null && step.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager;
         var offer = Primary(visit ? ApproachStepVerb(step) : terms ? "SIT DOWN ON TERMS" : "TALK TO THEM");
         offer.CustomMinimumSize = new Vector2(240, 42);
         offer.SizeFlagsVertical = SizeFlags.ShrinkCenter;

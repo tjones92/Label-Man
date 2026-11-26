@@ -66,10 +66,14 @@ public partial class PlayerDesk {
     /// play that's their own. Null without a label or an act.</summary>
     public DispositionRead ReadDisposition(SimulatedArtist artist) {
         if (Label == null || artist == null) return null;
-        var sets = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artist.artistId)?.Observations
+        return ActDisposition.Read(artist, Label, LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate), HeardOriginals(artist.artistId));
+    }
+
+    /// <summary>The share of what you've heard them play that's their own; null when nothing was heard with titles.</summary>
+    internal float? HeardOriginals(string artistId) {
+        var sets = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId)?.Observations
             .Where(o => o.Kind == ScoutingEvidenceKind.Performance).SelectMany(o => o.Set ?? new()).ToList();
-        float? originals = sets == null || sets.Count == 0 ? null : sets.Count(s => s.Original) / (float)sets.Count;
-        return ActDisposition.Read(artist, Label, LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate), originals);
+        return sets == null || sets.Count == 0 ? null : sets.Count(s => s.Original) / (float)sets.Count;
     }
 
     private IEnumerable<int> HeardDays(string artistId) => scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId)?.Observations
@@ -110,10 +114,14 @@ public partial class PlayerDesk {
         _ => "but it'll have to be worth our while.\""
     };
 
-    /// <summary>Whoever talks for the act: the member who'd come over after a set, else the leader or the singer.</summary>
+    /// <summary>Whoever talks for the act: the member who'd come over after a set, else the leader or the singer. Never the
+    /// member holding out, who speaks for themselves (step 9).</summary>
     private string SpeakerFor(SimulatedArtist artist) {
-        if (PreviewScoutingBusinessMeeting(artist.artistId)?.SourceName is { Length: > 0 } name) return name;
-        var m = artist.members?.Where(x => x != null && x.isActive && x.lifeState == MemberLifeState.Active)
+        var live = artist.members?.Where(x => x != null && x.isActive && x.lifeState == MemberLifeState.Active).ToList() ?? new();
+        string holdoutId = live.Count >= 3 ? ReadDisposition(artist)?.HoldoutId : null;
+        string holdoutName = live.FirstOrDefault(x => x.personId == holdoutId)?.FullName.Trim();
+        if (PreviewScoutingBusinessMeeting(artist.artistId)?.SourceName is { Length: > 0 } name && name != holdoutName) return name;
+        var m = live.Where(x => x.personId != holdoutId)
             .OrderByDescending(x => x.isBandLeader).ThenByDescending(x => x.isLeadVocalist).ThenBy(x => x.personId, StringComparer.Ordinal).FirstOrDefault();
         return m == null ? artist.stageName : m.FullName.Trim();
     }
@@ -153,7 +161,7 @@ public partial class PlayerDesk {
         }
         if (read.Holdout != null) {
             var next = NextReachableScoutingSet(artist.artistId);
-            steps.Add(new() { Kind = ScoutingApproachStepKind.Holdout, Who = read.Holdout,
+            steps.Add(new() { Kind = ScoutingApproachStepKind.Holdout, Who = read.Holdout, PersonId = read.HoldoutId,
                 Day = next != null && next.Day > today ? next.Day : null, RoomName = next != null && next.Day > today ? next.RoomName : null });
         }
         return steps;
@@ -166,6 +174,9 @@ public partial class PlayerDesk {
             (s.Manager != null ? $" {s.Manager}, handles their business too, so that's the sit-down as well." : ""),
         ScoutingApproachStepKind.Manager => $"{(s.Manager != null ? s.Manager + "," : s.Who)} handles their business, and nobody signs anything until you've sat down with " +
             $"{(s.Female ? "her" : "him")}: {Headline(s.Day ?? 0)}, at {s.Place ?? "his office"}.",
+        ScoutingApproachStepKind.Objection => $"Before anything's signed, they want an answer: \"{s.ObjectionLine}\"",
+        _ when s.Raised && s.WaitFrom == null => $"{s.Who} wants an answer first: \"{s.ObjectionLine}\"",
+        _ when s.Raised => $"{s.Who} said they'd see you at the next one. Be at their next set, or a rehearsal.",
         _ => $"{s.Who} isn't sure yet. They'll settle it at their next set" +
             (s.Day is { } d ? $", {s.RoomName}, {Headline(d)}, and you should be there." : ", and you should be there. Their next date isn't posted, so a rehearsal would do.")
     };
@@ -174,6 +185,8 @@ public partial class PlayerDesk {
     public static string StepShort(ScoutingApproachStep s) => s.Kind switch {
         ScoutingApproachStepKind.Parents => $"meet the family Sunday ({LocalSceneRoomService.Date(s.Day ?? 0).ShortMonthName} {LocalSceneRoomService.Date(s.Day ?? 0).day})",
         ScoutingApproachStepKind.Manager => $"sit down with {s.Who}",
+        ScoutingApproachStepKind.Objection => "they want an answer",
+        _ when s.Raised && s.WaitFrom == null => $"answer {s.Who}",
         _ => $"{s.Who} wants you at their next set"
     };
 
@@ -223,6 +236,8 @@ public partial class PlayerDesk {
         }
         if (status == ScoutingApproachStatus.Agreed) {
             var steps = StepsFor(read, artist, today);
+            // A comfortable act hearing you out wants one answer first (step 9).
+            if (hearing) steps.Insert(0, HearingObjectionStep(read, artist, who, today));
             Approaches.Add(new ScoutingDirectApproach { ArtistId = artist.artistId, ArtistName = artist.stageName, Day = today,
                 Status = status, UntilDay = today, Said = said, Steps = steps, Hearing = hearing });
             if (steps.Count == 0) {
@@ -257,7 +272,7 @@ public partial class PlayerDesk {
         var artist = ArtistManager.Instance?.GetArtist(artistId);
         var agreed = Agreement(artist);
         var step = agreed?.Steps.FirstOrDefault(s => s.Kind == kind && !s.Done);
-        if (step == null || kind == ScoutingApproachStepKind.Holdout) { message = "There's nothing waiting on that."; return false; }
+        if (step == null || kind is ScoutingApproachStepKind.Holdout or ScoutingApproachStepKind.Objection) { message = "There's nothing waiting on that."; return false; }
         int today = SceneDay;
         if (step.Day is { } day && today < day) {
             message = kind == ScoutingApproachStepKind.Parents ? $"The family expects you Sunday, {Headline(day)}." : $"{step.Who} will see you {Headline(day)}.";
@@ -303,25 +318,42 @@ public partial class PlayerDesk {
         ? "Still to come: " + StepAsk(next, artist)
         : $"{artist.stageName} {ActGrammar.Verb(artist, "is", "are")} ready to sign. Sit down on terms from their card.";
 
-    /// <summary>A holdout comes round when you're in the room with the band: any set you hear on or after the agreed date
-    /// (or after the yes, when no date was posted), or a rehearsal you arranged after the yes (PlayerDesk.ScoutingMeetings),
-    /// for a band whose next date is a long way off.</summary>
+    /// <summary>A holdout is met when you're in the room with the band: any set you hear on or after the agreed date (or
+    /// after the yes, when no date was posted), or a rehearsal you arranged after the yes (PlayerDesk.ScoutingMeetings).
+    /// There they come over with their one objection (step 9, PlayerDesk.Objections), read from who they are, and wait for
+    /// your answer. Told to take their time, they settle it at the next set or rehearsal you're at after that. A holdout
+    /// who has left the band meanwhile is no longer in the way.</summary>
     private void SettleHoldout(SimulatedArtist artist) {
         var agreed = Agreement(artist);
         var step = agreed?.Steps.FirstOrDefault(s => s.Kind == ScoutingApproachStepKind.Holdout && !s.Done);
         if (step == null) return;
-        int from = step.Day ?? agreed.Day + 1;
+        if (step.PersonId != null && artist.members?.Any(m => m != null && m.personId == step.PersonId && m.isActive) != true) {
+            step.Done = true; step.DoneDay = SceneDay;
+            step.Said = $"{step.Who} isn't with {artist.stageName} any more. The rest of them will sign.";
+            Note(step.Said + " " + AfterStep(artist));
+            return;
+        }
+        if (step.Raised && step.WaitFrom == null) return;   // they're waiting on your answer, not on a set
+        int after = step.Raised ? step.WaitFrom.Value : agreed.Day;
+        int from = step.Raised ? after + 1 : step.Day ?? agreed.Day + 1;
         var seen = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artist.artistId)?.Observations
             .Where(o => o.Kind == ScoutingEvidenceKind.Performance && (o.OccurredDay ?? o.AcquiredDay) >= from ||
                 o.Kind == ScoutingEvidenceKind.RehearsalSample)
-            .Where(o => (o.OccurredDay ?? o.AcquiredDay) > agreed.Day)
+            .Where(o => (o.OccurredDay ?? o.AcquiredDay) > after)
             .OrderBy(o => o.OccurredDay ?? o.AcquiredDay).FirstOrDefault();
         if (seen == null) return;
-        step.Done = true; step.DoneDay = seen.OccurredDay ?? seen.AcquiredDay;
-        step.Said = seen.Kind == ScoutingEvidenceKind.RehearsalSample
-            ? $"{step.Who} walked you out after the rehearsal. \"You came all the way out here. All right, if you're serious, so am I.\""
-            : $"{step.Who} came over after the set. \"You came. All right, if you're serious, so am I.\"";
-        Note(step.Said + " " + AfterStep(artist));
+        int day = seen.OccurredDay ?? seen.AcquiredDay;
+        bool rehearsal = seen.Kind == ScoutingEvidenceKind.RehearsalSample;
+        if (step.Raised) {
+            step.Done = true; step.DoneDay = day;
+            step.Said = rehearsal
+                ? $"{step.Who} walked you out after the rehearsal. \"You came back. All right, if you're serious, so am I.\""
+                : $"{step.Who} came over after the set. \"You came back. All right, if you're serious, so am I.\"";
+            Note(step.Said + " " + AfterStep(artist));
+            return;
+        }
+        RaiseHoldoutObjection(artist, step, day);
+        Note($"{step.Who} came over after the {(rehearsal ? "rehearsal" : "set")}. \"{step.ObjectionLine}\" Answer them when you talk to {artist.stageName}.");
     }
 
     /// <summary>A set you just heard may be the one a holdout was waiting on (PlayerDesk.SceneRooms).</summary>
@@ -339,9 +371,11 @@ public partial class PlayerDesk {
             .OrderBy(a => a.Day).ThenBy(a => a.ArtistId, StringComparer.Ordinal).Take(open).Select(a => a.ArtistId).ToHashSet(StringComparer.Ordinal);
     }
 
-    /// <summary>The day a yes stops holding: the agreement or its last dated step, plus AgreedHoldDays.</summary>
+    /// <summary>The day a yes stops holding: the agreement, its last dated step, or the last time someone put an objection
+    /// to you or you told a holdout to take their time (step 9), plus AgreedHoldDays.</summary>
     public static int AgreementHoldsUntil(ScoutingDirectApproach a) =>
-        Math.Max(a.Day, a.Steps.Select(s => s.Day ?? a.Day).DefaultIfEmpty(a.Day).Max()) + AgreedHoldDays;
+        Math.Max(a.Day, a.Steps.Select(s => Math.Max(s.Day ?? a.Day, Math.Max(s.Raised ? s.RaisedDay : a.Day, s.WaitFrom ?? a.Day)))
+            .DefaultIfEmpty(a.Day).Max()) + AgreedHoldDays;
 
     /// <summary>Dawn: older saves' acts answer once the owner has decided; a yes lapses if the act is gone or tired of
     /// waiting; a holdout settles if you heard the set.</summary>

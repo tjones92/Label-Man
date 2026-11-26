@@ -207,8 +207,8 @@ The NEXT SETS list then answers "who's worth the hour?" with leads, not a sorted
 | 5 | **The Talk** — **built**, see §12 — (audit §3.3) built on 2–4: opening line by disposition, wants as script lines | No | Audit §4 row 3 |
 | 6 | **Signed as a clock** — **built**, see §13 — (§3.4): Street contract read, watch item, the call at expiry | No (reads expiry decisions) | An act let go after regard calls the player |
 | 7 | **Leads** — **built**, see §14 — (§3.6) from scene sources | No | Leads name real draw/residency facts; low Street misreads |
-| 8 | **World booking**: residency surrender on a national push (§3.5 a′) first, then broader (a), then **(b)** only if they measure short | **Yes** | Own screen: residency composition + signed/unsigned resident strength gap + AI CSV A/B |
-| 9 | Later: the holdout member, courtship objections (audit §3.6) | Player-only outcomes | Own screen |
+| 8 | **World booking** — **(a′) adopted as default 2026-11-25**, see §15 — residency surrender on a national push (§3.5 a′) first, then broader (a), then **(b)** only if they measure short | **Yes** | Own screen: residency composition + signed/unsigned resident strength gap + AI CSV A/B |
+| 9 | **The holdout and courtship objections** — **built**, see §16 — (audit §3.6) | Player-only outcomes | Own screen (§16) |
 
 Steps 1–7 are player-side: AI-only CSVs should stay byte-identical, and one byte-comparison at the end of step 7
 confirms it. Step 8 is the only economy change.
@@ -891,3 +891,243 @@ rather than a Street line. Putting signed acts back would fill the three slots w
 (`db9c144`, built in a worktree, DLL swapped in) against steps 2–7 (`sigbase-1001-104` vs `sig7-1001-104`): **all 100
 CSVs byte-identical.** With no player label, the new observer, the rival-look recorder and the leads change nothing in
 an AI world.
+
+## 15. Step 8: residency surrender on a national push, measured and built behind a flag (2026-11-25)
+
+### Measure first (§3.5 a′)
+`SimTools/ResidencyCensusProbe.tscn`, new: an AI-only world (no player label). Each week it records every standing
+engagement with the resident's deal and record, its booking weight, and the room's next pick by that same weight
+(`LocalSceneRoomService.ResidencyCensusForProbe`, read-only). Seed 1001, 52 weeks, 15,111 resident-weeks:
+- **Signed acts hold 59% of residency-weeks,** drifting from 71% in week 0 to 54% in week 51.
+- **Unsigned residents play as well or better.** Live performance is 0.85 against 0.80 for signed residents. They're
+  less known (reputation 0.11 against 0.30), so the booking weight is close (19.5 against 21.3). The supply to fill
+  freed slots is there, which answers the "measure first" question: (b) isn't needed to start.
+- **If a nationally established signed resident left,** the room's next pick would be unsigned 44% of the time and
+  another signed act otherwise. The replacement is weaker on weight (18 against 24) but plays the same (live 0.80).
+- **Released signed acts hold one residency in 74% of their weeks, two in 19% and three in 6%.**
+- **Which definition to use.** "Has an old Top 40" covers 60% of signed residents, mostly veterans on new deals, so it
+  doesn't mean a push now. Rising-or-better careers plus a Top 40 under the current deal cover 31% of signed residents
+  and 18% of all residency slots.
+
+### The rule (`--enable-national-residency-surrender`; **on by default since 2026-11-25**, `--disable-national-residency-surrender` is the control)
+`LocalSceneRoomService.NationalPush`: a signed act whose career is Rising, Established, Star or Superstar, or that has
+a Top 40 under its current deal. A declining act and old hits don't count. Such an act gives up its standing
+engagements (they end the day before the scheduler next books its room), and `Regular` won't offer it new ones. It
+still plays one-off nights by the night-order draw. Touring isn't modelled.
+
+### Screen (seed 1001)
+- **Flag off: byte-identical.** 104 weeks, all 100 CSVs match step 7's run (`sig8off` vs `sig7`).
+- **The rooms (census, 52 weeks):**
+
+  | | flag off | flag on |
+  |---|---|---|
+  | Signed share of residency-weeks | 59% | 50% |
+  | Week 0 / 26 / 51 | 71% / 64% / 54% | 60% / 54% / 44% |
+  | National-push residents (resident-weeks) | 2,763 | 27 |
+  | Unsigned residents' live performance | 0.85 | 0.86 |
+
+  By town: Los Angeles goes from 77% signed to 11%, Detroit 70% to 48%, Boston 90% to 69%, Omaha 85% to 75%, Seattle
+  35% to 25%. Cleveland stays at 98–100%: its residents are new signings on small labels, which this rule rightly
+  leaves alone.
+- **The AI world (104 weeks, one seed):** 88 of 100 CSVs differ, as expected. Who plays where moves the live-draw
+  recognition deposit and every keyed draw after it. Headline numbers move little and in mixed directions:
+  - CR4 1960 0.296 → 0.284, 1961 0.261 → 0.263;
+  - major-family chart share 1961 0.449 → 0.442;
+  - firms charting 1961 227 → 234;
+  - Top 40 acts 1961 212 → 218;
+  - album-chart acts 1961 134 → 117;
+  - label tier transitions 53 → 38.
+
+  One paired seed can't separate any of this from a reshuffle (Top 10 shares need about 8 seeds). Album-chart acts and
+  tier transitions are the ones to watch in a multi-seed screen.
+
+### Three-seed screen (seeds 1001, 2002, 3003; 104 weeks; flag on minus flag off)
+Mean delta, with its standard error and per-seed deltas. Effects with the same sign on all three seeds are in bold.
+
+| | 1960 | 1961 |
+|---|---|---|
+| CR4 chart share (off ≈ 0.345 / 0.251) | **−0.029** (se 0.009; −0.012 −0.040 −0.036) | −0.014 (se 0.015; +0.003 −0.043 −0.002) |
+| CR8 | **−0.033** (se 0.015) | −0.010 (se 0.012) |
+| Major-family chart share (off ≈ 0.545 / 0.460) | −0.016 (se 0.024) | **−0.029** (se 0.011; −0.007 −0.040 −0.040) |
+| Firms charting (off ≈ 235 / 239) | −1.7 | **+14.3** (se 3.8; +7 +20 +16) |
+| Top 40 acts (off ≈ 193 / 211) | −1.3 | **+5.7** (se 0.3; +6 +6 +5) |
+| Top 10 acts | **+5.0** (se 1.7) | −2.3 |
+| Album-chart acts | +4.7 (se 6.9) | −4.3 (se 9.8; −17 −11 +15) |
+| Chart units (M) | +0.2 | +2.0 (se 2.0) |
+| First-time signings | −2.7 | **+47** (se 24; +22 +96 +24) |
+| Label tier transitions | 0 | −1.0 (se 7.8) |
+
+**Reading.** The rule spreads the market a little. Concentration falls (CR4 1960 −3 pts on every seed; the major
+family's 1961 share −3 pts). More firms chart (+14 in 1961) and more acts reach the Top 40 (+6). AI labels sign more
+first-time acts (+47). The likely route: the live-draw recognition deposit national acts earned as residents now goes
+to the local acts that take their place. Seed 1001's drop in album-chart acts and tier transitions didn't replicate.
+
+**What it costs:** it moves calibrated targets in the direction away from the late-decade consolidation goal (major
+share, CR4). Three seeds give the direction; the size of a Top 10 or CR4 shift needs about 8 seeds (memory: 3-seed SE
+understates the reshuffle).
+
+### Against history: Top 10 slots by operating label (the review basis)
+The CR4 above is a chart-unit share. The adopted review bands are on weekly Top 10 slots by operating label
+(`analyze_label_tier_historical_benchmarks.py`, from the Billboard reconstruction: 1960 CR4 34.6 / CR8 52.7, band
+30–40 / 48–58; 1961 27.9 / 43.5, pooled band 22–32 / 38–48). The same three seed pairs, rerun with full telemetry
+(`sig8full{off,on}-<seed>-104`; flag-off concentration matches the aggregate runs byte for byte):
+
+| Mean of 3 seeds | 1960 CR4 | 1960 CR8 | 1961 CR4 | 1961 CR8 | Major share of Top 10 slots 1960 / 1961 |
+|---|---|---|---|---|---|
+| History (reconstruction) | 34.6 | 52.7 | 27.9 | 43.5 | |
+| Review band | 30–40 | 48–58 | 22–32 | 38–48 | |
+| Flag off | **42.8** (38.5, 43.7, 46.2) | 58.1 | **33.5** | 47.1 | 47.9 / 37.2 |
+| Flag on | 38.0 (36.7, 38.1, 39.2) | 52.0 | 31.3 | 45.1 | 45.0 / 35.3 |
+| On − off | −4.7 (se 1.6; −1.7 −5.6 −6.9) | −6.2 (se 1.1) | −2.1 (se 4.0) | −2.1 (se 2.6) | −3.0 / −1.9 |
+
+**Today's default sits above the band in both years:** 1960 CR4 42.8 against a ceiling of 40, and 1961 33.5 against
+32. (Memory had 1960 inside the band at 37.85 on five seeds in October; the world has drifted since.) The flag brings
+both years inside, and 1960 CR8 to within a point of history (52.0 against 52.7). The 1960 move is the same sign on
+every seed. 1961 is within noise, but its mean is also inside the band. What looked like a cost on the chart-unit
+basis is a correction on the basis history is measured on.
+
+**Status: adopted as the default (author, 2026-11-25).** It moves Top 10 concentration toward the Billboard
+reconstruction in 1960 and 1961, and the rooms toward period booking. The cost is about 3 points of chart-unit
+concentration, which the late-decade consolidation calibration has to absorb.
+
+- `LocalScenes.NationalResidencySurrender` is now on whenever room rotation is.
+- `--disable-national-residency-surrender` restores the old rooms as a control.
+- `--enable-national-residency-surrender` still works for older scripts. It's rejected alongside the disable flag or
+  without room rotation.
+- The decade check is owed at audit end. Late-decade consolidation comes from absorption after 1966, not from rooms.
+- Every AI baseline recorded before this date ran with the old rooms. Compare new runs against a
+  `--disable-national-residency-surrender` control, or re-run the control.
+
+## 16. Step 9 built: the holdout, and courtship objections (2026-11-25)
+
+### What changed
+`Systems/PlayerDesk.Objections.cs`, new. In two places where someone isn't sure, they now raise **one grounded
+objection**, and you answer it in The Talk. No draws: the same state gives the same objection and the same answer
+(§2 principle 6).
+
+- **The holdout speaks for themselves.** In step 3, the holdout came round as soon as you were at their set. Now they
+  come over at the first set or rehearsal you attend after the yes, and say the one thing in their way. It's read from
+  that person, in this order:
+
+  | Objection | When | What they say | The true answer (voice) | True when |
+  |---|---|---|---|---|
+  | Songs | they're the band's writer | "They're my songs. I'm not signing them over to somebody I've just met." | "I came for your songs. We'll cut yours, not ours." (Ear) | half or more of what you've heard them play is their own |
+  | Road | children, or married | "I've got a family at home. I'm not living on a bus for a maybe." | "Nobody goes on the road till a record sells. You'd record here, in Detroit." (Suit) | your label is in their town |
+  | Money | they don't need it (wealth at the studio-only level) | "I don't need the money, and I don't need the trouble." | "You're the best player up there. That belongs on a record." (Ear) | they're the band's strongest player |
+  | School | under 21 | "My folks want me finishing school, or learning a trade. Not playing records." | "Sessions are Saturdays. School comes first, and I told your folks so at their table." (Suit) | you've been to the family's Sunday dinner |
+  | Job | 25 or older, and the act works day jobs | "I've got a good job. I'm not quitting it for a maybe." | "Keep the job. We record on weekends until one sells." (Suit) | always |
+  | Fun | ambition below 0.2 | "I'm in this for the fun. A record's somebody else's idea." | none: take your time, or go on without them | never |
+  | Cheated | none of those | "Labels cheat you. Everybody knows somebody who signed and never saw a dime." | "Ask [your act]. We've paid them royalties, and the paper shows every deduction." (Suit) | an act on your roster has recouped and been paid royalties under your contract |
+
+  **Reworked the same day.** The first cut checked the act's day jobs ahead of everything but a catch-all, and 80% of
+  holdouts said Job. A day job was a real reason to leave a band, but at the point the band went on the road, not at
+  the signing: a 1960 deal meant a few sessions, and touring came after a hit. So Job now applies only to a holdout of
+  25 or older with a working life to keep. The young, unambitious member who is usually the holdout now says what such
+  a member would: their folks want school, they're only in it for the fun, or labels cheat. Trust ("I don't know you")
+  remains only for objections already raised in older saves.
+
+- **Three ways to answer**, each a line in The Talk:
+  - **The true answer.** When its fact isn't true, the line is greyed and says what would make it true ("You haven't
+    heard enough of their own songs to say so"). Once you say it, the holdout is in.
+  - **"Take your time. I'll be at the next one."** The holdout settles it at the next set or rehearsal you attend. This
+    is step 3's old beat, one night later, and now your choice.
+  - **"Then the rest of you can sign without you."** (Fixer.) Offered only in a band of four or more, and not when the
+    holdout leads the band, sings, or writes. The member leaves (`BandLifeService.RemoveFromAct`, alumni reason
+    "wouldn't sign") and the rest sign. When the objection was a family or a day job, that's the departure kind.
+- **A comfortable act that hears you out** (regard 5, step 4) now puts its own reason to you as a question before it
+  talks terms. This is a new step kind, `Objection`, placed first on the yes:
+
+  | Reason | They ask | True answer | True when |
+  |---|---|---|---|
+  | Engagement | "What do we get for walking out on the Flame?" | "Keep the room. A record on the jukebox fills it." (Street) | your label has a record out |
+  | No need for money | "Sal doesn't need the money. So what's in it for us?" | "Your own songs, on a record with your name on it." (Ear) | you've heard their own songs |
+  | Settled / weekend act | "We've got jobs and families. Who's going on the road?" | the Road answer (Suit) | your label is in their town |
+  | Local living | "A record won't pay the rent. Why give up the rooms?" | "A record gets you the better rooms. Ours get played." (Street) | your label has a record out |
+
+  "I'll come back when I've more to show you" keeps the yes open, so you can return once the fact is true (when your
+  first record is out, say).
+- **A yes holds 28 days from the last conversation.** `AgreementHoldsUntil` now also counts the day an objection was
+  put to you and the day you told a holdout to take their time. A band whose next date is a month off doesn't lapse
+  while you wait for it.
+- **The spokesperson is never the holdout.** This fixes the wording issue noted in step 4 ("June isn't sure yet", said
+  by June). `SpeakerFor` passes over the member holding out, who now speaks only for themselves.
+- **The voices and the card:**
+  - The Street's deep read (5) names what the holdout will say before you ask: "Sonny is the one who isn't sure.
+    They've a job worth keeping."
+  - The card's primary button stays TALK TO THEM while an objection waits.
+  - The notebook reads "answer Sonny" or "they want an answer".
+- **Older saves:** a holdout step with no person attached finds its member by name. If that member has left the band,
+  the step is done ("Sonny isn't with them any more"). Steps already settled stay settled.
+
+### Checks (seed 1001)
+- **`DispositionChecks`: 92 checks in Detroit, 93 in Nashville** (82 before).
+  - **Part D:** at the set, the holdout raises the objection read from who they are. The Talk shows them saying it and
+    offers answers rather than terms. The true answer is open exactly when its fact holds.
+    - In Nashville, John says labels cheat. A new label has no true answer, so the check tells him to take his time; he
+      settles it at the band's next set, and terms open.
+    - In Detroit, Sonny says the same. The band's next set comes after the yes's 28-day hold, so the yes lapses, which
+      is the right outcome.
+  - **Part G, new:**
+    - The objections come in order, with one member's real fields moved and restored:
+      - a writer objects for their songs;
+      - a parent objects to the road;
+      - an 18-year-old's folks want school;
+      - at 30, the day job is the objection when the act works day jobs;
+      - at 22 with ambition 0.1, they're in it for the fun, and that has no true answer;
+      - at 22 with ambition 0.3, labels cheat.
+
+      The same state gives the same objection each time.
+    - A band of four or more with a sideman holding out has nothing to answer until the set.
+    - At the set the sideman raises their objection (Detroit: Solomon, Job). Signing without them removes them with
+      the alumni reason, and the rest are ready to sign.
+  - **Part F:** the hearing wants an answer first (Road: "Who's going on the road?"). The answer whose fact is true
+    meets it; for a home-town label, that's the Suit's line.
+  - **The world snapshot is now a streamed hash** (`WorldHash`). Comparing equal hashes checks the same thing. The
+    serialized string ran out of memory on a box short of commit memory.
+- **Legs not reached on this seed:** Detroit's hearing leg (the act gave no phone number, so there was no second
+  session). It was reached on the first-cut runs, where it answered Road with "You'd record here, in Detroit/Nashville".
+  Nashville's Part G found no band of four, out of 129 candidates, with a next set posted inside the hold.
+- After the rework: `TheTalkChecks` 126, `--scouting-runway-check` 212.
+- **Pass:** `TheTalkChecks` 126, `FirstWeekUiChecks` 18, `ConnieChecks` 49, `SignedClockChecks` 39, `LeadsChecks`,
+  `ScoutingUiChecks` 72, `--scouting-appointment-check` 61.
+- **`TheSetChecks` 91 and `--scouting-runway-check` 212 (thin=0)**, one check fewer each than before. With
+  `--disable-national-residency-surrender` they give 92 and 213 again, so the missing check comes from the rooms
+  changing under the new default, not from step 9. Each is a conditional leg that the new rooms don't reach.
+
+### Own screen: what the one who isn't sure says (SigningAvailabilityProbe, seed 1001, 56 days, Detroit label)
+Every unsigned act heard, read with the game's own functions (`HoldoutObjection`, `HearingObjection`), for a new
+Detroit label with no record out. "First night" assumes one night heard.
+
+- **Holdouts:** 347 acts, 27% of the unsigned acts heard (hungry or careful acts that have one).
+  - The true answer is open on the first night for 41% (82% in the first cut).
+  - The band could sign without them for 63%.
+  - For 26%, neither is open, and "take your time" is the only way.
+
+  | Objection | Share (first cut) | True answer open the first night | Could leave them behind |
+  |---|---|---|---|
+  | Job | 39% (80%) | 100% | 78% |
+  | Songs | 20% (20%) | 12% (you need to have heard half their own songs) | 0% (a writer can't be left behind) |
+  | School | 17% | 0% (the family's Sunday comes first) | 76% |
+  | Fun | 13% | never | 89% |
+  | Cheated | 12% | 0% (a new label has paid nobody) | 74% |
+  | Road, Money | 0% | | |
+
+- **Comfortable acts hearing you out:** Road 77% (open to a new label 5%, only in your own town), Engagement 23% (0%,
+  you'd need a record out).
+
+**Reading.** No single objection dominates any more, and the holdout is a real decision for about three in five. The
+true answer is open the first night for 41%: mostly older members with a job to keep, plus writers whose songs you've
+heard. For most of the rest, the choice is a second night or losing a member. School becomes answerable at the
+family's Sunday dinner, and "labels cheat" once you have a paid act to point to, so both answers open as the game
+goes on. Road and Money still never come up for an opening holdout, because the low-ambition member is young,
+unmarried and not well off. For a comfortable act, the objection is something a new label can't answer yet, which is
+the point: the hearing waits for your first record or a home-town act.
+
+### Not done in step 9
+- **Bluffs.** The Rolodex lets you give an answer whose fact isn't true and risk being called. Here an untrue answer is
+  greyed instead, because a bluff's outcome would need a draw or a rule for who sees through it. It's worth its own
+  design if the author wants it.
+- A careful act raises no objection, because its request (come back, put some work in) is already the beat.
+- The member who leaves doesn't go anywhere in particular. As with any departure, the band-life service owns what
+  happens to them next.
+

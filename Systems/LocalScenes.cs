@@ -42,6 +42,10 @@ public static class LocalScenes {
     /// <summary>Rooms book a fresh bill every night: kind-sized bills, earned regulars on top, a rotating cast beneath
     /// (LocalSceneRoomService.Rotation). Off restores the two-act bill drawn once per 91-day term.</summary>
     public static bool RoomRotation { get; private set; }
+    /// <summary>A signed act on a national push gives up its standing engagements and isn't offered new ones (SigningRealismBreakdown
+    /// §3.5 a′, step 8). On by default with room rotation (adopted 2026-11-25); <c>--disable-national-residency-surrender</c> is the
+    /// control. Changes the AI world.</summary>
+    public static bool NationalResidencySurrender { get; private set; }
     /// <summary>Day-job acts play weekends (and coffeehouse open stages); full-time acts take weeknight work
     /// (LocalSceneRoomService.WorkingWeek). Follows room rotation.</summary>
     public static bool DayJobs { get; private set; }
@@ -157,6 +161,11 @@ public static class LocalScenes {
         if (args.Contains("--enable-scene-room-rotation", StringComparer.Ordinal) && (!Rooms || args.Contains("--disable-scene-room-rotation", StringComparer.Ordinal)))
             throw new ArgumentException("Room rotation requires scene rooms and cannot be enabled and disabled together.");
         RoomRotation = Rooms && !args.Contains("--disable-scene-room-rotation", StringComparer.Ordinal);
+        if (args.Contains("--enable-national-residency-surrender", StringComparer.Ordinal) &&
+            (!RoomRotation || args.Contains("--disable-national-residency-surrender", StringComparer.Ordinal)))
+            throw new ArgumentException("--enable-national-residency-surrender requires scene room rotation and cannot be combined with its disable flag.");
+        // Adopted 2026-11-25 (SigningRealismBreakdown §15): brings 1960-61 Top 10 CR4 into the Billboard band.
+        NationalResidencySurrender = RoomRotation && !args.Contains("--disable-national-residency-surrender", StringComparer.Ordinal);
         foreach (string slice in new[] { "scene-day-jobs", "scene-double-rooms" })
             if (args.Contains("--enable-" + slice, StringComparer.Ordinal) &&
                 (args.Contains("--disable-" + slice, StringComparer.Ordinal) || !RoomRotation))

@@ -174,8 +174,10 @@ public enum ScoutingApproachStepKind {
     Parents,
     /// <summary>A shark, svengali or visionary manager wants a sit-down before anybody signs anything.</summary>
     Manager,
-    /// <summary>One member isn't sure. The band settles it at its next set, and you should be in the room.</summary>
-    Holdout
+    /// <summary>One member isn't sure. At the band's next set they come over with one objection (step 9), and you answer it.</summary>
+    Holdout,
+    /// <summary>A comfortable act hearing you out wants one answer before it talks terms (step 9).</summary>
+    Objection
 }
 /// <summary>One dated step before an agreed act signs. The player takes it; the clock never does.</summary>
 public sealed class ScoutingApproachStep {
@@ -198,6 +200,16 @@ public sealed class ScoutingApproachStep {
     public int DoneDay { get; set; }
     /// <summary>What was said when it was taken.</summary>
     public string Said { get; set; }
+    /// <summary>Holdout: the member's personId, so the objection is read from that person (step 9). Null on older saves.</summary>
+    public string PersonId { get; set; }
+    /// <summary>Holdout or Objection: the objection has been put to you, and the day it was (step 9).</summary>
+    public bool Raised { get; set; }
+    public int RaisedDay { get; set; }
+    public CourtshipObjection Objection { get; set; }
+    /// <summary>What they said, quoted without the speaker.</summary>
+    public string ObjectionLine { get; set; }
+    /// <summary>Holdout: you told them to take their time on this day; the next set you hear after it settles it.</summary>
+    public int? WaitFrom { get; set; }
 }
 /// <summary>A label asked an act that was off the market whether it would hear an offer. The act's answer comes from its
 /// disposition (ActDisposition): a hungry act says yes (tonight, or after its steps), a careful act asks to be heard

@@ -75,6 +75,26 @@ public static partial class LocalSceneRoomService {
         }
     }
 
+    /// <summary>A signed act on a national push (§3.5 a′, step 8): a career past its first signing that's going somewhere
+    /// (Rising, Established, Star, Superstar) or a Top 40 under its current deal. Old hits from an earlier deal don't count,
+    /// and neither does a declining act: the push is now. Such an act works its label's dates and bigger rooms, not a
+    /// Tuesday-to-Saturday at the roadhouse. Touring itself isn't modelled.</summary>
+    public static bool NationalPush(SimulatedArtist act) => act != null && !string.IsNullOrEmpty(act.labelId) &&
+        (act.careerState is CareerState.Rising or CareerState.Established or CareerState.Star or CareerState.Superstar || act.contractTop40Hits > 0);
+
+    /// <summary>§3.5 a′: a national act's standing engagements end the day before <paramref name="day"/>, so the room offers
+    /// the place to its next resident. Returns how many it gave up.</summary>
+    private static int SurrenderNationalEngagements(List<SceneEngagement> roomEngagements, int day) {
+        if (!LocalScenes.NationalResidencySurrender) return 0;
+        int ended = 0;
+        foreach (var e in roomEngagements.Where(e => e.StartDay <= day && e.ThroughDay >= day)) {
+            if (!NationalPush(ArtistManager.Instance?.GetArtist(e.ArtistId))) continue;
+            e.ThroughDay = Math.Max(e.StartDay, day) - 1;
+            ended++;
+        }
+        return ended;
+    }
+
     /// <summary>Offer standing engagements, up to the room's regulars, through the term's end: the booker's strongest
     /// working acts by the same weight (so history in the room counts). Re-offered each term, so a rising act can take a
     /// lapsed regular's place.</summary>
@@ -90,8 +110,39 @@ public static partial class LocalSceneRoomService {
         }
     }
 
-    /// <summary>A working resident of the room's own scene with no planned move: the acts a room can hold as regulars.</summary>
+    /// <summary>A working resident of the room's own scene with no planned move: the acts a room can hold as regulars.
+    /// With <see cref="LocalScenes.NationalResidencySurrender"/>, not an act on a national push.</summary>
     private static bool Regular(SimulatedArtist act, SceneRoomProfile room) => !SceneEcosystemService.HasPlannedMove(act.artistId) &&
+        !(LocalScenes.NationalResidencySurrender && NationalPush(act)) &&
         act.sceneParticipations.Any(p => p.relationship == SceneRelationship.Resident && p.sceneId == room.PlaceId &&
             !p.endWeek.HasValue && p.performanceLevel >= ScenePerformanceLevel.Working);
+}
+
+/// <summary>Probe only (SigningRealismBreakdown step 8): who holds each standing engagement on a day, by the room's own
+/// booking weight, and the act the room would offer it to next if the resident gave it up. Reads only.</summary>
+public static partial class LocalSceneRoomService {
+    public sealed class ResidencyCensusRow {
+        public string RoomId, PlaceId, ArtistId, NextId;
+        public double Weight, NextWeight;
+    }
+    internal static IReadOnlyList<ResidencyCensusRow> ResidencyCensusForProbe(int day) {
+        var rows = new List<ResidencyCensusRow>();
+        if (state == null || !LocalScenes.RoomRotation) return rows;
+        foreach (var room in SceneRoomCatalog.All.Where(r => r.IsPerformance).OrderBy(r => r.Id, StringComparer.Ordinal)) {
+            var held = State.Engagements.Where(e => e.RoomId == room.Id && e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId)
+                .Distinct().OrderBy(id => id, StringComparer.Ordinal).ToList();
+            if (held.Count == 0) continue;
+            var members = LocalScenePersistenceService.MembersOf(room.PlaceId).Select(ArtistManager.Instance.GetArtist).Where(a => Eligible(a, room, day)).ToArray();
+            var regulars = held.ToHashSet(StringComparer.Ordinal);
+            var next = members.Where(a => !regulars.Contains(a.artistId) && Regular(a, room))
+                .OrderByDescending(a => BookingWeight(room, a, false)).ThenBy(a => a.artistId, StringComparer.Ordinal).FirstOrDefault();
+            foreach (string id in held) {
+                var act = ArtistManager.Instance?.GetArtist(id);
+                if (act == null) continue;
+                rows.Add(new ResidencyCensusRow { RoomId = room.Id, PlaceId = room.PlaceId, ArtistId = id, Weight = BookingWeight(room, act, false),
+                    NextId = next?.artistId, NextWeight = next == null ? 0 : BookingWeight(room, next, false) });
+            }
+        }
+        return rows;
+    }
 }
