@@ -16,6 +16,7 @@ public partial class PlayerDeskPanel {
 		content.AddChild(TheSetNarration(scene.Setting));
 		var call = new RolodexCall();
 		call.transcript.AddRange(scene.Lines);
+		call.transcript.AddRange(FirstWeekReads(PlayerDesk.Instance, FirstWeekPlace.TheTable));
 		RenderTranscript(call);
 	}
 }

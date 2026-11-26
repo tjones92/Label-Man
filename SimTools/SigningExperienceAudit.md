@@ -313,6 +313,56 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 - **Not reached in the check:** the hold-firm narration (holding firm on the shark's first objection, he walked, as an
   impatient act does), and the Fixer on real paper (no rival offer on day one).
 
+### 3.10 Built: T3 on the scenes (2026-11-26)
+- **The card is the checklist, SHOW ME and I KNOW THE WAY.** Its voice lines are gone.
+- **Each line is taught where its work happens** (`FirstWeekLinesAt`), in the same words as before (`FirstWeekHow`,
+  `FirstWeekAside`):
+  - *The set finder*: hearing, asking, and waiting for an answer, with any aside (Connie on a Sawyer run).
+  - *The Talk*: asking, and the visit a yes still needs (Sunday dinner, the manager, the holdout's set), as a read in
+    the transcript.
+  - *The Table*: the Suit's arithmetic and how to give at the table, as reads in the transcript. Opening the table ticks
+    "put a deal on the table", so both lines are taught there.
+  - *The roster*: the first record.
+  - *The Set* keeps its own teaching verdict (§3.8).
+- **No glow on an act.** On the hearing line FIND A SET (then NEXT SETS) glows, never a row. The one exception is the
+  LISTEN of the set you walked to, which is marked `first_week_here`: the player has already chosen it.
+- **Tonight's rooms, from real state** (`FirstWeekSetNotes`):
+  - *Ear*: what each of up to three rooms lets you hear ("… is a roadhouse: you'll see whether they can hold a bar, and
+    the voice fights the noise."), then "Pick one."
+  - *Street*: whether each act's genre is among the region's top three by affinity, or is negative there.
+  - Under 3 the Street says it can't tell what the town buys.
+- **Check: `FirstWeekUiChecks`, Detroit: seeds 1001 (36 checks), 2002 (37) and 3003 (52).** Also passing after this
+  step: `TheSetChecks` 91, `TheTalkChecks` 126, `TheTableChecks` 43, `ConnieChecks` 49, `LeadsChecks`,
+  `ScoutingUiChecks` 72, `SignedClockChecks` 39, `DispositionChecks` 92, `--scouting-runway-check` 212,
+  `--scouting-appointment-check`. The bot chooses instead of following the glow:
+  - It hears sets in the finder's order and talks to the first act whose Ear verdict says "go and talk to them now",
+    letting the rest go.
+  - It checks that no set row glows until you've walked to it, then that the LISTEN there glows.
+  - It checks that the card carries no teaching line on any step, and that each voice teaches in its place (Ear at the
+    finder and on the roster, Street in The Talk, Suit at The Table).
+  - It checks that the act signed is the one it chose. Detroit, seed 1001: Lamont Turner, after one set ("Nothing
+    wrong with them…"), signed in 9 days with 8 presses on a glow.
+- **Found by making the bot choose, and fixed.** Each was a dead end a new player would have hit:
+  - *After a no, the card glowed END THE DAY forever* while its voice said "go hear somebody else". When every act asked
+    has said no (`FirstWeekNeedsAnotherAct`), it now points at END THE CONVERSATION and the finder, and at The Talk's
+    ask only for an act nobody has asked yet, never at the act that said no.
+  - *The Set's Ear verdict stopped after the first ask*, so hearing somebody else came with no verdict. It now plays
+    while the card is still finding an act (`FirstWeekLooking`: hearing, asking, or after a no), and so does the glow
+    on the LISTEN of the set you walked to.
+  - *NEXT SETS kept offering the act that had just turned you down.* A resident plays nightly, and in seed 3003 the
+    bot heard Marianne Spencer six times. The list now puts acts you haven't heard first, acts you've heard next, and
+    acts that told you no (with nothing changed since) last, one row per act. Those rows say "They told you no, and
+    nothing's changed for them since."
+- **What a new player meets in the opening, Detroit:**
+  - Seed 1001: one ask, a yes, signed in 9 days.
+  - Seed 2002: one no (a residency act), then a yes, signed in 3 days.
+  - Seed 3003: three residency acts ("We've got Motor City Room steady, and it pays") said no, and the fourth ask
+    signed on day 16.
+
+  Sawyer's Street is 2, so nobody warns that a resident is comfortable. That's the instinct doing its job, but three
+  noes in a row is a long first fortnight. The bills-are-mostly-signed finding (§2.8) shows up here as "the act the Ear
+  likes holds a steady room".
+
 ## 4. Order of work
 
 | # | Piece | Touches the sim? | Check |
@@ -321,7 +371,7 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 | 2 | The Set (§3.2) — **built** (§3.8) | No (reads existing outputs) | `TheSetChecks`: Ear 1 / 3 / 5 lines |
 | 3 | The Talk (§3.3) — **built** (SigningRealismBreakdown.md §12) | No (existing verbs) | Every old modal verb is reachable as a line |
 | 4 | The Table (§3.4) — **built** (§3.9) | No | `TheTableChecks`; `ScoutingTermsChecks` |
-| 5 | T3 on the scenes (§3.5) | No | Re-run `FirstWeekUiChecks`; the bot must **choose** an act (e.g. by the best Ear read) instead of following a glow |
+| 5 | T3 on the scenes (§3.5) — **built** (§3.10) | No | Re-run `FirstWeekUiChecks`; the bot must **choose** an act (e.g. by the best Ear read) instead of following a glow |
 | 6 | Objections, fog (§3.6) | Player-only outcomes | Own screen |
 
 Steps 1 to 5 are presentation only, so AI CSVs should stay byte-identical; one byte-comparison at the end confirms

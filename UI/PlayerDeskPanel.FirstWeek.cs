@@ -64,12 +64,23 @@ public partial class PlayerDeskPanel {
 		away.Pressed += () => { PlayerDesk.Instance?.PutAwayFirstWeek(); Refresh(); };
 		top.AddChild(away);
 		firstWeekBody.AddChild(top);
-
-		// The line you're on, taught by the voice whose job it is; and a second voice when it has something to add.
-		var (voice, how) = desk.FirstWeekHow(step.Value);
-		firstWeekBody.AddChild(FirstWeekVoiceLine(voice, how));
-		if (desk.FirstWeekAside(step.Value) is { } aside) firstWeekBody.AddChild(FirstWeekVoiceLine(aside.Voice, aside.Aside));
+		// The teaching isn't on the card any more (SigningExperienceAudit §3.5): each voice speaks in the place the work
+		// happens (FirstWeekTeaching below, The Set, The Talk, The Table). The card lists the lines and points the way.
 	}
+
+	/// <summary>The current line's voices, in the place its work happens. Nothing when the card is away.</summary>
+	private void FirstWeekTeaching(PlayerDesk desk, FirstWeekPlace place) {
+		var lines = desk.FirstWeekLinesAt(place);
+		if (lines.Count == 0) return;
+		var box = new VBoxContainer { Name = "FirstWeekTeaching" };
+		box.AddThemeConstantOverride("separation", 4);
+		foreach (var (voice, text) in lines) box.AddChild(FirstWeekVoiceLine(voice, text));
+		content.AddChild(box);
+	}
+
+	/// <summary>The same lines as transcript reads, for the scenes drawn as a call (The Talk, The Table).</summary>
+	private static IEnumerable<CallLine> FirstWeekReads(PlayerDesk desk, FirstWeekPlace place) =>
+		desk.FirstWeekLinesAt(place).Select(l => new CallLine { beat = RolodexSceneBeat.PassiveRead, voice = l.Voice, text = l.Text });
 
 	private Control FirstWeekVoiceLine(ExecutiveVoice voice, string text) {
 		var row = new HBoxContainer();
@@ -111,8 +122,13 @@ public partial class PlayerDeskPanel {
 	}
 
 	/// <summary>The buttons each line points at, best first. The first one on screen glows; only ever one.</summary>
-	private static string[] FirstWeekTargets(FirstWeekStep step) => step switch {
-		FirstWeekStep.Hear => new[] { "LISTEN", "GO & WAIT" },
+	private string[] FirstWeekTargets(PlayerDesk desk, FirstWeekStep step) => step switch {
+		// A no so far: not waiting, but hearing somebody else and asking them. Never the act that already said no.
+		FirstWeekStep.Answer when desk.FirstWeekNeedsAnotherAct => theTalkArtistId != null && desk.DirectApproaches.All(a => a.ArtistId != theTalkArtistId)
+			? new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms." }
+			: new[] { "END THE CONVERSATION", "FIND A SET", "NEXT SETS" },
+		// Never a set: the player picks which act to hear (audit §2.7). The view glows; the voices talk about tonight's rooms.
+		FirstWeekStep.Hear => new[] { "FIND A SET", "NEXT SETS" },
 		// The Talk's lines (PlayerDesk.TheTalk) lead when the conversation has the page.
 		FirstWeekStep.Ask => new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms.", "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
 		FirstWeekStep.Answer => new[] { "▸  I'll come to Sunday dinner", "▸  I'll sit down with", "MEET THE FAMILY", "SIT DOWN WITH THE MANAGER", "END THE DAY" },
@@ -135,9 +151,11 @@ public partial class PlayerDeskPanel {
 		Walk(this);
 		// A modal (the act's conversation, the contract sheet) sits over the page: its buttons come first.
 		var modal = buttons.Where(b => FindParentOfType<PaperModal>(b) != null).ToList();
-		Button hit = null;
+		// The set the player chose and walked to: its LISTEN is the next thing to press.
+		Button hit = desk.FirstWeekLooking ? buttons.FirstOrDefault(b => b.HasMeta("first_week_here")) : null;
+		if (hit != null) { GlowOn(hit); return; }
 		foreach (var pool in new[] { modal, buttons }) {
-			foreach (string target in FirstWeekTargets(step.Value)) {
+			foreach (string target in FirstWeekTargets(desk, step.Value)) {
 				hit = pool.FirstOrDefault(b => b.Text.StartsWith(target, System.StringComparison.Ordinal));
 				if (hit != null) break;
 			}

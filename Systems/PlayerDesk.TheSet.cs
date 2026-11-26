@@ -159,7 +159,7 @@ public partial class PlayerDesk {
 		FixerRivalRead(artistId, Read);
 
 		// First-time teaching (the first-week card's first two lines): the Ear's honest verdict, at any instinct.
-		if (FirstWeekCurrent is FirstWeekStep.Hear or FirstWeekStep.Ask) {
+		if (FirstWeekLooking) {
 			bool strongEar = InstinctScore(InstinctProfile, ExecutiveVoice.Ear) >= 3;
 			bool spokenFor = act != null && !string.IsNullOrEmpty(act.labelId) && act.labelId != Label?.labelId;
 			bool roomHidWorst = hidden is { } hw && hw.Q == worst.Q;

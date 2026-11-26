@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 
 // ============================================================================================
@@ -15,6 +16,10 @@ using System.Linq;
 // Player-only: the state is three flags on the player's save, read by nothing in the sim.
 // ============================================================================================
 public enum FirstWeekStep { Hear, Ask, Answer, Terms, Sign, Record }
+
+/// <summary>Where the work of a line happens, and so where its voice teaches it (SigningExperienceAudit §3.5): the card
+/// itself only lists the lines and points the way.</summary>
+public enum FirstWeekPlace { FindASet, TheTalk, TheTable, Roster }
 
 /// <summary>The first-week card's own state. Absent in older saves: a fresh card, which ticks itself off from what the
 /// run has already done, so a save past its first record never sees it.</summary>
@@ -67,6 +72,15 @@ public partial class PlayerDesk {
 		.Select(a => NextApproachStep(ArtistManager.Instance?.GetArtist(a.ArtistId))).Where(s => s != null)
 		.OrderBy(s => s.Day ?? int.MaxValue).FirstOrDefault();
 
+	/// <summary>Every act asked so far said no (or let its yes lapse): the answer line's work is hearing somebody else and
+	/// asking them, not waiting.</summary>
+	public bool FirstWeekNeedsAnotherAct => scoutingKnowledge.Approaches?.Count > 0
+		&& scoutingKnowledge.Approaches.All(a => a.Status is ScoutingApproachStatus.Declined or ScoutingApproachStatus.Lapsed);
+
+	/// <summary>The card is still on finding an act: hearing, asking, or hearing somebody else after a no.</summary>
+	public bool FirstWeekLooking => FirstWeekCurrent is FirstWeekStep.Hear or FirstWeekStep.Ask
+		|| FirstWeekCurrent == FirstWeekStep.Answer && FirstWeekNeedsAnotherAct;
+
 	/// <summary>A terms discussion opened (PlayerDesk.ApproachToSign): the "put a deal on the table" line ticks.</summary>
 	private void MarkFirstWeekTerms() => firstWeek.TermsOpened = true;
 
@@ -90,8 +104,7 @@ public partial class PlayerDesk {
 	/// the work, never the buttons: the glow and SHOW ME point at those. It speaks at any instinct (SigningExperienceAudit
 	/// §5 decision 2), but a weak voice (under 3) teaches in its own blunt register and claims no read it can't make.</summary>
 	public (ExecutiveVoice Voice, string How) FirstWeekHow(FirstWeekStep step) {
-		bool declinedOnly = scoutingKnowledge.Approaches?.Count > 0
-			&& scoutingKnowledge.Approaches.All(a => a.Status is ScoutingApproachStatus.Declined or ScoutingApproachStatus.Lapsed);
+		bool declinedOnly = FirstWeekNeedsAnotherAct;
 		bool anotherLook = scoutingKnowledge.Approaches?.Any(a => a.Status == ScoutingApproachStatus.WantsAnotherLook) == true
 			&& scoutingKnowledge.Approaches.All(a => a.Status is not (ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready or ScoutingApproachStatus.Agreed));
 		var pending = FirstPendingApproachStep?.Kind;
@@ -151,6 +164,71 @@ public partial class PlayerDesk {
 			default:
 				return null;
 		}
+	}
+
+	/// <summary>The current line, taught in the place its work happens (SigningExperienceAudit §3.5): the voice is in the
+	/// room when the thing happens, not on a card above the tabs. Hearing and waiting at the set finder; asking, and the
+	/// visit a yes still needs, in The Talk; the deal and the signature at The Table; the first record on the roster. The
+	/// Set carries its own teaching verdict (PlayerDesk.TheSet). Empty when the card is away or the line isn't this place's.</summary>
+	public List<(ExecutiveVoice Voice, string Text)> FirstWeekLinesAt(FirstWeekPlace place) {
+		var lines = new List<(ExecutiveVoice, string)>();
+		if (FirstWeekCurrent is not { } step) return lines;
+		void Line(FirstWeekStep s) => lines.Add(FirstWeekHow(s));
+		void Aside(FirstWeekStep s) { if (FirstWeekAside(s) is { } a) lines.Add((a.Voice, a.Aside)); }
+		switch (place) {
+			case FirstWeekPlace.FindASet when step is FirstWeekStep.Hear or FirstWeekStep.Ask or FirstWeekStep.Answer:
+				Line(step); Aside(step); break;
+			case FirstWeekPlace.TheTalk when step == FirstWeekStep.Ask:
+			case FirstWeekPlace.TheTalk when step == FirstWeekStep.Answer && FirstWeekNeedsAnotherAct:
+				Line(FirstWeekStep.Ask); break;
+			case FirstWeekPlace.TheTalk when step == FirstWeekStep.Answer && FirstPendingApproachStep != null:
+				Line(step); break;
+			// Opening the table ticks "put a deal on the table", so the sheet is where both lines are taught.
+			case FirstWeekPlace.TheTable when step is FirstWeekStep.Terms or FirstWeekStep.Sign:
+				Line(FirstWeekStep.Terms); Line(FirstWeekStep.Sign); break;
+			case FirstWeekPlace.Roster when step == FirstWeekStep.Record:
+				Line(step); Aside(step); break;
+		}
+		return lines;
+	}
+
+	/// <summary>On the hearing line, the voices on tonight's sets, so the player picks one: the Ear on what each room lets
+	/// you hear, the Street on whether the act's kind of music sells in this town (the region's genre affinities). Facts
+	/// about rooms and markets, never a read of an act nobody has heard; a weak Street says it can't tell.</summary>
+	public List<(ExecutiveVoice Voice, string Text)> FirstWeekSetNotes(IReadOnlyList<ScoutingOpportunity> options) {
+		var notes = new List<(ExecutiveVoice, string)>();
+		if (FirstWeekCurrent != FirstWeekStep.Hear || options == null || options.Count < 2) return notes;
+		static string Hears(SceneRoomKind kind) => kind switch {
+			SceneRoomKind.Club => "you'll hear the band and the floor, not the words",
+			SceneRoomKind.ListeningRoom => "every word comes through, but nobody has to win over a seated room",
+			SceneRoomKind.Coffeehouse => "you'll hear the songs, not a band at full strength",
+			SceneRoomKind.CommunityHall => "the echo takes the words at the back",
+			SceneRoomKind.Roadhouse => "you'll see whether they can hold a bar, and the voice fights the noise",
+			SceneRoomKind.TradeEvent => "there's no crowd to win",
+			_ => null,
+		};
+		var rooms = options.Select(o => SceneRoomCatalog.Get(o.RoomId)).Where(r => r != null && Hears(r.Kind) != null).DistinctBy(r => r.Id).Take(3).ToList();
+		if (rooms.Count > 0)
+			notes.Add((ExecutiveVoice.Ear, "Know the room before you trust what you hear in it. " +
+				string.Join(" ", rooms.Select(r => $"{r.Name} is a {SceneRoomCharacter.KindName(r.Kind)}: {Hears(r.Kind)}.")) + " Pick one."));
+		var region = ChartManager.Instance?.GetRegionById(DistanceModel.GetCityById(CurrentCityId)?.parentRegionId);
+		if (!StrongVoice(ExecutiveVoice.Street) || region?.genrePreferences == null) {
+			notes.Add((ExecutiveVoice.Street, "Don't ask me what this town buys. Hear them and find out."));
+			return notes;
+		}
+		var top = region.genrePreferences.OrderByDescending(p => p.affinity).Take(3).Select(p => p.genre).ToHashSet();
+		var said = new List<string>();
+		foreach (var o in options.Take(3)) {
+			var act = ArtistManager.Instance?.GetArtist(o.ArtistId);
+			if (act == null) continue;
+			var pref = region.genrePreferences.FirstOrDefault(p => p.genre == act.primaryGenre);
+			string genre = GenreNameFormatter.Format(act.primaryGenre).ToLowerInvariant();
+			string play = (act.members?.Count(m => m.isActive) ?? 0) == 1 ? "plays" : "play";
+			if (top.Contains(act.primaryGenre)) said.Add($"{o.ArtistName} {play} {genre}, and this town buys {genre}.");
+			else if (pref != null && pref.affinity < 0f) said.Add($"{o.ArtistName} {play} {genre}, a hard sell around here.");
+		}
+		notes.Add((ExecutiveVoice.Street, said.Count > 0 ? string.Join(" ", said) : "Nothing on tonight's bills is what this town buys most. That's not a reason to stay home."));
+		return notes;
 	}
 
 	/// <summary>Restore: the card's flags, or a fresh card for an older save.</summary>

@@ -96,12 +96,17 @@ public partial class PlayerDeskPanel {
                 ScoutingText($"{option.ListeningMinutes}min listening · {Money(option.Admission)} admission" + (circuit ? $" · {option.TravelMinutes / 60}h drive" : ""), 14, Heard);
             });
             row.AddChild(details); content.AddChild(row);
+            // An act that turned you down says so before you spend the hour on them again.
+            if (!circuit && ArtistManager.Instance.GetArtist(option.ArtistId) is { } asked && desk.StillDeclining(asked))
+                ScoutingText("They told you no, and nothing's changed for them since.", 14, Heard, PaperTheme.SerifItalic);
             // What the town is saying about them (signing step 7), each in its source's voice.
             if (!circuit && string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(option.ArtistId)?.labelId))
                 foreach (var lead in desk.LeadsFor(option.ArtistId, option.CityId, option.Day))
                     ScoutingText($"{lead.Source}: {lead.Text}", 14, lead.Voice == ExecutiveVoice.None ? ScoutingVenueInk : Ink, PaperTheme.Serif);
             // "GO & WAIT", not "WAIT": the header's WAIT 1h / 3h sit on the same screen and only pass time.
             var action = ScoutingSmallButton(circuit ? "DRIVE" : option.Playing ? "LISTEN" : "GO & WAIT");
+            // The set you chose and walked to: the first-week card points at its LISTEN, and at no other row.
+            if (!circuit && option.Playing && desk.IsAtSceneRoom(option.RoomId)) action.SetMeta("first_week_here", true);
             action.Disabled = !circuit && (option.Playing && desk.Label.cashReserves < option.Admission ||
                 SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId));
             float immediateCost = circuit ? option.TravelCost : option.Playing ? option.Admission : 0;

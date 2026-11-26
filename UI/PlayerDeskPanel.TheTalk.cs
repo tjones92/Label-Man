@@ -48,6 +48,7 @@ public partial class PlayerDeskPanel {
 
 		var call = new RolodexCall();
 		call.transcript.AddRange(scene.Lines);
+		call.transcript.AddRange(FirstWeekReads(desk, FirstWeekPlace.TheTalk));
 		RenderTranscript(call);
 
 		Heading("WHAT DO YOU SAY");

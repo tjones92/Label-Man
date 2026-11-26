@@ -267,13 +267,21 @@ public partial class PlayerDeskPanel {
         // the same night is not silently dropped.
         static bool UnderContract(ScoutingOpportunity o) => !string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(o.ArtistId)?.labelId);
         var reachable = local.Where(o => o.Affordable).DistinctBy(o => o.EventId).ToArray();
-        // Who's worth the hour (signing step 7): sets the town is talking about come first, then the soonest.
-        var options = reachable.Where(o => !UnderContract(o)).Take(12).Select((o, i) => (o, i, talk: desk.LeadsFor(o.ArtistId, o.CityId, o.Day).Count > 0))
-            .OrderByDescending(x => x.talk).ThenBy(x => x.i).Take(3).Select(x => x.o).ToArray();
+        // Who's worth the hour (signing step 7): somebody new before an act you've heard, and an act that told you no
+        // (with nothing changed since) last; then sets the town is talking about; then the soonest. A resident plays
+        // nightly, so without this the list kept offering the act that had just turned you down.
+        int Fresh(ScoutingOpportunity o) {
+            var act = ArtistManager.Instance.GetArtist(o.ArtistId);
+            return act != null && desk.StillDeclining(act) ? 2 : desk.HasScoutingEvidence(o.ArtistId) ? 1 : 0;
+        }
+        var options = reachable.Where(o => !UnderContract(o)).Take(24).Select((o, i) => (o, i, fresh: Fresh(o), talk: desk.LeadsFor(o.ArtistId, o.CityId, o.Day).Count > 0))
+            .OrderBy(x => x.fresh).ThenByDescending(x => x.talk).ThenBy(x => x.i).DistinctBy(x => x.o.ArtistId).Take(3).Select(x => x.o).ToArray();
         int signedLeftOff = reachable.Count(UnderContract);
         bool circuit = options.Length == 0 && signedLeftOff == 0;
         if (circuit) options = desk.ScoutingItinerary(true).Where(o => o.Affordable && o.TravelMinutes > 0 && !UnderContract(o)).DistinctBy(o => o.CityId).Take(2).ToArray();
         ScoutingText(circuit ? "NEARBY TOWNS" : "NEXT SETS", 16, ScoutingVenueInk, PaperTheme.SansBold);
+        // On the first week's hearing line, the voices on tonight's rooms, so the player picks (audit §3.5).
+        if (!circuit) foreach (var (voice, text) in desk.FirstWeekSetNotes(options)) content.AddChild(FirstWeekVoiceLine(voice, text));
         if (!circuit && signedLeftOff > 0)
             ScoutingText("Acts already signed to a label are left off. VENUES & CALENDARS shows every posted set.", 13, Heard);
         if (options.Length == 0) {

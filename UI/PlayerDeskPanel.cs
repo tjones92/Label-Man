@@ -1066,6 +1066,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 		content.AddChild(scoutingTabs);
 		if (scoutingView == "ACT NOTEBOOK") { ScoutingActsPage(desk); return; }
+		FirstWeekTeaching(desk, FirstWeekPlace.FindASet);
 		// A first-day player needs the one idea the page is built on; after the first listen it is a plain prompt.
 		bool firstListen = desk.ScoutingDossiers.Count == 0 && !desk.Roster.Any();
 		Body(LocalScenes.Rooms
@@ -1606,6 +1607,7 @@ public partial class PlayerDeskPanel : Control {
 			return;
 		}
 		renewingArtist = null;
+		FirstWeekTeaching(desk, FirstWeekPlace.Roster);
         if (desk.PendingRenewal is { } pending) {
             Body("Renewal discussion retained for " + pending.Artist.stageName + ".");
             if (desk.RenewalDiscussionUnavailable() is { } reason) Body(reason);
