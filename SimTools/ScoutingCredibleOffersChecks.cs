@@ -26,7 +26,7 @@ public static class ScoutingCredibleOffersChecks {
     public static (ContractTermSheet? Losing, ContractTermSheet? Winning) RivalBoundTerms(PlayerDesk desk, ContractTalk talk, RivalOffer offer) {
         var ask = talk.ask;
         ContractTermSheet? losing = null, winning = null;
-        float top = Mathf.Max(ask.Advance * 1.5f, offer.Terms.Advance * 1.2f);
+        float top = Mathf.Max(ask.Advance * 1.5f, offer.Terms.Advance * 2f); // a label nobody has heard of pays well over the rival's money (seed 1001: $100 against $70)
         foreach (bool control in new[] { false, true })
         foreach (bool publishing in new[] { true, false })
         foreach (int term in new[] { ask.TermYears, 1 }.Distinct())

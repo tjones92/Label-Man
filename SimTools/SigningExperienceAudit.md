@@ -292,10 +292,22 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 - **Regression (seed 1001):** pass: `--scouting-terms-check` 42, `--scouting-contract-outlook-check` 63,
   `--scouting-session-promise-check` 65, `--scouting-contract-continuity-check` 50, `--scouting-offer-planning-check` 27,
   `--scouting-appointment-check`, `--signing-moment-check` 20, `TheTalkChecks` 126, `TheSetChecks` 91,
-  `FirstWeekUiChecks` 18, `ConnieChecks` 49. **Failing, and failing the same at 5cd69f3 without this change:**
-  `--scouting-rival-courtship-check` ("a major prices an unknown act at its going rate plus the major's premium") and
-  `--scouting-credible-offers-check` (its fixture finds no terms that clear the act but lose to the rival). Both read
-  the AI side, so they're likely from step 8's world default; not looked into here. The SaveLoadRoundTripRunner checks
+  `FirstWeekUiChecks` 18, `ConnieChecks` 49. `--scouting-rival-courtship-check` and
+  `--scouting-credible-offers-check` failed the same at 5cd69f3 without this change. Both were fixtures that step 8's
+  reshuffled bills broke, not game faults, and both now pass (94 and 78):
+  - *The "unknown" act had a past.* `PrepareAct` cleared the act's career but not `careerStateBeforeDrop` or
+    `top40Hits`, and pricing counts the best career an act has had, so a major priced it at $926, not $68. It now
+    clears both.
+  - *The search for a winning offer stopped too low.* A label nobody has heard of has to pay well over a better-placed
+    rival's money: $100 against $70. The search ceiling went from 1.2× to 2× the rival's advance.
+  - *Against a renewal poacher, money alone can't win.* The advance term saturates at 1.5× the bigger paper, and the
+    fixture's act is ambitious (0.95), so at the poacher's −0.30 capability edge no advance wins. With all three
+    promises (session, trade ad, wholesale line), $100 does. The fixture now adds them when money alone can't win.
+    Worth knowing as design: an ambitious act leaves a small label for a well-placed one at any price unless the
+    label promises work.
+  - *The booker is asked in the room.* The fixture asked from across town; it now goes to the room first.
+
+  The SaveLoadRoundTripRunner checks
   run out of memory when the box is short of commit memory (they serialize the whole world to one string); rerun
   them alone.
 - **Not reached in the check:** the hold-firm narration (holding firm on the shark's first objection, he walked, as an

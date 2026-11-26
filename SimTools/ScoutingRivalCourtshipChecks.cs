@@ -279,7 +279,14 @@ public static class ScoutingRivalCourtshipChecks {
         renewTalk = desk.PendingRenewal.Talk;
         var pending = desk.PendingRivalOffer(id);
         var (losing, winning) = ScoutingCredibleOffersChecks.RivalBoundTerms(desk, renewTalk, pending);
-        GD.Print($"RIVAL_COURTSHIP renewal ask=${renewTalk.ask.Advance:N0} poacher={PlayerDesk.RivalTermsText(pending.Terms)} losing={(losing.HasValue ? "$" + losing.Value.Advance : "none")} winning={(winning.HasValue ? "$" + winning.Value.Advance : "none")}");
+        // Against a well-placed poacher money alone tops out (the advance term saturates at 1.5x the bigger paper): an
+        // ambitious act stays only for what the label promises to do (seed 1001: no amount of money; $130 with all three).
+        bool promised = false;
+        if (!winning.HasValue) {
+            promised = desk.AddSessionPromise(renewTalk, out _) & desk.AddPromotionPromise(renewTalk, out _) & desk.AddDistributionPromise(renewTalk, out _);
+            (losing, winning) = ScoutingCredibleOffersChecks.RivalBoundTerms(desk, renewTalk, pending);
+        }
+        GD.Print($"RIVAL_COURTSHIP renewal ask=${renewTalk.ask.Advance:N0} poacher={PlayerDesk.RivalTermsText(pending.Terms)} losing={(losing.HasValue ? "$" + losing.Value.Advance : "none")} winning={(winning.HasValue ? "$" + winning.Value.Advance : "none")}{(promised ? " (with all three promises)" : "")}");
         Check(winning.HasValue, "some renewal package beats the poacher");
         if (losing.HasValue) Check(!desk.BeatsRivalOfferOf(renewTalk, losing.Value), "a renewal that clears the act's own reservation can still lose to the poacher");
         Check(desk.TableOffer(renewTalk, winning.Value.Advance, winning.Value.RoyaltyRate, winning.Value.TermYears, winning.Value.SinglesObligation,
@@ -313,6 +320,8 @@ public static class ScoutingRivalCourtshipChecks {
         Check(string.Join("\n", ScoutingAudience.DrawDetails(two)).Contains("across 2 towns"), "draw seen in two towns reads as travelling that far");
         // The booker's count: the fifth question.
         clock.EndDay(); var room = SceneRoomCatalog.Get(heard.RoomId); clock.RestoreClock(clock.CurrentDate, room.OpenHour);
+        // You ask the booker in the room: go there first if the day starts elsewhere.
+        if (desk.NotAtRoomReason(room) != null) Check(desk.GoToSceneRoom(room.Id, out message), "go to the room: " + message);
         var answer = desk.PreviewScoutingSource(room.Id, id, ScoutingSourceQuestion.ActDraw);
         Check(answer != null && answer.Available && answer.DrawNights >= 1 && answer.Claim.Contains("come in for their set"), "the booker reports the act's own draw: " + answer?.Claim);
         Check(desk.AskScoutingSource(room.Id, id, ScoutingSourceQuestion.ActDraw, answer.QuoteId, out message), "ask: " + message);

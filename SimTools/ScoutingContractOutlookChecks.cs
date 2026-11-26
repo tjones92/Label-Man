@@ -39,6 +39,8 @@ public static class ScoutingContractOutlookChecks {
         act.labelId = null; act.careerState = CareerState.Unsigned; act.prospectMarketStatus = ProspectMarketStatus.Seeking;
         act.lifecycleStatus = ArtistLifecycleStatus.Active; act.isActive = true; act.manager = ManagerArchetype.None;
         act.reputation = 0f; act.momentum = 0f;
+        // An unknown act: no past career and no hits, since pricing counts the best career an act has had (ContractPricing.ProvenShare).
+        act.careerStateBeforeDrop = CareerState.Unsigned; act.top40Hits = 0;
         act.evolution ??= new ArtistEvolutionProfile();
         desk.Label.cashReserves = 100000;
         clock.RestoreClock(clock.CurrentDate, 9);
