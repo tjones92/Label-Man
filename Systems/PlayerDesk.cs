@@ -2172,6 +2172,8 @@ public partial class PlayerDesk : Node {
 		DiscloseRivalOffer(prospect.Artist.artistId);
 		ContractOutlook outlook = ReadContractOutlook(prospect.Artist, renewal: false);
 		prospect.Posture = PostureFor(prospect.Artist, outlook);
+		// A comfortable act that agreed to hear you out still has its reason to stay put: it talks terms (step 4, regard).
+		if (prospect.Posture == NegotiationPosture.Pushover && Agreement(prospect.Artist)?.Hearing == true) prospect.Posture = NegotiationPosture.Firm;
 		prospect.Talk = prospect.Posture == NegotiationPosture.Pushover ? null : OpenNegotiation(prospect, outlook);
         StartScoutingBusinessDiscussion(prospect);
         RememberScoutingNegotiation(prospect);

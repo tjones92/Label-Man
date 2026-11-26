@@ -80,6 +80,8 @@ public static partial class LocalSceneRoomService {
         var booking = State.Bookings.FirstOrDefault(b => b.RoomId == bill.RoomId && b.Day == bill.Day && b.ArtistId == slot.ArtistId
             && b.Status == SceneBillStatus.Performed && !string.IsNullOrEmpty(b.LabelId) && b.Commission == 0f && !b.CommissionCollected);
         if (booking == null || slot.Fee <= 0f) return 0f;
+        // A night the label got an act it hasn't signed is a favour (signing step 4): no commission.
+        if (ArtistManager.Instance?.GetArtist(slot.ArtistId)?.labelId != booking.LabelId) return 0f;
         booking.Commission = (float)Math.Round(slot.Fee * BookingCommissionRate, 2);
         return booking.Commission;
     }

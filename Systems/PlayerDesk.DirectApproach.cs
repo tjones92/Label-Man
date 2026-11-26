@@ -83,15 +83,32 @@ public partial class PlayerDesk {
     public bool StillDeclining(SimulatedArtist artist) {
         var prior = LatestApproach(artist?.artistId);
         return prior?.Status == ScoutingApproachStatus.Declined && IsOffTheMarket(artist) &&
-            ReadDisposition(artist)?.Kind == DealDisposition.Comfortable;
+            ReadDisposition(artist)?.Kind == DealDisposition.Comfortable && ReadRegard(artist).Score < HearingRegard;
     }
 
-    /// <summary>A careful act's request still stands: you haven't heard them again since.</summary>
+    /// <summary>A careful act's request still stands (regard short of what it asked for), or a hungry act you let down
+    /// still wants you back in the room.</summary>
     public bool WaitingToBeHeardAgain(SimulatedArtist artist) {
         var prior = LatestApproach(artist?.artistId);
-        return prior?.Status == ScoutingApproachStatus.WantsAnotherLook && HeardNights(artist.artistId) < CarefulHeardNights &&
-            ReadDisposition(artist)?.Kind == DealDisposition.Careful;
+        return prior?.Status == ScoutingApproachStatus.WantsAnotherLook && ReadDisposition(artist) is { } read &&
+            RegardShortfall(read, ReadRegard(artist)) > 0;
     }
+
+    /// <summary>How much regard the act still wants before it says yes: a careful act's request, or a hungry act you let
+    /// down mending. Zero when nothing more is wanted; comfortable acts are read by HearingRegard instead.</summary>
+    public static int RegardShortfall(DispositionRead read, RegardRead regard) => read.Kind switch {
+        DealDisposition.Careful => Math.Max(0, RegardWanted(read) - regard.Score),
+        DealDisposition.Hungry when regard.LetDown => MendedRegard - regard.Score,
+        _ => 0
+    };
+
+    /// <summary>A comfortable act that trusts you hears you out; what it says about why it's still a hard sell.</summary>
+    private static string HearingLine(DispositionRead read, string who) => $"{who}: \"You've been good to us. We'll hear you out, " + read.Reason switch {
+        DispositionReason.Engagement => $"but we're not walking out on {read.EngagementRoom} for nothing.\"",
+        DispositionReason.NoNeedForMoney => $"but {read.WealthyMember} doesn't need the money, so it'll have to be worth our while.\"",
+        DispositionReason.Settled or DispositionReason.WeekendAct => "but we've got jobs and families, so it'll have to be worth it.\"",
+        _ => "but it'll have to be worth our while.\""
+    };
 
     /// <summary>Whoever talks for the act: the member who'd come over after a set, else the leader or the singer.</summary>
     private string SpeakerFor(SimulatedArtist artist) {
@@ -182,18 +199,32 @@ public partial class PlayerDesk {
         }
         if (!Label.HasRosterSpace) { message = "Roster is full."; return true; }
         var read = ReadDisposition(artist);
+        var regard = ReadRegard(artist);
         string who = SpeakerFor(artist);
         var status = ScoutingApproachStatus.Agreed;
-        if (read.Kind == DealDisposition.Comfortable) status = ScoutingApproachStatus.Declined;
-        else if (read.Kind == DealDisposition.Careful && HeardNights(artist.artistId) < CarefulHeardNights) status = ScoutingApproachStatus.WantsAnotherLook;
-        // A careful act you came back for says so; its reason line is the request it made the first time.
-        string said = status == ScoutingApproachStatus.Agreed && read.Kind == DealDisposition.Careful
-            ? $"{who}: \"You came back. All right, we'll hear what you're offering.\""
-            : ActDisposition.Line(read, artist, who, HomeTownName);
+        bool hearing = read.Kind == DealDisposition.Comfortable && regard.Score >= HearingRegard;
+        if (read.Kind == DealDisposition.Comfortable && !hearing) status = ScoutingApproachStatus.Declined;
+        else if (RegardShortfall(read, regard) > 0) status = ScoutingApproachStatus.WantsAnotherLook;
+        string opener = RegardOpener(regard);
+        string said;
+        if (hearing) said = HearingLine(read, who);
+        else if (status == ScoutingApproachStatus.WantsAnotherLook && read.Kind == DealDisposition.Hungry)
+            // A hungry act you let down still wants the record; it wants you back in the room first.
+            said = $"{who}: \"{opener} Come and hear us again before we talk.\"";
+        else if (status == ScoutingApproachStatus.Agreed && read.Kind == DealDisposition.Careful)
+            // A careful act whose request you met says so; its reason line is the request it made the first time.
+            said = HeardNights(artist.artistId) >= CarefulHeardNights
+                ? $"{who}: \"You came back. All right, we'll hear what you're offering.\""
+                : $"{who}: \"{opener ?? "You've put the time in."} All right, we'll hear what you're offering.\"";
+        else {
+            said = ActDisposition.Line(read, artist, who, HomeTownName);
+            // An act that knows you says so before it answers.
+            if (opener != null && regard.Score >= CarefulRegard) said = said.Replace($"{who}: \"", $"{who}: \"{opener} ");
+        }
         if (status == ScoutingApproachStatus.Agreed) {
             var steps = StepsFor(read, artist, today);
             Approaches.Add(new ScoutingDirectApproach { ArtistId = artist.artistId, ArtistName = artist.stageName, Day = today,
-                Status = status, UntilDay = today, Said = said, Steps = steps });
+                Status = status, UntilDay = today, Said = said, Steps = steps, Hearing = hearing });
             if (steps.Count == 0) {
                 // Nothing between the yes and a signature: terms open in the same conversation (ApproachToSign goes on).
                 message = said;
@@ -326,6 +357,7 @@ public partial class PlayerDesk {
                     (string.IsNullOrEmpty(artist?.labelId) ? "." : $": they're with {ChartManager.Instance?.GetLabelName(artist.labelId) ?? "another label"} now."));
             } else if (today > AgreementHoldsUntil(a)) {
                 a.Status = ScoutingApproachStatus.Lapsed;
+                a.LetLapse = true;
                 Note($"{a.ArtistName} stopped waiting on you. Ask them again the next time you see them.");
             } else SettleHoldout(artist);
         }

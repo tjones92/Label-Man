@@ -24,7 +24,7 @@ public partial class PlayerDeskPanel {
         else ScoutingVenueBoard(desk);
         // The other work at the rooms only matters once it applies (an act to book, records to sell, a demo someone can pay
         // for), so it folds into one bar that appears when it does instead of three walls of text on the first morning.
-        bool book = desk.Roster.Any();
+        bool book = desk.Roster.Any() || desk.FavourActs().Count > 0;
         bool sell = desk.Label != null && PlayerDesk.RoomTablesActive(desk.CurrentCityId) &&
             (desk.PressedSinglesOnHand().Any() || SceneRoomCatalog.ForPlace(desk.CurrentCityId).Any(r => desk.TableRightsAt(r.Id) != null));
         bool demos = desk.Label != null && LocalScenes.Rooms &&
@@ -142,11 +142,13 @@ public partial class PlayerDeskPanel {
     /// announced calendar. A booking is an opportunity, not a show, until the set is played.</summary>
     private void BookYourActs(PlayerDesk desk) {
         var acts = desk.Roster.ToList();
+        int signed = acts.Count;
+        acts.AddRange(desk.FavourActs());   // unsigned acts you hold a number for: a favour, no commission (signing step 4)
         if (acts.Count == 0) return;
         var date = TimeManager.Instance.CurrentDate;
         var rooms = SceneRoomCatalog.ForPlace(desk.CurrentCityId).Where(r => r.IsPerformance).ToList();
         ScoutingText("BOOK YOUR ACTS", 18, ScoutingVenueInk, PaperTheme.SansBold);
-        ScoutingText($"See a booker in person (1h, from {PlayerDesk.BookerFromHour - 12} p.m. until his room closes) and ask for a night. " +
+        ScoutingText($"See a booker in person (1h, from {PlayerDesk.BookerFromHour - 12} p.m. until his room closes) and ask for a night, for one of your acts or as a favour to an unsigned act you can reach. " +
             "He can say no; a yes goes on that night's bill when it is drawn up, and only a played set counts. The door money is the band's.", 14, Heard);
         foreach (var b in LocalSceneRoomService.Bookings.Where(b => b.LabelId == desk.Label.labelId).OrderByDescending(b => b.Day).Take(6)) {
             var room = SceneRoomCatalog.Get(b.RoomId);
@@ -155,7 +157,8 @@ public partial class PlayerDeskPanel {
         }
         if (rooms.Count == 0) return;
         var form = new HFlowContainer(); form.AddThemeConstantOverride("h_separation", 8);
-        var actPick = Option(); foreach (var a in acts) actPick.AddItem(a.stageName);
+        var actPick = Option();
+        for (int i = 0; i < acts.Count; i++) actPick.AddItem(i < signed ? acts[i].stageName : acts[i].stageName + " (unsigned: a favour)");
         var roomPick = Option(); var nightPick = Option();
         var nights = new System.Collections.Generic.List<int>();
         int first = LocalSceneRoomService.FirstBookableDay;

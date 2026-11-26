@@ -4,8 +4,8 @@ using System.Linq;
 using Godot;
 
 /// <summary>
-/// Signing realism steps 2 and 3 (SimTools/SigningRealismBreakdown.md): the act's disposition replaces the keyed 65%
-/// coin, and a yes is signed tonight or after dated steps.
+/// Signing realism steps 2-4 (SimTools/SigningRealismBreakdown.md): the act's disposition replaces the keyed 65%
+/// coin, a yes is signed tonight or after dated steps, and regard (what you've done with the act) moves the answer.
 ///
 /// Part A reads every unsigned, off-market act in a scene town against a new label. The same state must give the same
 /// read, all three dispositions must occur, and every reason must name state that is really there (an engagement
@@ -18,7 +18,13 @@ using Godot;
 /// draws are added: asking changes no world state.
 /// Part D (step 3) hears a fresh band and gives it a minor, a shark and a holdout: the yes carries three dated steps, the
 /// family can't be seen before Sunday, the manager is seen on a weekday, the holdout settles at a set heard, and only then
-/// do terms open. A yes nobody acts on lapses after AgreedHoldDays.
+/// do terms open. A yes nobody acts on lapses after AgreedHoldDays, and (step 4) the act remembers it: it's let down, says
+/// so, and wants you back at a set first.
+/// Part F (step 4, regard) checks the shortfall rules, then builds regard on one heard act from real verbs: one night is
+/// regard 1, reading it changes nothing, a comfortable act that hardly knows you says no and won't sit for a session, a
+/// careful one off the market will, and a real demo at your place lifts regard to 3, which meets a careful request with no
+/// second night. A second session and an attended sit-down bring it to 5: the comfortable act hears you out, stays
+/// comfortable, and talks terms at the table rather than signing what it's handed.
 ///   --path . SimTools/DispositionChecks.tscn -- --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle [--city=detroit]
 /// Prints DISPOSITION_CHECKS_PASS / _FAIL.
 /// </summary>
@@ -324,6 +330,106 @@ public partial class DispositionChecks : Node {
 					var last = desk.DirectApproaches.Last(a => a.ArtistId == waiting.artistId);
 					Check(last.Status == ScoutingApproachStatus.Lapsed && (string.IsNullOrEmpty(waiting.labelId) ? LocalSceneRoomService.Day(clock.CurrentDate) > PlayerDesk.AgreementHoldsUntil(held) : true),
 						$"an untaken yes lapses ({waiting.labelId ?? "stopped waiting"})");
+					// Step 4: they remember it. A hungry act you let down wants you back in the room before it says yes again.
+					if (string.IsNullOrEmpty(waiting.labelId) && waiting.lifecycleStatus == ArtistLifecycleStatus.Active && waiting.prospectMarketStatus == ProspectMarketStatus.Latent) {
+						var grudge = desk.ReadRegard(waiting);
+						Check(last.LetLapse && grudge.Has(RegardSourceKind.LetTheirYesLapse) && grudge.LetDown,
+							$"a yes you let lapse is remembered against you (regard {grudge.Score})");
+						Check(!desk.ApproachToSign(ProspectOf(waiting), out message) && desk.DirectApproaches.Last().Status == ScoutingApproachStatus.WantsAnotherLook &&
+							message.Contains("never heard from you") && desk.WaitingToBeHeardAgain(waiting), "they say so, and want you back at a set first: " + message);
+						Check(desk.RegardSummary(waiting.artistId).Contains("let their yes lapse"), "the notebook says what you did");
+					} else GD.Print("note: the lapsed act left the market; the let-down ask wasn't exercised");
+				}
+
+				// ---- Step 4, Part F: regard, built from real sessions ----
+				{
+					var careRead = new DispositionRead { Kind = DealDisposition.Careful, Reason = DispositionReason.OutOfTown };
+					var burned = new DispositionRead { Kind = DealDisposition.Careful, Reason = DispositionReason.DroppedBefore };
+					Check(PlayerDesk.RegardShortfall(careRead, new RegardRead { Score = 1, Level = RegardLevel.KnowYourFace }) == 1 &&
+						PlayerDesk.RegardShortfall(careRead, new RegardRead { Score = 2, Level = RegardLevel.KnowYourFace }) == 0 &&
+						PlayerDesk.RegardShortfall(burned, new RegardRead { Score = 2, Level = RegardLevel.KnowYourFace }) == 1,
+						"a careful act wants two, one dropped before wants three");
+					Check(PlayerDesk.RegardShortfall(new DispositionRead { Kind = DealDisposition.Hungry }, new RegardRead { Score = -1, Level = RegardLevel.LetDown }) == 1 &&
+						PlayerDesk.RegardShortfall(new DispositionRead { Kind = DealDisposition.Hungry }, new RegardRead { Score = 0 }) == 0,
+						"a hungry act wants nothing more unless you let it down");
+					Check(PlayerDesk.RegardOpener(new RegardRead()) == null, "a stranger opens with nothing");
+				}
+				bool Session(SimulatedArtist a, ScoutingAppointmentActivity activity, bool askNumber = false) {
+					var q = desk.PreviewScoutingInvitation(a.artistId, activity);
+					if (q == null) { GD.Print($"{activity} with {a.stageName}: no quote"); return false; }
+					if (!desk.ArrangeScoutingMeeting(a.artistId, q.Id, out string arranged, activity)) { GD.Print($"{activity} with {a.stageName}: {arranged}"); return false; }
+					if (askNumber) { desk.AskActForNumber(a.artistId, out string number); GD.Print("number: " + number); }
+					var m = desk.ScoutingMeetings.LastOrDefault(x => x.ArtistId == a.artistId && x.Activity == activity && x.Status == SceneConversationStatus.Scheduled);
+					if (m == null) { GD.Print($"{activity} with {a.stageName}: no scheduled meeting ({string.Join("; ", desk.ScoutingMeetings.Where(x => x.ArtistId == a.artistId).Select(x => $"{x.Activity} {x.Status}"))})"); return false; }
+					desk.Label.cashReserves = Math.Max(desk.Label.cashReserves, 1000);
+					clock.RestoreClock(LocalSceneRoomService.Date(m.Day), m.StartMinute / 60, m.StartMinute % 60);
+					desk.AttendScoutingMeeting(m.Id, out string said);
+					GD.Print($"{activity} with {a.stageName}: {said}");
+					return desk.ScoutingMeetings.Any(x => x.Id == m.Id && x.Status == SceneConversationStatus.Completed);
+				}
+				SimulatedArtist friend = null;
+				for (int tries = 0; tries < 8 && friend == null; tries++) {
+					var a = HearNew(x => Members(x) == 1 || x.members.Any(m => m.isActive && m.lifeState == MemberLifeState.Active && m.isBandLeader), 14);
+					if (a == null) break;
+					if (desk.PreviewScoutingInvitation(a.artistId, ScoutingAppointmentActivity.Demo) != null) friend = a;
+				}
+				if (friend == null) GD.Print("note: no heard act would take a studio session; Part F not exercised");
+				else {
+					Force(friend, DealDisposition.Comfortable); Adult(friend); Unmanaged(friend);
+					var r0 = desk.ReadRegard(friend);
+					Check(r0.Score == 1 && r0.Level == RegardLevel.KnowYourFace && r0.Has(RegardSourceKind.HeardThem) &&
+						desk.RegardSummary(friend.artistId).Contains("heard once"), $"{friend.stageName}: one night heard is regard 1, and the card says so");
+					string world = System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions);
+					desk.ReadRegard(friend); desk.RegardSummary(friend.artistId);
+					Check(System.Text.Json.JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions) == world, "reading regard changes no world state");
+					Check(!desk.ApproachToSign(ProspectOf(friend), out message) && desk.StillDeclining(friend) && message.Contains("trust you"),
+						"a comfortable stranger says no, and says trust could earn a hearing: " + message);
+					Check(!desk.WouldMeetOffMarket(friend), "a comfortable act that hardly knows you won't sit for a session");
+					// A careful act off the market will (its own disposition, not the AI market's flag, answers).
+					Force(friend, DealDisposition.Careful);
+					Check(desk.WouldMeetOffMarket(friend) && PlayerDesk.RegardShortfall(desk.ReadDisposition(friend), desk.ReadRegard(friend)) == 1,
+						"a careful act off the market agrees to a session, and still wants one more point");
+					Check(Session(friend, ScoutingAppointmentActivity.Demo, askNumber: true), "a real studio session (a demo at your place) is arranged and attended");
+					var r1 = desk.ReadRegard(friend);
+					Check(r1.Score == 3 && r1.Has(RegardSourceKind.Session) && r1.Level == RegardLevel.Friendly, $"a first session adds two (regard {r1.Score})");
+					Check(PlayerDesk.RegardShortfall(desk.ReadDisposition(friend), r1) == 0 && !desk.WaitingToBeHeardAgain(friend),
+						"a careful act's request is met by a session, with no second night");
+					Force(friend, DealDisposition.Comfortable);
+					Check(desk.StillDeclining(friend) && desk.WouldMeetOffMarket(friend), "regard 3 doesn't move a comfortable act, but it lets you hear it work");
+					// Two more points: a second session and a sit-down, by phone if you got the number.
+					if (desk.ActNumber(friend.artistId) == null) GD.Print("note: no number, so no second invitation; the hearing path wasn't exercised");
+					else {
+						bool demo = Session(friend, ScoutingAppointmentActivity.Demo);
+						bool talk = demo && Session(friend, ScoutingAppointmentActivity.Conversation);
+						var r2 = desk.ReadRegard(friend);
+						if (!talk) GD.Print($"note: second session {demo}, sit-down {talk}; regard {r2.Score}, the hearing path wasn't exercised");
+						else {
+							Check(r2.Score == PlayerDesk.HearingRegard && r2.Level == RegardLevel.TrustYou, $"a second session and a sit-down bring regard to {r2.Score}");
+							if (desk.Agreement(friend) == null) desk.ApproachToSign(ProspectOf(friend), out message);
+							var hearing = desk.Agreement(friend);
+							Check(hearing != null && hearing.Hearing && hearing.Said.Contains("hear you out") && desk.ReadDisposition(friend).Kind == DealDisposition.Comfortable,
+								"a comfortable act that trusts you hears you out, and stays comfortable: " + hearing?.Said);
+							// A lukewarm band names a holdout; go and hear the set where they settle it.
+							for (int d = 0; d < 28 && desk.Agreement(friend) != null && !desk.AgreedToSign(friend); d++) {
+								clock.EndDay();
+								if (GetTree().Root.FindChild("MorningPaper", true, false) is Control paper) paper.Visible = false;
+								int day = LocalSceneRoomService.Day(clock.CurrentDate);
+								foreach (var s in desk.Agreement(friend)?.Steps.Where(s => !s.Done && s.Kind != ScoutingApproachStepKind.Holdout && s.Day <= day).ToList() ?? new())
+									desk.TakeApproachStep(friend.artistId, s.Kind, out _);
+								foreach (var bill in LocalSceneRoomService.Calendar(city, clock.CurrentDate).Where(b => b.Day == day && b.Status == SceneBillStatus.Scheduled).OrderBy(b => b.StartHour).ToList())
+									foreach (var slot in bill.Appearances.Where(s => s.ArtistId == friend.artistId && s.EndHour <= clock.HardStopHour && s.StartHour >= clock.CurrentHour)) {
+										clock.RestoreClock(LocalSceneRoomService.Date(bill.Day), slot.StartHour);
+										desk.ListenSceneAppearance(bill.Id, ScenePerformanceService.EventId(bill, slot), out _);
+									}
+								if (desk.Agreement(friend) != null) desk.ApproachToSign(ProspectOf(friend), out _);
+							}
+							if (desk.AgreedToSign(friend)) {
+								var p = ProspectOf(friend);
+								if (!p.HasBaseline) desk.ApproachToSign(p, out message);
+								Check(p.HasBaseline && p.Posture != NegotiationPosture.Pushover, $"at the table it talks terms ({p.Posture})");
+							} else GD.Print("note: the hearing has steps first; the table posture wasn't reached");
+						}
+					}
 				}
 			} finally {
 				foreach (var (m, v) in originals) m.ambition = v;

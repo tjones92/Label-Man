@@ -110,7 +110,10 @@ public static partial class LocalSceneRoomService {
         var current = expected == null ? null : QuoteConversation(label, expected.ArtistId, expected.PersonId, expected.RoomId, expected.SourceEventId, expected.Activity);
         if (current == null || current.Id != expected.Id) { message = "The speaker or proposed slot changed. Review the invitation again."; return false; }
         var act = ArtistManager.Instance.GetArtist(current.ArtistId); var clock = TimeManager.Instance;
-        bool consents = !coolingDown && ArtistManager.Instance.IsEligibleForPopulationSigning(act, ChartManager.Instance.GetCurrentChartWeek());
+        // An act on the market meets anybody. One off it answers for itself (signing step 4): market status is the AI's
+        // plumbing, so whether it sits down with you comes from its disposition and how it regards you.
+        bool consents = !coolingDown && (ArtistManager.Instance.IsEligibleForPopulationSigning(act, ChartManager.Instance.GetCurrentChartWeek()) ||
+            PlayerDesk.Instance?.WouldMeetOffMarket(act) == true);
         string response = consents ? $"I can meet at {SceneRoomCatalog.Get(current.RoomId).Name} on {Date(current.Day).ToHeadlineString()}, " +
             $"{current.StartMinute / 60:00}:{current.StartMinute % 60:00}, for an hour to discuss a record deal. That isn't a promise to sign." :
             "I'm not arranging a record discussion right now. Hearing us doesn't commit us to a meeting or a deal.";
@@ -147,7 +150,9 @@ public static partial class LocalSceneRoomService {
         if (act?.lifecycleStatus != ArtistLifecycleStatus.Active || ConversationPerson(c) == null) return "The agreed speaker is no longer available with this act.";
         if (room == null || !LocalScenePersistenceService.Present(act, room.PlaceId, c.Day / 7) || !SceneEcosystemService.AvailableAt(c.ArtistId, room.PlaceId, c.Day))
             return "The act is no longer available at the agreed place and date.";
-        if (!ArtistManager.Instance.IsEligibleForPopulationSigning(act, ChartManager.Instance.GetCurrentChartWeek()))
+        // An act off the market that agreed for itself (signing step 4) keeps its word while it stays unsigned.
+        bool ownWord = string.IsNullOrEmpty(act.labelId) && act.prospectMarketStatus == ProspectMarketStatus.Latent && PlayerDesk.Instance?.Label?.labelId == c.LabelId;
+        if (!ownWord && !ArtistManager.Instance.IsEligibleForPopulationSigning(act, ChartManager.Instance.GetCurrentChartWeek()))
             return "Their side is no longer taking record discussions. The appointment gave no hold on the act.";
         if (c.Activity != ScoutingAppointmentActivity.Conversation && !c.ParticipantIds.OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(
             act.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).Select(m => m.personId).OrderBy(id => id, StringComparer.Ordinal)))

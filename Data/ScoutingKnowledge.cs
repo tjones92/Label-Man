@@ -214,4 +214,9 @@ public sealed class ScoutingDirectApproach {
     public string Said { get; set; }
     /// <summary>Agreed: the steps before they sign, in order. Empty when they'll sign tonight.</summary>
     public List<ScoutingApproachStep> Steps { get; set; } = new();
+    /// <summary>Lapsed: the act said yes and you never acted on it before it ran out (regard remembers). False on older saves.</summary>
+    public bool LetLapse { get; set; }
+    /// <summary>Agreed: a comfortable act that trusts you agreed to hear you out. It talks terms at the table rather than
+    /// signing what it's handed, because its reason for staying put still stands.</summary>
+    public bool Hearing { get; set; }
 }

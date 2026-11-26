@@ -132,9 +132,9 @@ public static class ActDisposition {
 			DispositionReason.Young => $"{who}: \"We've been waiting for somebody to ask. Yes.\"",
 			DispositionReason.OwnSongs => $"{who}: \"We've got songs nobody's heard yet. We want them on a record. Yes.\"",
 			DispositionReason.Ambitious => $"{who}: \"We want a record. We'd hear an offer.\"",
-			DispositionReason.DroppedBefore => $"{who}: \"We've been on a label before, and they dropped us. We'll want to see you again before we talk money.\"",
+			DispositionReason.DroppedBefore => $"{who}: \"We've been on a label before, and they dropped us. We'll want to see you a few times, and see you put some work in, before we talk money.\"",
 			DispositionReason.OutOfTown => $"{who}: \"You're from {labelTown ?? "out of town"}? We play here. Come back and hear us again, and we'll talk.\"",
-			DispositionReason.NoRecords => $"{who}: \"We've never heard a record of yours. Come back and hear us again, and we'll talk.\"",
+			DispositionReason.NoRecords => $"{who}: \"We've never heard a record of yours. Come and hear us again, or come out to a rehearsal and hear what we do with a song, and we'll talk.\"",
 			DispositionReason.WantsAnotherLook => $"{who}: \"We'd want to know you better first. Come and hear us again.\"",
 			DispositionReason.Engagement => $"{who}: \"We've got {r.EngagementRoom} steady, and it pays. We're not giving that up for a maybe.\"",
 			DispositionReason.NoNeedForMoney => $"{who}: \"We do this because we like it. {r.WealthyMember} doesn't need the money, and the rest of us don't want the road.\"",
@@ -146,8 +146,8 @@ public static class ActDisposition {
 
 	/// <summary>For a comfortable act: what could change their mind, honestly. Null for the other dispositions.</summary>
 	public static string WhatWouldChange(DispositionRead r) => r.Kind != DealDisposition.Comfortable ? null : r.Reason switch {
-		DispositionReason.Engagement => $"That could change when the {r.EngagementRoom} engagement ends, or if your label has a hit.",
-		_ => "A hit on your label might change their minds."
+		DispositionReason.Engagement => $"That could change when the {r.EngagementRoom} engagement ends, or if your label has a hit. If they come to trust you, they might at least hear you out.",
+		_ => "A hit on your label might change their minds. If they come to trust you, they might at least hear you out."
 	};
 
 	/// <summary>A few words for the notebook card.</summary>

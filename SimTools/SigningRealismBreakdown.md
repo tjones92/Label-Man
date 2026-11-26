@@ -188,7 +188,7 @@ The NEXT SETS list then answers "who's worth the hour?" with leads, not a sorted
 | 1 | **Measure** — **done**, see §7 | No (read only) | Probe output against the §3.1 targets |
 | 2 | **Disposition + reasons** — **built**, see §8 | No (player-only) | New `DispositionChecks`: every disposition reachable, reasons name real state, same state → same answer; AI CSVs byte-identical |
 | 3 | **Immediate answers + direct signing from Latent** — **built**, see §9 — for agreeing acts; band talks-it-over tied to the next real set | Player worlds only | Rival-contest rate before/after; first signing day in the opening (today day 1–8) |
-| 4 | **Regard ledger** from existing verbs; Careful wants named as verbs | No | Every regard source moves the line it should |
+| 4 | **Regard ledger** — **built**, see §11 — from existing verbs; Careful wants named as verbs | No | Every regard source moves the line it should |
 | 5 | **The Talk** (audit §3.3) built on 2–4: opening line by disposition, wants as script lines | No | Audit §4 row 3 |
 | 6 | **Signed as a clock** (§3.4): Street contract read, watch item, the call at expiry | No (reads expiry decisions) | An act let go after regard calls the player |
 | 7 | **Leads** (§3.6) from scene sources | No | Leads name real draw/residency facts; low Street misreads |
@@ -630,3 +630,76 @@ a rule are keyed on the act's id (as `ConfigureEasyListeningBandleader` does), s
 - **Checks:** `DispositionChecks` 61, adding Part E: every kind sits only on its allowed archetypes, family shares a
   member's surname, the club booker is the room's booker, agency and jukebox only where realistic, repeatable reads, no
   world state touched, and the family merge. Runway 213, The Set 92, Scouting UI 72 and First Week 13 all pass.
+
+## 11. Step 4 built: regard, read from what you've done (2026-11-25)
+
+### What changed
+- **`Systems/PlayerDesk.Regard.cs`.** `ReadRegard` is a pure read over the label's own records of the act. There's no
+  new stored ledger, so an older save reads the same way it would have been built.
+
+  | You did | Points | Read from |
+  |---|---|---|
+  | Heard them, each different night (at most 3) | +1 | performance observations |
+  | Sat down with them at an arranged meeting (once) | +1 | the meeting's "attended" statement |
+  | A studio session together: a rehearsal visit or a demo | +2 first, +1 second | rehearsal and demo samples |
+  | Got them a night from a booker, and they played it | +2 first, +1 second | the player's bookings |
+  | Didn't turn up to produce their demo | −2 | demo jobs the label missed |
+  | Said yes and you never acted on it before it ran out | −2 | the approach's new `LetLapse` flag |
+  | Cancelled an arranged meeting on them | −1 | the meeting's "cancelled" statement |
+
+  Good points fade by one every 45 days once 30 days have passed since you last did anything with them, never below
+  zero: neglect isn't an insult. Bad turns fade after half a year. Levels, as the act shows them: let down (below 0),
+  stranger, knows your face (1-2), friendly (3-4), trusts you (5+).
+- **What it does at the ask** (`PlayerDesk.DirectApproach`):
+  - **Careful:** yes once regard reaches 2 (3 for an act dropped before). Hearing them twice still works. So does one
+    night and a sit-down, or one night and a session.
+  - **Hungry, let down:** wants you back at a set before it says yes again. One night mends one bad turn.
+  - **Comfortable:** at regard 5 it hears you out ("You've been good to us. We'll hear you out, but…"). It stays
+    comfortable, and at the table it talks terms rather than signing what it's handed (a Pushover posture becomes Firm;
+    `ScoutingDirectApproach.Hearing`). Regard never makes it hungry; that still needs the reason to change.
+  - An act that knows you opens with what it remembers best: "You were at the River Lantern Friday, weren't you?",
+    "You came out and heard us work", "You got us the night at…", or, let down, "We said yes to you once, and then we
+    never heard from you."
+- **Careful wants name verbs.** "Never heard a record of yours" now asks you to come again *or come out to a
+  rehearsal*. "Dropped before" wants to see you a few times and see you put some work in. A comfortable no adds that
+  trust might at least earn a hearing.
+- **The notebook card** gets "Between you: they're friendly with you (heard 2 nights, a session together)."
+- **Two plumbing fixes that the verbs needed:**
+  - *Sessions with acts off the market.* A rehearsal, demo or sit-down needed `IsEligibleForPopulationSigning`, the AI
+    market's Seeking flag, both to agree and to keep the appointment. So no off-market act could ever be heard working,
+    which is §1.1's problem again. Now an off-market act the player has heard agrees for itself
+    (`PlayerDesk.WouldMeetOffMarket`): hungry or careful acts yes; a comfortable act once regard is 2. An appointment it
+    agreed to holds while it stays unsigned. Player label only: conversations are quoted only for the player's label.
+  - *Getting an unsigned act a night.* PITCH THE BOOKER took roster acts only. It now also takes an unsigned act you've
+    heard and hold a number for, as a favour: no commission (`TakeBookingCommission` skips an act not on the booking
+    label). The booking form lists them as "(unsigned: a favour)". AI worlds hold no bookings.
+- **Not a regard source:** "your label charted in their genre". A release and a hit already raise drive (§8); a genre
+  match would need the label's chart record by genre, which isn't kept.
+- **Build:** `Label Man.csproj` now drops every `tmp\**\*.cs`. A nested checkout under `tmp\` was compiling into the game.
+
+### Checks (seed 1001)
+- **`DispositionChecks`: 82 checks** (61 before).
+  - The lapse check now goes on: the act remembers the lapsed yes (regard −1, let down), says so, and wants you back
+    at a set. The notebook says what you did.
+  - Part F checks the shortfall rules, then builds regard on one heard act with real verbs. One night is regard 1, and
+    reading it changes no world state. A comfortable act that hardly knows you says no and won't sit for a session; a
+    careful one off the market will. A real demo at your place brings regard to 3, which meets a careful request with
+    no second night. A second demo and an attended sit-down bring it to 5: the comfortable act hears you out, stays
+    comfortable, and once its holdout settles at a set it sits at the table Firm, not Pushover.
+- **Existing suites pass:** `--scouting-runway-check` 213 (31 cities, thin=0), `--scouting-appointment-check` 61,
+  `TheSetChecks` 92, `ScoutingUiChecks` 72, `FirstWeekUiChecks` 13, `ConnieChecks` 49.
+- **AI byte-comparison:** not run; still planned for the end of step 7. What touches world code is player-gated: the
+  conversation consent reads the player desk and conversations are quoted only for the player's label, and bookings
+  exist only in player worlds.
+
+### Not done in step 4
+- **Rehearsals are hard to get in Detroit by March 1960.** The check meant to use a rehearsal visit, but every room
+  near the acts it heard was booked through its open hours (`RehearsalRoomOccupied`), so it uses demos. That's a
+  world fact about room calendars, not a regard rule, but it means the rehearsal want that careful acts now name is
+  often hard to meet. Worth a look with The Talk (step 5).
+- **The favour booking isn't driven by a check to a played set.** The pitch, the form and the no-commission rule are
+  built; a check that waits for the booked night to be billed and played is owed.
+- **The opener can name the holdout's own speaker.** A lukewarm band's spokesperson can also be its holdout ("June
+  isn't sure yet", said by June). That's a step-3 wording issue; the holdout beat is step 9.
+- **The "hearing" threshold (5) and the weights are authored.** Nothing measures how often a player reaches them in
+  an opening.

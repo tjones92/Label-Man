@@ -89,6 +89,16 @@ public partial class PlayerDesk {
 
 	// ── §6.3 Pitch the act to a real booker ─────────────────────────────────────────────────────────────
 
+	/// <summary>An unsigned act you can put in a word for (signing step 4, regard): you've heard them and hold a number
+	/// that reaches them, so you can tell them about the night. The label takes no commission on a favour.</summary>
+	public bool CanPutInAWord(SimulatedArtist act) => Label != null && act != null && string.IsNullOrEmpty(act.labelId) &&
+		act.lifecycleStatus == ArtistLifecycleStatus.Active && HasScoutingEvidence(act.artistId) && ActNumber(act.artistId) != null;
+
+	/// <summary>Unsigned acts you could put in a word for, for the booking form.</summary>
+	public IReadOnlyList<SimulatedArtist> FavourActs() => scoutingKnowledge.ActNumbers == null ? Array.Empty<SimulatedArtist>()
+		: scoutingKnowledge.ActNumbers.Select(n => n.ArtistId).Distinct().Select(id => ArtistManager.Instance?.GetArtist(id))
+			.Where(CanPutInAWord).OrderBy(a => a.stageName, StringComparer.Ordinal).ToList();
+
 	public const int BookerPitchHours = 1;
 	/// <summary>The booker is in from mid-afternoon until his room closes.</summary>
 	public const int BookerFromHour = 14;
@@ -113,7 +123,12 @@ public partial class PlayerDesk {
 		SceneRoomProfile room = SceneRoomCatalog.Get(roomId);
 		if (room == null || !room.IsPerformance) { message = "That room doesn't book acts."; return false; }
 		SimulatedArtist act = ArtistManager.Instance?.GetArtist(artistId);
-		if (act == null || act.labelId != Label.labelId) { message = "That act isn't on your roster."; return false; }
+		bool favour = act != null && act.labelId != Label.labelId && CanPutInAWord(act);
+		if (act == null || act.labelId != Label.labelId && !favour) {
+			message = act != null && string.IsNullOrEmpty(act.labelId)
+				? $"You'd need a way to reach {act.stageName} to tell them about a night: hear them, and get a number."
+				: "That act isn't on your roster."; return false;
+		}
 		if (LocalScenePersistenceService.SceneIdFor(CurrentCityId) != room.PlaceId) { message = $"You have to be in town to see the booker at {room.Name}."; return false; }
 		var clock = TimeManager.Instance;
 		if (clock == null || clock.CurrentHour < BookerFromHour || clock.CurrentHour >= room.CloseHour) {
@@ -155,7 +170,10 @@ public partial class PlayerDesk {
 			return true;
 		}
 		LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = roomId, ArtistId = artistId, LabelId = Label.labelId, Day = day, Status = SceneBillStatus.Scheduled, Note = "Promised; goes on the bill when the week is drawn up." });
-		message = $"{room.ContactName} pencils {act.stageName} in at {room.Name} on {night}. The door money is the band's, less your {LocalSceneRoomService.BookingCommissionRate:P0} if they play; it goes on the bill when that week's drawn up.";
+		message = favour
+			? $"{room.ContactName} pencils {act.stageName} in at {room.Name} on {night} on your word. You ring {ActNumber(artistId).PersonName} to tell them. " +
+				"It's a favour: the door money is all theirs, and it goes on the bill when that week's drawn up."
+			: $"{room.ContactName} pencils {act.stageName} in at {room.Name} on {night}. The door money is the band's, less your {LocalSceneRoomService.BookingCommissionRate:P0} if they play; it goes on the bill when that week's drawn up.";
 		Note(message);
 		Changed?.Invoke();
 		return true;
