@@ -471,10 +471,10 @@ public partial class PlayerDesk : Node {
 
 		talk.objectionAxis = ObjectionAxisFor(talk, CurrentOffer(talk));
 		talk.capabilityObjection = clears || HardLineBroken(talk, CurrentOffer(talk)).HasValue ? null : CapabilityObjectionFor(talk, CurrentOffer(talk));
-		string line = clears ? "He doesn't move much, but he doesn't hang up either. " + RivalOfferObjectionLine(talk)
-			: talk.capabilityObjection.HasValue
-			? "He doesn't move much, but he doesn't hang up either. " + CapabilityObjectionLine(talk)
-			: "He doesn't move much, but he doesn't hang up either.";
+		string holds = $"{TableSpeaker(talk.Artist, talk.ask, out _)} doesn't move much, but doesn't get up from the table either.";
+		string line = clears ? holds + " " + RivalOfferObjectionLine(talk)
+			: talk.capabilityObjection.HasValue ? holds + " " + CapabilityObjectionLine(talk)
+			: holds;
 		talk.log.Insert(0, line);
         if (!talk.IsRenewal) RememberScoutingBusinessStatement(talk.prospect,
             NextScoutingBusinessOccurrence(talk.prospect, "hold-response"), ScoutingBusinessStatementKind.Objection, line);
@@ -573,9 +573,8 @@ public partial class PlayerDesk : Node {
 
 	private string ObjectionLine(ContractTalk talk, ContractTermSheet offer) {
 		ContractAxis axis = talk.objectionAxis ?? ContractAxis.Advance;
-		string manager = talk.ask.ManagerName;
-		string who = string.IsNullOrEmpty(manager) ? "They" : manager;
-		string wants = who == "They" ? "want" : "wants";
+		// Said by the person across the table (PlayerDesk.TheTable), often the manager: the act is "they", never his own name.
+		const string who = "They", wants = "want";
 
 		float trueGap = Mathf.Max(0f, 1f - AxisTerm(axis, offer, talk.ask));
 		float unit = StableNegotiationUnit(Label?.labelId ?? "", talk.Artist.artistId, talk.roundsPlayed);
@@ -697,9 +696,8 @@ public partial class PlayerDesk : Node {
 		}
 		PendingRenewal = offer;
 
-		message = posture != NegotiationPosture.Pushover
-			? $"{artist.stageName} wants to talk terms for the new deal. {ask.DemandSummary}"
-			: string.IsNullOrEmpty(ask.DemandSummary) ? $"Put new paper in front of {artist.stageName}." : ask.DemandSummary;
+		// The ask is said across the table (PlayerDesk.TheTable), not in a toast.
+		message = $"You sit down with {TableSpeaker(artist, ask, out _)} about {artist.stageName}'s new paper.";
 		Changed?.Invoke();
 		return true;
 	}

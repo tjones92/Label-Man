@@ -265,6 +265,42 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 - **Not yet seen in a check:** the Suit's ask line and the Fixer. Nearly every act heard on day one is already
   signed, and rival word takes days to arrive.
 
+### 3.9 Built: The Table (2026-11-26)
+- **Somebody sits across the sheet** (`PlayerDesk.TheTable.cs`, `PlayerDeskPanel.TheTable.cs`). The manager when the
+  act has one ("Sol Kramer, their personal manager, sits down across the table from you, for Wilson 'n' the Gems"),
+  else the member who talks for them (the same `SpeakerFor` as The Talk). A renewal opens on the old paper running out.
+  It's drawn above the carbon sheet on all three contract screens: the easy signing, the negotiation and the renewal.
+- **The ask is a line, not a toast.** Each manager kind says it in its own manner: the hustler wants to shake on it
+  tonight, the shark wants it up front and the paper short, the Svengali keeps the reins and a longer term, the
+  visionary keeps the publishing. Every term is in the line: advance, points, years, sides owed, publishing, last word.
+  The "Their ask: …" lines and the DemandSummary toast are gone; the toast now says who you sit down with. A renewal's
+  remembered grievance (a cheap signing, a broken promise) follows as narration.
+- **Royalties are written as the form types them** ("3.25%", not "3.2%").
+- **Voices**, gated like the Rolodex:
+  - *Suit*: the advance against what acts from that kind of room ask (3); your cash and the roster slot (4); at 5, the
+    term they'll fight for, from the same weights the acceptance check uses, or the hard line on publishing, or that an
+    eager hustler takes less than he asks. A renewal compares the new points with the old paper's.
+  - *Fixer*: real rival paper or asking-around that has reached you (shared with The Set and The Talk). When the act
+    says it believes a bigger label could want it and no offer stands behind that, the Fixer calls it a hope.
+- **What they say back comes across the table.** Objections, counters and the hold-firm narration are split from the
+  talk's log into spoken lines and narration in the same transcript. HE COUNTERS became WHAT DO YOU SAY. Objection lines
+  no longer have the manager say his own name ("Sol Kramer wants more money"); hold-firm names who is across the table.
+- **Check:** `SimTools/TheTableChecks.tscn`: 43 checks, Nashville, seed 1001. The speaker and ask, every manager kind ×
+  publishing × control carrying every term in its manner, silence at 1, Suit 3/4/5 building on each other, the Fixer's
+  hope line, a member speaking when there's no manager, building the scene twice the same with save and world hashes
+  unchanged, the objection said by the manager, and the page drawing it without the old lines.
+- **Regression (seed 1001):** pass: `--scouting-terms-check` 42, `--scouting-contract-outlook-check` 63,
+  `--scouting-session-promise-check` 65, `--scouting-contract-continuity-check` 50, `--scouting-offer-planning-check` 27,
+  `--scouting-appointment-check`, `--signing-moment-check` 20, `TheTalkChecks` 126, `TheSetChecks` 91,
+  `FirstWeekUiChecks` 18, `ConnieChecks` 49. **Failing, and failing the same at 5cd69f3 without this change:**
+  `--scouting-rival-courtship-check` ("a major prices an unknown act at its going rate plus the major's premium") and
+  `--scouting-credible-offers-check` (its fixture finds no terms that clear the act but lose to the rival). Both read
+  the AI side, so they're likely from step 8's world default; not looked into here. The SaveLoadRoundTripRunner checks
+  run out of memory when the box is short of commit memory (they serialize the whole world to one string); rerun
+  them alone.
+- **Not reached in the check:** the hold-firm narration (holding firm on the shark's first objection, he walked, as an
+  impatient act does), and the Fixer on real paper (no rival offer on day one).
+
 ## 4. Order of work
 
 | # | Piece | Touches the sim? | Check |
@@ -272,7 +308,7 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 | 1 | Declutter + copy pass (§3.1) | No | `ScoutingUiChecks`, `FirstWeekUiChecks` (target names shrink to one each) |
 | 2 | The Set (§3.2) — **built** (§3.8) | No (reads existing outputs) | `TheSetChecks`: Ear 1 / 3 / 5 lines |
 | 3 | The Talk (§3.3) — **built** (SigningRealismBreakdown.md §12) | No (existing verbs) | Every old modal verb is reachable as a line |
-| 4 | The Table (§3.4) | No | `ScoutingTermsChecks` |
+| 4 | The Table (§3.4) — **built** (§3.9) | No | `TheTableChecks`; `ScoutingTermsChecks` |
 | 5 | T3 on the scenes (§3.5) | No | Re-run `FirstWeekUiChecks`; the bot must **choose** an act (e.g. by the best Ear read) instead of following a glow |
 | 6 | Objections, fog (§3.6) | Player-only outcomes | Own screen |
 

@@ -297,7 +297,7 @@ public partial class PlayerDesk {
         else lines.Add("They aren't working much right now.");
         if (offerLine != null) lines.Add(offerLine);
         if (believesInRival)
-            lines.Add("They believe a label with wider distribution could take an interest in them, and they'd want to hear it out. No offer has been made that you know of.");
+            lines.Add(RivalBeliefLine);
         else if (willWait)
             lines.Add("They're in no hurry. They'd sooner wait for a label with a name than sign the wrong paper.");
         if (ambition >= 0.70f) lines.Add("They care what happens to their songs.");
@@ -331,10 +331,8 @@ public partial class PlayerDesk {
 
     /// <summary>The capability objection: what they say when the terms are not the problem, the label is.</summary>
     private static string CapabilityObjectionLine(ContractTalk talk) {
-        string manager = talk.ask.ManagerName;
-        string who = string.IsNullOrEmpty(manager) ? "They" : manager;
         return talk.capabilityObjection switch {
-            CapabilityAxis.Reach => $"\"{who} need{(who == "They" ? "" : "s")} to know who gets the record into shops past this town. Nobody's heard of your distribution.\"",
+            CapabilityAxis.Reach => "\"They need to know who gets the record into shops past this town. Nobody's heard of your distribution.\"",
             CapabilityAxis.Promotion => "\"Nobody's heard of your label. Who's going to push the record once it's out?\"",
             CapabilityAxis.Recording => "\"How do they know there's money for a proper session? Paper's cheap.\"",
             CapabilityAxis.Attention => "\"They're doing all right on their own. What would you actually do for them that they can't?\"",

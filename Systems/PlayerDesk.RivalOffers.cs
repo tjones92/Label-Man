@@ -241,10 +241,9 @@ public partial class PlayerDesk {
     /// <summary>The act's side of a rival offer, said at the table. Facts the act holds; nothing hidden.</summary>
     private string RivalOfferObjectionLine(ContractTalk talk) {
         var offer = PendingOffer(talk.Artist.artistId);
-        string who = string.IsNullOrEmpty(talk.ask.ManagerName) ? "They" : talk.ask.ManagerName;
         return offer == null ? "\"There's other paper on the table. Yours has to beat it.\""
             : $"\"{offer.RivalLabelName} has put paper in front of us: {RivalTermsText(offer.Terms)}. " +
-              $"{(who == "They" ? "We" : who)} answer{(who == "They" ? "" : "s")} them by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. " +
+              $"We answer them by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. " +
               "Beat it, or show us why you're the better home.\"";
     }
 

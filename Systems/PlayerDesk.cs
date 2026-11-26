@@ -2182,11 +2182,8 @@ public partial class PlayerDesk : Node {
         StartScoutingBusinessDiscussion(prospect);
         RememberScoutingNegotiation(prospect);
 
-		message = prospect.Posture != NegotiationPosture.Pushover
-			? $"{prospect.Artist.stageName} wants to talk terms. {prospect.Baseline.DemandSummary}"
-			: string.IsNullOrEmpty(prospect.Baseline.DemandSummary)
-				? $"Table an offer for {prospect.Artist.stageName}."
-				: prospect.Baseline.DemandSummary;
+		// The ask itself is said across the table (PlayerDesk.TheTable), not in a toast.
+		message = $"You sit down with {TableSpeaker(prospect.Artist, prospect.Baseline, out _)} to talk terms.";
 		if (!string.IsNullOrEmpty(yes)) message = yes + " " + message;
 		Changed?.Invoke();
 		MarkFirstWeekTerms();

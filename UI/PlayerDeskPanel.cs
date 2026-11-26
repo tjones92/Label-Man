@@ -1220,8 +1220,7 @@ public partial class PlayerDeskPanel : Control {
 		ContractTermSheet b = prospect.Baseline;
 		ContractTermSheet prefill = prospect.Draft ?? b;
 		Heading($"CONTRACT — {prospect.Artist.stageName.ToUpperInvariant()}");
-		if (!string.IsNullOrEmpty(b.DemandSummary))
-			Body($"Their ask: {b.DemandSummary}");
+		RenderTable(PlayerDesk.Instance.BuildTableScene(prospect));
 		OutlookBlock(PlayerDesk.Instance.ContractOutlookLines(prospect.Artist, renewal: false));
 		Body(prospect.PushoverCountered
 			? "They've named their number. Put it forward again, or step back -- a second offer under it and they walk."
@@ -1428,26 +1427,9 @@ public partial class PlayerDeskPanel : Control {
 	private void NegotiationScene(ContractTalk talk) {
 		string verb = talk.IsRenewal ? "RENEWING" : "NEGOTIATING";
 		Heading($"{verb} — {talk.Artist.stageName.ToUpperInvariant()}  ({talk.posture.ToString().ToUpperInvariant()})");
-		if (talk.roundsPlayed == 0) Body(talk.ask.DemandSummary);
+		// Who's across the table, their ask in their own words, the voices, and everything said since.
+		RenderTable(PlayerDesk.Instance.BuildTableScene(talk));
 		OutlookBlock(talk.outlookStated);
-
-		if (talk.log.Count > 0) {
-			var frame = new PanelContainer();
-			frame.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-				BgColor = new Color("e7d8b4"), ContentMarginLeft = 12, ContentMarginRight = 12,
-				ContentMarginTop = 10, ContentMarginBottom = 10,
-			});
-			var box = new VBoxContainer();
-			box.AddThemeConstantOverride("separation", 6);
-			frame.AddChild(box);
-			content.AddChild(frame);
-			foreach (string line in talk.log.Take(4)) {
-				var lbl = new Label { Text = line, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-				lbl.AddThemeFontSizeOverride("font_size", 15);
-				lbl.AddThemeColorOverride("font_color", Ink);
-				box.AddChild(lbl);
-			}
-		}
 
 		// Done is never rendered: every path that reaches it (sign or walk) clears `negotiating` and
 		// refreshes in the same handler, same as the plain ContractForm's sign button does today.
@@ -1461,9 +1443,7 @@ public partial class PlayerDeskPanel : Control {
 		string label = talk.roundsPlayed == 0
 			? $"TABLE OFFER  ({PlayerDesk.NegotiationRoundHours}h)"
 			: $"TABLE AGAIN  ({PlayerDesk.NegotiationRoundHours}h)";
-		Body($"Their ask: ${talk.ask.Advance:N0}, {talk.ask.RoyaltyRate:P1}, {Plural.Of(talk.ask.TermYears, "year")}, " +
-			$"{Plural.Of(talk.ask.SinglesObligation, "single")}{(talk.ask.LabelOwnsPublishing ? "" : ", they keep the publishing")}{(talk.ask.ArtistCreativeControl ? ", they hold creative control" : "")}. " +
-			$"Each table round costs {PlayerDesk.NegotiationRoundHours} hours.");
+		Body($"Each table round costs {PlayerDesk.NegotiationRoundHours} hours.");
 		Body(talk.draftOffer.HasValue ? "The last meeting could not be held; your entered terms are still below." :
 			talk.roundsPlayed == 0 ? "These fields start on your label's standard paper: you keep the publishing and have the final word. Their ask is above; every give you tick is a concession." : "These fields start with your last offer. Change any term before putting it back on the table.");
 		if (talk.sessionPromised) {
@@ -1535,14 +1515,9 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	private void NegotiationObjection(ContractTalk talk) {
-		Heading("HE COUNTERS");
+		// What they said is the last line of the table's transcript, above.
+		Heading("WHAT DO YOU SAY");
 		ContractTermSheet current = PlayerDesk.CurrentOffer(talk);
-        var stand = new Label {
-            Text = talk.log.FirstOrDefault() ?? "They have not accepted this package. Consider their stated objection and counterterms.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        };
-		stand.AddThemeColorOverride("font_color", Heard);
-		content.AddChild(stand);
 
 		NegotiationCounterButton(talk, ContractCounter.SweetenAxis,
 			"SWEETEN IT", talk.capabilityObjection.HasValue
@@ -1711,7 +1686,7 @@ public partial class PlayerDeskPanel : Control {
 		if (offer.Posture != NegotiationPosture.Pushover) { NegotiationScene(offer.Talk); return; }
 
 		Heading($"RENEW — {offer.Artist.stageName.ToUpperInvariant()}");
-		if (!string.IsNullOrEmpty(offer.Ask.DemandSummary)) Body($"Their ask: {offer.Ask.DemandSummary}");
+		RenderTable(PlayerDesk.Instance.BuildTableScene(offer));
 		OutlookBlock(PlayerDesk.Instance.ContractOutlookLines(offer.Artist, renewal: true));
 		Body("Your terms are shown below. The meeting costs " +
 			$"{PlayerDesk.NegotiationRoundHours} hours; the advance is charged when they sign.");
