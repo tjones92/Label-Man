@@ -168,6 +168,21 @@ industry's size, not the scene's. Options: raise the enabled unsigned reserve pe
 `SceneRecruitmentService`/formation seed local-only acts weighted to scene towns. This moves the formation servo and
 the labour market, so it's a decade-A/B change. Build only if (a) measures short.
 
+**(a′) A signed act on a national push gives up its weeknight residency** (author, 2026-11-25: "a truly national act
+is going to focus on tours or label engagements, not residencies"). This is the lever step 8 starts from, ahead of the
+broader (a). §12 found that residencies are where the signed share lives (67% signed, against 49% of other slots;
+Detroit 101 of 102), while (a) as written reaches only 17.6% of slots. The act keeps one-off dates and its label's
+rooms; it stops being a room's standing Tuesday-to-Saturday resident, and `OfferEngagements` passes the slot to the
+next resident by `BookingWeight`.
+- **Measure first:** the reputation and live-performance gap between signed and unsigned residents (does the freed
+  slot go to an unsigned act of similar strength, or does the room's history keep handing it to another signed act?),
+  and how many residencies a signed act holds after its first release.
+- **What "national push" means** still needs defining from real state, e.g. a national release on the label's
+  distribution, a charted record, or Established and above. Not a regional single on a local label.
+- **Touring is separate work.** Here the act just leaves the residency; where it goes instead isn't modelled. Don't
+  build a tour schedule as part of step 8.
+- Moves audience attribution and the live-draw recognition deposit, so it needs the AI CSV A/B like (a).
+
 ### 3.6 The pull: making you *want* to go see somebody
 The audit's Set and Talk scenes give the moment. What's missing is the **reason to travel** before you've heard
 anyone. From real state, through sources that could know (`SceneInformationService` / `SceneSources`):
@@ -189,10 +204,10 @@ The NEXT SETS list then answers "who's worth the hour?" with leads, not a sorted
 | 2 | **Disposition + reasons** — **built**, see §8 | No (player-only) | New `DispositionChecks`: every disposition reachable, reasons name real state, same state → same answer; AI CSVs byte-identical |
 | 3 | **Immediate answers + direct signing from Latent** — **built**, see §9 — for agreeing acts; band talks-it-over tied to the next real set | Player worlds only | Rival-contest rate before/after; first signing day in the opening (today day 1–8) |
 | 4 | **Regard ledger** — **built**, see §11 — from existing verbs; Careful wants named as verbs | No | Every regard source moves the line it should |
-| 5 | **The Talk** (audit §3.3) built on 2–4: opening line by disposition, wants as script lines | No | Audit §4 row 3 |
-| 6 | **Signed as a clock** (§3.4): Street contract read, watch item, the call at expiry | No (reads expiry decisions) | An act let go after regard calls the player |
+| 5 | **The Talk** — **built**, see §12 — (audit §3.3) built on 2–4: opening line by disposition, wants as script lines | No | Audit §4 row 3 |
+| 6 | **Signed as a clock** — **built**, see §13 — (§3.4): Street contract read, watch item, the call at expiry | No (reads expiry decisions) | An act let go after regard calls the player |
 | 7 | **Leads** (§3.6) from scene sources | No | Leads name real draw/residency facts; low Street misreads |
-| 8 | **World booking (a)**, then **(b)** only if (a) measures short | **Yes** | Own screen: bills composition + AI CSV A/B |
+| 8 | **World booking**: residency surrender on a national push (§3.5 a′) first, then broader (a), then **(b)** only if they measure short | **Yes** | Own screen: residency composition + signed/unsigned resident strength gap + AI CSV A/B |
 | 9 | Later: the holdout member, courtship objections (audit §3.6) | Player-only outcomes | Own screen |
 
 Steps 1–7 are player-side: AI-only CSVs should stay byte-identical, and one byte-comparison at the end of step 7
@@ -703,3 +718,118 @@ a rule are keyed on the act's id (as `ConfigureEasyListeningBandleader` does), s
   isn't sure yet", said by June). That's a step-3 wording issue; the holdout beat is step 9.
 - **The "hearing" threshold (5) and the weights are authored.** Nothing measures how often a player reaches them in
   an opening.
+
+## 12. Step 5 built: The Talk (2026-11-25)
+
+### What changed
+- **`Systems/PlayerDesk.TheTalk.cs`, `UI/PlayerDeskPanel.TheTalk.cs`.** TALK TO THEM (from the card or The Set) no
+  longer opens the six-button modal. The conversation takes the A&R page, the way a call takes the Rolodex (audit §5
+  decision 1). `BuildTalkScene` is a pure read; the evening's transcript is kept in memory and dropped when you end the
+  conversation, so nothing is saved.
+- **Who and how.** The setting says whether you caught them after the set, rang a number, or are only looking them
+  up. Their spokesperson (`SpeakerFor`) opens with a line chosen by where things stand:
+  - signed elsewhere: who with, and "ask what you like"
+  - a yes: "We meant what we said", plus the step still to take
+  - a no that holds, a request you haven't met, or a let-down act: they say so
+  - shopping themselves: "We're looking for a deal"
+  - nobody's asked yet: their manner follows the disposition (hungry: "We've been hoping somebody would come out";
+    careful: "Which one?"; comfortable: "Thanks for staying for the set"), led by what they remember of you
+  - a family manager is named (§10 decision 2)
+- **The voices.** The Street reads what they want, gated like the Rolodex: a hint from 3, the reason from 4 ("Day jobs,
+  the lot of them. A record's the way out."), the frictions from 5 (a minor, a holdout, a manager who'll want a
+  sit-down). The Fixer's rival read is now shared with The Set (`FixerRivalRead`).
+- **What you say**, each an existing verb with its cost or why not underneath:
+
+  | Line | Verb |
+  |---|---|
+  | "Would you hear an offer from us?" | `ApproachToSign` (the ask) |
+  | "Let's sit down on terms." | `ApproachToSign` (terms open; the contract takes the page) |
+  | "I'll come to Sunday dinner…" / "I'll sit down with Sol Kramer." | `TakeApproachStep` (step 3's verbs, now in the conversation) |
+  | "Who've you dealt with before?" (Suit) | `AskScoutingBusinessHistory` |
+  | "Can I hear you rehearse, somewhere quieter?" (Ear) | rehearsal invitation |
+  | "Put a song on tape for me, at my place." (Ear) | demo invitation |
+  | "Can we sit down properly this week, just us?" | return meeting |
+  | "How do I reach you?" (Street) | `AskActForNumber` |
+  | "When are you on next?" (Street) | answered from the posted calendar, free |
+  | "Give me a week." (Fixer) | `HoldWithHandshake`, only where the act has a legacy watch entry |
+
+  The answer comes back into the transcript, not a toast. An act signed elsewhere is offered only its history and its
+  number.
+- **The old modal is gone** (`OpenScoutingConversation`, `ScoutingMeetingInvitation`). T3's glow now finds The Talk's
+  lines first on the Ask, Answer and Terms steps.
+- **Regard openers never quote tonight.** "You were at River Lantern Friday, weren't you?" was being said right after
+  the only set heard. `RegardOpener` now takes a day and uses only what happened before it, in The Talk and in the ask.
+
+### Checks (seed 1001)
+- **`SimTools/TheTalkChecks.tscn`, new, 126 checks** (`--talk-city=`, Detroit by default). It hears the opening days'
+  sets and builds the talk right after each one, at voices 1, 3 and 5. Every talk opens with a real member speaking.
+  Building it twice gives the same scene and moves no world or player state. Every voice is silent at 1, and the
+  Street's deep read builds on its hint. An act signed elsewhere says who with and gets no ask. For every free act
+  heard, the ask, their history, a rehearsal, a demo, a return meeting, their number and their next date are all lines
+  (audit §4 row 3), each with its cost or why not. Saying "when are you on next?" costs nothing and is answered in the
+  transcript. The ask is the desk's own ask, and its answer lands in the transcript. When terms open, The Talk hands
+  over the contract. Ending the talk drops the transcript. On the A&R page: they open, every line is there and greyed
+  exactly when it can't be said, a pressed line's answer appears, and END THE CONVERSATION goes back to the notebook.
+- **Updated:** `ScoutingUiChecks` 74 (72): its two conversation legs now read The Talk's lines on the page.
+- **Pass unchanged:** `DispositionChecks` 82, `TheSetChecks` 92, `FirstWeekUiChecks` 13, `ConnieChecks` 49,
+  `--scouting-runway-check` 213 (31 cities, thin=0), `--scouting-appointment-check` 61.
+- **AI byte-comparison:** not run; still planned for the end of step 7. Presentation only, apart from the opener's day.
+
+### Found while building it: who closes Detroit's nights
+The first TheTalkChecks run heard only signed acts on Detroit's first day. From the probe's slot log
+(`SimLogs/signing-availability.csv`, seed 1001, 56 days):
+- Detroit's first day has two rooms. The Club runs two unsigned acts under a signed resident (a MidTier Star, 19
+  charted). The Roadhouse's whole bill is signed, all three to Boutique labels. The check walked the Roadhouse first and
+  ran out of evening. So the first night is 4 of 6 signed, not 6 of 6.
+- **Residencies are where the signed share lives.** Nearly every closing set is a resident (102 of Detroit's 104; `NightOrder` puts a regular on
+  last). In Detroit, 101 of 102 residency slots are signed acts, against 49% of the other slots. Across all towns,
+  residencies are 67% signed and other slots 49%.
+- **It's town by town.** Residency slots signed vs unsigned: Cleveland 106/0, Omaha 151/4, Boston 100/8, Detroit
+  101/1, Los Angeles 93/7; but Portland 13/117, Salt Lake City 8/113, Seattle 30/86, San Antonio 50/86, Phoenix 47/71.
+- **Why (from the code; not yet measured):** `OfferEngagements` gives a room's two standing engagements to its
+  strongest working residents by `BookingWeight` (live performance + reputation, times the room's history with the act).
+  Where AI labels have already signed a town's best working acts, the residents are signed acts. A label signing an act
+  doesn't appear to take it out of the rooms, so it keeps its residency. The towns with many opening labels (Detroit, Cleveland,
+  Boston, New York) show this most; the thin-label western towns least.
+- **What it means for §3.5:** lever (a) (national acts leave the small rooms) only reaches 17.6% of slots. A narrower,
+  more period-true lever is the residency itself: a signed act on a national push wouldn't hold a Tuesday-to-Saturday
+  at a roadhouse. To measure next: the reputation and live-performance gap between signed and unsigned residents, and
+  how many residencies a signed act holds after its first release. That's world booking, so it belongs to step 8 and
+  needs an AI A/B. **Author agreed (2026-11-25); written up as §3.5 (a′), the first lever for step 8.**
+
+## 13. Step 6 built: signed as a clock (2026-11-25)
+
+`Systems/PlayerDesk.SignedClock.cs`. A signed act isn't a dead end; it's a deal with a date on it.
+
+- **The Street reads their paper in The Talk.** At 3: the label, the sides out under this deal, and what charted
+  ("They're with Midtown Records. Nothing out yet."). At 4, when it's up: "Deal's up in December 1961, or sooner if
+  they deliver the sides they owe." At 5, what the label will likely do and why. The read follows
+  `RosterManager.ShouldResignArtist`: a star, a rising act with momentum, an established act still selling, or a Top 40
+  under this deal gets kept; a declining act, or a new signing with two sides and nothing to show, gets let go; anything
+  else could go either way. It's a read, not an oracle: it can't see the label's money or its loyalty roll.
+- **"I'll keep an eye on you."** A free line in The Talk for an act on another label, answered in the transcript. Up
+  to six at once; "Good luck with it. I'll stop keeping tabs." undoes it. The card says you're watching, with the
+  clock (and the Street's read from 3).
+- **The reminder.** Eight weeks before a watched term ends, the ledger notes it once per deal, with the Street's read
+  from 3. A renewal or a move to a bidder is noted too, and the watch carries on.
+- **The call.** `RosterManager.ContractEndObserver` (new) tells the desk how each matured AI contract ended, right after
+  the decision. When the label lets an act go, the act rings the office first if you were watching it and it knew your
+  face then or now, or if it's friendly with you today. It never calls if it feels let down. Its number goes in your
+  book. The talk opens "Midtown Records let us go. We wanted you to hear it from us first." Other labels can't sign it
+  for a week (the same `SetPlayerHold` as a handshake), set inside the AI's pass so no market reaches it first. After a
+  week, it's talking to other labels. A stranger the label lets go doesn't call.
+- **Why watching freezes regard:** regard fades after 30 days apart, and a deal runs one to three years. Without the
+  freeze, nobody would ever call. Saying you'd keep an eye on them is what they remember.
+- **Save:** `PlayerSaveData.SignedWatches`, null in older saves. Restore puts back the holds of acts still waiting on
+  your call.
+
+**Touches the AI:** only the hold on an act that called, and only in a world with a player label. With no label the
+observer returns at once. Steps 1–7 still owe their one AI byte-comparison at the end of step 7.
+
+### Checks (seed 1001)
+- **`SimTools/SignedClockChecks.tscn`, new, 39 checks.** It hears a signed act on Detroit's opening day (The Ridge
+  Fiddlers, Midtown Records). Then: the Street says nothing at 1, the paper at 3, the clock at 4, and the likely call at
+  5. Building the talk moves nothing, and there's still no ask or handshake. Watching is answered in the transcript and
+  shows on the card. No reminder months out, then exactly one. A renewal keeps the watch. When the label lets them go,
+  they call: a number, a hold, the opening line, the card. The call and hold survive a save. A stranger doesn't call.
+  After a week the hold lifts.

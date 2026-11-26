@@ -113,9 +113,10 @@ public partial class PlayerDeskPanel {
 	/// <summary>The buttons each line points at, best first. The first one on screen glows; only ever one.</summary>
 	private static string[] FirstWeekTargets(FirstWeekStep step) => step switch {
 		FirstWeekStep.Hear => new[] { "LISTEN", "GO & WAIT" },
-		FirstWeekStep.Ask => new[] { "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
-		FirstWeekStep.Answer => new[] { "MEET THE FAMILY", "SIT DOWN WITH THE MANAGER", "END THE DAY" },
-		FirstWeekStep.Terms => new[] { "SIT DOWN ON TERMS", "TALK TO THEM" },
+		// The Talk's lines (PlayerDesk.TheTalk) lead when the conversation has the page.
+		FirstWeekStep.Ask => new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms.", "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
+		FirstWeekStep.Answer => new[] { "▸  I'll come to Sunday dinner", "▸  I'll sit down with", "MEET THE FAMILY", "SIT DOWN WITH THE MANAGER", "END THE DAY" },
+		FirstWeekStep.Terms => new[] { "▸  Let's sit down on terms.", "SIT DOWN ON TERMS", "TALK TO THEM" },
 		FirstWeekStep.Sign => new[] { "TABLE OFFER" },
 		_ => new[] { "TO THE ROSTER", "TAKE INTO STUDIO", "RETURN TO STUDIO" },
 	};

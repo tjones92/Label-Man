@@ -171,7 +171,7 @@ public partial class PlayerDeskPanel {
         else if (artist != null) {
             var talk = ScoutingSmallButton("TALK TO THEM");
             talk.TooltipText = "They're under contract, but you can still ask about their past label decisions.";
-            talk.Pressed += () => OpenScoutingConversation(desk, dossier); content.AddChild(talk);
+            talk.Pressed += () => OpenTheTalk(desk, dossier); content.AddChild(talk);
         }
         ScoutingNotebookStrip(desk, dossier, artist);
         ScoutingSection("scout-more:" + dossier.ArtistId, "MORE  —  NEXT LISTEN  ·  ASK AROUND", false, () => {
@@ -301,7 +301,7 @@ public partial class PlayerDeskPanel {
             if (ok) negotiating = current;
             Say(result, ok); Refresh(); return;
         }
-        OpenScoutingConversation(desk, dossier);
+        OpenTheTalk(desk, dossier);
     }
 
     /// <summary>The card's one primary verb, named for the next real step: TALK TO THEM (ask, arrange a meeting, get a

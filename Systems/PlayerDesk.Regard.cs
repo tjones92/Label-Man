@@ -56,10 +56,11 @@ public partial class PlayerDesk {
 	/// <summary>A comfortable act will hear you out from here.</summary>
 	public const int HearingRegard = 5;
 
-	/// <summary>How the act regards your label today. Null without a label or an act.</summary>
-	public RegardRead ReadRegard(SimulatedArtist artist) {
+	/// <summary>How the act regards your label today, or as it stood on <paramref name="asOf"/> (what they remember of
+	/// you from then). Null without a label or an act.</summary>
+	public RegardRead ReadRegard(SimulatedArtist artist, int? asOf = null) {
 		if (Label == null || artist == null) return null;
-		int today = SceneDay;
+		int today = asOf ?? SceneDay;
 		var r = new RegardRead();
 		var obs = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artist.artistId)?.Observations ?? new();
 
@@ -109,8 +110,8 @@ public partial class PlayerDesk {
 	public static int RegardWanted(DispositionRead read) => read?.Reason == DispositionReason.DroppedBefore ? BurnedRegard : CarefulRegard;
 
 	/// <summary>What the act says first, from the thing it remembers best (or worst, when you let it down), as the words
-	/// inside the speaker's quote. Null for a stranger.</summary>
-	public static string RegardOpener(RegardRead r) {
+	/// inside the speaker's quote. Null for a stranger, or when nothing good happened before <paramref name="before"/>.</summary>
+	public static string RegardOpener(RegardRead r, int? before = null) {
 		if (r == null || r.Level == RegardLevel.Stranger) return null;
 		var worst = r.Contacts.Where(c => c.Points < 0).OrderBy(c => c.Points).ThenByDescending(c => c.Day).FirstOrDefault();
 		if (r.LetDown && worst != null) return worst.Kind switch {
@@ -118,7 +119,8 @@ public partial class PlayerDesk {
 			RegardSourceKind.LetTheirYesLapse => "We said yes to you once, and then we never heard from you.",
 			_ => "You called off on us."
 		};
-		var best = r.Contacts.Where(c => c.Points > 0).OrderByDescending(c => c.Points).ThenByDescending(c => c.Day).FirstOrDefault();
+		// Nobody says "you were here Friday" about tonight: only what happened before <paramref name="before"/> counts.
+		var best = r.Contacts.Where(c => c.Points > 0 && (before == null || c.Day < before)).OrderByDescending(c => c.Points).ThenByDescending(c => c.Day).FirstOrDefault();
 		if (best == null) return null;
 		string day = LocalSceneRoomService.Date(best.Day).DayOfWeek.ToString();
 		return best.Kind switch {

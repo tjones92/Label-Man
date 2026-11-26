@@ -156,24 +156,7 @@ public partial class PlayerDesk {
 			Read(ExecutiveVoice.Suit, askLine, askLine + money, askLine + money + roster);
 		}
 
-		// THE FIXER: the operator. Only when another label's interest is real and word of it has reached you.
-		var offer = rivalOffers.Where(o => o.ArtistId == artistId && o.Status == RivalOfferStatus.Pending && o.Disclosure != RivalOfferDisclosure.Unknown)
-			.OrderBy(o => o.KnownDay).LastOrDefault();
-		var courtship = rivalCourtships.Where(c => c.ArtistId == artistId && CourtshipLive(c) && c.Known.Any(k => k.Delivered)).LastOrDefault();
-		if (offer != null)
-			Read(ExecutiveVoice.Fixer,
-				"Somebody else has an offer in front of them. Don't dawdle.",
-				$"{offer.RivalLabelName} has an offer on the table. They answer by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}.",
-				$"{offer.RivalLabelName} has an offer on the table" + (offer.Disclosure == RivalOfferDisclosure.Disclosed ? $": {RivalTermsText(offer.Terms)}" : "") +
-				$". They answer by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. That's your number to beat, and your deadline.");
-		else if (courtship != null) {
-			var word = courtship.Known.Where(k => k.Delivered).OrderBy(k => k.Day).Last();
-			Read(ExecutiveVoice.Fixer,
-				"You're not the only one sniffing around this act.",
-				$"{courtship.RivalLabelName} has been asking about them. You're not the only one in the room.",
-				$"{courtship.RivalLabelName} has been asking about them; you had it from {word.SourceName ?? "the street"}. " +
-				(courtship.Stage == RivalCourtshipStage.Meeting ? "They've already sat down together." : "No sit-down yet, as far as anybody's said."));
-		}
+		FixerRivalRead(artistId, Read);
 
 		// First-time teaching (the first-week card's first two lines): the Ear's honest verdict, at any instinct.
 		if (FirstWeekCurrent is FirstWeekStep.Hear or FirstWeekStep.Ask) {
@@ -200,5 +183,27 @@ public partial class PlayerDesk {
 		if (meeting?.SourceName is { Length: > 0 } speaker && speaker != scene.ArtistName) off += $" {speaker} does the talking for them.";
 		scene.OffStage = off;
 		return scene;
+	}
+
+	/// <summary>THE FIXER: the operator. Only when another label's interest is real and word of it has reached you. Shared
+	/// by The Set and The Talk; <paramref name="read"/> is the scene's gated voice helper.</summary>
+	private void FixerRivalRead(string artistId, Action<ExecutiveVoice, string, string, string> Read) {
+		var offer = rivalOffers.Where(o => o.ArtistId == artistId && o.Status == RivalOfferStatus.Pending && o.Disclosure != RivalOfferDisclosure.Unknown)
+			.OrderBy(o => o.KnownDay).LastOrDefault();
+		var courtship = rivalCourtships.Where(c => c.ArtistId == artistId && CourtshipLive(c) && c.Known.Any(k => k.Delivered)).LastOrDefault();
+		if (offer != null)
+			Read(ExecutiveVoice.Fixer,
+				"Somebody else has an offer in front of them. Don't dawdle.",
+				$"{offer.RivalLabelName} has an offer on the table. They answer by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}.",
+				$"{offer.RivalLabelName} has an offer on the table" + (offer.Disclosure == RivalOfferDisclosure.Disclosed ? $": {RivalTermsText(offer.Terms)}" : "") +
+				$". They answer by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. That's your number to beat, and your deadline.");
+		else if (courtship != null) {
+			var word = courtship.Known.Where(k => k.Delivered).OrderBy(k => k.Day).Last();
+			Read(ExecutiveVoice.Fixer,
+				"You're not the only one sniffing around this act.",
+				$"{courtship.RivalLabelName} has been asking about them. You're not the only one in the room.",
+				$"{courtship.RivalLabelName} has been asking about them; you had it from {word.SourceName ?? "the street"}. " +
+				(courtship.Stage == RivalCourtshipStage.Meeting ? "They've already sat down together." : "No sit-down yet, as far as anybody's said."));
+		}
 	}
 }

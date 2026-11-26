@@ -205,7 +205,7 @@ public partial class PlayerDesk {
         bool hearing = read.Kind == DealDisposition.Comfortable && regard.Score >= HearingRegard;
         if (read.Kind == DealDisposition.Comfortable && !hearing) status = ScoutingApproachStatus.Declined;
         else if (RegardShortfall(read, regard) > 0) status = ScoutingApproachStatus.WantsAnotherLook;
-        string opener = RegardOpener(regard);
+        string opener = RegardOpener(regard, today);
         string said;
         if (hearing) said = HearingLine(read, who);
         else if (status == ScoutingApproachStatus.WantsAnotherLook && read.Kind == DealDisposition.Hungry)

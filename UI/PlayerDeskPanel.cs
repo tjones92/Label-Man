@@ -1053,6 +1053,8 @@ public partial class PlayerDeskPanel : Control {
 		negotiating = null;
 		// Just heard a set: the room takes the page until the player talks to the act or lets them go.
 		if (RenderTheSet(desk)) return;
+		// Talking to an act: the conversation takes the page until you end it (signing audit §3.3).
+		if (RenderTheTalk(desk)) return;
 
 		Heading("A&R — WORK THE SCENE");
 		var scoutingTabs = new HFlowContainer();

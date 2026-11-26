@@ -1403,6 +1403,10 @@ public partial class RosterManager : Node {
 	/// <summary>Observe-only: one row per matured AI contract (ContractExpiryDecision). Null unless the audit runner subscribes.</summary>
 	public static event System.Action<ContractExpiryDecision> OnContractExpiry;
 	internal static void RaiseContractExpiry(ContractExpiryDecision d) => OnContractExpiry?.Invoke(d);
+	/// <summary>The player's desk hears how a matured AI contract ended ("renewed", "bidder", or "let-go"), after it ended:
+	/// an act it has been watching, or one with regard for the label, may call first (SigningRealismBreakdown step 6).
+	/// Reads only; nothing on the AI side waits on it. It sets a player hold only in a world with a player label.</summary>
+	public static System.Action<AILabel, SimulatedArtist, string> ContractEndObserver;
 
 	private void ProcessContractExpirations(AILabel label, GameDate date) {
 		int year = date.year;
@@ -1411,7 +1415,7 @@ public partial class RosterManager : Node {
 			(RenewalLiveEvidence.Enabled ? RenewalLiveEvidence.TermMatured(a, year, currentWeek) : IsContractMatured(a, year, currentWeek))).ToList();
 		foreach (var artist in expiring) {
 			ContractExpiryDecision decision = OnContractExpiry == null ? null : ContractExpiryDecision.Before(label, artist, year, currentWeek);
-			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) { decision?.Emit("bidder", false, false); continue; }
+			if (TrySignToStudioParentBidder(label, artist, date, currentWeek)) { decision?.Emit("bidder", false, false); ContractEndObserver?.Invoke(label, artist, "bidder"); continue; }
 			bool wantToResign = ShouldResignArtist(label, artist);
 			bool renew = HitActRenewalFinance.CanAfford(label, artist, wantToResign, date);
 			decision?.Emit(renew ? "renewed" : wantToResign ? "unaffordable" : "not-wanted", wantToResign, renew);
@@ -1434,6 +1438,7 @@ public partial class RosterManager : Node {
 				TransitionDroppedArtist(label, artist, year, ArtistDropReason.ContractExpired);
 				if (debugMode) GD.Print($"CONTRACT END: {artist.stageName} leaves {label.labelName}");
 			}
+			ContractEndObserver?.Invoke(label, artist, renew ? "renewed" : "let-go");
 		}
 	}
 	

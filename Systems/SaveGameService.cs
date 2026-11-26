@@ -356,6 +356,8 @@ public sealed class PlayerSaveData {
     public List<RivalOffer> RivalOffers { get; set; }
     /// <summary>Optional: rival courtships (inquiry, meeting, offer) and what the player heard of them (PlayerDesk.RivalCourtship).</summary>
     public List<RivalCourtship> RivalCourtships { get; set; }
+    /// <summary>Signed acts the desk is keeping an eye on, and acts that called when their label let them go (signing step 6). Null in older saves.</summary>
+    public List<SignedWatch> SignedWatches { get; set; }
     /// <summary>Optional (early-game F1): room table rights and each room's record memory. Older saves hold none.</summary>
     public List<RoomTableSaveData> RoomTables { get; set; }
     /// <summary>Optional: the early-game backer agreement, its ledger, an open offer or a standing refusal. Older saves hold none.</summary>

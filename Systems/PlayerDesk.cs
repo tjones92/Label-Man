@@ -1147,6 +1147,8 @@ public partial class PlayerDesk : Node {
 			// player's visible pursuit weights the AI's slates. Both are inert without a player label (PlayerDesk.RivalCourtship).
 			RosterManager.Instance.PlayerPursuitInterceptor = InterceptAiNomination;
 		}
+		// A watched act's deal, or one that knows you, ending at an AI label (PlayerDesk.SignedClock). Inert without a player label.
+		RosterManager.ContractEndObserver = OnAiContractEnded;
 		SceneRecruitmentService.ActVisibility = AiVisibilityWeight;
 		// Acts that agreed to think over the player's approach go back to the population owner's weekly activation pass.
 		if (ArtistManager.Instance != null) ArtistManager.Instance.DirectApproachProvider = DirectApproachIds;
@@ -1168,6 +1170,7 @@ public partial class PlayerDesk : Node {
 			if (TimeManager.Instance.LateStopProbe == StudioLateStop) TimeManager.Instance.LateStopProbe = null;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment -= OnRivalTalentMarketAppointment;
+		if (RosterManager.ContractEndObserver == OnAiContractEnded) RosterManager.ContractEndObserver = null;
 		if (Instance == this) Instance = null;
 	}
 
@@ -4882,6 +4885,7 @@ public partial class PlayerDesk : Node {
 		CollectBookingCommissions();
 		ProcessHolderOption(date);
 		ProcessRivalCrowding(date);
+		AdvanceSignedWatches(date);
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);
         ProcessContractCommitments(date);
@@ -6018,6 +6022,7 @@ public partial class PlayerDesk : Node {
             ContractCommitments = CaptureContractCommitments(),
             RivalOffers = CaptureRivalOffers(),
             RivalCourtships = CaptureRivalCourtships(),
+            SignedWatches = CaptureSignedWatches(),
             RoomTables = CaptureRoomTables(),
             Backer = CaptureBacker(),
             Lien = CaptureLien(),
@@ -6207,6 +6212,7 @@ public partial class PlayerDesk : Node {
         if (!ValidateContractCommitments(data.ContractCommitments, data.Label.labelId, out message)) return false;
         if (!ValidateRivalOffers(data.RivalOffers, data.Label.labelId, out message)) return false;
         if (!ValidateRivalCourtships(data.RivalCourtships, data.Label.labelId, out message)) return false;
+        if (!ValidateSignedWatches(data.SignedWatches, out message)) return false;
         if (!ValidateRosterDepartures(data.RosterDepartures, data.Label.labelId, out message)) return false;
         if (!ValidateStudioVisits(data.StudioVisits, out message)) return false;
         if (!ValidateStudioTrip(data.StudioTrip, out message)) return false;
@@ -6536,6 +6542,7 @@ public partial class PlayerDesk : Node {
         RestoreContractCommitments(data.ContractCommitments);
         RestoreRivalOffers(data.RivalOffers);
         RestoreRivalCourtships(data.RivalCourtships);
+        RestoreSignedWatches(data.SignedWatches);
         RestoreRoomTables(data.RoomTables);
         RestoreBacker(data.Backer);
         RestoreLien(data.Lien);

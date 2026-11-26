@@ -271,7 +271,7 @@ Keep the carbon sheet; it's the best-looking thing in the loop. Add a speaker ac
 |---|---|---|---|
 | 1 | Declutter + copy pass (§3.1) | No | `ScoutingUiChecks`, `FirstWeekUiChecks` (target names shrink to one each) |
 | 2 | The Set (§3.2) — **built** (§3.8) | No (reads existing outputs) | `TheSetChecks`: Ear 1 / 3 / 5 lines |
-| 3 | The Talk (§3.3) | No (existing verbs) | Every old modal verb is reachable as a line |
+| 3 | The Talk (§3.3) — **built** (SigningRealismBreakdown.md §12) | No (existing verbs) | Every old modal verb is reachable as a line |
 | 4 | The Table (§3.4) | No | `ScoutingTermsChecks` |
 | 5 | T3 on the scenes (§3.5) | No | Re-run `FirstWeekUiChecks`; the bot must **choose** an act (e.g. by the best Ear read) instead of following a glow |
 | 6 | Objections, fog (§3.6) | Player-only outcomes | Own screen |

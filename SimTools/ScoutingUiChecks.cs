@@ -111,10 +111,16 @@ public partial class ScoutingUiChecks : Node {
             Check(!desk.ScoutingPlayerNotes(first.ArtistId).Any(l => l.Contains("held together, with questions") || l.Contains("cannot establish consistency") || l.Contains("whole-bill")), "Player notes avoid technical verdicts");
             await Screenshot("full-notes"); fullNotes.Close(); await Frame();
             await Press("TALK TO THEM");
-            var conversation = Nodes(panel).OfType<PaperModal>().Single();
-            var invitations = Nodes(conversation).OfType<Button>().Where(b => b.Text.StartsWith("ASK FOR ") && !b.Text.StartsWith("ASK FOR THEIR NUMBER")).ToArray();
-            Check(invitations.Length == 3 && invitations.All(b => b.SizeFlagsHorizontal == Control.SizeFlags.ShrinkBegin && b.TooltipText.Length > 0), "Meeting requests live in the conversation with compact buttons and help tips");
-            await Screenshot("conversation"); conversation.Close(); await Frame();
+            // The Talk (signing audit §3.3) takes the page: what you can ask is lines you say. This act is under contract
+            // elsewhere, so there's no ask and no rehearsal or demo, but their history and their number are still lines.
+            string[] invitationLines = { "▸  Can I hear you rehearse, somewhere quieter?", "▸  Put a song on tape for me, at my place.", "▸  Can we sit down properly this week, just us?" };
+            var talkLines = Nodes(panel).OfType<Button>().Where(b => b.IsVisibleInTree() && b.Text.StartsWith("▸  ")).Select(b => b.Text).ToArray();
+            bool signedElsewhere = !string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(first.ArtistId)?.labelId);
+            Check(!Nodes(panel).OfType<PaperModal>().Any() && Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text == "END THE CONVERSATION") &&
+                (signedElsewhere ? !talkLines.Intersect(invitationLines).Any() && !talkLines.Contains("▸  Would you hear an offer from us?") && talkLines.Length > 0
+                    : invitationLines.All(talkLines.Contains)),
+                $"The Talk is on the page with the lines that fit the act ({string.Join(" / ", talkLines)})");
+            await Screenshot("conversation"); await Press("END THE CONVERSATION");
             Check(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions) == noteState, "Reading notes and opening conversation spends nothing and creates no evidence");
             await Press("MORE", true);
             OptionButton QuestionFor(string artistId) => Nodes(panel).OfType<OptionButton>().Single(o => o.HasMeta("scouting_question") && o.GetMeta("scouting_question").AsString() == artistId);
@@ -174,19 +180,20 @@ public partial class ScoutingUiChecks : Node {
             // An act already looking for a deal gets SIT DOWN ON TERMS instead, and that leads to the contract, not the talk.
             if (Nodes(panel).OfType<Button>().Any(b => b.Text == "TALK TO THEM")) {
             await Press("TALK TO THEM");
-            conversation = Nodes(panel).OfType<PaperModal>().Single();
             var newlyHeard = desk.Slate.Last().Artist.artistId;
             var rehearsalQuote = desk.PreviewScoutingInvitation(newlyHeard, ScoutingAppointmentActivity.Rehearsal);
-            var rehearsalButton = Nodes(conversation).OfType<Button>().Single(b => b.Text == "ASK FOR REHEARSAL");
-            Check(rehearsalButton.Disabled == (rehearsalQuote == null), "Conversation invitation respects the real post-set quote");
+            var rehearsalButton = Nodes(panel).OfType<Button>().Single(b => b.IsVisibleInTree() && b.Text == "▸  Can I hear you rehearse, somewhere quieter?");
+            Check(rehearsalButton.Disabled == (rehearsalQuote == null), "The Talk's rehearsal line respects the real post-set quote");
             await Screenshot("conversation-current");
             if (rehearsalQuote != null) {
                 int invitationMinute = clock.CurrentHour * 60 + clock.CurrentMinute; float invitationCash = desk.Label.cashReserves;
                 int heardBefore = desk.ScoutingDossiers.Single(d => d.ArtistId == newlyHeard).Observations.Count(o => o.Kind == ScoutingEvidenceKind.Performance);
                 rehearsalButton.EmitSignal(Button.SignalName.Pressed); await Frame();
-                Check(!Nodes(panel).OfType<PaperModal>().Any() && clock.CurrentHour * 60 + clock.CurrentMinute == invitationMinute + 15 && desk.Label.cashReserves == invitationCash, "Conversation request closes, spends 15 minutes and charges no attendance fee");
+                Check(clock.CurrentHour * 60 + clock.CurrentMinute == invitationMinute + 15 && desk.Label.cashReserves == invitationCash &&
+                    desk.BuildTalkScene(newlyHeard).Lines.Any(l => l.isPlayer), "Asking spends 15 minutes, charges no attendance fee, and the answer comes back into The Talk");
                 Check(desk.ScoutingDossiers.Single(d => d.ArtistId == newlyHeard).Observations.Count(o => o.Kind == ScoutingEvidenceKind.Performance) == heardBefore, "Scheduling does not create another listening");
-            } else { conversation.Close(); await Frame(); }
+            }
+            await Press("END THE CONVERSATION");
             }
             panel.OpenAtTab("ROLODEX"); await Frame();
             await Press("BOOKERS", true);
