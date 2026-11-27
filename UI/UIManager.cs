@@ -364,7 +364,7 @@ public partial class UIManager : Control
 		if (!heavy) { turn(); return; }
 		turnCardTitle.Text = days > 1 ? "THE DAYS GO BY" : "THE WEEK CLOSES";
 		turnCardDetail.Text = days > 1
-			? $"{from.ToHeadlineString()} to {to.ToHeadlineString()}. A skip stops early if something needs you."
+			? $"{from.ToHeadlineString()} to {to.ToHeadlineString()}."
 			: $"{from.ToHeadlineString()}: the charts are made up and the other labels settle the week.";
 		RunBehindTurnCard(turn);
 	}
