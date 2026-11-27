@@ -442,20 +442,112 @@ desperately trying to steer a body that doesn't know what it's doing.
 A sit-down with a manager is the first time the player has **somewhere to be at a certain time**. That's the first moment
 the clock means something, and today it's a greyed line in a conversation. It should be an appointment.
 
-- **The book is an object on the desk** (a desk diary, so it fits T2's office-as-menu). Each entry has a day, a time, a
-  place, who, how long, and what it's for.
-- **The other side proposes a time; you pick one.** "Banks can see you Monday at 3 or Tuesday at 10, at his office on
-  Woodward." Choosing is the first trade-off between hours.
-- **Being there.** When the time comes, the desk says so ("It's 2:30. Banks expects you at 3."). Anything that would
-  run over an appointment warns before you press it ("You'll miss Banks at 3."). Out of town, or still at the plant, and
-  you miss it.
-- **Missing it costs.** A first miss: he'll reschedule once, cooler (terms harder, patience shorter). A second miss: the
-  act's yes lapses. *Author decision on the exact cost.*
+*Revised 2026-11-26 with the author.* The book, the secretary, missed calls and manager rapport are one design. The
+trade-off it exists for: **do you hit the road to sell while calls you're waiting on might come in?**
+
+#### The book is his memory, and only that
+
+- **An object on the desk**, a desk diary (so it fits T2's office-as-menu). Each entry has a day, a time, a place, who,
+  how long and what it's for.
+- **The other side proposes a time, and you pick one.** "Banks can see you Monday at 3 or Tuesday at 10, at his office
+  on Woodward." That's the first trade-off between hours.
+- **It also lists what he's waiting on:** the jocks he mailed a record to, the shop that's nearly sold out, the act that's
+  thinking it over. These are things he set in motion himself, so the risk of going out is known even though the call
+  isn't.
+- **No reminders and no clash warnings.** The book doesn't speak. He has to look at it. The desk never says "It's 2:30,
+  Banks at 3," and a road trip that runs over an appointment isn't flagged. The first-week card teaches the book once,
+  on the first appointment (the Street: *"Write it down. Nobody in this office is going to remind you."*). That's a
+  lesson, not a reminder.
+- **Being there.** At the appointment's hour he has to be in town and not out on something else (a set, an errand, the
+  plant, the road). If he isn't, he's missed it.
 - **What goes in it,** in order of building: the manager sit-down and Sunday dinner (signing), the holdout's next set,
-  studio dates and demo bookings (already timed), station visits, the December sitting.
+  studio dates and demo bookings (already timed), Rolodex call-backs ("call Ed back at 3", a skip stop today), station
+  visits, the December sitting.
 - **Fatigue ties in.** A SPENT morning sleeps in, so a 10 AM appointment after a late night is a real risk.
-- **Inertness.** The approach state is player-side and saved, the same as today's steps. A lapse changes only the
-  player's own approach. The AI's courtships don't read it, but check with a byte-compare.
+
+#### Missed calls: the phone rings once
+
+**Today** an implied answering service takes everything. `PlayerDesk.DeskMessages()` turns every shop reorder, station
+add, request, pre-order and due call-back into a pink "while you were out" slip (`InboundCall`, open about a week), and
+mailed-record call-backs, master and song offers and signed-act calls stop a skip "at the office"
+(`FlagSkipStop(..., officeOnly: true)`). Nothing is ever missed, so there's nothing for a secretary to save.
+
+**Proposed:** a call arrives at an hour of the day, keyed on the caller and the day so the same day replays the same.
+If he's in the office at that hour, it's answered. If not, it's gone, and **most callers leave nothing.** The player
+should fear that the important DJ call came while he was out.
+
+| Who | Without a secretary, if he's out |
+|---|---|
+| A jock calling back about a mailed record | Rings once. The spin is gone, and he never knows. |
+| A station adding the record | Gone. He may see it later on the survey, too late to work it. |
+| A shop sold out or getting requests | Tries twice (morning, afternoon), then buys from whoever answered. The reorder is lost. |
+| A booker with a cancellation slot, or a rival's tip | Rings once and goes to the next name on the list |
+| **Rare visitors leave a note:** the holder, the lawyer, the bank, an act whose yes is waiting on you | A note under the door, or the man himself waiting on the step |
+| Letters (master and song offers, the trade paper, contracts) | Always arrive. The mail doesn't need anyone in. |
+
+- **Some misses surface later, most never do.** Now and then the caller mentions it the next time you meet ("I tried you
+  Tuesday. Gave it to Chess."), so the player learns that it happens without being told every time.
+- **The selling months are where it bites.** That's when he's on the road (the empty-day metric's gap, inner-life §6)
+  and when reorders and jocks call. So the secretary pays off exactly when a successful player starts travelling.
+
+#### The secretary (office expansion, about 1961)
+
+Hiring her (a weekly wage, *provisional*, period clerical pay) turns each gap above into a strength:
+
+- **Presence.** She answers every call and takes the message, so the pink slips come back, and now they're earned. A
+  visitor is kept waiting or booked in.
+- **Scheduling.** She fixes appointment times around his trips ("You're in Toledo Tuesday. I told Banks Thursday at
+  10.") and catches clashes.
+- **Reminders.** The timed nudge the book lacks: "It's 2:30. Banks at 3, on Woodward."
+- **Saving a miss.** Once per appointment, she calls ahead and moves it before he misses it, so the manager's rapport
+  isn't hit.
+- **Inertness.** All player-side. Calls that are answered or missed change the player's own sales and airplay, as any
+  player choice does. The AI economy doesn't read whether he was in.
+- *Author decision:* whether a cheap, unreliable **answering service** (which existed in 1960) sits in between, taking
+  some messages for a few dollars a month but never scheduling or reminding. It would soften the fear early, so the
+  default is no.
+
+#### Manager rapport
+
+Managers are the people who run the act's career and its contracts, so the label carries **rapport with each manager**.
+
+- **What exists:** a manager is only a description worked out from the act (`ManagerIdentity.Read`: family, club booker,
+  deejay, songwriter, agency, jukebox operator, personal manager, hustler), with nothing stored about him. His archetype
+  (`ManagerProfile`: Hustler, Shark, Svengali, Visionary) is the deal posture the AI reads. **Rapport is new, player-only
+  state** on top of that.
+- **Keyed on the person,** not the act. A club booker who manages two acts carries the same rapport for both, and a
+  manager who liked working with you calls first with his next act.
+- **What moves it:** kept appointments, promises kept or broken, advances paid on time, a record that does well for his
+  act, how hard you pushed at the table, and missed appointments.
+- **What it moves,** always in the player's own talks: patience at the table, how far he'll come toward you, how often
+  he objects, the renewal ask, whether he listens to a rival's offer, and whether he brings you his next act. The AI's
+  term sheets don't change.
+- **Who can read it:** the Fixer (who owes whom). With Fixer 3+ the act card names where you stand ("Banks: warm"). Below
+  that it's a guess, with the usual fog.
+
+**A missed appointment, by who he is:**
+
+| Manager | First miss | Again |
+|---|---|---|
+| Hustler | Shrugs, reschedules. Rapport dips a little. | Cools |
+| Shark | Uses it: "You owe me." His price goes up at the table. | The price climbs again, and he shops the act |
+| Svengali | Takes it personally. A big rapport loss. | The act's yes lapses |
+| Visionary | Cools. Less patience at the table. | He's out of patience. Terms harden. |
+| Family (Sunday dinner) | Close to fatal. A parent has to sign, and you didn't come. | — |
+
+A club booker or a deejay as manager also loses face in his own room or station, and that carries over to booking and
+airplay through the existing booker and jock regard (*later*).
+
+#### Build order (T5)
+
+1. The book, with signing appointments (sit-down, Sunday dinner), times to pick from, and missing one.
+2. Manager rapport: store, read and move it, and apply the miss costs above.
+3. Calls that ring at an hour, and the answering service taken out. This is the biggest change to the selling loop, so
+   it gets an empty-day and sales comparison on the player bots (`OpeningCashLockRunner`) before and after.
+4. The secretary as a hire in the OFFICE.
+
+Inertness for all four: player-side and saved, with headless AI audits byte-identical. Player-bot runs will move,
+because what a player sells changes.
 
 ## 5. Author decisions (2026-11-25)
 
