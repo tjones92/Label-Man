@@ -99,6 +99,8 @@ public partial class PlayerDeskPanel {
             // An act that turned you down says so before you spend the hour on them again.
             if (!circuit && ArtistManager.Instance.GetArtist(option.ArtistId) is { } asked && desk.StillDeclining(asked))
                 ScoutingText("They told you no, and nothing's changed for them since.", 14, Heard, PaperTheme.SerifItalic);
+            else if (!circuit && ArtistManager.Instance.GetArtist(option.ArtistId) is { } back && desk.WaitingToBeHeardAgain(back))
+                ScoutingText("They asked you to come and hear them again before they'd talk.", 14, Ink, PaperTheme.SerifItalic);
             // What the town is saying about them (signing step 7), each in its source's voice.
             if (!circuit && string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(option.ArtistId)?.labelId))
                 foreach (var lead in desk.LeadsFor(option.ArtistId, option.CityId, option.Day))
@@ -107,6 +109,8 @@ public partial class PlayerDeskPanel {
             var action = ScoutingSmallButton(circuit ? "DRIVE" : option.Playing ? "LISTEN" : "GO & WAIT");
             // The set you chose and walked to: the first-week card points at its LISTEN, and at no other row.
             if (!circuit && option.Playing && desk.IsAtSceneRoom(option.RoomId)) action.SetMeta("first_week_here", true);
+            // Whose set it is: an act that asked to be heard again has its own next set pointed at.
+            if (!circuit && option.ArtistId != null) action.SetMeta("scouting_artist", option.ArtistId);
             action.Disabled = !circuit && (option.Playing && desk.Label.cashReserves < option.Admission ||
                 SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId));
             float immediateCost = circuit ? option.TravelCost : option.Playing ? option.Admission : 0;

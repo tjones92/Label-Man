@@ -18,6 +18,10 @@ public partial class PlayerDeskPanel {
     private readonly Dictionary<string, string> studioEngineerAsk = new();   // room id -> engineer asked for by name
     private static string StudioSongKey(PlayerDesk.MaterialChoice choice) => $"{choice.Kind}|{choice.SongId}|{choice.Title}";
 
+    /// <summary>Songs an act has turned down at booking this session ("artistId|song key"): the first-week glow doesn't walk
+    /// the player back to them. Player-side memory only; the act's answer is asked again at every booking.</summary>
+    private readonly HashSet<string> studioRefused = new();
+
     private static readonly PlayerDesk.StudioTier[] Tiers =
         { PlayerDesk.StudioTier.Budget, PlayerDesk.StudioTier.Mid, PlayerDesk.StudioTier.Top };
 
@@ -115,7 +119,8 @@ public partial class PlayerDeskPanel {
             resume.Pressed += () => { studioArtistId = session.ArtistId; studioSide = 0; Refresh(); };
             content.AddChild(resume); return;
         }
-        if (ownDate) TakesView(session, artist); else BookingSheet(desk, artist);
+        if (ownDate) TakesView(session, artist);
+        else { FirstWeekTeaching(desk, FirstWeekPlace.Studio); BookingSheet(desk, artist); }
     }
 
     // ========================================================================
@@ -155,6 +160,8 @@ public partial class PlayerDeskPanel {
             string shape = incremental ? $"   ·   {StudioSongStructures.Length(shapes[option].DurationSeconds)}, {StudioSongStructures.FormName(shapes[option].Form)}" : "";
             var box = Check(option.Describe() + shape, studioSongs.Contains(key));
             box.Toggled += selected => { if (selected) studioSongs.Add(key); else studioSongs.Remove(key); };
+            box.SetMeta("first_week_song", true);   // the first-week card's glow walks the songs, then BOOK THE ROOM
+            box.SetMeta("first_week_refused", studioRefused.Contains(artist.artistId + "|" + key));   // ...skipping what the act turned down
             sheet.AddChild(box);
             checks.Add((box, option));
         }
@@ -412,12 +419,16 @@ public partial class PlayerDeskPanel {
             int minimum = setup + passes.Sum() + songCount * PlayerDesk.StudioFinishMinutesPerSide;
             bool tooTight = incremental && minimum > hours * 60 * Days();
             bool lateDrive = drive > 0 && time != null && (drive + (incremental && Late() ? 0 : hours)) * 60 > time.MinutesRemainingWithOvertime;
+            // A date in town has to end by the hard stop too, unless it's booked to run on past midnight.
+            bool lateHere = drive == 0 && !(incremental && Late()) && time != null && hours * 60 > time.MinutesRemainingWithOvertime;
             string problem = offer?.Locked != null ? "No introduction yet: this room books its regulars and people who come recommended."
                 : songCount == 0 ? "Tick at least one song to book."
                 : !desk.AtHome && !onThisTrip ? "You need to be back in town, or up here with this act on a studio trip, to book a room."
                 : lateDrive ? $"The drive and a {hours}h date won't fit before the {time.HardStopTime} hard stop. Book this room early in the day."
                 : incremental && Late() && now + drive * 60 + hours * 60 > PlayerDesk.StudioLateStopMinute ? $"A late night runs to 2 a.m. at the latest. Book fewer hours."
                 : incremental && Evening() && !Late() && time != null && hours * 60 > time.MinutesRemainingWithOvertime ? $"An evening date ends at the {time.HardStopTime} hard stop. Run it on past midnight, or book fewer hours."
+                : lateHere ? (hours > PlayerDesk.MinSessionHours ? $"A {hours}h date won't fit before the {time.HardStopTime} hard stop. Book fewer hours, or book it in the morning."
+                    : $"A date is {PlayerDesk.MinSessionHours}h at the least, and that won't fit before the {time.HardStopTime} hard stop. Book it in the morning{(offer?.Room.EveningWork == true ? ", or tick the evening rate and run on past midnight" : "")}.")
                 : after < 0 ? $"You're {Money(-after)} short of this booking."
                 : tooTight ? "Not enough time: setup, a pass per song and finishing won't fit. Add an hour or drop a song."
                 : null;

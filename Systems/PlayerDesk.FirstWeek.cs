@@ -19,7 +19,7 @@ public enum FirstWeekStep { Hear, Ask, Answer, Terms, Sign, Record }
 
 /// <summary>Where the work of a line happens, and so where its voice teaches it (SigningExperienceAudit §3.5): the card
 /// itself only lists the lines and points the way.</summary>
-public enum FirstWeekPlace { FindASet, TheTalk, TheTable, Roster }
+public enum FirstWeekPlace { FindASet, TheTalk, TheTable, Roster, Studio }
 
 /// <summary>The first-week card's own state. Absent in older saves: a fresh card, which ticks itself off from what the
 /// run has already done, so a save past its first record never sees it.</summary>
@@ -77,9 +77,16 @@ public partial class PlayerDesk {
 	public bool FirstWeekNeedsAnotherAct => scoutingKnowledge.Approaches?.Count > 0
 		&& scoutingKnowledge.Approaches.All(a => a.Status is ScoutingApproachStatus.Declined or ScoutingApproachStatus.Lapsed);
 
-	/// <summary>The card is still on finding an act: hearing, asking, or hearing somebody else after a no.</summary>
+	/// <summary>An act asked to be heard again before it answers, and nobody else is on the way to a yes: its id. The work is
+	/// catching its next set and asking again, not waiting by the phone.</summary>
+	public string FirstWeekHearAgainId => FirstWeekCurrent == FirstWeekStep.Answer
+		&& scoutingKnowledge.Approaches?.All(a => a.Status is not (ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready or ScoutingApproachStatus.Agreed)) == true
+		? scoutingKnowledge.Approaches.LastOrDefault(a => a.Status == ScoutingApproachStatus.WantsAnotherLook)?.ArtistId : null;
+
+	/// <summary>The card is still on finding an act: hearing, asking, hearing somebody else after a no, or hearing the act
+	/// that asked to be heard again.</summary>
 	public bool FirstWeekLooking => FirstWeekCurrent is FirstWeekStep.Hear or FirstWeekStep.Ask
-		|| FirstWeekCurrent == FirstWeekStep.Answer && FirstWeekNeedsAnotherAct;
+		|| FirstWeekCurrent == FirstWeekStep.Answer && (FirstWeekNeedsAnotherAct || FirstWeekHearAgainId != null);
 
 	/// <summary>A terms discussion opened (PlayerDesk.ApproachToSign): the "put a deal on the table" line ticks.</summary>
 	private void MarkFirstWeekTerms() => firstWeek.TermsOpened = true;
@@ -105,8 +112,7 @@ public partial class PlayerDesk {
 	/// §5 decision 2), but a weak voice (under 3) teaches in its own blunt register and claims no read it can't make.</summary>
 	public (ExecutiveVoice Voice, string How) FirstWeekHow(FirstWeekStep step) {
 		bool declinedOnly = FirstWeekNeedsAnotherAct;
-		bool anotherLook = scoutingKnowledge.Approaches?.Any(a => a.Status == ScoutingApproachStatus.WantsAnotherLook) == true
-			&& scoutingKnowledge.Approaches.All(a => a.Status is not (ScoutingApproachStatus.Considering or ScoutingApproachStatus.Ready or ScoutingApproachStatus.Agreed));
+		bool anotherLook = FirstWeekHearAgainId != null;
 		var pending = FirstPendingApproachStep?.Kind;
 		return step switch {
 			FirstWeekStep.Answer when pending == ScoutingApproachStepKind.Parents => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
@@ -159,6 +165,8 @@ public partial class PlayerDesk {
 					: "Whatever I wrote down, it was one night in one room, and rooms lie too.");
 			case FirstWeekStep.Answer when connieWaiting:
 				return (ExecutiveVoice.Street, $"While you wait: Dee-Dee wants {ConnieStageName}'s record out this year, and her girl's already on your roster.");
+			case FirstWeekStep.Record when FirstWeekStudioTomorrow:
+				return FirstWeekTooLate();
 			case FirstWeekStep.Record when connieWaiting && !OwnActSigned:
 				return (ExecutiveVoice.Street, $"Nobody of your own yet? Then cut {ConnieStageName}. Dee-Dee's girl is on the roster and she needs songs. Her record counts.");
 			default:
@@ -182,15 +190,127 @@ public partial class PlayerDesk {
 			case FirstWeekPlace.TheTalk when step == FirstWeekStep.Answer && FirstWeekNeedsAnotherAct:
 				Line(FirstWeekStep.Ask); break;
 			case FirstWeekPlace.TheTalk when step == FirstWeekStep.Answer && FirstPendingApproachStep != null:
+			case FirstWeekPlace.TheTalk when step == FirstWeekStep.Answer && FirstWeekHearAgainId != null:
 				Line(step); break;
 			// Opening the table ticks "put a deal on the table", so the sheet is where both lines are taught.
 			case FirstWeekPlace.TheTable when step is FirstWeekStep.Terms or FirstWeekStep.Sign:
-				Line(FirstWeekStep.Terms); Line(FirstWeekStep.Sign); break;
+				Line(FirstWeekStep.Terms); Line(FirstWeekStep.Sign);
+				if (FirstWeekTableTomorrow) lines.Add((ExecutiveVoice.Fixer, StrongVoice(ExecutiveVoice.Fixer)
+					? $"Not tonight. Sitting down on paper is a {NegotiationRoundHours}-hour meeting and there isn't that left in the day. They'll keep: say good night, end the day, and come back to the table in the morning."
+					: "Too late for a meeting. End the day and come back in the morning."));
+				break;
 			case FirstWeekPlace.Roster when step == FirstWeekStep.Record:
 				Line(step); Aside(step); break;
+			// The booking sheet is long and every line of it is a choice: the Ear on the songs, the Suit on leaving the rest.
+			case FirstWeekPlace.Studio when step == FirstWeekStep.Record:
+				lines.AddRange(FirstWeekBooking()); break;
 		}
 		return lines;
 	}
+
+	/// <summary>The record line, but too late in the day for even the shortest date: the work is ending the day and booking
+	/// in the morning. (A late-night evening rate could still fit; a first record doesn't need one.)</summary>
+	public bool FirstWeekStudioTomorrow => FirstWeekCurrent == FirstWeekStep.Record && pendingSession == null
+		&& TimeManager.Instance is { } time && time.MinutesRemainingWithOvertime < MinSessionHours * 60;
+
+	/// <summary>The deal line, but too late in the day for the meeting that puts the paper down: the work is tomorrow's.</summary>
+	public bool FirstWeekTableTomorrow => FirstWeekCurrent == FirstWeekStep.Sign
+		&& TimeManager.Instance is { } time && !time.CanAffordHours(NegotiationRoundHours, allowOvertime: true);
+
+	/// <summary>The first booking, taught on the sheet: which songs (the Ear), and that the rest of the sheet is fine as it
+	/// stands for a first single (the Suit). The sheet's defaults are the town's first room and the standard hours.</summary>
+	private IEnumerable<(ExecutiveVoice, string)> FirstWeekBooking() {
+		if (FirstWeekStudioTomorrow) {
+			yield return FirstWeekTooLate();
+			yield break;
+		}
+		yield return (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
+			? "Two songs make a single: one to sell it and one for the back. Tick the two they'd play first if the room was walking out. COMPARE MATERIAL costs nothing, if you want a second opinion."
+			: "Tick two songs. I won't pretend to know the hit. Take the ones they know best: a nervous band plays its old songs better.");
+		yield return (ExecutiveVoice.Suit, StrongVoice(ExecutiveVoice.Suit)
+			? "Everything under the songs is for later. The first room in town at the hours on the sheet is the right size for a first single: cheap, and plenty of time for two sides. No producer, no extra singers, no lockout. Book it and spend the money on pressing."
+			: "Leave the rest of the sheet as it is. The first room in town and the hours it shows will do. Don't buy extras on a first record.");
+	}
+
+	/// <summary>The deal line when the act counters at the table. On the counter, the Suit says it's a price, not a no:
+	/// give them part of what they named and put it back. Back on the sheet, he names the term they're stuck on, their
+	/// number and yours, and says to move that one about halfway. Empty for a renewal, off the deal line, or before a counter.</summary>
+	public List<(ExecutiveVoice Voice, string Text)> FirstWeekCounter(ContractTalk talk) {
+		var lines = new List<(ExecutiveVoice, string)>();
+		if (talk == null || talk.IsRenewal || FirstWeekCurrent != FirstWeekStep.Sign || talk.objectionAxis is not { } axis) return lines;
+		bool strong = StrongVoice(ExecutiveVoice.Suit);
+		bool flag = axis is ContractAxis.Publishing or ContractAxis.CreativeControl;
+		if (talk.stage == ContractTalkStage.Objection) {
+			lines.Add((ExecutiveVoice.Suit, flag
+				? strong
+					? $"That's the {FirstWeekAxisName(axis)}, and you can't give half of it. Let them have it and put the paper back. On a first deal the record is worth more to you than the {FirstWeekAxisName(axis)}."
+					: $"They want the {FirstWeekAxisName(axis)}. Give it to them and try again."
+				: talk.capabilityObjection.HasValue
+				? strong
+					? "That isn't about the money. It's what a label this size can't do for them yet. Better terms can still carry it: give them a little more of what they asked for and put the paper back."
+					: "It's not the money, it's us. Give them a bit more anyway and try again."
+				: strong
+					? $"That's not a no, it's a price. They named the {FirstWeekAxisName(axis)}. Give them part of it and put the paper back. A promise is a bill that comes later, and holding firm on a first deal is how you lose the act."
+					: $"They want more on the {FirstWeekAxisName(axis)}. Give them a bit of it and try again."));
+			return lines;
+		}
+		if (talk.stage != ContractTalkStage.Tabling || talk.roundsPlayed == 0) return lines;
+		var offer = CurrentOffer(talk);
+		string theirs = FirstWeekAxisValue(axis, talk.ask), ours = FirstWeekAxisValue(axis, offer);
+		lines.Add((ExecutiveVoice.Suit, flag
+			? strong
+				? $"They're stuck on the {FirstWeekAxisName(axis)}: they want {theirs}. Let them have it, leave everything else as it is, and put it back on the table."
+				: $"They want {theirs}. Give it to them and try again."
+			: strong
+				? $"They're stuck on the {FirstWeekAxisName(axis)}: they asked {theirs}, the paper says {ours}. Move that one about halfway toward them, leave everything else as it is, and put it back on the table."
+				: $"The {FirstWeekAxisName(axis)}: they asked {theirs}, you wrote {ours}. Meet them halfway and try again."));
+		return lines;
+	}
+
+	private static string FirstWeekAxisName(ContractAxis axis) => axis switch {
+		ContractAxis.Advance => "advance",
+		ContractAxis.Royalty => "royalty",
+		ContractAxis.Term => "term",
+		ContractAxis.Deliverables => "singles owed",
+		ContractAxis.Publishing => "publishing",
+		_ => "creative control",
+	};
+
+	private static string FirstWeekAxisValue(ContractAxis axis, ContractTermSheet sheet) => axis switch {
+		ContractAxis.Advance => $"${sheet.Advance:N0}",
+		ContractAxis.Royalty => $"{sheet.RoyaltyRate * 100f:0.##}%",
+		ContractAxis.Term => Plural.Of(sheet.TermYears, "year"),
+		ContractAxis.Deliverables => Plural.Of(sheet.SinglesObligation, "single"),
+		ContractAxis.Publishing => sheet.LabelOwnsPublishing ? "the label to keep the publishing" : "to keep their publishing",
+		_ => sheet.ArtistCreativeControl ? "the final word on the records" : "the label to have the final word",
+	};
+
+	/// <summary>The act turned a song down at booking (THE ACT PUSHES BACK). The Ear teaches it: a no to the song, not to the
+	/// record. <paramref name="othersLeft"/>: the sheet has a song they haven't turned down, so set this one aside and tick
+	/// that. Otherwise they've refused everything: insist, or (and always, under creative control) go back to the roster
+	/// and get them a song they want. Empty when the card isn't on the record line.</summary>
+	public List<(ExecutiveVoice Voice, string Text)> FirstWeekPushBack(bool othersLeft, bool canInsist) {
+		var lines = new List<(ExecutiveVoice, string)>();
+		if (FirstWeekCurrent != FirstWeekStep.Record) return lines;
+		bool strong = StrongVoice(ExecutiveVoice.Ear);
+		lines.Add((ExecutiveVoice.Ear, othersLeft
+			? strong
+				? "That's a no to the song, not to the record. A band that doesn't believe a song plays it like strangers, and the tape hears every bar. Set it aside and tick one they'd fight for. Their own songs are the safe bet on a first date."
+				: "They don't want that one, and a band that doesn't want a song plays it badly. Set it aside and tick another."
+			: canInsist
+				? strong
+					? "They've turned down everything on the sheet. You can insist: it's your room and your money, but you'll get a take of a song they don't believe in. Or go back to the roster and get them a song they want: let them write one, or teach them a cover."
+					: "They don't want any of it. Insist and take what the tape gives you, or go back to the roster and find them a song."
+				: strong
+					? "They've turned down everything on the sheet, and the contract gives them the last word. Go back to the roster and get them a song they want: let them write one, or teach them a cover."
+					: "They don't want any of it, and it's their call. Go back to the roster and find them a song."));
+		return lines;
+	}
+
+	/// <summary>The Fixer on a date that won't fit today: the shortest booking is longer than what's left before the hard stop.</summary>
+	private (ExecutiveVoice, string) FirstWeekTooLate() => (ExecutiveVoice.Fixer, StrongVoice(ExecutiveVoice.Fixer)
+		? $"A studio date runs {MinSessionHours} hours at the least, and there aren't {MinSessionHours} left in the day. You could pay for a late night, but a tired band won't give you a take worth keeping. End the day. Book the room first thing tomorrow, while they're fresh."
+		: "Too late for a studio today. End the day and book it in the morning.");
 
 	/// <summary>On the hearing line, the voices on tonight's sets, so the player picks one: the Ear on what each room lets
 	/// you hear, the Street on whether the act's kind of music sells in this town (the region's genre affinities). Facts

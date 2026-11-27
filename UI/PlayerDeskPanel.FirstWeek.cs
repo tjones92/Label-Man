@@ -78,6 +78,44 @@ public partial class PlayerDeskPanel {
 		content.AddChild(box);
 	}
 
+	/// <summary>Lines the desk worked out for this moment (a counter at the table), on the page as voices.</summary>
+	private void FirstWeekLines(List<(ExecutiveVoice Voice, string Text)> lines) {
+		if (lines.Count == 0) return;
+		var box = new VBoxContainer { Name = "FirstWeekTeaching" };
+		box.AddThemeConstantOverride("separation", 4);
+		foreach (var (voice, text) in lines) box.AddChild(FirstWeekVoiceLine(voice, text));
+		content.AddChild(box);
+	}
+
+	/// <summary>Set while the terms sheet is built after a counter in the first week: the term they're stuck on, and their ask.</summary>
+	private (ContractAxis Axis, ContractTermSheet Ask)? firstWeekSweeten;
+
+	/// <summary>Marks the blank for the term they're stuck on, with where it starts and their number, so the glow can sit on
+	/// it until the player moves it (then TABLE AGAIN glows). Nothing outside a first-week counter, or when it already
+	/// matches their ask.</summary>
+	private void TagFirstWeekField(SpinBox advance, SpinBox royalty, SpinBox term, SpinBox singles, CheckBox labelPub, CheckBox artistControl) {
+		if (firstWeekSweeten is not { } fw) return;
+		Control field = fw.Axis switch {
+			ContractAxis.Advance => advance, ContractAxis.Royalty => royalty, ContractAxis.Term => term,
+			ContractAxis.Deliverables => singles, ContractAxis.Publishing => labelPub, _ => artistControl,
+		};
+		double to = fw.Axis switch {
+			ContractAxis.Advance => Mathf.Round(fw.Ask.Advance),
+			ContractAxis.Royalty => Mathf.Round(fw.Ask.RoyaltyRate * 4000f) / 40f,
+			ContractAxis.Term => fw.Ask.TermYears,
+			ContractAxis.Deliverables => fw.Ask.SinglesObligation,
+			ContractAxis.Publishing => fw.Ask.LabelOwnsPublishing ? 1 : 0,
+			_ => fw.Ask.ArtistCreativeControl ? 1 : 0,
+		};
+		double from = FirstWeekFieldValue(field);
+		if (Mathf.IsEqualApprox((float)from, (float)to)) return;
+		field.SetMeta("first_week_field", true);
+		field.SetMeta("first_week_from", from);
+		field.SetMeta("first_week_to", to);
+	}
+
+	private static double FirstWeekFieldValue(Control field) => field is SpinBox s ? s.Value : field is BaseButton b && b.ButtonPressed ? 1 : 0;
+
 	/// <summary>The same lines as transcript reads, for the scenes drawn as a call (The Talk, The Table).</summary>
 	private static IEnumerable<CallLine> FirstWeekReads(PlayerDesk desk, FirstWeekPlace place) =>
 		desk.FirstWeekLinesAt(place).Select(l => new CallLine { beat = RolodexSceneBeat.PassiveRead, voice = l.Voice, text = l.Text });
@@ -106,10 +144,14 @@ public partial class PlayerDeskPanel {
 		if (step == null) return;
 		switch (step.Value) {
 			case FirstWeekStep.Answer when desk.FirstPendingApproachStep != null:
+			case FirstWeekStep.Answer when desk.FirstWeekHearAgainId != null:
 				GoToTab(0, PageAandR);
 				break;
 			case FirstWeekStep.Answer:
 				Say("END THE DAY is in the header, beside the WAIT buttons. The Morning Paper says who called back.", true);
+				break;
+			case FirstWeekStep.Record when desk.FirstWeekStudioTomorrow:
+				Say("Too late for a studio date today. END THE DAY is in the header; book the room in the morning.", true);
 				break;
 			case FirstWeekStep.Record:
 				if (desk.Session != null) UIManager.Instance?.OpenStudio(desk.Session.ArtistId);
@@ -127,14 +169,26 @@ public partial class PlayerDeskPanel {
 		FirstWeekStep.Answer when desk.FirstWeekNeedsAnotherAct => theTalkArtistId != null && desk.DirectApproaches.All(a => a.ArtistId != theTalkArtistId)
 			? new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms." }
 			: new[] { "END THE CONVERSATION", "FIND A SET", "NEXT SETS" },
+		// Asked to come back: the asking in The Talk, else the set finder (where its next set glows), else a day on.
+		// Until they've been heard again, asking again gets the same answer: leave the conversation and go to their set.
+		FirstWeekStep.Answer when desk.FirstWeekHearAgainId is { } again =>
+			desk.WaitingToBeHeardAgain(ArtistManager.Instance?.GetArtist(again))
+				? new[] { "END THE CONVERSATION", "FIND A SET", "NEXT SETS", "END THE DAY" }
+				: new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms.", "FIND A SET", "NEXT SETS", "END THE DAY" },
 		// Never a set: the player picks which act to hear (audit §2.7). The view glows; the voices talk about tonight's rooms.
 		FirstWeekStep.Hear => new[] { "FIND A SET", "NEXT SETS" },
 		// The Talk's lines (PlayerDesk.TheTalk) lead when the conversation has the page.
 		FirstWeekStep.Ask => new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms.", "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
 		FirstWeekStep.Answer => new[] { "▸  I'll come to Sunday dinner", "▸  I'll sit down with", "MEET THE FAMILY", "SIT DOWN WITH THE MANAGER", "END THE DAY" },
 		FirstWeekStep.Terms => new[] { "▸  Let's sit down on terms.", "SIT DOWN ON TERMS", "TALK TO THEM" },
-		FirstWeekStep.Sign => new[] { "TABLE OFFER" },
-		_ => new[] { "TO THE ROSTER", "TAKE INTO STUDIO", "RETURN TO STUDIO" },
+		// Too late for the meeting: leave the sheet and end the day. Otherwise the sheet, or the way back to it.
+		FirstWeekStep.Sign when desk.FirstWeekTableTomorrow => new[] { "NOT NOW", "END THE CONVERSATION", "END THE DAY" },
+		// A counter: give them part of what they named (the Suit says so on the page).
+		FirstWeekStep.Sign => new[] { "SWEETEN IT", "TABLE OFFER", "TABLE AGAIN", "▸  Let's sit down on terms.", "SIT DOWN ON TERMS", "TALK TO THEM" },
+		// Too late for a date: the signing card's TO THE ROSTER (a modal, looked at first), then the day's end.
+		FirstWeekStep.Record when desk.FirstWeekStudioTomorrow => new[] { "TO THE ROSTER", "END THE DAY" },
+		// A booking that warns opens a modal over the sheet: go ahead with it. (A push-back has its own glow, above.)
+		_ => new[] { "TO THE ROSTER", "TAKE INTO STUDIO", "RETURN TO STUDIO", "BOOK IT" },
 	};
 
 	/// <summary>Glow on the next thing to press, if it's on screen. Rebuilt pages bring fresh buttons, so it's re-applied
@@ -143,8 +197,10 @@ public partial class PlayerDeskPanel {
 		var step = desk?.FirstWeekCurrent;
 		if (step == null) return;
 		var buttons = new List<Button>();
+		var fields = new List<Control>();
 		void Walk(Node n) {
 			if (n == firstWeekCard) return;
+			if (n is Control f && f.HasMeta("first_week_field") && f.IsVisibleInTree()) fields.Add(f);
 			if (n is Button b && b.IsVisibleInTree() && !b.Disabled && !HeldActWhileOwnSigned(desk, b)) buttons.Add(b);
 			foreach (Node c in n.GetChildren()) Walk(c);
 		}
@@ -154,6 +210,50 @@ public partial class PlayerDeskPanel {
 		// The set the player chose and walked to: its LISTEN is the next thing to press.
 		Button hit = desk.FirstWeekLooking ? buttons.FirstOrDefault(b => b.HasMeta("first_week_here")) : null;
 		if (hit != null) { GlowOn(hit); return; }
+		// An act that asked to be heard again: its next set, then (at The Set) talking to it when it comes off the stand.
+		if (desk.FirstWeekHearAgainId is { } again && modal.Count == 0) {
+			bool atTheSet = buttons.Any(b => b.Text == "LET THEM GO");
+			hit = atTheSet
+				? buttons.FirstOrDefault(b => theSetQueue.FirstOrDefault() == again ? b.Text is "TALK TO THEM" or "SIT DOWN ON TERMS" : b.Text == "LET THEM GO")
+				: buttons.FirstOrDefault(b => b.HasMeta("scouting_artist") && b.GetMeta("scouting_artist").AsString() == again);
+			// The sets are listed and theirs isn't among them yet: a day on.
+			if (hit == null && !atTheSet && buttons.Any(b => b.HasMeta("scouting_artist"))) hit = buttons.FirstOrDefault(b => b.Text == "END THE DAY");
+			if (hit != null) { GlowOn(hit); return; }
+		}
+		// The studio's booking sheet: two songs ticked (or every one there is), then the room booked. The sheet is long, so
+		// the glow is scrolled into view when it moves.
+		if (studioMode && step == FirstWeekStep.Record) {
+			var songs = buttons.Where(b => b.HasMeta("first_week_song")).ToList();
+			// Too late for a date today: back to the desk, where the day ends.
+			if (desk.FirstWeekStudioTomorrow && modal.Count == 0) {
+				GlowOn(buttons.FirstOrDefault(b => b.Text.StartsWith("‹ BACK", System.StringComparison.Ordinal)));
+				return;
+			}
+			static bool Refused(Button b) => b.HasMeta("first_week_refused") && b.GetMeta("first_week_refused").AsBool();
+			// The act pushed back on a song (THE ACT PUSHES BACK): set it aside while there's another to tick; when they've
+			// turned down everything, insist (or, under creative control, set it aside and go back for material).
+			if (modal.FirstOrDefault(b => b.Text == "SET THIS ASIDE") is { } aside) {
+				GlowOn(songs.Any(b => !Refused(b)) ? aside : modal.FirstOrDefault(b => b.Text.StartsWith("INSIST", System.StringComparison.Ordinal)) ?? aside);
+				return;
+			}
+			if (songs.Count > 0 && modal.Count == 0) {
+				var next = songs.Count(b => b.ButtonPressed) < 2 ? songs.FirstOrDefault(b => !b.ButtonPressed && !Refused(b)) : null;
+				hit = next ?? buttons.FirstOrDefault(b => b.Text.StartsWith("BOOK THE ROOM", System.StringComparison.Ordinal))
+					// Nothing ticked and nothing left they'd play: back to the roster for a song they want.
+					?? buttons.FirstOrDefault(b => b.Text.StartsWith("‹ BACK", System.StringComparison.Ordinal));
+				bool moved = hit != firstWeekGlowing;
+				GlowOn(hit);
+				if (moved && hit != null) contentScroll?.EnsureControlVisible(hit);
+				return;
+			}
+		}
+		// Back from a counter: the blank for the term they're stuck on, until the player moves it; then TABLE AGAIN.
+		if (step == FirstWeekStep.Sign && modal.Count == 0 && !desk.FirstWeekTableTomorrow
+			&& fields.FirstOrDefault(f => Mathf.IsEqualApprox((float)FirstWeekFieldValue(f), (float)f.GetMeta("first_week_from").AsDouble())) is { } field) {
+			if (field != firstWeekGlowing) firstWeekScrollTo = field;   // after the page's layout, on the next tick
+			GlowOn(field);
+			return;
+		}
 		foreach (var pool in new[] { modal, buttons }) {
 			foreach (string target in FirstWeekTargets(desk, step.Value)) {
 				hit = pool.FirstOrDefault(b => b.Text.StartsWith(target, System.StringComparison.Ordinal));
@@ -161,6 +261,9 @@ public partial class PlayerDeskPanel {
 			}
 			if (hit != null) break;
 		}
+		// The counter's answers sit under the table's whole transcript: bring the one that glows into view, once the
+		// rebuilt page has its layout (the watch's next tick).
+		if (hit != null && hit != firstWeekGlowing && hit.Text == "SWEETEN IT") firstWeekScrollTo = hit;
 		GlowOn(hit);
 	}
 
@@ -172,24 +275,28 @@ public partial class PlayerDeskPanel {
 		return desk.IsHeldByHolder(artist);
 	}
 
-	private Button firstWeekGlowing;
+	private Control firstWeekGlowing;
+	private Control firstWeekScrollTo;
 	private Tween firstWeekPulse;
 
 	/// <summary>Only ever one glowing button: the old one goes back to plain when the next thing to press changes.</summary>
-	private void GlowOn(Button hit) {
+	private void GlowOn(Control hit) {
 		if (hit == firstWeekGlowing && IsInstanceValid(hit) && firstWeekPulse?.IsValid() == true) return;
 		if (firstWeekPulse?.IsValid() == true) firstWeekPulse.Kill();
 		if (firstWeekGlowing != null && IsInstanceValid(firstWeekGlowing)) {
 			firstWeekGlowing.SelfModulate = Colors.White;
+			firstWeekGlowing.Modulate = Colors.White;
 			firstWeekGlowing.RemoveMeta("first_week_glow");
 		}
 		firstWeekGlowing = hit;
 		firstWeekPulse = null;
 		if (hit == null) return;
 		hit.SetMeta("first_week_glow", true);
+		// A button tints its own face; a typed blank (a SpinBox draws its text in a child) tints as a whole.
+		string property = hit is Button ? "self_modulate" : "modulate";
 		firstWeekPulse = hit.CreateTween().SetLoops();
-		firstWeekPulse.TweenProperty(hit, "self_modulate", FirstWeekGlow, 0.6).SetTrans(Tween.TransitionType.Sine);
-		firstWeekPulse.TweenProperty(hit, "self_modulate", Colors.White, 0.6).SetTrans(Tween.TransitionType.Sine);
+		firstWeekPulse.TweenProperty(hit, property, FirstWeekGlow, 0.6).SetTrans(Tween.TransitionType.Sine);
+		firstWeekPulse.TweenProperty(hit, property, Colors.White, 0.6).SetTrans(Tween.TransitionType.Sine);
 	}
 
 	private static T FindParentOfType<T>(Node n) where T : class {
@@ -203,6 +310,8 @@ public partial class PlayerDeskPanel {
 		timer.Timeout += () => {
 			var desk = PlayerDesk.Instance;
 			if (desk?.FirstWeekCurrent == null || !IsVisibleInTree()) { GlowOn(null); return; }
+			if (firstWeekScrollTo != null && IsInstanceValid(firstWeekScrollTo) && firstWeekScrollTo.IsVisibleInTree()) contentScroll?.EnsureControlVisible(firstWeekScrollTo);
+			firstWeekScrollTo = null;
 			HighlightFirstWeekTarget(desk);
 		};
 		AddChild(timer);

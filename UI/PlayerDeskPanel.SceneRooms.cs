@@ -270,11 +270,15 @@ public partial class PlayerDeskPanel {
         // Who's worth the hour (signing step 7): somebody new before an act you've heard, and an act that told you no
         // (with nothing changed since) last; then sets the town is talking about; then the soonest. A resident plays
         // nightly, so without this the list kept offering the act that had just turned you down.
+        // An act that asked you to come and hear them again comes before all of them: that's the set they're waiting for you at.
+        bool AskedBack(ScoutingOpportunity o) => ArtistManager.Instance.GetArtist(o.ArtistId) is { } act && desk.WaitingToBeHeardAgain(act);
         int Fresh(ScoutingOpportunity o) {
             var act = ArtistManager.Instance.GetArtist(o.ArtistId);
-            return act != null && desk.StillDeclining(act) ? 2 : desk.HasScoutingEvidence(o.ArtistId) ? 1 : 0;
+            return act == null ? 0 : desk.WaitingToBeHeardAgain(act) ? -1 : desk.StillDeclining(act) ? 2 : desk.HasScoutingEvidence(o.ArtistId) ? 1 : 0;
         }
-        var options = reachable.Where(o => !UnderContract(o)).Take(24).Select((o, i) => (o, i, fresh: Fresh(o), talk: desk.LeadsFor(o.ArtistId, o.CityId, o.Day).Count > 0))
+        var free = reachable.Where(o => !UnderContract(o)).ToList();
+        var options = free.Take(24).Concat(free.Where(AskedBack).Take(3)).DistinctBy(o => o.EventId)
+            .Select((o, i) => (o, i, fresh: Fresh(o), talk: desk.LeadsFor(o.ArtistId, o.CityId, o.Day).Count > 0))
             .OrderBy(x => x.fresh).ThenByDescending(x => x.talk).ThenBy(x => x.i).DistinctBy(x => x.o.ArtistId).Take(3).Select(x => x.o).ToArray();
         int signedLeftOff = reachable.Count(UnderContract);
         bool circuit = options.Length == 0 && signedLeftOff == 0;

@@ -1337,6 +1337,7 @@ public partial class PlayerDeskPanel : Control {
 		labelPub.Toggled += _ => UpdateGives();
 		artistControl.Toggled += _ => UpdateGives();
 		UpdateGives();
+		TagFirstWeekField(advance, royalty, term, singles, labelPub, artistControl);
 
 		var lowball = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		lowball.AddThemeFontSizeOverride("font_size", 15);
@@ -1410,6 +1411,13 @@ public partial class PlayerDeskPanel : Control {
 		offer.CustomMinimumSize = new Vector2(260, 44);
 		offer.Pressed += () => onSubmit((float)advance.Value, (float)royalty.Value / 100f,
 			(int)term.Value, (int)singles.Value, labelPub.ButtonPressed, artistControl.ButtonPressed);
+		// Every way to put this sheet down (table, table again, renew) is one quick meeting. Too late in the day for one and
+		// the press only failed with a note; say so on the button instead.
+		var clock = TimeManager.Instance;
+		if (clock != null && !clock.CanAffordHours(PlayerDesk.NegotiationRoundHours, allowOvertime: true)) {
+			offer.Disabled = true;
+			GreyWhy(offer, $"A {PlayerDesk.NegotiationRoundHours}h meeting won't fit before the {clock.HardStopTime} hard stop. Come back to the table tomorrow.");
+		}
 		buttons.AddChild(offer);
 
 		var cancel = Btn("NOT NOW");
@@ -1441,6 +1449,10 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	private void NegotiationTablingForm(ContractTalk talk) {
+		// The first week, back from a counter: the Suit names the term they're stuck on, and that blank glows (TermsForm).
+		FirstWeekLines(PlayerDesk.Instance.FirstWeekCounter(talk));
+		firstWeekSweeten = PlayerDesk.Instance.FirstWeekCurrent == FirstWeekStep.Sign && !talk.IsRenewal && talk.roundsPlayed > 0
+			&& talk.objectionAxis is { } stuck ? (stuck, talk.ask) : null;
 		string label = talk.roundsPlayed == 0
 			? $"TABLE OFFER  ({PlayerDesk.NegotiationRoundHours}h)"
 			: $"TABLE AGAIN  ({PlayerDesk.NegotiationRoundHours}h)";
@@ -1506,6 +1518,7 @@ public partial class PlayerDeskPanel : Control {
 				CloseTalkIfDone(talk);
 				Refresh();
 			}, talk.ask, talk.Artist.stageName, talk.IsRenewal);
+		firstWeekSweeten = null;
 	}
 
 	/// <summary>A negotiation scene serves both a new signing (closes `negotiating`) and a renewal
@@ -1518,6 +1531,7 @@ public partial class PlayerDeskPanel : Control {
 	private void NegotiationObjection(ContractTalk talk) {
 		// What they said is the last line of the table's transcript, above.
 		Heading("WHAT DO YOU SAY");
+		FirstWeekLines(PlayerDesk.Instance.FirstWeekCounter(talk));   // the first week: the Suit on a counter
 		ContractTermSheet current = PlayerDesk.CurrentOffer(talk);
 
 		NegotiationCounterButton(talk, ContractCounter.SweetenAxis,
@@ -1916,19 +1930,32 @@ public partial class PlayerDeskPanel : Control {
 		int hours, IReadOnlyList<string> responses, List<(CheckBox Box, PlayerDesk.MaterialChoice Choice)> checks, StudioBrief brief = StudioBrief.CaptureLiveAct,
 		string roomId = null, string engineerId = null, bool backingSingers = false, StudioBookingOptions options = null) {
 		var dialog = PaperModal.Open(this, "THE ACT PUSHES BACK", 780);
-		var material = chosen.First(c => responses.Any(r => r.Contains("“" + c.Title + "”", StringComparison.Ordinal)));
+		var refused = chosen.Where(c => responses.Any(r => r.Contains("“" + c.Title + "”", StringComparison.Ordinal))).ToList();
+		var material = refused.First();
+		// Remembered for the sheet: the first-week glow doesn't walk the player back to a song they turned down.
+		bool Refused(PlayerDesk.MaterialChoice c) => studioRefused.Contains(artist.artistId + "|" + StudioSongKey(c));
+		foreach (var c in refused) studioRefused.Add(artist.artistId + "|" + StudioSongKey(c));
+		foreach (var item in checks) item.Box.SetMeta("first_week_refused", Refused(item.Choice));
 		var read = PolarPlayerPerception.Compare(material, artist, PolarEvidenceGate.Rehearsal, "booking:" + artist.artistId + ":" + material.Title,
 			PlayerDesk.Instance.PreviewMasterId(chosen.IndexOf(material)), PlayerDesk.Instance.PreviewSessionContext(tier, artist));
 		foreach (string response in responses) dialog.AddText(response);
 		dialog.AddText("Your staff's read: " + (read.mayResist ? read.resistance + " " : "") + read.explanation);
 		dialog.AddText("The room has not been booked. How do you answer?");
+		// The first week: the Ear on what a no at booking means, and what to do about it.
+		foreach (var (voice, text) in PlayerDesk.Instance.FirstWeekPushBack(checks.Any(c => !Refused(c.Choice)), !artist.artistCreativeControl))
+			dialog.Body.AddChild(FirstWeekVoiceLine(voice, text));
+		// Setting it aside unticks only what they turned down; the songs they were happy with stay on the sheet.
 		void Choose(string action) {
-			foreach (var item in checks) item.Box.ButtonPressed = action == "own" && item.Choice.Kind == PlayerDesk.MaterialKind.Original;
-			Say(action == "own" ? "Their own material is selected. Review it before booking." : "The material is set aside. Choose another song when you're ready.");
+			foreach (var item in checks) {
+				if (action == "own") item.Box.ButtonPressed = item.Choice.Kind == PlayerDesk.MaterialKind.Original && !Refused(item.Choice);
+				else if (refused.Contains(item.Choice)) item.Box.ButtonPressed = false;
+			}
+			Say(action == "own" ? "Their own material is selected. Review it before booking."
+				: $"{string.Join(", ", refused.Select(c => "“" + c.Title + "”"))} set aside. Choose another song when you're ready.");
 		}
 		dialog.AddButton("SET THIS ASIDE", () => Choose("shelve"));
 		var own = dialog.AddButton("USE THEIR OWN MATERIAL", () => Choose("own"));
-		own.Disabled = !checks.Any(c => c.Choice.Kind == PlayerDesk.MaterialKind.Original);
+		own.Disabled = !checks.Any(c => c.Choice.Kind == PlayerDesk.MaterialKind.Original && !Refused(c.Choice));
 		GreyWhy(own, "They have no songs of their own ready to record.");
 		var insist = dialog.AddButton(artist.artistCreativeControl ? "THEIR CALL — CAN'T INSIST" : "INSIST — BOOK THE ROOM", () => {
 			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true, brief: brief, roomId: roomId, engineerId: engineerId, backingSingers: backingSingers, options: options);

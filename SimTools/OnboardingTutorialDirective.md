@@ -313,6 +313,69 @@ pending (`PlayerDesk.FirstMorning.cs`, `UI/PlayerDeskPanel.FirstMorning.cs`):
 - Also: UI checks that end a day through the real desk now set `PlayerDesk.AutosaveOffForChecks`. An earlier run of
   this check wrote `Autosave 2` into the shared saves folder.
 
+**T3 gaps closed (2026-11-26).** `FirstWeekUiChecks` now takes `--holder=NAME` (answers that make that holder the only
+fit) and plays on past TAKE INTO STUDIO to a booked date, then back to the desk, where NEXT UP takes over ("Choose takes
+and print the masters"). Run on seeds 1001–1008 across all five holders. What the wider runs found and fixed:
+- **The studio had no help.** The card is hidden in the studio window, nothing glowed, and BOOK THE ROOM sat five
+  sections and six room cards below the songs. Now the booking sheet is a teaching place (`FirstWeekPlace.Studio`): the
+  Ear on which two songs, the Suit on leaving the rest of the sheet alone. The glow ticks two songs, then BOOK THE ROOM,
+  and scrolls each into view. 3 presses from TAKE INTO STUDIO to a booked date.
+- **An evening signing couldn't book.** A date is 3h at least, and after 6 PM in town it won't fit before the 9 PM hard
+  stop, but BOOK THE ROOM stayed live and only failed on the press. The sheet now greys it with the reason (book in the
+  morning, or an evening rate run past midnight). The card's Fixer says end the day, and the glow goes to the way back,
+  then END THE DAY, then the studio in the morning.
+- **The same at the table.** At 8 PM a 2h TABLE OFFER (or TABLE AGAIN, RENEW) stayed live and failed on every press.
+  The terms sheet now greys it after the hard-stop cutoff, and the card's Fixer sends the player home (NOT NOW, END THE
+  DAY), then back to the table in the morning.
+- **"Come and hear us again" was a dead end.** The Street said go back, but the glow pointed at END THE DAY, and NEXT
+  SETS (top three, new acts before heard ones) never listed the act's next set. The finder now puts an act that asked you
+  back first, with a line saying so. The glow walks to its set, its LISTEN, LET THEM GO for anyone else on the bill, TALK
+  TO THEM, then the ask. While they're still waiting to be heard again, The Talk's ask line doesn't glow (it only repeats
+  the answer); END THE CONVERSATION does.
+- A plain no (seeds 1005, 1007) already worked: the glow goes back to the sets and the bot picks somebody else.
+- The take sheet after booking stays outside the card (decision 3); it has its own "Next: cut a first pass" line.
+
+**Push-back at booking (2026-11-26).** THE ACT PUSHES BACK had no first-week target: nothing glowed, and SHOW ME only
+reopened the studio. Now:
+- The Ear teaches it inside the dialog (`PlayerDesk.FirstWeekPushBack`): a no to the song, not to the record; set it aside
+  and tick one they'd fight for. When they've turned down everything on the sheet, the Ear says insist or go back to the
+  roster for a song they want, and under creative control only the second.
+- The glow goes to SET THIS ASIDE while the sheet has a song they haven't turned down, else to INSIST (else, under
+  creative control, SET THIS ASIDE and then ‹ BACK to the roster).
+- **SET THIS ASIDE unticks only the refused songs.** It used to clear the whole sheet, including the song they were happy
+  with. USE THEIR OWN MATERIAL skips their own songs they've already turned down.
+- The panel remembers refused songs for the session (`studioRefused`, player-side only) and the song glow never walks back
+  to one. The act's answer is still asked fresh at every booking.
+- `FirstWeekUiChecks --push-back` ticks two songs and opens the real dialog on the first, then follows the glow. It checks
+  the Ear's line, the glow on SET THIS ASIDE, that only the refused song is unticked (the other stays ticked), that the glow
+  never walks back to it, and that the date is cut without it. Passes on seed 1002 (49 checks); screenshot
+  `SimLogs/first-week-07-push-back.png`. The plain run still passes (2 presses on the sheet, a two-song date).
+- **The act's answer is forced in the check, because no real song is refused.** On seeds 1001–1005 no song on the new
+  act's sheet, and none of the 6,574 catalogue standards and coverable hits, trips `MaterialRefusals`. Even with the act
+  made a Superstar with full ambition, stretch peaks at 0.25 of capability, and the gate needs 0.9
+  (`refusalStretchCapability`). Identity alone would trip at that standing (min 0.33 against a 0.65 bar). So in real play
+  the push-back almost never fires for a player's act. `PolarPlayerPerceptionChecks` only trips it with a synthetic song
+  and a synthetic act. *Author question:* is a refusal meant to be this rare, or is the stretch half of the rule too
+  strict for real songs?
+
+**A counter at the table (2026-11-26).** Seed 1005 on a Kubiak run: the manager countered (SWEETEN IT / TRADE /
+PROMISE… / HOLD FIRM / WALK AWAY) and nothing glowed; SHOW ME didn't help. Now:
+- On the counter the Suit says it's a price, not a no (`PlayerDesk.FirstWeekCounter`): give them part of what they named
+  and put the paper back. A promise is a bill that comes later, and holding firm on a first deal loses the act. For
+  publishing or creative control, which can't be split, he says let them have it. For a capability objection, he says it
+  isn't the money, but better terms can still carry it. SWEETEN IT glows and is scrolled into view.
+- Back on the sheet he names the term they're stuck on, their number and yours ("they asked $60, the paper says $35"),
+  and says to move that one about halfway. **That blank glows** until it moves (or the box, for publishing or control),
+  then TABLE AGAIN. The glow can now sit on a typed blank: `GlowOn` takes any control, and a blank pulses as a whole.
+- `FirstWeekUiChecks` checks the Suit's lines, that SWEETEN IT glows and is on screen, the glowing blank (on screen) or
+  box, and TABLE AGAIN after it. When a blank glows, the bot types the halfway number. `--lowball` writes a third of the
+  advance on the first offer to draw a money counter. Seed 1005 Kubiak passes (publishing hard line, via the box), and
+  seed 1002 `--lowball` passes (advance: $12 offered, $35 asked, $24 typed, signed on TABLE AGAIN). Screenshots
+  `SimLogs/first-week-05-counter.png`, `first-week-07-sweeten.png`. Before the last copy and scroll fixes, all 20 runs of
+  seeds 1001/1003/1006/1008 × five holders passed; none of them drew a counter.
+- Scrolling to a glow that just appeared waits for the watch's next tick (`firstWeekScrollTo`). Scrolling in the same
+  pass as a page rebuild did nothing, because the page had no layout yet.
+
 Every phase is player-side only: no sim state, no RNG draws, no AI-read fields, so AI CSVs stay byte-identical
 ([[probe-run-byte-comparison-proves-inertness]]).
 
@@ -340,7 +403,9 @@ after T3.
    paper goes in the drawer, staff and services go on a noticeboard). What the tabs give that objects don't is
    **switching mid-task**: from the contract sheet to the books and back. So the likely end state is objects as the
    way in, and a slim strip of tabs kept *inside* the open folder as the way across. That's for T2, last.
-5. **Fatigue is its own mechanic,** designed separately. §3.4's hooks wait on it.
+5. **Fatigue is its own mechanic,** designed separately. §3.4's hooks wait on it. *Designed 2026-11-26:*
+   `SimTools/LabelManFatigueDirective.md`. The unit is hours owed; a 9-to-6 day is free, overtime and the night cost;
+   the state (FRESH / WORN / SPENT) is fixed at waking; Jan 1 starts WORN. T4 is its phase F3.
 
 ## 6. Method note (for re-running the playtest)
 
