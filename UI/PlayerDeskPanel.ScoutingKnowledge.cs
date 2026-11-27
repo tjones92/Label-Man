@@ -385,7 +385,7 @@ public partial class PlayerDeskPanel {
                 hear.TooltipText = "Follow this announced appearance. While you wait the month's bills keep running and other labels keep making their moves. Waiting doesn't hear the set, charge admission or reserve the act. Availability is checked again when you act.";
                 ScoutingTimeRisk(desk, hear, next.Day, next.Playing ? next.EndMinute : next.StartMinute);
                 GreyWhy(hear, "Not enough cash for the admission.");
-                hear.Pressed += () => Act(() => {
+                hear.Pressed += () => ActUntilDay(next.Playing ? 0 : next.Day, () => {
                     string result;
                     bool ok = next.Playing ? desk.ListenSceneAppearance(next.BillId, next.EventId, out result) :
                         desk.WaitForSceneAppearance(next.BillId, next.EventId, out result);

@@ -88,13 +88,20 @@ public static class CompositionCatalogService {
 	// with an id wins, matching FirstOrDefault over the list.
 	private static int professionalWritersVersion, professionalWriterIndexVersion = -1;
 	private static readonly Dictionary<string, ProfessionalSongwriter> professionalWriterById = new(StringComparer.Ordinal);
+	// The first writer with a null id (normally none). A writer with no team partner looks up Writer(null), which the
+	// writing market does three times per supplier per offer list; the linear scan was most of the opening week's cost.
+	private static ProfessionalSongwriter professionalWriterWithNullId;
 	internal static ProfessionalSongwriter GetProfessionalWriter(string writerId) {
-		if (writerId == null) return professionalWriters.FirstOrDefault(w => w.writerId == null);
 		if (professionalWriterIndexVersion != professionalWritersVersion) {
 			professionalWriterById.Clear();
-			foreach (var w in professionalWriters) if (w.writerId != null) professionalWriterById.TryAdd(w.writerId, w);
+			professionalWriterWithNullId = null;
+			foreach (var w in professionalWriters) {
+				if (w.writerId != null) professionalWriterById.TryAdd(w.writerId, w);
+				else professionalWriterWithNullId ??= w;
+			}
 			professionalWriterIndexVersion = professionalWritersVersion;
 		}
+		if (writerId == null) return professionalWriterWithNullId;
 		return professionalWriterById.TryGetValue(writerId, out var found) ? found : null;
 	}
 	public static int StandardCount { get { int n = 0; foreach (var kv in standardsByGenre) n += kv.Value.Count; return n; } }

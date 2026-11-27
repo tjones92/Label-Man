@@ -90,11 +90,27 @@ public partial class PlayerDeskPanel : Control {
 	public override void _Ready() {
 		BuildUi();
 		Visible = false;
-		if (PlayerDesk.Instance != null) PlayerDesk.Instance.Changed += Refresh;
+		if (PlayerDesk.Instance != null) PlayerDesk.Instance.Changed += OnDeskChanged;
 	}
 
 	public override void _ExitTree() {
-		if (PlayerDesk.Instance != null) PlayerDesk.Instance.Changed -= Refresh;
+		if (PlayerDesk.Instance != null) PlayerDesk.Instance.Changed -= OnDeskChanged;
+	}
+
+	private bool turnRefreshQueued;
+	/// <summary>The desk changes many times while the calendar turns (each morning's business, and every day of a
+	/// multi-day skip), all inside one frame. Rebuilding the open tab each time cost ~40 ms a day for a screen nobody
+	/// sees until the turn is over, so a turn queues one rebuild for the end of the frame. Clicks still refresh at once.</summary>
+	private void OnDeskChanged() {
+		if (TimeManager.Instance?.TurningTheDay != true) { Refresh(); return; }
+		if (turnRefreshQueued) return;
+		turnRefreshQueued = true;
+		Callable.From(RefreshAfterTurn).CallDeferred();
+	}
+
+	private void RefreshAfterTurn() {
+		turnRefreshQueued = false;
+		Refresh();
 	}
 
 	public void Open() {
@@ -837,6 +853,14 @@ public partial class PlayerDeskPanel : Control {
 	private void Act(Func<bool> action) {
 		action();
 		Refresh();
+	}
+
+	/// <summary>Act, for a wait that runs the calendar to scene-room day <paramref name="day"/> first (GO &amp; WAIT for a
+	/// later set): the turn card goes up while the days pass.</summary>
+	private void ActUntilDay(int day, Func<bool> action) {
+		int today = TimeManager.Instance != null ? LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate) : day;
+		if (day <= today || UIManager.Instance == null) { Act(action); return; }
+		UIManager.Instance.RunDayTurn(day - today, () => Act(action));
 	}
 
 	// ========================================================================

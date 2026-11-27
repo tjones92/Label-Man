@@ -124,7 +124,7 @@ public partial class PlayerDeskPanel {
             var clock = TimeManager.Instance;
             ScoutingTimeRisk(desk, action, circuit ? LocalSceneRoomService.Day(clock.CurrentDate) : option.Day,
                 circuit ? clock.CurrentHour * 60 + clock.CurrentMinute + option.TravelMinutes : option.Playing ? option.EndMinute : option.StartMinute);
-            action.Pressed += () => Act(() => {
+            action.Pressed += () => ActUntilDay(circuit || option.Playing ? 0 : option.Day, () => {
                 string result;
                 bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
                     ? desk.ListenSceneAppearance(option.BillId, option.EventId, out result)

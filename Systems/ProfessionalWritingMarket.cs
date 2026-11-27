@@ -123,6 +123,36 @@ public static class ProfessionalWritingMarket {
 			.ThenByDescending(o => o.PreviousHits * .25f + o.PreviousAssignments * .025f + Fit(o.WriterId, artist.primaryGenre) * .5f + o.Reputation * .2f)
 			.ThenBy(o => o.WriterId, StringComparer.Ordinal).ToArray();
 	}
+	/// <summary>
+	/// The writer of <c>Offers(label, artist).FirstOrDefault(o => o.Available)</c>, found without pricing, naming and
+	/// sorting every supplier: the same active-supplier filter, the same availability test, the same three sort keys
+	/// (own contract first, then the partnership/fit/reputation score, then writer id) evaluated with the same
+	/// expressions. Writer ids are unique, so the first offer of that stable sort is this scan's maximum. AI shortlists
+	/// ask this once per empty professional pick; on the opening week (every act's first shortlist) the full Offers
+	/// list cost ~5 s of the first day end.
+	/// </summary>
+	internal static string FirstAvailableOfferWriter(AILabel label, SimulatedArtist artist) {
+		if (!Enabled || State == null || label == null || artist == null) return null;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		string best = null;
+		bool bestOwn = false;
+		float bestScore = 0f;
+		foreach (var s in State.Suppliers.Values) {
+			if (!ActiveSupplier(s.WriterId, year)) continue;
+			var c = Contract(s.WriterId, Week);
+			if (!(s.BusyUntilWeek <= Week && (c == null || c.LabelId == label.labelId || c.Kind != WritingContractKind.Exclusive))) continue;
+			var p = Partnership(label.labelId, artist.artistId, s.WriterId);
+			int previousHits = p?.Hits ?? 0, previousAssignments = p?.Assignments ?? 0;
+			float reputation = s.Reputation;
+			bool own = c?.LabelId == label.labelId;
+			float score = previousHits * .25f + previousAssignments * .025f + Fit(s.WriterId, artist.primaryGenre) * .5f + reputation * .2f;
+			if (best == null || own && !bestOwn ||
+				own == bestOwn && (score > bestScore || score == bestScore && StringComparer.Ordinal.Compare(s.WriterId, best) < 0)) {
+				best = s.WriterId; bestOwn = own; bestScore = score;
+			}
+		}
+		return best;
+	}
 	private static float Fit(string writer, Genre genre) => Members(writer).Average(w => w.primaryGenre == genre ? 1f : w.secondaryGenre == genre ? .85f : .4f + .4f * w.versatility);
 
 	public static bool CanLicense(SongComposition song, AILabel label, SimulatedArtist artist = null) {
