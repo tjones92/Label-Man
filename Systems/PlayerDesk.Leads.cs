@@ -6,7 +6,8 @@ using System.Linq;
 // LEADS (SimTools/SigningRealismBreakdown.md §3.6, step 7): a reason to go and hear somebody before you've heard them.
 //
 // Each lead is said by a source that could know it, from real state:
-//   The Street passes on what the rooms are saying: a residency and how long the room has kept them, a full room with them
+//   The Street passes on what the rooms are saying, once the Label Man has been in one (a set heard); before that the
+//   only lead is a room billing its regulars, which is printed: a residency and how long the room has kept them, a full room with them
 //   on the bill this week, the people who come in for them, an original the crowd asks for by name. That's noise, not
 //   music. A Street of 3 passes it on plainly. Below that it hears only the noise and talks it up, so a loud, ordinary
 //   band sounds like the best thing in town and a good quiet one isn't mentioned (the fog's direction). From 4 it can
@@ -88,10 +89,16 @@ public partial class PlayerDesk {
 			facts.Add($"Kids are asking for \"{song}\", one of theirs.");
 
 		// ── The Street ──
+		// It hears what the rooms say only once he's been in one. On the first morning he's just stumbled out of the office
+		// with a hangover, so all he has is what's printed: the room's own billing of its regulars (playtest 2026-11-26).
 		int street = InstinctScore(InstinctProfile, ExecutiveVoice.Street);
 		float band = act.CalculateBaseQuality();
 		string streetText = null;
-		if (heat > 0) {
+		bool beenOut = scoutingKnowledge.Dossiers.Any(d => HasScoutingEvidence(d.ArtistId));
+		if (!beenOut) {
+			if (resident != null && resident.PlaceId == scene)
+				leads.Add(new SetLead { Voice = ExecutiveVoice.None, Source = resident.Name, Text = $"The room bills {them} as its regulars." });
+		} else if (heat > 0) {
 			string said = string.Join(" ", facts);
 			streetText = street <= 2 ? (heat >= 2 ? $"Everybody's talking about {them}. " : $"Word in the rooms is, go and see {them}. ") + said
 				: street == 3 ? said
@@ -152,4 +159,7 @@ public partial class PlayerDesk {
 	internal void AddRivalLookForCheck(string artistId, string labelId, int day) =>
 		(sceneInformation.RivalLooks ??= new()).Add(new RivalLook { ArtistId = artistId, LabelId = labelId, Day = day });
 	internal int RivalLookCountForCheck => sceneInformation.RivalLooks?.Count ?? 0;
+	/// <summary>A heard set on file (for an act that isn't anyone), so the Street has been in a room.</summary>
+	internal void BeenOutForCheck() => scoutingKnowledge.Dossiers.Add(new ScoutingDossier { ArtistId = "check_been_out", ArtistName = "Check",
+		Observations = { new ScoutingObservation { Id = "check_been_out", ArtistId = "check_been_out", Kind = ScoutingEvidenceKind.Performance } } });
 }

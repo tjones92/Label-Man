@@ -217,8 +217,13 @@ public partial class FirstWeekUiChecks : Node {
 			if (Visible("END THE CONVERSATION") is { } end) { GD.Print("  press END THE CONVERSATION"); end.EmitSignal(Button.SignalName.Pressed); await Frame(0.6); }
 			if (Visible("FIND A SET") is { } find) { find.EmitSignal(Button.SignalName.Pressed); await Frame(0.6); }
 			if (Visible("NEXT SETS") is { } next) { next.EmitSignal(Button.SignalName.Pressed); await Frame(0.6); }
+			await Frame(0.6);   // the watch's next tick
 			var glow = Glowing();
-			Check(glow == null || !Row(glow) || glow.HasMeta("first_week_here"), "Hearing: no set glows until you've walked to it" + (glow != null ? $" (glow: {glow.Text})" : ""));
+			var rows = Nodes(panel).OfType<Button>().Where(b => b.IsVisibleInTree() && !b.Disabled && Row(b) && b.HasMeta("scouting_artist")).ToList();
+			// Choosing who to hear: every listed set glows (the player picks), and FIND A SET doesn't, since it's already open.
+			if (desk.FirstWeekCurrent == FirstWeekStep.Hear && rows.Count > 0)
+				Check(rows.All(b => b.HasMeta("first_week_glow")) && Visible("FIND A SET")?.HasMeta("first_week_glow") != true,
+					$"Hearing: all {rows.Count} listed sets glow, and FIND A SET doesn't (glow: {glow?.Text})");
 			if (desk.FirstWeekCurrent == FirstWeekStep.Hear && heard == 0) {
 				Check(Nodes(panel).OfType<Node>().Any(n => n.Name == "FirstWeekTeaching" && n is Control c && c.IsVisibleInTree()), "The Ear teaches hearing on the set finder, not the card");
 				Check(Shows("Know the room before you trust what you hear in it"), "The Ear talks about tonight's rooms");

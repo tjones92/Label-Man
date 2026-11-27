@@ -8,7 +8,8 @@ using Godot;
 /// The first-session trace (SimTools/OnboardingTutorialDirective.md §4 "Measure it"): player-only telemetry for a new
 /// player's first days, written to a local file so a cold playtest gives numbers, not impressions.
 ///
-/// It starts the first time the desk shows a label founded in this session, and stops at the first record set up (the
+/// It starts the first time the desk shows a label founded in this session (or a loaded one still on its first-week
+/// card, marked resumed), and stops at the first record set up (the
 /// first-week card's last line), at game over, or after <see cref="MaxInGameDays"/> in-game days. It records:
 /// - every button press anywhere in the tree (the desk, the office, modals, the studio), with the in-game time, the tab,
 ///   and whether it was the first-week card's glowing button;
@@ -28,11 +29,13 @@ public partial class FirstSessionTrace : Node {
 
 	/// <summary>Called by the desk each time it shows an in-game page: starts the trace for a label founded in this session.</summary>
 	public static void MaybeStart(Node from, PlayerDesk desk) {
-		if (desk?.Label == null || !desk.FoundedThisSession || desk.Label == tracedLabel || desk.IsGameOver) return;
+		// A label founded in this session, or a loaded one still on its first week (playtest 2026-11-26: the first cold
+		// playtest loaded a save and the trace never started). A loaded one is marked as resumed in the summary.
+		if (desk?.Label == null || !(desk.FoundedThisSession || desk.FirstWeekActive) || desk.Label == tracedLabel || desk.IsGameOver) return;
 		if (Current != null && !Current.finished) return;   // still following the last founding
 		Current?.QueueFree();   // a new game in the same session: the finished trace's files stay on disk
 		tracedLabel = desk.Label;
-		var trace = new FirstSessionTrace { Name = "FirstSessionTrace" };
+		var trace = new FirstSessionTrace { Name = "FirstSessionTrace", resumed = !desk.FoundedThisSession };
 		Current = trace;
 		from.GetTree().Root.CallDeferred(Node.MethodName.AddChild, trace);
 	}
@@ -55,7 +58,7 @@ public partial class FirstSessionTrace : Node {
 	private int deskChanges, nodeChurn;
 	private string lastRefusal;
 	private int refusals;
-	private bool finished, putAway;
+	private bool finished, putAway, resumed;
 
 	public int Presses => log.Count(p => p.Outcome != "disabled");
 	public int GlowPresses => log.Count(p => p.Glow);
@@ -249,6 +252,7 @@ public partial class FirstSessionTrace : Node {
 		if (desk?.Label != null)
 			sb.AppendLine($"{desk.Label.labelName} · {desk.Label.headquartersCity} · {desk.Archetype}" + (desk.Lien != null ? $" · holder {desk.Lien.Holder}" : ""));
 		sb.AppendLine($"Started {startReal:yyyy-MM-dd HH:mm} real time; in game {startDate.ToHeadlineString()} {startMinuteOfDay / 60:00}:{startMinuteOfDay % 60:00}.");
+		if (resumed) sb.AppendLine("RESUMED from a saved game part-way through the first week: presses and time before the load aren't counted.");
 		sb.AppendLine(finished ? "Finished." : "Still running when written.");
 		sb.AppendLine();
 

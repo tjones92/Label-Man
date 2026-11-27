@@ -67,8 +67,15 @@ public partial class LeadsChecks : Node {
 				GD.Print($"DIST last bill fill {Q(fills)}");
 			}
 
-			// Pure.
+			// Before he's been in a room, the Street has nothing to pass on: only a room billing its regulars, in print.
 			Voices(5, 5);
+			var before = acts.Select(a => (a, leads: desk.LeadsFor(a.artistId, Town(a), today))).ToList();
+			Check(before.All(x => x.leads.All(l => l.Voice != ExecutiveVoice.Street)), "the Street says nothing before a set has been heard");
+			Check(before.Where(x => SceneRoomCatalog.Get(LocalSceneRoomService.EngagementRoom(x.a.artistId, today)) is { } r && r.PlaceId == Town(x.a))
+				.All(x => x.leads.Any(l => l.Voice == ExecutiveVoice.None && l.Text.StartsWith("The room bills", StringComparison.Ordinal))), "before that, a residency shows as the room's own billing");
+			desk.BeenOutForCheck();
+
+			// Pure.
 			string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
 			var at5 = acts.ToDictionary(a => a.artistId, a => desk.LeadsFor(a.artistId, Town(a), today));
 			Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player, "building every act's leads moves nothing");

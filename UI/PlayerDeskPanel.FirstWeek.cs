@@ -210,6 +210,12 @@ public partial class PlayerDeskPanel {
 		// The set the player chose and walked to: its LISTEN is the next thing to press.
 		Button hit = desk.FirstWeekLooking ? buttons.FirstOrDefault(b => b.HasMeta("first_week_here")) : null;
 		if (hit != null) { GlowOn(hit); return; }
+		// Choosing who to hear: with the sets listed, every one of them glows and the player picks (playtest 2026-11-26: a
+		// glowing FIND A SET over the open finder was a press that did nothing).
+		if (modal.Count == 0 && (step == FirstWeekStep.Hear || step == FirstWeekStep.Answer && desk.FirstWeekNeedsAnotherAct && theTalkArtistId == null)) {
+			var sets = buttons.Where(b => b.HasMeta("scouting_artist") && b.Text is "GO & WAIT" or "LISTEN").Cast<Control>().ToList();
+			if (sets.Count > 0) { GlowOnAll(sets); return; }
+		}
 		// An act that asked to be heard again: its next set, then (at The Set) talking to it when it comes off the stand.
 		if (desk.FirstWeekHearAgainId is { } again && modal.Count == 0) {
 			bool atTheSet = buttons.Any(b => b.Text == "LET THEM GO");
@@ -275,28 +281,57 @@ public partial class PlayerDeskPanel {
 		return desk.IsHeldByHolder(artist);
 	}
 
+	/// <summary>The first of what glows (what the scroll and the checks follow).</summary>
 	private Control firstWeekGlowing;
+	private List<Control> firstWeekGlowSet = new();
 	private Control firstWeekScrollTo;
-	private Tween firstWeekPulse;
+	private readonly List<Tween> firstWeekPulses = new();
+	/// <summary>The grease-pencil ring's ink: a copy editor's blue, which reads on the beige paper and on the oxblood buttons
+	/// alike (a yellow tint on the face vanished on the red ones; playtest 2026-11-26).</summary>
+	private static readonly Color FirstWeekRingInk = new("2f5fb3");
 
-	/// <summary>Only ever one glowing button: the old one goes back to plain when the next thing to press changes.</summary>
-	private void GlowOn(Control hit) {
-		if (hit == firstWeekGlowing && IsInstanceValid(hit) && firstWeekPulse?.IsValid() == true) return;
-		if (firstWeekPulse?.IsValid() == true) firstWeekPulse.Kill();
-		if (firstWeekGlowing != null && IsInstanceValid(firstWeekGlowing)) {
-			firstWeekGlowing.SelfModulate = Colors.White;
-			firstWeekGlowing.Modulate = Colors.White;
-			firstWeekGlowing.RemoveMeta("first_week_glow");
+	/// <summary>One thing to press glows. The old glow goes back to plain when the next thing to press changes.</summary>
+	private void GlowOn(Control hit) => GlowOnAll(hit == null ? null : new List<Control> { hit });
+
+	/// <summary>Several equal choices glow together (the sets you could go and hear): the card points the way and leaves the
+	/// choice to the player. Each gets a pulsing ring, drawn around it like a pencil circle, and a light tint.</summary>
+	private void GlowOnAll(List<Control> hits) {
+		hits = hits?.Where(h => h != null && IsInstanceValid(h)).Distinct().ToList() ?? new();
+		bool same = hits.Count == firstWeekGlowSet.Count && hits.Zip(firstWeekGlowSet).All(p => p.First == p.Second);
+		if (same && (hits.Count == 0 || firstWeekPulses.Count > 0 && firstWeekPulses.All(t => t.IsValid()))) return;
+		foreach (var t in firstWeekPulses) if (t.IsValid()) t.Kill();
+		firstWeekPulses.Clear();
+		foreach (var old in firstWeekGlowSet.Where(IsInstanceValid)) {
+			old.SelfModulate = Colors.White;
+			old.Modulate = Colors.White;
+			old.RemoveMeta("first_week_glow");
+			if (old.GetNodeOrNull("FirstWeekRing") is Node ring) { old.RemoveChild(ring); ring.QueueFree(); }
 		}
-		firstWeekGlowing = hit;
-		firstWeekPulse = null;
-		if (hit == null) return;
-		hit.SetMeta("first_week_glow", true);
-		// A button tints its own face; a typed blank (a SpinBox draws its text in a child) tints as a whole.
-		string property = hit is Button ? "self_modulate" : "modulate";
-		firstWeekPulse = hit.CreateTween().SetLoops();
-		firstWeekPulse.TweenProperty(hit, property, FirstWeekGlow, 0.6).SetTrans(Tween.TransitionType.Sine);
-		firstWeekPulse.TweenProperty(hit, property, Colors.White, 0.6).SetTrans(Tween.TransitionType.Sine);
+		firstWeekGlowSet = hits;
+		firstWeekGlowing = hits.FirstOrDefault();
+		foreach (var hit in hits) {
+			hit.SetMeta("first_week_glow", true);
+			// The ring sits just outside the control and never takes the mouse.
+			var ring = new Panel { Name = "FirstWeekRing", MouseFilter = MouseFilterEnum.Ignore };
+			ring.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+				BgColor = Colors.Transparent, DrawCenter = false, BorderColor = FirstWeekRingInk,
+				BorderWidthLeft = 3, BorderWidthRight = 3, BorderWidthTop = 3, BorderWidthBottom = 3,
+				CornerRadiusTopLeft = 7, CornerRadiusTopRight = 7, CornerRadiusBottomLeft = 7, CornerRadiusBottomRight = 7,
+			});
+			ring.SetAnchorsPreset(LayoutPreset.FullRect);
+			ring.OffsetLeft = -5; ring.OffsetTop = -5; ring.OffsetRight = 5; ring.OffsetBottom = 5;
+			hit.AddChild(ring);
+			var ringPulse = ring.CreateTween().SetLoops();
+			ringPulse.TweenProperty(ring, "modulate:a", 0.25f, 0.6).SetTrans(Tween.TransitionType.Sine);
+			ringPulse.TweenProperty(ring, "modulate:a", 1f, 0.6).SetTrans(Tween.TransitionType.Sine);
+			firstWeekPulses.Add(ringPulse);
+			// A button tints its own face; a typed blank (a SpinBox draws its text in a child) tints as a whole.
+			string property = hit is Button ? "self_modulate" : "modulate";
+			var pulse = hit.CreateTween().SetLoops();
+			pulse.TweenProperty(hit, property, FirstWeekGlow, 0.6).SetTrans(Tween.TransitionType.Sine);
+			pulse.TweenProperty(hit, property, Colors.White, 0.6).SetTrans(Tween.TransitionType.Sine);
+			firstWeekPulses.Add(pulse);
+		}
 	}
 
 	private static T FindParentOfType<T>(Node n) where T : class {

@@ -187,7 +187,11 @@ public partial class PlayerDesk {
 					Line = step.Kind == ScoutingApproachStepKind.Parents ? "I'll come to Sunday dinner and meet the family." : $"I'll sit down with {step.Who}.",
 					Cost = $"{hours}h, {(step.Kind == ScoutingApproachStepKind.Parents ? "at the family's" : "at " + (step.Place ?? "his office"))}.",
 					Enabled = due && here,
-					Why = !due ? $"Not before {LocalSceneRoomService.Date(step.Day.Value).ToHeadlineString()}." : $"You'd have to be in {DistanceModel.GetCityById(town)?.name ?? "their town"}." });
+					// Say where, not only when (playtest 2026-11-26: "come back in two days" left the player asking back where).
+					Why = !due ? (step.Kind == ScoutingApproachStepKind.Parents
+							? $"Sunday, {LocalSceneRoomService.Date(step.Day.Value).ToHeadlineString()}, at the family's. Come back to this card that day."
+							: $"{LocalSceneRoomService.Date(step.Day.Value).ToHeadlineString()} or after, at {step.Place ?? (step.Female ? "her office" : "his office")}. Come back to this card that day.")
+						: $"You'd have to be in {DistanceModel.GetCityById(town)?.name ?? "their town"}." });
 			} else if (prospect != null && CanTalkTerms(prospect))
 				o.Add(new TalkOption { Verb = TalkVerb.Terms, Line = "Let's sit down on terms.", Cost = "Opens the contract: their ask, your offer, what it costs the label." });
 			else if (agreed == null && CanAskDirectApproach(act))
