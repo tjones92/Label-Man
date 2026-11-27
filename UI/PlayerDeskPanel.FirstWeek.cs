@@ -344,10 +344,11 @@ public partial class PlayerDeskPanel {
 		var timer = new Timer { WaitTime = 0.5, Autostart = true };
 		timer.Timeout += () => {
 			var desk = PlayerDesk.Instance;
-			if (desk?.FirstWeekCurrent == null || !IsVisibleInTree()) { GlowOn(null); return; }
+			if (desk?.FirstWeekCurrent == null || !IsVisibleInTree()) { GlowOn(null); HideFirstWeekSlip(); return; }
 			if (firstWeekScrollTo != null && IsInstanceValid(firstWeekScrollTo) && firstWeekScrollTo.IsVisibleInTree()) contentScroll?.EnsureControlVisible(firstWeekScrollTo);
 			firstWeekScrollTo = null;
 			HighlightFirstWeekTarget(desk);
+			PlaceFirstWeekSlip(desk);   // the voice of the moment, beside the glow (T6)
 		};
 		AddChild(timer);
 	}

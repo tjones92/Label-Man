@@ -168,7 +168,8 @@ public partial class FirstSessionTrace : Node {
 		};
 		log.Add(record);
 		int clockBefore = frameClock, changesBefore = frameChanges, churnBefore = frameChurn, refusalsBefore = frameRefusals;
-		bool toggle = button.ToggleMode;
+		// A button that only shows or hides something of the desk's own (the voice slip's ×) says so: hiding moves no node.
+		bool toggle = button.ToggleMode || button.HasMeta("first_session_ok");
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		if (!IsInsideTree()) return;

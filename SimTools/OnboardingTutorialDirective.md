@@ -437,6 +437,25 @@ desperately trying to steer a body that doesn't know what it's doing.
 - Inline teaching stays only where nothing glows (a page with no next press), so the line is never lost.
 - Same rules as now: every line names real state, and the off switch is I KNOW THE WAY.
 
+**T6 built (2026-11-26)** (`UI/PlayerDeskPanel.FirstWeekSlip.cs`; the lines are `PlayerDesk.FirstWeekNudge`):
+- A paper slip on its own canvas layer (61, above the modals) beside whatever glows, with a pencil-blue arrow to each
+  glowing control in view (up to four). If the glow is scrolled out of sight (the terms sheet's TABLE OFFER sits below
+  the fold), the slip sits just inside that edge of the page and the arrow points straight off it.
+- One line per thing to press, from the voice whose job it is, in the panicked register: about thirty lines across the
+  first week, including the Street's day-one line above and the Suit's "Look at you, hungover…" at TABLE OFFER, which
+  shows only on Jan 1–2 (the real morning after) until fatigue takes it over. The lines claim no read, so they speak at
+  any instinct.
+- The × puts it away until the glow moves on. It never takes the mouse otherwise, and the first-session trace counts the
+  × as ok, not a dead click. It's built once and moved on the watch's tick.
+- **Changed from the sketch above:** the longer teaching lines stay on the page as reference. The slip is the nudge,
+  the page is the explanation. Moving all the teaching into slips can follow if the page lines still go unread.
+- `FirstWeekUiChecks` (seed 1001, 76 checks): the Street's slip is up beside the sets on day one with an arrow per set
+  in view, the × puts it away, it comes back with the Ear's line at LISTEN, and every glow with a line has its slip up,
+  including TABLE OFFER below the fold. Screenshots: `SimLogs/first-week-02-finder.png`, `-10-terms.png`.
+- Not seen in play: the hungover line (seed 1001 reaches the table on Jan 10), the studio's song and push-back slips, and
+  a counter's SWEETEN IT and blank. A known rough edge: beside the set rows the slip covers the end of the card's
+  billing line.
+
 ### 4c. The appointment book (proposal, T5)
 
 A sit-down with a manager is the first time the player has **somewhere to be at a certain time**. That's the first moment

@@ -38,6 +38,7 @@ public partial class FirstWeekUiChecks : Node {
 		(c is Label l && l.Text.Contains(text, StringComparison.Ordinal) || c is RichTextLabel r && r.Text.Contains(text, StringComparison.Ordinal)));
 	private Button Glowing() => Nodes(GetTree().Root).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.HasMeta("first_week_glow"));
 	private Control GlowingField() => Nodes(GetTree().Root).OfType<Control>().FirstOrDefault(c => c is not Button && c.IsVisibleInTree() && c.HasMeta("first_week_glow"));
+	private bool SlipShowing() => GetTree().Root.FindChild("FirstWeekSlip", true, false) is Control slip && slip.IsVisibleInTree();
 	private Button Visible(string text) => Nodes(GetTree().Root).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && !b.Disabled && b.Text == text);
 
 	public override async void _Ready() {
@@ -147,6 +148,10 @@ public partial class FirstWeekUiChecks : Node {
 					advanceBlank.Value = Math.Round(advanceBlank.Value / 3);
 					await Frame(0.3);
 				}
+				// T6: whatever glows has its voice's slip beside it, when that voice has something to say about it.
+				// Scrolled out of sight (the terms sheet's TABLE OFFER), it's pinned at the page's edge, pointing off it.
+				if (desk.FirstWeekNudge(glow.Text.Trim(), false) is { } nudge)
+					Check(SlipShowing() && Shows(nudge.Text[..Math.Min(30, nudge.Text.Length)]), $"The slip is up at {glow.Text.Trim()}{(OnScreen(glow) ? "" : " (below the fold)")}: {nudge.Text}");
 				GD.Print($"  press {glow.Text}");
 				presses++;
 				glow.EmitSignal(Button.SignalName.Pressed);
@@ -227,7 +232,14 @@ public partial class FirstWeekUiChecks : Node {
 			if (desk.FirstWeekCurrent == FirstWeekStep.Hear && heard == 0) {
 				Check(Nodes(panel).OfType<Node>().Any(n => n.Name == "FirstWeekTeaching" && n is Control c && c.IsVisibleInTree()), "The Ear teaches hearing on the set finder, not the card");
 				Check(Shows("Know the room before you trust what you hear in it"), "The Ear talks about tonight's rooms");
+				// T6: the Street's slip pops over beside the sets, with an arrow to each one.
+				Check(SlipShowing() && Shows("We need to sign a fuckin' act"), "The Street's slip is up beside the sets on day one");
+				var arrows = (System.Collections.IList)typeof(PlayerDeskPanel).GetField("firstWeekArrowTargets", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(panel);
+				Check(arrows.Count == Math.Min(4, rows.Count(OnScreen)), $"An arrow to each set on screen ({arrows.Count} arrows, {rows.Count(OnScreen)} sets on screen)");
 				await Screenshot("finder");
+				var close = Nodes(GetTree().Root).OfType<Button>().First(b => b.Name == "FirstWeekSlipClose");
+				close.EmitSignal(Button.SignalName.Pressed); await Frame(0.7);
+				Check(!SlipShowing(), "The × puts the slip away while the same sets glow");
 			}
 			var row = Nodes(panel).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && !b.Disabled && Row(b));
 			if (row == null) {
@@ -245,6 +257,7 @@ public partial class FirstWeekUiChecks : Node {
 				await Frame(0.6);
 				var here = Glowing();
 				Check(here != null && here.Text == "LISTEN" && here.HasMeta("first_week_here"), "At the set you walked to, its LISTEN glows");
+				if (heard == 0) Check(SlipShowing() && Shows("Shut up and listen"), "The slip comes back when the glow moves: the Ear at LISTEN");
 				here.EmitSignal(Button.SignalName.Pressed); await Frame(0.7);
 			}
 			heard++;

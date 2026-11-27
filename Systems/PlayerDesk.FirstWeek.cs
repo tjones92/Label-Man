@@ -151,6 +151,75 @@ public partial class PlayerDesk {
 		};
 	}
 
+	/// <summary>The pop-over slip at the glow (OnboardingTutorialDirective.md §4b): a short line from the voice whose job it
+	/// is, steering a body that doesn't know what it's doing. It names the thing to press and why, claims no read (so it
+	/// speaks at any instinct), and leaves the explaining to the lines on the page. <paramref name="target"/> is the glowing
+	/// control's text, or "song" / "blank" / "give" for the studio's song boxes and the terms sheet's fields;
+	/// <paramref name="several"/> is true when more than one thing glows. Null when there's nothing to say.</summary>
+	public (ExecutiveVoice Voice, string Text)? FirstWeekNudge(string target, bool several) {
+		if (FirstWeekCurrent is not { } step || string.IsNullOrEmpty(target)) return null;
+		bool Is(string prefix) => target.StartsWith(prefix, System.StringComparison.Ordinal);
+		// The morning after is real: on New Year's Day and the day after, he is hungover (the fatigue mechanic takes this
+		// over once it's built: LabelManFatigueDirective.md §2.4).
+		var date = TimeManager.Instance?.CurrentDate;
+		bool hungover = date is { year: 1960, month: 1, day: <= 2 };
+		if (several || target is "GO & WAIT")
+			return (ExecutiveVoice.Street, step == FirstWeekStep.Hear && !scoutingKnowledge.Dossiers.Any(d => HasScoutingEvidence(d.ArtistId))
+				? "You have no clue how this all works, do you? We need to sign a fuckin' act! Pick a room. Any of them."
+				: "Somebody else, then. Pick a set and get out the door.");
+		if (target is "FIND A SET" or "NEXT SETS")
+			return (ExecutiveVoice.Street, "Not the paperwork. The sets. Where the bands are.");
+		if (target == "LISTEN")
+			return (ExecutiveVoice.Ear, "Shut up and listen. That's the whole job tonight.");
+		if (target is "TALK TO THEM" or "SIT DOWN ON TERMS")
+			return (ExecutiveVoice.Street, "That one. Go and talk to them before they pack up the van.");
+		if (target == "LET THEM GO")
+			return (ExecutiveVoice.Ear, "Not them. Let them go and wait for the one we came for.");
+		if (Is("▸  Would you hear an offer"))
+			return (ExecutiveVoice.Street, "Ask them. Just ask! It's free, and a no won't kill you.");
+		if (Is("▸  I'll come to Sunday dinner") || target == "MEET THE FAMILY")
+			return (ExecutiveVoice.Street, "Sunday dinner. Clean shirt, if you've still got one. Say grace.");
+		if (Is("▸  I'll sit down with") || target == "SIT DOWN WITH THE MANAGER")
+			return (ExecutiveVoice.Suit, "The manager. Listen more than you talk. Whatever he asks for, he'll ask for again.");
+		if (Is("▸  Let's sit down on terms"))
+			return (ExecutiveVoice.Suit, "Now the paper. Let me do the thinking.");
+		if (target == "END THE CONVERSATION")
+			return (ExecutiveVoice.Fixer, "We're done here. Walk away like you meant to.");
+		if (target == "END THE DAY")
+			return step == FirstWeekStep.Answer
+				? (ExecutiveVoice.Fixer, "Go home. They'll answer. Nobody calls back a man standing in their doorway.")
+				: (ExecutiveVoice.Fixer, "That's the day. Go home before you do something else.");
+		if (Is("TABLE OFFER"))
+			return (ExecutiveVoice.Suit, hungover
+				? "Look at you, hungover. You can't even put a proposal together. The standard paper's fine. Don't touch anything."
+				: "That's the standard paper, and it's fine for a first deal. Put it down before you fiddle with it.");
+		if (target == "SWEETEN IT")
+			return (ExecutiveVoice.Suit, "That's a price, not a no. Give them a little. A little!");
+		if (target == "blank")
+			return (ExecutiveVoice.Suit, "That number. Halfway to theirs. Halfway, not all the way.");
+		if (target == "give")
+			return (ExecutiveVoice.Suit, "That box. Give it to them. It's not worth losing the act over.");
+		if (Is("TABLE AGAIN"))
+			return (ExecutiveVoice.Suit, "Put it back in front of them.");
+		if (target == "NOT NOW")
+			return (ExecutiveVoice.Fixer, "Nobody signs anything good this late. Ask me how I know.");
+		if (target == "TO THE ROSTER")
+			return (ExecutiveVoice.Ear, "We've got a band. Now we need a record.");
+		if (Is("TAKE INTO STUDIO") || Is("RETURN TO STUDIO"))
+			return (ExecutiveVoice.Ear, "Studio. Don't overthink it.");
+		if (target == "song")
+			return (ExecutiveVoice.Ear, "Two songs. The ones they play best, not the ones you like.");
+		if (Is("BOOK THE ROOM") || Is("BOOK IT"))
+			return (ExecutiveVoice.Suit, "Book it before you lose your nerve. Or the money.");
+		if (target == "SET THIS ASIDE")
+			return (ExecutiveVoice.Ear, "They hate it. Drop it and pick another.");
+		if (Is("INSIST"))
+			return (ExecutiveVoice.Ear, "Nothing else on the sheet they'll sing. Push, or go back for a song they want.");
+		if (Is("‹ BACK"))
+			return (ExecutiveVoice.Fixer, "Leave it for today. Come back in the morning.");
+		return null;
+	}
+
 	/// <summary>A voice that can read (3 and up, the Rolodex threshold); under that it teaches but claims nothing.</summary>
 	private bool StrongVoice(ExecutiveVoice voice) => InstinctScore(InstinctProfile, voice) >= 3;
 
