@@ -105,6 +105,9 @@ public static class ScoutingRunwayChecks {
                 foreach (var dossier in desk.ScoutingDossiers) {
                     var a = am.GetArtist(dossier.ArtistId);
                     // A yes with a step due today: go and see the family or the manager (a holdout settles at a set heard).
+                    // Their side's times go in the book as soon as they're offered: the first that hasn't gone (onboarding T5).
+                    for (int k = 0; k < 3 && desk.StepNeedingATime(a) is { } pick; k++)
+                        if (!desk.BookApproachStep(a.artistId, pick.Kind, 0, out _) && !desk.BookApproachStep(a.artistId, pick.Kind, 1, out _)) break;
                     if (desk.NextApproachStep(a) is { Kind: not ScoutingApproachStepKind.Holdout } step && step.Day <= today) {
                         actions++;
                         if (desk.TakeApproachStep(a.artistId, step.Kind, out message)) steps++;

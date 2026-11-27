@@ -142,6 +142,8 @@ public sealed class ScoutingKnowledgeSaveData {
     public List<ScoutingNegotiationState> Negotiations { get; set; } = new();
     /// <summary>Approaches to heard acts that were not looking for a deal. Null on older saves.</summary>
     public List<ScoutingDirectApproach> Approaches { get; set; }
+    /// <summary>The manager rapport ledger (PlayerDesk.ManagerRapport): player-only. Null on older saves.</summary>
+    public List<ManagerRapportEntry> Rapport { get; set; }
     /// <summary>The venue you are standing in today, if any (null: elsewhere in town). Older saves: null.</summary>
     public string AtRoomId { get; set; }
     public int? AtRoomDay { get; set; }
@@ -185,8 +187,17 @@ public sealed class ScoutingApproachStep {
     /// <summary>Who you're seeing: the minors' names, the manager, or the member holding out.</summary>
     public string Who { get; set; }
     /// <summary>The first day it can happen: Sunday for a family, the next weekday for a manager, the act's next posted
-    /// set for a holdout. Null for a holdout whose next date isn't posted, when the next set you hear counts.</summary>
+    /// set for a holdout. Null for a holdout whose next date isn't posted, when the next set you hear counts. A family or
+    /// manager step with <see cref="Offered"/> times: the first offered day until one is picked, then the booked day.</summary>
     public int? Day { get; set; }
+    /// <summary>Family or manager: the booked start, minutes past midnight on <see cref="Day"/>. Null until a time is
+    /// picked, and always null on older saves (whose steps keep "on or after the day", with no hour to miss).</summary>
+    public int? Minute { get; set; }
+    /// <summary>Family or manager: the times their side proposed, to pick one from (the appointment book, onboarding T5).
+    /// Null on older saves.</summary>
+    public List<ApproachTime> Offered { get; set; }
+    /// <summary>Times you booked this and never came.</summary>
+    public int Missed { get; set; }
     /// <summary>The room of the holdout's set, when it's posted.</summary>
     public string RoomName { get; set; }
     /// <summary>Who the manager is, introduced ("Harold Caldwell, Sal's father"), as read when the yes was given
@@ -194,7 +205,7 @@ public sealed class ScoutingApproachStep {
     public string Manager { get; set; }
     /// <summary>Manager step: where you sit down with him.</summary>
     public string Place { get; set; }
-    /// <summary>Manager step: the manager is a woman (a mother managing her children's act).</summary>
+    /// <summary>Manager step: the manager is a woman (a mother, or a woman by her first name: ManagerIdentity).</summary>
     public bool Female { get; set; }
     public bool Done { get; set; }
     public int DoneDay { get; set; }
@@ -215,6 +226,12 @@ public sealed class ScoutingApproachStep {
     /// <summary>A bluff they saw through: the day, and the state it was tried on. It can't be tried again on that state.</summary>
     public int? BluffFailedDay { get; set; }
     public string BluffFailedKey { get; set; }
+}
+/// <summary>A time the other side proposed for a sit-down or a Sunday dinner.</summary>
+public sealed class ApproachTime {
+    public int Day { get; set; }
+    /// <summary>Minutes past midnight.</summary>
+    public int Minute { get; set; }
 }
 /// <summary>A label asked an act that was off the market whether it would hear an offer. The act's answer comes from its
 /// disposition (ActDisposition): a hungry act says yes (tonight, or after its steps), a careful act asks to be heard

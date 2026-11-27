@@ -72,6 +72,7 @@ public partial class FirstWeekUiChecks : Node {
 
 			var seen = new List<FirstWeekStep>();
 			int presses = 0, showMes = 0, counters = 0;
+			bool pickedTime = false, openedBook = false, wentThere = false, sparedTheMorning = false;
 			bool lowball = OS.GetCmdlineUserArgs().Contains("--lowball");
 			var started = TimeManager.Instance.CurrentDate;
 			string chosen = null;
@@ -87,6 +88,16 @@ public partial class FirstWeekUiChecks : Node {
 				}
 				await Frame(0.6);   // the watch looks twice a second
 				var glow = Glowing();
+				// A visit later today: the hours before it are his. The glow is on a set that's over in time, or the wait,
+				// never on going there hours early (playtest 2026-11-27).
+				if (step == FirstWeekStep.Answer && desk.FirstWeekVisitLater && glow != null) {
+					string g = glow.Text.Trim();
+					Check(!g.StartsWith("GO THERE") && g != "THE BOOK", $"A visit at {PlayerDesk.ClockText(desk.FirstWeekVisit.Minute ?? 0)} with {TimeManager.Instance.GetTimeString()} on the clock: no GO THERE yet (glow: {g})");
+					if (g is "GO & WAIT" or "WAIT 1h" or "WAIT 3h") {
+						sparedTheMorning = true;
+						if (g == "GO & WAIT") Check(glow.GetMeta("set_ends").AsInt32() <= desk.SceneDay * 1440 + (desk.FirstWeekLeaveAt ?? 0), "The glowing set is over before it's time to leave");
+					}
+				}
 				var (voice, how) = desk.FirstWeekHow(step);
 				// Each line is taught where its work happens, never on the card.
 				string firstWords = how.Substring(0, Math.Min(40, how.Length));
@@ -152,10 +163,17 @@ public partial class FirstWeekUiChecks : Node {
 				// Scrolled out of sight (the terms sheet's TABLE OFFER), it's pinned at the page's edge, pointing off it.
 				if (desk.FirstWeekNudge(glow.Text.Trim(), false) is { } nudge)
 					Check(SlipShowing() && Shows(nudge.Text[..Math.Min(30, nudge.Text.Length)]), $"The slip is up at {glow.Text.Trim()}{(OnScreen(glow) ? "" : " (below the fold)")}: {nudge.Text}");
+				// The appointment book (onboarding T5): their times glow together in The Talk; on the day, the book, then GO THERE.
+				string pressed = glow.Text.Trim();
+				if (pressed.EndsWith("suits me.")) { pickedTime = true; await Screenshot("book-times"); }
+				if (pressed == "THE BOOK") openedBook = true;
+				var visitBefore = pressed.StartsWith("GO THERE") ? desk.FirstWeekVisit : null;
+				if (pressed.StartsWith("GO THERE")) { wentThere = true; await Screenshot("book-open"); }
 				GD.Print($"  press {glow.Text}");
 				presses++;
 				glow.EmitSignal(Button.SignalName.Pressed);
 				await Frame(0.7);
+				if (visitBefore != null) Check(visitBefore.Done && visitBefore.DoneDay == LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate), $"GO THERE kept the visit ({visitBefore.Kind} with {visitBefore.Who}, {TimeManager.Instance.GetTimeString()})");
 				// The day's end puts the Morning Paper up over the desk: read it and put it down.
 				await Screenshot(step.ToString().ToLowerInvariant());
 				if (GetTree().Root.FindChild("MorningPaper", true, false) is Control paper && paper.Visible) {
@@ -167,6 +185,8 @@ public partial class FirstWeekUiChecks : Node {
 				}
 			}
 			GD.Print($"Presses on a glow: {presses}; SHOW ME: {showMes}; counters: {counters}; days: {TimeManager.Instance.CurrentDate.year * 400 + TimeManager.Instance.CurrentDate.month * 31 + TimeManager.Instance.CurrentDate.day - (started.year * 400 + started.month * 31 + started.day)}");
+			if (OS.GetCmdlineUserArgs().Contains("--manager"))
+				Check(pickedTime && openedBook && wentThere && sparedTheMorning, $"With a manager, the glow walks the book: a time picked in The Talk ({pickedTime}), the hours before the visit left free ({sparedTheMorning}), the book opened in the last hour ({openedBook}), GO THERE ({wentThere})");
 			Check(desk.FirstWeekDone(FirstWeekStep.Sign), "Following the glow signs an act of the player's own");
 			Check(desk.Label.roster.Any(a => a.artistId == chosen), "The act signed is the one the bot chose by its Ear's verdict");
 			Check(desk.FirstWeekCurrent == FirstWeekStep.Record, "The card's last line is the first record");
@@ -276,6 +296,12 @@ public partial class FirstWeekUiChecks : Node {
 						?? desk.Slate.FirstOrDefault(p => p.HasBaseline)?.Artist.artistId;
 					GD.Print($"  chose {ArtistManager.Instance.GetArtist(id)?.stageName} after {heard} set(s)");
 					Check(id != null, "Talking to the act the Ear liked");
+					// --manager: a shark manages them (and they're hungry, with nobody holding out), so the yes comes with a sit-down to book.
+					if (OS.GetCmdlineUserArgs().Contains("--manager") && ArtistManager.Instance.GetArtist(id) is { } act && string.IsNullOrEmpty(act.labelId)) {
+						act.manager = ManagerArchetype.Shark; act.managerName ??= "Sol Kramer";
+						foreach (var m in act.members.Where(m => m.isActive)) m.ambition = Math.Max(m.ambition, .95f);
+						GD.Print("  (--manager) a shark manages them now");
+					}
 					return id;
 				}
 				go.EmitSignal(Button.SignalName.Pressed); await Frame(0.6);

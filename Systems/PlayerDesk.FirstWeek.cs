@@ -72,6 +72,25 @@ public partial class PlayerDesk {
 		.Select(a => NextApproachStep(ArtistManager.Instance?.GetArtist(a.ArtistId))).Where(s => s != null)
 		.OrderBy(s => s.Day ?? int.MaxValue).FirstOrDefault();
 
+	/// <summary>The first visit (Sunday dinner or a sit-down) still to make before an act that said yes signs, or null.</summary>
+	public ScoutingApproachStep FirstWeekVisit => scoutingKnowledge.Approaches?
+		.Where(a => a.Status == ScoutingApproachStatus.Agreed)
+		.SelectMany(a => a.Steps.Where(s => !s.Done && s.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager))
+		.OrderBy(s => s.Day ?? int.MaxValue).FirstOrDefault();
+
+	/// <summary>The first-week visit is booked for today, and its hour hasn't come.</summary>
+	public bool FirstWeekVisitToday => FirstWeekVisit is { Minute: { } m, Day: { } d } && d == SceneDay && m >= NowMinute;
+
+	/// <summary>How long before a visit the first week sends him out of the door: the walk, and a little early.</summary>
+	public const int VisitLeaveMinutes = 60;
+
+	/// <summary>The minute the first week says to leave for today's visit, or null when there's none today.</summary>
+	public int? FirstWeekLeaveAt => FirstWeekVisitToday && FirstWeekVisit.Minute is { } m ? m - VisitLeaveMinutes : null;
+
+	/// <summary>Today's visit isn't for a while: the hours before it are his (playtest 2026-11-27: the glow sent him to GO
+	/// THERE at 9 AM, and a 4 PM sit-down ate the day). The first week points at what fits before he has to leave.</summary>
+	public bool FirstWeekVisitLater => FirstWeekLeaveAt is { } leave && NowMinute < leave;
+
 	/// <summary>Every act asked so far said no (or let its yes lapse): the answer line's work is hearing somebody else and
 	/// asking them, not waiting.</summary>
 	public bool FirstWeekNeedsAnotherAct => scoutingKnowledge.Approaches?.Count > 0
@@ -114,13 +133,16 @@ public partial class PlayerDesk {
 		bool declinedOnly = FirstWeekNeedsAnotherAct;
 		bool anotherLook = FirstWeekHearAgainId != null;
 		var pending = FirstPendingApproachStep?.Kind;
+		bool she = FirstPendingApproachStep?.Female == true;
+		string him = she ? "her" : "him", his = she ? "her" : "his", he = she ? "she" : "he", He = she ? "She" : "He";
 		return step switch {
+			// The first appointment teaches the book, once (§4c): pick a time, write it down, and turn up. Nobody reminds you.
 			FirstWeekStep.Answer when pending == ScoutingApproachStepKind.Parents => (ExecutiveVoice.Street, StrongVoice(ExecutiveVoice.Street)
-				? "That's a yes, but somebody in that act is under 21, and in this business the mother signs. Go to Sunday dinner. Eat what's put in front of you and tell her the truth about the money."
-				: "They said yes, but one of them's under 21, so a parent signs. Go and meet the family on Sunday."),
+				? "That's a yes, but somebody in that act is under 21, and in this business the mother signs. Pick a Sunday and write it in the book: a mother doesn't set a place twice, and nobody in this office is going to remind you. Eat what's put in front of you and tell her the truth about the money."
+				: "They said yes, but one of them's under 21, so a parent signs. Pick a Sunday, write it in the book, and don't miss it."),
 			FirstWeekStep.Answer when pending == ScoutingApproachStepKind.Manager => (ExecutiveVoice.Suit, StrongVoice(ExecutiveVoice.Suit)
-				? "A yes with a manager attached means the paper goes through him. Sit down with him on the day he named. Listen more than you talk: whatever he asks for, he'll ask for again at the table."
-				: "They've got a manager, so it goes through him. Go to the sit-down he named."),
+				? $"A yes with a manager attached means the paper goes through {him}. {He}'ll give you two times: take one and write it in the book, because nobody in this office is going to remind you. Then be there on the hour. Listen more than you talk: whatever {he} asks for, {he}'ll ask for again at the table."
+				: $"They've got a manager, so it goes through {him}. Take one of {his} times, write it in the book, and turn up."),
 			FirstWeekStep.Answer when pending == ScoutingApproachStepKind.Holdout => (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
 				? "One of them isn't sold, and a band moves at the speed of its slowest yes. Be in the room for their next set. A holdout comes round for a label that turns up."
 				: "One of them's not sure. Go to their next set and stand where they can see you."),
@@ -163,6 +185,24 @@ public partial class PlayerDesk {
 		// over once it's built: LabelManFatigueDirective.md §2.4).
 		var date = TimeManager.Instance?.CurrentDate;
 		bool hungover = date is { year: 1960, month: 1, day: <= 2 };
+		// The appointment book: their times, the book itself, and the day it's for.
+		if (target.EndsWith("suits me.", System.StringComparison.Ordinal))
+			return (ExecutiveVoice.Street, "Pick one and write it down. Nobody in this office is going to remind you.");
+		if (target == "THE BOOK")
+			return (ExecutiveVoice.Street, "Check the book. It's today, isn't it? The book won't tell you. You have to look.");
+		// Hours to spare before today's visit: use them, and be back to leave on time.
+		if (FirstWeekVisitLater && FirstWeekVisit is { } later && (several || target is "GO & WAIT" or "LISTEN" or "WAIT 1h" or "WAIT 3h")) {
+			string at = ClockText(later.Minute ?? 0), leave = ClockText(FirstWeekLeaveAt ?? 0);
+			string who = later.Kind == ScoutingApproachStepKind.Parents ? "Dinner" : later.Who.Split(' ')[0];
+			return (ExecutiveVoice.Suit, several || target == "GO & WAIT"
+				? $"{who} isn't till {at}. The day's yours till {leave}: hear a set that's done by then. Don't sit in a waiting room all day."
+				: target == "LISTEN" ? $"Listen, then get out. You leave for {who} at {leave}."
+				: $"Nothing on that's over by {leave}. Sit by the phone till it's time to go.");
+		}
+		if (Is("GO THERE"))
+			return (ExecutiveVoice.Suit, "Time to go. Early is on time.");
+		if (target == "END THE DAY" && FirstWeekVisit is { } visit && Booked(visit))
+			return (ExecutiveVoice.Fixer, "It's in the book. Nothing to do about it till the day. Go home.");
 		if (several || target is "GO & WAIT")
 			return (ExecutiveVoice.Street, step == FirstWeekStep.Hear && !scoutingKnowledge.Dossiers.Any(d => HasScoutingEvidence(d.ArtistId))
 				? "You have no clue how this all works, do you? We need to sign a fuckin' act! Pick a room. Any of them."
@@ -180,7 +220,9 @@ public partial class PlayerDesk {
 		if (Is("▸  I'll come to Sunday dinner") || target == "MEET THE FAMILY")
 			return (ExecutiveVoice.Street, "Sunday dinner. Clean shirt, if you've still got one. Say grace.");
 		if (Is("▸  I'll sit down with") || target == "SIT DOWN WITH THE MANAGER")
-			return (ExecutiveVoice.Suit, "The manager. Listen more than you talk. Whatever he asks for, he'll ask for again.");
+			return (ExecutiveVoice.Suit, FirstPendingApproachStep?.Female == true
+				? "The manager. Listen more than you talk. Whatever she asks for, she'll ask for again."
+				: "The manager. Listen more than you talk. Whatever he asks for, he'll ask for again.");
 		if (Is("▸  Let's sit down on terms"))
 			return (ExecutiveVoice.Suit, "Now the paper. Let me do the thinking.");
 		if (target == "END THE CONVERSATION")

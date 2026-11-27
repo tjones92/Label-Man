@@ -232,6 +232,7 @@ public partial class PlayerDesk : Node {
 		ContractTalk talk = BuildTalk(prospect.Artist, prospect.Baseline, prospect.Posture);
 		ApplyOutlook(talk, outlook);
 		talk.prospect = prospect;
+		ApplyRapport(talk);
 		prospect.Talk = talk;
 		return talk;
 	}
@@ -462,6 +463,7 @@ public partial class PlayerDesk : Node {
 
 		bool patient = talk.patienceLeft >= Mathf.CeilToInt(talk.patienceMax * 0.5f);
 		talk.patienceLeft--;
+		AddRapport(talk.Artist, RapportSourceKind.HeldFirm, -1);   // he remembers being squeezed, win or lose
 		if (!patient) { WalkAway(talk, forced: true, out message); return true; }
 
 		talk.reservation = Mathf.Max(0.55f, talk.reservation - 0.03f);
@@ -499,6 +501,8 @@ public partial class PlayerDesk : Node {
 			talk.prospect.Talk = null;
 		}
         RecordPromises(talk);
+		// Signed at his number: he remembers a label that paid fair.
+		if (UnderAskFraction(talk.ask, sheet) <= PaidHisPriceUnderAsk) AddRapport(talk.Artist, RapportSourceKind.PaidHisPrice, 1);
 		talk.stage = ContractTalkStage.Done;
 		Changed?.Invoke();
         return true;
@@ -526,6 +530,7 @@ public partial class PlayerDesk : Node {
 			PendingRenewal = null;
 		} else {
 			if (forced) {
+				AddRapport(artist, RapportSourceKind.TalksBrokeDown, -1);
 				GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 				talk.prospect.CooldownUntil = today.AddDays(ForcedWalkCooldownDays);
 				Note($"{artist.stageName} walked from the table. Give it time before you go back.");
@@ -692,6 +697,7 @@ public partial class PlayerDesk : Node {
 			ContractTalk talk = BuildTalk(artist, ask, posture);
 			ApplyOutlook(talk, outlook);
 			talk.renewalArtist = artist;
+			ApplyRapport(talk);
 			offer.Talk = talk;
 		}
 		PendingRenewal = offer;

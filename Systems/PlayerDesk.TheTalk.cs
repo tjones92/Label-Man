@@ -21,7 +21,9 @@ public enum TalkVerb { Ask, Terms, Step, History, Rehearsal, Demo, Meeting, Numb
 	/// <summary>Step 9: answer an objection with its grounded line, tell a holdout to take their time, or sign the rest without them.</summary>
 	Answer, TakeYourTime, SignWithout,
 	/// <summary>Say the true answer's line when it isn't true: the Fixer's check.</summary>
-	Bluff }
+	Bluff,
+	/// <summary>Pick the first or the second time their side proposed for a visit (the appointment book).</summary>
+	BookFirst, BookSecond }
 
 /// <summary>One thing you can say in The Talk, mapped onto an existing verb.</summary>
 public sealed class TalkOption {
@@ -138,7 +140,7 @@ public partial class PlayerDesk {
 					if (read.Minors.Count > 0) frictions.Add($"{Names(read.Minors)} {(read.Minors.Count == 1 ? "is" : "are")} under 21, so a parent signs.");
 					if (read.Holdout != null) frictions.Add($"{read.Holdout} is the one who isn't sure. " +
 						HoldoutHint(HoldoutObjection(act, ActiveMember(act, read.HoldoutId), today)));
-					if (read.DemandingManager && ManagerIdentity.Read(act, today) is { } m) frictions.Add($"{m.Name} does their business, and he'll want a sit-down first.");
+					if (read.DemandingManager && ManagerIdentity.Read(act, today) is { } m) frictions.Add($"{m.Name} does their business, and {m.He}'ll want a sit-down first.");
 				}
 				Read(ExecutiveVoice.Street, hint, clear, frictions.Count == 0 ? clear : clear + " " + string.Join(" ", frictions));
 			}
@@ -178,17 +180,31 @@ public partial class PlayerDesk {
 					Enabled = why == null, Why = why, Cost = $"{pendingObjection.Who} leaves the band. The rest sign." });
 			}
 		} else if (free) {
-			if (step != null && step.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager) {
+			// A visit still waiting on a time: their two times are the lines (the appointment book). Free, and it goes in
+			// the book, which never reminds you.
+			if (agreed != null && StepNeedingATime(act) is { } pick) {
+				int now = NowMinute;
+				string where = pick.Kind == ScoutingApproachStepKind.Parents ? "at the family's" : "at " + (pick.Place ?? (pick.Female ? "her office" : "his office"));
+				for (int i = 0; i < Math.Min(2, pick.Offered.Count); i++) {
+					var t = pick.Offered[i];
+					bool gone = t.Day < today || t.Day == today && t.Minute <= now;
+					o.Add(new TalkOption { Verb = i == 0 ? TalkVerb.BookFirst : TalkVerb.BookSecond, Step = pick.Kind,
+						Line = $"{WhenText(t.Day, t.Minute)} suits me.", Enabled = !gone, Why = gone ? "That time has gone." : null,
+						Cost = $"Free. It goes in your book: {VisitHours(pick.Kind)}h {where}. Be in town and free at the hour; nobody will remind you." });
+				}
+			} else if (step != null && step.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager) {
 				string town = LocalScenePersistenceService.SceneIdFor(act.geography?.basePlaceId);
 				bool here = town == null || town == LocalScenePersistenceService.SceneIdFor(CurrentCityId);
 				bool due = step.Day is not { } d || today >= d;
 				int hours = step.Kind == ScoutingApproachStepKind.Parents ? FamilyVisitHours : ManagerSitDownHours;
 				o.Add(new TalkOption { Verb = TalkVerb.Step, Step = step.Kind,
 					Line = step.Kind == ScoutingApproachStepKind.Parents ? "I'll come to Sunday dinner and meet the family." : $"I'll sit down with {step.Who}.",
-					Cost = $"{hours}h, {(step.Kind == ScoutingApproachStepKind.Parents ? "at the family's" : "at " + (step.Place ?? "his office"))}.",
+					Cost = $"{hours}h, {(step.Kind == ScoutingApproachStepKind.Parents ? "at the family's" : "at " + (step.Place ?? (step.Female ? "her office" : "his office")))}" +
+						(step.Minute is { } at ? $", from {ClockText(at)}. You go there and wait for the hour." : "."),
 					Enabled = due && here,
 					// Say where, not only when (playtest 2026-11-26: "come back in two days" left the player asking back where).
-					Why = !due ? (step.Kind == ScoutingApproachStepKind.Parents
+					Why = !due && step.Minute is { } booked ? $"In your book: {WhenText(step.Day.Value, booked)}, {(step.Kind == ScoutingApproachStepKind.Parents ? "at the family's" : "at " + (step.Place ?? (step.Female ? "her office" : "his office")))}."
+						: !due ? (step.Kind == ScoutingApproachStepKind.Parents
 							? $"Sunday, {LocalSceneRoomService.Date(step.Day.Value).ToHeadlineString()}, at the family's. Come back to this card that day."
 							: $"{LocalSceneRoomService.Date(step.Day.Value).ToHeadlineString()} or after, at {step.Place ?? (step.Female ? "her office" : "his office")}. Come back to this card that day.")
 						: $"You'd have to be in {DistanceModel.GetCityById(town)?.name ?? "their town"}." });
@@ -279,6 +295,8 @@ public partial class PlayerDesk {
 				ok = ok || !string.IsNullOrEmpty(message);
 				break;
 			case TalkVerb.Step: ok = TakeApproachStep(artistId, option.Step, out message); answer = message; break;
+			case TalkVerb.BookFirst:
+			case TalkVerb.BookSecond: ok = BookApproachStep(artistId, option.Step, verb == TalkVerb.BookFirst ? 0 : 1, out message); answer = message; break;
 			case TalkVerb.History: ok = AskScoutingBusinessHistory(artistId, PreviewScoutingBusinessMeeting(artistId)?.QuoteId, out message); answer = message; break;
 			case TalkVerb.Rehearsal:
 			case TalkVerb.Demo:

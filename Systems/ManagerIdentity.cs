@@ -68,7 +68,7 @@ public static class ManagerIdentity {
 		string town = LocalScenePersistenceService.SceneIdFor(act.geography?.basePlaceId);
 		int year = LocalSceneRoomService.Date(day).year;
 		var people = (act.members ?? new()).Where(m => m != null && m.isActive && m.lifeState == MemberLifeState.Active).ToList();
-		var r = new ManagerRead { Archetype = kind, Name = name };
+		var r = new ManagerRead { Archetype = kind, Name = name, Female = FemaleName(name) };
 
 		// 1 Family
 		if (kind is ManagerArchetype.LocalHustler or ManagerArchetype.Svengali) {
@@ -94,7 +94,7 @@ public static class ManagerIdentity {
 		if (kind is ManagerArchetype.LocalHustler or ManagerArchetype.Shark &&
 			LocalSceneRoomService.EngagementRoom(act.artistId, day) is { } roomId && SceneRoomCatalog.Get(roomId) is { } room &&
 			!string.IsNullOrWhiteSpace(room.ContactName)) {
-			r.Kind = ManagerKind.ClubBooker; r.Name = room.ContactName; r.Title = $"books {room.Name}"; r.Place = room.Name; r.RoomId = room.Id;
+			r.Kind = ManagerKind.ClubBooker; r.Name = room.ContactName; r.Female = FemaleName(room.ContactName); r.Title = $"books {room.Name}"; r.Place = room.Name; r.RoomId = room.Id;
 			return r;
 		}
 		// 3 Deejay
@@ -113,7 +113,7 @@ public static class ManagerIdentity {
 		bool vocalGroup = act.type == ArtistType.VocalGroup;
 		if (kind == ManagerArchetype.Svengali && (act.songwritingAbility < SongwriterWritingBelow || vocalGroup) ||
 			kind == ManagerArchetype.Visionary && vocalGroup && Unit(act, "songwriter") < VocalGroupSongwriterShare) {
-			r.Kind = ManagerKind.Songwriter; r.Title = "writes their songs and produces their sessions"; r.Place = "the piano room at his publisher's";
+			r.Kind = ManagerKind.Songwriter; r.Title = "writes their songs and produces their sessions"; r.Place = $"the piano room at {r.His} publisher's";
 			return r;
 		}
 		// 5 Agency man: only an act with a record career behind it.
@@ -127,14 +127,14 @@ public static class ManagerIdentity {
 		// 6 Jukebox-route operator: only the music the boxes played, in the cities where the routes were money.
 		if (kind == ManagerArchetype.Shark && town != null && JukeboxCities.Contains(town) && JukeboxGenres.Contains(act.primaryGenre) &&
 			Unit(act, "jukebox") < JukeboxShare) {
-			r.Kind = ManagerKind.JukeboxOperator; r.Title = "runs a jukebox route and puts money behind acts"; r.Place = "a back booth at a restaurant he owns a piece of";
+			r.Kind = ManagerKind.JukeboxOperator; r.Title = "runs a jukebox route and puts money behind acts"; r.Place = $"a back booth at a restaurant {r.He} owns a piece of";
 			return r;
 		}
 		// 7 / 8 Fallbacks
 		if (kind == ManagerArchetype.LocalHustler) {
-			r.Kind = ManagerKind.Hustler; r.Title = Pick(act, "hustle", Hustles); r.Place = "the diner where he does his business";
+			r.Kind = ManagerKind.Hustler; r.Title = Pick(act, "hustle", Hustles); r.Place = $"the diner where {r.He} does {r.His} business";
 		} else {
-			r.Kind = ManagerKind.PersonalManager; r.Title = "their personal manager"; r.Place = "his office";
+			r.Kind = ManagerKind.PersonalManager; r.Title = "their personal manager"; r.Place = $"{r.His} office";
 		}
 		return r;
 	}
@@ -152,10 +152,17 @@ public static class ManagerIdentity {
 	/// <summary>How the act says who handles them, when someone asks after a set. Family is the one they always say.</summary>
 	public static string BandSays(ManagerRead r) => r?.Kind switch {
 		ManagerKind.Family => $"{Cap(r.Title)} handles our business.",
-		ManagerKind.ClubBooker => $"{r.Name} books us at {r.Place}, and he handles our business too.",
+		ManagerKind.ClubBooker => $"{r.Name} books us at {r.Place}, and {r.He} handles our business too.",
 		null => null,
 		_ => $"{r.Name} handles our business."
 	};
+
+	/// <summary>A generated person's sex was never stored with the name, so read it off the first name.</summary>
+	private static bool FemaleName(string fullName) {
+		if (string.IsNullOrWhiteSpace(fullName)) return false;
+		string first = fullName.Trim().Split(' ')[0];
+		return NameGenerator.Instance?.IsFemaleFirstName(first) ?? false;
+	}
 
 	private static string Cap(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }

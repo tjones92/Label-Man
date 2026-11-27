@@ -277,6 +277,7 @@ public partial class PlayerDesk {
         if (ScoutingMeetingSummary(artistId) is { } meeting) lines.Add(meeting);
         lines.Add(ScoutingAudience.Summary(dossier));
         if (RegardSummary(artistId) is { } regard) lines.Add(regard);
+        if (RapportSummary(artistId) is { } rapport) lines.Add(rapport);
         if (SignedWatchSummary(artistId) is { } watch) lines.Add(watch);
         if (DirectApproachSummary(artistId) is { } approach) lines.Add(approach);
         lines.AddRange(ScoutingBusinessStatements(artistId));

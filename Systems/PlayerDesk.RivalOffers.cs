@@ -139,6 +139,7 @@ public partial class PlayerDesk {
             ContractTalk talk = BuildTalk(artist, PendingRenewal.Ask, NegotiationPosture.Firm);
             ApplyOutlook(talk, outlook);
             talk.renewalArtist = artist;
+            ApplyRapport(talk);
             PendingRenewal.Talk = talk;
         }
         return offer;

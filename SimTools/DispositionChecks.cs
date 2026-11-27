@@ -298,6 +298,18 @@ public partial class DispositionChecks : Node {
 					Check(!desk.TakeApproachStep(band.artistId, ScoutingApproachStepKind.Parents, out message) && clock.MinutesRemainingWithOvertime == minutesBefore,
 						"the family can't be seen before Sunday: " + message);
 					Check(!desk.TakeApproachStep(band.artistId, ScoutingApproachStepKind.Holdout, out _), "a holdout is not a verb: it's settled at a set");
+					// The appointment book: each visit offers two times. Take the first; it goes in the book.
+					foreach (var s in desk.Agreement(band).Steps.Where(PlayerDesk.NeedsATime).ToList()) {   // the live yes; DirectApproaches is a copy
+						var offered = desk.BuildTalkScene(band.artistId).Options;
+						Check(s.Offered.Count == 2 && s.Offered.All(t => t.Day > day0) && s.Minute == null &&
+							desk.AppointmentBook().Any(e => e.Kind == BookEntryKind.PickATime && e.ArtistId == band.artistId && e.Step == s.Kind) &&
+							(desk.StepNeedingATime(band) != s || desk.PendingObjection(band) != null || offered.Any(o => o.Verb == TalkVerb.BookFirst && o.Step == s.Kind && o.Line.EndsWith("suits me."))),
+							$"{s.Kind}: two times offered ({PlayerDesk.OfferedText(s)}), none booked; the book and The Talk say to pick one");
+						Check(desk.BookApproachStep(band.artistId, s.Kind, 0, out message) && s.Minute == s.Offered[0].Minute && s.Day == s.Offered[0].Day && message.StartsWith("In the book"),
+							$"{s.Kind} booked: {message}");
+					}
+					Check(desk.AppointmentBook().Count(e => e.ArtistId == band.artistId && e.Kind is BookEntryKind.SitDown or BookEntryKind.SundayDinner) ==
+						deal.Steps.Count(s => s.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager), "every visit is in the book");
 
 					bool objected = false, waited = false;
 					for (int d = 0; d < 42 && desk.NextApproachStep(band) != null && desk.Agreement(band) != null; d++) {
@@ -545,8 +557,10 @@ public partial class DispositionChecks : Node {
 								clock.EndDay();
 								if (GetTree().Root.FindChild("MorningPaper", true, false) is Control paper) paper.Visible = false;
 								int day = LocalSceneRoomService.Day(clock.CurrentDate);
-								foreach (var s in desk.Agreement(friend)?.Steps.Where(s => !s.Done && s.Kind != ScoutingApproachStepKind.Holdout && s.Day <= day).ToList() ?? new())
+								foreach (var s in desk.Agreement(friend)?.Steps.Where(s => !s.Done && s.Kind != ScoutingApproachStepKind.Holdout && s.Day <= day).ToList() ?? new()) {
+									if (PlayerDesk.NeedsATime(s)) desk.BookApproachStep(friend.artistId, s.Kind, 0, out _);
 									desk.TakeApproachStep(friend.artistId, s.Kind, out _);
+								}
 								foreach (var bill in LocalSceneRoomService.Calendar(city, clock.CurrentDate).Where(b => b.Day == day && b.Status == SceneBillStatus.Scheduled).OrderBy(b => b.StartHour).ToList())
 									foreach (var slot in bill.Appearances.Where(s => s.ArtistId == friend.artistId && s.EndHour <= clock.HardStopHour && s.StartHour >= clock.CurrentHour)) {
 										clock.RestoreClock(LocalSceneRoomService.Date(bill.Day), slot.StartHour);

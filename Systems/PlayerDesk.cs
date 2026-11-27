@@ -1180,7 +1180,7 @@ public partial class PlayerDesk : Node {
 	private bool announcingCallbacks;
 	private void OnHourChanged(int hour) {
 		announcingCallbacks = true;
-		try { AnnounceDueCallbacks(); } finally { announcingCallbacks = false; }
+		try { AnnounceDueCallbacks(); SweepMissedAppointments(); } finally { announcingCallbacks = false; }
 		Changed?.Invoke();
 	}
 

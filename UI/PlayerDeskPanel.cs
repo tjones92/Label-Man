@@ -26,6 +26,7 @@ public partial class PlayerDeskPanel : Control {
 	private Button nextUpLabel;
 	private Label feedbackToastText, feedbackToastBadge;
 	private WallClock deskClock;
+	private Button bookButton;
 	private TimeCard timeCard;
 	private Control pageStain;   // the coffee ring overlay on the scrolled page
 	private PanelContainer feedbackToast;
@@ -208,6 +209,14 @@ public partial class PlayerDeskPanel : Control {
 		titleLabel.AddThemeColorOverride("font_color", Ink);   // was the default near-white on manila (~1.8:1)
 		header.AddChild(titleLabel);
 
+		// The appointment book (onboarding T5), by the clock. No badge and no count: the book never reminds you.
+		bookButton = Btn("THE BOOK");
+		bookButton.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		bookButton.Visible = false;
+		bookButton.TooltipText = "Your appointment book: what's booked, and the times you still have to pick. Nobody reminds you.";
+		bookButton.Pressed += () => OpenAppointmentBook(PlayerDesk.Instance);
+		header.AddChild(bookButton);
+		header.AddChild(new Control { CustomMinimumSize = new Vector2(10, 0) });
 		// The workday as objects on the wall, not a payroll sentence (period pass 2026-11-05).
 		deskClock = new WallClock { Visible = false };
 		header.AddChild(deskClock);
@@ -456,7 +465,7 @@ public partial class PlayerDeskPanel : Control {
 		nextUpLabel.Visible = inGame;
 		if (firstWeekCard != null) firstWeekCard.Visible = false;
 		if (!inGame) redInkLabel.Visible = false;
-		deskClock.Visible = timeCard.Visible = false;   // the in-game desk shows them again below
+		deskClock.Visible = timeCard.Visible = bookButton.Visible = false;   // the in-game desk shows them again below
 
 		if (browsingSaves) {
 			tabs.Hide();
@@ -542,7 +551,7 @@ public partial class PlayerDeskPanel : Control {
 			timeCard.Set(ShortClock(time.WorkdayStartHour), ShortClock(time.RegularWorkdayEndHour), ShortClock(time.HardStopHour),
 				overtime ? $"{time.OvertimeRemainingText} O.T. left" : $"{time.RegularTimeRemainingText} left");
 		}
-		deskClock.Visible = timeCard.Visible = time != null;
+		deskClock.Visible = timeCard.Visible = bookButton.Visible = time != null;
 		// One line: date and time, where, cash, acts. The full place and towns worked are on the hover.
 		string place = desk.AtHome ? $"{(string.IsNullOrEmpty(label.headquartersCity) ? region : label.headquartersCity)} office" : $"on the road, {desk.CurrentCity?.name ?? "town"}";
 		clockLabel.Text =

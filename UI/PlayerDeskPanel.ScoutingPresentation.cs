@@ -111,6 +111,8 @@ public partial class PlayerDeskPanel {
             if (!circuit && option.Playing && desk.IsAtSceneRoom(option.RoomId)) action.SetMeta("first_week_here", true);
             // Whose set it is: an act that asked to be heard again has its own next set pointed at.
             if (!circuit && option.ArtistId != null) action.SetMeta("scouting_artist", option.ArtistId);
+            // When it's over, so the first week can tell which sets fit before a visit later today.
+            if (!circuit) action.SetMeta("set_ends", option.Day * 24 * 60 + option.EndMinute);
             action.Disabled = !circuit && (option.Playing && desk.Label.cashReserves < option.Admission ||
                 SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId));
             float immediateCost = circuit ? option.TravelCost : option.Playing ? option.Admission : 0;

@@ -31,8 +31,8 @@ public partial class PlayerDesk {
     /// <summary>Hours you can ring an act.</summary>
     public const int PhoneFromHour = 9, PhoneToHour = 21;
 
-    private int SceneDay => LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
-    private int NowMinute => (TimeManager.Instance?.CurrentHour ?? 0) * 60 + (TimeManager.Instance?.CurrentMinute ?? 0);
+    public int SceneDay => LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
+    public int NowMinute => (TimeManager.Instance?.CurrentHour ?? 0) * 60 + (TimeManager.Instance?.CurrentMinute ?? 0);
 
     // ---- presence ---------------------------------------------------------------------------------------------------
     /// <summary>The venue you are in right now, or null.</summary>

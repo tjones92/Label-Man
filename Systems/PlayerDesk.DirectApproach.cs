@@ -159,6 +159,12 @@ public partial class PlayerDesk {
             steps.Add(new() { Kind = ScoutingApproachStepKind.Manager, Who = manager.Name, Manager = ManagerIdentity.Introduce(manager),
                 Place = manager.Place, Female = manager.Female, Day = day });
         }
+        // Their side proposes two times for each visit (the appointment book): the step's day is the first of them until
+        // one is picked.
+        foreach (var s in steps) {
+            s.Offered = ProposedTimes(s.Kind, s.Kind == ScoutingApproachStepKind.Parents ? (familyManager ? manager : null) : manager, artist.artistId, today + 1);
+            s.Day = s.Offered[0].Day;
+        }
         if (read.Holdout != null) {
             var next = NextReachableScoutingSet(artist.artistId);
             steps.Add(new() { Kind = ScoutingApproachStepKind.Holdout, Who = read.Holdout, PersonId = read.HoldoutId,
@@ -170,10 +176,14 @@ public partial class PlayerDesk {
     /// <summary>The step as the act's side puts it to you.</summary>
     public static string StepAsk(ScoutingApproachStep s, SimulatedArtist artist) => s.Kind switch {
         ScoutingApproachStepKind.Parents => (s.Who.Contains(" and ") ? $"{s.Who} are" : $"{s.Who} is") +
-            $" under 21, so a parent signs. The family wants to meet you first: Sunday, {Headline(s.Day ?? 0)}, after church." +
+            " under 21, so a parent signs. The family wants to meet you first: " + (NeedsATime(s)
+                ? $"Sunday dinner after church, {OfferedText(s)}. Pick one."
+                : Booked(s) ? $"Sunday dinner, {WhenText(s.Day ?? 0, s.Minute ?? 0)}." : $"Sunday, {Headline(s.Day ?? 0)}, after church.") +
             (s.Manager != null ? $" {s.Manager}, handles their business too, so that's the sit-down as well." : ""),
         ScoutingApproachStepKind.Manager => $"{(s.Manager != null ? s.Manager + "," : s.Who)} handles their business, and nobody signs anything until you've sat down with " +
-            $"{(s.Female ? "her" : "him")}: {Headline(s.Day ?? 0)}, at {s.Place ?? "his office"}.",
+            $"{(s.Female ? "her" : "him")}" + (NeedsATime(s)
+                ? $". {(s.Female ? "She" : "He")} can see you {OfferedText(s)}, at {s.Place ?? (s.Female ? "her office" : "his office")}. Pick one."
+                : Booked(s) ? $": {WhenText(s.Day ?? 0, s.Minute ?? 0)}, at {s.Place ?? (s.Female ? "her office" : "his office")}." : $": {Headline(s.Day ?? 0)}, at {s.Place ?? (s.Female ? "her office" : "his office")}."),
         ScoutingApproachStepKind.Objection => $"Before anything's signed, they want an answer: \"{s.ObjectionLine}\"",
         _ when s.Raised && s.WaitFrom == null => $"{s.Who} wants an answer first: \"{s.ObjectionLine}\"",
         _ when s.Raised => $"{s.Who} said they'd see you at the next one. Be at their next set, or a rehearsal.",
@@ -183,8 +193,11 @@ public partial class PlayerDesk {
 
     /// <summary>A few words for the notebook card.</summary>
     public static string StepShort(ScoutingApproachStep s) => s.Kind switch {
-        ScoutingApproachStepKind.Parents => $"meet the family Sunday ({LocalSceneRoomService.Date(s.Day ?? 0).ShortMonthName} {LocalSceneRoomService.Date(s.Day ?? 0).day})",
-        ScoutingApproachStepKind.Manager => $"sit down with {s.Who}",
+        ScoutingApproachStepKind.Parents when NeedsATime(s) => "Sunday dinner: pick a time",
+        ScoutingApproachStepKind.Manager when NeedsATime(s) => $"sit down with {s.Who}: pick a time",
+        ScoutingApproachStepKind.Parents => $"meet the family Sunday ({LocalSceneRoomService.Date(s.Day ?? 0).ShortMonthName} {LocalSceneRoomService.Date(s.Day ?? 0).day}" +
+            (s.Minute is { } m ? $", {ClockText(m)})" : ")"),
+        ScoutingApproachStepKind.Manager => $"sit down with {s.Who}" + (s.Minute is { } mm ? $" ({LocalSceneRoomService.Date(s.Day ?? 0).ShortMonthName} {LocalSceneRoomService.Date(s.Day ?? 0).day}, {ClockText(mm)})" : ""),
         ScoutingApproachStepKind.Objection => "they want an answer",
         _ when s.Raised && s.WaitFrom == null => $"answer {s.Who}",
         _ => $"{s.Who} wants you at their next set"
@@ -269,23 +282,43 @@ public partial class PlayerDesk {
     /// hours it takes. The manager's demands still land on the term sheet (AILabel.GenerateTermSheet); this is the meeting
     /// before them. A holdout is settled by being at their next set (SettleHoldout), not by a verb.</summary>
     public bool TakeApproachStep(string artistId, ScoutingApproachStepKind kind, out string message) {
+        SweepMissedAppointments();
         var artist = ArtistManager.Instance?.GetArtist(artistId);
         var agreed = Agreement(artist);
         var step = agreed?.Steps.FirstOrDefault(s => s.Kind == kind && !s.Done);
         if (step == null || kind is ScoutingApproachStepKind.Holdout or ScoutingApproachStepKind.Objection) { message = "There's nothing waiting on that."; return false; }
+        if (NeedsATime(step)) {
+            message = $"Pick a time first. {(kind == ScoutingApproachStepKind.Parents ? "The family offered" : step.Who + " offered")} {OfferedText(step)}.";
+            return false;
+        }
         int today = SceneDay;
         if (step.Day is { } day && today < day) {
-            message = kind == ScoutingApproachStepKind.Parents ? $"The family expects you Sunday, {Headline(day)}." : $"{step.Who} will see you {Headline(day)}.";
+            message = step.Minute is { } at
+                ? (kind == ScoutingApproachStepKind.Parents ? $"The family expects you {WhenText(day, at)}." : $"{step.Who} will see you {WhenText(day, at)}.")
+                : kind == ScoutingApproachStepKind.Parents ? $"The family expects you Sunday, {Headline(day)}." : $"{step.Who} will see you {Headline(day)}.";
             return false;
         }
         string town = LocalScenePersistenceService.SceneIdFor(artist.geography?.basePlaceId);
         if (town != null && town != LocalScenePersistenceService.SceneIdFor(CurrentCityId)) {
             message = $"You'd have to be in {DistanceModel.GetCityById(town)?.name ?? "their town"}."; return false;
         }
-        int hours = kind == ScoutingApproachStepKind.Parents ? FamilyVisitHours : ManagerSitDownHours;
+        int hours = VisitHours(kind);
+        // A booked hour: go there and wait for it (the sweep above has already handled one that's gone).
+        int wait = step.Minute is { } start ? Math.Max(0, start - NowMinute) : 0;
+        if (wait > 0) {
+            if (InStudio || IsGameOver || TimeManager.Instance == null) { Require(hours, out message); return false; }
+            if (!TimeManager.Instance.CanAffordMinutes(wait + hours * 60)) {
+                message = $"This takes {hours}h from {ClockText(step.Minute.Value)} and won't fit before the {TimeManager.Instance.HardStopTime} hard stop."; return false;
+            }
+            SpendMinutes(wait);
+        }
         if (!Require(hours, out message)) return false;
-        Spend(hours);
+        // Done before the clock moves: the hour hand passing the start mid-meeting is not a miss (SweepMissedAppointments).
         step.Done = true; step.DoneDay = today;
+        // A manager remembers the label that came when it said it would (the family too, when it's the manager).
+        if (step.Minute != null && (kind == ScoutingApproachStepKind.Manager || step.Manager != null))
+            AddRapport(artist, RapportSourceKind.KeptSitDown, 1);
+        Spend(hours);
         step.Said = kind == ScoutingApproachStepKind.Parents ? FamilyLine(artist, step) : ManagerLine(artist, step);
         message = step.Said + " " + AfterStep(artist);
         Note(message);
@@ -305,7 +338,7 @@ public partial class PlayerDesk {
     /// which is what he'll be at the table).</summary>
     private static string ManagerLine(SimulatedArtist artist, ScoutingApproachStep s) {
         string he = s.Female ? "she" : "he", He = s.Female ? "She" : "He";
-        string where = $"You sat down with {(s.Manager != null ? s.Manager + "," : s.Who)} at {s.Place ?? "his office"}.";
+        string where = $"You sat down with {(s.Manager != null ? s.Manager + "," : s.Who)} at {s.Place ?? (s.Female ? "her office" : "his office")}.";
         return where + " " + artist.manager switch {
             ManagerArchetype.Shark => $"{He} heard you out and gave nothing away. {He}'ll do the talking at the table, and {he} wants the advance in writing.",
             ManagerArchetype.Svengali => $"{He} talked about {artist.stageName} like {he} invented them. {He}'ll be at the table, and {he}'ll want a say in the record.",
@@ -381,6 +414,7 @@ public partial class PlayerDesk {
     /// waiting; a holdout settles if you heard the set.</summary>
     private void AdvanceDirectApproaches(GameDate date) {
         if (scoutingKnowledge.Approaches == null) return;
+        SweepMissedAppointments();
         int today = LocalSceneRoomService.Day(date), week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
         foreach (var a in Approaches.Where(a => a.Status == ScoutingApproachStatus.Agreed).ToList()) {
             var artist = ArtistManager.Instance?.GetArtist(a.ArtistId);

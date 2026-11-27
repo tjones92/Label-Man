@@ -6,7 +6,9 @@ using System.Linq;
 public enum RegardLevel { LetDown, Stranger, KnowYourFace, Friendly, TrustYou }
 
 /// <summary>One thing you did that the act remembers.</summary>
-public enum RegardSourceKind { HeardThem, SatDown, Session, GotThemANight, MissedTheirDemo, LetTheirYesLapse, CancelledOnThem, CaughtBluffing }
+public enum RegardSourceKind { HeardThem, SatDown, Session, GotThemANight, MissedTheirDemo, LetTheirYesLapse, CancelledOnThem, CaughtBluffing,
+	/// <summary>A yes ended because you never came to the sit-down or the Sunday dinner you booked (the appointment book).</summary>
+	StoodThemUp }
 
 public sealed class RegardContact {
 	public RegardSourceKind Kind;
@@ -90,7 +92,10 @@ public partial class PlayerDesk {
 		// A yes that ran out on you: they waited, you never came. (A yes lapsed because another label signed them isn't yours.)
 		foreach (var a in scoutingKnowledge.Approaches?.Where(a => a.ArtistId == artist.artistId && a.LetLapse &&
 			string.IsNullOrEmpty(artist.labelId)) ?? Enumerable.Empty<ScoutingDirectApproach>())
-			r.Contacts.Add(new() { Kind = RegardSourceKind.LetTheirYesLapse, Day = AgreementHoldsUntil(a), Points = -2 });
+			// Ended by a booked visit you never came to: on the day it ended (UntilDay), and said as such.
+			r.Contacts.Add(a.Steps?.Any(s => s.Missed > 0 && !s.Done) == true
+				? new() { Kind = RegardSourceKind.StoodThemUp, Day = a.UntilDay, Points = -2 }
+				: new() { Kind = RegardSourceKind.LetTheirYesLapse, Day = AgreementHoldsUntil(a), Points = -2 });
 		// A bluff they saw through (the Fixer's check on an objection).
 		foreach (var s in scoutingKnowledge.Approaches?.Where(a => a.ArtistId == artist.artistId).SelectMany(a => a.Steps ?? new())
 			.Where(s => s?.BluffFailedDay != null) ?? Enumerable.Empty<ScoutingApproachStep>())
@@ -121,6 +126,7 @@ public partial class PlayerDesk {
 		if (r.LetDown && worst != null) return worst.Kind switch {
 			RegardSourceKind.MissedTheirDemo => "We booked the room and you never came.",
 			RegardSourceKind.LetTheirYesLapse => "We said yes to you once, and then we never heard from you.",
+			RegardSourceKind.StoodThemUp => "We said yes, and then you stood us up.",
 			RegardSourceKind.CaughtBluffing => "Last time you told us a story.",
 			_ => "You called off on us."
 		};
@@ -155,6 +161,7 @@ public partial class PlayerDesk {
 			RegardSourceKind.GotThemANight => g.Count() == 1 ? "got them a night" : "got them two nights",
 			RegardSourceKind.MissedTheirDemo => "missed their demo",
 			RegardSourceKind.LetTheirYesLapse => "let their yes lapse",
+			RegardSourceKind.StoodThemUp => "stood them up",
 			_ => "cancelled a meeting"
 		});
 		return $"Between you: {how} ({string.Join(", ", done)}).";

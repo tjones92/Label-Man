@@ -143,6 +143,9 @@ public partial class PlayerDeskPanel {
 		var step = desk?.FirstWeekCurrent;
 		if (step == null) return;
 		switch (step.Value) {
+			case FirstWeekStep.Answer when desk.FirstWeekVisitToday:
+				OpenAppointmentBook(desk);
+				break;
 			case FirstWeekStep.Answer when desk.FirstPendingApproachStep != null:
 			case FirstWeekStep.Answer when desk.FirstWeekHearAgainId != null:
 				GoToTab(0, PageAandR);
@@ -179,6 +182,15 @@ public partial class PlayerDeskPanel {
 		FirstWeekStep.Hear => new[] { "FIND A SET", "NEXT SETS" },
 		// The Talk's lines (PlayerDesk.TheTalk) lead when the conversation has the page.
 		FirstWeekStep.Ask => new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms.", "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
+		// The appointment book (onboarding T5): their times are picked in the conversation (glowing together, below); on
+		// the day, the book; before it, a day on. The book never reminds, so the glow goes to the book, not the visit.
+		FirstWeekStep.Answer when desk.FirstWeekVisit is { } v && PlayerDesk.NeedsATime(v) => new[] { "TALK TO THEM", "END THE DAY" },
+		// Today, but not yet: the sets that fit before it's time to go glow with the wait (HighlightFirstWeekTarget); then
+		// the book, then going there.
+		FirstWeekStep.Answer when desk.FirstWeekVisitLater => new[] { "END THE CONVERSATION", "LET THEM GO", "CLOSE THE BOOK",
+			(desk.FirstWeekLeaveAt ?? 0) - desk.NowMinute >= 180 ? "WAIT 3h" : "WAIT 1h" },
+		FirstWeekStep.Answer when desk.FirstWeekVisitToday => new[] { "GO THERE", "THE BOOK" },
+		FirstWeekStep.Answer when desk.FirstWeekVisit is { } v && PlayerDesk.Booked(v) => new[] { "END THE CONVERSATION", "CLOSE THE BOOK", "END THE DAY" },
 		FirstWeekStep.Answer => new[] { "▸  I'll come to Sunday dinner", "▸  I'll sit down with", "MEET THE FAMILY", "SIT DOWN WITH THE MANAGER", "END THE DAY" },
 		FirstWeekStep.Terms => new[] { "▸  Let's sit down on terms.", "SIT DOWN ON TERMS", "TALK TO THEM" },
 		// Too late for the meeting: leave the sheet and end the day. Otherwise the sheet, or the way back to it.
@@ -252,6 +264,19 @@ public partial class PlayerDeskPanel {
 				if (moved && hit != null) contentScroll?.EnsureControlVisible(hit);
 				return;
 			}
+		}
+		// A visit later today: every set that's over before it's time to leave glows, with the wait beside them.
+		if (step == FirstWeekStep.Answer && desk.FirstWeekVisitLater && modal.Count == 0 && buttons.Any(b => b.HasMeta("set_ends"))) {
+			int leave = desk.SceneDay * 24 * 60 + (desk.FirstWeekLeaveAt ?? 0);
+			var fits = buttons.Where(b => b.HasMeta("set_ends") && b.GetMeta("set_ends").AsInt32() <= leave && b.Text is "GO & WAIT" or "LISTEN").Cast<Control>().ToList();
+			string wait = (desk.FirstWeekLeaveAt ?? 0) - desk.NowMinute >= 180 ? "WAIT 3h" : "WAIT 1h";
+			if (buttons.FirstOrDefault(b => b.Text == wait) is { } waitButton) fits.Add(waitButton);
+			if (fits.Count > 0) { GlowOnAll(fits); return; }
+		}
+		// Their side's two times for a visit: both glow, and the player picks (the appointment book).
+		if (step == FirstWeekStep.Answer && desk.FirstWeekVisit is { } visit && PlayerDesk.NeedsATime(visit)) {
+			var times = (modal.Count > 0 ? modal : buttons).Where(b => b.Text.TrimEnd().EndsWith("suits me.", System.StringComparison.Ordinal)).Cast<Control>().ToList();
+			if (times.Count > 0) { GlowOnAll(times); return; }
 		}
 		// Back from a counter: the blank for the term they're stuck on, until the player moves it; then TABLE AGAIN.
 		if (step == FirstWeekStep.Sign && modal.Count == 0 && !desk.FirstWeekTableTomorrow

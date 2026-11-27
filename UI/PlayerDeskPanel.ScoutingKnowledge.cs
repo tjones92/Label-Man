@@ -312,12 +312,16 @@ public partial class PlayerDeskPanel {
         var bar = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         bar.AddThemeConstantOverride("separation", 14);
         // A yes with a step still to take: the family or the manager is the next verb. A holdout is settled at their set.
-        var step = desk.NextApproachStep(artist);
-        bool visit = step != null && step.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager;
+        // A visit still waiting on a time is picked in the conversation (the appointment book), so the verb is TALK TO THEM.
+        var pick = desk.StepNeedingATime(artist);
+        var step = pick ?? desk.NextApproachStep(artist);
+        bool visit = pick == null && step != null && step.Kind is ScoutingApproachStepKind.Parents or ScoutingApproachStepKind.Manager;
         var offer = Primary(visit ? ApproachStepVerb(step) : terms ? "SIT DOWN ON TERMS" : "TALK TO THEM");
         offer.CustomMinimumSize = new Vector2(240, 42);
         offer.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-        offer.TooltipText = visit ? $"In their town, on or after {ShortDay(step.Day ?? 0)}. Takes {(step.Kind == ScoutingApproachStepKind.Parents ? PlayerDesk.FamilyVisitHours : PlayerDesk.ManagerSitDownHours)}h."
+        offer.TooltipText = visit && step.Minute is { } at ? $"In your book: {PlayerDesk.WhenText(step.Day ?? 0, at)}, in their town. Takes {PlayerDesk.VisitHours(step.Kind)}h; on the day, you go there and wait for the hour."
+            : pick != null ? "Their side offered two times. Pick one in the conversation, and it goes in your book."
+            : visit ? $"In their town, on or after {ShortDay(step.Day ?? 0)}. Takes {(step.Kind == ScoutingApproachStepKind.Parents ? PlayerDesk.FamilyVisitHours : PlayerDesk.ManagerSitDownHours)}h."
             : terms ? "Open the contract: their ask, your offer, and what it costs the label."
             : "Ask if they'd hear an offer, arrange a rehearsal or a demo, or get a number to call.";
         if (visit) offer.Pressed += () => { bool ok = desk.TakeApproachStep(artist.artistId, step.Kind, out string result); Say(result, ok); Refresh(); };

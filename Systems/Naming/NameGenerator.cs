@@ -171,6 +171,24 @@ public partial class NameGenerator : Node {
 	}
 
 	/// <summary>
+	/// Whether a first name reads as a woman's: the lexicon has it tagged female and never male. A pure lookup with no
+	/// draw, so a generated person whose sex was never stored (an act's manager) can still be read right.
+	/// </summary>
+	public bool IsFemaleFirstName(string first) {
+		if (string.IsNullOrWhiteSpace(first)) return false;
+		EnsureLoaded();
+		if (_engine == null) return false;
+		if (_femaleFirst == null) {
+			var pool = _engine.Lexicon.Pool("firstName");
+			var male = new HashSet<string>(pool.Where(e => e.HasTag("male")).Select(e => e.Word), System.StringComparer.OrdinalIgnoreCase);
+			_femaleFirst = new HashSet<string>(pool.Where(e => e.HasTag("female") && !male.Contains(e.Word)).Select(e => e.Word),
+				System.StringComparer.OrdinalIgnoreCase);
+		}
+		return _femaleFirst.Contains(first.Trim());
+	}
+	private HashSet<string> _femaleFirst;
+
+	/// <summary>
 	/// The ethnicity a whole lineup shares, drawn once per act so its members read as a group
 	/// rather than as five independent draws. Consumes the act stream, never the title stream.
 	/// </summary>

@@ -247,6 +247,7 @@ tutorial card, and today's from `NextUpStep`. Nothing new is computed; it's thre
 | **T1 holder scene** (built) | §3.1 Sawyer first, then the other four; the mystery reframed as *why* | `PlayerDesk.FirstMorning.cs`, `PlayerDeskPanel.FirstMorning.cs`, Morning After order | UI driver screenshots per holder |
 | **T3 first-week card** (built) | §3.2 through an act signed and a first record set up (decision 3); each voice teaches its task (decision 2); highlight, off toggle | a tutorial state on `PlayerDesk` (player-only, saved), a card widget | Playtest metric below |
 | **T4 time** | §3.4 hour strip, one-unit costs, money clock; fatigue hooks once that mechanic exists | desk header, action buttons | Playtest |
+| **T5 appointment book** (steps 1–2 built) | §4c: the book, signing appointments, times to pick, missing one; then rapport, calls that ring once, the secretary | `PlayerDesk.AppointmentBook.cs`, The Talk, THE BOOK by the clock | `AppointmentBookChecks`, `FirstWeekUiChecks --manager` |
 | **T2 office menu (last)** | §3.3 and decision 4: door, calendar, drawer hotspots; objects as the way in, tabs as the way across | `UIManager.BuildDeskProps`, a small door card | UI driver |
 
 **T0 built (2026-11-25), uncommitted.** Re-played through the real UI on a fresh Sawyer founding:
@@ -566,6 +567,82 @@ airplay through the existing booker and jock regard (*later*).
 
 Inertness for all four: player-side and saved, with headless AI audits byte-identical. Player-bot runs will move,
 because what a player sells changes.
+
+**T5 step 1 built (2026-11-27): the book, with signing appointments** (`PlayerDesk.AppointmentBook.cs`,
+`UI/PlayerDeskPanel.AppointmentBook.cs`):
+- **Two times to pick from.** When a yes comes with a visit, their side proposes two (`ProposedTimes`, keyed on the act and
+  the day, no RNG draw): a family offers Sunday dinner at 1 PM on two Sundays; a club booker two of his room's open nights,
+  an hour before the doors; anyone else two weekdays at office hours (10, 11, 2, 3 or 4). The yes names both. The Talk
+  offers them as lines ("Wednesday, Jan 6, at 4 PM suits me."), family first. Picking is free, works from anywhere, and
+  writes it in the book. Until a time is picked the card's verb is TALK TO THEM and the visit can't be taken.
+- **Being there.** On the day, the visit (from the act's card, The Talk or the book's GO THERE) goes there and waits for the
+  hour, then takes its hours. Before the day it refuses and names the time. It has to be in the act's town.
+- **Missing one.** Any clock move past a booked start without the visit done is a miss (`SweepMissedAppointments`, on the
+  hour hand and at dawn). A family doesn't set a place twice: the yes ends. A manager leaves a note with two new times, two
+  days on or later; a second miss ends the yes. A yes ended this way counts against regard on the day it ended
+  (`RegardSourceKind.StoodThemUp`, -2, "We said yes, and then you stood us up."). The archetype costs in the table above
+  wait for rapport (step 2).
+- **The book** is THE BOOK, by the desk clock: soonest first, by day. It lists the visits (booked, or still waiting on a
+  time, with the two times as buttons), rehearsals, demos and meetings arranged with acts, paid demo jobs, the studio date,
+  a holdout's set, and the lien sitting's window. It has no badge, no count and no reminder. Nothing stops a skip for it.
+- **The first week teaches it once.** The Street's slip at the two times ("Pick one and write it down. Nobody in this
+  office is going to remind you."); on the day the glow goes to THE BOOK, not to the visit, then GO THERE; before the day,
+  to END THE DAY. The Suit's and the Street's teaching lines for a pending visit say the same.
+- **Older saves:** a step without offered times keeps "on or after its day", with no hour to miss.
+- **Not built yet:** the book as an object on the desk (the header button stands in until T2 adds desk hotspots); misses
+  aren't flagged on a road trip (by design). The archetype miss costs and rapport are step 2, below.
+- Checks: `AppointmentBookChecks` (34: two times, deterministic, picked in The Talk, refused before the day, missed by the
+  desk's own wait and by the day turning, new times, kept on the second booking, second miss ends the yes and drops regard,
+  a missed Sunday dinner ends it). `DispositionChecks` (97, now books its family and manager visits),
+  `TheTalkChecks` (126), `BluffCheckChecks` (28), `SignedClockChecks` (39) pass. `FirstWeekUiChecks --manager` (new: a
+  shark manages the act the bot picks) walks the whole thing by the glow on seed 1001: both times picked, the book opened
+  on each day, both visits kept, signed in 15 glow presses and 9 days (91 checks). Screenshots
+  `SimLogs/first-week-04-book-times.png`, `-11-book-open.png`.
+- Rough edges seen: GO THERE in the morning spends the hours up to the meeting (a 4 PM sit-down burns the day), which is
+  the trade-off, but the first week's glow sent a new player there at 9 AM (fixed below). The slip beside GO THERE covers
+  the entry's text. A woman managing an act could read "him" (Denise Patterson; fixed below).
+
+**After step 1 (2026-11-27): the morning before a sit-down, and women managers.**
+- **GO THERE at 9 AM.** The first week's glow sent a new player to GO THERE first thing, and a 4 PM sit-down ate the day.
+  Now, while a visit later today is more than an hour off (`FirstWeekVisitLater`, `VisitLeaveMinutes` = 60), the hours
+  are his. Every listed set that's over before it's time to leave glows (each set button carries `set_ends`), with the
+  right WAIT (3h, or 1h when less than three hours are left). The Suit's slip: *"Banks isn't till 4. The day's yours till
+  3: hear a set that's done by then. Don't sit in a waiting room all day."* Only in the last hour does the glow go to THE
+  BOOK, then GO THERE. GO THERE itself now shows what going early costs: **GO THERE · WAIT 7h**. The book still never
+  reminds; the glow is first-week teaching, as before.
+- **Women managers.** A generated manager's sex was never stored with the name, so Denise Patterson was "him".
+  `ManagerIdentity` now reads it off the first name (`NameGenerator.IsFemaleFirstName`: tagged female in the lexicon and
+  never male; a lookup, no draw, so older saves read right too). Club bookers' names get the same read. The places and
+  lines that said "his" (his office, his publisher's, the diner where he does his business, the Suit's and Street's
+  teaching lines, The Talk's friction) follow it. A step saved before this keeps the sex it was saved with.
+
+**T5 step 2 built (2026-11-27): manager rapport** (`PlayerDesk.ManagerRapport.cs`):
+- **A ledger, keyed on the person** (`ManagerKey`: what he is and his name, so a club booker who manages two acts is one
+  man). Stored, player-only, on the scouting knowledge (`Rapport`, null on older saves). Stored lines: a kept sit-down +1
+  (twice at most; a family's Sunday dinner counts when the family is the manager), a missed one by archetype, holding firm
+  at the table -1 (-2 at most), talks pushed until the act walked -1, and signing within 5% of his ask +1. **Read, not
+  stored:** a promise to his act kept +1 or broken -2 (`ContractCommitments`), and a Top 40 record by his act on this
+  label +1 (twice at most). Bad turns are remembered for half a year, good ones for two years. Levels: Sour (-3 or less),
+  Cool, Neutral, Warm (1-2), Close (3+).
+- **The miss costs, by archetype** (the §4c table): a hustler shrugs (-1, no hard feelings in the note) and gives up only
+  at the third miss; a shark writes "You owe me an afternoon. It'll be on the bill." (-1), his price at the table rises
+  +0.05 on the reservation for every miss remembered, and at the second he shops the act (the yes ends); a svengali takes
+  it personally (-3) and at the second tells the act you aren't serious (the yes ends); a visionary cools (-1, then -2),
+  has one round less patience for every miss, and gives up at the third. A family that's the manager is unchanged: one
+  miss ends it.
+- **What it moves, in the player's own talks only,** applied when the table opens (a signing, a renewal, a rival's paper
+  turning an easy renewal into talks): patience (Sour -2, Cool -1, Warm +1, Close +2 rounds) and how far he'll come
+  (reservation +0.06 / +0.03 / -0.02 / -0.04). He says why at the table ("You owe me for the afternoon I sat waiting. It's
+  on the bill." / "You turned up when you said you would. That counts with me."). The AI's term sheets don't change.
+- **Who can read it:** the Fixer at 3+, on the act's card ("The Fixer: Carl Toliver: even (kept a sit-down, missed a
+  sit-down)"). Below that, only what the manager says at the table.
+- **Not built yet:** the renewal ask, listening to a rival's offer, bringing you his next act, advances paid on time
+  (there's no late advance to read), and a booker or deejay losing face in his room or station.
+- Checks: `AppointmentBookChecks` (now 47): Denise Patterson reads as a woman and Sol Kramer as a man; the shark's miss
+  note, -1 and Cool, his price up; kept, back to even but still billing the afternoon, and saying so at the table; the
+  card's Fixer read; the second act's shark shops it after two misses and is a round shorter; the key is the person; the
+  archetype rules. `FirstWeekUiChecks --manager` now checks that a visit later today never glows GO THERE or THE BOOK,
+  that a glowing set is over before it's time to leave, and that the hours before the visit were left free.
 
 ## 5. Author decisions (2026-11-25)
 
