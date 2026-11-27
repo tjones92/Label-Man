@@ -405,6 +405,58 @@ sim or sent anywhere.
   dead click. A purely cosmetic press would count too, so read the list rather than trusting the number blind.
 - Next: the cold playtest itself. Play a NEW GAME through to a first record, then send the two files.
 
+## 4a. First cold playtest (2026-11-26)
+
+The author played a cold NEW GAME on the T3 build. What came up, and what was done:
+
+| Finding | Done |
+|---|---|
+| FIND A SET glowed over the finder it had already opened. Pressing it did nothing. | Choosing who to hear, **every listed set glows** and the player picks (dd92a7e). |
+| The yellow glow vanished on TALK TO THEM's oxblood | The glow is now a **pulsing blue pencil ring** around the control as well as the tint (dd92a7e) |
+| The Street already knew Buzz Carroll's residency on a hungover first morning | The Street passes on room talk only **once a set has been heard**. Before that, a residency shows as the room's own billing (dd92a7e). |
+| "I'll sit down with Douglas Banks. Not before Jan 11." Where? | The greyed line now says when and where. The real fix is the appointment book (§4c). |
+| The trace recorded nothing | The session loaded a save, and the trace only followed a founding. It now follows a loaded run still on its first week, marked resumed. |
+| A 7-day skip hung for ~20 s | Not looked at yet (day-end sim cost) |
+
+### 4b. The voices as pop-overs (proposal, T6)
+
+The teaching lines are inline text on the page today. The player reads past them. Instead, the voice line of the moment
+becomes a **slip of paper that pops over the page, with a pencil arrow at the glowing control**. It's the voices
+desperately trying to steer a body that doesn't know what it's doing.
+
+- **One slip at a time,** from the voice whose job it is (decision 2), anchored beside the glow, with a hand-drawn arrow
+  to it. When several things glow (the sets), the arrow points at the group.
+- **It never blocks.** It doesn't take the mouse, apart from a small × that puts it away until the glow moves. It comes
+  back when the next thing to press changes.
+- **The tone is panicked, not instructive.** The voices know the Label Man is out of his depth:
+  - Street, day one: *"You have no clue how this all works, do you? We need to sign a fuckin' act! Pick a room."*
+  - Ear, at a set: *"Shut up and listen. That's the whole job tonight."*
+  - Suit, on the first contract while worn: *"Look at you, hungover. You can't even put a proposal together. Take the
+    standard paper and don't touch anything."* (This is where the fatigue mechanic gets introduced, once F1 exists.)
+  - Fixer, on a wait: *"Go home. They'll call. Nobody calls back a man who's standing in the doorway."*
+- Inline teaching stays only where nothing glows (a page with no next press), so the line is never lost.
+- Same rules as now: every line names real state, and the off switch is I KNOW THE WAY.
+
+### 4c. The appointment book (proposal, T5)
+
+A sit-down with a manager is the first time the player has **somewhere to be at a certain time**. That's the first moment
+the clock means something, and today it's a greyed line in a conversation. It should be an appointment.
+
+- **The book is an object on the desk** (a desk diary, so it fits T2's office-as-menu). Each entry has a day, a time, a
+  place, who, how long, and what it's for.
+- **The other side proposes a time; you pick one.** "Banks can see you Monday at 3 or Tuesday at 10, at his office on
+  Woodward." Choosing is the first trade-off between hours.
+- **Being there.** When the time comes, the desk says so ("It's 2:30. Banks expects you at 3."). Anything that would
+  run over an appointment warns before you press it ("You'll miss Banks at 3."). Out of town, or still at the plant, and
+  you miss it.
+- **Missing it costs.** A first miss: he'll reschedule once, cooler (terms harder, patience shorter). A second miss: the
+  act's yes lapses. *Author decision on the exact cost.*
+- **What goes in it,** in order of building: the manager sit-down and Sunday dinner (signing), the holdout's next set,
+  studio dates and demo bookings (already timed), station visits, the December sitting.
+- **Fatigue ties in.** A SPENT morning sleeps in, so a 10 AM appointment after a late night is a real risk.
+- **Inertness.** The approach state is player-side and saved, the same as today's steps. A lapse changes only the
+  player's own approach. The AI's courtships don't read it, but check with a byte-compare.
+
 ## 5. Author decisions (2026-11-25)
 
 1. **The holder is named on day one.** Each holder bends the playthrough toward something specific (Connie's record,
