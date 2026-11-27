@@ -394,9 +394,10 @@ public static class AiRepertoireService {
 				string auditReason = ProfessionalWritingMarket.Enabled ? "empty-count-blocked" : "market-disabled";
 				if (source == SongMaterialSource.ExternalProfessional && ProfessionalWritingMarket.Enabled &&
 					active < 2) {
-					var offer = ProfessionalWritingMarket.Offers(label, artist).FirstOrDefault(o => o.Available);
-					if (offer != null) {
-						bool ordered = ProfessionalWritingMarket.TryAiCommission(label, artist, offer.WriterId, TimeManager.Instance.CurrentDate, out string refusal);
+					// The first available offer's writer, without building the whole priced offer list (same choice).
+					string offerWriter = ProfessionalWritingMarket.FirstAvailableOfferWriter(label, artist);
+					if (offerWriter != null) {
+						bool ordered = ProfessionalWritingMarket.TryAiCommission(label, artist, offerWriter, TimeManager.Instance.CurrentDate, out string refusal);
 						if (!ordered && refusal == "no-plan-minimum-delivery" && provenance == "arrival")
 							ProfessionalWritingMarket.RememberPlanlessArrival(label, artist, week);
 						auditReason = ordered ? "commission-ordered" : "commission-refused:" + refusal;

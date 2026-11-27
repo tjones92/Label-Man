@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -313,6 +313,75 @@ public partial class UIManager : Control
 		announcementText.AddThemeColorOverride("font_color", new Color("2b2115"));
 		announcement.AddChild(announcementText);
 		AddChild(announcement);
+		BuildTurnCard();
+	}
+
+	// ---- the turn card: shown while the calendar turns over a week's end or several days ------------------------
+	// The day's end is synchronous and can take seconds (the opening week, a Friday's charts, the first of a month);
+	// without this the window simply froze on the last frame, which read as a hang.
+	private CanvasLayer turnCardLayer;
+	private Label turnCardTitle, turnCardDetail;
+	private bool turnPending;
+	public bool DayTurnPending => turnPending;
+
+	private void BuildTurnCard() {
+		turnCardLayer = new CanvasLayer { Name = "TurnCard", Layer = 120, Visible = false };
+		var shade = new ColorRect { Color = new Color(0.08f, 0.06f, 0.04f, 0.45f), MouseFilter = Control.MouseFilterEnum.Stop };
+		shade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		turnCardLayer.AddChild(shade);
+		var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+		center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		shade.AddChild(center);
+		var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(420, 0) };
+		var sheet = PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 18, 8, new Color("b5541c"));
+		sheet.BorderWidth = 3; sheet.Radius = 4; sheet.ShadowAlpha = 0.35f;
+		card.AddThemeStyleboxOverride("panel", sheet);
+		center.AddChild(card);
+		var lines = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+		lines.AddThemeConstantOverride("separation", 6);
+		card.AddChild(lines);
+		turnCardTitle = new Label { HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+		turnCardTitle.AddThemeFontOverride("font", PaperTheme.SansBold);
+		turnCardTitle.AddThemeFontSizeOverride("font_size", 24);
+		turnCardTitle.AddThemeColorOverride("font_color", PaperTheme.Rust);
+		lines.AddChild(turnCardTitle);
+		turnCardDetail = new Label { HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+		turnCardDetail.AddThemeFontSizeOverride("font_size", 17);
+		turnCardDetail.AddThemeColorOverride("font_color", new Color("2b2115"));
+		lines.AddChild(turnCardDetail);
+		AddChild(turnCardLayer);
+	}
+
+	/// <summary>Turns the calendar <paramref name="days"/> days ahead (or to the first stop) through <paramref name="turn"/>.
+	/// A turn that is one ordinary weekday runs at once, as before. One that crosses a Friday (the week's charts and the
+	/// other labels' week), a month's end or several days puts up the card first and runs once it has been drawn.</summary>
+	public void RunDayTurn(int days, System.Action turn) {
+		if (turnPending) return;
+		TimeManager clock = TimeManager.Instance;
+		if (clock == null || turnCardLayer == null) { turn(); return; }
+		GameDate from = clock.CurrentDate, to = from.AddDays(System.Math.Max(1, days));
+		bool heavy = days > 1 || from.IsFriday || to.month != from.month;
+		if (!heavy) { turn(); return; }
+		turnCardTitle.Text = days > 1 ? "THE DAYS GO BY" : "THE WEEK CLOSES";
+		turnCardDetail.Text = days > 1
+			? $"{from.ToHeadlineString()} to {to.ToHeadlineString()}."
+			: $"{from.ToHeadlineString()}: the charts are made up and the other labels settle the week.";
+		RunBehindTurnCard(turn);
+	}
+
+	private async void RunBehindTurnCard(System.Action turn) {
+		turnPending = true;
+		turnCardLayer.Show();
+		try {
+			// Pressed arrives before this frame's process step; the card is drawn at the end of this frame, and the
+			// turn runs at the start of the next.
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			turn();
+		} finally {
+			turnPending = false;
+			turnCardLayer.Hide();
+		}
 	}
 
 	private void ShowAnnouncement(string text) {
@@ -1007,15 +1076,17 @@ public partial class UIManager : Control
 		if (StudioBlocksCalendar(oneDay: true)) return;
 		if (isUIOpen) return;
 		if (TimeManager.Instance == null) return;
-		TimeManager.Instance.SkipDays(1);
-		GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}.");
+		RunDayTurn(1, () => {
+			TimeManager.Instance.SkipDays(1);
+			GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}.");
+		});
 	}
 
 	public void AdvanceOneDayFromDesk()
 	{
 		if (StudioBlocksCalendar(oneDay: true)) return;
 		if (PlayerDesk.Instance?.HasLabel != true || TimeManager.Instance == null) return;
-		TimeManager.Instance.SkipDays(1);
+		RunDayTurn(1, () => TimeManager.Instance.SkipDays(1));
 	}
 
 	public void OpenCalendarSkipOptionsFromDesk() => ShowCalendarPopup();
@@ -1090,17 +1161,19 @@ public partial class UIManager : Control
 		options.AddChild(stockWarning);
 
 		var friday = new Button { Text = "Skip to Friday" };
-		friday.Pressed += () => RunCalendarSkip(() => TimeManager.Instance.SkipToFriday());
+		friday.Pressed += () => RunCalendarSkip(TimeManager.Instance.CurrentDate.IsFriday ? 7 : TimeManager.Instance.CurrentDate.DaysUntilFriday,
+			() => TimeManager.Instance.SkipToFriday());
 		options.AddChild(friday);
 		var next = new Button { Name = "NextEvent", Text = "Skip to next event" };
-		next.Pressed += () => RunCalendarSkip(() => TimeManager.Instance.SkipToNextEvent());
+		next.Pressed += () => RunCalendarSkip(DaysToNextEvent(), () => TimeManager.Instance.SkipToNextEvent());
 		options.AddChild(next);
 
 		var daysRow = new HBoxContainer();
-		skipDaysInput = new SpinBox { MinValue = 1, MaxValue = 365, Value = 7, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		// Three weeks at most: the label's business keeps happening while you skip, and a longer skip is a long wait.
+		skipDaysInput = new SpinBox { MinValue = 1, MaxValue = 21, Value = 7, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		daysRow.AddChild(skipDaysInput);
 		var skipDays = new Button { Text = "Skip days" };
-		skipDays.Pressed += () => RunCalendarSkip(() => TimeManager.Instance.SkipDays((int)skipDaysInput.Value));
+		skipDays.Pressed += () => RunCalendarSkip((int)skipDaysInput.Value, () => TimeManager.Instance.SkipDays((int)skipDaysInput.Value));
 		daysRow.AddChild(skipDays);
 		options.AddChild(daysRow);
 		var close = new Button { Text = "Close" };
@@ -1108,16 +1181,24 @@ public partial class UIManager : Control
 		options.AddChild(close);
 	}
 
-	private void RunCalendarSkip(System.Func<ScheduledEvent> skip)
+	private int DaysToNextEvent()
+	{
+		var nextEvent = TimeManager.Instance.GetNextEvent();
+		return nextEvent == null ? 1 : System.Math.Max(1, TimeManager.Instance.DaysBetween(TimeManager.Instance.CurrentDate, nextEvent.date));
+	}
+
+	private void RunCalendarSkip(int days, System.Func<ScheduledEvent> skip)
 	{
 		if (StudioBlocksCalendar()) return;
 		calendarPopup.Hide();
-		var interruptedBy = skip();
-		string reason = interruptedBy == null ? "" : $" (stopped for {interruptedBy.title})";
-		GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}{reason}.");
-		// The vinyl landing already raises its own banner; the rest would otherwise stop the skip silently.
-		if (interruptedBy != null && interruptedBy.eventType is EventType.IncomingCall or EventType.RecordRelease or EventType.Reminder)
-			ShowAnnouncement($"SKIP STOPPED  —  {interruptedBy.title}");
+		RunDayTurn(days, () => {
+			var interruptedBy = skip();
+			string reason = interruptedBy == null ? "" : $" (stopped for {interruptedBy.title})";
+			GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}{reason}.");
+			// The vinyl landing already raises its own banner; the rest would otherwise stop the skip silently.
+			if (interruptedBy != null && interruptedBy.eventType is EventType.IncomingCall or EventType.RecordRelease or EventType.Reminder)
+				ShowAnnouncement($"SKIP STOPPED  —  {interruptedBy.title}");
+		});
 	}
 
 	private void UpdateCalendarButton(GameDate date)
