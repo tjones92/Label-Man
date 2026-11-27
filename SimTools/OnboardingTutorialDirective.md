@@ -503,9 +503,8 @@ Hiring her (a weekly wage, *provisional*, period clerical pay) turns each gap ab
   isn't hit.
 - **Inertness.** All player-side. Calls that are answered or missed change the player's own sales and airplay, as any
   player choice does. The AI economy doesn't read whether he was in.
-- *Author decision:* whether a cheap, unreliable **answering service** (which existed in 1960) sits in between, taking
-  some messages for a few dollars a month but never scheduling or reminding. It would soften the fear early, so the
-  default is no.
+- **No answering service** (author, 2026-11-26). Nothing sits between an empty office and the secretary. A cheap service
+  would soften the fear of the missed call, which is the point.
 
 #### Manager rapport
 
