@@ -384,6 +384,27 @@ tabs opened, presses that changed nothing (dead clicks), and NEXT UP lines shown
 days, ~12 presses**. A human new player is the number that matters, so record one cold playtest before T1 and one
 after T3.
 
+**First-session trace built (2026-11-26)** (`UI/FirstSessionTrace.cs`). It starts the first time the desk shows a label
+founded in this session (never a loaded one) and stops at the first record set up, game over, or 30 in-game days. It
+records every button press in the tree, with the in-game time, the tab, and whether it was the glowing button. Each press
+is marked **ok** (the clock moved, the desk changed or the page redrew), **refused** (a red Post-it), or **no visible
+change**, and clicks on greyed buttons are kept with their reason. It also keeps the tabs opened, each NEXT UP line shown,
+and the first-week lines as they tick. It writes `first-session-<time>-summary.txt` and `-presses.tsv` to
+`user://first-session/` (`%APPDATA%\Godot\app_userdata\Label Man\first-session`), rewritten at each milestone, so a quit
+or a crash still leaves the numbers. Checks write to `SimLogs/first-session/`. Nothing is saved with the game, read by the
+sim or sent anywhere.
+- `FirstWeekUiChecks` now checks the trace (it finishes at the first record, marks the signing and the card put away,
+  counts presses, and reads GO & WAIT, LISTEN, END THE DAY and TABLE OFFER as ok). Seed 1001: 66 checks pass.
+- **The bot's baseline has moved.** Seed 1001 now takes **33 presses (8 on the glow) and 9 in-game days** to a booked
+  date. The 8-press, 1-day figure above predates the bot choosing its act by its Ear (b5d9c22): it now hears several sets
+  before it asks. That's the bot's choice, not the card's. A run without a seed reached its first set by one GO & WAIT
+  that skipped **seven days** (Jan 1 → Jan 8). Worth checking whether NEXT SETS should offer a set a week out to a new
+  player at all.
+- "No visible change" means the trace saw no clock move, desk change or node added or removed within two frames. A press
+  that only reopens the section that's already open (the bot's FIND A SET / NEXT SETS) counts, which is right for a
+  dead click. A purely cosmetic press would count too, so read the list rather than trusting the number blind.
+- Next: the cold playtest itself. Play a NEW GAME through to a first record, then send the two files.
+
 ## 5. Author decisions (2026-11-25)
 
 1. **The holder is named on day one.** Each holder bends the playthrough toward something specific (Connie's record,

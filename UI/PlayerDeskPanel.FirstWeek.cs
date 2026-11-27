@@ -61,7 +61,7 @@ public partial class PlayerDeskPanel {
 		top.AddChild(show);
 		var away = Btn("I KNOW THE WAY");
 		away.TooltipText = "Put the card away for good. NEXT UP still suggests a step.";
-		away.Pressed += () => { PlayerDesk.Instance?.PutAwayFirstWeek(); Refresh(); };
+		away.Pressed += () => { PlayerDesk.Instance?.PutAwayFirstWeek(); FirstSessionTrace.CardPutAway(); Refresh(); };
 		top.AddChild(away);
 		firstWeekBody.AddChild(top);
 		// The teaching isn't on the card any more (SigningExperienceAudit §3.5): each voice speaks in the place the work

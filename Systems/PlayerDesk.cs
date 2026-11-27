@@ -440,6 +440,9 @@ public partial class PlayerDesk : Node {
 
 	public AILabel Label { get; private set; }
 	public bool HasLabel => Label != null;
+	/// <summary>The label on the desk was founded in this session, not loaded: the first-session trace follows it.</summary>
+	public bool FoundedThisSession => Label != null && Label == foundedThisSession;
+	private AILabel foundedThisSession;
 
 	public IReadOnlyList<Prospect> Slate => slate;
 	public IReadOnlyList<WatchNote> Notebook => notebook;
@@ -1336,6 +1339,7 @@ public partial class PlayerDesk : Node {
 
 		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${profile.Capital:N0}.");
 		Note($"A lien for ${lien.FaceSum:N0}, signed last night, falls due on {lien.Deadline.ToHeadlineString()}.");
+		foundedThisSession = label;
 		message = $"{label.labelName} is open.";
 		Changed?.Invoke();
 		return true;

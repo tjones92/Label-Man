@@ -188,6 +188,18 @@ public partial class FirstWeekUiChecks : Node {
 			panel.OpenAtTab("ROSTER"); await Frame(0.7);
 
 			await TheStudio(desk);
+
+			// The first-session trace followed the run from the first desk to the booked date, and wrote its summary.
+			await Frame(0.3);
+			var trace = FirstSessionTrace.Current;
+			Check(trace != null && trace.Finished, "The first-session trace ran and finished at the first record");
+			Check(trace.Milestones.Contains("✓ " + PlayerDesk.FirstWeekTitle(FirstWeekStep.Sign)) && trace.Milestones.Contains("End: First record set up")
+				&& trace.Milestones.Contains("Card put away"), "The trace marks the signing, the card put away and the first record");
+			Check(trace.Presses > 0 && trace.GlowPresses > 0 && trace.GlowPresses <= trace.Presses, $"The trace counts presses ({trace.Presses}, {trace.GlowPresses} on the glow)");
+			Check(System.IO.File.Exists(trace.SummaryPath), "The trace's summary is on disk: " + trace.SummaryPath);
+			Check(trace.PressOutcomes.Where(p => p.Text is "GO & WAIT" or "LISTEN" or "END THE DAY" || p.Text.StartsWith("TABLE OFFER")).All(p => p.Outcome == "ok"),
+				"Presses that moved the clock or the desk read as ok: " + string.Join("; ", trace.PressOutcomes.Select(p => p.Text + " → " + p.Outcome)));
+			GD.Print(trace.Summary());
 			GD.Print($"FIRST_WEEK_UI_CHECKS_PASS ({checks} checks)");
 			GetTree().Quit(0);
 		} catch (Exception e) {

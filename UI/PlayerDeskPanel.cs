@@ -384,6 +384,7 @@ public partial class PlayerDeskPanel : Control {
 		if (switching && contentScroll != null) tabScroll[currentTab] = contentScroll.ScrollVertical;
 		currentTab = index;
 		currentPage = page;
+		if (index < tabTitles.Count) FirstSessionTrace.TabOpened(tabTitles[index]);
 		managingArtistId = null;
 		browsingCovers = false;
 		// Leaving the tab hangs up: you cannot hold a man on the line while you go and read the books.
@@ -512,6 +513,8 @@ public partial class PlayerDeskPanel : Control {
 			nextUpLabel.TooltipText = nextUpLabel.Text;
 		}
 		RenderFirstWeek(desk);
+		FirstSessionTrace.MaybeStart(this, desk);
+		if (nextUpLabel?.Visible == true) FirstSessionTrace.NextUpShown(NextUpHint(desk));
 		ApplyTitleBrand(label);
 		string region = ChartManager.Instance?.GetRegionById(label.homeRegion)?.regionName ?? label.homeRegion;
 		string home = string.IsNullOrEmpty(label.headquartersCity) ? region : $"{label.headquartersCity}, {region}";
@@ -772,6 +775,7 @@ public partial class PlayerDeskPanel : Control {
 		statusLabel.Text = message ?? string.Empty;
 		statusLabel.TooltipText = statusLabel.Text;
 		statusLabel.AddThemeColorOverride("font_color", accent);
+		if (kind == FeedbackKind.Warning && !string.IsNullOrWhiteSpace(message)) FirstSessionTrace.Refused(message);
 		if (string.IsNullOrWhiteSpace(message) || feedbackToast == null) return;
 
 		ApplyFeedbackStyle(feedbackToast, kind);
