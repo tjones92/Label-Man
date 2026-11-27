@@ -621,6 +621,9 @@ public partial class ChartManager : Node {
 		StartupProfile.Mark("room-calendar");
 		MediaAtmosphereService.Initialize(start, this);
 		AiRepertoireService.Reset();
+		// After the shortlist reset: the AI's opening release plan is made during setup, not on the first Friday.
+		CompetitorManager.Instance?.PlanOpeningProgrammes(start);
+		StartupProfile.Mark("opening-programmes");
 	}
 
 	public override void _ExitTree() {

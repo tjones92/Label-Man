@@ -416,6 +416,27 @@ public partial class CompetitorManager {
 		return followingSnapshotOrders;
 	}
 
+	/// <summary>
+	/// World setup: every AI label's opening horizon (and, through it, each act's first-sight shortlist) is planned here,
+	/// behind the loading screen, instead of in the first Friday's release pass, where it was ~5 s of the player's first
+	/// END THE DAY. It is planned as of that first week -- pipeline week 1, dated to the first Friday -- so slot weeks,
+	/// intended dates and keyed rolls read as before. What changes is what the plan sees: the launch world rather than
+	/// the world after the first week's sales. Labels the first pass would skip are skipped.
+	/// </summary>
+	public void PlanOpeningProgrammes(GameDate start) {
+		if (!LabelReleaseProgramme.AllocationEnabled || aiLabels == null) return;
+		ProgrammeState ??= new();
+		GameDate firstFriday = start.IsFriday ? start : start.AddDays(start.DaysUntilFriday);
+		int setupWeek = pipelineWeek;
+		pipelineWeek = setupWeek + 1;
+		try {
+			foreach (var label in aiLabels) {
+				if (!label.IsActive || label.isPlayerOwned || label.roster.Count == 0) continue;
+				if (!ProgrammeState.PlannedThrough.ContainsKey(label.labelId)) PlanProgramme(label, firstFriday, pipelineWeek);
+			}
+		} finally { pipelineWeek = setupWeek; }
+	}
+
 	private void ProcessReleaseProgramme(AILabel label, GameDate date) {
 		ProgrammeState ??= new();
 		if (!LabelReleaseProgramme.AllocationEnabled) {
