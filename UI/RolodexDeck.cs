@@ -5,7 +5,7 @@ using Godot;
 /// The Rolodex as an object: the card in front, the names of the cards behind it fanned up over its top edge, and the
 /// mouse wheel to turn them. Wheel down flips the front card forward and down onto the desk so the next one is in
 /// front; wheel up brings the last one back up. The flip is a real fold (the card shortens to its bottom edge while it
-/// darkens) over about a fifth of a second, with the next card already standing behind it.
+/// darkens), with the next card already standing behind it.
 ///
 /// The deck owns no content. The page hands it a builder that makes the card for an index, a name for the fan, and a
 /// callback for when the front card changes. The wheel is read in <c>_Input</c> and swallowed over the deck, because
@@ -14,6 +14,7 @@ using Godot;
 public partial class RolodexDeck : VBoxContainer {
 	private const int FanDepth = 4;
 	private const float FanStep = 19f, TabHeight = 19f;
+	private const double FlipSeconds = .08;
 
 	private int count, focus;
 	private Func<int, Control> build;
@@ -26,6 +27,7 @@ public partial class RolodexDeck : VBoxContainer {
 	private bool flipping;
 
 	public int Focus => focus;
+	public Action CardFlicked;
 
 	public RolodexDeck Set(int cardCount, int focusIndex, Func<int, Control> buildCard, Func<int, string> nameOfCard, Action<int> focusChanged) {
 		count = cardCount; focus = Math.Clamp(focusIndex, 0, Math.Max(0, cardCount - 1));
@@ -48,7 +50,7 @@ public partial class RolodexDeck : VBoxContainer {
 	public int CardsFlipped => Math.Min(3, focus);
 
 	/// <summary>Turns one card; +1 is wheel down (forward), -1 is wheel up. Wraps round, like the real thing.</summary>
-	public async void Flip(int direction) {
+	public void Flip(int direction) {
 		if (flipping || count < 2) return;
 		flipping = true;
 		int next = (focus + direction + count) % count;
@@ -57,43 +59,50 @@ public partial class RolodexDeck : VBoxContainer {
 		front = incoming;
 		focus = next;
 		onFocus?.Invoke(next);
+		CardFlicked?.Invoke();
 		fan.QueueRedraw(); edges.QueueRedraw(); edges.UpdateMinimumSize();
 
-		if (direction > 0) {
-			// The next card is already standing behind; fold this one down over it.
-			stage.AddChild(incoming);
-			stage.MoveChild(incoming, 0);
-			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-			if (!IsInstanceValid(outgoing)) { flipping = false; return; }
-			outgoing.PivotOffset = new Vector2(outgoing.Size.X / 2f, outgoing.Size.Y);
-			var tween = CreateTween().SetParallel(true);
-			tween.TweenProperty(outgoing, "scale:y", 0.02f, 0.2).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
-			tween.TweenProperty(outgoing, "modulate", new Color(0.62f, 0.55f, 0.46f, 1f), 0.2);
-			await ToSignal(tween, Tween.SignalName.Finished);
-			if (IsInstanceValid(outgoing)) outgoing.QueueFree();
-		} else {
-			// The previous card comes back up from the desk and covers this one.
-			incoming.Scale = new Vector2(1f, 0.02f);
-			incoming.Modulate = new Color(0.62f, 0.55f, 0.46f, 1f);
-			stage.AddChild(incoming);
-			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-			if (!IsInstanceValid(incoming)) { flipping = false; return; }
-			incoming.PivotOffset = new Vector2(incoming.Size.X / 2f, incoming.Size.Y);
-			var tween = CreateTween().SetParallel(true);
-			tween.TweenProperty(incoming, "scale:y", 1f, 0.2).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-			tween.TweenProperty(incoming, "modulate", Colors.White, 0.2);
-			await ToSignal(tween, Tween.SignalName.Finished);
-			if (IsInstanceValid(outgoing)) outgoing.QueueFree();
-		}
-		flipping = false;
+		bool forward = direction > 0;
+		stage.AddChild(incoming);
+		if (forward) stage.MoveChild(incoming, 0);
+		else incoming.Modulate = Colors.Transparent;
+		Callable.From(() => {
+			if (!IsInsideTree() || IsQueuedForDeletion()) return;
+			Control turning = forward ? outgoing : incoming;
+			turning.PivotOffset = new Vector2(turning.Size.X / 2f, turning.Size.Y);
+			var folded = new Color(.62f, .55f, .46f);
+			float restY = turning.Position.Y;
+			if (!forward) {
+				turning.Scale = new Vector2(1f, .02f);
+				turning.Position += new Vector2(0, 8);
+				turning.Modulate = folded;
+			}
+			var tween = CreateTween().SetParallel(true).SetTrans(Tween.TransitionType.Quad)
+				.SetEase(forward ? Tween.EaseType.In : Tween.EaseType.Out);
+			tween.TweenProperty(turning, "scale:y", forward ? .02f : 1f, FlipSeconds);
+			tween.TweenProperty(turning, "position:y", forward ? restY + 8 : restY, FlipSeconds);
+			tween.TweenProperty(turning, "modulate", forward ? folded : Colors.White, FlipSeconds);
+			tween.Finished += () => {
+				stage.RemoveChild(outgoing);
+				outgoing.QueueFree();
+				flipping = false;
+			};
+		}).CallDeferred();
 	}
 
 	public override void _Input(InputEvent @event) {
-		if (@event is not InputEventMouseButton { Pressed: true } mouse) return;
-		if (mouse.ButtonIndex != MouseButton.WheelDown && mouse.ButtonIndex != MouseButton.WheelUp) return;
-		if (!IsVisibleInTree() || !GetGlobalRect().HasPoint(GetGlobalMousePosition())) return;
+		if (count < 2 || !IsVisibleInTree() || PaperModal.IsOpen) return;
+		int direction;
+		if (@event is InputEventKey { Pressed: true, AltPressed: false, CtrlPressed: false, MetaPressed: false, Keycode: Key.Left or Key.Right } key)
+			direction = key.Keycode == Key.Right ? 1 : -1;
+		else if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelDown or MouseButton.WheelUp } mouse) {
+			var point = GetGlobalMousePosition();
+			if (!GetGlobalRect().HasPoint(point)) return;
+			if (GetParent().GetParent() is ScrollContainer scroll && !scroll.GetGlobalRect().HasPoint(point)) return;
+			direction = mouse.ButtonIndex == MouseButton.WheelDown ? 1 : -1;
+		} else return;
 		GetViewport().SetInputAsHandled();
-		Flip(mouse.ButtonIndex == MouseButton.WheelDown ? 1 : -1);
+		Flip(direction);
 	}
 
 	/// <summary>The index-card look every card in the book shares: a red head rule over blue ruled lines, and the long

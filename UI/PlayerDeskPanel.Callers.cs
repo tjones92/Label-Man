@@ -117,12 +117,12 @@ public partial class PlayerDeskPanel {
 	}
 
 	/// <summary>THE PHONE's open sets: a booker rang today with a set to fill. Ring him back before tonight.</summary>
-	private void BookerOffersSection(PlayerDesk desk) {
+	private void BookerOffersSection(PlayerDesk desk, bool compact) {
 		var offers = desk.BookerOffers;
 		if (offers.Count == 0) return;
-		Body("A booker rang with a set to fill. It's yours if you tell him today; tomorrow he's given it to the next label on his list.");
+		Body("A booker rang with a set to fill. Call back today to claim it.");
 		foreach (var offer in offers) {
-			var row = new HBoxContainer();
+			BoxContainer row = compact ? new VBoxContainer() : new HBoxContainer();
 			row.AddThemeConstantOverride("separation", 8);
 			var lbl = new Label { Text = "    " + desk.OfferText(offer), AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 			lbl.AddThemeColorOverride("font_color", Ink);
@@ -131,6 +131,10 @@ public partial class PlayerDeskPanel {
 			foreach (var act in desk.ActsForOffer(id).Take(3)) {
 				string artistId = act.artistId;
 				var put = Btn($"PUT {act.stageName.ToUpperInvariant()} IN ({PlayerDesk.CallBackBookerMinutes}m)");
+				if (compact) {
+					put.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+					put.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				}
 				put.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.TakeBookerOffer(id, artistId, onTheLine: false, out string m); Say(m, ok); return ok; });
 				row.AddChild(put);
 			}

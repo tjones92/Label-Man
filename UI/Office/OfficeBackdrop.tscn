@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="PackedScene" path="res://UI/Office/office.glb" id="1_office"]
+[ext_resource type="PackedScene" path="res://UI/Office/OfficeRolodex.tscn" id="2_rolodex"]
 
 [sub_resource type="ViewportTexture" id="ViewportTexture_office"]
 resource_local_to_scene = true
@@ -44,6 +45,13 @@ positional_shadow_atlas_size = 4096
 render_target_update_mode = 1
 
 [node name="Office" parent="RoomViewport" instance=ExtResource("1_office")]
+
+[node name="Right record sleeves" parent="RoomViewport/Office" index="16"]
+visible = false
+
+[node name="OfficeRolodex" parent="RoomViewport" instance=ExtResource("2_rolodex")]
+position = Vector3(0.8, 0.92, -2.26)
+scale = Vector3(0.83, 0.83, 0.83)
 
 [node name="Environment" type="WorldEnvironment" parent="RoomViewport"]
 environment = SubResource("Environment_office")
@@ -102,3 +110,5 @@ light_energy = 0.55
 light_specular = 0.25
 omni_range = 3.4
 omni_attenuation = 1.15
+
+[editable path="RoomViewport/Office"]

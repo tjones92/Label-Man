@@ -165,8 +165,8 @@ public static partial class RolodexDirectory {
 			string focus = house.focusGenres.Length == 0 ? "no one style" : string.Join(", ", house.focusGenres.Take(3).Select(g => GenreNameFormatter.Format(g)));
 			card.Facts.Add(($"Plugs songs in: {focus}.", false));
 			card.Facts.Add((Level(house.catalogQuality, "A thin catalogue.", "A catalogue with some good copyrights in it.", "A catalogue other houses envy."), false));
-			card.Facts.Add((Level(house.commercialAggression, "Does not push a song hard.", "Works the songs he has.", "Will leave a demo on every desk in town."), false));
-			card.Facts.Add((Level(house.artistFriendly, "Writers say he keeps most of the money.", "Fair enough to a writer.", "Writers like working for him."), false));
+			card.Facts.Add((Level(house.commercialAggression, "Does not push a song hard.", "Works the songs already on the books.", "Will leave a demo on every desk in town."), false));
+			card.Facts.Add((Level(house.artistFriendly, $"Writers say {(female ? "she" : "he")} keeps most of the money.", "Fair enough to a writer.", $"Writers like working for {(female ? "her" : "him")}."), false));
 			card.Facts.Add((Level(house.buyoutWillingness, "Will not sell a copyright.", "Will talk about a buyout, at a price.", "Will sell a copyright outright if the cheque is right."), false));
 			cards.Add(card);
 		}
@@ -185,13 +185,13 @@ public static partial class RolodexDirectory {
 			Figure = Portraits.Foreman(key), GoToTab = "CATALOG", GoToLabel = "OPEN THE CATALOG"
 		};
 		var orders = desk.PendingPressings().ToList();
-		if (orders.Count == 0) card.Facts.Add(("Nothing of yours is on his presses right now.", false));
+		if (orders.Count == 0) card.Facts.Add(("Nothing of yours is on the presses right now.", false));
 		foreach (var order in orders.Take(4))
 			card.Facts.Add(($"On the presses: {order.Quantity:N0} of \"{order.Title}\", due {order.Arrives.ToHeadlineString()}.", false));
 		if (orders.Count > 4) card.Facts.Add(($"…and {orders.Count - 4} more runs behind those.", false));
 		var credit = desk.PlantCreditOwed;
 		if (credit != null)
-			card.Facts.Add(($"He fronted you a run and wants ${credit.Value.Amount:N0} back in {credit.Value.WeeksAway} week{(credit.Value.WeeksAway == 1 ? "" : "s")}. He will collect whatever the record does.", true));
+			card.Facts.Add(($"The plant fronted you a run and wants ${credit.Value.Amount:N0} back in {credit.Value.WeeksAway} week{(credit.Value.WeeksAway == 1 ? "" : "s")}. Payment is due whatever the record does.", true));
 		card.Facts.Add(("Plating, then the press queue, then the mail: allow weeks, not days.", false));
 		return new List<DirectoryCard> { card };
 	}
@@ -212,8 +212,8 @@ public static partial class RolodexDirectory {
 		int left = Math.Max(0, deal.signedWeek + deal.termWeeks - week);
 		card.Facts.Add(($"Carries your records into {deal.grantedRegions?.Length ?? 0} market{((deal.grantedRegions?.Length ?? 0) == 1 ? "" : "s")}, at {deal.marginSkim * 100f:0}% off the top.", false));
 		card.Facts.Add(($"The agreement has about {left} week{(left == 1 ? "" : "s")} to run.", left <= 8));
-		if (deal.unrecoupedAdvance > 0f) card.Facts.Add(($"You still owe him ${deal.unrecoupedAdvance:N0} of the advance.", true));
-		if (deal.ownsMasters) card.Facts.Add(("He holds the masters on what he carries.", true));
+		if (deal.unrecoupedAdvance > 0f) card.Facts.Add(($"You still owe the distributor ${deal.unrecoupedAdvance:N0} of the advance.", true));
+		if (deal.ownsMasters) card.Facts.Add(("The distributor holds the masters on what it carries.", true));
 		return new List<DirectoryCard> { card };
 	}
 
@@ -223,6 +223,7 @@ public static partial class RolodexDirectory {
 		var cards = new List<DirectoryCard>();
 		foreach (PlayerDesk.PlayerStop stop in desk.KnownAccounts().OrderByDescending(s => s.Relationship).ThenBy(s => s.DisplayName, StringComparer.Ordinal)) {
 			string key = "stop:" + stop.StopId;
+			bool female = stop.Kind == PlayerDesk.StopKind.Shop && Portraits.Hash(key) % 4u == 0u;
 			string title = stop.Kind switch {
 				PlayerDesk.StopKind.Op => "Jukebox operator",
 				PlayerDesk.StopKind.OneStop => "One-stop buyer",
@@ -230,14 +231,14 @@ public static partial class RolodexDirectory {
 			};
 			string city = DistanceModel.GetCityById(stop.CityId)?.name ?? "";
 			var card = new DirectoryCard {
-				Role = RolodexRole.Dealer, Key = key, Name = PersonName(key, stop.Kind == PlayerDesk.StopKind.Shop && Portraits.Hash(key) % 4u == 0u),
+				Role = RolodexRole.Dealer, Key = key, Name = PersonName(key, female),
 				Title = title, Firm = stop.DisplayName, Place = city,
-				Figure = Portraits.Businessman(key), GoToTab = "DISTRIBUTION", GoToLabel = "OPEN DISTRIBUTION"
+				Figure = Portraits.Businessman(key, female), GoToTab = "DISTRIBUTION", GoToLabel = "OPEN DISTRIBUTION"
 			};
-			card.Facts.Add((stop.Relationship >= 0.6f ? "He is a friend of the house." : stop.Relationship >= 0.35f ? "He knows you and takes your calls." : stop.Relationship >= 0.12f ? "He has seen you around." : "He is still making up his mind about you.", false));
+			card.Facts.Add((stop.Relationship >= 0.6f ? "A friend of the house." : stop.Relationship >= 0.35f ? "Knows you and takes your calls." : stop.Relationship >= 0.12f ? "Has seen you around." : "Still sizing you up.", false));
 			int onHand = stop.OnHand.Values.Sum(lot => lot.Remaining);
-			card.Facts.Add((onHand > 0 ? $"He is holding {onHand:N0} of your records." : "He has nothing of yours on the counter.", onHand == 0));
-			card.Facts.Add((stop.LastVisitWeek > 0 ? "You have been through his door." : "You have not been in yet; he came to you.", false));
+			card.Facts.Add((onHand > 0 ? $"Has {onHand:N0} of your records on hand." : "Has nothing of yours on the counter.", onHand == 0));
+			card.Facts.Add((stop.LastVisitWeek > 0 ? "You have visited this account." : "You have yet to visit. The buyer came to you.", false));
 			cards.Add(card);
 		}
 		return cards;

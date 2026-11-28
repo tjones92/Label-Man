@@ -126,6 +126,7 @@ public partial class PlayerDeskPanel {
 
 	private void OpenStreet(StreetPage page) {
 		if (PlayerDesk.Instance is not { HasLabel: true, IsGameOver: false }) return;
+		LeaveRolodex();
 		browsingSaves = false;
 		PlayerDesk.Instance.EndCall(PlayerDesk.Instance.ActiveCall);
 		streetContentScroll.ScrollVertical = 0;

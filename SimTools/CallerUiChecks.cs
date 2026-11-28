@@ -108,7 +108,7 @@ public partial class CallerUiChecks : Node {
 			Check(lowestLift >= 0f && lowestLift < .001f && highestLift is > .006f and < .01f, "the receiver hops just off the cradle and lands again during the ring");
 			await Screenshot("01-ringing", 0.2);
 
-			panel.OpenAtTab("ROLODEX"); await Frame();
+			panel.OpenAtTab("ROSTER"); await Frame();
 			var pickUp = ButtonNamed("PICK UP THE PHONE");
 			Check(pickUp != null, "with the folder open, PICK UP THE PHONE is beside the waits");
 			Check(!hotspot.IsVisibleInTree(), "and the hotspot over the phone stands down (the folder can cover it)");
@@ -143,6 +143,45 @@ public partial class CallerUiChecks : Node {
 			Check(Shows("LEFT IN THE DOOR") && Shows("Sol Kramer") && desk.DoorNotes.Count == 1, "picked up and read: the note opens, and one is left on the floor");
 			await Screenshot("05-note");
 			await CloseFolder();
+
+			var roomViewport = All().OfType<SubViewport>().Single(v => v.Name == "RoomViewport");
+			var camera = roomViewport.GetCamera3D();
+			var wideShot = camera.GlobalTransform;
+			var rolodexProp = All().OfType<Node3D>().Single(n => n.Name == "OfficeRolodex");
+			Check(rolodexProp.IsVisibleInTree() && !camera.IsPositionBehind(rolodexProp.GlobalPosition), "the physical Rolodex sits in the 3D office");
+			Check(roomViewport.GetNode<Node3D>("Office/Left record sleeves").IsVisibleInTree() &&
+				!roomViewport.GetNode<Node3D>("Office/Right record sleeves").IsVisibleInTree(), "the Rolodex replaces the right stack and the left stack remains");
+			var phoneButton = All().OfType<Button>().Single(b => b.Name == "OfficePhoneRolodex");
+			Check(phoneButton.IsVisibleInTree(), "the phone and Rolodex share an office hotspot");
+			phoneButton.EmitSignal(Button.SignalName.Pressed);
+			await ToSignal(GetTree().CreateTimer(.25), Timer.SignalName.Timeout);
+			Check(panel.RolodexOpen && !panel.FilesOpen && !camera.GlobalTransform.IsEqualApprox(wideShot), "the hotspot opens a standalone view and dollies the camera");
+			Check(panel.FindChild("OfficeFolder", true, false) is PanelContainer folder && !folder.IsVisibleInTree(), "Files chrome is hidden in the phone view");
+			var index = panel.FindChild("RolodexIndex", true, false);
+			var tabs = index.GetChildren().OfType<Button>().ToArray();
+			Check(tabs.Select(b => b.Text.Split("   ")[0]).SequenceEqual(new[] {
+				"DEEJAYS", "PRESS & TV", "PUBLISHERS", "MANAGERS", "BOOKERS", "PLANT", "ENGINEERS", "DISTRIBUTOR", "SHOPS & OPS"
+			}) && tabs.All(b => int.TryParse(b.Text.Split("   ").Last(), out _)), "vertical tabs are ordered by group and show every count");
+			tabs[2].EmitSignal(Button.SignalName.Pressed);
+			await Frame();
+			var publishers = RolodexDirectory.Cards(desk, RolodexRole.Publisher);
+			Check(publishers.Count > 1 && publishers.Any(card => card.Figure.Female) &&
+				publishers.Where(card => card.Figure.Female).SelectMany(card => card.Facts).All(fact =>
+					!System.Text.RegularExpressions.Regex.IsMatch(fact.Text, @"\b(he|him|his)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)),
+				"female publisher traits contain no male pronouns");
+			var dock = panel.FindChild("PhoneDock", true, false);
+			Check(Nodes(dock).OfType<Button>().Any(b => b.Text.StartsWith("WORK THE PHONES") && b.IsVisibleInTree()),
+				"cold calls stay in the phone dock with Publishers selected");
+			var deck = Nodes(panel).OfType<RolodexDeck>().Single();
+			int firstCard = deck.Focus;
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Right, Pressed = true });
+			await ToSignal(GetTree().CreateTimer(.12), Timer.SignalName.Timeout);
+			Check(deck.Focus == (firstCard + 1) % publishers.Count, "right arrow flips the front card");
+			await Screenshot("06-phone-rolodex");
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+			await ToSignal(GetTree().CreateTimer(.25), Timer.SignalName.Timeout);
+			Check(!panel.Visible && phoneButton.IsVisibleInTree() && camera.GlobalTransform.IsEqualApprox(wideShot), "Esc returns to the wide office shot");
+
 			clock.EndDay();
 			await Frame();
 			Check(desk.AshtrayBatches == 0 && ash.All(n => !n.Visible), "dawn clears the ashtray");

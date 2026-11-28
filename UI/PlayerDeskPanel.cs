@@ -58,6 +58,7 @@ public partial class PlayerDeskPanel : Control {
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
 	private PanelContainer folder;
+	private ColorRect deskPanelShade;
 	private HBoxContainer folderHeader, alertRow;
 	// The founding archetype selected on the founding page; persists across Refresh() rebuilds.
 	private FoundingArchetype selectedArchetype = FoundingArchetype.TradeInsider;
@@ -127,10 +128,13 @@ public partial class PlayerDeskPanel : Control {
 	/// (or a folded one) it just opens whatever the panel would normally show.</summary>
 	public void OpenAtTab(string title) {
 		switch (title) {
+			case "ROLODEX":
+			case "THE PHONE": OpenRolodex(); return;
 			case "A&R": OpenStreet(StreetPage.Sets); return;
 			case "BAND ROOM": OpenStreet(StreetPage.BandRoom); return;
 			case "THE ROAD": OpenStreet(StreetPage.Road); return;
 		}
+		LeaveRolodex();
 		streetPage = null;
 		Open();
 		PlayerDesk desk = PlayerDesk.Instance;
@@ -143,10 +147,8 @@ public partial class PlayerDeskPanel : Control {
 			case "FINANCES": GoToTab(4, PageFinances); break;
 			case "OFFICE": GoToTab(5, PageOffice); break;
 			case "LEDGER": GoToTab(6, PageLedger); break;
-			case "ROLODEX": GoToTab(RolodexTab, PageRolodex); break;
 			case "BOOKS": OpenBooks(); break;
 			case "THE PAPER": GoToTab(PaperTab, () => PaperSection(PlayerDesk.Instance)); break;
-			case "THE PHONE": GoToTab(RolodexTab, PageDeskPhone); break;
 			case "OFFICE SERVICES": GoToTab(OfficeTab, () => OfficeBody(servicesOnly: true)); break;
 		}
 	}
@@ -154,6 +156,7 @@ public partial class PlayerDeskPanel : Control {
 	public void ClosePanel() {
 		if (liveSet?.Visible == true) DismissTheSet();
 		Visible = false;
+		LeaveRolodex();
 		if (streetPage == StreetPage.StationCall) PlayerDesk.Instance.EndCall(PlayerDesk.Instance.ActiveCall);
 		streetPage = null;
 		if (browsingSaves && MenuClosed != null) { MenuClosed(); return; }
@@ -190,7 +193,7 @@ public partial class PlayerDeskPanel : Control {
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		MouseFilter = MouseFilterEnum.Stop;
 
-		var shade = new ColorRect { Color = new Color(0, 0, 0, .42f) };
+		var shade = deskPanelShade = new ColorRect { Color = new Color(0, 0, 0, .42f) };
 		shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		AddChild(shade);
 
@@ -340,6 +343,7 @@ public partial class PlayerDeskPanel : Control {
 		contentRoot = officeContent = content;
 		officeContentScroll = contentScroll;
 		BuildStreetOverlay();
+		BuildRolodexOverlay();
 		// A mug was set down on some of the department's pages (not all), each in its own place. The ring is on the
 		// scrolled page, over whatever paper is there, so it moves with the page; it never takes the mouse.
 		var stain = pageStain = new Control { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
@@ -401,10 +405,9 @@ public partial class PlayerDeskPanel : Control {
 		AddTab("FINANCES", PageFinances);
 		AddTab("OFFICE", PageOffice);
 		AddTab("LEDGER", PageLedger);
-		AddTab("ROLODEX", PageRolodex);
 		AddTab("BAND ROOM", PageBandRoom);
 		// Keep the page indices for messages and tutorial links. The public strip is the paperwork.
-		foreach (int index in new[] { 0, OfficeTab, LedgerTab, RolodexTab, BandRoomTab }) tabButtons[index].Hide();
+		foreach (int index in new[] { 0, OfficeTab, LedgerTab, BandRoomTab }) tabButtons[index].Hide();
 	}
 
 	private void AddTab(string title, Action page) {
@@ -417,18 +420,18 @@ public partial class PlayerDeskPanel : Control {
 		tabButtons.Add(button);
 	}
 
-	// Tab order: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5), LEDGER(6), ROLODEX(7), BAND ROOM(8).
+	// Tab order: A&R, ROSTER, CATALOG, DISTRIBUTION, FINANCES, OFFICE, LEDGER, BAND ROOM.
 	private const int CatalogTab = 2;
 	private const int DistributionTab = 3;
 	private const int LedgerTab = 6;
-	private const int RolodexTab = 7;
-	private const int BandRoomTab = 8;
-	private const int PaperTab = 9;
-	private const int RoadTab = 10;
+	private const int BandRoomTab = 7;
+	private const int PaperTab = 8;
+	private const int RoadTab = 9;
+	private const int NextUpRolodex = 10;
 	private int lastFileTab = 1;
 	private int lastBooksPage = 4;
 
-	internal bool FilesOpen => Visible && !browsingSaves && !studioMode && streetPage == null;
+	internal bool FilesOpen => Visible && !browsingSaves && !studioMode && streetPage == null && !inRolodex;
 	internal bool StreetOpen => Visible && streetPage != null;
 
 	internal void OpenFiles() => OpenAtTab(lastFileTab switch {
@@ -456,7 +459,8 @@ public partial class PlayerDeskPanel : Control {
 		managingArtistId = null;
 		browsingCovers = false;
 		// Leaving the tab hangs up: you cannot hold a man on the line while you go and read the books.
-		if (index != RolodexTab) { PlayerDesk.Instance?.EndCall(PlayerDesk.Instance.ActiveCall); rolodexPitchRecordId = null; }
+		PlayerDesk.Instance?.EndCall(PlayerDesk.Instance.ActiveCall);
+		rolodexPitchRecordId = null;
 		Refresh();
 		// Coming back to a tab puts you where you left it (open sections are remembered separately); a first visit opens at the top.
 		if (switching) RestoreScroll(tabScroll.TryGetValue(index, out int kept) ? kept : 0);
@@ -479,8 +483,9 @@ public partial class PlayerDeskPanel : Control {
 		PlayerDesk desk = PlayerDesk.Instance;
 		ShowPendingSigningMoment(desk);
 		TimeManager time = TimeManager.Instance;
+		if (inRolodex && desk is not { HasLabel: true, IsGameOver: false }) LeaveRolodex();
 		bool inStreet = streetPage != null && desk is { HasLabel: true, IsGameOver: false } && !browsingSaves && !studioMode;
-		UseStreetLayout(inStreet);
+		if (!inRolodex) UseStreetLayout(inStreet);
 		content = contentRoot;   // a Distribution section may have left `content` pointing at a child
 		nextUpLabel.Text = string.Empty;
 		if (time != null) {
@@ -493,6 +498,14 @@ public partial class PlayerDeskPanel : Control {
 			hasStatusDate = true;
 		}
 
+		if (inRolodex) {
+			RefreshRolodex(desk, time);
+			SyncLienStage(desk);
+			ShowLienMorningIfPending(desk);
+			ShowLienNoticeIfPending(desk);
+			ShowHolderMoveIfPending(desk);
+			return;
+		}
 		if (inStreet) {
 			RefreshStreet(desk, time);
 			return;
@@ -673,13 +686,12 @@ public partial class PlayerDeskPanel : Control {
 		for (int i = 0; i < tabButtons.Count; i++) {
 			string title = i == 4 ? "BOOKS" : tabTitles[i];
 			// The open tab never wears a badge: the player is already looking at what it would announce.
-			int count = i == currentTab && title is "LEDGER" or "ROLODEX" ? 0 : title switch {
+			int count = i == currentTab && title == "LEDGER" ? 0 : title switch {
 				"LEDGER" => desk.UnreadLogCount,
 				"OFFICE" => desk.PendingCalls().Count() + (desk.LienSittingDue ? 1 : 0),
 				"CATALOG" => desk.PendingPressings().Count(),
 				"BOOKS" => i == currentTab || currentTab == LedgerTab ? 0 : desk.UnreadLogCount,
 				"BAND ROOM" => desk.PendingVisitCount,
-				"ROLODEX" => desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended ? 1 : 0,
 				_ => 0
 			};
 			tabButtons[i].Text = title + TabStamp.Room(count, title == "LEDGER");
@@ -737,7 +749,7 @@ public partial class PlayerDeskPanel : Control {
 	/// <summary>Where "waiting on money or the plant" work happens: the phones if they can still land a name,
 	/// otherwise the roster, where songs get written and covers taught.</summary>
 	private static int WaitingTab(PlayerDesk desk) =>
-		desk.AtHome && desk.CanStillWorkThePhones() ? RolodexTab : desk.Label.CurrentRosterSize > 0 ? 1 : 0;
+		desk.AtHome && desk.CanStillWorkThePhones() ? NextUpRolodex : desk.Label.CurrentRosterSize > 0 ? 1 : 0;
 
 	/// <summary>A soft warning, not a block: when a spend takes the bank from at least one month's overhead to under it,
 	/// say so before the money goes. Opens a paper modal and returns true (the caller stops; the modal's go-ahead button
@@ -813,7 +825,7 @@ public partial class PlayerDeskPanel : Control {
 			case 1: GoToTab(1, PageRoster); break;
 			case CatalogTab: GoToTab(CatalogTab, PageCatalog); break;
 			case 4: GoToTab(4, PageFinances); break;
-			case RolodexTab: GoToTab(RolodexTab, PageRolodex); break;
+			case NextUpRolodex: OpenRolodex(); break;
 			case BandRoomTab: OpenStreet(StreetPage.BandRoom); break;
 			case OfficeTab: GoToTab(PaperTab, () => PaperSection(desk)); break;
 			case RoadTab: OpenStreet(StreetPage.Road); break;
@@ -3271,8 +3283,8 @@ public partial class PlayerDeskPanel : Control {
 		// The record on the table. Switching it rebuilds the situation read.
 		var records = desk.RecordsOnTheTable().ToList();
 		if (records.Count > 0 && call.stage is CallStage.Open) {
-			var pickRow = new HBoxContainer();
-			pickRow.AddThemeConstantOverride("separation", 6);
+			var pickRow = new HFlowContainer();
+			pickRow.AddThemeConstantOverride("h_separation", 6);
 			pickRow.AddChild(FormLabel("On the table:"));
 			foreach ((string recordId, string recordTitle, bool isAcetate) in records) {
 				bool picked = recordId == call.recordId;
@@ -3511,28 +3523,32 @@ public partial class PlayerDeskPanel : Control {
 		_ => new Color("2b2115"),
 	};
 
-	private void RenderWorkThePhones(PlayerDesk desk) {
+	private void RenderWorkThePhones(PlayerDesk desk, bool onCall) {
+		Heading("WORK THE PHONES");
 		var allReporters = ChartManager.Instance?.ReporterStationsInRegion(desk.Label?.homeRegion ?? "");
 		if (allReporters == null) return;
-		int known = desk.Rolodex.Count;
+		var knownStationIds = desk.Rolodex.Select(entry => entry.stationId).ToHashSet(StringComparer.Ordinal);
+		int known = allReporters.Count(station => knownStationIds.Contains(station.stationId));
 		int total = allReporters.Count;
-		if (known >= total) {
+		if (!desk.CanStillWorkThePhones()) {
 			Body($"You have leads on all {Plural.Of(total, "reporter station")} in your region. Branch out to other markets to grow the book.");
 			return;
 		}
-		Heading("WORK THE PHONES");
-		Body($"Your region: {known} of {Plural.Of(total, "reporter station")} in your book. Cold-calling gets you a " +
-			"name more often than it gets you a man, and it gets you nothing at all more often than either.");
+		Body($"Your region: {known} of {Plural.Of(total, "reporter station")} in your book. Cold-call stations to turn up new contacts.");
 		int attempts = desk.CallAttemptsToday;
 		if (attempts >= 2) {
-			var warn = new Label { Text = attempts >= 4
+			var warn = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, Text = attempts >= 4
 				? "You've been on the phone all day. Nobody's taking your call now."
 				: $"{attempts} rounds of calls today already. The odds are getting worse." };
 			warn.AddThemeColorOverride("font_color", Rust);
 			content.AddChild(warn);
 		}
 		var callBtn = Btn($"WORK THE PHONES  ({PlayerDesk.WorkThePhonesMinMinutes}-{PlayerDesk.WorkThePhonesMaxMinutes} min)");
-		callBtn.CustomMinimumSize = new Vector2(280, 42);
+		callBtn.CustomMinimumSize = new Vector2(0, 42);
+		callBtn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		callBtn.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		callBtn.Disabled = onCall;
+		if (onCall) callBtn.TooltipText = "Finish the current call first.";
 		callBtn.Pressed += () => {
 			bool ok = PlayerDesk.Instance.WorkThePhones(out string msg);
 			Say(msg, ok);
@@ -3612,12 +3628,13 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>Directive §4's "office call list": the calls he picked up and hasn't answered yet. A call that rang while he
 	/// was out isn't here, because nobody took it (PlayerDesk.Phone).</summary>
-	private void PhoneSection(PlayerDesk desk) {
+	private void PhoneSection(PlayerDesk desk, bool inPhoneDock = false) {
 		Heading("THE PHONE");
-		Body("Nobody picks up when you're out. A call that rings while you're at a set, a counter or on the road is gone, " +
-			"and most callers don't leave word. These are the ones you were here for.");
+		if (!inPhoneDock)
+			Body("Nobody picks up when you're out. A call that rings while you're at a set, a counter or on the road is gone, " +
+				"and most callers don't leave word. These are the ones you were here for.");
 
-		BookerOffersSection(desk);
+		BookerOffersSection(desk, inPhoneDock);
 		var calls = desk.PendingCalls().ToList();
 		if (calls.Count == 0) { if (desk.BookerOffers.Count == 0) Body("Nothing you've picked up is waiting on you."); return; }
 		foreach (var (call, stopName, cityName, title, expiresIn) in calls) {

@@ -123,11 +123,11 @@ public sealed class RolodexEntry {
 
     /// <summary>One-line archetype character read — what the card shows at a glance.</summary>
     public static string ArchetypeBlurb(DJArchetype arch) => arch switch {
-        DJArchetype.Personality => "Personality jock. Plays what catches his ear.",
+        DJArchetype.Personality => "Personality jock. Plays whatever stands out.",
         DJArchetype.Tastemaker  => "Serious tastemaker. Breaks acts before the sales do.",
         DJArchetype.Hustler     => "Hustle first. Cash opens doors.",
-        DJArchetype.CompanyMan  => "Follows the sheet. Play the format, he plays the record.",
-        DJArchetype.Regional    => "Local loyalist. Knows his market better than you do.",
+        DJArchetype.CompanyMan  => "Follows the sheet. Give the station a record that fits the format.",
+        DJArchetype.Regional    => "Local loyalist. Knows the market better than you do.",
         _                        => "DJ."
     };
 }

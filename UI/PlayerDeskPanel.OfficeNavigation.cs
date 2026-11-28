@@ -9,13 +9,6 @@ public partial class PlayerDeskPanel {
 		content.AddChild(links);
 	}
 
-	private void PageDeskPhone() {
-		var contacts = Btn("OPEN THE ROLODEX");
-		contacts.Pressed += () => GoToTab(RolodexTab, PageRolodex);
-		content.AddChild(contacts);
-		PhoneSection(PlayerDesk.Instance);
-	}
-
 	private void DrawRouteStock(PlayerDesk desk) {
 		var stock = desk.PressedSinglesOnHand().ToList();
 		if (stock.Count == 0) Body("No sellable singles on hand.");

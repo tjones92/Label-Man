@@ -466,6 +466,7 @@ public partial class UIManager : Control
 
 	private bool DeskCovered() =>
 		isUIOpen
+		|| officePhoneTween?.IsRunning() == true
 		|| officeIntro?.IsPlaying == true
 		|| deskPanel?.Visible == true || gameMenu?.Visible == true || studioWindow?.Visible == true
 		|| morningPaper?.Visible == true
@@ -480,6 +481,7 @@ public partial class UIManager : Control
 	private void OnClockRestored(GameDate date) {
 		paintedGold?.Forget();
 		DismissMorningPaper();
+		deskPanel?.UpdateRolodexClock(TimeManager.Instance);
 		UpdateMainHud();
 	}
 
@@ -850,7 +852,7 @@ public partial class UIManager : Control
 		if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape } || PaperModal.IsOpen) return;
 		if (officeWaitMenu?.Visible == true) { officeWaitMenu.Hide(); officeWait.GrabFocus(); }
 		else if (gameMenu?.Visible == true) gameMenu.ClosePanel();
-		else if (CanUseOfficeNavigation() && (deskPanel?.FilesOpen == true || deskPanel?.StreetOpen == true)) deskPanel.ClosePanel();
+		else if (deskPanel?.RolodexOpen == true || (CanUseOfficeNavigation() && (deskPanel?.FilesOpen == true || deskPanel?.StreetOpen == true))) deskPanel.ClosePanel();
 		else OpenGameMenu();
 		GetViewport().SetInputAsHandled();
 	}
@@ -910,8 +912,6 @@ public partial class UIManager : Control
 	{
 		// Rects hug the painted prop; Tag is the point the paper tag hangs above.
 		var props = new (string Caption, string Tab, Rect2 Area, Vector2 Tag)[] {
-			("THE PHONE  -  DJs, bookers and calls", "THE PHONE", new Rect2(1480, 330, 252, 134), new Vector2(1606, 326)),
-			("THE STACKS  -  your catalog", "CATALOG", new Rect2(1740, 306, 180, 174), new Vector2(1830, 302)),
 			("THE STACKS  -  your catalog", "CATALOG", new Rect2(846, 326, 286, 112), new Vector2(989, 322)),
 			("THE TYPEWRITER  -  ledger of money, acts and records", "LEDGER", new Rect2(1165, 290, 313, 158), new Vector2(1322, 286)),
 			("THE CHECKBOOK  -  the books and finances", "BOOKS", new Rect2(18, 606, 810, 282), new Vector2(420, 602)),
@@ -929,7 +929,7 @@ public partial class UIManager : Control
 			Vector2 tagPoint = tag;
 			button.MouseEntered += () => ShowPropTag(text, tagPoint);
 			button.MouseExited += HidePropTag;
-			button.Pressed += () => { if (target == "THE PHONE") OpenOfficePhone(); else OpenOfficeAt(target); };
+			button.Pressed += () => OpenOfficeAt(target);
 			AddChild(button);
 			MoveChild(button, insertAt++);   // beneath the office panel and the paper, above the bare scene
 			deskProps.Add(button);
@@ -989,7 +989,11 @@ public partial class UIManager : Control
 		}
 	}
 
-	private void OnHourChangedForHud(int _) { ApplyOfficeLight(animate: true); UpdateMainHud(); }
+	private void OnHourChangedForHud(int _) {
+		ApplyOfficeLight(animate: true);
+		deskPanel?.UpdateRolodexClock(TimeManager.Instance);
+		UpdateMainHud();
+	}
 	private void OnDayStartedForLight(GameDate _) => ApplyOfficeLight(animate: false);
 
 	// ── Office light ────────────────────────────────────────────────────────────────────────────

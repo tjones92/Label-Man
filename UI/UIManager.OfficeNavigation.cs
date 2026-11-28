@@ -9,6 +9,10 @@ public partial class UIManager {
 	private PanelContainer officeWaitMenu;
 	private readonly Node3D[] ashtrayWaste = new Node3D[PlayerDesk.AshtrayCapacity];
 	private Label officeYearGoal, officeWeekGoal;
+	private Camera3D officePhoneCamera;
+	private Transform3D officeWideShot;
+	private Tween officePhoneTween;
+	private bool officePhoneFocused;
 
 	private void UpdateAshtray(int batches) {
 		bool changed = false;
@@ -32,6 +36,9 @@ public partial class UIManager {
 		BuildOfficeWaitMenu();
 		AddRoomHotspot("OfficeDrawer", "THE PAPER", new Rect2(797, 479, 468, 77), () => OpenOfficeAt("THE PAPER"));
 		AddRoomHotspot("OfficeNoticeboard", "OFFICE SERVICES", new Rect2(75, 351, 180, 52), () => OpenOfficeAt("OFFICE SERVICES"));
+		AddRoomHotspot("OfficePhoneRolodex", "PHONE & ROLODEX", new Rect2(1480, 320, 440, 164), OpenOfficePhone);
+		officePhoneCamera = officeViewport?.GetCamera3D();
+		if (officePhoneCamera != null) officeWideShot = officePhoneCamera.GlobalTransform;
 		if (calendarButton != null) AddRoomLabel(calendarButton, "CALENDAR");
 	}
 
@@ -179,7 +186,31 @@ public partial class UIManager {
 
 	private void OpenOfficePhone() {
 		if (PlayerDesk.Instance?.Calling == PlayerDesk.CallerAt.Phone) PickUpFromTheDesk();
-		else OpenOfficeAt("THE PHONE");
+		else deskPanel?.OpenRolodex();
+	}
+
+	internal bool IsOfficePanel(PlayerDeskPanel panel) => deskPanel == panel;
+
+	internal void FocusOfficePhone(bool focused) {
+		if (officePhoneCamera == null || officePhoneFocused == focused) return;
+		officePhoneFocused = focused;
+		officePhoneTween?.Kill();
+		paintedLayer.Hide();
+		var from = officePhoneCamera.GlobalTransform;
+		// Keep the props on the right, beside the 2D tray and phone controls.
+		var closePosition = new Vector3(.31f, 1.31f, -.79f);
+		var cornerShot = new Transform3D(Basis.Identity, closePosition).LookingAt(new Vector3(-.03f, .91f, -2.3f), Vector3.Up);
+		var to = focused ? cornerShot : officeWideShot;
+		officePhoneTween = CreateTween().SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+		officePhoneTween.TweenMethod(Callable.From<float>(weight => {
+			officePhoneCamera.GlobalTransform = from.InterpolateWith(to, weight);
+			if (officeViewport.RenderTargetUpdateMode != SubViewport.UpdateMode.Always)
+				officeViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
+		}), 0f, 1f, .2);
+		officePhoneTween.Finished += () => {
+			if (!focused) paintedLayer.Show();
+			UpdateMainHud();
+		};
 	}
 
 	private void BuildOfficeWaitMenu() {

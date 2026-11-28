@@ -3,12 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-/// <summary>
-/// The ROLODEX tab. The book is divided by what a person does for you (disc jockeys, managers, publishers, the pressing
-/// plant, your distributor, shops and operators), one tab each, and every tab is a <see cref="RolodexDeck"/>: a stack of
-/// index cards the mouse wheel flips through. Only the disc jockey cards can be rung up; the others read off the real
-/// plant orders, distribution deal, stops and contracts the desk already runs (see <see cref="RolodexDirectory"/>).
-/// </summary>
 public partial class PlayerDeskPanel {
 	private RolodexRole rolodexRole = RolodexRole.Deejay;
 	private readonly Dictionary<RolodexRole, int> rolodexFocusByRole = new();
@@ -25,106 +19,254 @@ public partial class PlayerDeskPanel {
 		return parts.Length == 0 ? "" : parts[^1] + ", " + string.Join(' ', parts.Take(parts.Length - 1));
 	}
 
-	private void PageRolodex() {
-		PlayerDesk desk = PlayerDesk.Instance;
+	private static readonly RolodexRole[][] RolodexGroups = {
+		new[] { RolodexRole.Deejay, RolodexRole.Press },
+		new[] { RolodexRole.Publisher, RolodexRole.Manager, RolodexRole.Booker },
+		new[] { RolodexRole.Plant, RolodexRole.Engineer, RolodexRole.Distributor, RolodexRole.Dealer }
+	};
 
-		// A live call takes over the page entirely -- you are on the phone, not browsing a book.
-		if (desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended) {
-			PageCall(desk, desk.ActiveCall);
-			return;
+	private bool inRolodex, showingRolodexCall;
+	private PanelContainer rolodexOverlay;
+	private VBoxContainer rolodexIndex, rolodexCards, phoneDock;
+	private ScrollContainer rolodexScroll;
+	private Label rolodexClock;
+	private Panel djAvailabilityDot;
+
+	internal bool RolodexOpen => Visible && inRolodex;
+
+	internal void OpenRolodex() {
+		if (PlayerDesk.Instance is not { HasLabel: true, IsGameOver: false, LienMorningPending: false }) return;
+		if (streetPage == StreetPage.StationCall) PlayerDesk.Instance.EndCall(PlayerDesk.Instance.ActiveCall);
+		streetPage = null;
+		browsingSaves = false;
+		UseStreetLayout(false);
+		folder.Hide();
+		inRolodex = true;
+		deskPanelShade.Color = new Color(0, 0, 0, .23f);
+		rolodexOverlay.Show();
+		rolodexScroll.ScrollVertical = 0;
+		if (UIManager.Instance?.IsOfficePanel(this) == true) UIManager.Instance.FocusOfficePhone(true);
+		FirstSessionTrace.TabOpened("ROLODEX");
+		Open();
+	}
+
+	private void LeaveRolodex() {
+		if (!inRolodex) return;
+		inRolodex = false;
+		deskPanelShade.Color = new Color(0, 0, 0, .42f);
+		rolodexOverlay.Hide();
+		Clear(rolodexCards);
+		Clear(rolodexIndex);
+		Clear(phoneDock);
+		rolodexPitchRecordId = null;
+		PlayerDesk.Instance?.EndCall(PlayerDesk.Instance.ActiveCall);
+		if (UIManager.Instance?.IsOfficePanel(this) == true) UIManager.Instance.FocusOfficePhone(false);
+	}
+
+	private void BuildRolodexOverlay() {
+		rolodexOverlay = new PanelContainer { Name = "RolodexOverlay", Visible = false };
+		rolodexOverlay.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		AddChild(rolodexOverlay);
+		rolodexOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.CenterLeft);
+		rolodexOverlay.OffsetLeft = 56;
+		rolodexOverlay.OffsetRight = 1320;
+		rolodexOverlay.OffsetTop = -390;
+		rolodexOverlay.OffsetBottom = 436;
+
+		var stack = new VBoxContainer();
+		stack.AddThemeConstantOverride("separation", 14);
+		rolodexOverlay.AddChild(stack);
+		var header = new PanelContainer();
+		header.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("e9d7af"), 16, 10, 8));
+		stack.AddChild(header);
+		var commands = new HBoxContainer();
+		commands.AddThemeConstantOverride("separation", 14);
+		header.AddChild(commands);
+		var heading = new Label { Text = "ROLODEX", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		heading.AddThemeFontOverride("font", PaperTheme.Elite);
+		heading.AddThemeFontSizeOverride("font_size", 30);
+		heading.AddThemeColorOverride("font_color", Ink);
+		commands.AddChild(heading);
+		rolodexClock = new Label();
+		rolodexClock.AddThemeFontOverride("font", PaperTheme.TypedBold);
+		rolodexClock.AddThemeColorOverride("font_color", Ink);
+		commands.AddChild(rolodexClock);
+		var close = Btn("CLOSE  ×");
+		close.Pressed += ClosePanel;
+		commands.AddChild(close);
+
+		var rolodexBrowser = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+		rolodexBrowser.AddThemeConstantOverride("separation", 0);
+		stack.AddChild(rolodexBrowser);
+		rolodexIndex = new VBoxContainer { Name = "RolodexIndex", CustomMinimumSize = new Vector2(194, 0), SizeFlagsVertical = SizeFlags.ShrinkBegin };
+		rolodexIndex.AddThemeConstantOverride("separation", 4);
+		rolodexBrowser.AddChild(rolodexIndex);
+
+		var rolodexTray = new PanelContainer { Name = "RolodexTray", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		rolodexBrowser.AddChild(rolodexTray);
+		rolodexTray.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("dfc99a"), 18, 18, 6, new Color("60472d")));
+		(rolodexScroll, rolodexCards) = RolodexColumn(rolodexTray);
+
+		rolodexBrowser.AddChild(new Control { CustomMinimumSize = new Vector2(22, 0), MouseFilter = MouseFilterEnum.Ignore });
+		var dock = new PanelContainer { Name = "PhoneDock", CustomMinimumSize = new Vector2(314, 0) };
+		dock.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 14, 16, 6, new Color("806239")));
+		rolodexBrowser.AddChild(dock);
+		(_, phoneDock) = RolodexColumn(dock);
+	}
+
+	private static (ScrollContainer, VBoxContainer) RolodexColumn(PanelContainer parent) {
+		var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+		parent.AddChild(scroll);
+		var rows = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		rows.AddThemeConstantOverride("separation", 10);
+		scroll.AddChild(rows);
+		return (scroll, rows);
+	}
+
+	private void RefreshRolodex(PlayerDesk desk, TimeManager time) {
+		contentRoot = content = rolodexCards;
+		contentScroll = rolodexScroll;
+		Clear(rolodexCards);
+		Clear(rolodexIndex);
+		Clear(phoneDock);
+		djAvailabilityDot = null;
+
+		var call = desk.ActiveCall;
+		bool onCall = call != null && call.stage != CallStage.Ended;
+		if (showingRolodexCall != onCall) rolodexScroll.ScrollVertical = 0;
+		showingRolodexCall = onCall;
+		rolodexIndex.Visible = !onCall;
+		if (onCall) PageCall(desk, call);
+		else {
+			var people = RolodexGroups.SelectMany(group => group).Where(role => role != RolodexRole.Deejay)
+				.ToDictionary(role => role, role => RolodexDirectory.Cards(desk, role));
+			var djs = desk.Rolodex.OrderBy(entry => FilingKey(entry.displayName), StringComparer.OrdinalIgnoreCase).ToList();
+			DrawRolodexIndex(people, djs.Count);
+			if (rolodexRole == RolodexRole.Deejay) DrawRolodexCards(desk, djs, null);
+			else DrawRolodexCards(desk, null, people[rolodexRole]);
 		}
+		UpdateRolodexClock(time);
 
-		RolodexTabs(desk);
+		content = phoneDock;
+		try {
+			if (desk.Calling != PlayerDesk.CallerAt.None) {
+				var answer = Primary(desk.Calling == PlayerDesk.CallerAt.Phone ? "PICK UP THE PHONE" : "ANSWER THE DOOR");
+				answer.Pressed += AnswerCaller;
+				content.AddChild(answer);
+			}
+			RenderWorkThePhones(desk, onCall);
+			content.AddChild(new HSeparator());
+			PhoneSection(desk, inPhoneDock: true);
+		} finally { content = rolodexCards; }
+	}
 
-		// The cards in this tab, filed by surname.
-		List<RolodexEntry> djs = rolodexRole == RolodexRole.Deejay ? desk.Rolodex.OrderBy(e => FilingKey(e.displayName), StringComparer.OrdinalIgnoreCase).ToList() : null;
-		List<DirectoryCard> people = rolodexRole == RolodexRole.Deejay ? null : RolodexDirectory.Cards(desk, rolodexRole);
+	internal void UpdateRolodexClock(TimeManager time) {
+		if (!RolodexOpen || time == null) return;
+		rolodexClock.Text = $"{time.CurrentDate.ToHeadlineString()}  ·  {time.GetTimeString()}";
+		if (djAvailabilityDot == null) return;
+		bool available = PlayerDesk.Instance.Rolodex.Any(entry => ChartManager.Instance?.GetDeejay(entry.djId) is { } dj
+			&& RolodexShifts.ReachableAt(RolodexShifts.ShiftOf(dj), time.CurrentHour));
+		djAvailabilityDot.Visible = available;
+		djAvailabilityDot.GetParent<Button>().TooltipText = available ? "A deejay is in a call window." : "";
+	}
+
+	private void DrawRolodexCards(PlayerDesk desk, List<RolodexEntry> djs, List<DirectoryCard> people) {
 		int count = djs?.Count ?? people.Count;
-
+		RolodexRole role = rolodexRole;
 		if (count == 0) {
-			Body(RolodexDirectory.EmptyNote(rolodexRole));
-			if (rolodexRole == RolodexRole.Deejay) RenderWorkThePhones(desk);
+			content.AddChild(RolodexDeck.Card(new Label {
+				Text = RolodexDirectory.EmptyNote(role), AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				CustomMinimumSize = new Vector2(0, 108)
+			}));
 			return;
 		}
 
 		string NameOf(int i) => djs != null ? djs[i].displayName : people[i].Name;
-		int focus = Mathf.Clamp(rolodexFocusByRole.TryGetValue(rolodexRole, out int saved) ? saved : 0, 0, count - 1);
-
+		int focus = Mathf.Clamp(rolodexFocusByRole.GetValueOrDefault(role), 0, count - 1);
 		var nav = new HBoxContainer();
 		nav.AddThemeConstantOverride("separation", 10);
-		var counter = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var counter = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center };
 		counter.AddThemeColorOverride("font_color", Heard);
 		void ShowCounter(int at) => counter.Text = count > 1
-			? $"Card {at + 1} of {count}  ·  scroll the wheel over the cards to flip through them"
-			: "One card in this book";
+			? $"Card {at + 1} of {count}  ·  Wheel or ← → to flip"
+			: "1 card";
 		ShowCounter(focus);
-		RolodexDeck deck = null;
+		var deck = new RolodexDeck().Set(count, focus,
+			i => BuildRolodexCard(desk, djs?[i], people?[i]), NameOf,
+			i => { rolodexFocusByRole[role] = i; ShowCounter(i); });
 		if (count > 1) {
 			var prev = Btn("‹"); prev.CustomMinimumSize = new Vector2(44, 34); prev.TooltipText = "Flip back";
-			prev.Pressed += () => deck?.Flip(-1);
+			prev.Pressed += () => deck.Flip(-1);
 			nav.AddChild(prev);
 		}
 		nav.AddChild(counter);
 		if (count > 1) {
 			var next = Btn("›"); next.CustomMinimumSize = new Vector2(44, 34); next.TooltipText = "Flip forward";
-			next.Pressed += () => deck?.Flip(1);
+			next.Pressed += () => deck.Flip(1);
 			nav.AddChild(next);
 		}
 		content.AddChild(nav);
-
-		RolodexRole role = rolodexRole;
-		deck = new RolodexDeck().Set(count, focus,
-			i => BuildRolodexCard(desk, role, djs?[i], people?[i]),
-			NameOf,
-			i => { rolodexFocusByRole[role] = i; ShowCounter(i); });
 		content.AddChild(deck);
-
-		if (rolodexRole == RolodexRole.Deejay) RenderWorkThePhones(desk);
 	}
 
-	/// <summary>The divider tabs across the top of the book, one per identity function, each with how many cards it holds.</summary>
-	private void RolodexTabs(PlayerDesk desk) {
-		var row = new HFlowContainer();
-		row.AddThemeConstantOverride("separation", 6);
-		foreach (RolodexRole role in Enum.GetValues<RolodexRole>()) {
-			RolodexRole captured = role;
-			int n = RolodexDirectory.Count(desk, role);
-			bool open = role == rolodexRole;
-			var tab = Btn($"{RolodexDirectory.TabName(role)}{(n > 0 ? $"  ·  {n}" : "")}");
-			tab.FocusMode = FocusModeEnum.None;
-			tab.CustomMinimumSize = new Vector2(0, open ? 40f : 36f);
-			tab.SizeFlagsVertical = SizeFlags.ShrinkEnd;
-			Color ink = RoleInk[role];
-			StyleBoxFlat Face(Color fill) => new() {
-				BgColor = fill, BorderColor = new Color("2b2115"), BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 4, BorderWidthBottom = 0,
-				CornerRadiusTopLeft = 5, CornerRadiusTopRight = 5,
-				ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 6, ContentMarginBottom = 6
-			};
-			StyleBoxFlat face = Face(open ? new Color("f5edd2") : new Color("e2d4a8"));
-			face.BorderColor = ink;
-			face.BorderWidthTop = open ? 6 : 4;
-			foreach (string state in new[] { "normal", "pressed", "disabled", "focus" }) tab.AddThemeStyleboxOverride(state, face);
-			StyleBoxFlat hover = Face(new Color("f9f2dc")); hover.BorderColor = ink; hover.BorderWidthTop = 5;
-			tab.AddThemeStyleboxOverride("hover", hover);
-			tab.AddThemeFontOverride("font", open ? PaperTheme.SansBold : PaperTheme.SansSemiBold);
-			tab.AddThemeFontSizeOverride("font_size", 14);
-			foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" })
-				tab.AddThemeColorOverride(name, open ? ink : Ink);
-			tab.Pressed += () => { rolodexRole = captured; Refresh(); };
-			row.AddChild(tab);
+	private void DrawRolodexIndex(Dictionary<RolodexRole, List<DirectoryCard>> people, int djCount) {
+		foreach (var group in RolodexGroups) {
+			if (rolodexIndex.GetChildCount() > 0) rolodexIndex.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+			foreach (RolodexRole role in group) {
+				int count = role == RolodexRole.Deejay ? djCount : people[role].Count;
+				bool open = rolodexRole == role;
+				Color ink = RoleInk[role];
+				var tab = Btn($"{RolodexDirectory.TabName(role)}   {count}");
+				tab.Alignment = HorizontalAlignment.Left;
+				tab.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				tab.CustomMinimumSize = new Vector2(0, 44);
+				tab.AddThemeFontOverride("font", PaperTheme.SansBold);
+				tab.AddThemeFontSizeOverride("font_size", 15);
+				StyleBoxFlat Face(Color fill) => new() {
+					BgColor = fill, BorderColor = open ? new Color("f9edce") : ink.Darkened(.35f),
+					BorderWidthLeft = 2, BorderWidthTop = 1, BorderWidthBottom = 3,
+					CornerRadiusTopLeft = 7, CornerRadiusBottomLeft = 7,
+					ContentMarginLeft = 14, ContentMarginRight = 26
+				};
+				var face = ink.Lightened(open ? .23f : .10f);
+				if (count == 0) face = face.Lerp(new Color("59534a"), .65f);
+				tab.AddThemeStyleboxOverride("normal", Face(face));
+				tab.AddThemeStyleboxOverride("pressed", Face(face.Lightened(.18f)));
+				tab.AddThemeStyleboxOverride("hover", Face(face.Lightened(.13f)));
+				foreach (string state in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" })
+					tab.AddThemeColorOverride(state, count == 0 ? new Color("d5c7ac") : new Color("fff2d5"));
+				if (role == RolodexRole.Deejay) {
+					var dot = djAvailabilityDot = new Panel { Name = "AvailableNow", MouseFilter = MouseFilterEnum.Ignore };
+					dot.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+						BgColor = new Color("a8d888"), BorderColor = new Color("24422d"),
+						BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
+						CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6
+					});
+					tab.AddChild(dot);
+					dot.SetAnchorsAndOffsetsPreset(LayoutPreset.CenterRight);
+					dot.OffsetLeft = -20; dot.OffsetRight = -9;
+					dot.OffsetTop = -5; dot.OffsetBottom = 6;
+				}
+				tab.Pressed += () => {
+					if (rolodexRole == role) return;
+					rolodexRole = role;
+					rolodexScroll.ScrollVertical = 0;
+					Refresh();
+				};
+				rolodexIndex.AddChild(tab);
+			}
 		}
-		content.AddChild(row);
 	}
 
 	// ---- the cards ----------------------------------------------------------------------------------------
 
 	/// <summary>One card, built fresh each time the deck asks (the deck builds the next card before it flips to it).</summary>
-	private Control BuildRolodexCard(PlayerDesk desk, RolodexRole role, RolodexEntry dj, DirectoryCard person) {
+	private Control BuildRolodexCard(PlayerDesk desk, RolodexEntry dj, DirectoryCard person) {
 		var body = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		body.AddThemeConstantOverride("separation", 4);
-		VBoxContainer saved = null;
+		VBoxContainer saved = content;
 		// The page helpers (Body, Heading, RenderCarrying...) write into `content`; point it at this card while it is built.
-		saved = content; content = body;
+		content = body;
 		try {
 			if (dj != null) RenderDjCard(desk, dj, body);
 			else RenderPersonCard(person, body);
@@ -143,12 +285,12 @@ public partial class PlayerDeskPanel {
 		title.AddThemeFontSizeOverride("font_size", 28);
 		title.AddThemeColorOverride("font_color", Ink);
 		column.AddChild(title);
-		var a = new Label { Text = line1 };
+		var a = new Label { Text = line1, AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		a.AddThemeFontOverride("font", PaperTheme.SansSemiBold);
 		a.AddThemeFontSizeOverride("font_size", 15);
 		a.AddThemeColorOverride("font_color", Ink);
 		column.AddChild(a);
-		var b = new Label { Text = line2, TooltipText = line2Tip ?? "" };
+		var b = new Label { Text = line2, TooltipText = line2Tip ?? "", AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		b.AddThemeFontOverride("font", PaperTheme.SansSemiBold);
 		b.AddThemeFontSizeOverride("font_size", 14);
 		b.AddThemeColorOverride("font_color", accent);
@@ -232,11 +374,11 @@ public partial class PlayerDeskPanel {
 			if (entry.shiftKnown) {
 				int hour = TimeManager.Instance?.CurrentHour ?? 12;
 				bool nowGood = RolodexShifts.ReachableAt(shift, hour);
-				var hours = new Label { Text = RolodexShifts.WindowAdvice(shift) + (nowGood ? "  ·  He should be in right now." : "  ·  Wrong time of day."), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+				var hours = new Label { Text = RolodexShifts.WindowAdvice(shift) + (nowGood ? "  ·  Should be in right now." : "  ·  Wrong time of day."), AutowrapMode = TextServer.AutowrapMode.WordSmart };
 				hours.AddThemeColorOverride("font_color", nowGood ? new Color("4a7a4a") : Rust);
 				content.AddChild(hours);
 			} else {
-				Body("You don't know his hours yet. Call and find out the hard way.");
+				Body("You don't know the hours yet. Call and find out the hard way.");
 			}
 		}
 		content = cardContent;
@@ -251,11 +393,11 @@ public partial class PlayerDeskPanel {
 			content.AddChild(cancel);
 		}
 
-		if (entry.theyOweThem) Body("He owes you one.");
-		if (entry.youOweThem) Body("You owe him one.");
-		if (entry.payolaBurned) Body("The cash channel is closed with him.");
-		if (entry.professionallyBurned) Body("He doesn't take your word any more.");
-		if (desk.WintersCardLine(entry) is { } clyde) Body(clyde + (desk.WintersBurnedCard(entry) ? " He doesn't take your word any more." : " He thinks you owe him one."));
+		if (entry.theyOweThem) Body("Owes you one.");
+		if (entry.youOweThem) Body("You owe a favor.");
+		if (entry.payolaBurned) Body("The cash channel is closed.");
+		if (entry.professionallyBurned) Body("No longer takes your word.");
+		if (desk.WintersCardLine(entry) is { } clyde) Body(clyde + (desk.WintersBurnedCard(entry) ? " No longer takes your word." : " Expects a favor in return."));
 
 		// What he is actually carrying for you right now -- the record-level commitment, not the mood.
 		RenderCarrying(desk, entry);

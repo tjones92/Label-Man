@@ -39,6 +39,7 @@ public partial class ScoutingUiChecks : Node {
     }
     public override async void _Ready() {
         try {
+            PlayerDesk.AutosaveOffForChecks = true;
             var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
             Check(desk.FoundLabel("Scouting UI Checks", "nashville", out string message), message);
             desk.DismissLienMorning();   // the first-morning scene would cover every screenshot
@@ -199,6 +200,7 @@ public partial class ScoutingUiChecks : Node {
             await Press("END THE CONVERSATION");
             }
             panel.OpenAtTab("ROLODEX"); await Frame();
+            Check(panel.RolodexOpen && !panel.FilesOpen, "Rolodex opens independently of Files");
             await Press("BOOKERS", true);
             Check(Nodes(panel).OfType<Label>().Any(l => l.Text == room.ContactName), "Booker card renders in the real Rolodex");
             await Screenshot("rolodex");

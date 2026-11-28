@@ -169,7 +169,7 @@ public static class RolodexShifts {
 		(int from, int to) = ReachableWindow(part);
 		// The office day ends at 9pm, so a graveyard jock can only be caught as he comes in to prep.
 		return part == Daypart.Overnight
-			? $"Works {Label(part)}. You can only catch him as he comes in to prep: roughly {Clock(from)}-{Clock(to)}."
+			? $"Works {Label(part)}. Call during show prep, roughly {Clock(from)}-{Clock(to)}."
 			: $"Works {Label(part)}. Reachable roughly {Clock(from)}-{Clock(to)}.";
 	}
 

@@ -1,0 +1,284 @@
+[gd_scene load_steps=13 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Bakelite"]
+albedo_color = Color(0.09, 0.065, 0.044, 1)
+roughness = 0.36
+
+[sub_resource type="StandardMaterial3D" id="Trim"]
+albedo_color = Color(0.46, 0.36, 0.24, 1)
+metallic = 0.65
+roughness = 0.31
+
+[sub_resource type="StandardMaterial3D" id="CardStock"]
+albedo_color = Color(0.82, 0.74, 0.55, 1)
+roughness = 0.84
+
+[sub_resource type="StandardMaterial3D" id="IndexPlastic"]
+albedo_color = Color(0.42, 0.25, 0.16, 1)
+roughness = 0.43
+
+[sub_resource type="BoxMesh" id="Base"]
+material = SubResource("Bakelite")
+size = Vector3(0.231, 0.024, 0.247)
+
+[sub_resource type="BoxMesh" id="BaseTrim"]
+material = SubResource("Trim")
+size = Vector3(0.217, 0.006, 0.232)
+
+[sub_resource type="BoxMesh" id="Support"]
+material = SubResource("Bakelite")
+size = Vector3(0.018, 0.091, 0.083)
+
+[sub_resource type="CylinderMesh" id="Barrel"]
+material = SubResource("Bakelite")
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.179
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Axle"]
+material = SubResource("Trim")
+top_radius = 0.011
+bottom_radius = 0.011
+height = 0.231
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Knob"]
+material = SubResource("Bakelite")
+top_radius = 0.028
+bottom_radius = 0.031
+height = 0.027
+radial_segments = 20
+rings = 1
+
+[sub_resource type="BoxMesh" id="PaperCard"]
+material = SubResource("CardStock")
+size = Vector3(0.172, 0.084, 0.0024)
+
+[sub_resource type="BoxMesh" id="IndexTab"]
+material = SubResource("IndexPlastic")
+size = Vector3(0.042, 0.021, 0.004)
+
+[node name="OfficeRolodex" type="Node3D"]
+rotation = Vector3(0, -0.13, 0)
+
+[node name="WeightedBase" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.012, 0)
+mesh = SubResource("Base")
+
+[node name="InlaidTrim" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.027, 0)
+mesh = SubResource("BaseTrim")
+
+[node name="LeftBracket" type="MeshInstance3D" parent="."]
+position = Vector3(-0.101, 0.067, 0)
+mesh = SubResource("Support")
+
+[node name="RightBracket" type="MeshInstance3D" parent="."]
+position = Vector3(0.101, 0.067, 0)
+mesh = SubResource("Support")
+
+[node name="Roller" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(0, 0, 1.570796)
+mesh = SubResource("Barrel")
+
+[node name="Axle" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(0, 0, 1.570796)
+mesh = SubResource("Axle")
+
+[node name="ThumbWheel" type="MeshInstance3D" parent="."]
+position = Vector3(0.119, 0.111, 0)
+rotation = Vector3(0, 0, -1.570796)
+mesh = SubResource("Knob")
+
+[node name="Card1" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-2.094395, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card1"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card2" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-1.884956, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card2"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Divider" type="MeshInstance3D" parent="Card2"]
+position = Vector3(0.05, 0.108, 0)
+mesh = SubResource("IndexTab")
+
+[node name="Card3" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-1.675516, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card3"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card4" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-1.466077, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card4"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card5" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-1.256637, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card5"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card6" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-1.047198, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card6"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Divider" type="MeshInstance3D" parent="Card6"]
+position = Vector3(-0.05, 0.108, 0)
+mesh = SubResource("IndexTab")
+
+[node name="Card7" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-0.837758, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card7"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card8" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-0.628319, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card8"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card9" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-0.418879, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card9"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card10" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(-0.209440, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card10"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Divider" type="MeshInstance3D" parent="Card10"]
+position = Vector3(0, 0.108, 0)
+mesh = SubResource("IndexTab")
+
+[node name="Card11" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(0.000000, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card11"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card12" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(0.209440, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card12"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card13" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(0.418879, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card13"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card14" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(0.628319, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card14"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Divider" type="MeshInstance3D" parent="Card14"]
+position = Vector3(0.05, 0.108, 0)
+mesh = SubResource("IndexTab")
+
+[node name="Card15" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(0.837758, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card15"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card16" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(1.047198, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card16"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card17" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(1.256637, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card17"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card18" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(1.466077, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card18"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Divider" type="MeshInstance3D" parent="Card18"]
+position = Vector3(-0.05, 0.108, 0)
+mesh = SubResource("IndexTab")
+
+[node name="Card19" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(1.675516, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card19"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card20" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(1.884956, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card20"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
+
+[node name="Card21" type="Node3D" parent="."]
+position = Vector3(0, 0.111, 0)
+rotation = Vector3(2.094395, 0, 0)
+
+[node name="Stock" type="MeshInstance3D" parent="Card21"]
+position = Vector3(0, 0.067, 0)
+mesh = SubResource("PaperCard")
