@@ -9,7 +9,7 @@ using Godot;
 /// player's first days, written to a local file so a cold playtest gives numbers, not impressions.
 ///
 /// It starts the first time the desk shows a label founded in this session (or a loaded one still on its first-week
-/// card, marked resumed), and stops at the first record set up (the
+/// card, marked resumed), and stops at the first single released (the
 /// first-week card's last line), at game over, or after <see cref="MaxInGameDays"/> in-game days. It records:
 /// - every button press anywhere in the tree (the desk, the office, modals, the studio), with the in-game time, the tab,
 ///   and whether it was the first-week card's glowing button;
@@ -23,7 +23,7 @@ using Godot;
 /// </summary>
 public partial class FirstSessionTrace : Node {
 	public static FirstSessionTrace Current { get; private set; }
-	public const int MaxInGameDays = 30;
+	public const int MaxInGameDays = 90;
 
 	private static AILabel tracedLabel;   // one trace per founding
 
@@ -197,7 +197,7 @@ public partial class FirstSessionTrace : Node {
 				Milestone("✓ " + PlayerDesk.FirstWeekTitle(step));
 				Write();
 			}
-		if (desk.FirstWeekDone(FirstWeekStep.Record)) Finish("First record set up");
+		if (desk.FirstWeekDone(FirstWeekStep.Release)) Finish("First single released");
 		else if (desk.IsGameOver) Finish("Game over");
 		else if (GameMinutes() >= MaxInGameDays * 24 * 60) Finish($"{MaxInGameDays} in-game days");
 	}

@@ -94,6 +94,11 @@ public partial class PlayerDeskPanel {
 	}
 
 	private void UseStreetLayout(bool show) {
+		if (liveSet != null && (!show || streetPage != StreetPage.Sets || (theSetQueue.Count == 0 && !VenueTalkActive))) {
+			liveSet.Hide();
+			gigShade.Hide();
+			Clear(liveSet);
+		}
 		if (streetOverlay.Visible && !show) {
 			Clear(streetContent);
 			Clear(streetMapColumn);
@@ -165,7 +170,7 @@ public partial class PlayerDeskPanel {
 		streetContent.CustomMinimumSize = streetMapColumn.Visible ? new Vector2(420, 0) : Vector2.Zero;
 		switch (streetPage) {
 			case StreetPage.Map: DrawCityMap(desk, time); break;
-			case StreetPage.Sets: PageAandR(); break;
+			case StreetPage.Sets: if (!RenderTheSet(desk)) PageAandR(); break;
 			case StreetPage.Road: PageStreetDistribution(); break;
 			case StreetPage.BandRoom: PageBandRoom(); break;
 			case StreetPage.StationCall: PageCall(desk, desk.ActiveCall); break;

@@ -104,8 +104,9 @@ public partial class PlayerDeskPanel {
 				: $"Go now. It starts at {PlayerDesk.ClockText(e.Minute ?? 0)} and takes {e.Hours}h.";
 			go.Pressed += () => {
 				appointmentBook?.Close(); appointmentBook = null;
-				bool ok = desk.TakeApproachStep(e.ArtistId, e.Step, out string message);
-				SayBookResult(host, message, ok);
+				bool ok = desk.TakeApproachStep(e.ArtistId, e.Step, out string message, out var terms);
+				if (terms != null) OpenVisitTerms(desk, terms);
+				else SayBookResult(host, message, ok);
 			};
 			row.AddChild(go);
 		}

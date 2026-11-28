@@ -31,13 +31,39 @@ public partial class TheSetChecks : Node {
 		await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 		GetViewport().GetTexture().GetImage().SavePng(ProjectSettings.GlobalizePath($"res://SimLogs/the-set-{name}.png"));
 	}
-	private static string Dump(SetScene s) => string.Join("\n", new[] { "  ROOM: " + string.Join(" / ", s.Room),
+	private static string Dump(SetScene s) => string.Join("\n", new[] { "  ROOM: " + string.Join(" / ", s.Room), "  SET: " + s.SetSnapshot,
 		"  SONGS: " + string.Join(", ", s.Songs.Select(x => x.Title + (x.Original ? " (own)" : ""))) + (s.SongsNote != null ? " · " + s.SongsNote : "") }
 		.Concat(s.Reads.Select(r => $"  {r.voice}: {r.text}")).Append("  OFF: " + s.OffStage));
+
+	private void CheckGigLines() {
+		var facts = new Dictionary<string, string>();
+		var names = new Dictionary<string, string>();
+		int openingYear = GameDate.StartDate.year;
+		foreach (var profile in GenreCatalog.All) {
+			facts["genre"] = profile.Id;
+			bool hasColor = GigLines.Pick("opening-set", "genre_color", facts, names) != null;
+			Check(hasColor == GenreSupplyService.IsAvailableForNewSupply(profile.Genre, openingYear),
+				$"{profile.Id}: genre color matches opening availability");
+		}
+
+		string[] DrawEvents(string reaction) {
+			facts["crowd_reaction"] = reaction;
+			return Enumerable.Range(0, 2000)
+				.Select(i => GigLines.Pick("show-" + i, "room_event", facts, names)).ToArray();
+		}
+		var hooked = DrawEvents("hooked");
+		var cold = DrawEvents("cold");
+		Check(hooked.Where(line => line != null).Distinct().Count() == 2 && hooked.Count(line => line == null) > 1800,
+			"Both room events appear, and most shows have neither");
+		Check(cold.Where(line => line != null).Distinct().Count() == 1,
+			"Only the pencil encounter is eligible when the crowd is cold");
+		Check(hooked.SequenceEqual(DrawEvents("hooked")), "Room events are stable when a scene is rebuilt");
+	}
 
 	public override async void _Ready() {
 		try {
 			PlayerDesk.AutosaveOffForChecks = true;
+			CheckGigLines();
 			var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
 			string city = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--set-city="))?.Substring("--set-city=".Length) ?? "nashville";
 			Check(desk.FoundLabel("The Set Checks", city, out string message), message);
@@ -98,11 +124,17 @@ public partial class TheSetChecks : Node {
 			await Frame();
 			var panel = Nodes(this).OfType<PlayerDeskPanel>().Single();
 			panel.OpenAtTab("A&R"); await Frame(0.5);
-			typeof(PlayerDeskPanel).GetMethod("OpenTheSet", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(panel, new object[] { desk });
+			void StageSet() => typeof(PlayerDeskPanel).GetMethod("OpenTheSet", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(panel, new object[] { desk });
+			StageSet();
 			panel.OpenAtTab("A&R"); await Frame(0.5);
 			var staged = desk.BuildSetScene(desk.Slate.Last().Artist.artistId);
 			bool Shows(string text) => Nodes(panel).OfType<Label>().Any(l => l.IsVisibleInTree() && l.Text.Contains(text, StringComparison.Ordinal));
 			Button Visible(string text) => Nodes(panel).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == text);
+			Check(Shows(staged.ArtistName) && !Shows(staged.OffStage) && Visible("LET THEM GO") == null, "The first beat gives the room time before the choices");
+			int afterListen = desk.NowMinute;
+			Visible("LISTEN CLOSELY").EmitSignal(Button.SignalName.Pressed);
+			await Frame();
+			Check(desk.NowMinute == afterListen, "Revealing the second beat spends no simulation time");
 			Check(Shows(staged.OffStage) && Shows(staged.ArtistName), "After a listen, the page is the set: the act comes off the stand");
 			Check((Visible("TALK TO THEM") ?? Visible("SIT DOWN ON TERMS")) != null && Visible("LET THEM GO") != null, "Two things to do: talk to them or let them go");
 			Check(Visible("FIND A SET") == null, "The scene takes the page; the finder waits");
@@ -112,6 +144,27 @@ public partial class TheSetChecks : Node {
 			await Frame(0.5);
 			Check(Visible("FIND A SET") != null && !Shows(staged.OffStage), "LET THEM GO puts the finder back");
 			Check(desk.ScoutingDossiers.Any(d => d.ArtistId == staged.ArtistId), "The act stays in the notebook after you let them go");
+			StageSet();
+			panel.OpenAtTab("A&R");
+			await Frame();
+			Visible("LISTEN CLOSELY").EmitSignal(Button.SignalName.Pressed);
+			await Frame();
+			var liveVenue = panel.GetNode<Control>("LiveSet");
+			Visible("TALK TO THEM").EmitSignal(Button.SignalName.Pressed);
+			await Frame();
+			var talk = desk.BuildTalkScene(staged.ArtistId);
+			Check(liveVenue.IsVisibleInTree() && Shows(talk.Setting) && Shows(staged.RoomName), "Talking keeps the stage and backdrop on screen");
+			Check(!panel.GetNode<Control>("CityMapOverlay").IsVisibleInTree(), "The paper layout stays closed during the venue talk");
+			var line = talk.Options.First(o => o.Enabled && o.Verb is TalkVerb.NextSet or TalkVerb.Watch or TalkVerb.Unwatch);
+			Visible("▸  " + line.Line).EmitSignal(Button.SignalName.Pressed);
+			await Frame();
+			var updated = desk.BuildTalkScene(staged.ArtistId);
+			Check(liveVenue.IsVisibleInTree() && updated.Lines.Count > talk.Lines.Count && Shows(updated.Lines.Last().text), "The reply appears inside the venue");
+			await Screenshot("talk");
+			Visible("END THE CONVERSATION").EmitSignal(Button.SignalName.Pressed);
+			await Frame();
+			Check(!liveVenue.IsVisibleInTree() && Visible("FIND A SET") != null, "Ending the conversation goes back to the act notebook");
+			Check(desk.BuildTalkScene(staged.ArtistId).Lines.Count < updated.Lines.Count, "The ended transcript clears normally");
 			GD.Print($"THE_SET_CHECKS_PASS ({checks} checks)");
 			GetTree().Quit(0);
 		} catch (Exception e) {

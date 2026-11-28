@@ -152,6 +152,7 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	public void ClosePanel() {
+		if (liveSet?.Visible == true) DismissTheSet();
 		Visible = false;
 		if (streetPage == StreetPage.StationCall) PlayerDesk.Instance.EndCall(PlayerDesk.Instance.ActiveCall);
 		streetPage = null;
@@ -1142,8 +1143,6 @@ public partial class PlayerDeskPanel : Control {
 			return;
 		}
 		negotiating = null;
-		// Just heard a set: the room takes the page until the player talks to the act or lets them go.
-		if (RenderTheSet(desk)) return;
 		// Talking to an act: the conversation takes the page until you end it (signing audit §3.3).
 		if (RenderTheTalk(desk)) return;
 
@@ -2127,6 +2126,7 @@ public partial class PlayerDeskPanel : Control {
 
 	private void PageCatalog() {
 		PlayerDesk desk = PlayerDesk.Instance;
+		FirstWeekTeaching(desk, FirstWeekPlace.Catalog);
 		StockLine(desk);
 		PipelineBoard(desk);
 		MarketBoard(desk);
@@ -2372,6 +2372,7 @@ public partial class PlayerDeskPanel : Control {
 			return true;
 		});
 		var order = Primary(desk.PressingOrderFor(recordId) != null ? "ORDER ANOTHER PRESSING…" : "ORDER PRESSING");
+		order.SetMeta("first_week_single", recordId);
 		order.CustomMinimumSize = new Vector2(240, 42);
 		order.TooltipText = $"A first pressing needs {PlayerDesk.PressMinimumOrder}. About {PlayerDesk.PressVinylPerUnit + PlayerDesk.PressSleeveLabelPerUnit:F2}/disc " +
 			$"plus ${PlayerDesk.PressLacquerSetup:N0} lacquer setup (once per title) and ${PlayerDesk.PressShipping:N0} for sleeves, labels and freight. " +
@@ -2463,6 +2464,7 @@ public partial class PlayerDeskPanel : Control {
 		UpdateDatePreview();
 
 		var setDate = Primary($"SET THE DATE  ({PlayerDesk.ScheduleHours}h)");
+		setDate.SetMeta("first_week_single", single.Master.Record.recordId);
 		setDate.CustomMinimumSize = new Vector2(300, 44);
 		setDate.Pressed += () => Act(() => {
 			bool ok = PlayerDesk.Instance.SetReleaseDate(single, (int)daysInput.Value, (float)budgetInput.Value, out string message);

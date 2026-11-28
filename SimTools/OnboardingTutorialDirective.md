@@ -241,6 +241,11 @@ tutorial card, and today's from `NextUpStep`. Nothing new is computed; it's thre
 
 ## 4. Phases
 
+The first-week card now runs through the first single's release. After booking, the Ear walks the player through
+keeping a take of each song, printing the masters and choosing the A-side and flip. The Suit explains the first pressing
+bill and promo copies. The Fixer covers setting a ship date and the Street points the player to the calendar. A scheduled
+date leaves the card active until the single ships. The trace ends at first release, game over or its 90-day limit.
+
 | Phase | Scope | Touches | Check |
 |---|---|---|---|
 | **T0 copy** | §2F fixes 1–6, 8, 9 ("Held by" filled in per decision 1); NEXT UP's day-one line on a Sawyer run | UI strings, `NextUpStep` | Re-run the playtest driver to a first signing |
@@ -742,8 +747,7 @@ because what a player sells changes.
    1 "Who" (§3.7) with "Why"; that directive needs the matching edit when T1 is built.
 2. **Each voice teaches its own task:** the Ear teaches hearing a set, the Street the rooms and who's moving, the Suit
    the contract and the money, and the Fixer the bookers, numbers and favours. No separate mentor.
-3. **The first-week card ends with an act on the roster and a first record set up** (material chosen and studio time
-   booked), not with the record out.
+3. **The original first-week card ended at studio booking.** The current card continues through first-single release.
 4. **The office as primary comes last.** Open question, with a first answer: *could the game manage without the
    tabs?* Mostly, yes. Seven of the nine tabs have a natural object: A&R (the door, then the pad), ROSTER (the pad),
    CATALOG (the stacks), FINANCES (the checkbook), LEDGER (the typewriter), ROLODEX (the phone) and BAND ROOM (a back

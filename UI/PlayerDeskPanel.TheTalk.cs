@@ -18,10 +18,33 @@ public partial class PlayerDeskPanel {
 	}
 
 	private void EndTheTalk(PlayerDesk desk, string artistId) {
-		desk.EndTalk(artistId);
-		theTalkArtistId = null;
+		if (VenueTalkActive) DismissTheSet();
+		else {
+			desk.EndTalk(artistId);
+			theTalkArtistId = null;
+		}
 		scoutingView = "ACT NOTEBOOK";
 		FocusScoutingAct(artistId);
+	}
+
+	private void SayTalkLine(PlayerDesk desk, string id, TalkVerb verb) {
+		bool ok = desk.SayInTalk(id, verb, out string message, out var terms);
+		if (verb == TalkVerb.Step && terms != null) { OpenVisitTerms(desk, terms); return; }
+		if (terms != null) {
+			EndTheTalk(desk, id);
+			negotiating = terms;
+		} else if (!ok) Say(message, false);
+		Refresh();
+	}
+
+	private void OpenVisitTerms(PlayerDesk desk, PlayerDesk.Prospect terms) {
+		desk.EndTalk(theTalkArtistId);
+		theTalkArtistId = null;
+		DismissTheSet();
+		scoutingView = "ACT NOTEBOOK";
+		expandedScoutingArtistId = terms.Artist.artistId;
+		negotiating = terms;
+		OpenStreet(StreetPage.Sets);
 	}
 
 	/// <summary>The conversation, when one is on. True when it drew the page.</summary>
@@ -56,13 +79,7 @@ public partial class PlayerDeskPanel {
 		foreach (var option in scene.Options) {
 			var verb = option.Verb;
 			RenderOption(new CallOption { label = option.Line, subLabel = option.Cost, voice = option.Voice, enabled = option.Enabled, disabledReason = option.Why,
-				isBluff = option.Bluff, bluffNote = "" }, () => {
-				bool ok = desk.SayInTalk(id, verb, out string message, out var terms);
-				if (terms != null) { EndTheTalk(desk, id); scoutingView = "ACT NOTEBOOK"; negotiating = terms; }
-				// The answer is in the transcript; a toast only when nothing was said.
-				else if (!ok) Say(message, false);
-				Refresh();
-			});
+				isBluff = option.Bluff, bluffNote = "" }, () => SayTalkLine(desk, id, verb));
 		}
 		var end = Btn("END THE CONVERSATION");
 		end.CustomMinimumSize = new Vector2(240, 40);

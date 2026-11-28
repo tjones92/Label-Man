@@ -233,6 +233,8 @@ public partial class LabelManFatigueChecks : Node {
 				.Invoke(panel, new object[] { Desk });
 			panel.OpenAtTab("A&R");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			panel.FindChildren("*", "Button", true, false).OfType<Button>().Single(b => b.IsVisibleInTree() && b.Text == "LISTEN CLOSELY")
+				.EmitSignal(Button.SignalName.Pressed);
 			var drinks = panel.FindChildren("*", "Button", true, false).OfType<Button>()
 				.Where(b => b.IsVisibleInTree() && b.Text.StartsWith("DRINK WITH ")).ToArray();
 			Check(drinks.Length == 2 && drinks.All(b => b.TooltipText.Contains("adds one hour of fatigue")),

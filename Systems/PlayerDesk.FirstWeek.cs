@@ -7,28 +7,28 @@ using Godot;
 //
 // A short to-do card in the Label Man's own hand that walks a new player through the first signing and a first record,
 // riding the real verbs: hear a set, ask if they'd hear an offer, get their yes, put a deal on the table, sign them, set up
-// a first record. Each line ticks from real state, never from a button press the card counted, so any step can be done
-// out of order, or skipped, and the card just catches up. It ends with an act of the player's own on the roster and a
-// first record set up (author decision 3): a session booked, or anything past it.
+// a first record, and get the single out. Each line ticks from real state, so the card catches up when the player
+// works out of order.
 //
 // Each voice teaches its own task (decision 2): the Ear hearing a set, the Street the rooms and who's moving, the Suit the
 // contract and the money, the Fixer the numbers and the waiting. A Sawyer run's "first record" can be Connie's.
 //
-// Player-only: the state is three flags on the player's save, read by nothing in the sim.
+// Player-only: the card's flags are saved and read by nothing in the sim.
 // ============================================================================================
-public enum FirstWeekStep { Hear, Ask, Answer, Terms, Sign, Record }
+public enum FirstWeekStep { Hear, Ask, Answer, Terms, Sign, Record, Cut, Assemble, Press, Date, Release }
 
 /// <summary>Where the work of a line happens, and so where its voice teaches it (SigningExperienceAudit §3.5): the card
 /// itself only lists the lines and points the way.</summary>
-public enum FirstWeekPlace { FindASet, TheTalk, TheTable, Roster, Studio }
+public enum FirstWeekPlace { FindASet, TheTalk, TheTable, Roster, Studio, Catalog }
 
 /// <summary>The first-week card's own state. Absent in older saves: a fresh card, which ticks itself off from what the
 /// run has already done, so a save past its first record never sees it.</summary>
 public sealed class FirstWeekSaveData {
 	/// <summary>The player put the card away ("I know the way").</summary>
 	public bool Off { get; set; }
-	/// <summary>Every line ticked once; it doesn't come back.</summary>
+	/// <summary>The original signing and booking milestones were completed.</summary>
 	public bool Done { get; set; }
+	public bool SingleOut { get; set; }
 	/// <summary>A terms discussion has been opened with an act (the contract sheet was on the table).</summary>
 	public bool TermsOpened { get; set; }
 	public bool OvertimeLesson { get; set; }
@@ -75,8 +75,9 @@ public partial class PlayerDesk {
 	/// <summary>The card is on the desk: a label, not over, not put away, not finished.</summary>
 	public bool FirstWeekActive {
 		get {
-			if (Label == null || IsGameOver || firstWeek.Off || firstWeek.Done) return false;
-			if (FirstWeekSteps.All(FirstWeekDone)) { firstWeek.Done = true; return false; }
+			if (Label == null || IsGameOver || firstWeek.Off || firstWeek.SingleOut) return false;
+			if (FirstWeekDone(FirstWeekStep.Release)) { firstWeek.SingleOut = true; return false; }
+			if (OwnActSigned && FirstWeekDone(FirstWeekStep.Record)) firstWeek.Done = true;
 			return true;
 		}
 	}
@@ -84,12 +85,36 @@ public partial class PlayerDesk {
 	/// <summary>The first line not yet ticked, or null when the card is off the desk.</summary>
 	public FirstWeekStep? FirstWeekCurrent => FirstWeekActive ? FirstWeekSteps.First(s => !FirstWeekDone(s)) : null;
 
-	private bool OwnActSigned => Label?.roster?.Any(a => !IsHeldByHolder(a)) == true;
+	private bool OwnActSigned => firstWeek.Done || Label?.roster?.Any(a => !IsHeldByHolder(a)) == true;
+
+	internal PlannedRelease FirstWeekSingle => planned.OrderByDescending(s => s.Dated)
+		.ThenByDescending(s => EarliestReleaseDays(s) > 0).FirstOrDefault();
+
+	internal bool FirstWeekDateTomorrow => FirstWeekCurrent == FirstWeekStep.Date &&
+		TimeManager.Instance?.CanAffordHours(ScheduleHours, allowOvertime: true) == false;
+
+	internal bool FirstWeekStudioOvernight => FirstWeekCurrent == FirstWeekStep.Cut && StudioSleepsOn &&
+		pendingSession is { } session && session.Cuts.Any(c => c.KeptTake < 0) && session.Cuts.Where(c => c.KeptTake < 0).All(c =>
+			!c.Takes.Any(t => !t.Incomplete && t.Work?.Erased != true) &&
+			StudioMinutesLeft(session) < FinishMinutes(session) + StudioPassMinutes(c));
+
+	internal bool FirstWeekPressShort => FirstWeekCurrent == FirstWeekStep.Press &&
+		FirstWeekSingle is { } single && Label.cashReserves < FirstWeekPressCost(single);
+
+	private float FirstWeekPressCost(PlannedRelease single) {
+		string id = single.Master.Record.recordId;
+		return PressingCost(MinimumPressRun(id), HasBeenPressed(id));
+	}
 
 	/// <summary>Whether a line is ticked, read from the run's own state. A later step done ticks the ones it implies.</summary>
 	public bool FirstWeekDone(FirstWeekStep step) {
 		if (Label == null) return false;
 		return step switch {
+			FirstWeekStep.Release => firstWeek.SingleOut || ReleasedRecords.Any(r => r.baseRecord.format == ReleaseFormat.Single),
+			FirstWeekStep.Date => FirstWeekSingle?.Dated == true || FirstWeekDone(FirstWeekStep.Release),
+			FirstWeekStep.Press => EarliestReleaseDays(FirstWeekSingle) > 0 || FirstWeekDone(FirstWeekStep.Date),
+			FirstWeekStep.Assemble => FirstWeekSingle != null || FirstWeekDone(FirstWeekStep.Press),
+			FirstWeekStep.Cut => masters.Count(m => !m.Scheduled && !m.Released) >= 2 || FirstWeekDone(FirstWeekStep.Assemble),
 			FirstWeekStep.Record => pendingSession != null || masters.Count > 0 || planned.Count > 0 || pressOrders.Count > 0 || ReleasedRecords.Any(),
 			FirstWeekStep.Sign => OwnActSigned,
 			FirstWeekStep.Terms => firstWeek.TermsOpened || OwnActSigned,
@@ -158,7 +183,12 @@ public partial class PlayerDesk {
 		FirstWeekStep.Answer => "Get their yes",
 		FirstWeekStep.Terms => "Put a deal on the table",
 		FirstWeekStep.Sign => "Sign them",
-		_ => "Set up a first record",
+		FirstWeekStep.Record => "Book a studio date",
+		FirstWeekStep.Cut => "Cut and print two sides",
+		FirstWeekStep.Assemble => "Put the single together",
+		FirstWeekStep.Press => "Order the pressing",
+		FirstWeekStep.Date => "Set the ship date",
+		_ => "Get the single out",
 	};
 
 	/// <summary>Which voice teaches the line, and how. The voice is the one whose job it is (decision 2), and it talks about
@@ -202,6 +232,18 @@ public partial class PlayerDesk {
 			FirstWeekStep.Sign => (ExecutiveVoice.Suit, StrongVoice(ExecutiveVoice.Suit)
 				? "Put it in front of them. If they push back, give one inch at a time: a little more advance or a little less term, never both. The last twenty dollars isn't worth the act."
 				: "Put it to them. If they balk, give a little and try again. Don't fight over pocket change."),
+			FirstWeekStep.Cut when pendingSession == null && masters.Any(m => !m.Scheduled && !m.Released) =>
+				(ExecutiveVoice.Ear, "We've got one side on the shelf. Take the act back in and cut something for the flip."),
+			FirstWeekStep.Cut => (ExecutiveVoice.Ear, "Roll one all the way through and listen back. Keep a performance for each song, then print. The house finish will do."),
+			FirstWeekStep.Assemble => (ExecutiveVoice.Ear, "Pick the cut you'd play for somebody who only gave you one chance. That's the A-side. Put the other cut on the flip."),
+			FirstWeekStep.Press when FirstWeekPressShort => (ExecutiveVoice.Suit,
+				$"The plant wants ${FirstWeekPressCost(FirstWeekSingle):N0} for its smallest run. Open the books and see what we can raise."),
+			FirstWeekStep.Press => (ExecutiveVoice.Suit, "One bill for both sides. Start with the plant's smallest run. The promo copies come out of that number, and we don't get paid for them."),
+			FirstWeekStep.Date when FirstWeekDateTomorrow => (ExecutiveVoice.Fixer, "There's no time left to put a date on it today. Go home. The plant's still working."),
+			FirstWeekStep.Date when PressingOrderFor(FirstWeekSingle?.Master.Record.recordId) != null =>
+				(ExecutiveVoice.Fixer, "Date it for the day after the boxes are due. Leave the campaign money in the drawer. Putting a date on it costs time, not cash."),
+			FirstWeekStep.Date => (ExecutiveVoice.Fixer, "The boxes are here. Tomorrow will do. Leave the campaign money in the drawer."),
+			FirstWeekStep.Release => (ExecutiveVoice.Street, $"It goes out {FirstWeekSingle?.Date.ToHeadlineString()}. The calendar can get you there. Keep an eye on the paper for the word it's out."),
 			_ => (ExecutiveVoice.Ear, StrongVoice(ExecutiveVoice.Ear)
 				? "Now the part that matters. Take the songs that held the room, book the hours, and get them on tape while they still sound the way they did that night."
 				: "Get them in front of a microphone. Use the songs from their set: somebody in that room liked them, even if I couldn't tell you which."),
@@ -216,6 +258,27 @@ public partial class PlayerDesk {
 	public (ExecutiveVoice Voice, string Text)? FirstWeekNudge(string target, bool several) {
 		if (FirstWeekCurrent is not { } step || string.IsNullOrEmpty(target)) return null;
 		bool Is(string prefix) => target.StartsWith(prefix, System.StringComparison.Ordinal);
+		if (step >= FirstWeekStep.Cut) {
+			if (Is("CUT A TAKE")) return (ExecutiveVoice.Ear, "Roll it. Let's hear what they do when the red light's on.");
+			if (Is("KEEP TAKE")) return (ExecutiveVoice.Ear, "If that's the one, mark it. We print from the takes you keep.");
+			if (target == "WORK ON THE NEXT SONG") return (ExecutiveVoice.Ear, "That's on tape. Turn the page and get the other song down.");
+			if (Is("FINISH & PRINT") || Is("PRINT MASTERS")) return (ExecutiveVoice.Ear, "You've got your performances. Print them with the house finish before you talk yourself out of them.");
+			if (Is("RETURN TO THE OPEN DATE")) return (ExecutiveVoice.Ear, "There's a date on the console already. Go finish it.");
+			if (target == "song") return (ExecutiveVoice.Ear, "One song for the flip. Pick one they can get down in a couple of passes.");
+			if (Is("BUY A REEL")) return (ExecutiveVoice.Suit, "You're out of tape. A reel costs less than another date.");
+			if (Is("‹ BACK TO THE OFFICE") && pendingSession != null && StudioSleepsOn)
+				return (ExecutiveVoice.Fixer, "The room is yours again tomorrow. Back to the office, then turn the calendar.");
+			if (Is("‹ BACK TO THE OFFICE") && pendingSession != null) return null;
+			if (Is("ASSEMBLE THE SINGLE")) return (ExecutiveVoice.Ear, "That top cut is the one you're asking the jock to play. Pick its flip and put the two together.");
+			if (target == "ORDER PRESSING") return FirstWeekHow(step);
+			if (Is("PRESS IT")) return (ExecutiveVoice.Suit, "There's the bill. Read what it leaves us before you say yes.");
+			if (Is("SET THE DATE")) return FirstWeekHow(step);
+			if (Is("DRIVE HOME")) return (ExecutiveVoice.Fixer, "This one goes through the office. Get back there and we'll put it through.");
+			if (target == "BOOKS") return FirstWeekHow(step);
+			if (target == "END THE DAY" && step == FirstWeekStep.Date) return FirstWeekHow(step);
+			if (step == FirstWeekStep.Release && (Is("SKIP") || Is("Skip to next event") || target == "END THE DAY"))
+				return FirstWeekHow(step);
+		}
 		// The morning after is real: on New Year's Day and the day after, he is hungover (the fatigue mechanic takes this
 		// over once it's built: LabelManFatigueDirective.md §2.4).
 		var date = TimeManager.Instance?.CurrentDate;
@@ -353,13 +416,19 @@ public partial class PlayerDesk {
 			// The booking sheet is long and every line of it is a choice: the Ear on the songs, the Suit on leaving the rest.
 			case FirstWeekPlace.Studio when step == FirstWeekStep.Record:
 				lines.AddRange(FirstWeekBooking()); break;
+			case FirstWeekPlace.Roster when step == FirstWeekStep.Cut && pendingSession == null:
+			case FirstWeekPlace.Studio when step == FirstWeekStep.Cut && pendingSession != null:
+			case FirstWeekPlace.Catalog when step >= FirstWeekStep.Assemble:
+				Line(step); break;
+			case FirstWeekPlace.Studio when step == FirstWeekStep.Cut:
+				lines.AddRange(FirstWeekBooking()); break;
 		}
 		return lines;
 	}
 
 	/// <summary>The record line, but too late in the day for even the shortest date: the work is ending the day and booking
 	/// in the morning. (A late-night evening rate could still fit; a first record doesn't need one.)</summary>
-	public bool FirstWeekStudioTomorrow => FirstWeekCurrent == FirstWeekStep.Record && pendingSession == null
+	public bool FirstWeekStudioTomorrow => FirstWeekCurrent is FirstWeekStep.Record or FirstWeekStep.Cut && pendingSession == null
 		&& TimeManager.Instance is { } time && time.MinutesRemainingWithOvertime < MinSessionHours * 60;
 
 	private (ExecutiveVoice Voice, string Text) FatigueTableTomorrow() =>
@@ -513,7 +582,7 @@ public partial class PlayerDesk {
 	private FirstWeekSaveData CaptureFirstWeek() => CopyFirstWeek(firstWeek);
 
 	private static FirstWeekSaveData CopyFirstWeek(FirstWeekSaveData saved) => saved == null ? new() : new() {
-		Off = saved.Off, Done = saved.Done, TermsOpened = saved.TermsOpened,
+		Off = saved.Off, Done = saved.Done, SingleOut = saved.SingleOut, TermsOpened = saved.TermsOpened,
 		OvertimeLesson = saved.OvertimeLesson, WornReadLesson = saved.WornReadLesson, LongWaitLesson = saved.LongWaitLesson
 	};
 

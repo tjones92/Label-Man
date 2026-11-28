@@ -80,7 +80,7 @@ public partial class UIManager : Control
 			calendarButton.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
 			StyleHotspot(calendarButton, 8);
 			BuildCalendarCards();
-			calendarButton.TooltipText = "End the day or skip ahead.";
+			calendarButton.TooltipText = "Click to end the day. Right-click to skip ahead.";
 			UpdateCalendarButton(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
 		}
 		if (TimeManager.Instance != null) {
@@ -791,7 +791,7 @@ public partial class UIManager : Control
 		bodyGutter.AddChild(paperBody);
 
 		// The dog-ear folds the paper away.
-		var corner = new FoldCorner { ZIndex = 2 };
+		var corner = new FoldCorner { Name = "FoldThePaper", ZIndex = 2 };
 		corner.SetAnchorsPreset(LayoutPreset.BottomRight);
 		corner.OffsetLeft = -FoldCorner.LiftedSize; corner.OffsetTop = -FoldCorner.LiftedSize;
 		corner.OffsetRight = 0; corner.OffsetBottom = 0;
@@ -1118,14 +1118,18 @@ public partial class UIManager : Control
 
 	public void OnClick_Calendar()
 	{
-		if (!DeskCovered() && !PaperModal.IsOpen && CanUseOfficeNavigation()) OpenOfficeCalendar();
+		if (!DeskCovered() && !PaperModal.IsOpen && CanUseOfficeNavigation()) AdvanceOneDayFromDesk(showTurnCard: false);
 	}
 
-	public void AdvanceOneDayFromDesk()
+	public void AdvanceOneDayFromDesk() => AdvanceOneDayFromDesk(showTurnCard: true);
+
+	private void AdvanceOneDayFromDesk(bool showTurnCard)
 	{
+		if (turnPending) return;
 		if (StudioBlocksCalendar(oneDay: true)) return;
 		if (PlayerDesk.Instance?.HasLabel != true || TimeManager.Instance == null) return;
-		RunDayTurn(1, () => TimeManager.Instance.SkipDays(1));
+		if (showTurnCard) RunDayTurn(1, () => TimeManager.Instance.SkipDays(1));
+		else TimeManager.Instance.SkipDays(1);
 	}
 
 	public void OpenCalendarSkipOptionsFromDesk() => ShowCalendarPopup();

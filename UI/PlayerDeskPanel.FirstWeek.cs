@@ -39,7 +39,7 @@ public partial class PlayerDeskPanel {
 		// The list, one line each, ticked from the run.
 		var top = new HBoxContainer();
 		top.AddThemeConstantOverride("separation", 14);
-		var title = new Label { Text = "This week", VerticalAlignment = VerticalAlignment.Center };
+		var title = new Label { Text = step >= FirstWeekStep.Cut ? "First single" : "This week", VerticalAlignment = VerticalAlignment.Center };
 		title.AddThemeFontOverride("font", PaperTheme.Lettering(LetteringStyle.Script));
 		title.AddThemeFontSizeOverride("font_size", 22);
 		title.AddThemeColorOverride("font_color", Rust);
@@ -155,11 +155,27 @@ public partial class PlayerDeskPanel {
 			case FirstWeekStep.Answer:
 				Say("END THE DAY is in the header, beside the WAIT buttons. The Morning Paper says who called back.", true);
 				break;
-			case FirstWeekStep.Record when desk.FirstWeekStudioTomorrow:
+			case FirstWeekStep.Record or FirstWeekStep.Cut when desk.FirstWeekStudioTomorrow:
 				Say("Too late for a studio date today. END THE DAY is in the header; book the room in the morning.", true);
 				break;
 			case FirstWeekStep.Record:
+			case FirstWeekStep.Cut:
 				OpenCityMap(StudioPin);
+				break;
+			case FirstWeekStep.Press or FirstWeekStep.Date when !desk.AtHome:
+				OpenStreet(StreetPage.Road);
+				break;
+			case FirstWeekStep.Press when desk.FirstWeekPressShort:
+				OpenBooks();
+				break;
+			case FirstWeekStep.Date when desk.FirstWeekDateTomorrow:
+				Say(desk.FirstWeekHow(step.Value).How, true);
+				break;
+			case FirstWeekStep.Release:
+				UIManager.Instance?.OpenCalendarSkipOptionsFromDesk();
+				break;
+			case FirstWeekStep.Assemble or FirstWeekStep.Press or FirstWeekStep.Date:
+				GoToTab(CatalogTab, PageCatalog);
 				break;
 			default:
 				OpenCityMap();
@@ -200,6 +216,17 @@ public partial class PlayerDeskPanel {
 		FirstWeekStep.Sign => new[] { "SWEETEN IT", "TABLE OFFER", "TABLE AGAIN", "▸  Let's sit down on terms.", "SIT DOWN ON TERMS", "TALK TO THEM" },
 		// Too late for a date: the signing card's TO THE ROSTER (a modal, looked at first), then the day's end.
 		FirstWeekStep.Record when desk.FirstWeekStudioTomorrow => new[] { "TO THE ROSTER", "END THE DAY" },
+		FirstWeekStep.Cut when desk.FirstWeekStudioOvernight => new[] { "END THE DAY", "RETURN TO STUDIO" },
+		FirstWeekStep.Cut when desk.Session != null => new[] { "RETURN TO STUDIO", "RETURN TO THE OPEN DATE", "ROSTER" },
+		FirstWeekStep.Cut when desk.FirstWeekStudioTomorrow => new[] { "END THE DAY" },
+		FirstWeekStep.Cut => new[] { "TAKE INTO STUDIO", "ROSTER", "BOOK IT" },
+		FirstWeekStep.Assemble => new[] { "ASSEMBLE THE SINGLE", "CATALOG" },
+		FirstWeekStep.Press or FirstWeekStep.Date when !desk.AtHome => new[] { "DRIVE HOME", "DISTRIBUTION" },
+		FirstWeekStep.Press when desk.FirstWeekPressShort => new[] { "BOOKS" },
+		FirstWeekStep.Press => new[] { "PRESS IT", "ORDER PRESSING", "CATALOG" },
+		FirstWeekStep.Date when desk.FirstWeekDateTomorrow => new[] { "END THE DAY" },
+		FirstWeekStep.Date => new[] { "SET THE DATE", "CATALOG" },
+		FirstWeekStep.Release => new[] { "SKIP DAYS…", "END THE DAY" },
 		// A booking that warns opens a modal over the sheet: go ahead with it. (A push-back has its own glow, above.)
 		_ => new[] { "TO THE ROSTER", "TAKE INTO STUDIO", "RETURN TO STUDIO", "BOOK IT" },
 	};
@@ -218,17 +245,21 @@ public partial class PlayerDeskPanel {
 			foreach (Node c in n.GetChildren()) Walk(c);
 		}
 		Walk(this);
-		if (streetPage == StreetPage.Map && step == FirstWeekStep.Record) {
+		// A modal (the act's conversation, the contract sheet) sits over the page: its buttons come first.
+		if (streetPage == StreetPage.Map && (step is FirstWeekStep.Record or FirstWeekStep.Cut)) {
 			var studio = buttons.FirstOrDefault(b => b.HasMeta("artist_id") && FindParentOfType<PaperModal>(b) != null)
 				?? buttons.FirstOrDefault(b => b.Text is "TAKE INTO STUDIO" or "RETURN TO STUDIO")
 				?? buttons.FirstOrDefault(b => b.Name == "TownPin_" + StudioPin);
-			if (desk.FirstWeekStudioTomorrow)
+			if (desk.FirstWeekStudioTomorrow || desk.FirstWeekStudioOvernight)
 				studio = buttons.FirstOrDefault(b => b.Text == "END THE DAY");
 			GlowOn(studio);
 			return;
 		}
-		// A modal (the act's conversation, the contract sheet) sits over the page: its buttons come first.
 		var modal = buttons.Where(b => FindParentOfType<PaperModal>(b) != null).ToList();
+		if (modal.Count == 0 && buttons.FirstOrDefault(b => b.Text == "LISTEN CLOSELY") is { } closeListen) {
+			GlowOn(closeListen);
+			return;
+		}
 		// The set the player chose and walked to: its LISTEN is the next thing to press.
 		Button hit = desk.FirstWeekLooking ? buttons.FirstOrDefault(b => b.HasMeta("first_week_here")) : null;
 		if (hit != null) { GlowOn(hit); return; }
@@ -251,7 +282,7 @@ public partial class PlayerDeskPanel {
 		}
 		// The studio's booking sheet: two songs ticked (or every one there is), then the room booked. The sheet is long, so
 		// the glow is scrolled into view when it moves.
-		if (studioMode && step == FirstWeekStep.Record) {
+		if (studioMode && (step == FirstWeekStep.Record || step == FirstWeekStep.Cut && desk.Session == null)) {
 			var songs = buttons.Where(b => b.HasMeta("first_week_song")).ToList();
 			// Too late for a date today: back to the desk, where the day ends.
 			if (desk.FirstWeekStudioTomorrow && modal.Count == 0) {
@@ -266,8 +297,10 @@ public partial class PlayerDeskPanel {
 				return;
 			}
 			if (songs.Count > 0 && modal.Count == 0) {
-				var next = songs.Count(b => b.ButtonPressed) < 2 ? songs.FirstOrDefault(b => !b.ButtonPressed && !Refused(b)) : null;
-				hit = next ?? buttons.FirstOrDefault(b => b.Text.StartsWith("BOOK THE ROOM", System.StringComparison.Ordinal))
+				int desired = step == FirstWeekStep.Cut ? 1 : 2;
+				var next = songs.Count(b => b.ButtonPressed) < desired ? songs.FirstOrDefault(b => !b.ButtonPressed && !Refused(b)) : null;
+				hit = next ?? buttons.FirstOrDefault(b => b.Text.StartsWith("BOOK THE ROOM", System.StringComparison.Ordinal)
+					|| b.Text.StartsWith("DRIVE UP WITH THE BAND", System.StringComparison.Ordinal))
 					// Nothing ticked and nothing left they'd play: back to the roster for a song they want.
 					?? buttons.FirstOrDefault(b => b.Text.StartsWith("‹ BACK", System.StringComparison.Ordinal));
 				bool moved = hit != firstWeekGlowing;
@@ -275,6 +308,17 @@ public partial class PlayerDeskPanel {
 				if (moved && hit != null) contentScroll?.EnsureControlVisible(hit);
 				return;
 			}
+		}
+		if (studioMode && step == FirstWeekStep.Cut && desk.Session != null) {
+			// Use the current song's live controls. A complete take can be kept before spending more tape or time.
+			string[] targets = { "RETURN TO THE OPEN DATE", "FINISH & PRINT", "PRINT MASTERS", "WORK ON THE NEXT SONG",
+				"KEEP TAKE", "CUT A TAKE", "BUY A REEL", "‹ BACK TO THE OFFICE", BackToCityMap };
+			hit = modal.Count == 0 ? targets.Select(target => buttons.FirstOrDefault(b =>
+				b.Text.StartsWith(target, System.StringComparison.Ordinal))).FirstOrDefault(b => b != null) : null;
+			if ((hit?.Text is "‹ BACK TO THE OFFICE" or BackToCityMap) && !desk.FirstWeekStudioOvernight) hit = null;
+			if (hit != null && hit != firstWeekGlowing) firstWeekScrollTo = hit;
+			GlowOn(hit);
+			return;
 		}
 		// A visit later today: every set that's over before it's time to leave glows, with the wait beside them.
 		if (step == FirstWeekStep.Answer && desk.FirstWeekVisitLater && modal.Count == 0 && buttons.Any(b => b.HasMeta("set_ends"))) {
@@ -296,16 +340,22 @@ public partial class PlayerDeskPanel {
 			GlowOn(field);
 			return;
 		}
+		var singleId = desk.FirstWeekSingle?.Master.Record.recordId;
 		foreach (var pool in new[] { modal, buttons }) {
 			foreach (string target in FirstWeekTargets(desk, step.Value)) {
-				hit = pool.FirstOrDefault(b => b.Text.StartsWith(target, System.StringComparison.Ordinal));
+				hit = pool.FirstOrDefault(b => b.Text.StartsWith(target, System.StringComparison.Ordinal)
+					&& (!b.HasMeta("first_week_single") || b.GetMeta("first_week_single").AsString() == singleId)
+					&& !(target == "CATALOG" && currentTab == CatalogTab)
+					&& !(target == "ROSTER" && currentTab == 1)
+					&& !(desk.FirstWeekPressShort && target == "BOOKS" && currentTab is 4 or LedgerTab));
 				if (hit != null) break;
 			}
 			if (hit != null) break;
 		}
 		// The counter's answers sit under the table's whole transcript: bring the one that glows into view, once the
 		// rebuilt page has its layout (the watch's next tick).
-		if (hit != null && hit != firstWeekGlowing && hit.Text == "SWEETEN IT") firstWeekScrollTo = hit;
+		if (hit != null && hit != firstWeekGlowing && (hit.Text == "SWEETEN IT" || step >= FirstWeekStep.Assemble))
+			firstWeekScrollTo = hit;
 		GlowOn(hit);
 	}
 
@@ -381,12 +431,18 @@ public partial class PlayerDeskPanel {
 		timer.Timeout += () => {
 			var desk = PlayerDesk.Instance;
 			if (desk?.FirstWeekCurrent == null) { GlowOn(null); HideFirstWeekSlip(); return; }
+			if (!studioMode && UIManager.Instance?.FirstWeekCalendarTarget(desk) is { } calendarTarget) {
+				GlowOn(calendarTarget); HideFirstWeekSlip(); return;
+			}
+			if (holderMoveOpen || lienNoticeOpen || lienMorningOpen) { GlowOn(null); HideFirstWeekSlip(); return; }
 			if (!IsVisibleInTree()) {
 				GlowOnAll(UIManager.Instance?.OfficeFirstWeekTargets(desk));
 				HideFirstWeekSlip();
 				return;
 			}
-			if (firstWeekScrollTo != null && IsInstanceValid(firstWeekScrollTo) && firstWeekScrollTo.IsVisibleInTree()) contentScroll?.EnsureControlVisible(firstWeekScrollTo);
+			if (firstWeekScrollTo != null && IsInstanceValid(firstWeekScrollTo) && firstWeekScrollTo.IsVisibleInTree() &&
+				contentScroll?.IsAncestorOf(firstWeekScrollTo) == true)
+				contentScroll.EnsureControlVisible(firstWeekScrollTo);
 			firstWeekScrollTo = null;
 			HighlightFirstWeekTarget(desk);
 			PlaceFirstWeekSlip(desk);   // the voice of the moment, beside the glow (T6)

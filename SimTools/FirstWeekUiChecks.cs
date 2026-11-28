@@ -69,11 +69,11 @@ public partial class FirstWeekUiChecks : Node {
 			var calendar = Nodes(this).OfType<Button>().Single(b => b.Name == "CalendarBtn");
 			var clock = TimeManager.Instance;
 			var openedOn = clock.CurrentDate;
-			int openedAt = clock.CurrentHour * 60 + clock.CurrentMinute;
-			calendar.EmitSignal(BaseButton.SignalName.Pressed); await Frame();
-			Check(Shows("THE FLIP CALENDAR") && clock.CurrentDate == openedOn && clock.CurrentHour * 60 + clock.CurrentMinute == openedAt,
-				"Opening the room calendar leaves the date and time alone");
-			await Press("CLOSE");
+			calendar.EmitSignal(BaseButton.SignalName.Pressed);
+			Check(clock.CurrentDate == openedOn.AddDays(1) && !PaperModal.IsOpen,
+				"Pressing the room calendar immediately advances one day without a calendar dialog");
+			await Frame();
+			await PaperDown();
 			await Frame(0.6);
 			Check(Glowing()?.Name == "OfficeDoor", "The room points a new player to the door");
 			await Screenshot("office-room");
@@ -188,7 +188,13 @@ public partial class FirstWeekUiChecks : Node {
 				presses++;
 				glow.EmitSignal(Button.SignalName.Pressed);
 				await Frame(0.7);
-				if (visitBefore != null) Check(visitBefore.Done && visitBefore.DoneDay == LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate), $"GO THERE kept the visit ({visitBefore.Kind} with {visitBefore.Who}, {TimeManager.Instance.GetTimeString()})");
+				if (visitBefore != null) {
+					Check(visitBefore.Done && visitBefore.DoneDay == LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate), $"GO THERE kept the visit ({visitBefore.Kind} with {visitBefore.Who}, {TimeManager.Instance.GetTimeString()})");
+					var act = ArtistManager.Instance.GetArtist(chosen);
+					bool atTerms = Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text.StartsWith("TABLE OFFER"));
+					Check(atTerms == desk.AgreedToSign(act),
+						$"GO THERE {(atTerms ? "opened terms" : "left terms pending")} after the {visitBefore.Kind} visit");
+				}
 				// The day's end puts the Morning Paper up over the desk: read it and put it down.
 				await Screenshot(step.ToString().ToLowerInvariant());
 				if (GetTree().Root.FindChild("MorningPaper", true, false) is Control paper && paper.Visible) {
@@ -204,7 +210,7 @@ public partial class FirstWeekUiChecks : Node {
 				Check(pickedTime && openedBook && wentThere && sparedTheMorning, $"With a manager, the glow walks the book: a time picked in The Talk ({pickedTime}), the hours before the visit left free ({sparedTheMorning}), the book opened in the last hour ({openedBook}), GO THERE ({wentThere})");
 			Check(desk.FirstWeekDone(FirstWeekStep.Sign), "Following the glow signs an act of the player's own");
 			Check(desk.Label.roster.Any(a => a.artistId == chosen), "The act signed is the one the bot chose by its Ear's verdict");
-			Check(desk.FirstWeekCurrent == FirstWeekStep.Record, "The card's last line is the first record");
+			Check(desk.FirstWeekCurrent == FirstWeekStep.Record, "The card moves on to booking the first record");
 			await Frame(0.6);
 			Check(Glowing()?.Text == "TO THE ROSTER", "The signing card's TO THE ROSTER glows");
 			await Press("TO THE ROSTER");
@@ -228,13 +234,14 @@ public partial class FirstWeekUiChecks : Node {
 			panel.OpenAtTab("ROSTER"); await Frame(0.7);
 
 			await TheStudio(desk);
+			await TheFirstSingle(desk);
 
-			// The first-session trace followed the run from the first desk to the booked date, and wrote its summary.
+			// The trace follows the run from the first desk all the way to shipment.
 			await Frame(0.3);
 			var trace = FirstSessionTrace.Current;
-			Check(trace != null && trace.Finished, "The first-session trace ran and finished at the first record");
-			Check(trace.Milestones.Contains("✓ " + PlayerDesk.FirstWeekTitle(FirstWeekStep.Sign)) && trace.Milestones.Contains("End: First record set up")
-				&& trace.Milestones.Contains("Card put away"), "The trace marks the signing, the card put away and the first record");
+			Check(trace != null && trace.Finished, "The first-session trace ran and finished at the first release");
+			Check(trace.Milestones.Contains("✓ " + PlayerDesk.FirstWeekTitle(FirstWeekStep.Sign)) && trace.Milestones.Contains("End: First single released")
+				&& trace.Milestones.Contains("Card put away"), "The trace marks the signing, the card put away and the release");
 			Check(trace.Presses > 0 && trace.GlowPresses > 0 && trace.GlowPresses <= trace.Presses, $"The trace counts presses ({trace.Presses}, {trace.GlowPresses} on the glow)");
 			Check(System.IO.File.Exists(trace.SummaryPath), "The trace's summary is on disk: " + trace.SummaryPath);
 			Check(trace.PressOutcomes.Where(p => p.Text is "GO & WAIT" or "LISTEN" or "END THE DAY" || p.Text.StartsWith("TABLE OFFER")).All(p => p.Outcome == "ok"),
@@ -297,8 +304,10 @@ public partial class FirstWeekUiChecks : Node {
 			}
 			heard++;
 			// The Set: each act on the bill comes off the stand; the Ear's teaching verdict says whether to talk to them.
-			while (Visible("LET THEM GO") is { } go) {
-				var ear = Nodes(panel).OfType<Label>().Where(l => l.IsVisibleInTree() && l.Text.StartsWith(VoiceLabel(ExecutiveVoice.Ear))).Select(l => l.Text).ToList();
+			while (Visible("LISTEN CLOSELY") is { } closeListen) {
+				closeListen.EmitSignal(Button.SignalName.Pressed); await Frame(0.6);
+				if (Visible("LET THEM GO") is not { } go) break;
+				var ear = Nodes(panel).OfType<Label>().Where(l => l.IsVisibleInTree() && l.HasMeta("set_voice") && l.GetMeta("set_voice").AsInt32() == (int)ExecutiveVoice.Ear).Select(l => l.Text).ToList();
 				foreach (string line in ear) GD.Print("    " + line);
 				var queue = (List<string>)typeof(PlayerDeskPanel).GetField("theSetQueue", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(panel);
 				string onStage = queue.FirstOrDefault();
@@ -337,7 +346,7 @@ public partial class FirstWeekUiChecks : Node {
 		}
 	}
 
-	/// <summary>The last line: from the roster's TAKE INTO STUDIO to a booked date, pressing what a new player would.</summary>
+	/// <summary>Follow the glow from the roster to a booked studio date.</summary>
 	private async Task TheStudio(PlayerDesk desk) {
 		int presses = 0;
 		bool taught = false;
@@ -427,13 +436,46 @@ public partial class FirstWeekUiChecks : Node {
 		GD.Print($"  booked: {string.Join(", ", desk.Session.Cuts.Select(c => c.Choice.Title))}");
 		Check(insisted ? desk.Session.Cuts.Count >= 1 : pushBack ? desk.Session.Cuts.Count >= 1 && desk.Session.Cuts.All(c => c.Choice.Title != refusedTitle) : desk.Session.Cuts.Count == 2,
 			insisted ? "Turned down everything: insisting books the date" : pushBack ? "The date is cut without the song they turned down" : "Two songs on the date: a single");
-		Check(desk.FirstWeekDone(FirstWeekStep.Record) && desk.FirstWeekCurrent == null, "The booking ticks the last line and the card is done");
-		Check(Glowing() == null, "Nothing glows on the take sheet once the card is done");
+		Check(desk.FirstWeekDone(FirstWeekStep.Record) && desk.FirstWeekCurrent == FirstWeekStep.Cut, "Booking a room moves the card to cutting the sides");
+		Check(Glowing()?.Text.StartsWith("CUT A TAKE") == true, "The first pass glows on the take sheet");
 		Dump("takes");
-		await Press("‹ BACK TO THE OFFICE");
-		await Frame(0.6);
-		Check(Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text.StartsWith("NEXT UP")) && !Shows("This week"), "Back at the desk, NEXT UP has taken over from the card");
-		GD.Print($"  NEXT UP: {Nodes(panel).OfType<Button>().First(b => b.IsVisibleInTree() && b.Text.StartsWith("NEXT UP")).Text}");
+	}
+
+	private async Task TheFirstSingle(PlayerDesk desk) {
+		var saved = desk.CaptureFirstWeekForChecks();
+		saved.Done = true; // The old tutorial stopped at booking and wrote Done.
+		desk.RestoreFirstWeekForChecks(saved);
+		Check(desk.FirstWeekCurrent == FirstWeekStep.Cut, "A save from the old tutorial picks up at the booked studio date");
+		var seen = new HashSet<FirstWeekStep>();
+		for (int i = 0; i < 55 && desk.FirstWeekCurrent is { } step; i++) {
+			await PaperDown();
+			if (desk.FirstWeekCurrent == null) break;
+			var holderReply = desk.HolderMoveOptions().FirstOrDefault(o => !o.accept && o.enabled);
+			if (desk.HolderMovePending && holderReply != null && Visible("▸  " + holderReply.label) != null)
+				await Press("▸  " + holderReply.label);
+			seen.Add(step);
+			var glow = Glowing();
+			if (glow == null) { await Frame(0.6); glow = Glowing(); }
+			if (glow == null) Dump($"no glow at {step}");
+			Check(glow != null && !glow.Disabled, $"A live control is guided during {step}");
+			GD.Print($"  {step}: {glow.Text}");
+			if (step == FirstWeekStep.Release) {
+				Check(desk.FirstWeekSingle?.Dated == true && !desk.ReleasedRecords.Any(), "Dating a single leaves the tutorial active until shipment");
+			}
+			if (glow is CheckBox song) song.ButtonPressed = !song.ButtonPressed;
+			glow.EmitSignal(Button.SignalName.Pressed);
+			await Frame(0.8);
+		}
+		await PaperDown();
+		Check(new[] { FirstWeekStep.Cut, FirstWeekStep.Assemble, FirstWeekStep.Press, FirstWeekStep.Date, FirstWeekStep.Release }.All(seen.Contains),
+			"The glow walks through the studio, assembly, pressing, dating and the wait");
+		Check(desk.FirstWeekDone(FirstWeekStep.Release) && desk.FirstWeekCurrent == null, "The first single is out and the tutorial is complete");
+		Check(Glowing() == null && !Shows("This week"), "The tutorial card and glow are gone after shipment");
+		Check(Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text.StartsWith("NEXT UP")), "NEXT UP takes over after release");
+		saved = desk.CaptureFirstWeekForChecks();
+		desk.RestoreFirstWeekForChecks(saved);
+		Check(saved.SingleOut && desk.FirstWeekCurrent == null, "Completion stays put after restoring the tutorial state");
+		await Screenshot("first-single-out");
 	}
 
 	/// <summary>Inside the scroll that holds it, and so where a player would see it.</summary>

@@ -1,0 +1,586 @@
+{
+  "lines": [
+    {
+      "id": "room_sparse_fallback",
+      "slot": "room",
+      "conditions": {
+        "crowd": "sparse"
+      },
+      "text": "{venue}. Mostly empty chairs and a bartender drying the same glass twice."
+    },
+    {
+      "id": "room_sparse_cold",
+      "slot": "room",
+      "conditions": {
+        "crowd": "sparse"
+      },
+      "text": "{venue}. Four or five coats at the bar, nobody near the stand. You can hear the ice machine from the door."
+    },
+    {
+      "id": "room_half_fallback",
+      "slot": "room",
+      "conditions": {
+        "crowd": "half"
+      },
+      "text": "{venue}. About half full. Warm beer, damp wool, and a low hum of talk under the mic check."
+    },
+    {
+      "id": "room_half_steady",
+      "slot": "room",
+      "conditions": {
+        "crowd": "half"
+      },
+      "text": "{venue}. Half the tables taken, most of them locals who look like they come here every week."
+    },
+    {
+      "id": "room_packed_fallback",
+      "slot": "room",
+      "conditions": {
+        "crowd": "packed"
+      },
+      "text": "{venue}. Standing room by the cigarette machine. Smoke hanging low over the front tables."
+    },
+    {
+      "id": "room_packed_tight",
+      "slot": "room",
+      "conditions": {
+        "crowd": "packed"
+      },
+      "text": "{venue}. Packed to the door. You have to crane your neck past two shoulders just to see the stand."
+    },
+    {
+      "id": "room_generic",
+      "slot": "room",
+      "conditions": {},
+      "text": "{venue}. Dim lights, sticky floor, and a PA system that hums before anybody plays a note."
+    },
+    {
+      "id": "set_originals_strong",
+      "slot": "set_snapshot",
+      "conditions": {
+        "has_originals": true,
+        "overall": "strong",
+        "first_original": true
+      },
+      "text": "They open with '{first_song}'—one of their own—and the clatter at the bar drops off by the second chorus."
+    },
+    {
+      "id": "set_originals_mid",
+      "slot": "set_snapshot",
+      "conditions": {
+        "has_originals": true,
+        "overall": "mid",
+        "first_original": true
+      },
+      "text": "They lead with ‘{first_song}’, one of their own. {lead} keeps pulling your eye back to the stand."
+    },
+    {
+      "id": "set_originals_rough",
+      "slot": "set_snapshot",
+      "conditions": {
+        "has_originals": true,
+        "overall": "weak",
+        "first_original": true
+      },
+      "text": "They start with ‘{first_song}’, one of their own. You have to listen past the rough edges to find the tune."
+    },
+    {
+      "id": "set_covers_strong",
+      "slot": "set_snapshot",
+      "conditions": {
+        "has_originals": false,
+        "overall": "strong"
+      },
+      "text": "Nothing original on the list, starting with '{first_song}', but they play the standards like they own the copyrights."
+    },
+    {
+      "id": "set_covers_mid",
+      "slot": "set_snapshot",
+      "conditions": {
+        "has_originals": false,
+        "overall": "mid"
+      },
+      "text": "Straight down the jukebox list, starting with '{first_song}'. Clean enough to keep drinks moving, nothing you haven't heard since '57."
+    },
+    {
+      "id": "set_covers_rough",
+      "slot": "set_snapshot",
+      "conditions": {
+        "has_originals": false,
+        "overall": "weak"
+      },
+      "text": "All covers, starting with ‘{first_song}’. Knowing the song makes it easier to hear where they lose it."
+    },
+    {
+      "id": "set_generic",
+      "slot": "set_snapshot",
+      "conditions": {},
+      "text": "It starts with ‘{first_song}’. You let the room settle around the sound."
+    },
+    {
+      "id": "ear_vocals_carry_mid",
+      "slot": "the_ear",
+      "conditions": {
+        "best_stat": "vocals",
+        "worst_stat": "band",
+        "overall": "mid"
+      },
+      "text": "Competent. Every bar in town has competent. {lead}'s voice was the best of it, and that's not saying much. The band was the worst."
+    },
+    {
+      "id": "ear_vocals_carry_strong",
+      "slot": "the_ear",
+      "conditions": {
+        "best_stat": "vocals",
+        "worst_stat": "band",
+        "overall": "strong"
+      },
+      "text": "Put {lead} in front of real session players and you have a record. Leave them with this backing band and you'll waste three hours of studio tape."
+    },
+    {
+      "id": "ear_tight_band_flat_lead",
+      "slot": "the_ear",
+      "conditions": {
+        "best_stat": "band",
+        "worst_stat": "vocals"
+      },
+      "text": "The rhythm section is dead tight—they could cut a B-side in two takes. Problem is {lead} disappears right behind the mic."
+    },
+    {
+      "id": "ear_standout_song",
+      "slot": "the_ear",
+      "conditions": {
+        "standout_original": true
+      },
+      "text": "Forget the rough edges for a second. '{standout_song}' has a real hook—the kind a DJ remembers after one spin. Somebody in this act can write."
+    },
+    {
+      "id": "ear_rough_but_electric",
+      "slot": "the_ear",
+      "conditions": {
+        "overall": "weak",
+        "crowd_reaction": "hooked"
+      },
+      "text": "Sloppy enough to hear the seams. And somehow the room is still with them."
+    },
+    {
+      "id": "ear_pro_but_cold",
+      "slot": "the_ear",
+      "conditions": {
+        "overall": "strong",
+        "crowd_reaction": "cold"
+      },
+      "text": "Easy to admire the playing. Harder to picture anybody crossing town just to hear it twice."
+    },
+    {
+      "id": "ear_low_chemistry",
+      "slot": "the_ear",
+      "conditions": {
+        "chemistry": "low"
+      },
+      "text": "Good enough sound, bad posture. Nobody looked at {lead} between songs. Sign them and you're signing a breakup before summer."
+    },
+    {
+      "id": "ear_strong_fallback",
+      "slot": "the_ear",
+      "conditions": {
+        "overall": "strong"
+      },
+      "text": "Real chops. They know when to hold back and when to lean in. You wouldn't have to babysit them in the studio."
+    },
+    {
+      "id": "ear_mid_fallback",
+      "slot": "the_ear",
+      "conditions": {
+        "overall": "mid"
+      },
+      "text": "Steady working band. They know their parts and hit their endings, though nothing tonight made you reach for a pen."
+    },
+    {
+      "id": "ear_weak_fallback",
+      "slot": "the_ear",
+      "conditions": {
+        "overall": "weak"
+      },
+      "text": "Not ready for a microphone, let alone a pressing plant. Give them another year of Tuesday nights and maybe check back."
+    },
+    {
+      "id": "ear_generic",
+      "slot": "the_ear",
+      "conditions": {},
+      "text": "Hard to place on one set, but you've got enough to know whether you want to hear more."
+    },
+    {
+      "id": "street_budding_following",
+      "slot": "the_street",
+      "conditions": {
+        "crowd": "half",
+        "draw": "budding"
+      },
+      "text": "The sort of draw you could fit around one big table. It's a beginning."
+    },
+    {
+      "id": "street_packed_hooked",
+      "slot": "the_street",
+      "conditions": {
+        "crowd": "packed",
+        "crowd_reaction": "hooked"
+      },
+      "text": "This is the sound of a full room giving a band its attention."
+    },
+    {
+      "id": "street_room_not_band",
+      "slot": "the_street",
+      "conditions": {
+        "crowd": "packed",
+        "crowd_reaction": "cold"
+      },
+      "text": "Full tables can flatter an act. I'd count who stayed before I put money on them."
+    },
+    {
+      "id": "street_empty_but_real",
+      "slot": "the_street",
+      "conditions": {
+        "crowd": "sparse",
+        "crowd_reaction": "hooked"
+      },
+      "text": "The room was thin, but the ones who stayed were there to listen."
+    },
+    {
+      "id": "street_empty_dead",
+      "slot": "the_street",
+      "conditions": {
+        "crowd": "sparse",
+        "crowd_reaction": "cold"
+      },
+      "text": "The chairs tell you how much work there is to do."
+    },
+    {
+      "id": "street_warm_fallback",
+      "slot": "the_street",
+      "conditions": {
+        "crowd_reaction": "warm"
+      },
+      "text": "A room can like you for a night without going out to buy a 45."
+    },
+    {
+      "id": "street_generic",
+      "slot": "the_street",
+      "conditions": {},
+      "text": "The room took them in stride. Whether that turns into buyers at a counter is another question."
+    },
+    {
+      "id": "hook_npc_bar",
+      "slot": "room_hook",
+      "conditions": {
+        "npc_present": true
+      },
+      "text": "{act} unplug and step off the stand; {lead} does the talking for them. Down at the far end of the bar, {npc} is nursing a glass and watching the door."
+    },
+    {
+      "id": "hook_npc_table",
+      "slot": "room_hook",
+      "conditions": {
+        "npc_present": true
+      },
+      "text": "The set wraps and {lead} heads for the coats. Near the back booth, {npc} catches your eye and lifts a chin."
+    },
+    {
+      "id": "hook_rival_present",
+      "slot": "room_hook",
+      "conditions": {
+        "rival_present": true
+      },
+      "text": "{act} come off the stand. Across the room, a guy from {rival_label} is already folding his notebook and standing up."
+    },
+    {
+      "id": "hook_default_a",
+      "slot": "room_hook",
+      "conditions": {},
+      "text": "{act} come off the stand and start coiling cords. {lead} does the talking for them."
+    },
+    {
+      "id": "hook_default_b",
+      "slot": "room_hook",
+      "conditions": {},
+      "text": "The house radio clicks back on while {act} pack up. {lead} is wiping sweat off the neck of a {instrument} near the side door."
+    },
+    {
+      "id": "choice_talk_a",
+      "slot": "choice_talk",
+      "conditions": {},
+      "text": "Catch {lead} before they pack up the {instrument}."
+    },
+    {
+      "id": "choice_talk_b",
+      "slot": "choice_talk",
+      "conditions": {},
+      "text": "Wave {lead} over as they come off the stand."
+    },
+    {
+      "id": "choice_talk_c",
+      "slot": "choice_talk",
+      "conditions": {},
+      "text": "Step up to {lead} while the room clears out."
+    },
+    {
+      "id": "genre_blues_turnaround",
+      "slot": "genre_color",
+      "conditions": { "genre": "blues" },
+      "text": "You count twelve bars against your thumb and wait for the turnaround."
+    },
+    {
+      "id": "genre_blues_shuffle",
+      "slot": "genre_color",
+      "conditions": { "genre": "blues" },
+      "text": "You listen for the shuffle and for what they do with the space at the end of a line."
+    },
+    {
+      "id": "genre_childrens_clap",
+      "slot": "genre_color",
+      "conditions": { "genre": "childrens" },
+      "text": "You try the clapping pattern against your knee to see how quickly a child could pick it up."
+    },
+    {
+      "id": "genre_childrens_refrain",
+      "slot": "genre_color",
+      "conditions": { "genre": "childrens" },
+      "text": "You listen to the sing-along refrain with half an ear on how much of it fits in one breath."
+    },
+    {
+      "id": "genre_classical_cadence",
+      "slot": "genre_color",
+      "conditions": { "genre": "classical" },
+      "text": "You leave your pencil still through the cadence. In a quiet room, even that much would carry."
+    },
+    {
+      "id": "genre_classical_rubato",
+      "slot": "genre_color",
+      "conditions": { "genre": "classical" },
+      "text": "You follow the phrasing through the rubato, waiting to hear where the pulse settles again."
+    },
+    {
+      "id": "genre_comedy_timing",
+      "slot": "genre_color",
+      "conditions": { "genre": "comedy" },
+      "text": "You stop trying to write down the jokes and start marking the beats before the punch lines."
+    },
+    {
+      "id": "genre_comedy_callback",
+      "slot": "genre_color",
+      "conditions": { "genre": "comedy" },
+      "text": "You keep the opening bit in mind. A callback only works if the room still remembers it."
+    },
+    {
+      "id": "genre_country_train_beat",
+      "slot": "genre_color",
+      "conditions": { "genre": "country" },
+      "text": "You tap out the train beat on your knee and try to keep the story straight from verse to verse."
+    },
+    {
+      "id": "genre_country_twang",
+      "slot": "genre_color",
+      "conditions": { "genre": "country" },
+      "text": "You listen past the twang for the line a jukebox crowd could sing back."
+    },
+    {
+      "id": "genre_doo_wop_bass",
+      "slot": "genre_color",
+      "conditions": { "genre": "doo-wop" },
+      "text": "You listen from the bass part up, through the nonsense syllables to the top harmony."
+    },
+    {
+      "id": "genre_doo_wop_vowels",
+      "slot": "genre_color",
+      "conditions": { "genre": "doo-wop" },
+      "text": "You listen for the vowels in the backing parts. That's where a street-corner harmony starts to sound like one voice."
+    },
+    {
+      "id": "genre_easy_listening_pocket",
+      "slot": "genre_color",
+      "conditions": { "genre": "easy-listening" },
+      "text": "You listen for the melody through the soft backing. That's the part somebody should be able to hum on the way out."
+    },
+    {
+      "id": "genre_easy_listening_dynamics",
+      "slot": "genre_color",
+      "conditions": { "genre": "easy-listening" },
+      "text": "You listen for the swell into the chorus. At supper-club volume, even a little rise ought to count."
+    },
+    {
+      "id": "genre_folk_ballad",
+      "slot": "genre_color",
+      "conditions": { "genre": "folk" },
+      "text": "You follow the ballad by its verses, keeping track of who left and who got left behind."
+    },
+    {
+      "id": "genre_folk_strophic",
+      "slot": "genre_color",
+      "conditions": { "genre": "folk" },
+      "text": "You listen to what changes when the tune comes round again and the singer has another verse to fit inside it."
+    },
+    {
+      "id": "genre_gospel_response",
+      "slot": "genre_color",
+      "conditions": { "genre": "gospel" },
+      "text": "You listen for the answer to the lead line. In gospel the reply can carry as much weight as the call."
+    },
+    {
+      "id": "genre_gospel_vamp",
+      "slot": "genre_color",
+      "conditions": { "genre": "gospel" },
+      "text": "You listen for the lift on each pass through the vamp."
+    },
+    {
+      "id": "genre_jazz_head",
+      "slot": "genre_color",
+      "conditions": { "genre": "jazz" },
+      "text": "You keep the head in mind through the solo so you'll know where they are when the tune comes back."
+    },
+    {
+      "id": "genre_jazz_ride",
+      "slot": "genre_color",
+      "conditions": { "genre": "jazz" },
+      "text": "You listen for the swing underneath the chorus and let the solo take care of itself for a bar."
+    },
+    {
+      "id": "genre_latin_pop_bolero",
+      "slot": "genre_color",
+      "conditions": { "genre": "latin-pop" },
+      "text": "You listen for the bolero sway under the melody and count how long it takes you to learn the refrain."
+    },
+    {
+      "id": "genre_latin_pop_syncopation",
+      "slot": "genre_color",
+      "conditions": { "genre": "latin-pop" },
+      "text": "You follow the syncopation under the chorus, tapping the pulse with the heel of your shoe."
+    },
+    {
+      "id": "genre_rnb_backbeat",
+      "slot": "genre_color",
+      "conditions": { "genre": "rnb" },
+      "text": "You keep time on two and four and listen for the riff that belongs on a 45."
+    },
+    {
+      "id": "genre_rnb_stop_time",
+      "slot": "genre_color",
+      "conditions": { "genre": "rnb" },
+      "text": "You listen for the breaks. In stop time, the way everybody comes back in can tell you plenty."
+    },
+    {
+      "id": "genre_rock_and_roll_count",
+      "slot": "genre_color",
+      "conditions": { "genre": "rock-and-roll" },
+      "text": "You count the backbeat against the edge of your notebook."
+    },
+    {
+      "id": "genre_rock_and_roll_riff",
+      "slot": "genre_color",
+      "conditions": { "genre": "rock-and-roll" },
+      "text": "You listen for a riff short enough to recognize before the singer gets a word in."
+    },
+    {
+      "id": "genre_soul_vamp",
+      "slot": "genre_color",
+      "conditions": { "genre": "soul" },
+      "text": "You listen for what the singer does over the vamp once the words have come round twice."
+    },
+    {
+      "id": "genre_soul_behind",
+      "slot": "genre_color",
+      "conditions": { "genre": "soul" },
+      "text": "You listen to where the voice sits against the beat, and how long a word can hang there."
+    },
+    {
+      "id": "genre_surf_rock_twang",
+      "slot": "genre_color",
+      "conditions": { "genre": "surf-rock" },
+      "text": "You listen to the snap at the front of the guitar notes and for the twang that ought to stay with you after the set."
+    },
+    {
+      "id": "genre_surf_rock_picking",
+      "slot": "genre_color",
+      "conditions": { "genre": "surf-rock" },
+      "text": "You try to follow the tune through the fast picking. If you can hum it at that speed, there's a side in it."
+    },
+    {
+      "id": "genre_teen_pop_hook",
+      "slot": "genre_color",
+      "conditions": { "genre": "teen-pop" },
+      "text": "You leave a space in the notebook for the title hook and see how soon you can fill it in."
+    },
+    {
+      "id": "genre_teen_pop_middle_eight",
+      "slot": "genre_color",
+      "conditions": { "genre": "teen-pop" },
+      "text": "You listen for a middle eight that gives a dance-floor chorus somewhere to go when it comes back."
+    },
+    {
+      "id": "genre_tex_mex_polka",
+      "slot": "genre_color",
+      "conditions": { "genre": "tex-mex" },
+      "text": "You catch the polka pulse with your heel and listen to how the melody rides over it."
+    },
+    {
+      "id": "genre_tex_mex_conjunto",
+      "slot": "genre_color",
+      "conditions": { "genre": "tex-mex" },
+      "text": "You listen for the push and pull of a conjunto two-step."
+    },
+    {
+      "id": "genre_traditional_pop_phrasing",
+      "slot": "genre_color",
+      "conditions": { "genre": "traditional-pop" },
+      "text": "You listen to where the breath falls in the phrase. A pause in the right place can carry half the lyric."
+    },
+    {
+      "id": "genre_traditional_pop_bridge",
+      "slot": "genre_color",
+      "conditions": { "genre": "traditional-pop" },
+      "text": "You listen for the bridge and how the singer gets back to the title without leaning too hard on it."
+    },
+    {
+      "id": "event_borrowed_pencil",
+      "slot": "room_event",
+      "chance": 0.03,
+      "text": "The stub of your pencil snaps. Someone beside you hands over a fresh one with the room's name printed down the side."
+    },
+    {
+      "id": "event_request_on_receipt",
+      "slot": "room_event",
+      "conditions": { "crowd_reaction": "hooked" },
+      "chance": 0.04,
+      "text": "As chairs scrape back, somebody asks if any of this set is on a 45. You write down the act's name on the back of their receipt."
+    },
+    {
+      "id": "wild_songwriter",
+      "slot": "choice_wildcard",
+      "action_id": "ask_songwriter",
+      "cost_label": "Probe songwriting",
+      "conditions": {
+        "standout_original": true
+      },
+      "text": "Ask who actually wrote '{standout_song}'."
+    },
+    {
+      "id": "wild_poach_sideperson",
+      "slot": "choice_wildcard",
+      "action_id": "talk_band_without_lead",
+      "cost_label": "30m · +1h fatigue",
+      "conditions": {
+        "chemistry": "low"
+      },
+      "text": "Skip {lead}—buy the rest of the band a quiet drink at the back."
+    },
+    {
+      "id": "wild_beat_rival",
+      "slot": "choice_wildcard",
+      "action_id": "intercept_before_rival",
+      "cost_label": "Move fast",
+      "conditions": {
+        "rival_present": true
+      },
+      "text": "Cut across the floor and get to {lead} before {rival_label} does."
+    }
+  ]
+}

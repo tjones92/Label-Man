@@ -326,6 +326,26 @@ public partial class PlayerDesk {
         return true;
     }
 
+    /// <summary>Keep the visit and, if it clears the last requirement, open the act's terms at the same meeting.</summary>
+    internal bool TakeApproachStep(string artistId, ScoutingApproachStepKind kind, out string message, out Prospect terms) {
+        terms = null;
+        if (!TakeApproachStep(artistId, kind, out message)) return false;
+        var artist = ArtistManager.Instance.GetArtist(artistId);
+        if (!AgreedToSign(artist)) return true;
+
+        var prospect = Slate.FirstOrDefault(p => p.Artist?.artistId == artistId);
+        if (prospect == null) {
+            if (!OpenScoutingDossier(artistId, out string reason)) {
+                message += " " + reason;
+                return true;
+            }
+            prospect = Slate.First(p => p.Artist?.artistId == artistId);
+        }
+        if (ApproachToSign(prospect, out string result)) terms = prospect;
+        message += " " + result;
+        return true;
+    }
+
     private static string FamilyLine(SimulatedArtist artist, ScoutingApproachStep s) {
         bool several = s.Who.Contains(" and ");
         return $"Sunday dinner with {s.Who}'s {(several ? "families" : "family")}. They wanted to know what a record company does " +
@@ -349,7 +369,7 @@ public partial class PlayerDesk {
 
     private string AfterStep(SimulatedArtist artist) => NextApproachStep(artist) is { } next
         ? "Still to come: " + StepAsk(next, artist)
-        : $"{artist.stageName} {ActGrammar.Verb(artist, "is", "are")} ready to sign. Sit down on terms from their card.";
+        : $"{artist.stageName} {ActGrammar.Verb(artist, "is", "are")} ready to talk terms.";
 
     /// <summary>A holdout is met when you're in the room with the band: any set you hear on or after the agreed date (or
     /// after the yes, when no date was posted), or a rehearsal you arranged after the yes (PlayerDesk.ScoutingMeetings).

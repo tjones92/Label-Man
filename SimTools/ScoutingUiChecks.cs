@@ -163,9 +163,11 @@ public partial class ScoutingUiChecks : Node {
             }
             Nodes(panel).OfType<Button>().First(b => b.Text == "LISTEN").EmitSignal(Button.SignalName.Pressed); await Frame();
             // Listening stages The Set (signing audit §3.2) over the page; letting the act go files them in the notebook.
+            await Press("LISTEN CLOSELY");
             Check(Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text == "LET THEM GO") && !Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text == "FIND A SET"),
                 "Listening stages the set");
-            while (Nodes(panel).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "LET THEM GO") is { } letGo) { letGo.EmitSignal(Button.SignalName.Pressed); await Frame(); }
+            while (Nodes(panel).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "LET THEM GO") is { } letGo) { letGo.EmitSignal(Button.SignalName.Pressed); await Frame();
+                if (Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text == "LISTEN CLOSELY")) await Press("LISTEN CLOSELY"); }
             await Press("ACT NOTEBOOK");
             if (Nodes(panel).OfType<Button>().FirstOrDefault(b => b.Text.StartsWith("▸  " + desk.Slate.Last().Artist.stageName)) is { } closed) { closed.EmitSignal(Button.SignalName.Pressed); await Frame(); }
             Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + desk.Slate.Last().Artist.stageName)), "Newly heard act is expanded");

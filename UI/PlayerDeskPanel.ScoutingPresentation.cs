@@ -136,13 +136,7 @@ public partial class PlayerDeskPanel {
                 bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
                     ? desk.ListenSceneAppearance(option.BillId, option.EventId, out result)
                     : desk.WaitForSceneAppearance(option.BillId, option.EventId, out result);
-                if (ok && !circuit && option.Playing) {
-                    OpenTheSet(desk);
-                    if (streetPage == StreetPage.Map) {
-                        streetPage = StreetPage.Sets;
-                        streetContentScroll.ScrollVertical = 0;
-                    }
-                }
+                if (ok && !circuit && option.Playing) OpenTheSet(desk);
                 Say(result, ok); if (ok) afterAction?.Invoke(); return ok;
             });
             row.AddChild(action);

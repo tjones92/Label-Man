@@ -119,7 +119,7 @@ public partial class PlayerDeskPanel {
             resume.Pressed += () => { studioArtistId = session.ArtistId; studioSide = 0; Refresh(); };
             content.AddChild(resume); return;
         }
-        if (ownDate) TakesView(session, artist);
+        if (ownDate) { FirstWeekTeaching(desk, FirstWeekPlace.Studio); TakesView(session, artist); }
         else { FirstWeekTeaching(desk, FirstWeekPlace.Studio); BookingSheet(desk, artist); }
     }
 
@@ -996,8 +996,9 @@ public partial class PlayerDeskPanel {
         }
         int passMinutes = PlayerDesk.StudioPassMinutes(cut), rehearsalMinutes = PlayerDesk.StudioRehearsalMinutesFor(cut);
         var pass = Primary($"CUT A TAKE  ·  {passMinutes}m");
-        pass.Disabled = left < passMinutes + held;
-        pass.TooltipText = pass.Disabled ? OutOfTime : cut.Structure == null ? "Roll tape on a full pass. Earlier takes stay safe."
+        bool outOfTape = session.Work != null && PlayerDesk.StudioStockLeft(session) <= 0;
+        pass.Disabled = left < passMinutes + held || outOfTape;
+        pass.TooltipText = outOfTape ? "Buy another reel or record over a take before cutting another." : pass.Disabled ? OutOfTime : cut.Structure == null ? "Roll tape on a full pass. Earlier takes stay safe."
             : $"A {StudioSongStructures.Length(cut.Structure.DurationSeconds)} song: count-in, the pass, rewind and a listen back. Earlier takes stay safe.";
         AddTonightPreview(pass, desk, desk.NowMinute + passMinutes);
         pass.Pressed += () => { bool ok = desk.CutStudioTake(side, out string m); if (ok) studioOpenTakes.Clear(); Say(m, ok); Refresh(); };

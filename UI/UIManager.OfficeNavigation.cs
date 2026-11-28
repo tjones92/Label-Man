@@ -5,7 +5,6 @@ using System.Linq;
 
 public partial class UIManager {
 	private readonly Dictionary<Button, Label> roomLabels = new();
-	private readonly List<Control> officePromptChoices = new();
 	private Button officeDoor, officeBook, officeWait;
 	private PanelContainer officeWaitMenu;
 	private readonly Node3D[] ashtrayWaste = new Node3D[PlayerDesk.AshtrayCapacity];
@@ -103,15 +102,23 @@ public partial class UIManager {
 			officeYearGoal.Text = $"THIS YEAR  ·  {show.What}";
 		}
 		officeWeekGoal.Visible = available && teaching;
-		officeWeekGoal.Text = teaching ? "THIS WEEK  ·  Sign an act and book the first record." : "";
+		officeWeekGoal.Text = teaching ? "FIRST SINGLE  ·  Sign an act and get a record out." : "";
 	}
 
 	private static string OfficeNextAction(PlayerDesk desk) => desk.FirstWeekCurrent switch {
 		FirstWeekStep.Hear => "Click the door and pick a set to hear.",
 		FirstWeekStep.Answer when desk.FirstWeekVisitLater => "There’s time before your appointment. Check today’s sets or wait at the desk.",
 		FirstWeekStep.Answer when desk.FirstWeekVisitToday => "Check the appointment book.",
-		FirstWeekStep.Record when desk.FirstWeekStudioTomorrow => "It’s too late to book today. Turn in at the calendar.",
+		FirstWeekStep.Record or FirstWeekStep.Cut when desk.FirstWeekStudioTomorrow => "It’s too late to book today. Turn in at the calendar.",
 		FirstWeekStep.Record => "Choose Studio at the door to set up your first record.",
+		FirstWeekStep.Cut when desk.FirstWeekStudioOvernight => "Turn in at the calendar. The studio is booked again tomorrow.",
+		FirstWeekStep.Cut when desk.Session != null => "Go back to the studio and print the sides.",
+		FirstWeekStep.Cut => "Choose Studio at the door to cut the flip.",
+		FirstWeekStep.Press or FirstWeekStep.Date when !desk.AtHome => "Drive home before doing the plant paperwork.",
+		FirstWeekStep.Press when desk.FirstWeekPressShort => "Open the books and look at the cash options.",
+		FirstWeekStep.Date when desk.FirstWeekDateTomorrow => "Turn in at the calendar and set the ship date tomorrow.",
+		FirstWeekStep.Release => $"The single ships {desk.FirstWeekSingle?.Date.ToHeadlineString()}. Use the calendar to move ahead.",
+		FirstWeekStep.Assemble or FirstWeekStep.Press or FirstWeekStep.Date => PlayerDesk.FirstWeekTitle(desk.FirstWeekCurrent.Value) + " in the catalog.",
 		_ => PlayerDeskPanel.NextUpHint(desk)
 	};
 
@@ -123,14 +130,18 @@ public partial class UIManager {
 			FirstWeekStep.Answer when desk.FirstWeekVisitToday || desk.FirstWeekVisit is { Minute: null } => officeBook,
 			FirstWeekStep.Answer when desk.FirstWeekNeedsAnotherAct || desk.FirstWeekHearAgainId != null => officeDoor,
 			FirstWeekStep.Answer => calendarButton,
-			FirstWeekStep.Record when desk.FirstWeekStudioTomorrow => calendarButton,
+			FirstWeekStep.Record or FirstWeekStep.Cut when desk.FirstWeekStudioTomorrow => calendarButton,
+			FirstWeekStep.Cut when desk.FirstWeekStudioOvernight => calendarButton,
+			FirstWeekStep.Press or FirstWeekStep.Date when !desk.AtHome => officeDoor,
+			FirstWeekStep.Press when desk.FirstWeekPressShort => deskProps.FirstOrDefault(p => p.Name.ToString().StartsWith("PropBOOKS", StringComparison.Ordinal)),
+			FirstWeekStep.Date when desk.FirstWeekDateTomorrow => calendarButton,
+			FirstWeekStep.Release => calendarButton,
+			FirstWeekStep.Assemble or FirstWeekStep.Press or FirstWeekStep.Date => deskProps.FirstOrDefault(p => p.Name.ToString().StartsWith("PropCATALOG", StringComparison.Ordinal)),
 			_ => officeDoor
 		};
 	}
 
 	internal List<Control> OfficeFirstWeekTargets(PlayerDesk desk) {
-		var choices = officePromptChoices.Where(choice => IsInstanceValid(choice) && choice.IsVisibleInTree()).ToList();
-		if (choices.Count > 0) return choices;
 		return OfficeFirstWeekTarget(desk) is { } target ? new List<Control> { target } : null;
 	}
 
@@ -206,15 +217,12 @@ public partial class UIManager {
 		choices.GetChildren().OfType<Button>().FirstOrDefault(button => !button.Disabled)?.GrabFocus();
 	}
 
-	private void OpenOfficeCalendar() {
-		var modal = PaperModal.Open(this, "THE FLIP CALENDAR");
-		if (PlayerDesk.Instance.Lien is { } lien) {
-			var deadline = lien.PendingDeadline ?? lien.Deadline;
-			modal.AddText($"Sitting opens {deadline.AddDays(-PlayerDesk.LienWindowDays).ToHeadlineString()} · Deadline {deadline.ToHeadlineString()}");
-		}
-		modal.AddButton("SKIP AHEAD…", ShowCalendarPopup);
-		modal.AddButton("END THE DAY", AdvanceOneDayFromDesk, PaperModal.ButtonKind.Primary);
-		modal.AddButton("CLOSE", null);
+	internal Control FirstWeekCalendarTarget(PlayerDesk desk) {
+		if (desk.FirstWeekCurrent != FirstWeekStep.Release && !desk.FirstWeekDateTomorrow) return null;
+		if (morningPaper?.Visible == true) return morningPaper.FindChild("FoldThePaper", true, false) as Control;
+		if (calendarPopup?.Visible == true && calendarPopup.GetNode<Button>("Margin/Options/NextEvent") is { Disabled: false } next)
+			return next;
+		return null;
 	}
 
 	internal void ShowOfficeTimeMessage(string message) => ShowAnnouncement(message);

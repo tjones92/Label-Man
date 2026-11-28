@@ -8,14 +8,16 @@ using System.Linq;
 // The moment you hear an act, staged as a short scene instead of a toast: the room, the songs, what each voice made of
 // it, and the act coming off the stand. Presentation only. Every line wraps evidence the notebook already holds (the
 // fogged set reads, the room's blind spots, the crowd you saw, the ask they've stated, rival word that has reached
-// you); nothing is computed that the sim doesn't already know, and nothing is saved.
+// you). Genre phrasing and occasional room incidents add atmosphere without changing or saving simulation state.
 //
 // Voices follow the Rolodex rule: under 3 a voice says nothing, 3 a hint, 4 a clear read, 5 a deep one. A read is only
 // as good as the fog draw behind it, so a weak scout's Ear can be confidently wrong. While the first-week card is on its
 // first two lines, the Ear also speaks a teaching verdict at any instinct (audit §5 decision 2), in its own register.
 // ============================================================================================
 public sealed class SetScene {
-	public string ArtistId, ArtistName, RoomName;
+	public string ArtistId, ArtistName, RoomName, Crowd, SetSnapshot, TalkPrompt;
+	public int Day, StartMinute, EndMinute;
+	public float? Admission;
 	/// <summary>Narration: the room as you saw it.</summary>
 	public List<string> Room = new();
 	/// <summary>The songs you heard, in order: (title, their own). Empty when you came in partway.</summary>
@@ -42,11 +44,22 @@ public partial class PlayerDesk {
 		var scene = new SetScene {
 			ArtistId = artistId, ArtistName = dossier.ArtistName ?? act?.stageName ?? "The act",
 			RoomName = last.RoomName ?? SceneRoomCatalog.Get(last.RoomId)?.Name ?? "the room",
+			Day = last.OccurredDay ?? last.AcquiredDay, StartMinute = last.StartMinute, EndMinute = last.EndMinute, Admission = last.BillAdmissionQuote,
 		};
 
 		// ── The room ──
 		int? present = last.SetPresent ?? last.BillAttendance;
 		int capacity = last.BillCapacity;
+		string crowdSize = present.HasValue && capacity > 0
+			? present.Value / (float)capacity >= .85f ? "packed"
+			: present.Value / (float)capacity >= .35f ? "half" : "sparse"
+			: null;
+		scene.Crowd = crowdSize switch {
+			"packed" => "Packed", "half" => "About half full", "sparse" => "Sparse crowd", _ => null
+		};
+		var facts = new Dictionary<string, string> { ["crowd"] = crowdSize };
+		var names = new Dictionary<string, string> { ["act"] = scene.ArtistName, ["venue"] = scene.RoomName };
+		string Line(string slot) => GigLines.Pick(key, slot, facts, names);
 		string kindName = kind.HasValue ? SceneRoomCharacter.KindName(kind.Value) : null;
 		string crowd = present is int p && capacity > 0
 			? p <= 15 ? V("thin", $"{Phrase.Capitalize(Phrase.Number(p))} people in a room that holds {capacity}.", $"{Phrase.Capitalize(Phrase.Number(p))} people, and room for {capacity}.")
@@ -57,7 +70,7 @@ public partial class PlayerDesk {
 			: null;
 		// "Woodward Coffeehouse, a coffeehouse" says it twice: the kind only when the name doesn't.
 		bool named = kindName == null || scene.RoomName.Contains(kindName, StringComparison.OrdinalIgnoreCase);
-		scene.Room.Add(($"{scene.RoomName}{(named ? "" : ", a " + kindName)}. " + (crowd ?? "")).TrimEnd());
+		scene.Room.Add((kind != SceneRoomKind.TradeEvent ? Line("room") : null) ?? ($"{scene.RoomName}{(named ? "" : ", a " + kindName)}. " + (crowd ?? "")).TrimEnd());
 		if (!f.FullCoverage) scene.Room.Add(f.SetSongs > 0 ? $"You came in partway through their {Phrase.Number(f.SetSongs)}-song set." : "You came in partway through their set.");
 
 		// ── The songs ──
@@ -86,11 +99,37 @@ public partial class PlayerDesk {
 		var best = axes.OrderByDescending(a => a.Value).First();
 		var worst = axes.OrderBy(a => a.Value).First();
 		bool spread = best.Value - worst.Value >= .08f;
-		string earHint = mean >= ScoutingImpressionPhrases.High
+		string AxisKey(ScoutingQuestion axis) => axis switch {
+			ScoutingQuestion.Vocals => "vocals", ScoutingQuestion.Ensemble when !f.Solo => "band",
+			ScoutingQuestion.Material => "songs", ScoutingQuestion.Stage => "stage", _ => null
+		};
+		facts["best_stat"] = spread ? AxisKey(best.Q) : null;
+		facts["worst_stat"] = spread ? AxisKey(worst.Q) : null;
+		facts["overall"] = mean >= ScoutingImpressionPhrases.High ? "strong" : mean >= ScoutingImpressionPhrases.Middle ? "mid" : "weak";
+		facts["crowd_reaction"] = f.Stayed is float stayedShare
+			? stayedShare >= .75f ? "hooked" : stayedShare >= .5f ? "warm" : "cold" : null;
+		facts["draw"] = f.Arrivals is >= 8 and < 20 && f.Stayed is >= .5f and < .75f ? "budding" : null;
+		if (act != null) {
+			var genre = GenreCatalog.MapLegacy(act.primaryGenre, LocalSceneRoomService.Date(scene.Day).year);
+			if (GenreCatalog.TryGet(genre, out var profile)) facts["genre"] = profile.Id;
+		}
+		facts["standout_original"] = f.FullCoverage && f.Material >= ScoutingImpressionPhrases.High && f.OriginalTitle != null ? "true" : null;
+		names["standout_song"] = f.OriginalTitle;
+		names["lead"] = f.LeadSinger;
+		names["instrument"] = f.SoloInstrument;
+		if (f.FullCoverage && last.Set?.FirstOrDefault() is { Title.Length: > 0 } first) {
+			names["first_song"] = first.Title;
+			facts["has_originals"] = (f.Originals > 0).ToString();
+			facts["first_original"] = first.Original.ToString();
+			scene.SetSnapshot = Line("set_snapshot");
+		}
+		if (Line("genre_color") is { } genreColor)
+			scene.SetSnapshot = scene.SetSnapshot == null ? genreColor : scene.SetSnapshot + "\n\n" + genreColor;
+		string earHint = Line("the_ear") ?? (mean >= ScoutingImpressionPhrases.High
 			? V("ear-good", "There's something real up there. I don't say that often.", "That's an act. Not a bar band: an act.", "I'd go back to hear that, and I don't go back for many.")
 			: mean >= ScoutingImpressionPhrases.Middle
 			? V("ear-mid", "Competent. Every bar in town has competent.", "Nothing wrong with them, and nothing that stops you either.", "Professional enough. Professional isn't the same as good.")
-			: V("ear-poor", "Not ready. Maybe not ever.", "They're not there yet, and I couldn't tell you they're on the way.", "Amateurs. Some amateurs get better.");
+			: V("ear-poor", "Not ready. Maybe not ever.", "They're not there yet, and I couldn't tell you they're on the way.", "Amateurs. Some amateurs get better."));
 		// "the songs were", "the band was".
 		string Was(string axis) => axis == "the songs" ? "were" : "was";
 		string Is(string axis) => axis == "the songs" ? "are" : "is";
@@ -129,7 +168,8 @@ public partial class PlayerDesk {
 				: arrived < 20 ? V("st-dozen", "A dozen or so walked in for their set. That's the start of a following.", "About a dozen came in for them. Small, but it's theirs.")
 				: V("st-many", "A good crowd came in for them. Somebody in this town already knows their name.", "People came in for this act. That's a following, not a night out.");
 			string calls = (f.Requests ?? 0) > 0 ? " " + V("st-calls", "And they were calling out for songs by name. Nobody does that for a house band.", "People shouted for their songs by name.") : "";
-			Read(ExecutiveVoice.Street, held, held + " " + came, held + " " + came + calls);
+			string streetColor = Line("the_street");
+			Read(ExecutiveVoice.Street, held, held + " " + came, held + " " + came + calls + (streetColor == null ? "" : " " + streetColor));
 		}
 
 		// THE SUIT: the accountant. Only when there's a figure to read: their ask, their paper, your roster.
@@ -181,7 +221,13 @@ public partial class PlayerDesk {
 		var meeting = PreviewScoutingBusinessMeeting(artistId);
 		string off = f.Solo ? $"{scene.ArtistName} comes off the stand." : $"{scene.ArtistName} come off the stand.";
 		if (meeting?.SourceName is { Length: > 0 } speaker && speaker != scene.ArtistName) off += $" {speaker} does the talking for them.";
-		scene.OffStage = off;
+		names["lead"] = meeting?.SourceName ?? f.LeadSinger ?? (f.Solo ? scene.ArtistName : null);
+		names["npc"] = AfterSetDrinkCompanion(artistId, AfterSetCompanion.Booker);
+		facts["npc_present"] = names["npc"] != null ? "true" : null;
+		scene.OffStage = (!f.Solo && kind != SceneRoomKind.TradeEvent ? Line("room_hook") : null) ?? off;
+		if (paying && present > 0 && Line("room_event") is { } roomEvent)
+			scene.OffStage += "\n\n" + roomEvent;
+		scene.TalkPrompt = Line("choice_talk");
 		return scene;
 	}
 

@@ -294,7 +294,7 @@ public partial class PlayerDesk {
 				answer = message;
 				ok = ok || !string.IsNullOrEmpty(message);
 				break;
-			case TalkVerb.Step: ok = TakeApproachStep(artistId, option.Step, out message); answer = message; break;
+			case TalkVerb.Step: ok = TakeApproachStep(artistId, option.Step, out message, out terms); answer = message; break;
 			case TalkVerb.BookFirst:
 			case TalkVerb.BookSecond: ok = BookApproachStep(artistId, option.Step, verb == TalkVerb.BookFirst ? 0 : 1, out message); answer = message; break;
 			case TalkVerb.History: ok = AskScoutingBusinessHistory(artistId, PreviewScoutingBusinessMeeting(artistId)?.QuoteId, out message); answer = message; break;

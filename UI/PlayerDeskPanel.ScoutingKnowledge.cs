@@ -324,7 +324,11 @@ public partial class PlayerDeskPanel {
             : visit ? $"In their town, on or after {ShortDay(step.Day ?? 0)}. Takes {(step.Kind == ScoutingApproachStepKind.Parents ? PlayerDesk.FamilyVisitHours : PlayerDesk.ManagerSitDownHours)}h."
             : terms ? "Open the contract: their ask, your offer, and what it costs the label."
             : "Ask if they'd hear an offer, arrange a rehearsal or a demo, or get a number to call.";
-        if (visit) offer.Pressed += () => { bool ok = desk.TakeApproachStep(artist.artistId, step.Kind, out string result); Say(result, ok); Refresh(); };
+        if (visit) offer.Pressed += () => {
+            bool ok = desk.TakeApproachStep(artist.artistId, step.Kind, out string result, out var visitTerms);
+            if (visitTerms != null) OpenVisitTerms(desk, visitTerms);
+            else { Say(result, ok); Refresh(); }
+        };
         else offer.Pressed += () => PressScoutingPrimary(desk, dossier, terms);
         bar.AddChild(offer);
         string hint;
