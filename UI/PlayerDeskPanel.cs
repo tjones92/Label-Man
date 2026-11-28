@@ -2735,10 +2735,10 @@ public partial class PlayerDeskPanel : Control {
 		var goOut = Btn("OPEN CITY MAP");
 		goOut.Pressed += () => UIManager.Instance?.FromFilesToDoor();
 		content.AddChild(goOut);
+		DrawTownShopSummary(desk);
 		List<(string RecordId, string Title, int PromoOnHand)> promoOnHand = desk.PromoSinglesOnHand().ToList();
 
 		// --- THE MAILING (office only, directive §5): the only way to touch a market you can't drive to ---
-		DrawTownShopSummary(desk);
 		if (promoOnHand.Count > 0 && stageMail) {
 			SectionHeading("mailing", "THE MAILING", false,
 				$"Office only. {ActionCosts.Planning}h for up to {PlayerDesk.MailingFreePieces} pieces, plus an hour per further " +

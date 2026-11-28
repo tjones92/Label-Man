@@ -218,6 +218,15 @@ public partial class PlayerDeskPanel {
 			foreach (Node c in n.GetChildren()) Walk(c);
 		}
 		Walk(this);
+		if (streetPage == StreetPage.Map && step == FirstWeekStep.Record) {
+			var studio = buttons.FirstOrDefault(b => b.HasMeta("artist_id") && FindParentOfType<PaperModal>(b) != null)
+				?? buttons.FirstOrDefault(b => b.Text is "TAKE INTO STUDIO" or "RETURN TO STUDIO")
+				?? buttons.FirstOrDefault(b => b.Name == "TownPin_" + StudioPin);
+			if (desk.FirstWeekStudioTomorrow)
+				studio = buttons.FirstOrDefault(b => b.Text == "END THE DAY");
+			GlowOn(studio);
+			return;
+		}
 		// A modal (the act's conversation, the contract sheet) sits over the page: its buttons come first.
 		var modal = buttons.Where(b => FindParentOfType<PaperModal>(b) != null).ToList();
 		// The set the player chose and walked to: its LISTEN is the next thing to press.
@@ -247,15 +256,6 @@ public partial class PlayerDeskPanel {
 			// Too late for a date today: back to the desk, where the day ends.
 			if (desk.FirstWeekStudioTomorrow && modal.Count == 0) {
 				GlowOn(buttons.FirstOrDefault(b => b.Text.StartsWith("‹ BACK", System.StringComparison.Ordinal)));
-		if (streetPage == StreetPage.Map && (step is FirstWeekStep.Record or FirstWeekStep.Cut)) {
-			var studio = buttons.FirstOrDefault(b => b.HasMeta("artist_id") && FindParentOfType<PaperModal>(b) != null)
-				?? buttons.FirstOrDefault(b => b.Text is "TAKE INTO STUDIO" or "RETURN TO STUDIO")
-				?? buttons.FirstOrDefault(b => b.Name == "TownPin_" + StudioPin);
-			if (desk.FirstWeekStudioTomorrow)
-				studio = buttons.FirstOrDefault(b => b.Text == "END THE DAY");
-			GlowOn(studio);
-			return;
-		}
 				return;
 			}
 			static bool Refused(Button b) => b.HasMeta("first_week_refused") && b.GetMeta("first_week_refused").AsBool();

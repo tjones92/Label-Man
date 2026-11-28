@@ -143,6 +143,7 @@ public partial class UIManager {
 	internal void OpenOfficeStudio() {
 		var desk = PlayerDesk.Instance;
 		if (desk.Session is { } session) { OpenStudio(session.ArtistId); return; }
+		if (desk.ActiveStudioTrip is { } trip && trip.CityId == desk.CurrentCityId) { OpenStudio(trip.ArtistId); return; }
 		var acts = desk.Roster.ToList();
 		if (acts.Count == 1) { OpenStudio(acts[0].artistId); return; }
 		var modal = PaperModal.Open(deskPanel, "WHO'S GOING INTO THE STUDIO?");
@@ -150,6 +151,7 @@ public partial class UIManager {
 			var choice = new Button { Text = act.stageName, Alignment = HorizontalAlignment.Left };
 			choice.Pressed += () => { modal.Close(); OpenStudio(act.artistId); };
 			modal.Body.AddChild(choice);
+			choice.SetMeta("artist_id", act.artistId);
 		}
 		modal.AddButton("STAY HERE", null);
 	}
@@ -157,14 +159,12 @@ public partial class UIManager {
 	private void OpenDoorDestination(Action open) {
 		open();
 		isUIOpen = true;
-		if (desk.ActiveStudioTrip is { } trip && trip.CityId == desk.CurrentCityId) { OpenStudio(trip.ArtistId); return; }
 		UpdateMainHud();
 	}
 
 	internal void FromFilesToDoor() {
 		OpenDoorDestination(() => deskPanel.OpenCityMap());
 	}
-			choice.SetMeta("artist_id", act.artistId);
 
 	private void OpenOfficePhone() {
 		if (PlayerDesk.Instance?.Calling == PlayerDesk.CallerAt.Phone) PickUpFromTheDesk();
