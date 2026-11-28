@@ -154,13 +154,21 @@ public partial class PlayerDesk {
                 s.Day = s.Offered[0].Day; s.Minute = null;
                 string times = $"{OfferedText(s)}. Pick one from {a.ArtistName}'s card.";
                 Note(archetype switch {
-                    ManagerArchetype.LocalHustler => $"{s.Who} waited at {place} and you never came. A note under the door, no hard feelings: {he}'ll see you {times}",
-                    ManagerArchetype.Shark => $"{s.Who} waited at {place} and you never came. A note under the door: \"You owe me an afternoon. It'll be on the bill.\" {He}'ll see you {times}",
-                    ManagerArchetype.Svengali => $"{s.Who} waited at {place} and you never came. {He} took it personally. A short note under the door: {he}'ll see you {times}",
+                    ManagerArchetype.LocalHustler => $"{s.Who} waited at {place} and you never came. A note in the door, no hard feelings: {he}'ll see you {times}",
+                    ManagerArchetype.Shark => $"{s.Who} waited at {place} and you never came. A note in the door: \"You owe me an afternoon. It'll be on the bill.\" {He}'ll see you {times}",
+                    ManagerArchetype.Svengali => $"{s.Who} waited at {place} and you never came. {He} took it personally. A short note in the door: {he}'ll see you {times}",
                     ManagerArchetype.Visionary when s.Missed >= 2 => $"{s.Who} waited at {place} and you never came, again. {He}'s running out of patience with you. {He}'ll see you {times}",
-                    ManagerArchetype.Visionary => $"{s.Who} waited at {place} and you never came. The note under the door is cooler than {his(s)} last: {he}'ll see you {times}",
-                    _ => $"{s.Who} waited at {place} and you never came. A note under the door: {he}'ll see you {times}"
+                    ManagerArchetype.Visionary => $"{s.Who} waited at {place} and you never came. The note in the door is cooler than {his(s)} last: {he}'ll see you {times}",
+                    _ => $"{s.Who} waited at {place} and you never came. A note in the door: {he}'ll see you {times}"
                 });
+                // The note itself, tucked in the door until he reads it (PlayerDesk.Callers).
+                LeaveDoorNote(s.Who, (archetype switch {
+                    ManagerArchetype.LocalHustler => "Waited for you. No hard feelings. ",
+                    ManagerArchetype.Shark => "You owe me an afternoon. It'll be on the bill. ",
+                    ManagerArchetype.Svengali => "I waited. ",
+                    ManagerArchetype.Visionary when s.Missed >= 2 => "Again. ",
+                    _ => "Waited for you. "
+                }) + $"I can see you {OfferedText(s)}. About {a.ArtistName}.", a.ArtistId);
             }
         }
     }

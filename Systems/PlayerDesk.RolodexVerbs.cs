@@ -539,7 +539,7 @@ public partial class PlayerDesk : Node {
 		}
 
 		if (counter != CallCounter.PressIt && TimeManager.Instance?.CanAffordMinutes(CounterMinutes) == true)
-			SpendMinutes(CounterMinutes);
+			DeskSpendMinutes(CounterMinutes);
 
 		CallOption played = CounterOptions(call).FirstOrDefault(o => o.counter == counter);
 		if (played != null) call.Say(RolodexSceneBeat.ActiveCheckPrompt, played.label, isPlayer: true);
@@ -640,7 +640,7 @@ public partial class PlayerDesk : Node {
 			RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen => CourtesyCallMinutes,
 			_ => 10,
 		};
-		if (TimeManager.Instance?.CanAffordMinutes(minutes) == true) { SpendMinutes(minutes); call.minutesSpent += minutes; }
+		if (TimeManager.Instance?.CanAffordMinutes(minutes) == true) { DeskSpendMinutes(minutes); call.minutesSpent += minutes; }
 
 		// Invariant 2 (directive §2): nothing gets played that nobody has been sent. Whatever counter
 		// was played, a jock who has never been serviced with this record cannot add it -- the roll

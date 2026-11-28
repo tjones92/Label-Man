@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Godot;
 
 // ============================================================================================
 // THE FIRST WEEK (SimTools/OnboardingTutorialDirective.md §3.2, T3).
@@ -30,10 +31,44 @@ public sealed class FirstWeekSaveData {
 	public bool Done { get; set; }
 	/// <summary>A terms discussion has been opened with an act (the contract sheet was on the table).</summary>
 	public bool TermsOpened { get; set; }
+	public bool OvertimeLesson { get; set; }
+	public bool WornReadLesson { get; set; }
+	public bool LongWaitLesson { get; set; }
 }
 
 public partial class PlayerDesk {
 	private FirstWeekSaveData firstWeek = new();
+	private string queuedTimeLesson;
+
+	private void TeachTime(string line) {
+		if (queuedTimeLesson == null) Callable.From(() => {
+			string lesson = queuedTimeLesson;
+			queuedTimeLesson = null;
+			if (lesson != null) Announcement?.Invoke(lesson);
+		}).CallDeferred();
+		queuedTimeLesson = queuedTimeLesson == null ? line : queuedTimeLesson + "\n" + line;
+	}
+
+	private void TeachFirstOvertime(int fromMinute, int toMinute) {
+		int regularEnd = TimeManager.Instance.RegularWorkdayEndHour * 60;
+		if (!FirstWeekActive || firstWeek.OvertimeLesson || TimeManager.Instance.CurrentDate != GameDate.StartDate ||
+			FatigueState != LabelManFatigueState.Worn || fromMinute > regularEnd || toMinute <= regularEnd) return;
+		firstWeek.OvertimeLesson = true;
+		TeachTime("THE FIXER — You're still running on last night. Go home at six and tomorrow you'll have a head on you.\nStay out and you'll be paying for New Year's all week.");
+	}
+
+	private void TeachFirstWornRead() {
+		if (!FirstWeekActive || firstWeek.WornReadLesson || FatigueState != LabelManFatigueState.Worn) return;
+		firstWeek.WornReadLesson = true;
+		TeachTime("THE EAR — Half of what you think you heard is the hangover. Hear them again when you can see straight.");
+	}
+
+	private void TeachFirstLongWait(int minutes) {
+		if (!FirstWeekActive || firstWeek.LongWaitLesson || minutes < 180) return;
+		firstWeek.LongWaitLesson = true;
+		string voice = FatigueQuietVoice == ExecutiveVoice.Suit ? "THE FIXER" : "THE SUIT";
+		TeachTime($"{voice} — That's three hours gone. That's a short studio date's worth of time.");
+	}
 
 	public static readonly FirstWeekStep[] FirstWeekSteps = System.Enum.GetValues<FirstWeekStep>();
 
@@ -203,6 +238,8 @@ public partial class PlayerDesk {
 			return (ExecutiveVoice.Suit, "Time to go. Early is on time.");
 		if (target == "END THE DAY" && FirstWeekVisit is { } visit && Booked(visit))
 			return (ExecutiveVoice.Fixer, "It's in the book. Nothing to do about it till the day. Go home.");
+		if (step == FirstWeekStep.Sign && FatigueSigningBlock != null && target is "NOT NOW" or "END THE CONVERSATION" or "END THE DAY")
+			return FatigueTableTomorrow();
 		if (several || target is "GO & WAIT")
 			return (ExecutiveVoice.Street, step == FirstWeekStep.Hear && !scoutingKnowledge.Dossiers.Any(d => HasScoutingEvidence(d.ArtistId))
 				? "You have no clue how this all works, do you? We need to sign a fuckin' act! Pick a room. Any of them."
@@ -306,7 +343,8 @@ public partial class PlayerDesk {
 			// Opening the table ticks "put a deal on the table", so the sheet is where both lines are taught.
 			case FirstWeekPlace.TheTable when step is FirstWeekStep.Terms or FirstWeekStep.Sign:
 				Line(FirstWeekStep.Terms); Line(FirstWeekStep.Sign);
-				if (FirstWeekTableTomorrow) lines.Add((ExecutiveVoice.Fixer, StrongVoice(ExecutiveVoice.Fixer)
+				if (FatigueSigningBlock != null) lines.Add(FatigueTableTomorrow());
+				else if (FirstWeekTableTomorrow) lines.Add((ExecutiveVoice.Fixer, StrongVoice(ExecutiveVoice.Fixer)
 					? $"Not tonight. Sitting down on paper is a {NegotiationRoundHours}-hour meeting and there isn't that left in the day. They'll keep: say good night, end the day, and come back to the table in the morning."
 					: "Too late for a meeting. End the day and come back in the morning."));
 				break;
@@ -324,9 +362,13 @@ public partial class PlayerDesk {
 	public bool FirstWeekStudioTomorrow => FirstWeekCurrent == FirstWeekStep.Record && pendingSession == null
 		&& TimeManager.Instance is { } time && time.MinutesRemainingWithOvertime < MinSessionHours * 60;
 
-	/// <summary>The deal line, but too late in the day for the meeting that puts the paper down: the work is tomorrow's.</summary>
+	private (ExecutiveVoice Voice, string Text) FatigueTableTomorrow() =>
+		(FatigueQuietVoice == ExecutiveVoice.Suit ? ExecutiveVoice.Fixer : ExecutiveVoice.Suit,
+		 "Put the paper down and get some sleep. You can come back to it in the morning.");
+
+	/// <summary>The deal line when fatigue or the time left pushes the meeting to tomorrow.</summary>
 	public bool FirstWeekTableTomorrow => FirstWeekCurrent == FirstWeekStep.Sign
-		&& TimeManager.Instance is { } time && !time.CanAffordHours(NegotiationRoundHours, allowOvertime: true);
+		&& (FatigueSigningBlock != null || TimeManager.Instance is { } time && !time.CanAffordHours(NegotiationRoundHours, allowOvertime: true));
 
 	/// <summary>The first booking, taught on the sheet: which songs (the Ear), and that the rest of the sheet is fine as it
 	/// stands for a first single (the Suit). The sheet's defaults are the town's first room and the standard hours.</summary>
@@ -463,10 +505,17 @@ public partial class PlayerDesk {
 	}
 
 	/// <summary>Restore: the card's flags, or a fresh card for an older save.</summary>
-	private void RestoreFirstWeek(FirstWeekSaveData saved) =>
-		firstWeek = saved == null ? new FirstWeekSaveData() : new FirstWeekSaveData { Off = saved.Off, Done = saved.Done, TermsOpened = saved.TermsOpened };
+	private void RestoreFirstWeek(FirstWeekSaveData saved) {
+		queuedTimeLesson = null;
+		firstWeek = CopyFirstWeek(saved);
+	}
 
-	private FirstWeekSaveData CaptureFirstWeek() => new() { Off = firstWeek.Off, Done = firstWeek.Done, TermsOpened = firstWeek.TermsOpened };
+	private FirstWeekSaveData CaptureFirstWeek() => CopyFirstWeek(firstWeek);
+
+	private static FirstWeekSaveData CopyFirstWeek(FirstWeekSaveData saved) => saved == null ? new() : new() {
+		Off = saved.Off, Done = saved.Done, TermsOpened = saved.TermsOpened,
+		OvertimeLesson = saved.OvertimeLesson, WornReadLesson = saved.WornReadLesson, LongWaitLesson = saved.LongWaitLesson
+	};
 
 	// ── checks ─────────────────────────────────────────────────────────────────────────────────────
 	internal FirstWeekSaveData CaptureFirstWeekForChecks() => CaptureFirstWeek();

@@ -26,6 +26,7 @@ public sealed class SetAudience {
     public int Requests { get; set; }
 }
 public enum ScoutingEvidenceKind { Performance, BookerClaim, LegacyImpression, PublicReport, ListenerOpinion, ActBusinessClaim, BusinessStatement, MeetingStatement, RehearsalSample, DemoSample, RivalInterest }
+public enum AfterSetCompanion { Booker, Act }
 public enum ScoutingBusinessStatementKind { OpeningAsk, Counter, Objection, Declined, SteppedBack, Agreement }
 // Only stated contractual fields, never utility, reservation, posture or patience.
 public sealed class ScoutingStatedTerms {
@@ -64,6 +65,8 @@ public sealed class ScoutingObservation {
     public int AcquiredDay { get; set; }
     // Unknown for older observations; never infer a historical time on load.
     public int? AcquiredMinute { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public AfterSetCompanion? AfterSetDrink { get; set; }
     public int StartMinute { get; set; }
     public int EndMinute { get; set; }
     public float Coverage { get; set; }

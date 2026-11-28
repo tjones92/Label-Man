@@ -1,8 +1,8 @@
 # Onboarding and the New-Player Tutorial: playtest notes and plan
 
-Status: sketch for discussion (2026-11-25). Nothing here is built. It comes from one scripted playthrough of the real
-UI, read against the new-player notes below. Read with `SimTools/LabelManInnerLifeDirective.md` §3.1–3.6 (the
-opening and the holders) and §6 (the empty early game).
+The original observations come from a scripted playthrough on 2026-11-25. The phase table and implementation
+notes in §4 record what was implemented from that sketch. Read with `SimTools/LabelManInnerLifeDirective.md` §3.1–3.6
+(the opening and the holders) and §6 (the empty early game).
 
 ## 0. What we were told
 
@@ -246,9 +246,18 @@ tutorial card, and today's from `NextUpStep`. Nothing new is computed; it's thre
 | **T0 copy** | §2F fixes 1–6, 8, 9 ("Held by" filled in per decision 1); NEXT UP's day-one line on a Sawyer run | UI strings, `NextUpStep` | Re-run the playtest driver to a first signing |
 | **T1 holder scene** (built) | §3.1 Sawyer first, then the other four; the mystery reframed as *why* | `PlayerDesk.FirstMorning.cs`, `PlayerDeskPanel.FirstMorning.cs`, Morning After order | UI driver screenshots per holder |
 | **T3 first-week card** (built) | §3.2 through an act signed and a first record set up (decision 3); each voice teaches its task (decision 2); highlight, off toggle | a tutorial state on `PlayerDesk` (player-only, saved), a card widget | Playtest metric below |
-| **T4 time** | §3.4 hour strip, one-unit costs, money clock; fatigue hooks once that mechanic exists | desk header, action buttons | Playtest |
-| **T5 appointment book** (steps 1–2 built) | §4c: the book, signing appointments, times to pick, missing one; then rapport, calls that ring once, the secretary | `PlayerDesk.AppointmentBook.cs`, The Talk, THE BOOK by the clock | `AppointmentBookChecks`, `FirstWeekUiChecks --manager` |
-| **T2 office menu (last)** | §3.3 and decision 4: door, calendar, drawer hotspots; objects as the way in, tabs as the way across | `UIManager.BuildDeskProps`, a small door card | UI driver |
+| **T4 time** (F3 built) | §3.4 hour strip, action time previews and cost labels, money clock, first long wait | desk header, action buttons, flip calendar | [Fatigue directive §6.4](LabelManFatigueDirective.md#64-f3-desk-clock) |
+| **T5 appointment book** (steps 1–3 built, and the callers) | §4c: the book, signing appointments, times to pick, missing one; then rapport, calls that ring once, the secretary | `PlayerDesk.AppointmentBook.cs`, The Talk, THE BOOK by the clock | `AppointmentBookChecks`, `FirstWeekUiChecks --manager` |
+| **T2 office menu** | The room opens physical errands and time controls. Four folder tabs cover roster, catalog, distribution, and books. | `UIManager.OfficeNavigation.cs`, `PlayerDeskPanel.OfficeNavigation.cs` | `FirstWeekUiChecks`, `RecordShopChecks` |
+
+**T2 implementation.** GET TO WORK returns to the room. The door's card offers the sets still reachable today,
+the set finder and notebook, shops and travel, the band room, and the studio. The phone handles callers and
+contacts. Room labels appear on hover. The diary opens appointments, the ashtray opens desk waits over the prop,
+and the ashtray fills as he waits and clears at dawn. The calendar offers an explicit end-day
+or skip choice, and the drawer opens the lien. The room note puts the year, week and next action together.
+The four file tabs remain available inside the open folder. Books contains Finances and Ledger. Distribution
+remembers the title selected for the shops, where the existing placement rules determine quantities and terms.
+The first-week and field screens retain their contextual time controls so those flows can still be completed there.
 
 **T0 built (2026-11-25), uncommitted.** Re-played through the real UI on a fresh Sawyer founding:
 - The Morning After's letter names the holder whenever the run already identifies him (Sawyer from day one), and a
@@ -512,6 +521,9 @@ should fear that the important DJ call came while he was out.
 
 #### The secretary (office expansion, about 1961)
 
+*Moved out of T5 (author, 2026-11-27):* the secretary waits for a **staff mechanic expansion**, designed with the other office
+hires, not as a one-off hire here. What follows stays as her brief for that expansion.
+
 Hiring her (a weekly wage, *provisional*, period clerical pay) turns each gap above into a strength:
 
 - **Presence.** She answers every call and takes the message, so the pink slips come back, and now they're earned. A
@@ -563,7 +575,7 @@ airplay through the existing booker and jock regard (*later*).
 2. Manager rapport: store, read and move it, and apply the miss costs above.
 3. Calls that ring at an hour, and the answering service taken out. This is the biggest change to the selling loop, so
    it gets an empty-day and sales comparison on the player bots (`OpeningCashLockRunner`) before and after.
-4. The secretary as a hire in the OFFICE.
+4. ~~The secretary as a hire in the OFFICE.~~ Deferred to the staff mechanic expansion (author, 2026-11-27).
 
 Inertness for all four: player-side and saved, with headless AI audits byte-identical. Player-bot runs will move,
 because what a player sells changes.
@@ -643,6 +655,83 @@ because what a player sells changes.
   card's Fixer read; the second act's shark shops it after two misses and is a round shorter; the key is the person; the
   archetype rules. `FirstWeekUiChecks --manager` now checks that a visit later today never glows GO THERE or THE BOOK,
   that a glowing set is over before it's time to leave, and that the hours before the visit were left free.
+
+**T5 step 3 built (2026-11-27): the phone rings once** (`PlayerDesk.Phone.cs`):
+- **Calls ring at an hour.** The weekly roll (sold out, requests, station added, one-stop test), a DJ's acetate word reaching
+  counters (pre-orders) and a jock calling back about a mailing no longer land at once. Each is put on the line for a day
+  from tomorrow to six days out (never a Sunday), at a time keyed on the caller, the record and the week (a hash, no RNG
+  draw). A shop tries twice, between 9 and noon and between 1 and 5. A station-added call and a jock ring once.
+- **In the office** means at home, in time spent at the desk: WAIT, the Rolodex phone, packing a mailing, trade
+  paperwork, a scheduling call by phone (`AtTheDesk()` around those spends). Any other clock move is time out. Time nobody
+  spent (the rest of a day he ended, a skipped day) passes wherever he is, so a day skipped at home is a day by the phone.
+  Tries are settled on every clock move and at dawn for what was left of yesterday.
+- **Answered:** the call becomes the open demand it always was (THE PHONE, the stop row, the ledger, a skip stop). A
+  jock goes in the Rolodex. **Missed:** gone. A stranger leaves nothing. A known account remembers, and says so once
+  the next time he's across their counter ("I tried you Tuesday about 'X'. Nobody picked up, so I filled the hole with
+  something else."), within six weeks. A missed jock is never mentioned. A COD pass reopens only on an answered call.
+- **The answering service is gone** (author: no answering service, ever): the $6/mo hire, its overhead line and the OFFICE
+  button. An old save's flag is read and ignored. The pink slips no longer carry shops' calls; they're CALL BACK slips for
+  Rolodex call-backs only. THE PHONE says nobody picks up when you're out.
+- **The book's WAITING ON** lists what he set in motion, with no times: mailings out, pre-order calls a jock promised,
+  known accounts running low on a title, acts thinking it over. The first record out gets one Fixer line: the phone's
+  worth money now, and nobody picks up while you're out.
+- The runner unlock ("calls from two towns the same week") now counts calls as they're answered.
+- **Measured on the player bots** (`OpeningCashLockRunner`, seed 1001, busy policy, 4 archetypes × Detroit/New York/Memphis,
+  182 days; `SimLogs/ring-before-*`, `ring-after-*`). **The bot first had to learn to sign:** since the signing steps
+  landed, every yes came with a Sunday dinner or a sit-down and the bot treated it as a no, so all 12 runs ended unsigned.
+  It now books the first offered time and keeps the visit, and lets a yes that waits on a holdout go (`KeepAgreedVisits`).
+  Both sets use that bot. The 4 Memphis runs still never sign. Of the 8 that sell: 301 calls answered, 53 missed (15%).
+  Units sold fell in 7 of 8 (median of all 12: 298 → 276), cash fell in 6 of 8 (651 → 619), and road trips rose (about 6 → 8):
+  answered calls open a day or more later than before, and missed reorders are gone. Empty days: median 57.5 → 52.5,
+  mixed per run. The bot never chooses to stay by the phone, so this is the cost of going out unaware, not a tuned trade-off.
+- Checks: `PhoneChecks` (29: keyed ring day and tries, answered at the desk, missed out at the station across both tries,
+  mentioned at the counter once, a stranger leaves nothing, a day ended at nine answered, a jock answered and missed,
+  WAITING ON). `SaveLoadRoundTripRunner --integration` now round-trips a pending ring (`PENDING_RING_ROUNDTRIP ok=True`).
+  `AppointmentBookChecks` (47), `RecordShopChecks`, `FirstWeekUiChecks` (80) pass. `MasterDealChecks` (the pickup lease
+  can't be afforded) and the integration run's backer round-trip fail identically on HEAD without this work.
+  The stature active-player replay fixture's first-week action is now a desk wait instead of hiring the service; not run.
+- **Not built then:** a ringing phone you can see while you're at the desk; booker cancellation slots and rivals' tips as
+  calls; rare visitors leaving a note. Built next (below). The secretary moved to the staff mechanic expansion.
+
+**After step 3 (2026-11-27): the ringing phone, the booker's open set, a rival's tip, the note in the door**
+(`PlayerDesk.Callers.cs`, `UI/PlayerDeskPanel.Callers.cs`, `UI/UIManager.Callers.cs`):
+- **The phone rings where you can see it.** The desk's own waits (WAIT 1h/3h, WAIT FOR EVENING) stop at the minute a call
+  rings or somebody knocks (`PassTime(..., stopForCallers: true)`; scripts and bots don't stop, and pick up as before). The
+  Bakelite phone in the 3D room rattles on a two-seconds-on, four-off bell (a synthesised ring, five rings audible), and a
+  hotspot over it picks up while the folder is closed; with the folder open (it can cover the phone), **PICK UP THE PHONE**
+  pulses red beside the waits. Picking up takes 5 minutes and shows a card: who, what they said, and what follows ("COD's
+  fine with them. It's on THE PHONE..."). **Let it ring** (any other move of the clock, or the day ending) and that try is
+  gone: a shop tries again after lunch, anyone else is gone. Other time at the desk still answers as it goes, a ledger line.
+  The ringing state is saved (`PendingRingSaveData.Ringing`).
+- **A booker's open set.** At dawn, a booker he's met with a set on the announced calendar 2–5 nights out come open (an act
+  billed who can no longer play it: presence, career or lineup changed; or a night the room couldn't fill) rings about it,
+  if one of the label's acts could work it. Once per open set, in the afternoon (2–5 PM), a day or more before the night.
+  Answered, the offer holds **until that day ends**: take it on the line, or call back from THE PHONE (10 minutes, from the
+  office), with a pink slip as the reminder. Taken, the act goes on that night's bill at that hour in the dropped act's place
+  (`LocalSceneRoomService.FillOpenSet`, with a set and a booking, so the commission is taken as for any booked night).
+  Missed, he's rung the next label, and nobody ever says.
+- **A rival's tip.** When another label's daily market looks at an act he's heard, a booker he's met whose room has had them
+  rings the next day (11 AM–5 PM): "Somebody from Columbia was in asking about them." Answered, the act's leads say so in
+  the booker's name whatever his Fixer (`RivalLook.ToldBy`). Missed, nothing.
+- **Notes left in the door.** A manager whose yes still waits on a time comes by a day or two before the first time offered
+  (10 AM–4 PM): in, a knock stops the wait and ANSWER THE DOOR picks a time there and then; out, or the knock ignored, a
+  note in the door with the times. A manager stood up at a sit-down now leaves his new times there too. The notes are folded
+  slips tucked below the door's knob (the door's foot is behind the desk, so "under the door" became "in the door"), and
+  open when clicked, with WRITE IN buttons for the times while they're good. Saved (`DoorNotes`).
+- **Inertness.** Ring days and minutes are keyed hashes, no draws. The world moves only when the player takes an open set,
+  as a pitched night does. Answered booker calls and tips count in `RingsAnswered`/`RingsMissed`, so the player-bot ring
+  totals will move a little (not rerun).
+- Checks: `CallerChecks` (42: the wait stops at the ring, saved and loaded ringing, picked up in five minutes, a script's
+  wait still answers; let ring, the afternoon try, rung out at the day's end; a set three nights out opened by a billed act
+  losing its players, the booker rings once in the afternoon before the night, picked up, the act put in, on the bill with a
+  booking, and played; a tip picked up names the rival in the leads, a missed one is gone; a manager's visit out leaves a
+  note, a knock unanswered leaves a note, opened picks a time, a sit-down missed leaves the new times). `CallerUiChecks`
+  (15, windowed: the 3D phone rattles and its hotspot shows, PICK UP with the folder open, the card, quiet after, ANSWER
+  THE DOOR, two notes in the door, one read; `SimLogs/caller-ui-*.png`). `PhoneChecks` (29), `AppointmentBookChecks` (47),
+  `LeadsChecks`, `GigPayChecks`, `RecordShopChecks`, `DispositionChecks`, `TheTalkChecks`, `FirstWeekUiChecks` (86) and
+  `--manager` (100) pass.
+- **Not built:** the holder, the lawyer and the bank leaving notes (the holder's move already waits at the desk); any call or
+  visit while he's on the road (by design: nobody's there).
 
 ## 5. Author decisions (2026-11-25)
 

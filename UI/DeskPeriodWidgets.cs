@@ -48,9 +48,10 @@ public partial class WallClock : Control {
 	}
 }
 
-/// <summary>A clocking-in card: the regular hours and the overtime stop, typed, with how long is left.</summary>
+/// <summary>A clocking-in card with an hour for each block and a divider at quitting time.</summary>
 public partial class TimeCard : PanelContainer {
 	private readonly Label text;
+	private readonly DeskHourStrip strip = new();
 
 	public TimeCard() {
 		SizeFlagsVertical = SizeFlags.ShrinkCenter;
@@ -65,12 +66,24 @@ public partial class TimeCard : PanelContainer {
 		text.AddThemeFontSizeOverride("font_size", 13);
 		text.AddThemeColorOverride("font_color", PaperTheme.Ink);
 		text.AddThemeConstantOverride("line_spacing", -2);
-		AddChild(text);
+		var stack = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		stack.AddThemeConstantOverride("separation", 2);
+		stack.AddChild(text);
+		stack.AddChild(strip);
+		AddChild(stack);
 	}
 
-	/// <summary>Times are short ("9:00", "6:00"); <paramref name="left"/> is the remaining stretch ("5 hrs left").</summary>
-	public void Set(string clockIn, string clockOut, string overtimeTo, string left) {
-		text.Text = $"IN {clockIn}   OUT {clockOut}\nO.T. to {overtimeTo}  ·  {left}";
+	public void Set(TimeManager clock, PlayerDesk desk) {
+		int now = clock.CurrentHour * 60 + clock.CurrentMinute;
+		int wake = desk?.FatigueWakeMinute ?? clock.WorkdayStartHour * 60;
+		strip.Set(clock.WorkdayStartHour, clock.RegularWorkdayEndHour, clock.HardStopHour, now, wake);
+		string state = desk?.ShowsFatigue == true ? $"{desk.FatigueState.ToString().ToUpperInvariant()}  ·  " : "";
+		string left = clock.RegularMinutesRemaining > 0 ? clock.RegularTimeRemainingText + " left" : clock.OvertimeRemainingText + " O.T. left";
+		text.Text = state + left;
+		text.AddThemeColorOverride("font_color", desk?.FatigueState is LabelManFatigueState.Worn or LabelManFatigueState.Spent ? PaperTheme.Oxblood : PaperTheme.Ink);
+		TooltipText = $"One block per hour. Regular time to {clock.RegularWorkdayEndTime}, then overtime to {clock.HardStopTime}. " +
+			"Crossed-out time is the morning you slept through.";
+		if (desk?.FatigueStatusTip() is { } tip) TooltipText += "\n" + tip;
 	}
 
 	public override void _Draw() {
@@ -78,6 +91,39 @@ public partial class TimeCard : PanelContainer {
 		Color hole = new("2a1d14");
 		DrawCircle(new Vector2(8, Size.Y * 0.32f), 3f, hole);
 		DrawCircle(new Vector2(8, Size.Y * 0.70f), 3f, hole);
+	}
+}
+
+internal partial class DeskHourStrip : Control {
+	private const float BlockWidth = 10f, Gap = 2f, Divider = 5f;
+	private int start, regularEnd, hardStop, now, wake;
+	internal int Blocks { get; private set; }
+	internal int LostMinutes => Mathf.Max(0, wake - start * 60);
+	internal int UsedMinutes => Mathf.Max(0, now - wake);
+
+	public DeskHourStrip() { MouseFilter = MouseFilterEnum.Ignore; }
+
+	internal void Set(int startHour, int regularEndHour, int hardStopHour, int currentMinute, int wakeMinute) {
+		start = startHour; regularEnd = regularEndHour; hardStop = hardStopHour;
+		now = currentMinute; wake = Mathf.Clamp(wakeMinute, start * 60, Mathf.Max(start * 60, now));
+		Blocks = Mathf.Max(hardStop, Mathf.CeilToInt(now / 60f)) - start;
+		CustomMinimumSize = new Vector2(Blocks * (BlockWidth + Gap) + (now > hardStop * 60 ? 2 : 1) * Divider, 11);
+		QueueRedraw();
+	}
+
+	public override void _Draw() {
+		for (int i = 0; i < Blocks; i++) {
+			int hour = start + i, minute = hour * 60;
+			float x = i * (BlockWidth + Gap) + (hour >= regularEnd ? Divider : 0) + (hour >= hardStop ? Divider : 0);
+			var cell = new Rect2(x, 1, BlockWidth, 9);
+			Color ink = hour < regularEnd ? PaperTheme.Ink : hour < hardStop ? PaperTheme.Oxblood : new Color("51344d");
+			DrawRect(cell, new Color(ink, .16f));
+			float lost = Mathf.Clamp((wake - minute) / 60f, 0, 1) * BlockWidth;
+			float elapsed = Mathf.Clamp((now - minute) / 60f, 0, 1) * BlockWidth;
+			if (elapsed > lost) DrawRect(new Rect2(x + lost, 1, elapsed - lost, 9), ink);
+			DrawRect(cell, new Color(ink, .7f), false, 1);
+			if (lost > 0) DrawLine(new Vector2(x, 10), new Vector2(x + lost, 1), ink, 1, true);
+		}
 	}
 }
 

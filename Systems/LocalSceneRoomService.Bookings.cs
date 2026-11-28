@@ -111,6 +111,72 @@ public static partial class LocalSceneRoomService {
         return nights;
     }
 
+    /// <summary>A set on the announced calendar the booker has to fill: an act billed who can't play it now (it would be
+    /// cancelled when the night came), or a night the room couldn't fill (the bill starts after the doors open).</summary>
+    public readonly record struct OpenSet(string BillId, string RoomId, int Day, int Hour, string DroppedArtistId);
+
+    /// <summary>The open sets in a room between two days (inclusive), from the bills already drawn. A pure read. What a
+    /// booker rings round about (PlayerDesk.Phone).</summary>
+    public static List<OpenSet> OpenSets(string roomId, int fromDay, int toDay) {
+        var list = new List<OpenSet>();
+        var room = SceneRoomCatalog.Get(roomId);
+        if (state == null || room == null || !room.IsPerformance) return list;
+        foreach (var bill in State.Bills.Where(b => b.RoomId == roomId && b.Status == SceneBillStatus.Scheduled && b.Day >= fromDay && b.Day <= toDay && b.Appearances.Count > 0)) {
+            foreach (var slot in bill.Appearances.Where(s => s.Status == SceneBillStatus.Scheduled)) {
+                var act = ArtistManager.Instance?.GetArtist(slot.ArtistId);
+                if (!(Eligible(act, room, bill.Day) && StagePeople(act).SequenceEqual(slot.PersonIds)))
+                    list.Add(new OpenSet(bill.Id, roomId, bill.Day, slot.StartHour, slot.ArtistId));
+            }
+            int first = bill.Appearances.Min(a => a.StartHour);
+            if (first > bill.StartHour) list.Add(new OpenSet(bill.Id, roomId, bill.Day, first - 1, null));
+        }
+        return list;
+    }
+
+    /// <summary>Is any of this act's people on a bill that day? (They can't be in two rooms.)</summary>
+    public static bool PlayingThatDay(SimulatedArtist act, int day) {
+        if (state == null || act == null) return false;
+        var people = StagePeople(act).ToHashSet(StringComparer.Ordinal);
+        return State.Bills.Any(b => b.Day == day && b.Status != SceneBillStatus.Cancelled && b.Appearances.Any(a => a.Status != SceneBillStatus.Cancelled &&
+            (a.ArtistId == act.artistId || a.PersonIds.Any(people.Contains) || (a.BackingPersonIds?.Any(people.Contains) ?? false))));
+    }
+
+    /// <summary>The player took a booker's open set for one of the label's acts: it goes on that night's bill at that hour,
+    /// in place of the act that dropped out (or ahead of the first set), with a booking so the commission is taken as for
+    /// any booked night. Validation of who may fill it is the desk's; this checks only that the set is still open and the
+    /// act can work it. A player choice, like a pitched night: AI-only worlds never get here.</summary>
+    internal static bool FillOpenSet(OpenSet open, SimulatedArtist act, string labelId, out string reason) {
+        reason = null;
+        var bill = state?.Bills.FirstOrDefault(b => b.Id == open.BillId && b.Status == SceneBillStatus.Scheduled);
+        var room = SceneRoomCatalog.Get(open.RoomId);
+        if (bill == null || room == null || bill.Day < State.LastResolvedDay || bill.Day == State.LastResolvedDay && open.Hour < State.LastResolvedHour) {
+            reason = "That night's gone."; return false;
+        }
+        if (!Eligible(act, room, bill.Day)) { reason = $"{act?.stageName ?? "They"} can't work {room.Name} that night."; return false; }
+        if (PlayingThatDay(act, bill.Day)) { reason = $"{act.stageName} are already playing that night."; return false; }
+        SceneAppearance slot;
+        if (open.DroppedArtistId != null) {
+            slot = bill.Appearances.FirstOrDefault(a => a.ArtistId == open.DroppedArtistId && a.StartHour == open.Hour && a.Status == SceneBillStatus.Scheduled);
+            if (slot == null) { reason = "Somebody else took the set."; return false; }
+        } else {
+            if (bill.Appearances.Any(a => a.StartHour <= open.Hour && a.EndHour > open.Hour) || open.Hour < bill.StartHour) { reason = "Somebody else took the set."; return false; }
+            slot = new SceneAppearance { StartHour = open.Hour, EndHour = open.Hour + 1, Status = SceneBillStatus.Scheduled };
+            bill.Appearances.Add(slot);
+        }
+        slot.ArtistId = act.artistId;
+        slot.PersonIds = StagePeople(act).ToList();
+        slot.BackingPersonIds = null;
+        slot.Residency = false;
+        slot.CancellationReason = null;
+        slot.Set = SetFor(act, bill.Id, bill.Year, new(), new());
+        bill.Appearances = bill.Appearances.OrderBy(a => a.StartHour).ToList();
+        for (int i = 0; i < bill.Appearances.Count; i++)
+            bill.Appearances[i].Role = i == 0 ? "opening set" : i == bill.Appearances.Count - 1 ? "closing set" : "middle set";
+        (State.Bookings ??= new()).Add(new SceneBooking { RoomId = room.Id, ArtistId = act.artistId, LabelId = labelId, Day = bill.Day,
+            Status = SceneBillStatus.Scheduled, Billed = true, Note = "On the bill: a set the booker rang you about." });
+        return true;
+    }
+
     /// <summary>When a billed set resolves, the booking takes its outcome.</summary>
     private static void SettleBooking(SceneBill bill, SceneAppearance slot) {
         foreach (var booking in State.Bookings.Where(b => b.RoomId == bill.RoomId && b.Day == bill.Day && b.ArtistId == slot.ArtistId && b.Billed && b.Status == SceneBillStatus.Scheduled)) {

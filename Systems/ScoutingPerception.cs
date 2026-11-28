@@ -30,11 +30,12 @@ public static class ScoutingPerception {
 	/// Only the latent talent (CalculateBaseQuality) is fogged; an artist's observable career
 	/// record (momentum, reputation - public chart knowledge) is read without fog by callers.
 	/// </summary>
-	public static float PerceivedQuality(SimulatedArtist artist, AILabel label, int discoveryWindow) {
+	public static float PerceivedQuality(SimulatedArtist artist, AILabel label, int discoveryWindow, int fatigueSteps = 0) {
 		float trueQuality = artist.CalculateBaseQuality();
-		float band = PerceptionBand(label);
+		float band = PerceptionBand(label) * (1f + .2f * fatigueSteps);
 		// Stable signed offset in [-band, +band], deterministic per (label, artist, window).
-		float unit = StableUnit(label.labelId, artist.artistId, discoveryWindow);   // [0,1)
+		string key = fatigueSteps == 0 ? artist.artistId : $"{artist.artistId}|fatigue:{fatigueSteps}";
+		float unit = StableUnit(label.labelId, key, discoveryWindow);   // [0,1)
 		float offset = (unit * 2f - 1f) * band;
 		return Mathf.Clamp(trueQuality + offset, 0f, 1f);
 	}

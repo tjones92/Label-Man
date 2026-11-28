@@ -1,0 +1,274 @@
+using Godot;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public partial class UIManager {
+	private readonly Dictionary<Button, Label> roomLabels = new();
+	private readonly List<Control> officePromptChoices = new();
+	private Button officeDoor, officeBook, officeWait;
+	private PanelContainer officeWaitMenu;
+	private readonly Node3D[] ashtrayWaste = new Node3D[PlayerDesk.AshtrayCapacity];
+	private Label officeYearGoal, officeWeekGoal;
+
+	private void UpdateAshtray(int batches) {
+		bool changed = false;
+		for (int i = 0; i < ashtrayWaste.Length; i++) {
+			bool show = i < batches;
+			if (ashtrayWaste[i] == null || ashtrayWaste[i].Visible == show) continue;
+			ashtrayWaste[i].Visible = show;
+			changed = true;
+		}
+		if (changed && officeViewport.RenderTargetUpdateMode != SubViewport.UpdateMode.Always)
+			officeViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
+	}
+
+	private bool CanUseOfficeNavigation() => PlayerDesk.Instance is { HasLabel: true, IsGameOver: false, LienMorningPending: false };
+
+	private void BuildOfficeNavigation() {
+		officeDoor = AddRoomHotspot("OfficeDoor", "GO OUT", new Rect2(530, 150, 213, 230), OpenOfficeDoor);
+		officeBook = AddRoomHotspot("OfficeBook", "THE BOOK", new Rect2(974, 680, 286, 185),
+			() => deskPanel?.OpenAppointmentBook(PlayerDesk.Instance, this));
+		officeWait = AddRoomHotspot("OfficeAshtray", "WAIT", new Rect2(1443, 752, 475, 244), OpenOfficeClock);
+		BuildOfficeWaitMenu();
+		AddRoomHotspot("OfficeDrawer", "THE PAPER", new Rect2(797, 479, 468, 77), () => OpenOfficeAt("THE PAPER"));
+		AddRoomHotspot("OfficeNoticeboard", "OFFICE SERVICES", new Rect2(75, 351, 180, 52), () => OpenOfficeAt("OFFICE SERVICES"));
+		if (calendarButton != null) AddRoomLabel(calendarButton, "CALENDAR");
+	}
+
+	private Button AddRoomHotspot(string name, string caption, Rect2 area, Action open) {
+		var button = new Button {
+			Name = name, Flat = true, Position = area.Position, Size = area.Size,
+			MouseDefaultCursorShape = Control.CursorShape.PointingHand, TooltipText = caption
+		};
+		StyleHotspot(button);
+		button.Pressed += () => { if (CanUseOfficeNavigation() && !DeskCovered() && !PaperModal.IsOpen) open(); };
+		AddChild(button);
+		if (deskPanel != null) MoveChild(button, deskPanel.GetIndex());
+		deskProps.Add(button);
+		AddRoomLabel(button, caption);
+		return button;
+	}
+
+	private void AddRoomLabel(Button button, string caption) {
+		var tag = new PanelContainer {
+			MouseFilter = Control.MouseFilterEnum.Ignore,
+			GrowHorizontal = Control.GrowDirection.Both,
+			GrowVertical = Control.GrowDirection.Begin
+		};
+		tag.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 9, 3, 3, PaperTheme.Rust));
+		var text = new Label { Text = caption, MouseFilter = Control.MouseFilterEnum.Ignore };
+		text.AddThemeFontOverride("font", PaperTheme.TypedBold);
+		text.AddThemeFontSizeOverride("font_size", 15);
+		text.AddThemeColorOverride("font_color", PaperTheme.Ink);
+		tag.AddChild(text);
+		button.AddChild(tag);
+		tag.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterBottom);
+		roomLabels[button] = text;
+		foreach (var signal in new[] { Control.SignalName.MouseEntered, Control.SignalName.MouseExited })
+			button.Connect(signal, Callable.From(() => UpdateOfficeNavigation(PlayerDesk.Instance, DeskCovered())));
+	}
+
+	private void BuildOfficeGoals(VBoxContainer stack) {
+		Label Line() {
+			var label = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, MouseFilter = Control.MouseFilterEnum.Ignore };
+			label.AddThemeFontOverride("font", PaperTheme.TypedBold);
+			label.AddThemeFontSizeOverride("font_size", 15);
+			label.AddThemeColorOverride("font_color", PaperTheme.Ink);
+			stack.AddChild(label);
+			return label;
+		}
+		officeYearGoal = Line();
+		officeWeekGoal = Line();
+	}
+
+	private void UpdateOfficeNavigation(PlayerDesk desk, bool covered) {
+		bool available = CanUseOfficeNavigation() && !covered;
+		bool teaching = desk?.FirstWeekCurrent != null;
+		foreach (var (prop, label) in roomLabels) {
+			prop.Visible = available;
+			label.GetParent<PanelContainer>().Visible = available && prop.IsHovered() &&
+				(prop != officeWait || officeWaitMenu?.Visible != true);
+		}
+		if (officeDoor != null) {
+			bool knocking = desk?.Calling == PlayerDesk.CallerAt.Door;
+			roomLabels[officeDoor].Text = knocking ? "ANSWER THE DOOR" : "GO OUT";
+			officeDoor.TooltipText = roomLabels[officeDoor].Text;
+		}
+		if (!available || PaperModal.IsOpen) officeWaitMenu?.Hide();
+		if (officeYearGoal == null) return;
+		officeYearGoal.Visible = available && desk?.Lien != null;
+		if (officeYearGoal.Visible) {
+			var show = desk.LienShow();
+			officeYearGoal.Text = $"THIS YEAR  ·  {show.What}";
+		}
+		officeWeekGoal.Visible = available && teaching;
+		officeWeekGoal.Text = teaching ? "THIS WEEK  ·  Sign an act and book the first record." : "";
+	}
+
+	private static string OfficeNextAction(PlayerDesk desk) => desk.FirstWeekCurrent switch {
+		FirstWeekStep.Hear => "Click the door and pick a set to hear.",
+		FirstWeekStep.Answer when desk.FirstWeekVisitLater => "There’s time before your appointment. Check today’s sets or wait at the desk.",
+		FirstWeekStep.Answer when desk.FirstWeekVisitToday => "Check the appointment book.",
+		FirstWeekStep.Record when desk.FirstWeekStudioTomorrow => "It’s too late to book today. Turn in at the calendar.",
+		FirstWeekStep.Record => "Choose Studio at the door to set up your first record.",
+		_ => PlayerDeskPanel.NextUpHint(desk)
+	};
+
+	private Control OfficeFirstWeekTarget(PlayerDesk desk) {
+		if (DeskCovered() || PaperModal.IsOpen) return null;
+		return desk.FirstWeekCurrent switch {
+			FirstWeekStep.Hear or FirstWeekStep.Ask => officeDoor,
+			FirstWeekStep.Answer when desk.FirstWeekVisitLater => officeWait,
+			FirstWeekStep.Answer when desk.FirstWeekVisitToday || desk.FirstWeekVisit is { Minute: null } => officeBook,
+			FirstWeekStep.Answer when desk.FirstWeekNeedsAnotherAct || desk.FirstWeekHearAgainId != null => officeDoor,
+			FirstWeekStep.Answer => calendarButton,
+			FirstWeekStep.Record when desk.FirstWeekStudioTomorrow => calendarButton,
+			_ => officeDoor
+		};
+	}
+
+	internal List<Control> OfficeFirstWeekTargets(PlayerDesk desk) {
+		var choices = officePromptChoices.Where(choice => IsInstanceValid(choice) && choice.IsVisibleInTree()).ToList();
+		if (choices.Count > 0) return choices;
+		return OfficeFirstWeekTarget(desk) is { } target ? new List<Control> { target } : null;
+	}
+
+	private void OpenOfficeDoor() {
+		var desk = PlayerDesk.Instance;
+		if (desk.Calling == PlayerDesk.CallerAt.Door) { PickUpFromTheDesk(); return; }
+		var modal = PaperModal.Open(this, "WHERE TO?", 680);
+		officePromptChoices.Clear();
+		var today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+		var sets = LocalScenes.Rooms ? desk.ScoutingItinerary(false)
+			.Where(set => set.Affordable && set.Day == today &&
+				(!desk.FirstWeekVisitLater || set.EndMinute <= desk.FirstWeekLeaveAt) &&
+				string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(set.ArtistId)?.labelId))
+			.DistinctBy(set => set.ArtistId).Take(3).ToArray() : Array.Empty<ScoutingOpportunity>();
+		if (sets.Length == 0 && LocalScenes.Rooms) modal.AddText("No unsigned set fits the rest of today. Check the next posted dates.");
+		foreach (var set in sets) {
+			var timing = set.Playing ? $"LISTEN · {set.ListeningMinutes}m" : $"GO & WAIT · {set.WaitingMinutes}m";
+			var row = new Button {
+				Text = $"{set.RoomName} · {PlayerDesk.ClockText(set.StartMinute)} · {set.ArtistName}\n{timing} · ${set.Admission:N0} admission",
+				Alignment = HorizontalAlignment.Left
+			};
+			row.Pressed += () => { modal.Close(); OpenDoorDestination(() => deskPanel.OpenDoorSet(set)); };
+			modal.Body.AddChild(row);
+			if (desk.FirstWeekCurrent == FirstWeekStep.Hear) officePromptChoices.Add(row);
+		}
+		Button Route(string caption, Action action) {
+			var entry = new Button { Text = caption, Alignment = HorizontalAlignment.Left };
+			entry.Pressed += () => { modal.Close(); OpenDoorDestination(action); };
+			modal.Body.AddChild(entry);
+			return entry;
+		}
+		var finder = Route("FIND A SET", () => deskPanel.OpenSetFinder());
+		if (desk.FirstWeekCurrent == FirstWeekStep.Hear && sets.Length == 0) officePromptChoices.Add(finder);
+		Route("ACT NOTEBOOK", () => deskPanel.OpenScoutingNotebook());
+		Route("RECORD SHOPS, STATIONS & TRAVEL", () => deskPanel.OpenAtTab("THE ROAD"));
+		Route("BAND ROOM", () => deskPanel.OpenAtTab("BAND ROOM"));
+		var studio = new Button { Text = "STUDIO", Alignment = HorizontalAlignment.Left };
+		studio.Disabled = !desk.AtHome || !desk.Roster.Any();
+		studio.TooltipText = !desk.AtHome ? "Drive home to use the studio." : !desk.Roster.Any() ? "Sign an act first." : "";
+		studio.Pressed += () => { modal.Close(); OpenOfficeStudio(); };
+		modal.Body.AddChild(studio);
+		modal.AddButton("STAY HERE", null);
+	}
+
+	private void OpenOfficeStudio() {
+		var desk = PlayerDesk.Instance;
+		if (desk.Session is { } session) { OpenStudio(session.ArtistId); return; }
+		var acts = desk.Roster.ToList();
+		if (acts.Count == 1) { OpenStudio(acts[0].artistId); return; }
+		var modal = PaperModal.Open(this, "WHO'S GOING INTO THE STUDIO?");
+		foreach (var act in acts) {
+			var choice = new Button { Text = act.stageName, Alignment = HorizontalAlignment.Left };
+			choice.Pressed += () => { modal.Close(); OpenStudio(act.artistId); };
+			modal.Body.AddChild(choice);
+		}
+		modal.AddButton("STAY HERE", null);
+	}
+
+	private void OpenDoorDestination(Action open) {
+		open();
+		isUIOpen = true;
+		UpdateMainHud();
+	}
+
+	internal void FromFilesToDoor() {
+		deskPanel.ClosePanel();
+		OpenDoorDestination(() => deskPanel.OpenAtTab("THE ROAD"));
+	}
+
+	private void OpenOfficePhone() {
+		if (PlayerDesk.Instance?.Calling == PlayerDesk.CallerAt.Phone) PickUpFromTheDesk();
+		else OpenOfficeAt("THE PHONE");
+	}
+
+	private void BuildOfficeWaitMenu() {
+		officeWaitMenu = new PanelContainer {
+			Name = "OfficeWaitMenu", Visible = false, ZIndex = 30, Theme = PaperTheme.Build()
+		};
+		officeWaitMenu.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 10, 8, 8, PaperTheme.Rust));
+		var choices = new HBoxContainer();
+		officeWaitMenu.AddChild(choices);
+		AddChild(officeWaitMenu);
+	}
+
+	private void OpenOfficeClock() {
+		if (officeWaitMenu.Visible) { officeWaitMenu.Hide(); return; }
+		var desk = PlayerDesk.Instance;
+		var choices = officeWaitMenu.GetChild<HBoxContainer>(0);
+		foreach (Node child in choices.GetChildren()) { choices.RemoveChild(child); child.QueueFree(); }
+		void AddWait(string caption, int hours) {
+			var button = new Button { Text = caption, Disabled = desk.WaitMinutes(hours) == 0 };
+			if (!button.Disabled) PlayerDeskPanel.SetWaitPreview(button, desk, hours);
+			else button.TooltipText = hours == 0 ? "Evening hours have already begun." : "Turn in for the night.";
+			button.Pressed += () => {
+				officeWaitMenu.Hide();
+				if (!desk.PassTime(hours, out var message, stopForCallers: true)) ShowOfficeTimeMessage(message);
+			};
+			choices.AddChild(button);
+		}
+		AddWait("WAIT 1h", 1);
+		AddWait("WAIT 3h", 3);
+		AddWait("WAIT FOR EVENING", desk.HoursUntil(17));
+		officeWaitMenu.ResetSize();
+		officeWaitMenu.Position = officeWait.Position + new Vector2((officeWait.Size.X - officeWaitMenu.Size.X) / 2, 28);
+		officeWaitMenu.Show();
+		roomLabels[officeWait].GetParent<PanelContainer>().Hide();
+		choices.GetChildren().OfType<Button>().FirstOrDefault(button => !button.Disabled)?.GrabFocus();
+	}
+
+	private void OpenOfficeCalendar() {
+		var modal = PaperModal.Open(this, "THE FLIP CALENDAR");
+		if (PlayerDesk.Instance.Lien is { } lien) {
+			var deadline = lien.PendingDeadline ?? lien.Deadline;
+			modal.AddText($"Sitting opens {deadline.AddDays(-PlayerDesk.LienWindowDays).ToHeadlineString()} · Deadline {deadline.ToHeadlineString()}");
+		}
+		modal.AddButton("SKIP AHEAD…", ShowCalendarPopup);
+		modal.AddButton("END THE DAY", AdvanceOneDayFromDesk, PaperModal.ButtonKind.Primary);
+		modal.AddButton("CLOSE", null);
+	}
+
+	internal void ShowOfficeTimeMessage(string message) => ShowAnnouncement(message);
+
+	private bool HandleOfficeShortcut(InputEvent input) {
+		if (input is not InputEventKey { Pressed: true, Echo: false, AltPressed: false, CtrlPressed: false, MetaPressed: false } key
+			|| PaperModal.IsOpen || !CanUseOfficeNavigation() || (DeskCovered() && deskPanel?.FilesOpen != true)
+			|| gameMenu?.Visible == true || morningPaper?.Visible == true
+			|| GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit) return false;
+		string tab = key.Keycode switch {
+			Key.Key1 => "ROSTER", Key.Key2 => "CATALOG", Key.Key3 => "DISTRIBUTION", Key.Key4 => "BOOKS", _ => null
+		};
+		if (tab != null) OpenDoorDestination(() => deskPanel.OpenAtTab(tab));
+		else if (key.Keycode is Key.D or Key.P) {
+			if (deskPanel.FilesOpen) deskPanel.ClosePanel();
+			if (key.Keycode == Key.D) OpenOfficeDoor();
+			else OpenOfficePhone();
+		} else return false;
+		officeWaitMenu?.Hide();
+		GetViewport().SetInputAsHandled();
+		return true;
+	}
+}

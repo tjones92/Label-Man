@@ -42,7 +42,7 @@ public partial class PlayerDesk : Node {
 		if (!Require(ActionCosts.Paperwork, out message)) return false;
 		if (Label.cashReserves < TradeReviewPostage) { message = $"You're short the ${TradeReviewPostage:F2} postage."; return false; }
 
-		Spend(ActionCosts.Paperwork);
+		DeskSpend(ActionCosts.Paperwork);
 		Label.cashReserves -= TradeReviewPostage;
 		Label.monthlyExpenses += TradeReviewPostage;
 		stock.PromoRemaining -= 1;
@@ -261,7 +261,7 @@ public partial class PlayerDesk : Node {
 		if (Label.cashReserves < cost) { message = $"You're ${cost - Label.cashReserves:N0} short of the ${cost:N0} {TradeAdTierName(tier)} rate."; return false; }
 		if (!Require(ActionCosts.Paperwork, out message)) return false;
 
-		Spend(ActionCosts.Paperwork);
+		DeskSpend(ActionCosts.Paperwork);
 		Label.cashReserves -= cost;
 		Label.monthlyExpenses += cost;
 

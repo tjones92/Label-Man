@@ -52,6 +52,6 @@ public partial class PlayerDeskPanel {
 	private void PageOffice() {
 		PlayerDesk desk = PlayerDesk.Instance;
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		WithForm(HouseForm(desk.Label, "Office requisition — staff & services", WorkOrder.Serial("office:" + desk.Label?.labelId + today.month + today.year)), OfficeBody);
+		WithForm(HouseForm(desk.Label, "Office requisition — staff & services", WorkOrder.Serial("office:" + desk.Label?.labelId + today.month + today.year)), () => OfficeBody());
 	}
 }

@@ -67,7 +67,7 @@ public partial class PlayerDesk {
                 foreach (var slot in bill.Appearances.Where(a => a.Status == SceneBillStatus.Scheduled)) {
                     string eventId = ScenePerformanceService.EventId(bill, slot);
                     int start = slot.StartHour * 60, end = slot.EndHour * 60;
-                    if (end > clock.HardStopHour * 60 || !hearable.Contains(slot.ArtistId) || HasObservedPerformance(eventId)) continue;
+                    if (end > VenueStopMinute(room, bill) || !hearable.Contains(slot.ArtistId) || HasObservedPerformance(eventId)) continue;
                     int arrival = bill.Day == day ? now + travel.Hours * 60 : clock.WorkdayStartHour * 60;
                     if (end <= arrival || bill.Day > day && start < arrival || !local && bill.Day == day && start < arrival) continue;
                     bool playing = local && bill.Day == day && start <= now;

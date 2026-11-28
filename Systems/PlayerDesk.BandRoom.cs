@@ -569,9 +569,10 @@ public partial class PlayerDesk {
 
 			case BandVisitKind.Departure: {
 				SimulatedArtist solo = v.departureKind == DepartureKind.SoloCareer ? FindSpinOut(m) : null;
+				string signingBlock = FatigueSigningBlock;
 				if (solo != null && a.contractLeavingMemberOption && string.IsNullOrEmpty(solo.labelId))
 					Offer(BandVerb.ExerciseOption, $"Exercise the leaving-member option: sign {m.FullName} as a solo act",
-						"It's in the paper they signed. You're bound by it too.", ExecutiveVoice.Suit);
+						"It's in the paper they signed. You're bound by it too.", ExecutiveVoice.Suit, enabled: signingBlock == null, why: signingBlock);
 				if (a.lifecycleStatus == ArtistLifecycleStatus.Active && a.members.Count > 0) {
 					OfferReplacements(opts, a, m, live);
 					Offer(BandVerb.CarryOn, "Carry on without a replacement", "One fewer in the van.");
@@ -1383,7 +1384,8 @@ public partial class PlayerDesk {
 	/// <summary>Sign a departing member's solo act under the leaving-member clause: the paper already says so,
 	/// so it's the baseline terms with no negotiation and the label's usual advance.</summary>
 	private bool SignLeavingMember(SimulatedArtist solo, out string message) {
-		message = null;
+		message = FatigueSigningBlock;
+		if (message != null) return false;
 		if (solo == null || !string.IsNullOrEmpty(solo.labelId)) { message = "Somebody else has already signed them."; return false; }
 		ContractTermSheet sheet = Label.GenerateTermSheet(solo, YearNow);
 		if (Label.cashReserves < sheet.Advance) { message = $"The option means paying the advance -- ${sheet.Advance:N0} you don't have."; return false; }

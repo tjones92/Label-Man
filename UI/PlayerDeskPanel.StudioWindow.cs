@@ -438,6 +438,9 @@ public partial class PlayerDeskPanel {
             // Early-game §4.1: say before the money goes if this date leaves the rest of the release unfunded. A warning, never a block.
             string completion = problem == null ? desk.CompletionWarning(roomCost + musicianFee + gas, PlayerDesk.CompletionStageKind.Studio) : null;
             if (completion != null) plan.Text += "\n" + completion;
+            int busDebt = drive >= 4 && desk.ActiveMode == PlayerDesk.TransportMode.Bus ? 60 : 0;
+            if (problem == null && desk.TonightFatiguePreview(start + hours * 60, busDebt) is { } tomorrow)
+                plan.Text += "\nIf you use the full date: " + tomorrow;
             plan.AddThemeColorOverride("font_color", problem == null && completion == null ? Heard : Rust);
             book.Disabled = problem != null;
             if (driveUp != null) driveUp.Disabled = offer.Locked != null || !desk.AtHome || desk.Label.cashReserves < gas + offer.BandLodging ||
@@ -722,7 +725,9 @@ public partial class PlayerDeskPanel {
             var clockHead = StudioRow(sheet);
             StudioText(clockHead, $"{StudioClockStrip.DurationText(left)} left on the clock  ·  {held}m of it held for finishing", 15, Ink, PaperTheme.SansSemiBold);
             var rest = Btn($"TAKE A BREAK  ·  {10}m");
+            rest.Disabled = left < 10 + held;
             rest.TooltipText = "Everyone gets some energy back. It doesn't fully reset a long day.";
+            AddTonightPreview(rest, desk, desk.NowMinute + 10);
             rest.Pressed += () => { bool ok = desk.BreakStudio(out string m); Say(m, ok); Refresh(); };
             clockHead.AddChild(rest);
             var log = Btn("DATE LOG…");
@@ -994,11 +999,13 @@ public partial class PlayerDeskPanel {
         pass.Disabled = left < passMinutes + held;
         pass.TooltipText = pass.Disabled ? OutOfTime : cut.Structure == null ? "Roll tape on a full pass. Earlier takes stay safe."
             : $"A {StudioSongStructures.Length(cut.Structure.DurationSeconds)} song: count-in, the pass, rewind and a listen back. Earlier takes stay safe.";
+        AddTonightPreview(pass, desk, desk.NowMinute + passMinutes);
         pass.Pressed += () => { bool ok = desk.CutStudioTake(side, out string m); if (ok) studioOpenTakes.Clear(); Say(m, ok); Refresh(); };
         work.AddChild(pass);
         var rehearse = Btn(cut.Structure == null ? $"REHEARSE  ·  {rehearsalMinutes}m" : "REHEARSE…");
         rehearse.Disabled = left < (cut.Structure == null ? rehearsalMinutes : Math.Min(rehearsalMinutes, PlayerDesk.StudioPartRehearsalMinutes)) + held;
         rehearse.TooltipText = rehearse.Disabled ? OutOfTime : "Run the song, or one part of it, without rolling tape. It tightens the band, but it is tiring.";
+        if (cut.Structure == null) AddTonightPreview(rehearse, desk, desk.NowMinute + rehearsalMinutes);
         rehearse.Pressed += () => {
             if (cut.Structure == null) { bool done = desk.RehearseStudio(side, out string said); Say(said, done); Refresh(); return; }
             var dialog = PaperModal.Open(this, "REHEARSE", 720);
@@ -1006,6 +1013,7 @@ public partial class PlayerDeskPanel {
             var song = Primary($"RUN THE WHOLE SONG  ·  {rehearsalMinutes}m");
             song.Disabled = left < rehearsalMinutes + held;
             GreyWhy(song, OutOfTime);
+            AddTonightPreview(song, desk, desk.NowMinute + rehearsalMinutes);
             song.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
             song.Pressed += () => { dialog.Cancel(); bool ok = desk.RehearseStudio(side, out string m); Say(m, ok); Refresh(); };
             dialog.Body.AddChild(song);
@@ -1016,6 +1024,7 @@ public partial class PlayerDeskPanel {
                 var button = Btn($"THE {StudioSongStructures.PartName(part).ToUpperInvariant()}  ·  {PlayerDesk.StudioPartRehearsalMinutes}m" + (heard > 0 ? $"  (flagged {heard}\u00d7)" : ""));
                 button.Disabled = left < PlayerDesk.StudioPartRehearsalMinutes + held;
                 GreyWhy(button, OutOfTime);
+                AddTonightPreview(button, desk, desk.NowMinute + PlayerDesk.StudioPartRehearsalMinutes);
                 button.Pressed += () => { dialog.Cancel(); bool ok = desk.RehearseStudioPart(side, chosen, out string m); Say(m, ok); Refresh(); };
                 partRow.AddChild(button);
             }

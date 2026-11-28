@@ -37,6 +37,8 @@ public partial class TimeManager : Node {
 	/// late-night studio date answers, so the clock can run past midnight for it (24:00 and on stay the same
 	/// calendar day until the day is ended) and for nothing else.</summary>
 	public Func<int> LateStopProbe;
+	/// <summary>The player desk can extend the usual overnight wake time.</summary>
+	internal Func<int, int, int> PlayerWakeProbe;
 	/// <summary>Where today's clock stops: the hard stop, or later while a late-night date holds the room.</summary>
 	public int DayStopMinute => Mathf.Max(HardStopHour * 60, LateStopProbe?.Invoke() ?? 0);
 	/// <summary>Hours slept before the next working day after a night that ran past midnight.</summary>
@@ -62,6 +64,7 @@ public partial class TimeManager : Node {
 	public event Action<GameDate> OnMonthChanged;
 	public event Action<GameDate> OnYearChanged;
 	public event Action<int> OnHourChanged;
+	internal event Action<int, int> OnMinutesSpent;
 	public event Action<ScheduledEvent> OnEventTriggered;
 	public event Action<ScheduledEvent> OnSkipInterrupted;
 	/// <summary>Asked after each day of a multi-day skip: did something happen that the player was waiting on
@@ -106,9 +109,7 @@ public partial class TimeManager : Node {
 
 	public bool SpendHours(int hours, bool allowOvertime = false) {
 		if (!CanAffordHours(hours, allowOvertime)) return false;
-		currentHour += hours;
-		LocalSceneRoomService.Advance(currentDate, currentHour);
-		OnHourChanged?.Invoke(currentHour);
+		SetClockAfterSpend(currentHour + hours, currentMinute);
 		return true;
 	}
 
@@ -125,19 +126,31 @@ public partial class TimeManager : Node {
 		int budget = allowOvertime ? MinutesRemainingWithOvertime
 			: Mathf.Max(0, workDayEndHour * 60 - (currentHour * 60 + currentMinute));
 		if (minutes > budget) return false;
+		return AdvanceMinutes(minutes);
+	}
+
+	internal bool SpendVenueMinutes(int minutes, int closingMinute) =>
+		minutes <= 0 || currentHour * 60 + currentMinute + minutes <= closingMinute && AdvanceMinutes(minutes);
+
+	private bool AdvanceMinutes(int minutes) {
 		int total = currentHour * 60 + currentMinute + minutes;
-		currentHour = total / 60;
-		currentMinute = total % 60;
-		LocalSceneRoomService.Advance(currentDate, currentHour);
-		OnHourChanged?.Invoke(currentHour);
+		SetClockAfterSpend(total / 60, total % 60);
 		return true;
 	}
 
 	public void ForceSpendHours(int hours) {
-		currentHour += hours;
+		SetClockAfterSpend(currentHour + hours, currentMinute);
+		if (IsDayOver) EndDay();
+	}
+
+	private void SetClockAfterSpend(int hour, int minute) {
+		int from = currentHour * 60 + currentMinute;
+		currentHour = hour;
+		currentMinute = minute;
+		int to = hour * 60 + minute;
+		if (to > from) OnMinutesSpent?.Invoke(from, to);
 		LocalSceneRoomService.Advance(currentDate, currentHour);
 		OnHourChanged?.Invoke(currentHour);
-		if (IsDayOver) EndDay();
 	}
 
 	public void EndDay() {
@@ -192,6 +205,7 @@ public partial class TimeManager : Node {
 		// A night that ran past midnight is slept off: the next day starts after a night's sleep, not at nine.
 		int ended = currentHour * 60 + currentMinute;
 		int wake = Mathf.Max(workDayStartHour * 60, ended - 24 * 60 + SleepHoursAfterLateNight * 60);
+		wake = PlayerWakeProbe?.Invoke(ended, wake) ?? wake;
 		currentDate = currentDate.NextDay();
 		currentHour = wake / 60;
 		currentMinute = wake % 60;

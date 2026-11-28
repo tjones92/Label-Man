@@ -72,18 +72,6 @@ public partial class PlayerDesk {
         Note(message); Changed?.Invoke(); return true;
     }
 
-    /// <summary>Walk to a venue as part of going to hear or wait for a set there. False (nothing spent) if the walk
-    /// would not fit; <paramref name="walked"/> is the minutes it took (0 when you were already there).</summary>
-    private bool WalkToRoomFor(SceneRoomProfile room, out int walked) {
-        walked = 0;
-        if (IsAtSceneRoom(room.Id)) return true;
-        if (TimeManager.Instance?.CanAffordMinutes(CrossTownMinutes) != true) return false;
-        SpendMinutes(CrossTownMinutes); walked = CrossTownMinutes;
-        scoutingKnowledge.Visit = null;
-        MarkAtSceneRoom(room.Id);
-        return true;
-    }
-
     // ---- numbers ----------------------------------------------------------------------------------------------------
     private List<ScoutingActNumber> ActNumbers => scoutingKnowledge.ActNumbers ??= new();
     private List<ScoutingNumberRefusal> NumberRefusals => scoutingKnowledge.NumberRefusals ??= new();

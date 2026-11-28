@@ -32,7 +32,7 @@ public partial class PlayerDesk {
         foreach (SimulatedArtist artist in cast) {
             float noise = EarNoise;
             var prospect = new Prospect { Artist = artist, Venue = venue, CityId = placeId,
-                ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0),
+                ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0, FatigueFogSteps),
                 ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0, 1),
                 AskingAdvance = VenueAdvanceAsk(artist, venue, AskScaleFor(placeId)),
                 Note = DescribeProspect(artist, Label, noise) };
@@ -48,6 +48,7 @@ public partial class PlayerDesk {
         message = slate.Count == 0 ? "No local acts in this room's current cast. Try another room or return another week." :
             $"Heard {slate.Count} local {(slate.Count == 1 ? "act" : "acts")}. Some have deals already. Ask the others where they stand.";
         Note($"Worked {VenueName(venue)} in {CurrentCity?.name ?? placeId}: {message}");
+        if (slate.Count > 0) TeachFirstWornRead();
         Changed?.Invoke();
         return true;
     }

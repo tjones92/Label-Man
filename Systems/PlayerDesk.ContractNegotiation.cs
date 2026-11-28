@@ -352,6 +352,7 @@ public partial class PlayerDesk : Node {
 		message = "";
 		if (talk?.Artist == null) { message = "No negotiation open."; return false; }
 		if (talk.stage != ContractTalkStage.Tabling) { message = "Not at that point in the talks."; return false; }
+		if (FatigueSigningBlock is { } tired) { message = tired; return false; }
         if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentTalk(talk, out message)) return false;
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!talk.IsRenewal && !Label.HasRosterSpace) { message = "Roster is full."; return false; }
@@ -454,6 +455,7 @@ public partial class PlayerDesk : Node {
 	/// <summary>Re-table the same numbers and see who blinks. A patient act (at least half its rounds
 	/// left) softens a little; an impatient one walks right there -- the bluff, and it can be called.</summary>
 	private bool PlayHoldFirm(ContractTalk talk, out string message) {
+		if (FatigueSigningBlock is { } tired) { message = tired; return false; }
         if (!CurrentTalk(talk, out message)) return false;
 		if (!Label.CanAffordToSign(CurrentOffer(talk).Advance)) { message = "The label cannot afford the current offer. Change the terms before holding firm."; return false; }
         if (!CanAffordCommitments(talk, CurrentOffer(talk).Advance, out message)) return false;
@@ -714,6 +716,7 @@ public partial class PlayerDesk : Node {
 	public bool RenewContract(SimulatedArtist artist, float advance, float royaltyRate, int termYears, int singlesObligation,
 			bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
 		message = "";
+        if (FatigueSigningBlock is { } tired) { message = tired; return false; }
         if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentRenewal(artist, out message)) return false;
 		if (PendingRenewal == null || PendingRenewal.Artist != artist) { message = "Approach them about the renewal first."; return false; }
 		if (PendingRenewal.Posture != NegotiationPosture.Pushover) {

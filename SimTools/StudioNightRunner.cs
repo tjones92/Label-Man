@@ -145,7 +145,9 @@ public partial class StudioNightRunner : Node {
             desk.ScrapSession();
             Check(clock.DayStopMinute == clock.HardStopHour * 60 && clock.IsDayOver && clock.MinutesRemainingWithOvertime == 0, "With the date over, nothing else runs at 1:30 a.m.");
             clock.EndDay();
-            Check(clock.CurrentDate == night.NextDay() && clock.CurrentHour * 60 + clock.CurrentMinute == 9 * 60 + 30, $"After a 1:30 a.m. finish the next day starts after a night's sleep ({clock.GetTimeString()})");
+            int wake = desk.NowMinute;
+            bool wakeFits = desk.FatigueState == LabelManFatigueState.Spent ? wake >= 10 * 60 && wake <= 12 * 60 : wake == 9 * 60 + 30;
+            Check(clock.CurrentDate == night.NextDay() && wakeFits, $"After a 1:30 a.m. finish the next day respects the sleep floor ({clock.GetTimeString()})");
             At(clock.CurrentDate, clock.HardStopHour);
             var ordinary = clock.CurrentDate;
             clock.EndDay();

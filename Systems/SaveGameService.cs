@@ -364,6 +364,8 @@ public sealed class PlayerSaveData {
     public BackerSaveData Backer { get; set; }
     /// <summary>Inner-life Phase 1: the New Year's Eve lien. Null in older saves.</summary>
     public LienSaveData Lien { get; set; }
+    /// <summary>Owed minutes and the waking state. Absent in older saves.</summary>
+    public LabelManFatigueSaveData Fatigue { get; set; }
     /// <summary>Optional: paid demo bookings (held deposits, outcomes) and standing refusals. Older saves hold none.</summary>
     public DemoSaveData Demos { get; set; }
     /// <summary>Optional: master-deal offers, signed deals and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
@@ -438,6 +440,14 @@ public sealed class PlayerSaveData {
 	// the week's calls twice.
 	public List<InboundCallSaveData> InboundCalls { get; set; } = new();
 	public int LastCallGenWeek { get; set; } = -1;
+	// The phone rings once (PlayerDesk.Phone): calls on their way, known accounts' misses not yet mentioned, and the tally.
+	public List<PendingRingSaveData> PendingRings { get; set; } = new();
+	public List<MissedRingSaveData> MissedRings { get; set; } = new();
+	public List<BookerOfferSaveData> BookerOffers { get; set; } = new();
+	public List<DoorNoteSaveData> DoorNotes { get; set; } = new();
+	public List<CallKeySaveData> CallKeys { get; set; } = new();
+	public int RingsAnswered { get; set; }
+	public int RingsMissed { get; set; }
 	public Dictionary<string, int> WeeklyTrunkUnits { get; set; } = new();  // trunk units to fold into the chart at week end
 	// This chart-week's trunk business so far, folded into the settlement write-up at week end (mid-week save safe).
 	public long WeeklyTrunkUnitsSold { get; set; }
@@ -461,6 +471,8 @@ public sealed class PlayerSaveData {
 	public List<InstinctChangeSaveData> InstinctLedger { get; set; }
 	// Onboarding T3: the first-week card. Absent in older saves.
 	public FirstWeekSaveData FirstWeek { get; set; }
+	public int AshtrayDay { get; set; }
+	public int AshtrayBatches { get; set; }
 
 	// Phase 2 Rolodex branch: contacts discovered through play.
 	public int PhoneMinutesAccum     { get; set; }
@@ -652,6 +664,7 @@ public sealed class LabelSaveData {
 	public int[] preferredGenres { get; set; } = Array.Empty<int>();
 	public int[] secondaryGenres { get; set; } = Array.Empty<int>();
 	public List<string> RosterArtistIds { get; set; } = new();
+	/// <summary>Read from older saves and ignored: there is no answering service (author, 2026-11-26).</summary>
 	public bool HasAnsweringService { get; set; }
 	// Directive §9: the player's own P&D deal, if any. Excluded from the full-world save's generic
 	// AILabel capture (the player's label is excluded there by design), so it round-trips here instead.
@@ -685,7 +698,6 @@ public sealed class LabelSaveData {
 		preferredGenres = (l.preferredGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		secondaryGenres = (l.secondaryGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList(),
-		HasAnsweringService = l.hasAnsweringService,
 		ActiveDeal = DistributionDealSaveData.From(l.activeDeal),
 		BrandCrest = l.brand == null ? null : (int)l.brand.Crest, BrandPalette = l.brand?.PaletteIndex ?? 0,
 		BrandLettering = l.brand == null ? 0 : (int)l.brand.Lettering, BrandMonogram = l.brand?.Monogram
@@ -716,7 +728,6 @@ public sealed class LabelSaveData {
 			l.independentDistributionRegions.Add(regionId);
 		l.preferredGenres = (preferredGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.secondaryGenres = (secondaryGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
-		l.hasAnsweringService = HasAnsweringService;
 		l.activeDeal = ActiveDeal?.ToDeal();
 		l.brand = BrandCrest.HasValue ? new LabelBrand {
 			Crest = (CrestShape)BrandCrest.Value, PaletteIndex = BrandPalette, Lettering = (LetteringStyle)BrandLettering,

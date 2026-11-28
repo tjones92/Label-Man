@@ -14,14 +14,20 @@ public partial class PlayerDesk {
         sceneInformation.Contacts ??= new(); sceneInformation.Leads ??= new(); sceneInformation.ReadThroughDay ??= new(); sceneInformation.ReadEvents ??= new();
         sceneInformation.Tips ??= new();
     }
-    private void RememberSceneContact(SceneRoomProfile room, SceneBill bill) {
+    private SceneContactKnowledge SceneContact(SceneRoomProfile room) {
         var contact = sceneInformation.Contacts.FirstOrDefault(c => c.ContactId == room.ContactId);
         if (contact == null) { contact = new() { ContactId = room.ContactId }; sceneInformation.Contacts.Add(contact); }
+        return contact;
+    }
+    private void RememberSceneContact(SceneRoomProfile room, SceneBill bill) {
+        var contact = SceneContact(room);
         if (!contact.HeardBillIds.Contains(bill.Id)) contact.HeardBillIds.Add(bill.Id);
         if (contact.HeardBillIds.Count > 16) contact.HeardBillIds.RemoveAt(0);
     }
-    public int SceneContactFamiliarity(string contactId) => sceneInformation.Contacts
-        .FirstOrDefault(c => c.ContactId == contactId)?.HeardBillIds.Distinct().Count() ?? 0;
+    public int SceneContactFamiliarity(string contactId) {
+        var contact = sceneInformation.Contacts.FirstOrDefault(c => c.ContactId == contactId);
+        return contact == null ? 0 : System.Math.Min(16, contact.HeardBillIds.Distinct().Count() + contact.SharedDrinks);
+    }
     public bool KnowsSceneBooker(string roomId) {
         var room = SceneRoomCatalog.Get(roomId);
         return room != null && (sceneInformation.Contacts.Any(c => c.ContactId == room.ContactId && c.IntroducedDay.HasValue) ||
@@ -31,9 +37,7 @@ public partial class PlayerDesk {
     public IReadOnlyList<SceneRoomProfile> IntroducedSceneBookers => SceneRoomCatalog.All
         .Where(r => KnowsSceneBooker(r.Id)).ToArray();
     private void RememberBookerIntroduction(SceneRoomProfile room) {
-        var contact = sceneInformation.Contacts.FirstOrDefault(c => c.ContactId == room.ContactId);
-        if (contact == null) { contact = new() { ContactId = room.ContactId }; sceneInformation.Contacts.Add(contact); }
-        contact.IntroducedDay ??= LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+        SceneContact(room).IntroducedDay ??= SceneDay;
     }
     public bool CanIntroduceSceneBooker(string roomId, out string reason) {
         var room = SceneRoomCatalog.Get(roomId); var clock = TimeManager.Instance;

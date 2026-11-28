@@ -119,7 +119,7 @@ public partial class PlayerDesk : Node {
 			message = "There isn't enough left of the day to sit on the phone.";
 			return false;
 		}
-		SpendMinutes(minutes);
+		DeskSpendMinutes(minutes);
 
 		RollAttemptDay();
 		callAttemptsToday++;
@@ -429,7 +429,7 @@ public partial class PlayerDesk : Node {
 		}
 		djDialsToday[entry.djId] = dialsSoFar + 1;
 
-		SpendMinutes(DialMinutes);
+		DeskSpendMinutes(DialMinutes);
 		callAttemptsToday++;
 
 		var call = new RolodexCall { entry = entry, ctx = c, recordId = recordId, minutesSpent = DialMinutes };

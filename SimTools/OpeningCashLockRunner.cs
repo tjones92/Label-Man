@@ -21,6 +21,8 @@ using Godot;
 ///   [--sequence=batch|staggered]  staggered cuts the second session only after the first single is out (the playtest order).
 ///   --policy=oracle picks the act and songs by probe TRUTH (never available to a player) to test how a strong record is treated.
 ///   --run=NAME  output prefix under SimLogs/ (letters, digits and hyphens).
+///   --late-scout=0|1|2  maximum after-9 PM scouting visits per Monday–Sunday week, after normal desk work.
+///   --late-drink=none|booker  share one drink after a late set if the booker is available.
 /// Writes SimLogs/NAME-opening.json and prints OPENING_CASH_LOCK_DONE / OPENING_CASH_LOCK_FAIL.
 /// </summary>
 public partial class OpeningCashLockRunner : Node {
@@ -58,6 +60,9 @@ public partial class OpeningCashLockRunner : Node {
 	private object firstL1Routes;
 	private List<string> firstCashOptions;   // the §4.2 card as the player would see it at the first L1 / pre-L1
 	private int dayIndex;
+	private int dayStartMinute, longBusLegs;
+	private int lateScoutLimit, lateScoutWeek = -1, lateVisitsThisWeek;
+	private string lateDrink;
 	private GameDate startDate;
 	private float startCash;
 
@@ -73,6 +78,10 @@ public partial class OpeningCashLockRunner : Node {
 			sequence = Arg("sequence", "batch");
 			backerPlan = Arg("backer", "none");
 			demoPlan = Arg("demos", "none");
+			lateScoutLimit = int.Parse(Arg("late-scout", "0"));
+			lateDrink = Arg("late-drink", "none");
+			if (lateScoutLimit is < 0 or > 2) throw new InvalidOperationException("Late scouting must be 0, 1 or 2 visits per week.");
+			if (lateDrink is not ("none" or "booker")) throw new InvalidOperationException("Unknown late drink plan " + lateDrink);
 			if (demoPlan is not ("none" or "work")) throw new InvalidOperationException("Unknown demo plan " + demoPlan);
 			if (backerPlan is not ("none" or "ask")) throw new InvalidOperationException("Unknown backer plan " + backerPlan);
 			days = int.Parse(Arg("days", "120"));
@@ -91,9 +100,14 @@ public partial class OpeningCashLockRunner : Node {
 			Act(true, "found", message);
 
 			for (dayIndex = 0; dayIndex < days && !Desk.IsGameOver; dayIndex++) {
+				dayStartMinute = Desk.NowMinute;
+				longBusLegs = 0;
 				Morning();
 				if (Desk.IsGameOver) break;
-				try { Step(); } catch (Exception e) { Act(false, "policy-exception", e.Message); }
+				try {
+					Step();
+					ScoutLate();
+				} catch (Exception e) { Act(false, "policy-exception", e.Message); }
 				Evening();
 				Clock.EndDay();
 			}
@@ -108,10 +122,33 @@ public partial class OpeningCashLockRunner : Node {
 		}
 	}
 
+	private void ScoutLate() {
+		if (lateScoutLimit == 0 || !Desk.AtHome || Desk.InStudio || Desk.IsGameOver) return;
+		int openingWeekOffset = ((int)startDate.DayOfWeek + 6) % 7;
+		int week = (dayIndex + openingWeekOffset) / 7;
+		if (week != lateScoutWeek) {
+			lateScoutWeek = week;
+			lateVisitsThisWeek = 0;
+		}
+		if (lateVisitsThisWeek >= lateScoutLimit) return;
+		var set = Desk.ScoutingItinerary().FirstOrDefault(o => o.DaysUntil == 0 && o.Affordable
+			&& o.EndMinute > Clock.HardStopHour * 60 && o.StartMinute >= Desk.NowMinute);
+		if (set == null) return;
+		if (!Act(Desk.WaitForSceneAppearance(set.BillId, set.EventId, out var wait), "late-scout-wait", wait, set.RoomName)) return;
+		lateVisitsThisWeek++;
+		if (!Act(Desk.ListenSceneAppearance(set.BillId, set.EventId, out var heard), "late-scout-listen", heard, set.ArtistName)) return;
+		if (lateDrink == "booker" && Desk.AfterSetDrinkCompanion(set.ArtistId, AfterSetCompanion.Booker) != null)
+			Act(Desk.ShareAfterSetDrink(set.ArtistId, AfterSetCompanion.Booker, out var drink), "late-scout-drink", drink, set.RoomName);
+	}
+
 	// ── Policy ──────────────────────────────────────────────────────────────────────────────
 
 	private void Step() {
-		if (!Desk.AtHome) Act(Desk.DriveHome(out var home), "drive-home", home);
+		if (!Desk.AtHome) {
+			int start = Desk.NowMinute;
+			var mode = Desk.ActiveMode;
+			if (Act(Desk.DriveHome(out var home), "drive-home", home)) NoteTravel(mode, start);
+		}
 		AskBacker();
 		ProduceDemosToday();
 		switch (stage) {
@@ -228,7 +265,31 @@ public partial class OpeningCashLockRunner : Node {
 	private static readonly PlayerDesk.ScoutingVenue[] ScoutRotation = {
 		PlayerDesk.ScoutingVenue.ClubsAndRoadhouses, PlayerDesk.ScoutingVenue.HonkyTonks, PlayerDesk.ScoutingVenue.TheatresAndSupperClubs };
 
+	// Acts that said yes with steps before a signature (Sunday dinner, a sit-down): the bot books the first time offered and
+	// keeps it (OnboardingTutorialDirective.md §4c). A yes that waits on a holdout at their next set is let go.
+	private readonly Dictionary<string, PlayerDesk.Prospect> agreed = new(StringComparer.Ordinal);
+
+	/// <summary>Book and keep the visits an agreed act is waiting on. True when one of them is ready to talk terms now.</summary>
+	private bool KeepAgreedVisits() {
+		foreach (var (id, p) in agreed.ToList()) {
+			var yes = Desk.Agreement(p.Artist);
+			if (yes == null || yes.Steps.Any(s => !s.Done && s.Kind is ScoutingApproachStepKind.Holdout or ScoutingApproachStepKind.Objection)) {
+				agreed.Remove(id); continue;
+			}
+			foreach (var step in yes.Steps.Where(s => !s.Done).ToList()) {
+				if (PlayerDesk.NeedsATime(step)) Act(Desk.BookApproachStep(id, step.Kind, 0, out var booked), "book-visit", booked, p.Artist.stageName);
+				if (step.Day == Desk.SceneDay && step.Minute is { } at && Desk.NowMinute <= at)
+					Act(Desk.TakeApproachStep(id, step.Kind, out var kept), "keep-visit", kept, p.Artist.stageName, step.Kind.ToString());
+			}
+			if (!Desk.AgreedToSign(p.Artist)) continue;
+			agreed.Remove(id);
+			if (Act(Desk.ApproachToSign(p, out var open), "approach-agreed", open, p.Artist.stageName, p.AskingAdvance)) { negotiating = p; stage = Stage.Negotiate; return true; }
+		}
+		return false;
+	}
+
 	private void Scout() {
+		if (KeepAgreedVisits()) return;
 		// An act that agreed to hear an offer comes first: that is a real, reachable deal.
 		foreach (var (id, waiting) in considering.ToList()) {
 			var status = Desk.DirectApproaches.LastOrDefault(a => a.ArtistId == id)?.Status;
@@ -271,6 +332,7 @@ public partial class OpeningCashLockRunner : Node {
 			if (open) { negotiating = pick; stage = Stage.Negotiate; return; }
 			if (Desk.DirectApproaches.LastOrDefault(a => a.ArtistId == pick.Artist.artistId)?.Status == ScoutingApproachStatus.Considering)
 				considering[pick.Artist.artistId] = pick;
+			if (Desk.Agreement(pick.Artist) != null) agreed[pick.Artist.artistId] = pick;
 		}
 	}
 
@@ -443,7 +505,10 @@ public partial class OpeningCashLockRunner : Node {
 				float gas = Desk.Label.cashReserves;
 				// Only with the gas home and something over: a founder who can't buy the drive back is stranded (see notes).
 				float roundTrip = 2f * DistanceModel.GetRoadMilesBetween(here, city.cityId) * 0.03f;
+				int start = Desk.NowMinute;
+				var mode = Desk.ActiveMode;
 				if (Desk.Label.cashReserves >= roundTrip + 50f && Act(Desk.DriveTo(city.cityId, out var drove), "drive-to", drove, city.cityId)) {
+					NoteTravel(mode, start);
 					roadTrips++; citiesWorked.Add(city.cityId); Spent("gas", gas - Desk.Label.cashReserves);
 				}
 			}
@@ -806,6 +871,8 @@ public partial class OpeningCashLockRunner : Node {
 
 		daily.Add(new {
 			day = dayIndex, date = Clock.CurrentDate.ToShortString(), stage = stage.ToString(), cash = Round(label.cashReserves),
+			startMinute = dayStartMinute, endMinute = Desk.NowMinute, longBusLegs,
+			fatigueAtWake = Desk.FatigueState.ToString(), fatigueOwedMinutes = Desk.FatigueOwedMinutes,
 			overhead = Round(label.GetMonthlyOverhead()), red = Desk.MonthsInTheRed, sellable, inFlight, consigned,
 			balances = Round(accountBalances), wholesale = Round(wholesale), l1, preL1,
 			residencies = signedIds.Count(id => Desk.RoadBookingFor(id)?.WeeksRemaining > 0)
@@ -844,6 +911,10 @@ public partial class OpeningCashLockRunner : Node {
 
 	// ── Bookkeeping ─────────────────────────────────────────────────────────────────────────
 
+	private void NoteTravel(PlayerDesk.TransportMode mode, int startMinute) {
+		if (mode == PlayerDesk.TransportMode.Bus && Desk.NowMinute - startMinute >= 4 * 60) longBusLegs++;
+	}
+
 	private bool Act(bool ok, string action, string message, params object[] detail) {
 		actions.Add(new { day = dayIndex, date = Clock.CurrentDate.ToShortString(), hour = Clock.CurrentHour, action, ok, message, cash = Round(Desk.Label?.cashReserves ?? 0), detail });
 		return ok;
@@ -859,9 +930,10 @@ public partial class OpeningCashLockRunner : Node {
 		var label = Desk.Label;
 		var summary = new {
 			status, run, seed = SimulationSeedBootstrap.RequestedSeed, archetype = archetype.ToString(), town, policy, road, prep, sell, sequence, days,
+			lateScoutLimit, lateDrink,
 			start = startDate.ToShortString(), startCash, overhead = label?.GetMonthlyOverhead(), creditFloor = Desk.CreditFloor,
 			closed = Desk.IsGameOver, closure = Desk.GameOverReason, closureDay = Desk.IsGameOver ? dayIndex : (int?)null,
-			finalCash = label?.cashReserves, stage = stage.ToString(), signed = signedIds.Count, sessionsDone, singlesPressed = pressedRecordIds.Count,
+			finalCash = label?.cashReserves, ringsAnswered = Desk.RingsAnswered, ringsMissed = Desk.RingsMissed, stage = stage.ToString(), signed = signedIds.Count, sessionsDone, singlesPressed = pressedRecordIds.Count,
 			firstPreL1Day, firstPreL1Detail, firstL1Day, firstL1Shortfall, firstL1Detail, firstL1Routes, firstCashOptions, firstNoRouteDay,
 			firstReleaseDay, firstSaleDay, stockoutDays, firstUnpressableDay, unpressableDays, roadTrips, citiesWorked, channelActs,
 			prepared = PrepSummary(),

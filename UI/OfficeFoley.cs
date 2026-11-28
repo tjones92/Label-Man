@@ -45,6 +45,16 @@ public static class OfficeFoley {
 					+ Rumble(.06f) * .7f * Bump(0, .15f, .9f, t)
 					+ .5f * N() * Mathf.Exp(-(t - .01f) * 700) * (t > .01f ? 1f : 0f);
 				break;
+			case "ring":
+				// A desk set's bell: a striker hammering two gongs about twenty times a second for two seconds.
+				seconds = 2.0f;
+				wave = t => {
+					float strike = t * 20f % 1f;
+					float env = Mathf.Exp(-strike * 7f) * Bump(0f, .03f, 1.98f, t);
+					return env * (.55f * Mathf.Sin(Mathf.Tau * 1180 * t) + .35f * Mathf.Sin(Mathf.Tau * 1420 * t) + .18f * Mathf.Sin(Mathf.Tau * 2950 * t))
+						+ .08f * N() * Mathf.Exp(-strike * 40f);
+				};
+				break;
 			default: // "paper"
 				seconds = .45f;
 				wave = t => N() * (.22f + .5f * Mathf.Max(0, Mathf.Sin(t * 47 + Mathf.Sin(t * 13) * 3))) * Bump(0, .05f, .42f, t);

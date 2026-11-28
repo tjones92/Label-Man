@@ -28,7 +28,7 @@ public static class ScenePerformanceService {
     /// <summary>The same read with the listener's own error given directly: <paramref name="musicNoise"/> for voice,
     /// playing and material, <paramref name="stageNoise"/> for stage presence. The player's comes from the Ear and the
     /// Street (PlayerDesk.InstinctNoise). Partial coverage and the room's blind spots add to it as for anyone.</summary>
-    public static ScenePerformanceSnapshot InterpretAt(ScenePerformanceSnapshot live, string labelId, float musicNoise, float stageNoise, float coverage, SceneRoomKind? room = null) {
+    public static ScenePerformanceSnapshot InterpretAt(ScenePerformanceSnapshot live, string labelId, float musicNoise, float stageNoise, float coverage, SceneRoomKind? room = null, string readKey = null) {
         float partial = .08f * (1 - coverage);
         float baseNoise = musicNoise + partial; stageNoise += partial;
         var hearing = room.HasValue ? SceneRoomCharacter.HearingIn(room.Value) : default;
@@ -37,7 +37,7 @@ public static class ScenePerformanceService {
                 "material" => hearing.Material, _ => hearing.Communication };
             // Stable observer blind spot plus event-specific error. Reopening evidence never improves it.
             float bias = (float)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, $"scout-bias-v1|{labelId}|{axis}") * 2 - 1);
-            float error = (float)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, $"scout-event-v1|{labelId}|{live.Id}|{axis}") * 2 - 1);
+            float error = (float)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, $"scout-event-v1|{labelId}|{readKey ?? live.Id}|{axis}") * 2 - 1);
             return Math.Clamp(value + noise * (.45f * bias + .55f * error), 0, 1);
         }
         return new() { Id = live.Id, Vocals = live.Vocals.HasValue ? Read("vocals", live.Vocals.Value) : null,

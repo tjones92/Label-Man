@@ -89,7 +89,7 @@ public partial class PlayerDesk : Node {
 		float cost = targets.Count * MailerCostPerCopy;
 		if (Label.cashReserves < cost) { message = $"You're ${cost - Label.cashReserves:N0} short of the ${cost:N0} mailing."; return false; }
 
-		Spend(hours);
+		DeskSpend(hours); // packing envelopes at the desk, by the phone
 		Label.cashReserves -= cost;
 		Label.monthlyExpenses += cost;
 		stock.PromoRemaining -= targets.Count;
@@ -122,22 +122,18 @@ public partial class PlayerDesk : Node {
 				.Where(s => s != null).ToDictionary(s => s.stationId, StringComparer.Ordinal);
 
 			int landed = 0;
-			bool callback = false;
 			foreach (string stationId in mailing.StationIds) {
 				if (!stationsById.TryGetValue(stationId, out RadioStation station)) continue; // station gone (era turnover) -- silently in the bin
 				if (GameRandom.Randf() >= MailingLandingChance(mailing.RecordId, stationId)) continue; // in the bin
 				landed++;
 				ServiceStation(mailing.RecordId, stationId, MailingServicedConviction, ServicingSource.Mailed);
-				if (!rolodex.Any(e => e.stationId == stationId) && GameRandom.Randf() < MailingUnpromptedCallbackChance
-						&& EnsureStationEntry(station, discover: true, $"He phoned about \"{title}\" -- didn't expect that.") != null)
-					callback = true;
+				// A jock who liked it rings the office once (PlayerDesk.Phone). If nobody picks up, the spin is gone and he never knows.
+				if (!rolodex.Any(e => e.stationId == stationId) && GameRandom.Randf() < MailingUnpromptedCallbackChance)
+					QueueRing(new PendingRing { Kind = RingKind.DjCallback, StationId = stationId, RegionId = mailing.RegionId, RecordId = mailing.RecordId, Week = week });
 			}
 
 			string regionName = region?.regionName ?? mailing.RegionId;
-			if (callback) FlagSkipStop($"A DJ called back about \"{title}\"", EventType.IncomingCall, officeOnly: true);
-			Note(callback
-				? $"That mailing you sent around {regionName} for \"{title}\" -- {landed} of {mailing.StationIds.Count} landed, and one of them actually called."
-				: landed > 0
+			Note(landed > 0
 					? $"Word's back on the \"{title}\" mailing to {regionName}: {landed} of {mailing.StationIds.Count} landed."
 					: $"Nothing came back on the \"{title}\" mailing to {regionName}. Most of it never does.");
 		}

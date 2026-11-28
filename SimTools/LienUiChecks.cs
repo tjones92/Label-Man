@@ -193,7 +193,7 @@ public partial class LienUiChecks : Node {
 		panel.OpenAtTab("OFFICE"); await Frame();
 		Check(Shows("Start with Jack's old station"), "The office points to the station");
 		Check(!desk.PressedSinglesOnHand().Any() && !desk.PromoSinglesOnHand().Any(), "No selling or promo stock is on hand");
-		panel.OpenAtTab("DISTRIBUTION"); await Frame();
+		panel.OpenAtTab("THE ROAD"); await Frame();
 		await Press("ASK ABOUT THE OLD 78s");
 		await Press("LOOK THROUGH THE USED 78s");
 		Check(desk.Lien.GermainLedger == GermainLedgerStage.Found, "The station and shop are reachable with no stock");

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -37,9 +38,14 @@ public partial class PlayerDesk {
 	/// (keyed per label and axis) stays put as a point narrows it. Instincts in the fog (inner-life §7). Player-only.</summary>
 	public static float InstinctNoise(int score) => score switch { <= 1 => .45f, 2 => .33f, 3 => .22f, 4 => .13f, 5 => .06f, _ => .03f };
 	/// <summary>The Ear hears the music: voice, playing, material, and the songs.</summary>
-	public float EarNoise => InstinctNoise(InstinctProfile?.TheEar ?? 3);
+	public float EarNoise => FatigueInstinctNoise(InstinctProfile?.TheEar ?? 3);
 	/// <summary>The Street reads the room: how the crowd takes the act (stage presence).</summary>
-	public float StreetNoise => InstinctNoise(InstinctProfile?.TheStreet ?? 3);
+	public float StreetNoise => FatigueInstinctNoise(InstinctProfile?.TheStreet ?? 3);
+
+	private float FatigueInstinctNoise(int score) {
+		int effective = score - FatigueFogSteps;
+		return InstinctNoise(effective) + .10f * Math.Max(0, Math.Min(score, 1) - effective);
+	}
 
 	public static int InstinctScore(ExecutiveInstinctProfile p, ExecutiveVoice v) => v switch {
 		ExecutiveVoice.Ear => p.TheEar, ExecutiveVoice.Street => p.TheStreet, ExecutiveVoice.Suit => p.TheSuit, ExecutiveVoice.Fixer => p.TheFixer, _ => 0,

@@ -39,7 +39,7 @@ public partial class PlayerDesk {
         foreach (var artist in cast) {
             var prospect = new Prospect { Artist = artist, Venue = ScoutingVenue.IndustryMeets, CityId = CurrentCityId,
                 SourceConnectionId = connection.Id,
-                ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0), ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0, 1),
+                ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0, FatigueFogSteps), ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0, 1),
                 AskingAdvance = VenueAdvanceAsk(artist, ScoutingVenue.IndustryMeets, AskScaleFor(CurrentCityId)),
                 Note = $"Demo submitted through the {ScenePlaceRegistry.Get(placeId).Name} office. The act remains based there; no live appearance or master rights are implied." };
             using var draws = new PcgRandom { Seed = (ulong)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,

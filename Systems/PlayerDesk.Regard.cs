@@ -8,7 +8,7 @@ public enum RegardLevel { LetDown, Stranger, KnowYourFace, Friendly, TrustYou }
 /// <summary>One thing you did that the act remembers.</summary>
 public enum RegardSourceKind { HeardThem, SatDown, Session, GotThemANight, MissedTheirDemo, LetTheirYesLapse, CancelledOnThem, CaughtBluffing,
 	/// <summary>A yes ended because you never came to the sit-down or the Sunday dinner you booked (the appointment book).</summary>
-	StoodThemUp }
+	StoodThemUp, SharedADrink }
 
 public sealed class RegardContact {
 	public RegardSourceKind Kind;
@@ -69,6 +69,9 @@ public partial class PlayerDesk {
 		foreach (var night in obs.Where(o => o.Kind == ScoutingEvidenceKind.Performance)
 			.GroupBy(o => o.OccurredDay ?? o.AcquiredDay).OrderBy(g => g.Key).Take(RegardNightsCap))
 			r.Contacts.Add(new() { Kind = RegardSourceKind.HeardThem, Day = night.Key, Points = 1, Where = night.First().RoomName });
+		foreach (var drink in obs.Where(o => o.AfterSetDrink == AfterSetCompanion.Act && o.AcquiredDay <= today)
+			.GroupBy(o => o.AcquiredDay).OrderByDescending(g => g.Key).Take(RegardNightsCap))
+			r.Contacts.Add(new() { Kind = RegardSourceKind.SharedADrink, Day = drink.Key, Points = 1, Where = drink.First().RoomName });
 
 		if (obs.Where(o => o.Kind == ScoutingEvidenceKind.MeetingStatement && o.EventId?.EndsWith("|attended") == true)
 			.OrderBy(o => o.AcquiredDay).FirstOrDefault() is { } sat)
@@ -138,6 +141,7 @@ public partial class PlayerDesk {
 			RegardSourceKind.GotThemANight => $"You got us the night at {best.Where ?? "that room"}. Nobody's done that for us.",
 			RegardSourceKind.Session => $"You came out and heard us work{(best.Where != null ? " at " + best.Where : "")}.",
 			RegardSourceKind.SatDown => "You sat down with us. That counts for something.",
+			RegardSourceKind.SharedADrink => "We had a drink after the set. We remember you.",
 			_ => $"You were at {best.Where ?? "our set"} {day}, weren't you?"
 		};
 	}
@@ -157,6 +161,7 @@ public partial class PlayerDesk {
 		var done = r.Contacts.GroupBy(c => c.Kind).Select(g => g.Key switch {
 			RegardSourceKind.HeardThem => g.Count() == 1 ? "heard once" : $"heard {g.Count()} nights",
 			RegardSourceKind.SatDown => "sat down with them",
+			RegardSourceKind.SharedADrink => "shared a drink after the set",
 			RegardSourceKind.Session => g.Count() == 1 ? "a session together" : "two sessions together",
 			RegardSourceKind.GotThemANight => g.Count() == 1 ? "got them a night" : "got them two nights",
 			RegardSourceKind.MissedTheirDemo => "missed their demo",

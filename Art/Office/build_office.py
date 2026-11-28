@@ -19,6 +19,7 @@ DESK = 0.82
 CREDENZA = 0.92
 WALL = 2.79
 FOCAL = 1145
+PHONE_RECEIVER = "Curved Bakelite receiver"
 rng = Random(61463)
 # New props draw from their own stream so the registered desk props keep their placement.
 prop_rng = Random(1960)
@@ -1101,7 +1102,7 @@ def phone():
     faces = [tuple(range(23, -1, -1)), tuple(range(len(handset)-24, len(handset)))]
     faces += [(j*24+i, j*24+(i+1)%24, (j+1)*24+(i+1)%24, (j+1)*24+i)
               for j in range(len(handset_profile)-1) for i in range(24)]
-    receiver = mesh("Curved Bakelite receiver", handset, faces, bakelite)
+    receiver = mesh(PHONE_RECEIVER, handset, faces, bakelite)
     ring_uv(receiver, 24, [(row[0]+.154)/.311 for row in handset_profile], caps=2)
     bevel(receiver, .008)
     for poly in receiver.data.polygons:
@@ -1192,6 +1193,7 @@ def calendar():
 
 
 def ashtray():
+    global collection
     group("Molded glass ashtray")
     center = at_z(1429, 787, DESK)
     profile = [(0.001, .001), (.135, .001), (.152, .008), (.161, .022), (.163, .044), (.162, .056),
@@ -1201,6 +1203,9 @@ def ashtray():
         radius *= 1.105
         lathe("Pressed rim highlight", center, [(radius-.001, h-.002), (radius+.001, h), (radius-.0008, h+.0018)], glass, 112, 1.04, notch=.014)
     for i in range(165):
+        # Model seven piles of two cigarettes (the final pile has one). Godot reveals them in order.
+        if i % 24 == 0:
+            group(f"OfficeAshtrayWaste{i // 24 + 1}")
         a, r = rng.uniform(0, math.tau), math.sqrt(rng.random()) * .138
         pos = center + Vector((math.cos(a)*r, math.sin(a)*r*.98, .021 + rng.uniform(0, .009)))
         rad = rng.uniform(.0025, .0070)
@@ -1209,6 +1214,7 @@ def ashtray():
         chip.scale = (1, rng.uniform(.4, 1.2), .62)
         chip.rotation_euler.z = a
     for i in range(13):
+        collection = bpy.data.collections[f"OfficeAshtrayWaste{i // 2 + 1}"]
         ang = rng.uniform(0, math.tau)
         a = center + Vector((rng.uniform(-.079, .079), rng.uniform(-.077, .077), rng.uniform(.026, .040)))
         b = a + Vector((math.cos(ang)*.053, math.sin(ang)*.053, rng.uniform(-.006, .018)))
@@ -1221,6 +1227,11 @@ def ashtray():
         cyl("Crushed cork filter", a, split, .0066, filter_mat, sides=16)
         cyl("Crumpled cigarette paper", split, end, .0067, ivory, r2=.0056, sides=16)
         cyl("Burned cigarette tip", end, b, .0057, ash_colors[1], r2=.0043, sides=14)
+
+    resize = Matrix.Translation(center) @ Matrix.Scale(.75, 4) @ Matrix.Translation(-center)
+    for name in ["Molded glass ashtray", *(f"OfficeAshtrayWaste{i}" for i in range(1, 8))]:
+        for obj in bpy.data.collections[name].objects:
+            obj.matrix_world = resize @ obj.matrix_world
 
 
 def lighting():
@@ -1256,7 +1267,7 @@ def export_scene(out):
     shader.inputs["Transmission Weight"].default_value = 0
     shader.inputs["Alpha"].default_value = .45
     glass.surface_render_method = "BLENDED"
-    # Export one mesh per prop, retaining UVs, material slots and evaluated normals.
+    # Batch static parts of each prop, retaining UVs, material slots and evaluated normals.
     depsgraph = bpy.context.evaluated_depsgraph_get()
     bpy.ops.object.select_all(action="DESELECT")
     for coll in list(scene.collection.children):
@@ -1268,7 +1279,10 @@ def export_scene(out):
             export = bpy.data.objects.new(obj.name, data)
             coll.objects.link(export)
             export.matrix_world = obj.matrix_world
-            exports.append(export)
+            if obj.name == PHONE_RECEIVER:
+                export.name = "OfficePhoneReceiver"
+            else:
+                exports.append(export)
         for obj in exports:
             obj.select_set(True)
         if exports:

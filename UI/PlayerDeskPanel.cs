@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -28,6 +28,8 @@ public partial class PlayerDeskPanel : Control {
 	private WallClock deskClock;
 	private Button bookButton;
 	private TimeCard timeCard;
+	private Label fatigueMorning;
+	private Button waitOneButton, waitThreeButton;
 	private Control pageStain;   // the coffee ring overlay on the scrolled page
 	private PanelContainer feedbackToast;
 	private Timer feedbackToastTimer;
@@ -138,6 +140,11 @@ public partial class PlayerDeskPanel : Control {
 			case "LEDGER": GoToTab(6, PageLedger); break;
 			case "ROLODEX": GoToTab(RolodexTab, PageRolodex); break;
 			case "BAND ROOM": GoToTab(BandRoomTab, PageBandRoom); break;
+			case "BOOKS": OpenBooks(); break;
+			case "THE PAPER": GoToTab(PaperTab, () => PaperSection(PlayerDesk.Instance)); break;
+			case "THE PHONE": GoToTab(RolodexTab, PageDeskPhone); break;
+			case "THE ROAD": GoToTab(RoadTab, PageStreetDistribution); break;
+			case "OFFICE SERVICES": GoToTab(OfficeTab, () => OfficeBody(servicesOnly: true)); break;
 		}
 	}
 
@@ -181,10 +188,7 @@ public partial class PlayerDeskPanel : Control {
 		shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		AddChild(shade);
 
-		folder = new PanelContainer();
-		folder.SetAnchorsPreset(LayoutPreset.Center);
-		folder.Position = new Vector2(-600, -430);
-		folder.Size = new Vector2(1200, 860);
+		folder = new PanelContainer { Name = "OfficeFolder" };
 		// Manila with the desk's own lighting: contact shadow, lamp falloff, grain and scorched edges.
 		var folderPaper = new PaperStyleBox {
 			Fill = Folder, Border = new Color("70552c"), BorderWidth = 2, Radius = 3, ShadowSize = 24, ShadowAlpha = 0.55f,
@@ -194,6 +198,9 @@ public partial class PlayerDeskPanel : Control {
 		folderPaper.ContentMarginTop = 24; folderPaper.ContentMarginBottom = 24;
 		folder.AddThemeStyleboxOverride("panel", folderPaper);
 		AddChild(folder);
+		folder.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		folder.GrowHorizontal = GrowDirection.Both;
+		folder.GrowVertical = GrowDirection.Both;
 
 		var root = new VBoxContainer();
 		root.AddThemeConstantOverride("separation", 6);
@@ -231,7 +238,7 @@ public partial class PlayerDeskPanel : Control {
 
 		// The folder's upper header: set in bold so it stands out from the body copy below it. It is a RichTextLabel
 		// because the cash figure alone is struck in green or red, and has to be readable at a glance.
-		clockLabel = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, MouseFilter = MouseFilterEnum.Stop, AutowrapMode = TextServer.AutowrapMode.Off };
+		clockLabel = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, MouseFilter = MouseFilterEnum.Stop, AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		clockLabel.AddThemeFontOverride("normal_font", PaperTheme.SansBold);
 		clockLabel.AddThemeFontOverride("bold_font", PaperTheme.SansBold);
 		clockLabel.AddThemeFontSizeOverride("normal_font_size", 17);
@@ -246,6 +253,8 @@ public partial class PlayerDeskPanel : Control {
 		alertRow.AddThemeConstantOverride("separation", 12);
 		root.AddChild(alertRow);
 		alertRow.AddChild(clockLabel);
+		fatigueMorning = TimeMorningLabel();
+		root.AddChild(fatigueMorning);
 		nextUpLabel = Btn("");
 		nextUpLabel.CustomMinimumSize = new Vector2(0, 30);
 		nextUpLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -277,18 +286,18 @@ public partial class PlayerDeskPanel : Control {
 		// and there's no other way to move the day forward from the desk.
 		idleRow = new HBoxContainer();
 		idleRow.AddThemeConstantOverride("separation", 8);
-		var wait1 = Btn("WAIT 1h");
-		wait1.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PassTime(1, out string m); Say(m, ok); return ok; });
+		var wait1 = waitOneButton = Btn("WAIT 1h");
+		wait1.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PassTime(1, out string m, stopForCallers: true); Say(m, ok); return ok; });
 		idleRow.AddChild(wait1);
-		var wait3 = Btn("WAIT 3h");
-		wait3.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PassTime(3, out string m); Say(m, ok); return ok; });
+		var wait3 = waitThreeButton = Btn("WAIT 3h");
+		wait3.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PassTime(3, out string m, stopForCallers: true); Say(m, ok); return ok; });
 		idleRow.AddChild(wait3);
 		var waitEve = Btn("WAIT FOR EVENING");
 		waitEveningButton = waitEve;
 		waitEve.Pressed += () => Act(() => {
 			int h = PlayerDesk.Instance.HoursUntil(17);
 			if (h <= 0) { Say("Evening hours have already begun.", false); return false; }
-			bool ok = PlayerDesk.Instance.PassTime(h, out string m); Say(m, ok); return ok;
+			bool ok = PlayerDesk.Instance.PassTime(h, out string m, stopForCallers: true); Say(m, ok); return ok;
 		});
 		idleRow.AddChild(waitEve);
 		var endDay = Btn("END THE DAY");
@@ -299,6 +308,7 @@ public partial class PlayerDeskPanel : Control {
 		skip.TooltipText = "Choose a date or upcoming event to skip to.";
 		skip.Pressed += () => UIManager.Instance?.OpenCalendarSkipOptionsFromDesk();
 		idleRow.AddChild(skip);
+		BuildPickUpButton(idleRow);   // the phone ringing while he waits (PlayerDesk.Callers)
 		alertRow.AddChild(idleRow);
 		root.AddChild(nextUpLabel);
 		BuildFirstWeekCard(root);   // onboarding T3: the first-week card takes NEXT UP's place while it lasts
@@ -385,6 +395,8 @@ public partial class PlayerDeskPanel : Control {
 		AddTab("LEDGER", PageLedger);
 		AddTab("ROLODEX", PageRolodex);
 		AddTab("BAND ROOM", PageBandRoom);
+		// Keep the page indices for messages and tutorial links. The public strip is the paperwork.
+		foreach (int index in new[] { 0, OfficeTab, LedgerTab, RolodexTab, BandRoomTab }) tabButtons[index].Hide();
 	}
 
 	private void AddTab(string title, Action page) {
@@ -392,7 +404,7 @@ public partial class PlayerDeskPanel : Control {
 		tabTitles.Add(title);
 		var button = Btn(title);
 		button.CustomMinimumSize = new Vector2(125, 40);
-		button.Pressed += () => GoToTab(index, page);
+		button.Pressed += () => { if (index == 4) OpenBooks(); else GoToTab(index, page); };
 		tabs.AddChild(button);
 		tabButtons.Add(button);
 	}
@@ -400,14 +412,32 @@ public partial class PlayerDeskPanel : Control {
 	// Tab order: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5), LEDGER(6), ROLODEX(7), BAND ROOM(8).
 	private const int CatalogTab = 2;
 	private const int DistributionTab = 3;
+	private const int LedgerTab = 6;
 	private const int RolodexTab = 7;
 	private const int BandRoomTab = 8;
+	private const int PaperTab = 9;
+	private const int RoadTab = 10;
+	private int lastFileTab = 1;
+	private int lastBooksPage = 4;
+
+	internal bool FilesOpen => Visible && !browsingSaves && !studioMode;
+
+	internal void OpenFiles() => OpenAtTab(lastFileTab switch {
+		CatalogTab => "CATALOG", DistributionTab => "DISTRIBUTION", 4 => "BOOKS", _ => "ROSTER"
+	});
+
+	private void OpenBooks() {
+		if (lastBooksPage == LedgerTab) GoToTab(LedgerTab, PageLedger);
+		else GoToTab(4, PageFinances);
+	}
 
 	/// <summary>Switches the desk to a macro tab, dropping any open MANAGE/cover-browse sub-state.</summary>
 	private void GoToTab(int index, Action page) {
 		bool switching = index != currentTab;
 		if (switching && contentScroll != null) tabScroll[currentTab] = contentScroll.ScrollVertical;
 		currentTab = index;
+		if (index is 1 or CatalogTab or DistributionTab or 4 or LedgerTab) lastFileTab = index == LedgerTab ? 4 : index;
+		if (index is 4 or LedgerTab) lastBooksPage = index;
 		currentPage = page;
 		if (index < tabTitles.Count) FirstSessionTrace.TabOpened(tabTitles[index]);
 		managingArtistId = null;
@@ -465,6 +495,7 @@ public partial class PlayerDeskPanel : Control {
 		nextUpLabel.Visible = inGame;
 		if (firstWeekCard != null) firstWeekCard.Visible = false;
 		if (!inGame) redInkLabel.Visible = false;
+		fatigueMorning.Visible = false;
 		deskClock.Visible = timeCard.Visible = bookButton.Visible = false;   // the in-game desk shows them again below
 
 		if (browsingSaves) {
@@ -510,16 +541,21 @@ public partial class PlayerDeskPanel : Control {
 		if (studioMode) {
 			tabs.Hide(); idleRow.Hide(); nextUpLabel.Hide(); redInkLabel.Hide();
 			titleLabel.Text = "THE STUDIO";
+			RefreshTimeCard(time, desk);
 			clockLabel.Text = $"{time?.CurrentDate.ToHeadlineString()}  •  {time?.GetTimeString()}  •  {CashMarkup(desk.Label.cashReserves)} cash";
 			Clear(content); RenderStudioWindow(desk); return;
 		}
-		if (idleRow != null) idleRow.Visible = !desk.InStudio;
+		if (idleRow != null) idleRow.Visible = !desk.InStudio &&
+			(currentTab is 0 or BandRoomTab or RoadTab || desk.FirstWeekCurrent != null || desk.Calling != PlayerDesk.CallerAt.None);
 		// The idle row is built once, so the evening button has to be re-read from the clock every refresh.
 		if (waitEveningButton != null) {
+			SetWaitPreview(waitOneButton, desk, 1);
+			SetWaitPreview(waitThreeButton, desk, 3);
 			bool eveningStarted = (time?.CurrentHour ?? 9) >= 17;
 			waitEveningButton.Disabled = eveningStarted;
 			waitEveningButton.Text = eveningStarted ? "EVENING'S HERE" : "WAIT FOR EVENING";
-			waitEveningButton.TooltipText = eveningStarted ? "Evening scouting hours have begun." : "Pass time until 5 PM, when clubs begin opening.";
+			if (eveningStarted) waitEveningButton.TooltipText = "Evening scouting hours have begun.";
+			else SetWaitPreview(waitEveningButton, desk, desk.HoursUntil(17));
 		}
 
 		if (tabButtons.Count == 0) {
@@ -529,7 +565,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 		tabs.Visible = true;
 		for (int index = 0; index < tabButtons.Count; index++)
-			StyleFolderTab(tabButtons[index], index == currentTab);
+			StyleFolderTab(tabButtons[index], index == currentTab || index == 4 && currentTab == LedgerTab);
 		UpdateTabBadges(desk);
 
 		AILabel label = desk.Label;
@@ -546,20 +582,15 @@ public partial class PlayerDeskPanel : Control {
 		string where = desk.AtHome ? $"at the office in {home}" : $"on the road in {desk.CurrentCity?.name ?? "town"}";
 		// The workday lives on the wall clock and the time card beside CLOSE; the line keeps only the date and time.
 		bool overtime = time?.RegularTimeRemainingText is not { } regularLeft || regularLeft == "0m";
-		if (time != null) {
-			deskClock.Set(time.CurrentHour, time.CurrentMinute, time.RegularWorkdayEndHour);
-			timeCard.Set(ShortClock(time.WorkdayStartHour), ShortClock(time.RegularWorkdayEndHour), ShortClock(time.HardStopHour),
-				overtime ? $"{time.OvertimeRemainingText} O.T. left" : $"{time.RegularTimeRemainingText} left");
-		}
-		deskClock.Visible = timeCard.Visible = bookButton.Visible = time != null;
+		RefreshTimeCard(time, desk);
+		bookButton.Visible = time != null;
+		SetTimeMorning(fatigueMorning, desk);
+		RefreshPickUp(desk);
 		// One line: date and time, where, cash, acts. The full place and towns worked are on the hover.
 		string place = desk.AtHome ? $"{(string.IsNullOrEmpty(label.headquartersCity) ? region : label.headquartersCity)} office" : $"on the road, {desk.CurrentCity?.name ?? "town"}";
 		clockLabel.Text =
 			$"{time?.CurrentDate.DayName[..3]} {time?.CurrentDate.ToHeadlineString()}  {time?.GetTimeString()}" + (overtime ? " (overtime)" : "") +
-			$"  |  {place}  |  {CashMarkup(label.cashReserves)}  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts";
-		deskClock.TooltipText = timeCard.TooltipText = time == null ? string.Empty
-			: $"{time.GetTimeString()}. {time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime}. " +
-			  "There is no overtime surcharge. Each action must finish by the hard stop.";
+			$"  |  {place}  |  {CashMarkup(label.cashReserves)}  ·  {RentInHand(label)}  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts";
 		clockLabel.TooltipText = time == null ? string.Empty
 			: $"{time.CurrentDate.ToLongString()}, {where}. {Plural.Of(desk.WorkedCities.Count(), "town")} worked.\n" +
 			  $"{time.RegularTimeRemainingText} regular until {time.RegularWorkdayEndTime}, then {time.OvertimeRemainingText} overtime to {time.HardStopTime} ({time.GetDayStatus()}). " +
@@ -572,6 +603,8 @@ public partial class PlayerDeskPanel : Control {
 			: string.Empty;
 
 		Clear(content);
+		if (inGame && desk.FatigueQuietNotice is { } notice) Body(notice);
+		if (currentTab is 4 or LedgerTab) DrawBooksLinks();
 		(currentPage ?? PageAandR)();
 		// The lawyer is in the office: the sitting takes over the whole screen until he's shown out.
 		SyncLienStage(desk);
@@ -615,16 +648,16 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	/// <summary>An hour as a time card prints it: "9:00", "6:00", no AM/PM.</summary>
-	private static string ShortClock(int hour) { int h = hour % 12; return $"{(h == 0 ? 12 : h)}:00"; }
 
 	private void UpdateTabBadges(PlayerDesk desk) {
 		for (int i = 0; i < tabButtons.Count; i++) {
-			string title = tabTitles[i];
+			string title = i == 4 ? "BOOKS" : tabTitles[i];
 			// The open tab never wears a badge: the player is already looking at what it would announce.
 			int count = i == currentTab && title is "LEDGER" or "ROLODEX" ? 0 : title switch {
 				"LEDGER" => desk.UnreadLogCount,
 				"OFFICE" => desk.PendingCalls().Count() + (desk.LienSittingDue ? 1 : 0),
 				"CATALOG" => desk.PendingPressings().Count(),
+				"BOOKS" => i == currentTab || currentTab == LedgerTab ? 0 : desk.UnreadLogCount,
 				"BAND ROOM" => desk.PendingVisitCount,
 				"ROLODEX" => desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended ? 1 : 0,
 				_ => 0
@@ -663,7 +696,7 @@ public partial class PlayerDeskPanel : Control {
 				$"{NextBillNote(desk)} {WhileYouWait(desk)}", WaitingTab(desk));
 		}
 		if (desk.ReleasedRecords.Any(record => (desk.StockFor(record.baseRecord.recordId)?.Remaining ?? 0) > 0))
-			return (desk.AtHome ? "Take sellable stock to a town and work an account." : "Work an account in this town or drive back to the office.", DistributionTab);
+			return (desk.AtHome ? "Take sellable stock to a town and work an account." : "Work an account in this town or drive back to the office.", RoadTab);
 		if (desk.PendingPressings().Any()) {
 			var incoming = desk.PendingPressings().OrderBy(item => item.Arrives).First();
 			return ($"Pressing on the way: {incoming.Quantity:N0} of \"{incoming.Title}\" due {incoming.Arrives.ToHeadlineString()}. {WhileYouWait(desk)}", WaitingTab(desk));
@@ -762,6 +795,8 @@ public partial class PlayerDeskPanel : Control {
 			case 4: GoToTab(4, PageFinances); break;
 			case RolodexTab: GoToTab(RolodexTab, PageRolodex); break;
 			case BandRoomTab: GoToTab(BandRoomTab, PageBandRoom); break;
+			case OfficeTab: GoToTab(PaperTab, () => PaperSection(desk)); break;
+			case RoadTab: GoToTab(RoadTab, PageStreetDistribution); break;
 			default: GoToTab(DistributionTab, PageDistribution); break;
 		}
 	}
@@ -1451,10 +1486,14 @@ public partial class PlayerDeskPanel : Control {
 		// Every way to put this sheet down (table, table again, renew) is one quick meeting. Too late in the day for one and
 		// the press only failed with a note; say so on the button instead.
 		var clock = TimeManager.Instance;
-		if (clock != null && !clock.CanAffordHours(PlayerDesk.NegotiationRoundHours, allowOvertime: true)) {
+		if (PlayerDesk.Instance?.FatigueSigningBlock is { } tired) {
+			offer.Disabled = true;
+			GreyWhy(offer, tired);
+		} else if (clock != null && !clock.CanAffordHours(PlayerDesk.NegotiationRoundHours, allowOvertime: true)) {
 			offer.Disabled = true;
 			GreyWhy(offer, $"A {PlayerDesk.NegotiationRoundHours}h meeting won't fit before the {clock.HardStopTime} hard stop. Come back to the table tomorrow.");
 		}
+		if (PlayerDesk.Instance is { } desk) AddTonightPreview(offer, desk, desk.NowMinute + PlayerDesk.NegotiationRoundHours * 60);
 		buttons.AddChild(offer);
 
 		var cancel = Btn("NOT NOW");
@@ -1630,6 +1669,11 @@ public partial class PlayerDeskPanel : Control {
 
 	private void NegotiationCounterButton(ContractTalk talk, ContractCounter counter, string label, string sub) {
 		var btn = Btn(label);
+		if (counter == ContractCounter.HoldFirm && PlayerDesk.Instance?.FatigueSigningBlock is { } tired) {
+			btn.Disabled = true;
+			GreyWhy(btn, tired);
+			sub = tired;
+		}
 		btn.CustomMinimumSize = new Vector2(0, 38);
 		btn.Pressed += () => {
 			bool ok = PlayerDesk.Instance.PlayNegotiationCounter(talk, counter, out string message);
@@ -2420,36 +2464,8 @@ public partial class PlayerDeskPanel : Control {
 
 	private const int DistributionMailStageDays = 3, DistributionHouseStageDays = 14;
 
-	private void DistributionBody() {
-		PlayerDesk desk = PlayerDesk.Instance;
-		AILabel label = desk.Label;
-		Heading("DISTRIBUTION", "The places your records go: the towns you drive to, the shops and operators in them, " +
-			"the stations and trades you work by mail, and the houses and distributors that carry you where you can't. " +
-			"Assembling, pressing and dating a record happen on its row in the CATALOG.");
-
-		// Sections whose precondition isn't met stay out of the page entirely; one line says what unlocks them.
-		bool hasReleased = desk.ReleasedRecords.Any(record => record?.baseRecord != null);
-		if (!hasReleased)
-			Body("More of this desk — the mailing, the trades, distribution deals and the wholesale houses — opens once your first single is out.");
-		// Playtest 2026-11-04: release day opened about thirteen sections at once after a month of gentle unlocks. The
-		// desk now opens in three stages: the town first; the mail-order work once copies are out (or after a few
-		// days); the houses, deals and buy-ins once a record has two weeks behind it or has broken out somewhere.
-		GameDate todayDist = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		var releasedDates = desk.ReleasedRecords.Where(r => r?.baseRecord != null && r.baseRecord.releaseDate.year > 0).Select(r => r.baseRecord.releaseDate).ToList();
-		GameDate firstOut = releasedDates.Count > 0 ? releasedDates.OrderBy(d => d.year).ThenBy(d => d.month).ThenBy(d => d.day).First() : todayDist;
-		int daysOut = Mathf.Max(0, DaysBetween(firstOut, todayDist));
-		bool copiesOut = desk.StopStock().Any() || desk.OpenBalancesByStop().Any();
-		bool brokeOut = desk.ReleasedRecords.Any(r => r?.baseRecord != null && desk.BreakoutRegionNames(r.baseRecord.recordId).Any());
-		bool stageMail = hasReleased && (copiesOut || daysOut >= DistributionMailStageDays);
-		bool stageHouses = hasReleased && (daysOut >= DistributionHouseStageDays || brokeOut);
-		if (hasReleased && !stageHouses) {
-			string Day(int days) => LocalSceneRoomService.Date(LocalSceneRoomService.Day(firstOut) + days).ToHeadlineString();
-			Body(!stageMail
-				? $"Start in town: place copies with a shop, or take one to a station. The mailing, the trades and the press desk open once copies are out (or on {Day(DistributionMailStageDays)}); " +
-				  $"distribution deals and the wholesale houses on {Day(DistributionHouseStageDays)}, or sooner if a record breaks out."
-				: $"Distribution deals, the wholesale houses and artist buy-ins open on {Day(DistributionHouseStageDays)}, or sooner if a record breaks out somewhere.");
-		}
-
+	private void PageStreetDistribution() {
+		var desk = PlayerDesk.Instance;
 		MarketCity here = desk.CurrentCity;
 		string hereName = here?.name ?? "the office";
 		List<PlayerDesk.PlayerStop> stopsHere = desk.StopsInCity(here.cityId).ToList();
@@ -2517,14 +2533,15 @@ public partial class PlayerDeskPanel : Control {
 				}
 				line.AddChild(Typed(c.name + (desk.WorkedCities.Contains(c.cityId) ? " ✓" : ""), Ink));
 				line.AddChild(new DotLeader());
-				line.AddChild(Typed($"{h} hrs · ${g:N0}", Ink));
+				line.AddChild(Typed($"{h}h · ${g:N0}", Ink));
 				string id = c.cityId;
 				var row = ClickRow(line, picked, () => { selectedDriveCityId = picked ? null : id; RefreshKeepingScroll(); },
 					$"{c.name}, {region}: {h}h {words.Noun}, ${g:N0} {words.Cost}" + (desk.WorkedCities.Contains(c.cityId) ? ". Worked before." : "."));
 				column.AddChild(row);
 				if (!picked) continue;
-				var drive = Btn($"{words.Button} {c.name.ToUpperInvariant()}");
+				var drive = Btn($"{words.Button} {c.name.ToUpperInvariant()}  ({h}h)");
 				drive.TooltipText = $"{h} hours on the road and ${g:N0} in {words.Cost}. The office and studio are out of reach until you're back.";
+				AddTravelTonightPreview(drive, desk, h);
 				drive.Pressed += () => Act(() => {
 					bool ok = PlayerDesk.Instance.DriveTo(id, out string message);
 					if (ok) selectedDriveCityId = null;
@@ -2674,11 +2691,51 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		if (!desk.AtHome) {
-			var home = Btn("DRIVE HOME");
+			int hours = desk.TravelQuote(desk.CurrentCityId, desk.Label.homeCityId).Hours;
+			var home = Btn($"DRIVE HOME  ({hours}h)");
+			AddTravelTonightPreview(home, desk, hours);
 			home.CustomMinimumSize = new Vector2(160, 40);
 			home.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.DriveHome(out string message); Say(message, ok); return ok; });
 			content.AddChild(home);
 		}
+
+	}
+
+	private void DistributionBody() {
+		PlayerDesk desk = PlayerDesk.Instance;
+		AILabel label = desk.Label;
+		Heading("DISTRIBUTION", "The places your records go: the towns you drive to, the shops and operators in them, " +
+			"the stations and trades you work by mail, and the houses and distributors that carry you where you can't. " +
+			"Assembling, pressing and dating a record happen on its row in the CATALOG.");
+
+		// Sections whose precondition isn't met stay out of the page entirely; one line says what unlocks them.
+		bool hasReleased = desk.ReleasedRecords.Any(record => record?.baseRecord != null);
+		if (!hasReleased)
+			Body("More of this desk — the mailing, the trades, distribution deals and the wholesale houses — opens once your first single is out.");
+		// Playtest 2026-11-04: release day opened about thirteen sections at once after a month of gentle unlocks. The
+		// desk now opens in three stages: the town first; the mail-order work once copies are out (or after a few
+		// days); the houses, deals and buy-ins once a record has two weeks behind it or has broken out somewhere.
+		GameDate todayDist = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		var releasedDates = desk.ReleasedRecords.Where(r => r?.baseRecord != null && r.baseRecord.releaseDate.year > 0).Select(r => r.baseRecord.releaseDate).ToList();
+		GameDate firstOut = releasedDates.Count > 0 ? releasedDates.OrderBy(d => d.year).ThenBy(d => d.month).ThenBy(d => d.day).First() : todayDist;
+		int daysOut = Mathf.Max(0, DaysBetween(firstOut, todayDist));
+		bool copiesOut = desk.StopStock().Any() || desk.OpenBalancesByStop().Any();
+		bool brokeOut = desk.ReleasedRecords.Any(r => r?.baseRecord != null && desk.BreakoutRegionNames(r.baseRecord.recordId).Any());
+		bool stageMail = hasReleased && (copiesOut || daysOut >= DistributionMailStageDays);
+		bool stageHouses = hasReleased && (daysOut >= DistributionHouseStageDays || brokeOut);
+		if (hasReleased && !stageHouses) {
+			string Day(int days) => LocalSceneRoomService.Date(LocalSceneRoomService.Day(firstOut) + days).ToHeadlineString();
+			Body(!stageMail
+				? $"Start in town: place copies with a shop, or take one to a station. The mailing, the trades and the press desk open once copies are out (or on {Day(DistributionMailStageDays)}); " +
+				  $"distribution deals and the wholesale houses on {Day(DistributionHouseStageDays)}, or sooner if a record breaks out."
+				: $"Distribution deals, the wholesale houses and artist buy-ins open on {Day(DistributionHouseStageDays)}, or sooner if a record breaks out somewhere.");
+		}
+
+		DrawRouteStock(desk);
+		var goOut = Btn("GO OUT TO THE SHOPS");
+		goOut.Pressed += () => UIManager.Instance?.FromFilesToDoor();
+		content.AddChild(goOut);
+		List<(string RecordId, string Title, int PromoOnHand)> promoOnHand = desk.PromoSinglesOnHand().ToList();
 
 		// --- THE MAILING (office only, directive §5): the only way to touch a market you can't drive to ---
 		if (promoOnHand.Count > 0 && stageMail) {
@@ -3246,6 +3303,8 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(frame);
 
 		foreach (CallLine line in call.transcript) {
+			if (line.beat == RolodexSceneBeat.PassiveRead && line.voice != ExecutiveVoice.None
+				&& line.voice == PlayerDesk.Instance?.FatigueQuietVoice) continue;
 			if (line.voice != ExecutiveVoice.None) {
 				// An instinct read: a voice in your own head, not a line on the phone.
 				var read = new Label {
@@ -3500,7 +3559,7 @@ public partial class PlayerDeskPanel : Control {
 	// OFFICE (the ledger / log)
 	// ========================================================================
 
-	private void OfficeBody() {
+	private void OfficeBody(bool servicesOnly = false) {
 		PlayerDesk desk = PlayerDesk.Instance;
 
 		// Character card: who you are and what you can read.
@@ -3511,8 +3570,10 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(InstinctRow(inst, true));
 		InstinctPointButtons(desk, content);
 
-		PaperSection(desk);
-		PhoneSection(desk);
+		if (!servicesOnly) {
+			PaperSection(desk);
+			PhoneSection(desk);
+		}
 		ReturnsSection(desk);
 		StaffSection(desk);
 	}
@@ -3546,23 +3607,16 @@ public partial class PlayerDeskPanel : Control {
 		return "ACTS";
 	}
 
-	/// <summary>Directive §4's "office call list" -- who's phoned in demand, and the answering-service
-	/// unlock that decides whether a call raised while the player's on the road even gets logged.</summary>
+	/// <summary>Directive §4's "office call list": the calls he picked up and hasn't answered yet. A call that rang while he
+	/// was out isn't here, because nobody took it (PlayerDesk.Phone).</summary>
 	private void PhoneSection(PlayerDesk desk) {
 		Heading("THE PHONE");
-		if (desk.HasAnsweringService)
-			Body("An answering service is on the line -- calls get caught whether you're at the desk or out on the road.");
-		else {
-			Body($"Nobody's here to pick up when you're out of town -- calls that come in while you're on the road never " +
-				$"reach you. An answering service (${AILabel.AnsweringServiceMonthlyCost:N0}/mo) fixes that.");
-			var hire = Btn($"HIRE ANSWERING SERVICE  (${AILabel.AnsweringServiceMonthlyCost:N0}/mo)");
-			hire.CustomMinimumSize = new Vector2(280, 40);
-			hire.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PurchaseAnsweringService(out string message); Say(message, ok); return ok; });
-			content.AddChild(hire);
-		}
+		Body("Nobody picks up when you're out. A call that rings while you're at a set, a counter or on the road is gone, " +
+			"and most callers don't leave word. These are the ones you were here for.");
 
+		BookerOffersSection(desk);
 		var calls = desk.PendingCalls().ToList();
-		if (calls.Count == 0) { Body("The phone's quiet."); return; }
+		if (calls.Count == 0) { if (desk.BookerOffers.Count == 0) Body("Nothing you've picked up is waiting on you."); return; }
 		foreach (var (call, stopName, cityName, title, expiresIn) in calls) {
 			string termsHint = call.ConsignmentTerms ? "consignment" : "COD";
 			var line = new Label {
@@ -3699,8 +3753,8 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	/// <summary>Directive §7: contractors, not payroll. The commission runner (route + carton) and the
-	/// project promo man (a one-off record/city radio push) both live here, next to the answering-service
-	/// hire they're philosophically the same shape as -- a spend decision, never a salary line.</summary>
+	/// project promo man (a one-off record/city radio push) both live here: a spend decision,
+	/// never a salary line.</summary>
 	private void StaffSection(PlayerDesk desk) {
 		Heading("THE STAFF");
 

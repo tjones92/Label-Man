@@ -227,7 +227,9 @@ public partial class PlayerDesk {
 		// The state the dice are keyed on. A caught bluff's own cost to regard is left out, or failing would reopen it.
 		int regardBefore = regard.Score - regard.Contacts.Where(c => c.Kind == RegardSourceKind.CaughtBluffing).Sum(c => c.Points);
 		string key = $"{Label.labelId}|{act.artistId}|bluff|{s.Kind}|{s.RaisedDay}|{s.Objection}|fixer{fixer}|regard{regardBefore}|nights{HeardNights(act.artistId)}";
+		key = FatigueReadKey(key);
 		var check = new CheckRead { Voice = ExecutiveVoice.Fixer, Instinct = fixer, Difficulty = difficulty, Key = key };
+		if (FatigueFogSteps > 0) check.Modifiers.Add((FatigueState == LabelManFatigueState.Spent ? "Spent" : "Tired", -FatigueFogSteps));
 		int mod = RegardModifier(regard.Level);
 		if (mod != 0) check.Modifiers.Add((RegardWhy(regard.Level), mod));
 		if (s.BluffFailedKey == key)

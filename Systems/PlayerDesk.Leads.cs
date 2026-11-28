@@ -30,6 +30,9 @@ public sealed class RivalLook {
 	public string ArtistId { get; set; }
 	public string LabelId { get; set; }
 	public int Day { get; set; }
+	/// <summary>A booker who rang to tip him off about it (PlayerDesk.Callers), or null. Once told, the lead shows whatever
+	/// his Fixer.</summary>
+	public string ToldBy { get; set; }
 }
 
 public partial class PlayerDesk {
@@ -122,11 +125,15 @@ public partial class PlayerDesk {
 			break;
 		}
 
-		// ── The Fixer ──
-		if (InstinctScore(InstinctProfile, ExecutiveVoice.Fixer) >= 3 && string.IsNullOrEmpty(act.labelId) &&
-			sceneInformation.RivalLooks?.Where(l => l.ArtistId == artistId && today - l.Day <= RivalLookDays).OrderByDescending(l => l.Day).FirstOrDefault() is { } look)
-			leads.Add(new SetLead { Voice = ExecutiveVoice.Fixer, Source = "The Fixer",
-				Text = $"Somebody from {ChartManager.Instance?.GetLabelName(look.LabelId) ?? "a label"} was asking about them." });
+		// ── The Fixer, or a booker who rang to say so ──
+		if (string.IsNullOrEmpty(act.labelId) &&
+			sceneInformation.RivalLooks?.Where(l => l.ArtistId == artistId && today - l.Day <= RivalLookDays).OrderByDescending(l => l.Day).FirstOrDefault() is { } look) {
+			string rival = ChartManager.Instance?.GetLabelName(look.LabelId) ?? "a label";
+			if (InstinctScore(InstinctProfile, ExecutiveVoice.Fixer) >= 3)
+				leads.Add(new SetLead { Voice = ExecutiveVoice.Fixer, Source = "The Fixer", Text = $"Somebody from {rival} was asking about them." });
+			else if (look.ToldBy != null)
+				leads.Add(new SetLead { Voice = ExecutiveVoice.None, Source = look.ToldBy, Text = $"Somebody from {rival} was in asking about them. (He rang to tell you.)" });
+		}
 		return leads;
 	}
 
@@ -150,6 +157,7 @@ public partial class PlayerDesk {
 		var looks = sceneInformation.RivalLooks ??= new();
 		looks.RemoveAll(l => day - l.Day > RivalLookDays || l.ArtistId == act.artistId);
 		looks.Add(new RivalLook { ArtistId = act.artistId, LabelId = appointment.Label.labelId, Day = day });
+		QueueRivalTip(act, appointment.Label.labelId, day);   // a booker he's met may ring about it (PlayerDesk.Callers)
 	}
 }
 
@@ -159,6 +167,13 @@ public partial class PlayerDesk {
 	internal void AddRivalLookForCheck(string artistId, string labelId, int day) =>
 		(sceneInformation.RivalLooks ??= new()).Add(new RivalLook { ArtistId = artistId, LabelId = labelId, Day = day });
 	internal int RivalLookCountForCheck => sceneInformation.RivalLooks?.Count ?? 0;
+	/// <summary>A heard set on file for this act, as a LISTEN would leave.</summary>
+	internal void ScoutingEvidenceForChecks(string artistId) {
+		if (HasScoutingEvidence(artistId)) return;
+		var act = ArtistManager.Instance?.GetArtist(artistId);
+		scoutingKnowledge.Dossiers.Add(new ScoutingDossier { ArtistId = artistId, ArtistName = act?.stageName ?? artistId,
+			Observations = { new ScoutingObservation { Id = "check_heard_" + artistId, ArtistId = artistId, Kind = ScoutingEvidenceKind.Performance } } });
+	}
 	/// <summary>A heard set on file (for an act that isn't anyone), so the Street has been in a room.</summary>
 	internal void BeenOutForCheck() => scoutingKnowledge.Dossiers.Add(new ScoutingDossier { ArtistId = "check_been_out", ArtistName = "Check",
 		Observations = { new ScoutingObservation { Id = "check_been_out", ArtistId = "check_been_out", Kind = ScoutingEvidenceKind.Performance } } });

@@ -89,7 +89,7 @@ public partial class PlayerDeskPanel {
 		if (key == firstWeekSlipDismissedFor) { HideFirstWeekSlip(); return; }
 		firstWeekSlipDismissedFor = null;
 		var nudge = desk.FirstWeekNudge(SlipTarget(hits[0]), hits.Count > 1);
-		if (nudge is not { } n) { HideFirstWeekSlip(); return; }
+		if (nudge is not { } n || n.Voice == desk.FatigueQuietVoice) { HideFirstWeekSlip(); return; }
 
 		BuildFirstWeekSlip();
 		firstWeekSlipBadge.Set(VoiceInstinct(n.Voice), 24f);

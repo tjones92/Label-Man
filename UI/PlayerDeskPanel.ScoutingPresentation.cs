@@ -93,7 +93,8 @@ public partial class PlayerDeskPanel {
             WithinScouting(details, () => {
                 string date = LocalSceneRoomService.Date(option.Day).ToHeadlineString();
                 ScoutingText($"{date} · {Hour12(option.StartMinute / 60)}–{Hour12(option.EndMinute / 60)}" + (option.Playing ? " · Playing now" : ""), 16, Ink, PaperTheme.SansSemiBold);
-                ScoutingText($"{option.ListeningMinutes}min listening · {Money(option.Admission)} admission" + (circuit ? $" · {option.TravelMinutes / 60}h drive" : ""), 14, Heard);
+                string night = option.EndMinute > TimeManager.Instance.HardStopHour * 60 ? " · After 9 PM, fatigue builds twice as fast" : "";
+                ScoutingText($"{option.ListeningMinutes}min listening · {Money(option.Admission)} admission" + night + (circuit ? $" · {option.TravelMinutes / 60}h drive" : ""), 14, Heard);
             });
             row.AddChild(details); content.AddChild(row);
             // An act that turned you down says so before you spend the hour on them again.
@@ -122,10 +123,10 @@ public partial class PlayerDeskPanel {
             string walk = !circuit && !desk.IsAtSceneRoom(option.RoomId) ? $" Includes the {PlayerDesk.CrossTownMinutes}-minute walk across town to the venue." : "";
             action.TooltipText = $"{option.WaitingMinutes}min wait on the set day.{walk} {costs}\nWhile you wait the month's bills keep running and other labels keep making their moves. Check the bill and price on arrival.";
             GreyWhy(action, SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId) ? "This room is in another town: drive there first." : "Not enough cash for the admission.");
-            card.TooltipText = action.TooltipText;
             var clock = TimeManager.Instance;
             ScoutingTimeRisk(desk, action, circuit ? LocalSceneRoomService.Day(clock.CurrentDate) : option.Day,
                 circuit ? clock.CurrentHour * 60 + clock.CurrentMinute + option.TravelMinutes : option.Playing ? option.EndMinute : option.StartMinute);
+            card.TooltipText = action.TooltipText;
             action.Pressed += () => ActUntilDay(circuit || option.Playing ? 0 : option.Day, () => {
                 string result;
                 bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
@@ -160,7 +161,9 @@ public partial class PlayerDeskPanel {
     private void ScoutingVenueSheet(PlayerDesk desk, SceneRoomProfile room, int selectedDay, Action<int> select, Action afterAction,
         int calendarOffsetWeeks, Action<int> shift, Action refill, bool calendarFirst = false) {
         var clock = TimeManager.Instance; var date = clock.CurrentDate;
-        ScoutingText($"{SceneRoomCharacter.KindName(room.Kind)} · about {SceneLiveEconomics.Capacity(room)} people · {Hour12(room.OpenHour)}–{Hour12(room.CloseHour)}", 14, Heard);
+        string lateBills = desk.ShowsFatigue && SceneRoomCatalog.HasNightHours(room, System.DayOfWeek.Saturday)
+            ? " · See the calendar for late bills" : "";
+        ScoutingText($"{SceneRoomCharacter.KindName(room.Kind)} · about {SceneLiveEconomics.Capacity(room)} people · usual hours {Hour12(room.OpenHour)}–{Hour12(room.CloseHour)}" + lateBills, 14, Heard);
         // Where you are (playtest 2026-11-05: introducing yourself here used to work from anywhere in town).
         var whereRow = new HBoxContainer(); whereRow.AddThemeConstantOverride("separation", 12);
         var whereText = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -287,9 +290,10 @@ public partial class PlayerDeskPanel {
             bool playing = bill.Day == today && slot.StartHour * 60 <= now && slot.EndHour * 60 > now;
             bool future = bill.Day > today || bill.Day == today && slot.StartHour * 60 > now;
             bool scheduled = bill.Status == SceneBillStatus.Scheduled && slot.Status == SceneBillStatus.Scheduled;
-            if (!scheduled || !future && !playing || slot.EndHour > clock.HardStopHour || desk.ScoutingDossiers.Any(d => d.Observations.Any(o => o.EventId == eventId && o.Kind == ScoutingEvidenceKind.Performance))) {
+            bool outsideHours = slot.EndHour * 60 > desk.VenueStopMinute(room, bill);
+            if (!scheduled || !future && !playing || outsideHours || desk.ScoutingDossiers.Any(d => d.Observations.Any(o => o.EventId == eventId && o.Kind == ScoutingEvidenceKind.Performance))) {
                 bool cancelled = bill.Status == SceneBillStatus.Cancelled || slot.Status == SceneBillStatus.Cancelled;
-                ScoutingText($"{Hour12(slot.StartHour)} · {ArtistManager.Instance.GetArtist(slot.ArtistId)?.stageName ?? "Unavailable act"} · " + (cancelled ? "Cancelled" : slot.EndHour > clock.HardStopHour ? "Outside working hours" : "Heard / past"), 14, Heard); continue;
+                ScoutingText($"{Hour12(slot.StartHour)} · {ArtistManager.Instance.GetArtist(slot.ArtistId)?.stageName ?? "Unavailable act"} · " + (cancelled ? "Cancelled" : outsideHours ? "Outside working hours" : "Heard / past"), 14, Heard); continue;
             }
             float admission = bill.Day == today ? desk.AdmissionForVisit(bill, room, now) : SceneLiveEconomics.Admission(room, bill.Year);
             var option = new ScoutingOpportunity { BillId = bill.Id, EventId = eventId, ArtistId = slot.ArtistId, ArtistName = ArtistManager.Instance.GetArtist(slot.ArtistId)?.stageName,

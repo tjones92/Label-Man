@@ -13,7 +13,7 @@ using Godot;
 /// </summary>
 public partial class DeskAtmosphere : Control {
 	// Where the painted smoke leaves the ashtray, and where it has thinned out to nothing.
-	private static readonly Vector2 SmokeBase = new(1664f, 764f), SmokeTop = new(1716f, 452f);
+	private static readonly Vector2 SmokeBase = new(1662f, 794f), SmokeTop = new(1716f, 452f);
 
 	private double clock;
 	private float hour = 12f;
@@ -33,7 +33,7 @@ public partial class DeskAtmosphere : Control {
 	public override void _Draw() {
 		DrawBlinds();
 		DrawDust();
-		DrawSmoke();
+		if (PlayerDesk.Instance?.AshtrayBatches > 0) DrawSmoke();
 	}
 
 	// ---- smoke --------------------------------------------------------------------------------------------
@@ -169,8 +169,8 @@ public partial class PaintedStack : Control {
 }
 
 /// <summary>
-/// WHILE YOU WERE OUT: pink message slips pinned to the panelling beside the door for calls the answering service took
-/// and the call-backs that have come due. At most three show, fanned and tilted, with a pin through each; any more are a
+/// CALL BACK: pink slips pinned to the panelling beside the door for the Rolodex call-backs that have come due. (Shops' calls
+/// aren't here: nobody takes a message while he's out, PlayerDesk.Phone.) At most three show, fanned and tilted, with a pin through each; any more are a
 /// line of type. Pressing a slip opens the department that holds the call. It is a read of
 /// <see cref="PlayerDesk.DeskMessages"/>, nothing is stored.
 /// </summary>
@@ -227,7 +227,7 @@ public partial class MessageSlips : Control {
 			DrawRect(new Rect2(Vector2.Zero, Size), new Color("f1b3ab"));
 			DrawRect(new Rect2(Vector2.Zero, new Vector2(Size.X, 17f)), new Color("e48d84"));
 			DrawRect(new Rect2(Vector2.Zero, Size), new Color("a8554c"), false, 1f);
-			DrawString(PaperTheme.SansBold, new Vector2(8f, 12.5f), "WHILE YOU WERE OUT", HorizontalAlignment.Left, Size.X - 12f, 10, new Color("5a1d16"));
+			DrawString(PaperTheme.SansBold, new Vector2(8f, 12.5f), "CALL BACK", HorizontalAlignment.Left, Size.X - 12f, 10, new Color("5a1d16"));
 			DrawString(PaperTheme.TypedBold, new Vector2(8f, 32f), Message.From, HorizontalAlignment.Left, Size.X - 14f, 11, new Color("2b2115"));
 			DrawMultilineString(PaperTheme.Typed, new Vector2(8f, 46f), Message.Text, HorizontalAlignment.Left, Size.X - 16f, 10, 3, new Color("3a2c18"));
 			DrawRect(new Rect2(8f, Size.Y - 18f, 9f, 9f), new Color("5a1d16"), false, 1f);

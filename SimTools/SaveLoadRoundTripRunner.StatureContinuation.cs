@@ -188,9 +188,9 @@ public partial class SaveLoadRoundTripRunner {
 				int observations = 0;
 				var observed = new StatureExpectedWeek();
 				if (activePlayer && w == 0) {
-					bool ok = PlayerDesk.Instance.PurchaseAnsweringService(out string message);
-					if (!ok) throw new InvalidOperationException("Fixture answering service failed: " + message);
-					observed.Action = "answering-service:" + message;
+					bool ok = PlayerDesk.Instance.PassTime(1, out string message);
+					if (!ok) throw new InvalidOperationException("Fixture desk wait failed: " + message);
+					observed.Action = "wait:" + message;
 				} else if (activePlayer && w == 1) {
 					bool ok = PlayerDesk.Instance.WorkThePhones(out string message);
 					if (!ok) throw new InvalidOperationException("Fixture phone action failed: " + message);

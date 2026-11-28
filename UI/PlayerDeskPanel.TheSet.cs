@@ -113,6 +113,24 @@ public partial class PlayerDeskPanel {
 			bar.AddChild(note);
 		}
 		content.AddChild(bar);
+		var drinks = new HBoxContainer();
+		foreach (var companion in new[] { AfterSetCompanion.Booker, AfterSetCompanion.Act }) {
+			var companionName = desk.AfterSetDrinkCompanion(id, companion);
+			if (companionName == null) continue;
+			var drink = Btn($"DRINK WITH {companionName.ToUpperInvariant()}");
+			drink.TooltipText = "Stay for 30 minutes and get to know them a little better. The drink adds one hour of fatigue.";
+			AddTonightPreview(drink, desk, desk.NowMinute + PlayerDesk.AfterSetDrinkMinutes, PlayerDesk.AfterSetDrinkDebt);
+			drink.Pressed += () => Act(() => {
+				bool ok = desk.ShareAfterSetDrink(id, companion, out string message);
+				Say(message, ok);
+				return ok;
+			});
+			drinks.AddChild(drink);
+		}
+		if (drinks.GetChildCount() > 0) {
+			content.AddChild(TheSetNarration("Stay for a drink · 30 min · 1 hour of fatigue"));
+			content.AddChild(drinks);
+		} else drinks.Free();
 		return true;
 	}
 

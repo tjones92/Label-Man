@@ -57,7 +57,7 @@ public partial class PlayerDesk {
             LocalSceneRoomService.Bill(scoutingKnowledge.Visit.BillId)?.RoomId == invitationRoomId;
         // A short scheduling exchange creates no simultaneous performance evidence. It may
         // remain part of the same paid visit, unlike the later substantial meeting.
-        SpendMinutes(byPhone ? PhoneCallMinutes : ScoutingInvitationMinutes);
+        if (byPhone) DeskSpendMinutes(PhoneCallMinutes); else SpendMinutes(ScoutingInvitationMinutes);
         if (continuous && !byPhone) scoutingKnowledge.Visit.EndMinute = clock.CurrentHour * 60 + clock.CurrentMinute;
         else if (!byPhone) scoutingKnowledge.Visit = null;
         RememberScoutingMeeting(reply, "invitation", reply.Response, reply.PersonId, reply.PersonName, byPhone ? "phone call" : "post-set invitation");
@@ -133,7 +133,7 @@ public partial class PlayerDesk {
         meeting = OwnScoutingMeeting(id);
         if (meeting.Activity != ScoutingAppointmentActivity.Conversation) {
             var dossier = scoutingKnowledge.Dossiers.First(d => d.ArtistId == meeting.ArtistId);
-            var interpretation = ScenePerformanceService.InterpretAt(meeting.Sample, Label.labelId, EarNoise, StreetNoise, 1);
+            var interpretation = ScenePerformanceService.InterpretAt(meeting.Sample, Label.labelId, EarNoise, StreetNoise, 1, readKey: FatigueReadKey(meeting.Sample.Id));
             dossier.Observations.Add(new() { Id = "session-evidence-v1|" + meeting.Id, EventId = meeting.Id, MeetingId = meeting.Id,
                 LabelId = Label.labelId, ArtistId = meeting.ArtistId, ArtistName = meeting.ArtistName,
                 Kind = meeting.Activity == ScoutingAppointmentActivity.Demo ? ScoutingEvidenceKind.DemoSample : ScoutingEvidenceKind.RehearsalSample,

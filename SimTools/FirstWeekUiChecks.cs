@@ -66,7 +66,21 @@ public partial class FirstWeekUiChecks : Node {
 			AddChild(GD.Load<PackedScene>("res://MainMenu.tscn").Instantiate());
 			await Frame();
 			panel = Nodes(this).OfType<PlayerDeskPanel>().Single();
-			panel.OpenAtTab("A&R"); await Frame(0.7);
+			var calendar = Nodes(this).OfType<Button>().Single(b => b.Name == "CalendarBtn");
+			var clock = TimeManager.Instance;
+			var openedOn = clock.CurrentDate;
+			int openedAt = clock.CurrentHour * 60 + clock.CurrentMinute;
+			calendar.EmitSignal(BaseButton.SignalName.Pressed); await Frame();
+			Check(Shows("THE FLIP CALENDAR") && clock.CurrentDate == openedOn && clock.CurrentHour * 60 + clock.CurrentMinute == openedAt,
+				"Opening the room calendar leaves the date and time alone");
+			await Press("CLOSE");
+			await Frame(0.6);
+			Check(Glowing()?.Name == "OfficeDoor", "The room points a new player to the door");
+			await Screenshot("office-room");
+			Glowing().EmitSignal(BaseButton.SignalName.Pressed); await Frame();
+			Check(Shows("WHERE TO?"), "The door opens the destinations card");
+			await Press("FIND A SET");
+			await Frame(0.7);
 			Check(Shows("This week") && !Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text.StartsWith("NEXT UP")), "The card takes NEXT UP's place");
 			await Screenshot("start");
 

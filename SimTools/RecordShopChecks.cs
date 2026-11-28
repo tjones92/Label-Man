@@ -4,10 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 
-/// <summary>Checks the first record-shop errand and acetate pitch through the Distribution UI with no vinyl.</summary>
+/// <summary>Checks the handoff from Distribution to the shops and the first acetate pitch with no vinyl.</summary>
 public partial class RecordShopChecks : Node {
 	public override async void _Ready() {
 		try {
+			PlayerDesk.AutosaveOffForChecks = true;
 			await Frame();
 			var desk = PlayerDesk.Instance;
 			Check(desk.FoundLabel("Record Shop Checks", "detroit", FoundingArchetype.PromoMan, out var message), message);
@@ -23,6 +24,10 @@ public partial class RecordShopChecks : Node {
 			var panel = Nodes(this).OfType<PlayerDeskPanel>().Single();
 			panel.OpenAtTab("DISTRIBUTION");
 			await Frame();
+			Check(!Nodes(panel).OfType<CityShopMap>().Any(), "The paperwork leaves shop visits to the road");
+			int beforeOfficeHandoff = desk.NowMinute;
+			await Press(panel, "GO OUT TO THE SHOPS");
+			Check(desk.NowMinute == beforeOfficeHandoff, "Opening the route doesn't spend travel time");
 			var map = Nodes(panel).OfType<CityShopMap>().Single();
 			Check(map.GetChildren().OfType<Button>().Count() == shops.Count, "Every Detroit shop has a clickable pin");
 			var shop = shops.First(stop => stop.Specialist);
@@ -48,7 +53,7 @@ public partial class RecordShopChecks : Node {
 			Check(desk.DebugAcceptChance(jazzShop, master.Record.recordId) > desk.DebugAcceptChance(countryShop, master.Record.recordId),
 				"The same side has a better shot with a matching specialist");
 			Check(desk.CutAcetate(master.Record.recordId, out message), message);
-			panel.OpenAtTab("DISTRIBUTION");
+			panel.OpenAtTab("THE ROAD");
 			await Frame();
 			await Press(panel, "PLAY ‘Counter Side’");
 			Check(desk.HasOpenCall(shop.StopId, master.Record.recordId) || shop.PassedRecordIds.Contains(master.Record.recordId),

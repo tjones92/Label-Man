@@ -33,7 +33,8 @@ public partial class UIManager : Control
 	private MessageSlips messageSlips;            // pink WHILE YOU WERE OUT slips pinned beside the door
 	private PanelContainer mainHud;
 	private RecordJacketWidget recordJacket;
-	private Label hudDate, hudNextUp, hudTicker;
+	private Label hudDate, hudNextUp, hudTicker, hudFatigueMorning, sittingCountdown;
+	private TimeCard hudTimeCard;
 	private readonly Label[] calendarCards = new Label[4];   // month, weekday, day, year
 	private PanelContainer propTag;
 	private Label propTagText;
@@ -74,13 +75,12 @@ public partial class UIManager : Control
 			// themselves (BuildCalendarCards), so nothing here is stretched to fit the prop.
 			calendarButton.Flat = true;
 			calendarButton.Text = "";
-			calendarButton.FocusMode = Control.FocusModeEnum.None;
+			calendarButton.FocusMode = Control.FocusModeEnum.All;
 			calendarButton.GuiInput += OnCalendarGuiInput;
 			calendarButton.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
 			StyleHotspot(calendarButton, 8);
 			BuildCalendarCards();
-			calendarButton.MouseEntered += () => ShowPropTag("THE CALENDAR  -  click: next day  -  right-click: skip ahead", new Vector2(1545, 470));
-			calendarButton.MouseExited += HidePropTag;
+			calendarButton.TooltipText = "End the day or skip ahead.";
 			UpdateCalendarButton(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
 		}
 		if (TimeManager.Instance != null) {
@@ -93,8 +93,8 @@ public partial class UIManager : Control
 		deskPanel = GetNodeOrNull<PlayerDeskPanel>("PlayerDeskPanel");
 		deskButton = GetNodeOrNull<Button>("DeskBtn");
 		if (deskButton != null) {
-			deskButton.Text = "OPEN THE OFFICE";
-			deskButton.TooltipText = "Open your label's departments and daily work.";
+			deskButton.Text = "OPEN THE FILES";
+			deskButton.TooltipText = "Roster, catalog, distribution and books.";
 			deskButton.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
 			deskButton.AddThemeStyleboxOverride("normal", new StyleBoxFlat {
 				BgColor = new Color("342619"), BorderColor = new Color("e4cf9b"),
@@ -123,6 +123,7 @@ public partial class UIManager : Control
 			billboardButton.MouseExited += () => { rim.Visible = false; HidePropTag(); };
 		}
 		BuildDeskProps();
+		BuildCallers();   // the ringing phone and the notes left in the door (UIManager.Callers)
 		BuildMainHud();
 		BuildMorningPaper();
 		WatchCover(deskPanel);
@@ -158,6 +159,8 @@ public partial class UIManager : Control
 		// Just above the bare painting, below the hotspots and every panel.
 		MoveChild(paintedLayer, officeBackdrop != null ? officeBackdrop.GetIndex() + 1 : 0);
 		paintedLayer.AddChild(new DeskAtmosphere());
+		for (int i = 0; i < ashtrayWaste.Length; i++)
+			ashtrayWaste[i] = officeViewport?.GetNodeOrNull<Node3D>($"Office/OfficeAshtrayWaste{i + 1}");
 		paintedStack = new PaintedStack();
 		paintedLayer.AddChild(paintedStack);
 		paintedRecords = new PaintedRecordLabels();
@@ -203,6 +206,14 @@ public partial class UIManager : Control
 		weekday.AddThemeFontSizeOverride("font_size", 20);
 		paintedLayer.AddChild(weekday);
 		calendarCards[1] = weekday;
+		var year = CalendarCardRects[2];
+		sittingCountdown = new Label { Name = "SittingCountdown", MouseFilter = Control.MouseFilterEnum.Ignore,
+			Size = new Vector2(142, 20), HorizontalAlignment = HorizontalAlignment.Center,
+			Position = year.Centre + new Vector2(-71, 32), Rotation = year.Tilt, Visible = false };
+		sittingCountdown.AddThemeFontOverride("font", PaperTheme.TypedBold);
+		sittingCountdown.AddThemeFontSizeOverride("font_size", 11);
+		sittingCountdown.AddThemeColorOverride("font_color", PaperTheme.Oxblood);
+		paintedLayer.AddChild(sittingCountdown);
 	}
 
 	/// <summary>A transparent hotspot: nothing drawn at rest, an amber rim-light and an 8% brighten on hover.</summary>
@@ -282,10 +293,17 @@ public partial class UIManager : Control
 			if (wrap) { label.ClipText = false; label.AutowrapMode = TextServer.AutowrapMode.WordSmart; }
 			return label;
 		}
-		hudDate = Line(null, 17, new Color("2b2115"));
+		hudDate = Line(null, 17, new Color("2b2115"), wrap: true);
 		hudNextUp = Line(PaperTheme.TypedBold, 15, GreaseRed, wrap: true);
 		hudTicker = Line(null, 15, new Color("6b3a1c"));
-		foreach (Label label in new[] { hudDate, hudNextUp, hudTicker }) stack.AddChild(label);
+		stack.AddChild(hudDate);
+		hudTimeCard = new TimeCard { Name = "OfficeTimeCard", SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin };
+		stack.AddChild(hudTimeCard);
+		hudFatigueMorning = PlayerDeskPanel.TimeMorningLabel();
+		stack.AddChild(hudFatigueMorning);
+		BuildOfficeGoals(stack);
+		stack.AddChild(hudNextUp);
+		stack.AddChild(hudTicker);
 		mainHud.AddChild(stack);
 		AddChild(mainHud);
 
@@ -408,23 +426,38 @@ public partial class UIManager : Control
 		if (billboardButton != null) billboardButton.Visible = !covered;
 		TimeManager time = TimeManager.Instance;
 		PlayerDesk desk = PlayerDesk.Instance;
+		UpdateAshtray(desk?.AshtrayBatches ?? 0);
 		paintedRecords?.Set(desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName);
 		// The pile grows with the catalogue: a sleeve for every record cut, pressed or out.
 		int made = desk?.HasLabel == true ? desk.ReleasedRecords.Count() + desk.Masters.Count() + desk.Planned.Count() : 0;
 		paintedStack?.Set(made);
 		paintedRecords?.SetStackLift(PaintedStack.Lift(made));
 		messageSlips?.Set(desk?.HasLabel == true && !desk.IsGameOver ? desk.DeskMessages() : new List<PlayerDesk.DeskMessage>());
+		UpdateCallers(desk);
 		if (paintedGold != null) {
 			int dayKey = time == null ? 0 : time.CurrentDate.year * 400 + time.CurrentDate.month * 32 + time.CurrentDate.day;
 			string wentGold = paintedGold.Refresh(desk, desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName, dayKey);
 			if (wentGold != null) ShowAnnouncement($"GOLD RECORD  —  \"{wentGold}\" has passed {PaintedGoldRecord.GoldUnits:N0} copies");
 		}
 		bool overdrawn = desk?.Label != null && desk.Label.cashReserves < 0f;
-		string cash = desk?.Label == null ? "" : $"  •  {(overdrawn ? "−" : "")}${Mathf.Abs(desk.Label.cashReserves):N0} cash";
+		string cash = desk?.Label == null ? "" : $"  •  {(overdrawn ? "−" : "")}${Mathf.Abs(desk.Label.cashReserves):N0} cash  ·  {PlayerDeskPanel.RentInHand(desk.Label)}";
 		hudDate.Text = time == null ? "" : $"{time.CurrentDate.ToHeadlineString()}  •  {time.GetTimeString()}{cash}";
+		hudTimeCard.Visible = time != null && desk?.HasLabel == true && !desk.IsGameOver;
+		if (hudTimeCard.Visible) hudTimeCard.Set(time, desk);
+		PlayerDeskPanel.SetTimeMorning(hudFatigueMorning, desk);
+		if (sittingCountdown != null) {
+			sittingCountdown.Visible = time != null && desk?.Lien != null && !desk.IsGameOver;
+			if (sittingCountdown.Visible) {
+				GameDate opens = (desk.Lien.PendingDeadline ?? desk.Lien.Deadline).AddDays(-PlayerDesk.LienWindowDays);
+				int days = time.DaysBetween(time.CurrentDate, opens);
+				sittingCountdown.Text = days > 0 ? $"{days} DAYS TO SITTING" : "SITTING OPEN";
+			}
+		}
 		hudDate.AddThemeColorOverride("font_color", overdrawn ? StampRed : new Color("2b2115"));
 		bool hasStep = desk?.HasLabel == true && !desk.IsGameOver && desk.Label != null;
-		hudNextUp.Text = hasStep ? "NEXT UP: " + PlayerDeskPanel.NextUpHint(desk) : "";
+		if (hasStep && !covered && CanUseOfficeNavigation()) FirstSessionTrace.MaybeStart(this, desk);
+		UpdateOfficeNavigation(desk, covered);
+		hudNextUp.Text = hasStep ? "TODAY  ·  " + OfficeNextAction(desk) : "";
 		hudNextUp.Visible = hasStep;
 		hudTicker.Text = desk?.Log.FirstOrDefault() ?? "No office news yet.";
 	}
@@ -800,6 +833,11 @@ public partial class UIManager : Control
 	}
 
 	public override void _Input(InputEvent input) {
+		if (officeWaitMenu?.Visible == true && input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left or MouseButton.Right }) {
+			var pointer = GetGlobalMousePosition();
+			if (!officeWaitMenu.GetGlobalRect().HasPoint(pointer) && !officeWait.GetGlobalRect().HasPoint(pointer))
+				officeWaitMenu.Hide();
+		}
 		if (morningPaper?.Visible == true && input.IsActionPressed("ui_cancel")) {
 			DismissMorningPaper();
 			GetViewport().SetInputAsHandled();
@@ -808,8 +846,11 @@ public partial class UIManager : Control
 
 	public override void _UnhandledInput(InputEvent input) {
 		if (officeIntro?.Visible == true) return;
+		if (HandleOfficeShortcut(input)) return;
 		if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape } || PaperModal.IsOpen) return;
-		if (gameMenu?.Visible == true) gameMenu.ClosePanel();
+		if (officeWaitMenu?.Visible == true) { officeWaitMenu.Hide(); officeWait.GrabFocus(); }
+		else if (gameMenu?.Visible == true) gameMenu.ClosePanel();
+		else if (CanUseOfficeNavigation() && deskPanel?.FilesOpen == true) deskPanel.ClosePanel();
 		else OpenGameMenu();
 		GetViewport().SetInputAsHandled();
 	}
@@ -867,17 +908,17 @@ public partial class UIManager : Control
 	{
 		// Rects hug the painted prop; Tag is the point the paper tag hangs above.
 		var props = new (string Caption, string Tab, Rect2 Area, Vector2 Tag)[] {
-			("THE PHONE  -  the Rolodex: DJs, stations and calls", "ROLODEX", new Rect2(1480, 330, 252, 134), new Vector2(1606, 326)),
+			("THE PHONE  -  DJs, bookers and calls", "THE PHONE", new Rect2(1480, 330, 252, 134), new Vector2(1606, 326)),
 			("THE STACKS  -  your catalog", "CATALOG", new Rect2(1740, 306, 180, 174), new Vector2(1830, 302)),
 			("THE STACKS  -  your catalog", "CATALOG", new Rect2(846, 326, 286, 112), new Vector2(989, 322)),
 			("THE TYPEWRITER  -  ledger of money, acts and records", "LEDGER", new Rect2(1165, 290, 313, 158), new Vector2(1322, 286)),
-			("THE CHECKBOOK  -  the books and finances", "FINANCES", new Rect2(18, 606, 810, 282), new Vector2(420, 602)),
-			("THE PAD  -  scout and sign acts (A&R)", "A&R", new Rect2(108, 892, 1188, 188), new Vector2(700, 888)),
+			("THE CHECKBOOK  -  the books and finances", "BOOKS", new Rect2(18, 606, 810, 282), new Vector2(420, 602)),
+			("THE PAD  -  acts on your roster", "ROSTER", new Rect2(108, 892, 1188, 188), new Vector2(700, 888)),
 		};
 		int insertAt = deskPanel != null ? deskPanel.GetIndex() : GetChildCount();
 		foreach (var (caption, tab, area, tag) in props) {
 			var button = new Button {
-				Flat = true, FocusMode = Control.FocusModeEnum.None,
+				Flat = true, FocusMode = Control.FocusModeEnum.All, TooltipText = caption,
 				MouseDefaultCursorShape = Control.CursorShape.PointingHand,
 				Position = area.Position, Size = area.Size, Name = "Prop" + tab.Replace("&", "") + insertAt
 			};
@@ -886,11 +927,12 @@ public partial class UIManager : Control
 			Vector2 tagPoint = tag;
 			button.MouseEntered += () => ShowPropTag(text, tagPoint);
 			button.MouseExited += HidePropTag;
-			button.Pressed += () => OpenOfficeAt(target);
+			button.Pressed += () => { if (target == "THE PHONE") OpenOfficePhone(); else OpenOfficeAt(target); };
 			AddChild(button);
 			MoveChild(button, insertAt++);   // beneath the office panel and the paper, above the bare scene
 			deskProps.Add(button);
 		}
+		BuildOfficeNavigation();
 	}
 
 	private void OpenOfficeAt(string tab)
@@ -906,7 +948,8 @@ public partial class UIManager : Control
 		if (morningPaper?.Visible == true) return;
 		if (deskPanel == null) { GD.PushWarning("PlayerDeskPanel is missing from the scene!"); return; }
 		if (isUIOpen && !deskPanel.Visible) return;
-		deskPanel.Open();
+		if (CanUseOfficeNavigation()) deskPanel.OpenFiles();
+		else deskPanel.Open();
 		isUIOpen = true;
 		UpdateMainHud();
 	}
@@ -1073,13 +1116,7 @@ public partial class UIManager : Control
 
 	public void OnClick_Calendar()
 	{
-		if (StudioBlocksCalendar(oneDay: true)) return;
-		if (isUIOpen) return;
-		if (TimeManager.Instance == null) return;
-		RunDayTurn(1, () => {
-			TimeManager.Instance.SkipDays(1);
-			GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}.");
-		});
+		if (!DeskCovered() && !PaperModal.IsOpen && CanUseOfficeNavigation()) OpenOfficeCalendar();
 	}
 
 	public void AdvanceOneDayFromDesk()
@@ -1124,7 +1161,7 @@ public partial class UIManager : Control
 		warning.Visible = unworked > 0;
 		warning.Text = unworked <= 0 ? "" :
 			$"{unworked:N0} records are sitting in the office and nobody is working them" + (idleDays > 0 ? $" (no account worked in {idleDays} {(idleDays == 1 ? "day" : "days")})" : "") +
-			$". Skipping sells nothing from the office: take copies to the shops on the DISTRIBUTION tab first, or hire a runner. A skip stops every {PlayerDesk.UnworkedStockStopDays} days while they sit.";
+			$". Skipping sells nothing from the office: take copies to the shops through the door first, or hire a runner. A skip stops every {PlayerDesk.UnworkedStockStopDays} days while they sit.";
 		calendarPopup.PopupCentered(new Vector2I(500, unworked > 0 ? 370 : 300));
 	}
 
@@ -1214,7 +1251,7 @@ public partial class UIManager : Control
 		Letter(calendarCards[0], date.ShortMonthName.ToUpperInvariant(), 42);
 		Letter(calendarCards[1], date.DayName[..3].ToUpperInvariant(), 20);
 		Letter(calendarCards[2], date.day.ToString(), 62);
-		Letter(calendarCards[3], date.year.ToString(), 40);
+		Letter(calendarCards[3], date.year.ToString(), 36);
 	}
 
 	public void OnClick_CloseAll()

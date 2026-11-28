@@ -839,19 +839,12 @@ public partial class AILabel : Resource {
 	
 	/// <summary>What it costs the player each month to keep the lights on: a phone line, postage and a filing
 	/// cabinet, plus the rent for an office in the town they chose (see <see cref="CityProfiles"/>).</summary>
-	// Directive §4.3: "$5-10/mo -- trivial against the $75 overhead, so it's an early, affordable
-	// unlock" -- the real first "secretary," catching InboundCalls while the player's on the road.
-	// Explicitly exempted from invariant 5's "no new fixed cost the player can reach before the
-	// channel it serves has paid" -- this one's cheap enough to buy on day one.
-	public const float AnsweringServiceMonthlyCost = 6f;
-	public bool hasAnsweringService;
-
 	public float GetMonthlyOverhead() {
 		// The player starts out of a one-room office: a phone line, a filing cabinet and postage, plus
 		// whatever the town charges for the room. There is no per-artist line because the player's marginal
 		// cost of an act is already charged where it lands -- studio time, pressing, gas on the road.
 		// Player-only, so the AI economy's overhead schedule is untouched.
-		if (isPlayerOwned) return CityProfiles.MonthlyOverhead(homeCityId) + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
+		if (isPlayerOwned) return CityProfiles.MonthlyOverhead(homeCityId);
 		return LabelCorporateModel.MonthlyOverhead(this, GetLegacyMonthlyOverhead());
 	}
 

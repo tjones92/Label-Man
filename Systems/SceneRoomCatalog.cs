@@ -75,6 +75,14 @@ public static class SceneRoomCatalog {
         return Array.AsReadOnly(rooms.OrderBy(r => r.Id, StringComparer.Ordinal).ToArray());
     }
     public static SceneRoomProfile Get(string id) => All.FirstOrDefault(r => r.Id == id);
+    internal const int NightOpeningHour = 20, NightClosingHour = 24;
+
+    internal static bool HasNightHours(SceneRoomProfile room, DayOfWeek day) =>
+        room.Kind == SceneRoomKind.Club || room.Kind == SceneRoomKind.ListeningRoom && day == DayOfWeek.Saturday;
+
+    internal static int ClosingHour(SceneRoomProfile room, SceneBill bill) =>
+        bill.StartHour == NightOpeningHour && HasNightHours(room, LocalSceneRoomService.Date(bill.Day).DayOfWeek)
+            ? NightClosingHour : Math.Max(room.CloseHour, bill.EndHour);
     public static IReadOnlyList<SceneRoomProfile> ForPlace(string placeId) => Array.AsReadOnly(All
         .Where(r => r.PlaceId == LocalScenePersistenceService.SceneIdFor(placeId)).ToArray());
 }

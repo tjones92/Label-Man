@@ -522,25 +522,17 @@ public partial class PlayerDesk : Node {
 	/// <summary>One pink "while you were out" slip: who, what, and the department that holds it.</summary>
 	public sealed class DeskMessage { public string From, Text, Tab; }
 
-	/// <summary>What is waiting for the player when they come back to the desk: the calls the answering service took (a shop sold
-	/// out, a station adding a record) and any Rolodex call-back that has come due. A read of live state, nothing is stored.</summary>
+	/// <summary>What is waiting for the player when they come back to the desk: any Rolodex call-back that has come due. A
+	/// shop's call is not here: nobody takes a message while he's out (PlayerDesk.Phone), so a call he answered is on THE PHONE
+	/// and the stop's row, and one he missed is gone. The secretary (about 1961) brings the pink slips back. A read of live
+	/// state, nothing is stored.</summary>
 	public List<DeskMessage> DeskMessages() {
 		var list = new List<DeskMessage>();
-		foreach (InboundCall call in inboundCalls.OrderBy(c => c.ExpiresWeek)) {
-			PlayerStop stop = GetStop(call.StopId);
-			string why = call.Reason switch {
-				InboundCallReason.SoldOut => "sold out, wants more of",
-				InboundCallReason.StationAdded => "has it on the air:",
-				InboundCallReason.Requests => "getting requests for",
-				InboundCallReason.AdjacentCity => "heard about",
-				InboundCallReason.OneStopTest => "wants a look at",
-				InboundCallReason.PreOrder => "wants some held of",
-				_ => "called about"
-			};
-			list.Add(new DeskMessage { From = stop?.DisplayName ?? "A shop", Text = $"{why} \"{TitleForRecord(call.RecordId)}\" ({call.RequestedQty:N0})", Tab = "DISTRIBUTION" });
-		}
 		foreach (RolodexEntry entry in Rolodex.Where(e => e.callbackDate != null && CallbackDue(e)))
 			list.Add(new DeskMessage { From = entry.displayName, Text = "your call-back is due now", Tab = "ROLODEX" });
+		// A booker's open set he picked up today: ring him back before tonight (PlayerDesk.Callers).
+		foreach (BookerOfferSaveData offer in BookerOffers)
+			list.Add(new DeskMessage { From = SceneRoomCatalog.Get(offer.RoomId)?.ContactName ?? "A booker", Text = $"a set's open {NightText(offer.Night)}. Tell him today", Tab = "ROLODEX" });
 		return list;
 	}
 	private int lastCallGenWeek = -1;
@@ -1000,7 +992,7 @@ public partial class PlayerDesk : Node {
 		Note($"Handed an acetate of \"{TitleForRecord(recordId)}\" to {station.callsign} in {here.regionName}. {reaction}");
 		int preOrders = strong ? GeneratePreOrders(recordId, station, master.Record.hookStrength) : 0;
 		message = $"{station.callsign}: {reaction}" + (preOrders > 0
-			? $" Word gets round: {preOrders} account{(preOrders == 1 ? "" : "s")} will be ringing the office about it." : "");
+			? $" Word gets round: {preOrders} account{(preOrders == 1 ? "" : "s")} will be ringing the office about it in the next few days. Be there to pick up." : "");
 		Changed?.Invoke();
 		return true;
 	}
@@ -1143,6 +1135,7 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 			TimeManager.Instance.PlayerStopProbe = ProbeSkipStop;
 			TimeManager.Instance.LateStopProbe = StudioLateStop;
+			AttachFatigueClock(TimeManager.Instance);
 		}
 		if (RosterManager.Instance != null) {
 			RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
@@ -1171,6 +1164,7 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
 			if (TimeManager.Instance.PlayerStopProbe == ProbeSkipStop) TimeManager.Instance.PlayerStopProbe = null;
 			if (TimeManager.Instance.LateStopProbe == StudioLateStop) TimeManager.Instance.LateStopProbe = null;
+			DetachFatigueClock(TimeManager.Instance);
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment -= OnRivalTalentMarketAppointment;
 		if (RosterManager.ContractEndObserver == OnAiContractEnded) RosterManager.ContractEndObserver = null;
@@ -1180,7 +1174,7 @@ public partial class PlayerDesk : Node {
 	private bool announcingCallbacks;
 	private void OnHourChanged(int hour) {
 		announcingCallbacks = true;
-		try { AnnounceDueCallbacks(); SweepMissedAppointments(); } finally { announcingCallbacks = false; }
+		try { LetItRing(); ResolveRings(AtTheDeskNow); AnnounceDueCallbacks(); SweepMissedAppointments(); } finally { announcingCallbacks = false; }
 		Changed?.Invoke();
 	}
 
@@ -1277,6 +1271,7 @@ public partial class PlayerDesk : Node {
 		InstinctProfile = CopyInstincts(profile.Instincts);
 		RestoreInstinctGrowth(0, null);
 		RestoreFirstWeek(null);   // onboarding T3: a fresh first-week card
+		ashtrayDay = ashtrayBatches = 0;
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		var label = new AILabel {
@@ -1322,6 +1317,7 @@ public partial class PlayerDesk : Node {
 		ChartManager.Instance?.RegisterLabel(label);
 		CompetitorManager.Instance?.RegisterLabel(label);
 		Label = label;
+		StartFatigue();
         scoutingKnowledge = new ScoutingKnowledgeSaveData { FoundingHistoryStarted = false };
 		scoutingNegotiations.Clear();
 		PendingRenewal = null;
@@ -1585,7 +1581,7 @@ public partial class PlayerDesk : Node {
 			var prospect = new Prospect {
 				Artist = artist,
 				Venue = venue,
-				ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0),
+				ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0, FatigueFogSteps),
 				ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0f, 1f),
 				CityId = CurrentCityId,
 				AskingAdvance = VenueAdvanceAsk(artist, venue, AskScaleFor(CurrentCityId)),
@@ -1596,6 +1592,7 @@ public partial class PlayerDesk : Node {
 			slate.Add(prospect);
 		}
 		Note($"Worked {VenueName(venue)} in {region.regionName}: {slate.Count} {(slate.Count == 1 ? "act" : "acts")} on the pad.");
+		if (slate.Count > 0) TeachFirstWornRead();
 		message = $"Caught {slate.Count} {(slate.Count == 1 ? "act" : "acts")}.";
 		Changed?.Invoke();
 		return true;
@@ -1891,6 +1888,8 @@ public partial class PlayerDesk : Node {
 		prospect.HeardCount = prospect.LiveSet.Count;
 		// The read tightens toward the truth now that you've spent real time on them.
 		float truth = prospect.Artist.CalculateBaseQuality();
+		if (FatigueFogSteps > 0) truth = ScoutingPerception.PerceivedQuality(prospect.Artist, Label,
+			Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) / 4), FatigueFogSteps);
 		prospect.ReadQuality = Mathf.Clamp(Mathf.Lerp(prospect.ReadQuality, truth, 0.6f), 0f, 1f);
 		prospect.ReadConfidence = Mathf.Clamp(prospect.ReadConfidence + 0.25f, 0f, 1f);
 		prospect.Note = DescribeProspect(prospect.Artist, Label, Mathf.Lerp(0.30f, 0.10f, prospect.ReadConfidence));
@@ -2202,6 +2201,7 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears, int singlesObligation,
 		bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
+        if (FatigueSigningBlock is { } tired) { message = tired; return false; }
         if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentNewOffer(prospect, out message)) return false;
         if (LocalScenes.Persisting && !CanCommitSceneSigning(prospect, out message)) return false;
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
@@ -3354,6 +3354,7 @@ public partial class PlayerDesk : Node {
 		stop.Relationship = Mathf.Clamp(stop.Relationship + relationshipGain, 0f, 1f);
 		stop.LastVisitWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? stop.LastVisitWeek;
 		stop.MissedCallStreak = 0; // you just showed up -- whatever streak of no-shows was building breaks here
+		MentionMissedRing(stop);
 		// Directive §7.1: "a shop conversation reveals who reports." You worked this counter in person --
 		// the ledger by the register and the fact he takes a call from the station on Tuesdays are not
 		// things a man hides from the label rep standing in front of him.
@@ -3841,21 +3842,6 @@ public partial class PlayerDesk : Node {
 	// never a parallel buzz meter (§4.1).
 	// ========================================================================
 
-	/// <summary>$5-10/mo, buys the office an "on" switch for InboundCalls generated while the player is
-	/// on the road (§4.3) -- without it, only calls generated while at the home office get logged; the
-	/// world still moves, the office just never hears about it.</summary>
-	public bool HasAnsweringService => Label?.hasAnsweringService ?? false;
-
-	public bool PurchaseAnsweringService(out string message) {
-		if (Label == null) { message = "You don't have a label yet."; return false; }
-		if (Label.hasAnsweringService) { message = "Already got one."; return false; }
-		Label.hasAnsweringService = true;
-		Note($"Hired an answering service -- ${AILabel.AnsweringServiceMonthlyCost:N0}/mo -- to catch calls while you're out.");
-		message = $"Answering service hired (${AILabel.AnsweringServiceMonthlyCost:N0}/mo).";
-		Changed?.Invoke();
-		return true;
-	}
-
 	/// <summary>Pending calls for the OFFICE readout, soonest-to-expire first.</summary>
 	public IEnumerable<(InboundCall Call, string StopName, string CityName, string Title, int ExpiresInWeeks)> PendingCalls() {
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
@@ -3888,8 +3874,9 @@ public partial class PlayerDesk : Node {
 		if (week == lastCallGenWeek) return;
 		lastCallGenWeek = week;
 		ExpireInboundCalls(week);
-		// Deliberately NOT behind GenerateInboundCalls' at-the-office gate: this is the player reading his
-		// own regional numbers and the trades, not a phone call he has to be sitting there to catch.
+		PruneMissedRings();
+		// Not a call: this is the player reading his own regional numbers and the trades, not something he has to be
+		// sitting by the phone to catch (PlayerDesk.Phone).
 		CheckWeeklyBreakoutNotices();
 		GenerateInboundCalls(week);
 		MaybeUnlockRunnerFromCalls(week);
@@ -4030,12 +4017,11 @@ public partial class PlayerDesk : Node {
 	///   1. SoldOut -- an account you already stocked ran thin while the region still shows real demand.
 	///   2. Requests/StationAdded -- a shop you've never visited, only where regional awareness or
 	///      airplay is real enough to make "a stranger called" plausible (the request loop).
-	/// Without an answering service, a call generated while the player is away from the office is never
-	/// logged at all -- §4.3's missed-call pressure, not solved with omniscient voicemail.
+	/// Nothing here reaches the office yet: each call is put on the line for an hour in the coming days (QueueRing), and
+	/// only one he's there to answer becomes open demand. §4.3's missed-call pressure, with no answering service at all.
 	/// </summary>
 	private void GenerateInboundCalls(int week) {
 		if (Label == null) return;
-		if (!AtHome && !HasAnsweringService) return;
 
 		HashSet<string> eligibleRegions = CallEligibleRegions();
 		Dictionary<string, PlayerStop> allStops = EnsureStops();
@@ -4059,10 +4045,10 @@ public partial class PlayerDesk : Node {
 				// 1. SoldOut -- known accounts, thin on hand, demand still there.
 				foreach (PlayerStop stop in stopsHere) {
 					if (stop.LastVisitWeek == 0) continue;
-					if (HasOpenCall(stop.StopId, recordId)) continue;
+					if (CallOnTheWay(stop.StopId, recordId)) continue;
 					if (!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot) || lot.Placed <= 0) continue;
 					if (lot.Remaining > SoldOutOnHandThreshold || !demandReal) continue;
-					AddCall(stop, recordId, SuggestedPlacement(stop, recordId), InboundCallReason.SoldOut, week, lot.ConsignmentTerms);
+					QueueAccountRing(stop, recordId, SuggestedPlacement(stop, recordId), InboundCallReason.SoldOut, week, lot.ConsignmentTerms);
 				}
 
 				// 2. The stranger shop -- never carried THIS title, real regional signal, the request loop.
@@ -4077,13 +4063,13 @@ public partial class PlayerDesk : Node {
 						// has no ledger to fulfill against -- the table is a walk-up, not a standing account.
 						List<PlayerStop> strangers = stopsHere.Where(s =>
 							s.Kind != StopKind.OneStop && s.Kind != StopKind.Venue && s.Kind != StopKind.Station
-							&& IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId)).ToList();
+							&& IsUntriedAt(s, recordId) && !CallOnTheWay(s.StopId, recordId)).ToList();
 						// Promo mechanic directive §6.1/§6.3: a live trade pick or breakout listing is the
 						// loudest inbound generator in the game -- it multiplies this roll, never units directly.
 						if (strangers.Count > 0 && GameRandom.Randf() < Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) {
 							PlayerStop pick = strangers[GameRandom.RandRange(0, strangers.Count - 1)];
 							InboundCallReason reason = rd.radioPlay >= StrangerRadioThreshold ? InboundCallReason.StationAdded : InboundCallReason.Requests;
-							AddCall(pick, recordId, SuggestedPlacement(pick, recordId), reason, week, consignment: true);
+							QueueAccountRing(pick, recordId, SuggestedPlacement(pick, recordId), reason, week, consignment: true);
 							strangerCallsThisRecord++;
 						}
 					}
@@ -4095,12 +4081,12 @@ public partial class PlayerDesk : Node {
 				// relationship, on top of the same regional demand signal the stranger call needs.
 				if (demandReal) {
 					foreach (PlayerStop oneStop in stopsHere.Where(s => s.Kind == StopKind.OneStop && !s.OneStopUnlocked)) {
-						if (HasOpenCall(oneStop.StopId, recordId)) continue;
+						if (CallOnTheWay(oneStop.StopId, recordId)) continue;
 						bool servedByKnownAccount = allStops.Values.Any(s => s.CityId == oneStop.CityId && s.Kind != StopKind.OneStop
 							&& s.Relationship >= OneStopServedRelationshipFloor
 							&& s.OnHand.TryGetValue(recordId, out ConsignmentLot ownLot) && ownLot.Placed > 0);
 						if (!servedByKnownAccount || GameRandom.Randf() >= Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) continue;
-						AddCall(oneStop, recordId, OneStopCartonDefaultQty, InboundCallReason.OneStopTest, week, consignment: false);
+						QueueAccountRing(oneStop, recordId, OneStopCartonDefaultQty, InboundCallReason.OneStopTest, week, consignment: false);
 					}
 				}
 			}
@@ -4155,21 +4141,21 @@ public partial class PlayerDesk : Node {
 
 		List<PlayerStop> inMarket = EnsureStops().Values.Where(s =>
 			string.Equals(DistanceModel.GetCityById(s.CityId)?.parentRegionId, regionId, StringComparison.Ordinal)
-			&& IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId))
+			&& IsUntriedAt(s, recordId) && !CallOnTheWay(s.StopId, recordId))
 			// His own town hears him first; the rest of the market is the tie-break.
 			.OrderBy(s => string.Equals(s.CityId, stationCityId, StringComparison.Ordinal) ? 0 : 1)
 			.ThenBy(s => StableNegotiationUnit(Label?.labelId ?? "", s.StopId + "|" + recordId, 7)).ToList();
 
 		int made = 0;
 		foreach (PlayerStop shop in inMarket.Where(s => s.Kind == StopKind.Shop).Take(2)) {
-			AddCall(shop, recordId, PreOrderShopMin + Mathf.RoundToInt(strength * (PreOrderShopMax - PreOrderShopMin)),
+			QueueAccountRing(shop, recordId, PreOrderShopMin + Mathf.RoundToInt(strength * (PreOrderShopMax - PreOrderShopMin)),
 				InboundCallReason.PreOrder, week, consignment: false, expiresWeek: expires);
 			made++;
 		}
 		if (hook >= PreOrderOperatorHookBar) {
 			PlayerStop op = inMarket.FirstOrDefault(s => s.Kind == StopKind.Op);
 			if (op != null) {
-				AddCall(op, recordId, PreOrderOpMin + Mathf.RoundToInt(strength * (PreOrderOpMax - PreOrderOpMin)),
+				QueueAccountRing(op, recordId, PreOrderOpMin + Mathf.RoundToInt(strength * (PreOrderOpMax - PreOrderOpMin)),
 					InboundCallReason.PreOrder, week, consignment: false, expiresWeek: expires);
 				made++;
 			}
@@ -4538,6 +4524,7 @@ public partial class PlayerDesk : Node {
 
 		LeaveStudioTripFor(dest.cityId);
 		Spend(hours);
+		ChargeBusFatigue(mode, hours);
 		if (gas > 0f) { Label.cashReserves -= gas; Label.monthlyExpenses += gas; }
 		// A new trip out of town starts with empty hands; walking back through the office door ends it.
 		if (lien != null && (goingHome || here?.cityId == Label.homeCityId)) lien.TripCopies = 0;
@@ -4880,6 +4867,11 @@ public partial class PlayerDesk : Node {
 			if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
 			return;
 		}
+		// What was left of yesterday after his last move passed wherever he was: at home, by the phone. A phone left
+		// ringing when the day ended rang out.
+		LetItRing();
+		ResolveRings(AtHome);
+		CallersAtDawn();
 		ChargeHotelIfAway();
 		ProcessStudioTripDawn(date);
 		ProcessStudioLockoutDawn(date);
@@ -5313,6 +5305,10 @@ public partial class PlayerDesk : Node {
 		string flip = release.BSide != null ? $" b/w \"{release.BSide.SongTitle}\"" : "";
 		Note($"RELEASED: \"{release.Master.SongTitle}\"{flip} by {artist.stageName} ({date.ToHeadlineString()}).");
 		FlagSkipStop($"Release day: \"{release.Master.SongTitle}\" is out", EventType.RecordRelease);
+		// The first record out is when the phone starts to matter (PlayerDesk.Phone). Said once, by the man who knows numbers.
+		if (ReleasedRecords.Count() == 1)
+			Note("The Fixer: \"From here on the phone's worth money. Shops ring when they sell out, jocks ring when they like it, " +
+				"and nobody picks up while you're out. Pick your days on the road.\"");
 	}
 
 	// ========================================================================
@@ -5680,24 +5676,47 @@ public partial class PlayerDesk : Node {
 	// SHARED
 	// ========================================================================
 
+	internal const int AshtrayCapacity = 7;
+	private int ashtrayDay, ashtrayBatches;
+	internal int AshtrayBatches => ashtrayDay == SceneDay ? ashtrayBatches : 0;
+
 	/// <summary>
 	/// Kills time at the desk without doing work -- the day still burns. This is how you wait for the
 	/// clubs to open (they don't get going until the evening) instead of being forced into an industry
 	/// meet just to move the clock. Hours are clamped to what's left in the day, overtime included.
 	/// </summary>
-	public bool PassTime(int hours, out string message) {
+	/// <param name="stopForCallers">The desk's own WAIT buttons: stop when the phone rings or somebody knocks (PlayerDesk.Callers),
+	/// so he can pick up. Scripts and bots wait the whole time and answer as they go.</param>
+	public bool PassTime(int hours, out string message, bool stopForCallers = false) {
 		if (InStudio) { message = "The paid studio date is still running. Take a break in the room, finish, or abandon the date first."; return false; }
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		TimeManager time = TimeManager.Instance;
 		if (time == null) { message = "No clock."; return false; }
-		int available = time.HoursRemainingWithOvertime;
-		int spend = Mathf.Clamp(hours, 0, available);
+		int spend = WaitMinutes(hours) / 60;
 		if (spend <= 0) { message = "The day's already gone -- turn in for the night."; return false; }
-		time.SpendHours(spend, allowOvertime: true);
+		int start = NowMinute;
+		if (stopForCallers && WaitUntilCaller(spend * 60, out message)) {
+			FillAshtrayAfterWait(start);
+			TeachFirstLongWait(NowMinute - start);
+			Changed?.Invoke(); return true;
+		}
+		using (AtTheDesk()) time.SpendHours(spend, allowOvertime: true);
+		if (stopForCallers) {
+			FillAshtrayAfterWait(start);
+			TeachFirstLongWait(NowMinute - start);
+		}
 		message = $"You let {spend} hour{(spend == 1 ? "" : "s")} go by.";
 		Changed?.Invoke();
 		return true;
 	}
+
+	private void FillAshtrayAfterWait(int start) {
+		if (!AtHome || NowMinute <= start) return;
+		ashtrayBatches = Math.Min(AshtrayCapacity, AshtrayBatches + 1);
+		ashtrayDay = SceneDay;
+	}
+
+	internal int WaitMinutes(int hours) => Math.Clamp(hours, 0, TimeManager.Instance?.HoursRemainingWithOvertime ?? 0) * 60;
 
 	/// <summary>Hours between now and a target hour of the day (0 if it's already past).</summary>
 	public int HoursUntil(int targetHour) =>
@@ -6028,6 +6047,7 @@ public partial class PlayerDesk : Node {
             RoomTables = CaptureRoomTables(),
             Backer = CaptureBacker(),
             Lien = CaptureLien(),
+            Fatigue = CaptureFatigue(),
             Demos = CaptureDemos(),
             MasterDeals = CaptureMasterDeals(),
             SongPlacements = CaptureSongPlacements(),
@@ -6141,6 +6161,13 @@ public partial class PlayerDesk : Node {
 				ExpiresWeek = call.ExpiresWeek, ConsignmentTerms = call.ConsignmentTerms
 			}).ToList(),
 			LastCallGenWeek = lastCallGenWeek,
+			PendingRings = SavePendingRings(),
+			MissedRings = missedRings.ToList(),
+			BookerOffers = bookerOffers.ToList(),
+			DoorNotes = doorNotes.ToList(),
+			CallKeys = callKeys.ToList(),
+			RingsAnswered = RingsAnswered,
+			RingsMissed = RingsMissed,
 			WeeklyTrunkUnits = new Dictionary<string, int>(weeklyTrunkUnits),
 			WeeklyTrunkUnitsSold = weeklyTrunkUnitsSold,
 			WeeklyTrunkGross = weeklyTrunkGross,
@@ -6187,6 +6214,8 @@ public partial class PlayerDesk : Node {
 			InstinctPoints = InstinctPoints,
 			InstinctLedger = CaptureInstinctLedger(),
 			FirstWeek = CaptureFirstWeek(),
+			AshtrayDay = ashtrayDay,
+			AshtrayBatches = AshtrayBatches,
 
 			// Rolodex contacts + accumulated sub-hour phone time (Phase 2).
 			PhoneMinutesAccum = phoneMinutesAccum,
@@ -6241,6 +6270,9 @@ public partial class PlayerDesk : Node {
 		RestoreInstinctGrowth(data.InstinctPoints, data.InstinctLedger);
 		// Onboarding T3: the first-week card. Absent in older saves: a fresh card that ticks itself off from the run.
 		RestoreFirstWeek(data.FirstWeek);
+		ashtrayDay = data.AshtrayDay;
+		ashtrayBatches = Math.Clamp(data.AshtrayBatches, 0, AshtrayCapacity);
+		RestoreFatigue(data.Fatigue);
 
 		// Restore rolodex and phone accumulator (Phase 2). Null/missing = pre-feature save → empty rolodex.
 		phoneMinutesAccum = data.PhoneMinutesAccum;
@@ -6485,6 +6517,7 @@ public partial class PlayerDesk : Node {
 			});
 		}
 		lastCallGenWeek = data.LastCallGenWeek;
+		RestorePendingRings(data);
 		weeklyTrunkUnits.Clear();
 		foreach (var kv in data.WeeklyTrunkUnits ?? new Dictionary<string, int>()) weeklyTrunkUnits[kv.Key] = kv.Value;
 		weeklyTrunkUnitsSold = data.WeeklyTrunkUnitsSold;

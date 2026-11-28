@@ -131,6 +131,7 @@ public static partial class LocalSceneRoomService {
         var actSets = new Dictionary<(int Day, string Id), List<DaySet>>();
         var personSets = new Dictionary<(int Day, string Id), List<DaySet>>();
         bool doubles = LocalScenes.DoubleRooms, workingWeek = LocalScenes.DayJobs || doubles;
+        bool playerNight = !asOfDay.HasValue && PlayerDesk.Instance?.ShowsFatigue == true;
         void Track(SceneBill b, SceneAppearance slot) {
             AddDaySet(actSets, (b.Day, slot.ArtistId), new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
             foreach (string person in slot.PersonIds) AddDaySet(personSets, (b.Day, person), new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
@@ -153,9 +154,11 @@ public static partial class LocalSceneRoomService {
                 if (cacheReads ? billed.Contains((room.Id, day)) : State.Bills.Any(b => b.RoomId == room.Id && b.Day == day)) continue;
                 string id = $"{room.Id}:{day}";
                 int slots = SceneEcosystemService.Slots(room, day);
+                int opening = playerNight && SceneRoomCatalog.HasNightHours(room, date.DayOfWeek)
+                    ? SceneRoomCatalog.NightOpeningHour : room.OpenHour;
                 // A funded program's extra set runs past the room's usual close.
                 var bill = new SceneBill { Id = id, RoomId = room.Id, Day = day, Year = date.year,
-                    StartHour = room.OpenHour, EndHour = Math.Max(room.CloseHour, room.OpenHour + slots) };
+                    StartHour = opening, EndHour = Math.Max(room.CloseHour, opening + slots) };
                 var members = asOfDay.HasValue ? EligibleBefore(room, day, asOfDay.Value) : MembersForRoom(room, day);
                 int term = Term(day);
                 if (!engagementsByRoom.TryGetValue(room.Id, out var roomEngagements))
@@ -180,7 +183,7 @@ public static partial class LocalSceneRoomService {
                     if (!FitsWorkingWeek(act, room, day, fullTime)) continue;
                     string[] people = PeopleFor(act);
                     // Rotation books the top of the bill first, so it fills the night from the closing set back.
-                    int hour = rotation ? room.OpenHour + slots - 1 - bill.Appearances.Count : room.OpenHour + bill.Appearances.Count;
+                    int hour = rotation ? opening + slots - 1 - bill.Appearances.Count : opening + bill.Appearances.Count;
                     // No cross-city teleporting or shared-musician overlap. Without double rooms a performer's whole
                     // day stays in one room; with them, a full-time act may cross town to one more room (WorkingWeek).
                     if (doubles ? people.Any(p => reservations.Contains((day, hour, p))) ||

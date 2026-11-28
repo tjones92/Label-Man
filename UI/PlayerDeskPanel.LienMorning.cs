@@ -39,7 +39,10 @@ public partial class PlayerDeskPanel {
 		lienMorningHaze = null; lienMorningHazeRect = null;
 		bool wasOpen = lienMorningOpen;
 		lienMorningOpen = false;
-		if (dismiss && wasOpen) PlayerDesk.Instance?.DismissLienMorning();
+		if (dismiss && wasOpen && PlayerDesk.Instance is { LienMorningPending: true } desk) {
+			desk.DismissLienMorning();
+			ClosePanel();
+		}
 	}
 
 	private void OpenLienMorning(PlayerDesk desk, bool replay) {

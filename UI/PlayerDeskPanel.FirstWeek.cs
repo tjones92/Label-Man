@@ -74,7 +74,8 @@ public partial class PlayerDeskPanel {
 		if (lines.Count == 0) return;
 		var box = new VBoxContainer { Name = "FirstWeekTeaching" };
 		box.AddThemeConstantOverride("separation", 4);
-		foreach (var (voice, text) in lines) box.AddChild(FirstWeekVoiceLine(voice, text));
+		foreach (var (voice, text) in lines)
+			if (voice != PlayerDesk.Instance?.FatigueQuietVoice) box.AddChild(FirstWeekVoiceLine(voice, text));
 		content.AddChild(box);
 	}
 
@@ -83,7 +84,8 @@ public partial class PlayerDeskPanel {
 		if (lines.Count == 0) return;
 		var box = new VBoxContainer { Name = "FirstWeekTeaching" };
 		box.AddThemeConstantOverride("separation", 4);
-		foreach (var (voice, text) in lines) box.AddChild(FirstWeekVoiceLine(voice, text));
+		foreach (var (voice, text) in lines)
+			if (voice != PlayerDesk.Instance?.FatigueQuietVoice) box.AddChild(FirstWeekVoiceLine(voice, text));
 		content.AddChild(box);
 	}
 
@@ -369,7 +371,12 @@ public partial class PlayerDeskPanel {
 		var timer = new Timer { WaitTime = 0.5, Autostart = true };
 		timer.Timeout += () => {
 			var desk = PlayerDesk.Instance;
-			if (desk?.FirstWeekCurrent == null || !IsVisibleInTree()) { GlowOn(null); HideFirstWeekSlip(); return; }
+			if (desk?.FirstWeekCurrent == null) { GlowOn(null); HideFirstWeekSlip(); return; }
+			if (!IsVisibleInTree()) {
+				GlowOnAll(UIManager.Instance?.OfficeFirstWeekTargets(desk));
+				HideFirstWeekSlip();
+				return;
+			}
 			if (firstWeekScrollTo != null && IsInstanceValid(firstWeekScrollTo) && firstWeekScrollTo.IsVisibleInTree()) contentScroll?.EnsureControlVisible(firstWeekScrollTo);
 			firstWeekScrollTo = null;
 			HighlightFirstWeekTarget(desk);

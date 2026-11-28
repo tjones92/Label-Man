@@ -643,14 +643,11 @@ public partial class SaveLoadRoundTripRunner : Node {
 				GD.Print($"PROJECT_PROMO_SMOKE stations={promoStations.Count} placed={placed?.Count ?? 0} ok={promoOk}");
 			}
 
-			// Distribution-expansion §4 (inbound demand): the answering-service purchase is a real
-			// AILabel field folded into GetMonthlyOverhead (LabelSaveData.HasAnsweringService), not
-			// PlayerDesk-only state -- exercise its round-trip alongside the stop mutation above.
-			if (!PlayerDesk.Instance.PurchaseAnsweringService(out string answeringMsg)) {
-				GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=answering-service:{answeringMsg}");
-				GetTree().Quit(1);
-				return;
-			}
+			// The phone rings once (PlayerDesk.Phone): a call on its way to the office has to survive the round-trip with its
+			// ring day and tries, or a reload would drop it or ring it at a different hour.
+			PlayerDesk.Instance.QueueRingForChecks(probeStop, "probe_record_ring");
+			var ringBefore = PlayerDesk.Instance.PendingRingsForChecks.First(r => r.RecordId == "probe_record_ring");
+			string ringKey0 = $"{ringBefore.StopId}|{ringBefore.Day}|{string.Join(",", ringBefore.Tries)}";
 
 			// Distribution-expansion §9 (late exits): mark one-stop exposure and stage a master
 			// sale/lease directly (same bypass spirit as DebugSetPlantCredit -- driving the real gate
@@ -874,8 +871,9 @@ public partial class SaveLoadRoundTripRunner : Node {
 					$"unlocked={probeOneStop1?.OneStopUnlocked} trusted={probeOneStop1?.OneStopTrusted} ok={oneStopOk}");
 			}
 
-			bool answeringServiceOk = PlayerDesk.Instance.HasAnsweringService;
-			GD.Print($"ANSWERING_SERVICE_ROUNDTRIP ok={answeringServiceOk}");
+			var ringAfter = PlayerDesk.Instance.PendingRingsForChecks.FirstOrDefault(r => r.RecordId == "probe_record_ring");
+			bool ringOk = ringAfter != null && $"{ringAfter.StopId}|{ringAfter.Day}|{string.Join(",", ringAfter.Tries)}" == ringKey0;
+			GD.Print($"PENDING_RING_ROUNDTRIP ok={ringOk}");
 
 			PlayerDesk.PlayerRunner runner1 = PlayerDesk.Instance.Runner;
 			PlayerDesk.PlayerStop routeStop1 = PlayerDesk.Instance.StopsInCity(cityId).FirstOrDefault(s => s.StopId == routeStop.StopId);
@@ -979,7 +977,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (Math.Abs(playerCash1 - playerCash0) > 0.01f) fails.Add($"playerCash {playerCash0}->{playerCash1}");
 			if (!stopOk) fails.Add($"stopState stopId={probeStop.StopId} found={probeStop1 != null}");
 			if (!oneStopOk) fails.Add($"oneStopState stopId={probeOneStop?.StopId}");
-			if (!answeringServiceOk) fails.Add("answeringService lost on round-trip");
+			if (!ringOk) fails.Add("pending ring lost or moved on round-trip");
 			if (!runnerOk) fails.Add($"runnerState stopId={routeStop.StopId}");
 			if (!promoOk) fails.Add("projectPromoSmoke");
 			if (!payolaOk) fails.Add("payola ledger lost or changed on round-trip");

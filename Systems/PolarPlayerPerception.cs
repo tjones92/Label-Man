@@ -154,7 +154,9 @@ public static class PolarPlayerPerception {
 			float truth = song?.commercialHook ?? 0;
 			if (printedMasterId != null) truth = PlayerDesk.Instance.Masters.FirstOrDefault(m => m.Record.masterId == printedMasterId)?.Record.hookStrength ?? truth;
 			float error = Mathf.Lerp(Config.HookErrorWeak, Config.HookErrorStrong, scouting) * Config.GateScale[gate.ToString()];
-			read.hook = Read(truth, error, $"{label.labelId}|{heard.subjectId}|hook|{eventId}", "hook", $"{label.labelId}|hook|{hearing.source}");
+			var desk = PlayerDesk.Instance;
+			error *= 1f + .2f * desk.FatigueFogSteps;
+			read.hook = Read(truth, error, desk.FatigueReadKey($"{label.labelId}|{heard.subjectId}|hook|{eventId}"), "hook", $"{label.labelId}|hook|{hearing.source}");
 			read.hookText = Capitalize(DescribeHook(read.hook.Center, BandConfidence(read.hook)));
 		}
 
@@ -225,10 +227,15 @@ public static class PolarPlayerPerception {
 		AILabel observer, string subject, string kind, string eventId, PolarEvidenceGate gate) {
 		string version = Hash(string.Join("|", axes.Concat(new[] { reach, rigidity, ambition, plasticity }).Select(v => v.ToString("R", System.Globalization.CultureInfo.InvariantCulture))) + "|" + PolarSongTable.Current.ContentFingerprint);
 		string key = $"{observer.labelId}|{subject}|{kind}|{eventId}|{version}|{Config.Version}|{NoiseModel}";
+		float fatigueScale = 1f;
+		if (kind.EndsWith(EarKind, StringComparison.Ordinal) && PlayerDesk.Instance is { } desk && ReferenceEquals(observer, desk.Label)) {
+			key = desk.FatigueReadKey(key);
+			fatigueScale += .2f * desk.FatigueFogSteps;
+		}
 		observations.TryGetValue(key, out var prior);
 		// Keep earned evidence even when a later view asks for a weaker gate; improved staff may refine it.
 		if (prior != null && Config.GateScale[prior.gate.ToString()] < Config.GateScale[gate.ToString()]) gate = prior.gate;
-		float scale = Config.GateScale[gate.ToString()];
+		float scale = Config.GateScale[gate.ToString()] * fatigueScale;
 		// Away from the studio, reading what a performance demands is the scout's ear, not the producer's.
 		float demandSkill = kind.EndsWith(EarKind, StringComparison.Ordinal) ? observer.scoutingAbility : observer.productionQuality;
 		float demandError = Mathf.Lerp(Config.DemandErrorWeak, Config.DemandErrorStrong, Math.Clamp(demandSkill, 0, 1)) * scale;

@@ -4,6 +4,8 @@ public sealed class SceneContactKnowledge {
     public string ContactId { get; set; }
     public int? IntroducedDay { get; set; }
     public List<string> HeardBillIds { get; set; } = new();
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int SharedDrinks { get; set; }
 }
 public sealed class SceneLead {
     public string Id { get; set; }
