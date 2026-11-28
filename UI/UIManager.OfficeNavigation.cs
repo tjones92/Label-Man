@@ -137,50 +137,15 @@ public partial class UIManager {
 	private void OpenOfficeDoor() {
 		var desk = PlayerDesk.Instance;
 		if (desk.Calling == PlayerDesk.CallerAt.Door) { PickUpFromTheDesk(); return; }
-		var modal = PaperModal.Open(this, "WHERE TO?", 680);
-		officePromptChoices.Clear();
-		var today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
-		var sets = LocalScenes.Rooms ? desk.ScoutingItinerary(false)
-			.Where(set => set.Affordable && set.Day == today &&
-				(!desk.FirstWeekVisitLater || set.EndMinute <= desk.FirstWeekLeaveAt) &&
-				string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(set.ArtistId)?.labelId))
-			.DistinctBy(set => set.ArtistId).Take(3).ToArray() : Array.Empty<ScoutingOpportunity>();
-		if (sets.Length == 0 && LocalScenes.Rooms) modal.AddText("No unsigned set fits the rest of today. Check the next posted dates.");
-		foreach (var set in sets) {
-			var timing = set.Playing ? $"LISTEN · {set.ListeningMinutes}m" : $"GO & WAIT · {set.WaitingMinutes}m";
-			var row = new Button {
-				Text = $"{set.RoomName} · {PlayerDesk.ClockText(set.StartMinute)} · {set.ArtistName}\n{timing} · ${set.Admission:N0} admission",
-				Alignment = HorizontalAlignment.Left
-			};
-			row.Pressed += () => { modal.Close(); OpenDoorDestination(() => deskPanel.OpenDoorSet(set)); };
-			modal.Body.AddChild(row);
-			if (desk.FirstWeekCurrent == FirstWeekStep.Hear) officePromptChoices.Add(row);
-		}
-		Button Route(string caption, Action action) {
-			var entry = new Button { Text = caption, Alignment = HorizontalAlignment.Left };
-			entry.Pressed += () => { modal.Close(); OpenDoorDestination(action); };
-			modal.Body.AddChild(entry);
-			return entry;
-		}
-		var finder = Route("FIND A SET", () => deskPanel.OpenSetFinder());
-		if (desk.FirstWeekCurrent == FirstWeekStep.Hear && sets.Length == 0) officePromptChoices.Add(finder);
-		Route("ACT NOTEBOOK", () => deskPanel.OpenScoutingNotebook());
-		Route("RECORD SHOPS, STATIONS & TRAVEL", () => deskPanel.OpenAtTab("THE ROAD"));
-		Route("BAND ROOM", () => deskPanel.OpenAtTab("BAND ROOM"));
-		var studio = new Button { Text = "STUDIO", Alignment = HorizontalAlignment.Left };
-		studio.Disabled = !desk.AtHome || !desk.Roster.Any();
-		studio.TooltipText = !desk.AtHome ? "Drive home to use the studio." : !desk.Roster.Any() ? "Sign an act first." : "";
-		studio.Pressed += () => { modal.Close(); OpenOfficeStudio(); };
-		modal.Body.AddChild(studio);
-		modal.AddButton("STAY HERE", null);
+		OpenDoorDestination(() => deskPanel.OpenCityMap());
 	}
 
-	private void OpenOfficeStudio() {
+	internal void OpenOfficeStudio() {
 		var desk = PlayerDesk.Instance;
 		if (desk.Session is { } session) { OpenStudio(session.ArtistId); return; }
 		var acts = desk.Roster.ToList();
 		if (acts.Count == 1) { OpenStudio(acts[0].artistId); return; }
-		var modal = PaperModal.Open(this, "WHO'S GOING INTO THE STUDIO?");
+		var modal = PaperModal.Open(deskPanel, "WHO'S GOING INTO THE STUDIO?");
 		foreach (var act in acts) {
 			var choice = new Button { Text = act.stageName, Alignment = HorizontalAlignment.Left };
 			choice.Pressed += () => { modal.Close(); OpenStudio(act.artistId); };
@@ -192,13 +157,14 @@ public partial class UIManager {
 	private void OpenDoorDestination(Action open) {
 		open();
 		isUIOpen = true;
+		if (desk.ActiveStudioTrip is { } trip && trip.CityId == desk.CurrentCityId) { OpenStudio(trip.ArtistId); return; }
 		UpdateMainHud();
 	}
 
 	internal void FromFilesToDoor() {
-		deskPanel.ClosePanel();
-		OpenDoorDestination(() => deskPanel.OpenAtTab("THE ROAD"));
+		OpenDoorDestination(() => deskPanel.OpenCityMap());
 	}
+			choice.SetMeta("artist_id", act.artistId);
 
 	private void OpenOfficePhone() {
 		if (PlayerDesk.Instance?.Calling == PlayerDesk.CallerAt.Phone) PickUpFromTheDesk();

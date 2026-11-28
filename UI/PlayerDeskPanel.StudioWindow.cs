@@ -95,7 +95,7 @@ public partial class PlayerDeskPanel {
         var session = desk.Session;
 
         var top = StudioRow(content);
-        var back = Btn(session == null ? "‹ BACK TO ROSTER" : "‹ BACK TO THE OFFICE");
+        var back = Btn(StudioReturnsToMap ? BackToCityMap : session == null ? "‹ BACK TO ROSTER" : "‹ BACK TO THE OFFICE");
         back.TooltipText = session == null ? "" : "The date stays open. Closing the studio pauses your decisions; it does not end or refund the paid date.";
         back.Pressed += ClosePanel; top.AddChild(back);
         bool ownDate = session != null && session.ArtistId == artist.artistId;

@@ -289,7 +289,7 @@ public partial class PlayerDeskPanel {
         if (!circuit && signedLeftOff > 0)
             ScoutingText("Acts already signed to a label are left off. VENUES & CALENDARS shows every posted set.", 13, Heard);
         if (options.Length == 0) {
-            Body(local.Count > 0 ? $"Local admission starts at {Money(local.Min(o => o.Admission))}. Check your cash or browse venues."
+            Body(local.Count > 0 ? $"Lowest local price: {CoverText(local.Min(o => o.Admission))}. Check your cash or browse venues."
                 : "No unheard local set fits your working hours. Browse venues, check nearby towns, or review a notebook act.");
             return;
         }

@@ -29,7 +29,7 @@ public partial class StudioClockStrip : Control {
     }
 
     public static string DurationText(int minutes) =>
-        minutes >= 60 ? $"{minutes / 60}h {minutes % 60:00}m" : $"{minutes}m";
+        minutes < 60 ? $"{minutes}m" : minutes % 60 == 0 ? $"{minutes / 60}h" : $"{minutes / 60}h {minutes % 60}m";
 
     public override void _Draw() {
         float width = Size.X;

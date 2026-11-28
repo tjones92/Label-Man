@@ -135,9 +135,10 @@ public partial class ScoutingUiChecks : Node {
             if (desk.ScoutingAlternativeLeads(first.ArtistId).Any(l => l.ArtistId == second.ArtistId)) {
             string snapshot = JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions);
             await Press("REVIEW " + second.ArtistName.ToUpperInvariant());
-            Check(Nodes(panel).OfType<Button>().Any(b => b.Text.StartsWith("▾  " + second.ArtistName)), "Review opens the named act's card");
-            var scroll = Nodes(panel).OfType<ScrollContainer>().First();
-            Check(scroll.ScrollVertical > 0, "Selected act scrolls into view");
+            var reviewed = Nodes(panel).OfType<Button>().SingleOrDefault(b => b.IsVisibleInTree() && b.Text.StartsWith("▾  " + second.ArtistName));
+            Check(reviewed != null, "Review opens the named act's card");
+            var scroll = Nodes(panel).OfType<ScrollContainer>().First(s => s.IsVisibleInTree());
+            Check(scroll.GetGlobalRect().Grow(1).Encloses(reviewed.GetGlobalRect()), "Selected act scrolls into view");
             Check(JsonSerializer.Serialize(desk.CaptureState(), SaveGameService.TestJsonOptions) == snapshot, "Review spends nothing and does not change evidence or pad");
             } else {
                 GD.Print("note: the second act is not a local lead in this world; the REVIEW leg is skipped");

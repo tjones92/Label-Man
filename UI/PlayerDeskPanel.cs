@@ -126,12 +126,17 @@ public partial class PlayerDeskPanel : Control {
 	/// <summary>Opens the office straight onto a department -- the desk props use this. With no label yet
 	/// (or a folded one) it just opens whatever the panel would normally show.</summary>
 	public void OpenAtTab(string title) {
+		switch (title) {
+			case "A&R": OpenStreet(StreetPage.Sets); return;
+			case "BAND ROOM": OpenStreet(StreetPage.BandRoom); return;
+			case "THE ROAD": OpenStreet(StreetPage.Road); return;
+		}
+		streetPage = null;
 		Open();
 		PlayerDesk desk = PlayerDesk.Instance;
 		if (desk == null || !desk.HasLabel || desk.IsGameOver) return;
 		browsingSaves = false;
 		switch (title) {
-			case "A&R": GoToTab(0, PageAandR); break;
 			case "ROSTER": GoToTab(1, PageRoster); break;
 			case "CATALOG": GoToTab(2, PageCatalog); break;
 			case "DISTRIBUTION": GoToTab(DistributionTab, PageDistribution); break;
@@ -139,17 +144,17 @@ public partial class PlayerDeskPanel : Control {
 			case "OFFICE": GoToTab(5, PageOffice); break;
 			case "LEDGER": GoToTab(6, PageLedger); break;
 			case "ROLODEX": GoToTab(RolodexTab, PageRolodex); break;
-			case "BAND ROOM": GoToTab(BandRoomTab, PageBandRoom); break;
 			case "BOOKS": OpenBooks(); break;
 			case "THE PAPER": GoToTab(PaperTab, () => PaperSection(PlayerDesk.Instance)); break;
 			case "THE PHONE": GoToTab(RolodexTab, PageDeskPhone); break;
-			case "THE ROAD": GoToTab(RoadTab, PageStreetDistribution); break;
 			case "OFFICE SERVICES": GoToTab(OfficeTab, () => OfficeBody(servicesOnly: true)); break;
 		}
 	}
 
 	public void ClosePanel() {
 		Visible = false;
+		if (streetPage == StreetPage.StationCall) PlayerDesk.Instance.EndCall(PlayerDesk.Instance.ActiveCall);
+		streetPage = null;
 		if (browsingSaves && MenuClosed != null) { MenuClosed(); return; }
 		if (studioMode && StudioClosed != null) { StudioClosed(); return; }
 		if (UIManager.Instance != null) UIManager.Instance.isUIOpen = false;
@@ -331,7 +336,9 @@ public partial class PlayerDeskPanel : Control {
 		content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		content.AddThemeConstantOverride("separation", 10);
 		contentGutter.AddChild(content);
-		contentRoot = content;
+		contentRoot = officeContent = content;
+		officeContentScroll = contentScroll;
+		BuildStreetOverlay();
 		// A mug was set down on some of the department's pages (not all), each in its own place. The ring is on the
 		// scrolled page, over whatever paper is there, so it moves with the page; it never takes the mouse.
 		var stain = pageStain = new Control { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
@@ -420,7 +427,8 @@ public partial class PlayerDeskPanel : Control {
 	private int lastFileTab = 1;
 	private int lastBooksPage = 4;
 
-	internal bool FilesOpen => Visible && !browsingSaves && !studioMode;
+	internal bool FilesOpen => Visible && !browsingSaves && !studioMode && streetPage == null;
+	internal bool StreetOpen => Visible && streetPage != null;
 
 	internal void OpenFiles() => OpenAtTab(lastFileTab switch {
 		CatalogTab => "CATALOG", DistributionTab => "DISTRIBUTION", 4 => "BOOKS", _ => "ROSTER"
@@ -433,6 +441,10 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>Switches the desk to a macro tab, dropping any open MANAGE/cover-browse sub-state.</summary>
 	private void GoToTab(int index, Action page) {
+		if (streetPage != null) {
+			streetPage = null;
+			UseStreetLayout(false);
+		}
 		bool switching = index != currentTab;
 		if (switching && contentScroll != null) tabScroll[currentTab] = contentScroll.ScrollVertical;
 		currentTab = index;
@@ -466,6 +478,8 @@ public partial class PlayerDeskPanel : Control {
 		PlayerDesk desk = PlayerDesk.Instance;
 		ShowPendingSigningMoment(desk);
 		TimeManager time = TimeManager.Instance;
+		bool inStreet = streetPage != null && desk is { HasLabel: true, IsGameOver: false } && !browsingSaves && !studioMode;
+		UseStreetLayout(inStreet);
 		content = contentRoot;   // a Distribution section may have left `content` pointing at a child
 		nextUpLabel.Text = string.Empty;
 		if (time != null) {
@@ -476,6 +490,11 @@ public partial class PlayerDeskPanel : Control {
 			}
 			lastStatusDate = time.CurrentDate;
 			hasStatusDate = true;
+		}
+
+		if (inStreet) {
+			RefreshStreet(desk, time);
+			return;
 		}
 
 		ApplyTitleBrand(null);
@@ -559,8 +578,8 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		if (tabButtons.Count == 0) {
-			BuildTabs(); currentTab = 0; currentPage = PageAandR; tabScroll.Clear();
-			// The founding form was a long scroll; the first desk opens at the top of A&R, not wherever that left off.
+			BuildTabs(); currentTab = 1; currentPage = PageRoster; tabScroll.Clear();
+			// The founding form was a long scroll; the first desk opens at the top of the roster, not wherever that left off.
 			Callable.From(() => { if (IsInstanceValid(contentScroll)) contentScroll.ScrollVertical = 0; }).CallDeferred();
 		}
 		tabs.Visible = true;
@@ -605,7 +624,7 @@ public partial class PlayerDeskPanel : Control {
 		Clear(content);
 		if (inGame && desk.FatigueQuietNotice is { } notice) Body(notice);
 		if (currentTab is 4 or LedgerTab) DrawBooksLinks();
-		(currentPage ?? PageAandR)();
+		(currentPage ?? PageRoster)();
 		// The lawyer is in the office: the sitting takes over the whole screen until he's shown out.
 		SyncLienStage(desk);
 		ShowLienMorningIfPending(desk);
@@ -789,14 +808,14 @@ public partial class PlayerDeskPanel : Control {
 		if (desk == null) return;
 		if (desk.Session != null) { UIManager.Instance?.OpenStudio(desk.Session.ArtistId); return; }
 		switch (NextUpStep(desk).Tab) {
-			case 0: GoToTab(0, PageAandR); break;
+			case 0: OpenCityMap(); break;
 			case 1: GoToTab(1, PageRoster); break;
 			case CatalogTab: GoToTab(CatalogTab, PageCatalog); break;
 			case 4: GoToTab(4, PageFinances); break;
 			case RolodexTab: GoToTab(RolodexTab, PageRolodex); break;
-			case BandRoomTab: GoToTab(BandRoomTab, PageBandRoom); break;
+			case BandRoomTab: OpenStreet(StreetPage.BandRoom); break;
 			case OfficeTab: GoToTab(PaperTab, () => PaperSection(desk)); break;
-			case RoadTab: GoToTab(RoadTab, PageStreetDistribution); break;
+			case RoadTab: OpenStreet(StreetPage.Road); break;
 			default: GoToTab(DistributionTab, PageDistribution); break;
 		}
 	}
@@ -1172,18 +1191,6 @@ public partial class PlayerDeskPanel : Control {
 		}
 		content.AddChild(board);
 
-		(int selectedOpen, int selectedClose) = PlayerDesk.VenueHours(selectedVenue);
-		int currentHour = hourNow;
-		bool selectedVenueOpen = currentHour >= selectedOpen && currentHour < selectedClose;
-		var scout = Btn(selectedVenueOpen
-			? $"GO SCOUTING  ({PlayerDesk.ScoutHours}h)"
-			: currentHour < selectedOpen ? $"OPENS AT {Hour12(selectedOpen)}" : "CLOSED FOR TONIGHT");
-		scout.Disabled = !selectedVenueOpen;
-		scout.TooltipText = selectedVenueOpen
-			? $"This room is open until {Hour12(selectedClose)}."
-			: currentHour < selectedOpen ? $"This room opens at {Hour12(selectedOpen)}." : $"This room has closed for tonight; it opens at {Hour12(selectedOpen)}.";
-		scout.CustomMinimumSize = new Vector2(220, 40);
-		scout.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.ScoutVenue(selectedVenue, out string message); if (ok) scoutingView = "ACT NOTEBOOK"; Say(message, ok); return ok; });
 		var venueRow = new HBoxContainer();
 		venueRow.AddThemeConstantOverride("separation", 14);
 		var venueNote = new Label {
@@ -1194,9 +1201,33 @@ public partial class PlayerDeskPanel : Control {
 		venueNote.AddThemeFontSizeOverride("font_size", 17);
 		venueNote.AddThemeColorOverride("font_color", Ink);
 		venueRow.AddChild(venueNote);
-		venueRow.AddChild(scout);
+		venueRow.AddChild(LegacyScoutButton(selectedVenue));
 		content.AddChild(venueRow);
         }
+	}
+
+	private Button LegacyScoutButton(PlayerDesk.ScoutingVenue venue) {
+		(int selectedOpen, int selectedClose) = PlayerDesk.VenueHours(venue);
+		int currentHour = TimeManager.Instance?.CurrentHour ?? 9;
+		bool selectedVenueOpen = currentHour >= selectedOpen && currentHour < selectedClose;
+		var scout = Btn(selectedVenueOpen
+			? $"GO SCOUTING  ({PlayerDesk.ScoutHours}h)"
+			: currentHour < selectedOpen ? $"OPENS AT {Hour12(selectedOpen)}" : "CLOSED FOR TONIGHT");
+		scout.Disabled = !selectedVenueOpen;
+		scout.TooltipText = selectedVenueOpen
+			? $"This room is open until {Hour12(selectedClose)}."
+			: currentHour < selectedOpen ? $"This room opens at {Hour12(selectedOpen)}." : $"This room has closed for tonight; it opens at {Hour12(selectedOpen)}.";
+		scout.CustomMinimumSize = new Vector2(220, 40);
+		scout.Pressed += () => Act(() => {
+			bool ok = PlayerDesk.Instance.ScoutVenue(venue, out string message);
+			if (ok) {
+				scoutingView = "ACT NOTEBOOK";
+				if (streetPage == StreetPage.Map) streetPage = StreetPage.Sets;
+			}
+			Say(message, ok);
+			return ok;
+		});
+		return scout;
 	}
 
 	private string scoutingView = "FIND A SET";
@@ -2469,19 +2500,7 @@ public partial class PlayerDeskPanel : Control {
 		MarketCity here = desk.CurrentCity;
 		string hereName = here?.name ?? "the office";
 		List<PlayerDesk.PlayerStop> stopsHere = desk.StopsInCity(here.cityId).ToList();
-		foreach (var stop in stopsHere) {
-			if (desk.GermainLedgerStopVerb(stop.StopId) is not { } clue) continue;
-			Body(stop.DisplayName);
-			var follow = Btn(clue);
-			follow.TooltipText = "Follow up on Jack's black book.";
-			follow.Pressed += () => Act(() => {
-				bool ok = desk.FollowGermainLedgerLead(stop.StopId, out string message);
-				Say(message, ok);
-				return ok;
-			});
-			content.AddChild(follow);
-		}
-		BuildRecordShops(desk, here, stopsHere);
+		foreach (var stop in stopsHere) DrawLedgerLead(desk, stop, showLocation: true);
 
 		// --- WHERE YOU ARE + DRIVING ---
 		SectionHeading("travel", desk.AtHome ? "AT THE OFFICE" : $"ON THE ROAD — {hereName.ToUpperInvariant()}", !desk.AtHome || desk.PressedSinglesOnHand().Any(),
@@ -2615,19 +2634,6 @@ public partial class PlayerDeskPanel : Control {
 			pickRow.AddChild(singlePick);
 			content.AddChild(pickRow);
 
-			// Directive §4: a separate picker for promo stock -- the two pools never convert into each
-			// other, so servicing a station draws from a different list than pitching a shop.
-			var promoPickRow = new HBoxContainer();
-			promoPickRow.AddThemeConstantOverride("separation", 10);
-			promoPickRow.AddChild(FormLabel("Promo copy"));
-			var promoPick = Option();
-			promoPick.CustomMinimumSize = new Vector2(320, 36);
-			foreach ((string _, string title, int inHand) in promoOnHand)
-				promoPick.AddItem($"\"{title}\" — {inHand:N0} promo on hand");
-			promoPickRow.AddChild(promoPick);
-			if (promoOnHand.Count == 0) promoPickRow.AddChild(FormLabel("(none pressed)"));
-			content.AddChild(promoPickRow);
-
 			// One click puts every shop and operator in this town on the runner's route (or takes them all off).
 			if (desk.HasRunner) {
 				List<PlayerDesk.PlayerStop> runnable = stopsHere.Where(s => PlayerDesk.RunnerCanWork(s.Kind)).ToList();
@@ -2652,7 +2658,7 @@ public partial class PlayerDeskPanel : Control {
 			// and a single mixed list stopped being legible.
 			// An open account from another town (or one since dropped) re-picks a default here.
 			if (!string.IsNullOrEmpty(selectedStopId) && !stopsHere.Any(s => s.StopId == selectedStopId)) selectedStopId = null;
-			foreach (var kindGroup in stopsHere.Where(s => s.Kind != PlayerDesk.StopKind.Shop).GroupBy(s => s.Kind).OrderBy(g => g.Key)) {
+			foreach (var kindGroup in stopsHere.Where(s => s.Kind is not (PlayerDesk.StopKind.Shop or PlayerDesk.StopKind.Station)).GroupBy(s => s.Kind).OrderBy(g => g.Key)) {
 				PlayerDesk.StopKind kind = kindGroup.Key;
 				List<PlayerDesk.PlayerStop> kindStops = kindGroup.ToList();
 				bool expanded = expandedStopKinds.Contains(kind);
@@ -2681,23 +2687,12 @@ public partial class PlayerDeskPanel : Control {
 						content.AddChild(BuildVenueRow(stop, onHand, singlePick));
 						continue;
 					}
-					if (kind == PlayerDesk.StopKind.Station) {
-						content.AddChild(BuildStationRow(stop, promoOnHand, promoPick));
-						continue;
-					}
 					content.AddChild(StopRow(desk, stop, kind, onHand, singlePick, stopsWithCalls));
 				}
 			}
 		}
 
-		if (!desk.AtHome) {
-			int hours = desk.TravelQuote(desk.CurrentCityId, desk.Label.homeCityId).Hours;
-			var home = Btn($"DRIVE HOME  ({hours}h)");
-			AddTravelTonightPreview(home, desk, hours);
-			home.CustomMinimumSize = new Vector2(160, 40);
-			home.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.DriveHome(out string message); Say(message, ok); return ok; });
-			content.AddChild(home);
-		}
+		if (!desk.AtHome) DrawDriveHome(desk);
 
 	}
 
@@ -2732,12 +2727,18 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		DrawRouteStock(desk);
-		var goOut = Btn("GO OUT TO THE SHOPS");
+		foreach (var single in desk.Planned) {
+			if (desk.PressingOrderFor(single.Master.Record.recordId) is { } order)
+				Body($"“{single.Master.SongTitle}” · Pressing due {order.Arrives.ToHeadlineString()}");
+			if (single.Dated) Body($"“{single.Master.SongTitle}” · Ships {single.Date.ToHeadlineString()}");
+		}
+		var goOut = Btn("OPEN CITY MAP");
 		goOut.Pressed += () => UIManager.Instance?.FromFilesToDoor();
 		content.AddChild(goOut);
 		List<(string RecordId, string Title, int PromoOnHand)> promoOnHand = desk.PromoSinglesOnHand().ToList();
 
 		// --- THE MAILING (office only, directive §5): the only way to touch a market you can't drive to ---
+		DrawTownShopSummary(desk);
 		if (promoOnHand.Count > 0 && stageMail) {
 			SectionHeading("mailing", "THE MAILING", false,
 				$"Office only. {ActionCosts.Planning}h for up to {PlayerDesk.MailingFreePieces} pieces, plus an hour per further " +
@@ -4442,32 +4443,30 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>Promo mechanic directive §4: a station has no shelf and no balance, just the jock you can walk in on. Drop it
 	/// off first; WAIT FOR HIM and LEAVE IT WITH THE DESK are what a wave-off is for. Draws only from the promo pool.</summary>
-	private Control BuildStationRow(PlayerDesk.PlayerStop stop, List<(string RecordId, string Title, int PromoOnHand)> promoOnHand,
+	private Control StationSlip(PlayerDesk.PlayerStop stop, List<(string RecordId, string Title, int PromoOnHand)> promoOnHand,
 			OptionButton promoPick) {
-		return AccountRow(stop, stop.DisplayName, false, () => {
-			var slip = new CounterSlip(this);
-			string RecordId() => promoOnHand.Count == 0 ? null
-				: promoOnHand[Mathf.Clamp(promoPick.Selected, 0, promoOnHand.Count - 1)].RecordId;
-			if (promoOnHand.Count == 0)
-				slip.Note("No promo copies on hand: press some with the next run. You can still ask what's on their survey.");
-			else {
-				slip.Verb("DROP OFF", true, "Leave promo copies with the jock. He reads the record, the format and you, and he can wave you off.",
-					() => { bool ok = PlayerDesk.Instance.DropOffAtStation(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
-				slip.Verb("WAIT FOR HIM", false, "Sit in the lobby until he'll see you, then pitch him in person: a better shot than the phone.",
-					() => {
-						RolodexCall call = PlayerDesk.Instance.WaitForHimAtStation(stop.StopId, RecordId(), out string m);
-						Say(m, call != null);
-						if (call != null) GoToTab(RolodexTab, PageRolodex); // the pitch opens in person -- take focus immediately
-						return true;
-					});
-				slip.Verb("LEAVE IT WITH THE DESK", false, "One copy with the receptionist. Quick, and it's what you do when you're behind.",
-					() => { bool ok = PlayerDesk.Instance.LeaveWithReceptionist(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
-			}
-			slip.Verb("ASK WHAT'S ON THE SURVEY", promoOnHand.Count == 0,
-				"Free: how they're spinning your records, and which local dealers report to them.",
-				() => { bool ok = PlayerDesk.Instance.AskWhatsOnSurvey(stop.StopId, out string m); Say(m, ok); return true; });
-			return slip.Done();
-		});
+		var slip = new CounterSlip(this);
+		string RecordId() => promoOnHand.Count == 0 ? null
+			: promoOnHand[Mathf.Clamp(promoPick.Selected, 0, promoOnHand.Count - 1)].RecordId;
+		if (promoOnHand.Count == 0)
+			slip.Note("No promo copies on hand: press some with the next run. You can still ask what's on their survey.");
+		else {
+			slip.Verb("DROP OFF", true, "Leave promo copies with the jock. He reads the record, the format and you, and he can wave you off.",
+				() => { bool ok = PlayerDesk.Instance.DropOffAtStation(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
+			slip.Verb("WAIT FOR HIM", false, "Sit in the lobby until he'll see you, then pitch him in person: a better shot than the phone.",
+				() => {
+					RolodexCall call = PlayerDesk.Instance.WaitForHimAtStation(stop.StopId, RecordId(), out string m);
+					Say(m, call != null);
+					if (call != null) ShowStreetPage(StreetPage.StationCall);
+					return true;
+				});
+			slip.Verb("LEAVE IT WITH THE DESK", false, "One copy with the receptionist. Quick, and it's what you do when you're behind.",
+				() => { bool ok = PlayerDesk.Instance.LeaveWithReceptionist(stop.StopId, RecordId(), out string m); Say(m, ok); return true; });
+		}
+		slip.Verb("ASK WHAT'S ON THE SURVEY", promoOnHand.Count == 0,
+			"Free: how they're spinning your records, and which local dealers report to them.",
+			() => { bool ok = PlayerDesk.Instance.AskWhatsOnSurvey(stop.StopId, out string m); Say(m, ok); return true; });
+		return slip.Done();
 	}
 
 	// --- Styled interactive controls -------------------------------------------------------------

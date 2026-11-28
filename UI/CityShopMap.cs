@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
-/// <summary>A street atlas for the record-shop route. Shop pins represent fictional counters in real districts.</summary>
+/// <summary>A schematic street atlas for local travel.</summary>
 public partial class CityShopMap : Control {
 	private sealed record Place(string Name, float X, float Y);
 	private sealed record Sheet(Vector2[][] Water, Vector2[][] Streets, Place[] Labels, Vector2[] ShopPins, Vector2[][] Rivers = null);
@@ -44,43 +45,99 @@ public partial class CityShopMap : Control {
 				.46f,.40f, .69f,.34f, .56f,.25f, .65f,.21f, .78f,.23f, .62f,.13f, .79f,.10f, .81f,.82f, .75f,.88f))
 	};
 
-	private readonly List<Button> pins = new();
+	internal enum Kind { Office, Venue, Shop, Radio, Studio, BandRoom }
+	internal sealed record Stop(string Id, string Name, Kind Category, bool Active = false, bool Muted = false, string Note = null);
+	private readonly List<(Button Button, Vector2 Point)> pins = new();
+	private readonly Dictionary<string, Vector2> positions = new();
 	private Sheet sheet;
+	private Stop selected;
+	private Vector2 office;
 	private static readonly Color Land = new("eee1bd"), WaterInk = new("bdd0c5"), Road = new("aa9268"), MapInk = new("624e2f");
+	private static readonly Sheet TownPlan = new(
+		Array.Empty<Vector2[]>(),
+		new[] { Points(0,.26f, 1,.26f), Points(0,.49f, 1,.49f), Points(0,.74f, 1,.74f),
+			Points(.22f,0, .22f,1), Points(.46f,0, .46f,1), Points(.72f,0, .72f,1), Points(0,.90f, .65f,.25f, .93f,0) },
+		new[] { new Place("NORTH END",.12f,.16f), new Place("DOWNTOWN",.43f,.51f),
+			new Place("EAST SIDE",.77f,.38f), new Place("SOUTH SIDE",.51f,.86f) },
+		Points(.47f,.45f, .24f,.57f, .63f,.53f, .32f,.28f, .74f,.25f, .36f,.71f));
 
-	public static bool HasSheet(string cityId) => Sheets.ContainsKey(cityId);
-
-	public void SetShops(string cityId, IReadOnlyList<PlayerDesk.PlayerStop> shops, string selectedId, Func<string, string> orderAt, Action<string> select) {
-		sheet = Sheets[cityId];
-		CustomMinimumSize = new Vector2(420, 340);
-		SizeFlagsHorizontal = SizeFlags.ExpandFill;
+	internal CityShopMap() {
+		CustomMinimumSize = new Vector2(500, 340);
+		SizeFlagsVertical = SizeFlags.ExpandFill;
 		MouseFilter = MouseFilterEnum.Ignore;
 		ClipContents = true;
 		Resized += PositionPins;
-		foreach (var shop in shops) {
-			string stopId = shop.StopId;
-			bool chosen = stopId == selectedId;
-			string order = orderAt(stopId);
+	}
+
+	internal void SetLocations(string cityId, IReadOnlyList<Stop> stops, string selectedId, string initial,
+			Func<Stop, bool> visible, Action<string> select) {
+		sheet = Sheets.GetValueOrDefault(cityId, TownPlan);
+		selected = stops.FirstOrDefault(stop => stop.Id == selectedId);
+		int shopIndex = 0, anchorIndex = 0;
+		foreach (var stop in stops) {
+			Vector2 point;
+			if (stop.Category == Kind.Shop && shopIndex < sheet.ShopPins.Length)
+				point = sheet.ShopPins[shopIndex++];
+			else {
+				// Keep the published shop positions. Other stops use nearby blocks on the same schematic.
+				Vector2 anchor = sheet.ShopPins[(anchorIndex++ * 5) % sheet.ShopPins.Length];
+				point = FindOpenBlock(anchor);
+			}
+			positions.Add(stop.Id, point);
+			if (stop.Category == Kind.Office) office = point;
+			if (!visible(stop)) continue;
+
+			bool chosen = stop == selected;
+			Color accent = stop.Category switch {
+				Kind.Venue => new("8b392b"), Kind.Shop => new("753e26"), Kind.Radio => new("285469"),
+				Kind.Office => new("34493b"), _ => new("545075")
+			};
+			string glyph = stop.Category switch {
+				Kind.Office => initial, Kind.Venue => "◆", Kind.Shop => "●", Kind.Radio => "▲", _ => "■"
+			};
 			var pin = new Button {
-				Name = "ShopPin_" + stopId, Text = order != null ? "▣" : chosen ? "◉" : "●",
-				TooltipText = order == null ? shop.DisplayName : $"{shop.DisplayName}\n{order}",
+				Name = (stop.Category == Kind.Shop ? "ShopPin_" : "TownPin_") + stop.Id, Text = glyph,
+				TooltipText = stop.Name + (stop.Note == null ? "" : "\n" + stop.Note),
 				Size = new Vector2(30, 30), MouseDefaultCursorShape = CursorShape.PointingHand
 			};
-			pin.AddThemeStyleboxOverride("normal", PinStyle(chosen ? PaperTheme.Highlighter : PaperTheme.Field));
-			pin.AddThemeStyleboxOverride("hover", PinStyle(PaperTheme.Highlighter));
-			pin.AddThemeStyleboxOverride("pressed", PinStyle(PaperTheme.Highlighter));
-			pin.AddThemeColorOverride("font_color", PaperTheme.Oxblood);
-			pin.AddThemeFontSizeOverride("font_size", 15);
-			pin.Pressed += () => select(stopId);
-			pins.Add(pin);
+			pin.AddThemeFontOverride("font", PaperTheme.SansBold);
+			pin.AddThemeStyleboxOverride("normal", PinStyle(chosen ? PaperTheme.Highlighter : stop.Muted ? new Color("d8ccb0") : PaperTheme.Field, accent, stop.Active));
+			pin.AddThemeStyleboxOverride("hover", PinStyle(PaperTheme.Highlighter, accent, stop.Active));
+			pin.AddThemeStyleboxOverride("pressed", PinStyle(PaperTheme.Highlighter, accent, stop.Active));
+			pin.AddThemeColorOverride("font_color", stop.Muted ? new Color("716850") : accent);
+			pin.AddThemeColorOverride("font_hover_color", accent);
+			pin.AddThemeColorOverride("font_pressed_color", accent);
+			pin.AddThemeColorOverride("font_focus_color", accent);
+			pin.AddThemeFontSizeOverride("font_size", 16);
+			pin.Pressed += () => select(stop.Id);
+			pins.Add((pin, point));
 			AddChild(pin);
 		}
 		PositionPins();
 	}
 
-	private static StyleBoxFlat PinStyle(Color fill) => new() {
-		BgColor = fill, BorderColor = PaperTheme.Oxblood,
-		BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
+	private Vector2 FindOpenBlock(Vector2 anchor) {
+		var occupied = positions.Values.Concat(sheet.ShopPins).ToArray();
+		return (from row in Enumerable.Range(1, 12)
+				from column in Enumerable.Range(1, 15)
+				let point = new Vector2(column / 16f, row / 13f)
+				where !sheet.Water.Any(water => Geometry2D.IsPointInPolygon(point, water))
+					&& occupied.All(other => ((other - point) * new Vector2(500, 340)).Length() >= 35)
+				orderby point.DistanceSquaredTo(anchor)
+				select point).DefaultIfEmpty(anchor).First();
+	}
+
+	internal string District(string stopId) {
+		if (!positions.TryGetValue(stopId, out var point)) return null;
+		return sheet.Labels.Where(label => !label.Name.EndsWith("RIVER") && !label.Name.StartsWith("LAKE ")
+				&& label.Name is not ("MICHIGAN AVE." or "WOODWARD" or "CENTRAL PARK"))
+			.MinBy(label => new Vector2(label.X, label.Y).DistanceSquaredTo(point))?.Name;
+	}
+
+	private static StyleBoxFlat PinStyle(Color fill, Color ink, bool active) => new() {
+		BgColor = fill, BorderColor = ink,
+		BorderWidthLeft = active ? 3 : 1, BorderWidthRight = active ? 3 : 1,
+		BorderWidthTop = active ? 3 : 1, BorderWidthBottom = active ? 3 : 1,
 		CornerRadiusTopLeft = 15, CornerRadiusTopRight = 15, CornerRadiusBottomLeft = 15, CornerRadiusBottomRight = 15,
 		ContentMarginLeft = 0, ContentMarginRight = 0, ContentMarginTop = 0, ContentMarginBottom = 0
 	};
@@ -94,7 +151,7 @@ public partial class CityShopMap : Control {
 	private Vector2[] FitToMap(Vector2[] points) => Array.ConvertAll(points, p => p * Size);
 
 	private void PositionPins() {
-		for (int i = 0; i < pins.Count; i++) pins[i].Position = sheet.ShopPins[i] * Size - pins[i].Size / 2;
+		foreach (var (button, point) in pins) button.Position = point * Size - button.Size / 2;
 		QueueRedraw();
 	}
 
@@ -111,6 +168,8 @@ public partial class CityShopMap : Control {
 			float left = Mathf.Min(label.X * Size.X, Size.X - width - 8);
 			DrawString(font, new Vector2(left, label.Y * Size.Y), label.Name, fontSize: 12, modulate: MapInk);
 		}
+		if (selected is { Category: not Kind.Office } && positions.TryGetValue(selected.Id, out var destination))
+			DrawDashedLine(office * Size, destination * Size, new Color(MapInk, .5f), 1.5f, 5, true, true);
 		DrawRect(bounds.Grow(-0.5f), PaperTheme.Edge, false, 1);
 	}
 }

@@ -850,7 +850,7 @@ public partial class UIManager : Control
 		if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape } || PaperModal.IsOpen) return;
 		if (officeWaitMenu?.Visible == true) { officeWaitMenu.Hide(); officeWait.GrabFocus(); }
 		else if (gameMenu?.Visible == true) gameMenu.ClosePanel();
-		else if (CanUseOfficeNavigation() && deskPanel?.FilesOpen == true) deskPanel.ClosePanel();
+		else if (CanUseOfficeNavigation() && (deskPanel?.FilesOpen == true || deskPanel?.StreetOpen == true)) deskPanel.ClosePanel();
 		else OpenGameMenu();
 		GetViewport().SetInputAsHandled();
 	}
@@ -879,6 +879,7 @@ public partial class UIManager : Control
 
 	public void OpenStudio(string artistId) {
 		if (gameMenu?.Visible == true) return;
+		bool returningToMap = studioWindow?.Visible == true ? studioWindow.StudioReturnsToMap : deskPanel?.StreetOpen == true;
 		if (studioWindow?.Visible != true) officeBeforeStudio = deskPanel?.Visible == true;
 		if (deskPanel != null) deskPanel.Hide();
 		if (studioWindow == null) {
@@ -890,6 +891,7 @@ public partial class UIManager : Control
 				isUIOpen = officeBeforeStudio; UpdateMainHud();
 			};
 		}
+		studioWindow.StudioReturnsToMap = returningToMap;
 		studioWindow.OpenStudio(artistId);
 		isUIOpen = true; UpdateMainHud();
 	}

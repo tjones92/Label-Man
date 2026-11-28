@@ -78,10 +78,11 @@ public partial class FirstWeekUiChecks : Node {
 			Check(Glowing()?.Name == "OfficeDoor", "The room points a new player to the door");
 			await Screenshot("office-room");
 			Glowing().EmitSignal(BaseButton.SignalName.Pressed); await Frame();
-			Check(Shows("WHERE TO?"), "The door opens the destinations card");
-			await Press("FIND A SET");
+			Check(Shows("HIT THE TOWN") && Shows("PLAYING TODAY"), "The door opens the city map and today’s bill");
+			await Screenshot("city-map");
+			await Press("ALL UPCOMING SETS / VENUES");
 			await Frame(0.7);
-			Check(Shows("This week") && !Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text.StartsWith("NEXT UP")), "The card takes NEXT UP's place");
+			Check(!Shows("This week") && !Nodes(panel).OfType<Button>().Any(b => b.IsVisibleInTree() && b.Text.StartsWith("NEXT UP")), "Street pages use the slim header without the desk checklist");
 			await Screenshot("start");
 
 			var seen = new List<FirstWeekStep>();

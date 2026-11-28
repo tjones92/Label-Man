@@ -1,40 +1,15 @@
-using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
 public partial class PlayerDeskPanel {
-	private string selectedTownShopId;
 	private string selectedTownShopSingleId;
 
-	private void BuildRecordShops(PlayerDesk desk, MarketCity city, List<PlayerDesk.PlayerStop> stops) {
-		var shops = stops.Where(stop => stop.Kind == PlayerDesk.StopKind.Shop).ToList();
-		if (shops.Count == 0) return;
-		var shop = shops.FirstOrDefault(stop => stop.StopId == selectedTownShopId) ?? shops[0];
-		void SelectShop(string stopId) {
-			selectedTownShopId = stopId;
-			RefreshKeepingScroll();
-		}
-
-		Heading($"RECORD SHOPS IN {city.name.ToUpperInvariant()}");
-		if (CityShopMap.HasSheet(city.cityId)) {
-			var map = new CityShopMap { Name = "RecordShopMap" };
-			map.SetShops(city.cityId, shops, shop.StopId, desk.PreOrderNote, SelectShop);
-			content.AddChild(map);
-		} else {
-			var addresses = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-			addresses.AddThemeConstantOverride("h_separation", 8);
-			foreach (var address in shops) {
-				var pick = Btn(address.DisplayName);
-				pick.Disabled = address.StopId == shop.StopId;
-				pick.Pressed += () => SelectShop(address.StopId);
-				addresses.AddChild(pick);
-			}
-			content.AddChild(addresses);
-		}
-
-		Heading(shop.DisplayName);
+	private void DrawRecordShop(PlayerDesk desk, PlayerDesk.PlayerStop shop) {
 		Body(PlayerDesk.ShopWindow(shop));
-		if (PlayerDesk.KnowsRecordShop(shop)) Body(PlayerDesk.ShopClerk(shop));
+		if (PlayerDesk.KnowsRecordShop(shop)) {
+			Body(PlayerDesk.ShopClerk(shop));
+			Body($"Clerk relationship {shop.Relationship:P0}.");
+		}
 		else {
 			var visit = Btn("MEET THE CLERK (1h)");
 			visit.TooltipText = "Introduce the label and ask which records people come in for. Local fares and travel time apply.";
@@ -59,7 +34,10 @@ public partial class PlayerDeskPanel {
 		}
 
 		var onHand = desk.PressedSinglesOnHand().ToList();
-		if (onHand.Count == 0 && !desk.HasRunner) return;
+		if (onHand.Count == 0 && !desk.HasRunner) {
+			Body("No sellable copies on hand.");
+			return;
+		}
 		OptionButton singlePick = null;
 		if (onHand.Count > 0) {
 			singlePick = Option();

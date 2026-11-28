@@ -150,7 +150,7 @@ public partial class PlayerDeskPanel {
 				break;
 			case FirstWeekStep.Answer when desk.FirstPendingApproachStep != null:
 			case FirstWeekStep.Answer when desk.FirstWeekHearAgainId != null:
-				GoToTab(0, PageAandR);
+				OpenStreet(StreetPage.Sets);
 				break;
 			case FirstWeekStep.Answer:
 				Say("END THE DAY is in the header, beside the WAIT buttons. The Morning Paper says who called back.", true);
@@ -159,11 +159,10 @@ public partial class PlayerDeskPanel {
 				Say("Too late for a studio date today. END THE DAY is in the header; book the room in the morning.", true);
 				break;
 			case FirstWeekStep.Record:
-				if (desk.Session != null) UIManager.Instance?.OpenStudio(desk.Session.ArtistId);
-				else GoToTab(1, PageRoster);
+				OpenCityMap(StudioPin);
 				break;
 			default:
-				GoToTab(0, PageAandR);
+				OpenCityMap();
 				break;
 		}
 	}
@@ -181,7 +180,7 @@ public partial class PlayerDeskPanel {
 				? new[] { "END THE CONVERSATION", "FIND A SET", "NEXT SETS", "END THE DAY" }
 				: new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms.", "FIND A SET", "NEXT SETS", "END THE DAY" },
 		// Never a set: the player picks which act to hear (audit §2.7). The view glows; the voices talk about tonight's rooms.
-		FirstWeekStep.Hear => new[] { "FIND A SET", "NEXT SETS" },
+		FirstWeekStep.Hear => new[] { "FIND A SET", "NEXT SETS", "ALL UPCOMING SETS / VENUES" },
 		// The Talk's lines (PlayerDesk.TheTalk) lead when the conversation has the page.
 		FirstWeekStep.Ask => new[] { "▸  Would you hear an offer from us?", "▸  Let's sit down on terms.", "ASK IF THEY'D HEAR AN OFFER", "TALK TO THEM", "SIT DOWN ON TERMS" },
 		// The appointment book (onboarding T5): their times are picked in the conversation (glowing together, below); on
@@ -227,7 +226,8 @@ public partial class PlayerDeskPanel {
 		// Choosing who to hear: with the sets listed, every one of them glows and the player picks (playtest 2026-11-26: a
 		// glowing FIND A SET over the open finder was a press that did nothing).
 		if (modal.Count == 0 && (step == FirstWeekStep.Hear || step == FirstWeekStep.Answer && desk.FirstWeekNeedsAnotherAct && theTalkArtistId == null)) {
-			var sets = buttons.Where(b => b.HasMeta("scouting_artist") && b.Text is "GO & WAIT" or "LISTEN").Cast<Control>().ToList();
+			var sets = buttons.Where(b => b.HasMeta("scouting_artist") && (b.Text is "GO & WAIT" or "LISTEN")
+				&& (streetPage != StreetPage.Map || b.HasMeta("first_week_map_set"))).Cast<Control>().ToList();
 			if (sets.Count > 0) { GlowOnAll(sets); return; }
 		}
 		// An act that asked to be heard again: its next set, then (at The Set) talking to it when it comes off the stand.
@@ -247,6 +247,15 @@ public partial class PlayerDeskPanel {
 			// Too late for a date today: back to the desk, where the day ends.
 			if (desk.FirstWeekStudioTomorrow && modal.Count == 0) {
 				GlowOn(buttons.FirstOrDefault(b => b.Text.StartsWith("‹ BACK", System.StringComparison.Ordinal)));
+		if (streetPage == StreetPage.Map && (step is FirstWeekStep.Record or FirstWeekStep.Cut)) {
+			var studio = buttons.FirstOrDefault(b => b.HasMeta("artist_id") && FindParentOfType<PaperModal>(b) != null)
+				?? buttons.FirstOrDefault(b => b.Text is "TAKE INTO STUDIO" or "RETURN TO STUDIO")
+				?? buttons.FirstOrDefault(b => b.Name == "TownPin_" + StudioPin);
+			if (desk.FirstWeekStudioTomorrow)
+				studio = buttons.FirstOrDefault(b => b.Text == "END THE DAY");
+			GlowOn(studio);
+			return;
+		}
 				return;
 			}
 			static bool Refused(Button b) => b.HasMeta("first_week_refused") && b.GetMeta("first_week_refused").AsBool();

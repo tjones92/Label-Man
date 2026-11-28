@@ -2,31 +2,6 @@ using Godot;
 using System.Linq;
 
 public partial class PlayerDeskPanel {
-	internal void OpenSetFinder() {
-		scoutingView = "FIND A SET";
-		showScoutingItinerary = true;
-		OpenAtTab("A&R");
-	}
-
-	internal void OpenScoutingNotebook() {
-		scoutingView = "ACT NOTEBOOK";
-		OpenAtTab("A&R");
-	}
-
-	internal void OpenDoorSet(ScoutingOpportunity set) {
-		OpenSetFinder();
-		var desk = PlayerDesk.Instance;
-		ActUntilDay(set.Playing ? 0 : set.Day, () => {
-			string message;
-			bool ok = set.Playing
-				? desk.ListenSceneAppearance(set.BillId, set.EventId, out message)
-				: desk.WaitForSceneAppearance(set.BillId, set.EventId, out message);
-			if (ok && set.Playing) OpenTheSet(desk);
-			Say(message, ok);
-			return ok;
-		});
-	}
-
 	private void DrawBooksLinks() {
 		var links = new HBoxContainer();
 		links.AddChild(ChoiceButton("FINANCES", currentTab == 4, () => GoToTab(4, PageFinances)));
@@ -43,14 +18,20 @@ public partial class PlayerDeskPanel {
 
 	private void DrawRouteStock(PlayerDesk desk) {
 		var stock = desk.PressedSinglesOnHand().ToList();
-		if (stock.Count == 0) return;
-		Heading("STOCK FOR THE SHOPS");
-		var title = Option();
-		foreach (var single in stock) title.AddItem($"“{single.Title}” — {single.OnHand:N0} on hand");
-		title.Select(Mathf.Max(0, stock.FindIndex(single => single.RecordId == selectedTownShopSingleId)));
-		selectedTownShopSingleId = stock[title.Selected].RecordId;
-		title.ItemSelected += index => selectedTownShopSingleId = stock[(int)index].RecordId;
-		content.AddChild(title);
+		if (stock.Count == 0) Body("No sellable singles on hand.");
+		else content.AddChild(new LedgerTable().Set("Stock for the shops", new[] { "Single", "Copies on hand" },
+			stock.Select(single => LedgerTable.Entry(single.Title, single.OnHand.ToString("N0")))));
+	}
+
+	private void DrawTownShopSummary(PlayerDesk desk) {
+		var shops = desk.StopsInCity(desk.CurrentCityId).Where(stop => stop.Kind == PlayerDesk.StopKind.Shop)
+			.OrderBy(stop => stop.DisplayName).ToArray();
+		if (shops.Length == 0) return;
+		SectionHeading("local-shop-summary", $"SHOP ACCOUNTS · {desk.CurrentCity?.name}", false);
+		content.AddChild(new LedgerTable().Set(null, new[] { "Shop", "On shelf", "Balance", "Clerk" },
+			shops.Select(shop => LedgerTable.Entry(shop.DisplayName, shop.OnHand.Values.Sum(lot => lot.Remaining).ToString("N0"),
+				LedgerTable.Money(shop.OpenBalance), PlayerDesk.KnowsRecordShop(shop) ? "Met" : "—"))));
+		content = contentRoot;
 	}
 
 }

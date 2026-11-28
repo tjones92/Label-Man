@@ -378,7 +378,7 @@ public partial class PlayerDeskPanel {
         foreach (var lead in desk.ScoutingAlternativeLeads(artistId)) {
             Body($"{lead.ArtistName}: last heard at {lead.RoomName}, {LocalSceneRoomService.Date(lead.LastHeardDay).ToHeadlineString()}. " +
                 (lead.NextSet == null ? "No unheard local set is announced within your working hours." :
-                $"Next: {lead.NextSet.RoomName}, {LocalSceneRoomService.Date(lead.NextSet.Day).ToHeadlineString()}, {lead.NextSet.StartMinute / 60:00}:{lead.NextSet.StartMinute % 60:00}; {lead.NextSet.ListeningMinutes}min, {Money(lead.NextSet.Admission)} admission at the current quote."));
+                $"Next: {lead.NextSet.RoomName}, {LocalSceneRoomService.Date(lead.NextSet.Day).ToHeadlineString()}, {lead.NextSet.StartMinute / 60:00}:{lead.NextSet.StartMinute % 60:00}; {StudioClockStrip.DurationText(lead.NextSet.ListeningMinutes)} listening, {CoverText(lead.NextSet.Admission)} at the current quote."));
             var actions = new HFlowContainer();
             var notes = Btn("REVIEW " + lead.ArtistName.ToUpperInvariant());
             notes.Pressed += () => { showArchivedScouting = false; FocusScoutingAct(lead.ArtistId); };

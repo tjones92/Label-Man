@@ -75,7 +75,9 @@ public partial class PlayerDeskPanel {
         note.AddThemeFontSizeOverride("normal_font_size", 15); note.AddThemeColorOverride("default_color", Ink);
         content.AddChild(note);
     }
-    private void ScoutingSetPreview(PlayerDesk desk, ScoutingOpportunity option, bool circuit = false, Action afterAction = null, bool linkVenue = true) {
+    private static string CoverText(float amount) => amount <= 0f ? "No cover" : $"${amount:0.##} cover";
+
+    private void ScoutingSetPreview(PlayerDesk desk, ScoutingOpportunity option, bool circuit = false, Action afterAction = null, bool linkVenue = true, bool compact = false) {
         var card = ScoutingPaperCard(option.Playing ? new Color("42624a") : ScoutingArtistInk);
         WithinScouting(card, () => {
             // Contract status rides on the name line, so a signed act is flagged before the hour is spent.
@@ -94,16 +96,17 @@ public partial class PlayerDeskPanel {
                 string date = LocalSceneRoomService.Date(option.Day).ToHeadlineString();
                 ScoutingText($"{date} · {Hour12(option.StartMinute / 60)}–{Hour12(option.EndMinute / 60)}" + (option.Playing ? " · Playing now" : ""), 16, Ink, PaperTheme.SansSemiBold);
                 string night = option.EndMinute > TimeManager.Instance.HardStopHour * 60 ? " · After 9 PM, fatigue builds twice as fast" : "";
-                ScoutingText($"{option.ListeningMinutes}min listening · {Money(option.Admission)} admission" + night + (circuit ? $" · {option.TravelMinutes / 60}h drive" : ""), 14, Heard);
+                string timing = compact && !option.Playing ? $"Wait {StudioClockStrip.DurationText(option.WaitingMinutes)}" : $"{StudioClockStrip.DurationText(option.ListeningMinutes)} listening";
+                ScoutingText($"{timing} · {CoverText(option.Admission)}" + (compact ? "" : night) + (circuit ? $" · {option.TravelMinutes / 60}h drive" : ""), 14, Heard);
             });
             row.AddChild(details); content.AddChild(row);
             // An act that turned you down says so before you spend the hour on them again.
-            if (!circuit && ArtistManager.Instance.GetArtist(option.ArtistId) is { } asked && desk.StillDeclining(asked))
+            if (!compact && !circuit && ArtistManager.Instance.GetArtist(option.ArtistId) is { } asked && desk.StillDeclining(asked))
                 ScoutingText("They told you no, and nothing's changed for them since.", 14, Heard, PaperTheme.SerifItalic);
-            else if (!circuit && ArtistManager.Instance.GetArtist(option.ArtistId) is { } back && desk.WaitingToBeHeardAgain(back))
+            else if (!compact && !circuit && ArtistManager.Instance.GetArtist(option.ArtistId) is { } back && desk.WaitingToBeHeardAgain(back))
                 ScoutingText("They asked you to come and hear them again before they'd talk.", 14, Ink, PaperTheme.SerifItalic);
             // What the town is saying about them (signing step 7), each in its source's voice.
-            if (!circuit && string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(option.ArtistId)?.labelId))
+            if (!compact && !circuit && string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(option.ArtistId)?.labelId))
                 foreach (var lead in desk.LeadsFor(option.ArtistId, option.CityId, option.Day))
                     ScoutingText($"{lead.Source}: {lead.Text}", 14, lead.Voice == ExecutiveVoice.None ? ScoutingVenueInk : Ink, PaperTheme.Serif);
             // "GO & WAIT", not "WAIT": the header's WAIT 1h / 3h sit on the same screen and only pass time.
@@ -112,6 +115,7 @@ public partial class PlayerDeskPanel {
             if (!circuit && option.Playing && desk.IsAtSceneRoom(option.RoomId)) action.SetMeta("first_week_here", true);
             // Whose set it is: an act that asked to be heard again has its own next set pointed at.
             if (!circuit && option.ArtistId != null) action.SetMeta("scouting_artist", option.ArtistId);
+            if (compact && option.Affordable && signedTo == null) action.SetMeta("first_week_map_set", true);
             // When it's over, so the first week can tell which sets fit before a visit later today.
             if (!circuit) action.SetMeta("set_ends", option.Day * 24 * 60 + option.EndMinute);
             action.Disabled = !circuit && (option.Playing && desk.Label.cashReserves < option.Admission ||
@@ -121,7 +125,7 @@ public partial class PlayerDeskPanel {
                 : option.Playing ? $"Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}."
                 : $"Waiting charges no admission. Cash after admission at today's quote: {Money(desk.Label.cashReserves - option.Admission)}. Future expenses and income may change this amount.";
             string walk = !circuit && !desk.IsAtSceneRoom(option.RoomId) ? $" Includes the {PlayerDesk.CrossTownMinutes}-minute walk across town to the venue." : "";
-            action.TooltipText = $"{option.WaitingMinutes}min wait on the set day.{walk} {costs}\nWhile you wait the month's bills keep running and other labels keep making their moves. Check the bill and price on arrival.";
+            action.TooltipText = $"{StudioClockStrip.DurationText(option.WaitingMinutes)} wait on the set day.{walk} {costs}\nWhile you wait the month's bills keep running and other labels keep making their moves. Check the bill and price on arrival.";
             GreyWhy(action, SceneRoomCatalog.Get(option.RoomId)?.PlaceId != LocalScenePersistenceService.SceneIdFor(desk.CurrentCityId) ? "This room is in another town: drive there first." : "Not enough cash for the admission.");
             var clock = TimeManager.Instance;
             ScoutingTimeRisk(desk, action, circuit ? LocalSceneRoomService.Day(clock.CurrentDate) : option.Day,
@@ -132,7 +136,13 @@ public partial class PlayerDeskPanel {
                 bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
                     ? desk.ListenSceneAppearance(option.BillId, option.EventId, out result)
                     : desk.WaitForSceneAppearance(option.BillId, option.EventId, out result);
-                if (ok && !circuit && option.Playing) OpenTheSet(desk);
+                if (ok && !circuit && option.Playing) {
+                    OpenTheSet(desk);
+                    if (streetPage == StreetPage.Map) {
+                        streetPage = StreetPage.Sets;
+                        streetContentScroll.ScrollVertical = 0;
+                    }
+                }
                 Say(result, ok); if (ok) afterAction?.Invoke(); return ok;
             });
             row.AddChild(action);
@@ -150,7 +160,7 @@ public partial class PlayerDeskPanel {
         void Fill() {
             foreach (Node child in page.GetChildren()) { page.RemoveChild(child); child.QueueFree(); }
             WithinScouting(page, () => ScoutingVenueSheet(desk, room, selectedDay, day => { selectedDay = day; Fill(); },
-                () => { if (scoutingView == "ACT NOTEBOOK") modal.Close(); else Fill(); }, calendarOffsetWeeks,
+                () => { if (scoutingView == "ACT NOTEBOOK" || theSetQueue.Count > 0) modal.Close(); else Fill(); }, calendarOffsetWeeks,
                 step => { calendarOffsetWeeks += step; selectedDay = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate) + calendarOffsetWeeks * 7; Fill(); }, Fill));
         }
         Fill(); modal.AddButton("CLOSE", null);
